@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحليل النتائج | برنامج التدبير المدرسي</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Electron + SQLite - No Firebase needed -->
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Analytics Page Specific Styles */
+        .analytics-container {
+            padding: 20px;
+        }
+
+        .filters-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .filters-section h3 {
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .filter-group select:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .stat-card .icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-size: 20px;
+        }
+
+        .stat-card.students .icon {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .stat-card.highest .icon {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .stat-card.lowest .icon {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .stat-card.average .icon {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .stat-card.success .icon {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .stat-card.mastery .icon {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .stat-card.zero-grade .icon {
+            background: #212121;
+            color: #fff;
+        }
+
+        .stat-card.zero-grade .value {
+            color: #d32f2f;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .stat-card .label {
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .chart-card h4 {
+            margin-bottom: 20px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .grades-table-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .grades-table-section h4 {
+            margin-bottom: 20px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .distribution-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .distribution-table th,
+        .distribution-table td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .distribution-table th {
+            background: #f8f9fa;
+            font-weight: 700;
+            color: #555;
+        }
+
+        .distribution-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .grade-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .grade-badge.excellent {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .grade-badge.very-good {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .grade-badge.good {
+            background: #fff8e1;
+            color: #f9a825;
+        }
+
+        .grade-badge.acceptable {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .grade-badge.weak {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .progress-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .progress-section h4 {
+            margin-bottom: 20px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .progress-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .progress-card {
+            background: linear-gradient(135deg, #f8f9fa, #fff);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .progress-card h5 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .progress-bar-container {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 20px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-bar.success {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+
+        .progress-bar.warning {
+            background: linear-gradient(135deg, #f39c12, #f1c40f);
+        }
+
+        .progress-bar.danger {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .no-data i {
+            font-size: 60px;
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+        }
+
+        /* Zero Grade Modal Styles */
+        .zero-grade-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .zero-grade-modal.active {
+            display: flex;
+        }
+
+        .zero-modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 900px;
+            max-height: 85vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .zero-modal-header {
+            padding: 20px 25px;
+            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .zero-modal-header h3 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+        }
+
+        .zero-modal-header .close-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .zero-modal-header .close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .zero-modal-body {
+            padding: 20px;
+            max-height: calc(85vh - 80px);
+            overflow-y: auto;
+        }
+
+        .zero-students-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .zero-students-table th,
+        .zero-students-table td {
+            padding: 12px 15px;
+            text-align: right;
+            border-bottom: 1px solid #eee;
+        }
+
+        .zero-students-table th {
+            background: #f8f9fa;
+            font-weight: 700;
+            color: #333;
+            position: sticky;
+            top: 0;
+        }
+
+        .zero-students-table tr:hover {
+            background: #fff8f8;
+        }
+
+        .zero-students-table .subject-badge {
+            background: #ffebee;
+            color: #c62828;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .stat-card.zero-grade {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .stat-card.zero-grade:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(211, 47, 47, 0.2);
+        }
+
+        .no-zero-students {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .no-zero-students i {
+            font-size: 48px;
+            color: #4caf50;
+            margin-bottom: 15px;
+        }
+
+        /* Zero Stats Section */
+        .zero-stats-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .zero-stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .zero-stats-card h4 {
+            color: var(--primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+        }
+
+        .level-zero-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .level-zero-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-right: 4px solid #d32f2f;
+        }
+
+        .level-zero-item .level-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .level-zero-item .zero-count {
+            background: #ffebee;
+            color: #c62828;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .top-zeros-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .top-zeros-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #fff8f8, #fff);
+            border-radius: 12px;
+            border: 1px solid #ffcdd2;
+        }
+
+        .top-zeros-item .rank {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 14px;
+        }
+
+        .top-zeros-item .rank.rank-1 {
+            background: linear-gradient(135deg, #d32f2f, #c62828);
+            color: white;
+        }
+
+        .top-zeros-item .rank.rank-2 {
+            background: linear-gradient(135deg, #ff5722, #e64a19);
+            color: white;
+        }
+
+        .top-zeros-item .rank.rank-3 {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: white;
+        }
+
+        .top-zeros-item .student-info {
+            flex: 1;
+        }
+
+        .top-zeros-item .student-name {
+            font-weight: 700;
+            color: #333;
+            font-size: 15px;
+        }
+
+        .top-zeros-item .student-section {
+            font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .top-zeros-item .zeros-badge {
+            background: #d32f2f;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .no-top-zeros {
+            text-align: center;
+            padding: 30px;
+            color: #4caf50;
+        }
+
+        @media (max-width: 768px) {
+            .zero-stats-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo"><i class="fas fa-network-wired"></i></div>
+            <h2>برنامج التدبير</h2>
+            <span class="version">v 2.0</span>
+        </div>
+        <div class="school-info">
+            <i class="fas fa-university"></i>
+            <div class="school-details">
+                <h3>الثانوية التأهيلية</h3>
+                <p>ابن سينا</p>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a>
+                </li>
+                <li class="expandable">
+                    <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>تدبير التلاميذ</span><i
+                            class="fas fa-chevron-down arrow"></i></a>
+                    <ul class="sub-menu">
+                        <li><a href="index.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
+                    </ul>
+                </li>
+                <li class="expandable active">
+                    <a href="#" class="nav-link active"><i class="fas fa-chart-line"></i><span>تدبير النتائج</span><i
+                            class="fas fa-chevron-down arrow"></i></a>
+                    <ul class="sub-menu" style="display: block;">
+                        <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
+                        <li><a href="analytics.html" class="active"><i class="fas fa-chart-bar"></i> تحليل النتائج</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 style="margin-right: 20px;"><i class="fas fa-chart-bar"></i> تحليل النتائج</h2>
+            </div>
+            <div class="header-right">
+                <div class="user-info" id="user-info">
+                    <span id="user-email"></span>
+                    <button class="logout-btn" id="logout-btn" title="تسجيل الخروج"><i
+                            class="fas fa-sign-out-alt"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <div class="analytics-container">
+            <!-- Filters Section -->
+            <div class="filters-section">
+                <h3><i class="fas fa-filter"></i> فلترة البيانات</h3>
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label>المستوى</label>
+                        <select id="filter-level">
+                            <option value="all">جميع المستويات</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>القسم</label>
+                        <select id="filter-section">
+                            <option value="all">جميع الأقسام</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>المادة</label>
+                        <select id="filter-subject">
+                            <option value="all">جميع المواد</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>الفرض</label>
+                        <select id="filter-exam">
+                            <option value="all">جميع الفروض</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Overview -->
+            <div class="stats-overview" id="stats-overview">
+                <div class="stat-card students">
+                    <div class="icon"><i class="fas fa-users"></i></div>
+                    <div class="value" id="total-students">0</div>
+                    <div class="label">عدد التلاميذ</div>
+                </div>
+                <div class="stat-card highest">
+                    <div class="icon"><i class="fas fa-arrow-up"></i></div>
+                    <div class="value" id="highest-grade">--</div>
+                    <div class="label">أعلى نقطة</div>
+                </div>
+                <div class="stat-card lowest">
+                    <div class="icon"><i class="fas fa-arrow-down"></i></div>
+                    <div class="value" id="lowest-grade">--</div>
+                    <div class="label">أدنى نقطة</div>
+                </div>
+                <div class="stat-card average">
+                    <div class="icon"><i class="fas fa-calculator"></i></div>
+                    <div class="value" id="average-grade">--</div>
+                    <div class="label">متوسط النقط</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="value" id="success-rate">--%</div>
+                    <div class="label">نسبة النجاح</div>
+                </div>
+                <div class="stat-card mastery">
+                    <div class="icon"><i class="fas fa-trophy"></i></div>
+                    <div class="value" id="mastery-rate">--%</div>
+                    <div class="label">نسبة التفوق</div>
+                </div>
+                <div class="stat-card zero-grade" id="zero-grade-card" onclick="showZeroGradeStudents()"
+                    title="انقر لعرض التفاصيل">
+                    <div class="icon"><i class="fas fa-ban"></i></div>
+                    <div class="value" id="zero-count">0</div>
+                    <div class="label">الحاصلون على 0 <i class="fas fa-external-link-alt"
+                            style="font-size: 10px; margin-right: 5px;"></i></div>
+                </div>
+            </div>
+
+            <!-- Grade Distribution Table -->
+            <div class="grades-table-section">
+                <h4><i class="fas fa-table"></i> توزيع التقديرات</h4>
+                <table class="distribution-table">
+                    <thead>
+                        <tr>
+                            <th>التقدير</th>
+                            <th>النطاق</th>
+                            <th>عدد التلاميذ</th>
+                            <th>النسبة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="distribution-body">
+                        <tr>
+                            <td><span class="grade-badge excellent">ممتاز</span></td>
+                            <td>16 - 20</td>
+                            <td id="count-excellent">0</td>
+                            <td id="percent-excellent">0%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="grade-badge very-good">حسن جداً</span></td>
+                            <td>14 - 15.99</td>
+                            <td id="count-verygood">0</td>
+                            <td id="percent-verygood">0%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="grade-badge good">حسن</span></td>
+                            <td>12 - 13.99</td>
+                            <td id="count-good">0</td>
+                            <td id="percent-good">0%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="grade-badge acceptable">مقبول</span></td>
+                            <td>10 - 11.99</td>
+                            <td id="count-acceptable">0</td>
+                            <td id="percent-acceptable">0%</td>
+                        </tr>
+                        <tr>
+                            <td><span class="grade-badge weak">ضعيف</span></td>
+                            <td>0 - 9.99</td>
+                            <td id="count-weak">0</td>
+                            <td id="percent-weak">0%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Charts -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h4><i class="fas fa-chart-pie"></i> نسب التقديرات</h4>
+                    <div class="chart-container">
+                        <canvas id="distribution-pie-chart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h4><i class="fas fa-chart-bar"></i> عدد التلاميذ لكل تقدير</h4>
+                    <div class="chart-container">
+                        <canvas id="distribution-bar-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="progress-section">
+                <h4><i class="fas fa-chart-line"></i> تحليل التقدم بين الفروض</h4>
+                <div class="progress-cards" id="progress-cards">
+                    <div class="progress-card">
+                        <h5>📈 نسبة التحسن</h5>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar success" id="improvement-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <span>تلاميذ تحسنوا: <strong id="improved-count">0</strong></span>
+                            <span id="improvement-percent">0%</span>
+                        </div>
+                    </div>
+                    <div class="progress-card">
+                        <h5>📉 نسبة التراجع</h5>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar danger" id="decline-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <span>تلاميذ تراجعوا: <strong id="declined-count">0</strong></span>
+                            <span id="decline-percent">0%</span>
+                        </div>
+                    </div>
+                    <div class="progress-card">
+                        <h5>➡️ نسبة الثبات</h5>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar warning" id="stable-bar" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-stats">
+                            <span>تلاميذ مستقرون: <strong id="stable-count">0</strong></span>
+                            <span id="stable-percent">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zero Stats by Level Section -->
+            <div class="zero-stats-section">
+                <div class="zero-stats-card">
+                    <h4><i class="fas fa-chart-bar"></i> الأصفار حسب المستوى</h4>
+                    <div class="chart-container" style="height: 250px;">
+                        <canvas id="zeros-by-level-chart"></canvas>
+                    </div>
+                </div>
+                <div class="zero-stats-card">
+                    <h4><i class="fas fa-exclamation-triangle"></i> التلاميذ الأكثر حصولاً على 0</h4>
+                    <div class="top-zeros-list" id="top-zeros-list">
+                        <!-- سيتم ملؤها بواسطة JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Zero Grade Students Modal -->
+    <div class="zero-grade-modal" id="zero-grade-modal">
+        <div class="zero-modal-content">
+            <div class="zero-modal-header">
+                <h3><i class="fas fa-ban"></i> التلاميذ الحاصلون على 0</h3>
+                <button class="close-btn" onclick="closeZeroGradeModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="zero-modal-body" id="zero-modal-body">
+                <!-- سيتم ملؤها بواسطة JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data storage
+        let studentsData = [];
+        let totalStudentsCount = 0; // العدد الإجمالي للتلاميذ
+        let pieChart = null;
+        let barChart = null;
+        let zerosByLevelChart = null;
+
+        // Moroccan grading system
+        const GRADE_LEVELS = {
+            excellent: { min: 16, max: 20, label: 'ممتاز', color: '#27ae60' },
+            veryGood: { min: 14, max: 15.99, label: 'حسن جداً', color: '#3498db' },
+            good: { min: 12, max: 13.99, label: 'حسن', color: '#f1c40f' },
+            acceptable: { min: 10, max: 11.99, label: 'مقبول', color: '#e67e22' },
+            weak: { min: 0, max: 9.99, label: 'ضعيف', color: '#e74c3c' }
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStudentsData();
+            setupEventListeners();
+
+            // Set user email (local app - no auth needed)
+            document.getElementById('user-email').textContent = 'المستخدم';
+
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                if (confirm('هل تريد العودة للصفحة الرئيسية؟')) {
+                    window.location.href = 'index.html';
+                }
+            });
+        });
+
+        function setupEventListeners() {
+            // Sidebar toggle
+            document.getElementById('menu-toggle').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.toggle('collapsed');
+            });
+
+            // Filters
+            document.getElementById('filter-level').addEventListener('change', (e) => {
+                updateSectionsForLevel(e.target.value);
+                updateSubjectsForFilters();
+                updateExamsForFilters();
+                updateAnalytics();
+            });
+            document.getElementById('filter-section').addEventListener('change', () => {
+                updateSubjectsForFilters();
+                updateExamsForFilters();
+                updateAnalytics();
+            });
+            document.getElementById('filter-subject').addEventListener('change', () => {
+                updateExamsForFilters();
+                updateAnalytics();
+            });
+            document.getElementById('filter-exam').addEventListener('change', updateAnalytics);
+        }
+
+        function updateSectionsForLevel(levelCode) {
+            const sectionSelect = document.getElementById('filter-section');
+            sectionSelect.innerHTML = '<option value="all">جميع الأقسام</option>';
+
+            let sections;
+            if (levelCode === 'all') {
+                sections = [...new Set(studentsData.map(s => s.section))].filter(s => s);
+            } else {
+                sections = [...new Set(
+                    studentsData
+                        .filter(s => getLevelFromSection(s.section).code === levelCode)
+                        .map(s => s.section)
+                )].filter(s => s);
+            }
+
+            sections.sort().forEach(section => {
+                sectionSelect.innerHTML += `<option value="${section}">${section}</option>`;
+            });
+        }
+
+        function updateSubjectsForFilters() {
+            const levelFilter = document.getElementById('filter-level').value;
+            const sectionFilter = document.getElementById('filter-section').value;
+            const subjectSelect = document.getElementById('filter-subject');
+
+            subjectSelect.innerHTML = '<option value="all">جميع المواد</option>';
+
+            let filtered = studentsData;
+            if (levelFilter !== 'all') {
+                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
+            }
+            if (sectionFilter !== 'all') {
+                filtered = filtered.filter(s => s.section === sectionFilter);
+            }
+
+            const subjects = new Set();
+            filtered.forEach(s => {
+                s.grades.forEach(g => subjects.add(g.subject));
+            });
+
+            [...subjects].sort().forEach(subject => {
+                subjectSelect.innerHTML += `<option value="${subject}">${translateSubject(subject)}</option>`;
+            });
+        }
+
+        function updateExamsForFilters() {
+            const levelFilter = document.getElementById('filter-level').value;
+            const sectionFilter = document.getElementById('filter-section').value;
+            const subjectFilter = document.getElementById('filter-subject').value;
+            const examSelect = document.getElementById('filter-exam');
+
+            examSelect.innerHTML = '<option value="all">جميع الفروض</option>';
+
+            let filtered = studentsData;
+            if (levelFilter !== 'all') {
+                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
+            }
+            if (sectionFilter !== 'all') {
+                filtered = filtered.filter(s => s.section === sectionFilter);
+            }
+
+            const exams = new Set();
+            filtered.forEach(student => {
+                student.grades.forEach(subjectGrade => {
+                    if (subjectFilter !== 'all' && subjectGrade.subject !== subjectFilter) return;
+
+                    if (subjectGrade.grades && subjectGrade.grades.length > 0) {
+                        subjectGrade.grades.forEach((g, idx) => {
+                            const name = typeof g === 'object' ? (g.name || `فرض ${idx + 1}`) : `فرض ${idx + 1}`;
+                            exams.add(name);
+                        });
+                    }
+                });
+            });
+
+            [...exams].sort().forEach(exam => {
+                examSelect.innerHTML += `<option value="${exam}">${exam}</option>`;
+            });
+        }
+
+        // Load from localStorage
+        function loadGradesFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('studentGrades');
+                if (saved) {
+                    return JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Error loading from localStorage:', e);
+            }
+            return null;
+        }
+
+        const currentSchoolYear = '2025/2026'; // الموسم الدراسي الحالي
+
+        async function loadStudentsData() {
+            try {
+                console.log('Loading students data from SQLite for year:', currentSchoolYear);
+
+                // Check if Electron API is available
+                if (!window.api) {
+                    console.warn('Electron API not available, trying localStorage fallback');
+                    const localGrades = loadGradesFromLocalStorage();
+                    if (localGrades && localGrades.length > 0) {
+                        studentsData = localGrades.filter(s => s.grades && s.grades.length > 0);
+                        totalStudentsCount = localGrades.length;
+                        populateFilters();
+                        updateAnalytics();
+                    }
+                    return;
+                }
+
+                // جلب التلاميذ من SQLite
+                const students = await window.api.students.getAll(currentSchoolYear);
+
+                // جلب النقط من SQLite
+                const grades = await window.api.grades.getAll(currentSchoolYear);
+
+                console.log('Loaded students:', students?.length || 0, 'Grades records:', grades?.length || 0);
+
+                if (students && students.length > 0) {
+                    // إنشاء خريطة للنقط حسب معرف التلميذ
+                    const gradesMap = new Map();
+                    if (grades && grades.length > 0) {
+                        grades.forEach(g => {
+                            if (!gradesMap.has(g.student_id)) {
+                                gradesMap.set(g.student_id, []);
+                            }
+                            gradesMap.get(g.student_id).push({
+                                subject: g.subject,
+                                moyenne: g.moyenne,
+                                grades: g.grades_data ? JSON.parse(g.grades_data) : []
+                            });
+                        });
+                    }
+
+                    // دمج التلاميذ مع نقطهم
+                    let allStudents = students.map(s => ({
+                        id: s.id,
+                        docId: s.id.toString(),
+                        code: s.code,
+                        firstName: s.first_name,
+                        familyName: s.family_name,
+                        section: s.section,
+                        level: s.level,
+                        gender: s.gender,
+                        grades: gradesMap.get(s.id) || [],
+                        generalAverage: s.general_average
+                    }));
+
+                    // Merge with localStorage if available
+                    const localGrades = loadGradesFromLocalStorage();
+                    if (localGrades && localGrades.length > 0) {
+                        const localMap = new Map(localGrades.map(s => [s.docId || s.id?.toString(), s]));
+                        allStudents = allStudents.map(student => {
+                            const local = localMap.get(student.docId);
+                            if (local && local.grades && local.grades.length > 0) {
+                                return {
+                                    ...student,
+                                    grades: local.grades,
+                                    generalAverage: local.generalAverage || student.generalAverage
+                                };
+                            }
+                            return student;
+                        });
+                    }
+
+                    studentsData = allStudents.filter(s => s.grades && s.grades.length > 0);
+                    totalStudentsCount = allStudents.length;
+                    console.log('Total students:', totalStudentsCount, 'With grades:', studentsData.length);
+
+                    populateFilters();
+                    updateAnalytics();
+                } else {
+                    // Fallback to localStorage
+                    const localGrades = loadGradesFromLocalStorage();
+                    if (localGrades && localGrades.length > 0) {
+                        studentsData = localGrades.filter(s => s.grades && s.grades.length > 0);
+                        totalStudentsCount = localGrades.length;
+                        populateFilters();
+                        updateAnalytics();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading students:', error);
+                // Fallback to localStorage on error
+                const localGrades = loadGradesFromLocalStorage();
+                if (localGrades && localGrades.length > 0) {
+                    studentsData = localGrades.filter(s => s.grades && s.grades.length > 0);
+                    totalStudentsCount = localGrades.length;
+                    populateFilters();
+                    updateAnalytics();
+                }
+            }
+        }
+
+        function populateFilters() {
+            // Get unique levels with their order
+            const levelsMap = new Map();
+            studentsData.forEach(s => {
+                const level = getLevelFromSection(s.section);
+                if (!levelsMap.has(level.code)) {
+                    levelsMap.set(level.code, { code: level.code, name: level.name, order: level.order });
+                }
+            });
+
+            // Sort levels by order (TC first, then 1BAC, then 2BAC)
+            const sortedLevels = [...levelsMap.values()].sort((a, b) => a.order - b.order);
+
+            const levelSelect = document.getElementById('filter-level');
+            levelSelect.innerHTML = '<option value="all">جميع المستويات</option>';
+            sortedLevels.forEach(level => {
+                levelSelect.innerHTML += `<option value="${level.code}">${level.name}</option>`;
+            });
+
+            // Get unique sections
+            const sections = [...new Set(studentsData.map(s => s.section))].filter(s => s);
+            const sectionSelect = document.getElementById('filter-section');
+            sectionSelect.innerHTML = '<option value="all">جميع الأقسام</option>';
+            sections.sort().forEach(section => {
+                sectionSelect.innerHTML += `<option value="${section}">${section}</option>`;
+            });
+
+            // Get unique subjects
+            const subjects = new Set();
+            studentsData.forEach(s => {
+                s.grades.forEach(g => subjects.add(g.subject));
+            });
+            const subjectSelect = document.getElementById('filter-subject');
+            subjectSelect.innerHTML = '<option value="all">جميع المواد</option>';
+            [...subjects].sort().forEach(subject => {
+                subjectSelect.innerHTML += `<option value="${subject}">${translateSubject(subject)}</option>`;
+            });
+        }
+
+        function getLevelFromSection(section) {
+            if (!section) return { code: 'other', name: 'أخرى', order: 99 };
+            const s = section.toUpperCase();
+
+            // استخراج البادئة (قبل الرقم مثل TCSF-1 → TCSF)
+            const prefix = s.replace(/-\d+$/, '');
+
+            // === الجذع المشترك ===
+            if (prefix === 'TCSF' || prefix === 'TCS' || s.startsWith('TCSF')) {
+                return { code: 'tcsf', name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 };
+            }
+            if (prefix === 'TCSA' || s.startsWith('TCSA')) {
+                return { code: 'tcsa', name: 'الجذع المشترك العلمي خيار عربية', order: 2 };
+            }
+            if (prefix === 'TCLSH' || prefix === 'TCL' || s.startsWith('TCLSH') || s.startsWith('TCL')) {
+                return { code: 'tclsh', name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 };
+            }
+
+            // === الأولى باكالوريا ===
+            if (prefix === '1BACSM' || s.startsWith('1BACSM')) {
+                return { code: '1bacsm', name: 'الأولى باكالوريا العلوم الرياضية خيار فرنسية', order: 4 };
+            }
+            if (prefix === '1BACSH' || prefix === '1BACL' || s.startsWith('1BACSH') || s.startsWith('1BACL')) {
+                return { code: '1bacsh', name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 5 };
+            }
+            if (prefix === '1BACSEF' || s.startsWith('1BACSEF')) {
+                return { code: '1bacsef', name: 'الأولى باكالوريا علوم تجريبية خيار فرنسية', order: 6 };
+            }
+            if (prefix === '1BACECO' || prefix === '1BACGE' || s.startsWith('1BACECO') || s.startsWith('1BACGE')) {
+                return { code: '1baceco', name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 7 };
+            }
+            if (prefix === '1BACSEA' || s.startsWith('1BACSEA')) {
+                return { code: '1bacsea', name: 'الأولى باكالوريا علوم تجريبية خيار عربية', order: 8 };
+            }
+            if (prefix === '1BACSE' || s.startsWith('1BACSE')) {
+                return { code: '1bacse', name: 'الأولى باكالوريا علوم تجريبية', order: 6 };
+            }
+
+            // === الثانية باكالوريا ===
+            if (prefix === '2BACSA' || s.startsWith('2BACSA')) {
+                return { code: '2bacsa', name: 'الثانية باكالوريا علوم شرعية', order: 9 };
+            }
+            if (prefix === '2BACSM' || s.startsWith('2BACSM')) {
+                return { code: '2bacsm', name: 'الثانية باكالوريا العلوم الرياضية', order: 10 };
+            }
+            if (prefix === '2BACSVT' || s.startsWith('2BACSVT') || s.includes('SVT')) {
+                return { code: '2bacsvt', name: 'الثانية باكالوريا علوم الحياة والأرض', order: 11 };
+            }
+            if (prefix === '2BACPC' || s.startsWith('2BACPC') || (s.includes('2BAC') && s.includes('PC'))) {
+                return { code: '2bacpc', name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 12 };
+            }
+            if (prefix === '2BACSH' || prefix === '2BACL' || s.startsWith('2BACSH') || s.startsWith('2BACL')) {
+                return { code: '2bacsh', name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 13 };
+            }
+            if (prefix === '2BACECO' || prefix === '2BACGC' || s.includes('ECO') || s.includes('GESTION')) {
+                return { code: '2baceco', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 14 };
+            }
+
+            // Fallbacks
+            if (s.includes('1BAC')) return { code: '1bac', name: 'الأولى باكالوريا', order: 15 };
+            if (s.includes('2BAC')) return { code: '2bac', name: 'الثانية باكالوريا', order: 16 };
+            if (s.startsWith('TC')) return { code: 'tc', name: 'الجذع المشترك', order: 4 };
+
+            return { code: 'other', name: section, order: 99 };
+        }
+
+        function getLevelInfo(code) {
+            const levels = {
+                'tcsf': 'الجذع المشترك العلمي خيار فرنسية',
+                'tcsa': 'الجذع المشترك العلمي خيار عربية',
+                'tclsh': 'الجذع المشترك للآداب والعلوم الإنسانية',
+                'tc': 'الجذع المشترك',
+                '1bacsm': 'الأولى باكالوريا العلوم الرياضية خيار فرنسية',
+                '1bacsef': 'الأولى باكالوريا علوم تجريبية خيار فرنسية',
+                '1bacse': 'الأولى باكالوريا علوم تجريبية',
+                '1baceco': 'الأولى باكالوريا علوم الإقتصاد والتدبير',
+                '1bacsh': 'الأولى باكالوريا آداب وعلوم إنسانية',
+                '1bac': 'الأولى باكالوريا',
+                '2bacsm': 'الثانية باكالوريا العلوم الرياضية',
+                '2bacpc': 'الثانية باكالوريا علوم فيزيائية خيار فرنسية',
+                '2bacsvt': 'الثانية باكالوريا علوم الحياة والأرض',
+                '2baceco': 'الثانية باكالوريا علوم الإقتصاد والتدبير',
+                '2bacsh': 'الثانية باكالوريا آداب وعلوم إنسانية',
+                '2bac': 'الثانية باكالوريا',
+                'other': 'أخرى'
+            };
+            return levels[code] || code;
+        }
+
+        // ترجمة أسماء المواد من الفرنسية إلى العربية
+        function translateSubject(subject) {
+            if (!subject) return '';
+            const s = subject.toUpperCase().trim();
+
+            const translations = {
+                // العلوم
+                'MATHEMATIQUES': 'الرياضيات',
+                'MATH': 'الرياضيات',
+                'MATHS': 'الرياضيات',
+                'SC. DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
+                'SVT': 'علوم الحياة والأرض',
+                'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
+                'PHYSIQUE': 'الفيزياء',
+                'CHIMIE': 'الكيمياء',
+                'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
+                'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء',
+                'PC': 'الفيزياء والكيمياء',
+                'INFORMATIQUE': 'المعلوميات',
+
+                // اللغات
+                'FRANCAIS': 'الفرنسية',
+                'FRANÇAIS': 'الفرنسية',
+                'LANGUE FRANCAISE': 'الفرنسية',
+                'ARABE': 'العربية',
+                'LANGUE ARABE': 'العربية',
+                'ANGLAIS': 'الإنجليزية',
+                'LANGUE ANGLAISE': 'الإنجليزية',
+                'ESPAGNOL': 'الإسبانية',
+                'ALLEMAND': 'الألمانية',
+                'ITALIEN': 'الإيطالية',
+
+                // العلوم الإنسانية
+                'PHILOSOPHIE': 'الفلسفة',
+                'PHILO': 'الفلسفة',
+                'HISTOIRE': 'التاريخ',
+                'GEOGRAPHIE': 'الجغرافيا',
+                'HISTOIRE-GEOGRAPHIE': 'التاريخ والجغرافيا',
+                'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا',
+                'HG': 'التاريخ والجغرافيا',
+                'HIST-GEO': 'التاريخ والجغرافيا',
+                'EDUCATION ISLAMIQUE': 'التربية الإسلامية',
+                'ISLAMIC': 'التربية الإسلامية',
+                'ED. ISLAMIQUE': 'التربية الإسلامية',
+
+                // مواد أخرى
+                'ECONOMIE': 'الاقتصاد',
+                'ECONOMIE GENERALE': 'الاقتصاد العام',
+                'COMPTABILITE': 'المحاسبة',
+                'GESTION': 'التدبير',
+                'DROIT': 'القانون',
+                'ORGANISATION': 'التنظيم',
+                'ORGANISATION DES ENTREPRISES': 'تنظيم المقاولات',
+                'EPS': 'التربية البدنية',
+                'EDUCATION PHYSIQUE': 'التربية البدنية',
+                'SPORT': 'التربية البدنية',
+                'TRADUCTION': 'الترجمة',
+                'LITTERATURE': 'الأدب',
+                'LITTERATURE ARABE': 'الأدب العربي',
+                'CONDUITE': 'السلوك',
+                'STATISTIQUES': 'الإحصاء',
+                'STAT': 'الإحصاء'
+            };
+
+            // البحث عن الترجمة المطابقة تماماً
+            if (translations[s]) {
+                return translations[s];
+            }
+
+            // البحث عن الترجمة الجزئية
+            for (const [french, arabic] of Object.entries(translations)) {
+                if (s.includes(french) || french.includes(s)) {
+                    return arabic;
+                }
+            }
+
+            // إرجاع الاسم الأصلي إذا لم توجد ترجمة
+            return subject;
+        }
+
+        function updateAnalytics() {
+            const levelFilter = document.getElementById('filter-level').value;
+            const sectionFilter = document.getElementById('filter-section').value;
+            const subjectFilter = document.getElementById('filter-subject').value;
+            const examFilter = document.getElementById('filter-exam').value;
+
+            // Filter students
+            let filtered = studentsData;
+            if (levelFilter !== 'all') {
+                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
+            }
+            if (sectionFilter !== 'all') {
+                filtered = filtered.filter(s => s.section === sectionFilter);
+            }
+
+            // Get all grades for analysis
+            let allGrades = [];
+            let gradesByExam = {};
+
+            filtered.forEach(student => {
+                student.grades.forEach(subjectGrade => {
+                    if (subjectFilter !== 'all' && subjectGrade.subject !== subjectFilter) return;
+
+                    // Individual exam grades
+                    if (subjectGrade.grades && subjectGrade.grades.length > 0) {
+                        subjectGrade.grades.forEach((g, idx) => {
+                            const value = typeof g === 'object' ? g.value : g;
+                            const name = typeof g === 'object' ? (g.name || `فرض ${idx + 1}`) : `فرض ${idx + 1}`;
+                            if (value !== null && value !== undefined) {
+                                if (!gradesByExam[name]) gradesByExam[name] = [];
+                                gradesByExam[name].push({ studentCode: student.code, value: value });
+
+                                // إذا تم اختيار فرض معين، نضيف فقط نقط هذا الفرض
+                                if (examFilter !== 'all') {
+                                    if (name === examFilter) {
+                                        allGrades.push(value);
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    // إذا كان "جميع الفروض"، نستخدم معدل المادة
+                    if (examFilter === 'all') {
+                        if (subjectGrade.moyenne !== null && subjectGrade.moyenne !== undefined) {
+                            allGrades.push(subjectGrade.moyenne);
+                        }
+                    }
+                });
+            });
+
+            // حساب معدلات التلاميذ للتوزيع (generalAverage)
+            const studentAverages = filtered
+                .filter(s => s.generalAverage !== null && s.generalAverage !== undefined)
+                .map(s => s.generalAverage);
+
+            // Update statistics - pass total students count
+            updateStatistics(allGrades, totalStudentsCount, filtered);
+            // تمرير معدلات التلاميذ للتوزيع بدلاً من نقط المواد
+            updateDistribution(studentAverages);
+            updateCharts(studentAverages);
+            updateProgress(gradesByExam);
+            updateZeroStats();
+        }
+
+        function updateStatistics(grades, totalStudents, filteredStudents) {
+            document.getElementById('total-students').textContent = totalStudents;
+
+            // حساب عدد الحاصلين على 0 من النقط الفردية للفروض
+            const zeroGradesList = getZeroGradeStudents();
+            const zeroCount = zeroGradesList.length;
+
+            if (grades.length === 0) {
+                document.getElementById('highest-grade').textContent = '--';
+                document.getElementById('lowest-grade').textContent = '--';
+                document.getElementById('average-grade').textContent = '--';
+                document.getElementById('success-rate').textContent = '--%';
+                document.getElementById('mastery-rate').textContent = '--%';
+                document.getElementById('zero-count').textContent = zeroCount;
+                return;
+            }
+
+            const highest = Math.max(...grades);
+            const lowest = Math.min(...grades);
+            const average = grades.reduce((a, b) => a + b, 0) / grades.length;
+            const successCount = grades.filter(g => g >= 10).length;
+            const masteryCount = grades.filter(g => g >= 14).length;
+
+            document.getElementById('highest-grade').textContent = highest.toFixed(2);
+            document.getElementById('lowest-grade').textContent = lowest.toFixed(2);
+            document.getElementById('average-grade').textContent = average.toFixed(2);
+            document.getElementById('success-rate').textContent = ((successCount / grades.length) * 100).toFixed(1) + '%';
+            document.getElementById('mastery-rate').textContent = ((masteryCount / grades.length) * 100).toFixed(1) + '%';
+            document.getElementById('zero-count').textContent = zeroCount;
+        }
+
+        function updateDistribution(grades) {
+            const total = grades.length;
+            const distribution = {
+                excellent: grades.filter(g => g >= 16).length,
+                veryGood: grades.filter(g => g >= 14 && g < 16).length,
+                good: grades.filter(g => g >= 12 && g < 14).length,
+                acceptable: grades.filter(g => g >= 10 && g < 12).length,
+                weak: grades.filter(g => g < 10).length
+            };
+
+            document.getElementById('count-excellent').textContent = distribution.excellent;
+            document.getElementById('count-verygood').textContent = distribution.veryGood;
+            document.getElementById('count-good').textContent = distribution.good;
+            document.getElementById('count-acceptable').textContent = distribution.acceptable;
+            document.getElementById('count-weak').textContent = distribution.weak;
+
+            const pct = (count) => total > 0 ? ((count / total) * 100).toFixed(1) + '%' : '0%';
+            document.getElementById('percent-excellent').textContent = pct(distribution.excellent);
+            document.getElementById('percent-verygood').textContent = pct(distribution.veryGood);
+            document.getElementById('percent-good').textContent = pct(distribution.good);
+            document.getElementById('percent-acceptable').textContent = pct(distribution.acceptable);
+            document.getElementById('percent-weak').textContent = pct(distribution.weak);
+
+            return distribution;
+        }
+
+        function updateCharts(grades) {
+            const distribution = {
+                excellent: grades.filter(g => g >= 16).length,
+                veryGood: grades.filter(g => g >= 14 && g < 16).length,
+                good: grades.filter(g => g >= 12 && g < 14).length,
+                acceptable: grades.filter(g => g >= 10 && g < 12).length,
+                weak: grades.filter(g => g < 10).length
+            };
+
+            const labels = ['ممتاز', 'حسن جداً', 'حسن', 'مقبول', 'ضعيف'];
+            const data = [distribution.excellent, distribution.veryGood, distribution.good, distribution.acceptable, distribution.weak];
+            const colors = ['#27ae60', '#3498db', '#f1c40f', '#e67e22', '#e74c3c'];
+
+            // Pie Chart
+            const pieCtx = document.getElementById('distribution-pie-chart').getContext('2d');
+            if (pieChart) pieChart.destroy();
+            pieChart = new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            rtl: true,
+                            labels: {
+                                font: { family: 'Tajawal', size: 12 },
+                                padding: 15
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Bar Chart
+            const barCtx = document.getElementById('distribution-bar-chart').getContext('2d');
+            if (barChart) barChart.destroy();
+            barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'عدد التلاميذ',
+                        data: data,
+                        backgroundColor: colors,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'x',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { family: 'Tajawal' } }
+                        },
+                        x: {
+                            ticks: { font: { family: 'Tajawal' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateProgress(gradesByExam) {
+            const examNames = Object.keys(gradesByExam);
+            if (examNames.length < 2) {
+                // Not enough exams to compare
+                document.getElementById('improved-count').textContent = '0';
+                document.getElementById('declined-count').textContent = '0';
+                document.getElementById('stable-count').textContent = '0';
+                document.getElementById('improvement-percent').textContent = '0%';
+                document.getElementById('decline-percent').textContent = '0%';
+                document.getElementById('stable-percent').textContent = '0%';
+                document.getElementById('improvement-bar').style.width = '0%';
+                document.getElementById('decline-bar').style.width = '0%';
+                document.getElementById('stable-bar').style.width = '0%';
+                return;
+            }
+
+            // Compare first and last exam
+            const firstExam = gradesByExam[examNames[0]];
+            const lastExam = gradesByExam[examNames[examNames.length - 1]];
+
+            // Create maps for comparison
+            const firstMap = new Map(firstExam.map(g => [g.studentCode, g.value]));
+            const lastMap = new Map(lastExam.map(g => [g.studentCode, g.value]));
+
+            let improved = 0, declined = 0, stable = 0;
+
+            firstMap.forEach((firstValue, code) => {
+                if (lastMap.has(code)) {
+                    const lastValue = lastMap.get(code);
+                    const diff = lastValue - firstValue;
+                    if (diff > 0.5) improved++;
+                    else if (diff < -0.5) declined++;
+                    else stable++;
+                }
+            });
+
+            const total = improved + declined + stable;
+            if (total === 0) return;
+
+            document.getElementById('improved-count').textContent = improved;
+            document.getElementById('declined-count').textContent = declined;
+            document.getElementById('stable-count').textContent = stable;
+
+            const improvedPct = ((improved / total) * 100).toFixed(1);
+            const declinedPct = ((declined / total) * 100).toFixed(1);
+            const stablePct = ((stable / total) * 100).toFixed(1);
+
+            document.getElementById('improvement-percent').textContent = improvedPct + '%';
+            document.getElementById('decline-percent').textContent = declinedPct + '%';
+            document.getElementById('stable-percent').textContent = stablePct + '%';
+
+            document.getElementById('improvement-bar').style.width = improvedPct + '%';
+            document.getElementById('decline-bar').style.width = declinedPct + '%';
+            document.getElementById('stable-bar').style.width = stablePct + '%';
+        }
+
+        // ============ ZERO GRADE STUDENTS FUNCTIONS ============
+
+        // متغير لتخزين بيانات التلاميذ الحاصلين على 0
+        let zeroGradeStudentsList = [];
+
+        // جلب التلاميذ الحاصلين على 0
+        function getZeroGradeStudents() {
+            const levelFilter = document.getElementById('filter-level').value;
+            const sectionFilter = document.getElementById('filter-section').value;
+            const subjectFilter = document.getElementById('filter-subject').value;
+
+            let filtered = studentsData;
+            if (levelFilter !== 'all') {
+                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
+            }
+            if (sectionFilter !== 'all') {
+                filtered = filtered.filter(s => s.section === sectionFilter);
+            }
+
+            const zeroStudents = [];
+
+            filtered.forEach(student => {
+                student.grades.forEach(subjectGrade => {
+                    if (subjectFilter !== 'all' && subjectGrade.subject !== subjectFilter) return;
+
+                    if (subjectGrade.grades && subjectGrade.grades.length > 0) {
+                        subjectGrade.grades.forEach((g, idx) => {
+                            const value = typeof g === 'object' ? g.value : g;
+                            const examName = typeof g === 'object' ? (g.name || `فرض ${idx + 1}`) : `فرض ${idx + 1}`;
+
+                            if (value === 0) {
+                                const levelInfo = getLevelFromSection(student.section);
+                                zeroStudents.push({
+                                    code: student.code,
+                                    firstName: student.firstName,
+                                    familyName: student.familyName,
+                                    section: student.section,
+                                    level: levelInfo.name,
+                                    subject: translateSubject(subjectGrade.subject),
+                                    examName: examName,
+                                    grade: value
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+
+            return zeroStudents;
+        }
+
+        // تحديث إحصائيات الأصفار حسب المستوى وأكثر التلاميذ
+        function updateZeroStats() {
+            const zeroList = getZeroGradeStudents();
+
+            // === 1. الأصفار حسب المستوى - رسم بياني ===
+            const zerosByLevel = {};
+            zeroList.forEach(z => {
+                if (!zerosByLevel[z.level]) {
+                    zerosByLevel[z.level] = 0;
+                }
+                zerosByLevel[z.level]++;
+            });
+
+            // ترتيب حسب عدد الأصفار (تنازلي)
+            const sortedLevels = Object.entries(zerosByLevel)
+                .sort((a, b) => b[1] - a[1]);
+
+            const levelLabels = sortedLevels.map(([level]) => level);
+            const levelCounts = sortedLevels.map(([, count]) => count);
+
+            // ألوان متدرجة للأعمدة
+            const barColors = [
+                '#d32f2f', '#e53935', '#f44336', '#ef5350', '#e57373',
+                '#ef9a9a', '#ffcdd2', '#ffebee'
+            ];
+
+            // حذف الرسم البياني القديم إن وجد
+            if (zerosByLevelChart) {
+                zerosByLevelChart.destroy();
+            }
+
+            const ctx = document.getElementById('zeros-by-level-chart');
+            if (ctx) {
+                zerosByLevelChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: levelLabels,
+                        datasets: [{
+                            label: 'عدد الأصفار',
+                            data: levelCounts,
+                            backgroundColor: levelLabels.map((_, i) => barColors[i % barColors.length]),
+                            borderColor: levelLabels.map((_, i) => barColors[i % barColors.length]),
+                            borderWidth: 1,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y', // أعمدة أفقية للسهولة في القراءة
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return context.raw + ' صفر';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                position: 'top', // القيم في الأعلى
+                                reverse: true, // عكس الاتجاه للـ RTL
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    font: {
+                                        family: 'Tajawal'
+                                    }
+                                }
+                            },
+                            y: {
+                                position: 'right', // أسماء المستويات على اليمين
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    font: {
+                                        family: 'Tajawal',
+                                        size: 11
+                                    },
+                                    mirror: false
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // === 2. أكثر 3 تلاميذ حصولاً على 0 ===
+            const studentZeroCounts = {};
+            zeroList.forEach(z => {
+                const key = z.code;
+                if (!studentZeroCounts[key]) {
+                    studentZeroCounts[key] = {
+                        code: z.code,
+                        firstName: z.firstName,
+                        familyName: z.familyName,
+                        section: z.section,
+                        count: 0
+                    };
+                }
+                studentZeroCounts[key].count++;
+            });
+
+            // ترتيب حسب عدد الأصفار وأخذ أول 3
+            const topStudents = Object.values(studentZeroCounts)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 3);
+
+            const topZerosContainer = document.getElementById('top-zeros-list');
+            if (topStudents.length === 0) {
+                topZerosContainer.innerHTML = `
+                    <div class="no-top-zeros">
+                        <i class="fas fa-check-circle" style="font-size: 40px; margin-bottom: 10px;"></i>
+                        <p>🎉 لا يوجد تلاميذ حاصلون على 0</p>
+                    </div>
+                `;
+            } else {
+                topZerosContainer.innerHTML = topStudents.map((student, idx) => `
+                    <div class="top-zeros-item">
+                        <div class="rank rank-${idx + 1}">${idx + 1}</div>
+                        <div class="student-info">
+                            <div class="student-name">${escapeHtml(student.familyName)} ${escapeHtml(student.firstName)}</div>
+                            <div class="student-section">${escapeHtml(student.section)}</div>
+                        </div>
+                        <div class="zeros-badge">${student.count} صفر</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // فتح صفحة التلاميذ الحاصلين على 0
+        function showZeroGradeStudents() {
+            zeroGradeStudentsList = getZeroGradeStudents();
+
+            if (zeroGradeStudentsList.length === 0) {
+                alert('🎉 لا يوجد تلاميذ حاصلون على 0\nجميع التلاميذ حصلوا على نقط أعلى من الصفر');
+                return;
+            }
+
+            // حفظ البيانات في localStorage
+            localStorage.setItem('zeroGradeStudents', JSON.stringify(zeroGradeStudentsList));
+
+            // فتح الصفحة الجديدة
+            window.open('studentzero.html', '_blank');
+        }
+
+        // إغلاق النافذة المنبثقة (للتوافق مع الكود القديم)
+        function closeZeroGradeModal() {
+            const modal = document.getElementById('zero-grade-modal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
+        }
+
+        // دالة تنقية HTML للحماية من XSS
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+    </script>
+</body>
+
+</html>

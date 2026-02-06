@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لائحة التلاميذ الحاصلين على 0 | الثانوية التأهيلية ابن سينا</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            direction: rtl;
+            min-height: 100vh;
+        }
+
+        .print-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .print-header {
+            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .print-header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .print-header .school-name {
+            font-size: 18px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .print-header .date {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .print-body {
+            padding: 30px;
+        }
+
+        .summary-box {
+            background: #fff8f8;
+            border: 2px solid #ffcdd2;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-item .count {
+            font-size: 28px;
+            font-weight: 800;
+            color: #d32f2f;
+        }
+
+        .summary-item .label {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .students-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .students-table th,
+        .students-table td {
+            padding: 12px 15px;
+            text-align: right;
+            border: 1px solid #e0e0e0;
+        }
+
+        .students-table th {
+            background: #263238;
+            color: white;
+            font-weight: 600;
+        }
+
+        .students-table tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        .students-table tr:hover {
+            background: #fff8f8;
+        }
+
+        .students-table .grade-zero {
+            background: #ffebee;
+            color: #c62828;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 15px;
+            display: inline-block;
+        }
+
+        .subject-badge {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .print-footer {
+            padding: 20px 30px;
+            background: #f5f5f5;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .actions-bar {
+            padding: 20px 30px;
+            background: #fafafa;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-print {
+            background: linear-gradient(135deg, #00838f 0%, #00acc1 100%);
+            color: white;
+        }
+
+        .btn-print:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 131, 143, 0.3);
+        }
+
+        .btn-back {
+            background: linear-gradient(135deg, #7b1fa2 0%, #9c27b0 100%);
+            color: white;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(123, 31, 162, 0.3);
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .no-data i {
+            font-size: 60px;
+            color: #4caf50;
+            margin-bottom: 15px;
+        }
+
+        .no-data h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .print-container {
+                box-shadow: none;
+                border-radius: 0;
+            }
+
+            .actions-bar {
+                display: none !important;
+            }
+
+            .print-header {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .students-table th {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .students-table tr:nth-child(even) {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .grade-zero,
+            .subject-badge {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="print-container">
+        <div class="actions-bar">
+            <button class="btn btn-print" onclick="window.print()">
+                <i class="fas fa-print"></i>
+                طباعة
+            </button>
+            <a href="analytics.html" class="btn btn-back">
+                <i class="fas fa-arrow-right"></i>
+                العودة للتحليل
+            </a>
+        </div>
+
+        <div class="print-header">
+            <div class="school-name">الثانوية التأهيلية ابن سينا</div>
+            <h1><i class="fas fa-exclamation-triangle"></i> لائحة التلاميذ الحاصلين على 0</h1>
+            <div class="date" id="current-date"></div>
+        </div>
+
+        <div class="print-body">
+            <div class="summary-box" id="summary-box">
+                <div class="summary-item">
+                    <div class="label">إجمالي الحالات</div>
+                    <div class="count" id="total-cases">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">عدد التلاميذ</div>
+                    <div class="count" id="unique-students">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">الموسم الدراسي</div>
+                    <div class="count" style="font-size: 18px; color: #333;">2025/2026</div>
+                </div>
+            </div>
+
+            <div id="table-container">
+                <!-- سيتم ملؤها بواسطة JavaScript -->
+            </div>
+        </div>
+
+        <div class="print-footer">
+            <p>© <span id="year"></span> برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا</p>
+        </div>
+    </div>
+
+    <script>
+        // تحديث التاريخ
+        document.getElementById('current-date').textContent = new Date().toLocaleDateString('ar-MA', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        // جلب البيانات من localStorage
+        function loadData() {
+            const data = localStorage.getItem('zeroGradeStudents');
+            const container = document.getElementById('table-container');
+
+            if (!data) {
+                container.innerHTML = `
+                    <div class="no-data">
+                        <i class="fas fa-check-circle"></i>
+                        <h3>🎉 لا توجد بيانات</h3>
+                        <p>لم يتم العثور على بيانات. يرجى العودة لصفحة التحليل والنقر على بطاقة "الحاصلون على 0".</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const students = JSON.parse(data);
+
+            if (students.length === 0) {
+                container.innerHTML = `
+                    <div class="no-data">
+                        <i class="fas fa-check-circle"></i>
+                        <h3>🎉 لا يوجد تلاميذ حاصلون على 0</h3>
+                        <p>جميع التلاميذ حصلوا على نقط أعلى من الصفر</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // حساب عدد التلاميذ الفريدين
+            const uniqueStudentCodes = [...new Set(students.map(s => s.code))];
+
+            // تحديث الإحصائيات
+            document.getElementById('total-cases').textContent = students.length;
+            document.getElementById('unique-students').textContent = uniqueStudentCodes.length;
+
+            // إنشاء الجدول
+            let tableRows = students.map((s, idx) => `
+                <tr>
+                    <td>${idx + 1}</td>
+                    <td>${escapeHtml(s.level)}</td>
+                    <td>${escapeHtml(s.section)}</td>
+                    <td>${escapeHtml(s.code)}</td>
+                    <td>${escapeHtml(s.familyName)}</td>
+                    <td>${escapeHtml(s.firstName)}</td>
+                    <td><span class="subject-badge">${escapeHtml(s.subject)}</span></td>
+                    <td>${escapeHtml(s.examName)}</td>
+                    <td><span class="grade-zero">${s.grade}</span></td>
+                </tr>
+            `).join('');
+
+            container.innerHTML = `
+                <table class="students-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>المستوى</th>
+                            <th>القسم</th>
+                            <th>الرمز</th>
+                            <th>النسب</th>
+                            <th>الاسم</th>
+                            <th>المادة</th>
+                            <th>الفرض</th>
+                            <th>النقطة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // دالة تنقية HTML
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        // تحميل البيانات عند فتح الصفحة
+        loadData();
+    </script>
+</body>
+
+</html>

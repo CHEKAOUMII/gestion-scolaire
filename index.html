@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>برنامج التدبير المدرسي | الثانوية التأهيلية ابن سينا</title>
+    <meta name="description" content="نظام التدبير المدرسي المتكامل لإدارة شؤون التلاميذ">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo"><i class="fas fa-network-wired"></i></div>
+            <h2>برنامج التدبير</h2>
+            <span class="version">v 2.0</span>
+        </div>
+        <div class="time-widget">
+            <div class="time" id="current-time">00:00</div>
+            <div class="date" id="current-date">--/--</div>
+        </div>
+        <div class="school-info">
+            <i class="fas fa-university"></i>
+            <div class="school-details">
+                <h3>الثانوية التأهيلية</h3>
+                <p>ابن سينا</p>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="#" class="nav-link active" data-section="dashboard"><i
+                            class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a></li>
+                <li class="expandable">
+                    <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>تدبير التلاميذ</span><i
+                            class="fas fa-chevron-down arrow"></i></a>
+                    <ul class="sub-menu">
+                        <li><a href="#" data-section="students-list"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
+                        <li><a href="#" data-section="students-files"><i class="fas fa-folder-open"></i> ترتيب
+                                الملفات</a></li>
+                        <li><a href="#" data-section="students-register"><i class="fas fa-user-plus"></i> التسجيل</a>
+                        </li>
+                        <li><a href="#" data-section="students-movement"><i class="fas fa-exchange-alt"></i> حركية
+                                التلاميذ</a></li>
+                    </ul>
+                </li>
+                <li class="expandable">
+                    <a href="#" class="nav-link"><i class="fas fa-chart-line"></i><span>تدبير النتائج</span><i
+                            class="fas fa-chevron-down arrow"></i></a>
+                    <ul class="sub-menu">
+                        <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
+                        <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
+                    </ul>
+                </li>
+                <li><a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span></a></li>
+                <li><a href="#" class="nav-link"><i class="fas fa-user-clock"></i><span>تدبير الغياب</span></a></li>
+            </ul>
+        </nav>
+    </aside>
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <div class="search-box"><input type="text" placeholder="بحث..."><i class="fas fa-search"></i></div>
+            </div>
+            <div class="header-right">
+                <select id="school-year">
+                    <option value="2025/2026" selected>2025/2026</option>
+                </select>
+                <button class="notification-btn"><i class="fas fa-bell"></i><span class="badge">3</span></button>
+                <div class="user-info" id="user-info">
+                    <span id="user-email">المستخدم</span>
+                </div>
+            </div>
+        </header>
+        <section class="stats-section" id="stats-section"></section>
+        <section class="charts-section" id="charts-section"></section>
+        <section class="movement-section" id="movement-section"></section>
+        <section class="table-section" id="table-section"></section>
+    </main>
+
+    <!-- Import Modal -->
+    <div class="modal-overlay" id="import-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-import"></i> استيراد لائحة التلاميذ</h3>
+                <button class="modal-close" id="modal-close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="import-dropzone" id="dropzone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>اسحب ملف Excel هنا</p>
+                    <span>أو</span>
+                    <button class="btn btn-primary" id="browse-btn">تصفح الملفات</button>
+                    <p class="file-types">الملفات المدعومة: .xlsx, .xls</p>
+                </div>
+                <div class="import-progress" id="import-progress" style="display:none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p id="import-status">جاري القراءة...</p>
+                </div>
+                <div class="sheet-selector" id="sheet-selector" style="display:none;">
+                    <h4><i class="fas fa-file-excel"></i> اختر ورقة العمل</h4>
+                    <p class="sheet-info">الملف يحتوي على عدة أوراق عمل (أقسام). اختر ورقة أو استورد الكل:</p>
+                    <button class="btn btn-import-all" id="import-all-sheets">
+                        <i class="fas fa-layer-group"></i> استيراد جميع الأوراق دفعة واحدة
+                    </button>
+                    <div class="sheets-divider"><span>أو اختر ورقة محددة</span></div>
+                    <div class="sheets-list" id="sheets-list"></div>
+                    <div class="sheet-actions">
+                        <button class="btn btn-secondary" id="back-to-upload"><i class="fas fa-arrow-right"></i>
+                            رجوع</button>
+                    </div>
+                </div>
+                <div class="import-preview" id="import-preview" style="display:none;">
+                    <h4>معاينة البيانات</h4>
+                    <div class="preview-table-wrapper">
+                        <table id="preview-table"></table>
+                    </div>
+                    <div class="import-actions">
+                        <button class="btn btn-secondary" id="cancel-import">إلغاء</button>
+                        <button class="btn btn-success" id="confirm-import"><i class="fas fa-check"></i> تأكيد
+                            الاستيراد</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none;">
+
+    <script src="app.js"></script>
+    <script>
+        // Initialize app - Electron + SQLite version
+        document.addEventListener('DOMContentLoaded', () => {
+            // School year change handler
+            document.getElementById('school-year').addEventListener('change', async (e) => {
+                const selectedYear = e.target.value;
+
+                if (selectedYear === 'new') {
+                    // إضافة موسم جديد
+                    const newYear = prompt('أدخل الموسم الدراسي الجديد (مثال: 2024/2025):');
+                    if (newYear && newYear.match(/^\d{4}\/\d{4}$/)) {
+                        saveNewSchoolYear(newYear);
+                        currentSchoolYear = newYear;
+                        await initDatabase(newYear);
+                        showToast('تم إضافة الموسم ' + newYear, 'success');
+                    } else if (newYear) {
+                        showToast('صيغة غير صحيحة. استخدم: 2024/2025', 'error');
+                        e.target.value = currentSchoolYear;
+                    } else {
+                        e.target.value = currentSchoolYear;
+                    }
+                } else {
+                    // التبديل إلى موسم موجود
+                    currentSchoolYear = selectedYear;
+                    await initDatabase(selectedYear);
+                    showToast('تم تحميل بيانات الموسم ' + selectedYear, 'success');
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

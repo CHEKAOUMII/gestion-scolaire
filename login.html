@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول | برنامج التدبير المدرسي</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdhGx_UNgo3Ynx2__7xYNHThN68U0Hnak",
+            authDomain: "gestionscholaire.firebaseapp.com",
+            projectId: "gestionscholaire",
+            storageBucket: "gestionscholaire.firebasestorage.app",
+            messagingSenderId: "971615999680",
+            appId: "1:971615999680:web:46c0e1f2e10a3c8ecb7f25"
+        };
+        firebase.initializeApp(firebaseConfig);
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            padding: 20px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #00838f, #00acc1);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 30px rgba(0, 131, 143, 0.3);
+        }
+
+        .login-logo i {
+            font-size: 36px;
+            color: white;
+        }
+
+        .login-header h1 {
+            font-size: 24px;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+        }
+
+        .login-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            font-size: 18px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px 45px 15px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #00838f;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(0, 131, 143, 0.1);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #00838f 0%, #00acc1 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0, 131, 143, 0.4);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-login .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        .btn-login.loading .spinner {
+            display: block;
+        }
+
+        .btn-login.loading span {
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .error-message.show {
+            display: flex;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .login-footer p {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .school-name {
+            text-align: center;
+            margin-top: 30px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+        }
+
+        .school-name i {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <h1>برنامج التدبير المدرسي</h1>
+                <p>الرجاء تسجيل الدخول للمتابعة</p>
+            </div>
+
+            <div class="error-message" id="error-message">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="error-text"></span>
+            </div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">البريد الإلكتروني</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="email" placeholder="example@email.com" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">كلمة المرور</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="password" placeholder="••••••••" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login" id="btn-login">
+                    <div class="spinner"></div>
+                    <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p>© 2026 جميع الحقوق محفوظة</p>
+            </div>
+        </div>
+
+        <p class="school-name">
+            <i class="fas fa-school"></i>
+            الثانوية التأهيلية ابن سينا
+        </p>
+    </div>
+
+    <script>
+        const form = document.getElementById('login-form');
+        const btnLogin = document.getElementById('btn-login');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+
+        // Check if already logged in - with delay to prevent loop
+        (function () {
+            // Skip check if we just logged out
+            if (sessionStorage.getItem('justLoggedOut')) {
+                sessionStorage.removeItem('justLoggedOut');
+                return;
+            }
+
+            let loginCheckDone = false;
+
+            // Wait for Firebase to stabilize
+            setTimeout(() => {
+                firebase.auth().onAuthStateChanged(user => {
+                    if (loginCheckDone) return;
+                    loginCheckDone = true;
+
+                    if (user) {
+                        window.location.replace('index.html?loggedin=1');
+                    }
+                });
+            }, 100);
+        })();
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            btnLogin.classList.add('loading');
+            btnLogin.disabled = true;
+            errorMessage.classList.remove('show');
+
+            try {
+                await firebase.auth().signInWithEmailAndPassword(email, password);
+                // Add flag to prevent redirect loop
+                window.location.replace('index.html?loggedin=1');
+            } catch (error) {
+                let message = 'حدث خطأ أثناء تسجيل الدخول';
+
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        message = 'البريد الإلكتروني غير مسجل';
+                        break;
+                    case 'auth/wrong-password':
+                        message = 'كلمة المرور غير صحيحة';
+                        break;
+                    case 'auth/invalid-email':
+                        message = 'البريد الإلكتروني غير صالح';
+                        break;
+                    case 'auth/too-many-requests':
+                        message = 'تم تجاوز عدد المحاولات، حاول لاحقاً';
+                        break;
+                }
+
+                errorText.textContent = message;
+                errorMessage.classList.add('show');
+                btnLogin.classList.remove('loading');
+                btnLogin.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

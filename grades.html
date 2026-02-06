@@ -1,0 +1,2390 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تدبير النتائج | برنامج التدبير المدرسي</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Electron + SQLite - No Firebase needed -->
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Grades Page Specific Styles */
+        .grades-container {
+            padding: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .grade-stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: var(--transition);
+        }
+
+        .grade-stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .grade-stat-card .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .grade-stat-card.excellent .stat-icon {
+            background: linear-gradient(135deg, #4caf50 0%, #8bc34a 100%);
+            color: white;
+        }
+
+        .grade-stat-card.struggling .stat-icon {
+            background: linear-gradient(135deg, #ff9800 0%, #ffc107 100%);
+            color: white;
+        }
+
+        .grade-stat-card.at-risk .stat-icon {
+            background: linear-gradient(135deg, #f44336 0%, #ff5722 100%);
+            color: white;
+        }
+
+        .grade-stat-card.dropout .stat-icon {
+            background: linear-gradient(135deg, #9c27b0 0%, #673ab7 100%);
+            color: white;
+        }
+
+        .stat-details h3 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+
+        .stat-details p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .search-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .search-section h3 {
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .search-form input,
+        .search-form select {
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            min-width: 200px;
+            transition: var(--transition);
+        }
+
+        .search-form input:focus,
+        .search-form select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .students-results {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .student-card {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .student-card:hover {
+            border-color: var(--primary);
+            background: rgba(0, 131, 143, 0.05);
+        }
+
+        .student-card.selected {
+            border-color: var(--primary);
+            background: rgba(0, 131, 143, 0.1);
+        }
+
+        .student-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            margin-left: 15px;
+        }
+
+        .student-avatar.male {
+            background: linear-gradient(135deg, #ff5722 0%, #ff9800 100%);
+            color: white;
+        }
+
+        .student-avatar.female {
+            background: linear-gradient(135deg, #00bcd4 0%, #03a9f4 100%);
+            color: white;
+        }
+
+        .student-info h4 {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .student-info p {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .student-stats {
+            margin-right: auto;
+            display: flex;
+            gap: 20px;
+        }
+
+        .student-stats .stat {
+            text-align: center;
+        }
+
+        .student-stats .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .student-stats .stat-value.good {
+            color: #4caf50;
+        }
+
+        .student-stats .stat-value.warning {
+            color: #ff9800;
+        }
+
+        .student-stats .stat-value.danger {
+            color: #f44336;
+        }
+
+        .student-stats .stat-label {
+            font-size: 11px;
+            color: #999;
+        }
+
+        /* Student Details Modal */
+        .student-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .student-modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 25px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .modal-header .close-btn {
+            margin-right: auto;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 18px;
+            transition: var(--transition);
+        }
+
+        .modal-header .close-btn:hover {
+            background: #ff5252;
+            color: white;
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .subject-grades {
+            margin-bottom: 20px;
+        }
+
+        .subject-header {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .subject-header h4 {
+            font-size: 16px;
+        }
+
+        .subject-header .average {
+            margin-right: auto;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .grades-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .grades-table th,
+        .grades-table td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+
+        .grades-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+
+        .grade-cell {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .grade-cell.excellent {
+            color: #4caf50;
+        }
+
+        .grade-cell.good {
+            color: #8bc34a;
+        }
+
+        .grade-cell.average {
+            color: #ff9800;
+        }
+
+        .grade-cell.poor {
+            color: #f44336;
+        }
+
+        .import-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .import-dropzone {
+            border: 3px dashed #e0e0e0;
+            border-radius: 15px;
+            padding: 50px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .import-dropzone:hover {
+            border-color: var(--primary);
+            background: rgba(0, 131, 143, 0.05);
+        }
+
+        .import-dropzone i {
+            font-size: 48px;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .import-dropzone p {
+            color: #666;
+        }
+
+        /* Toast Messages */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            padding: 15px 25px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            animation: slideDown 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #f44336, #ff5722);
+        }
+
+        .toast.warning {
+            background: linear-gradient(135deg, #ff9800, #ffc107);
+        }
+
+        .toast.info {
+            background: linear-gradient(135deg, #2196f3, #03a9f4);
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .import-log {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 13px;
+            display: none;
+        }
+
+        .import-log.show {
+            display: block;
+        }
+
+        .log-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-item.success {
+            color: #4caf50;
+        }
+
+        .log-item.error {
+            color: #f44336;
+        }
+
+        .log-item.warning {
+            color: #ff9800;
+        }
+
+        /* Pagination Styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .pagination button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Tajawal', sans-serif;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .pagination button.page-btn {
+            background: white;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .pagination button.page-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pagination button.page-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pagination button.nav-btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+
+        .pagination button.nav-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 131, 143, 0.3);
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .pagination .page-info {
+            font-size: 14px;
+            color: #666;
+            padding: 0 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo"><i class="fas fa-network-wired"></i></div>
+            <h2>برنامج التدبير</h2>
+            <span class="version">v 2.0</span>
+        </div>
+        <div class="school-info">
+            <i class="fas fa-university"></i>
+            <div class="school-details">
+                <h3>الثانوية التأهيلية</h3>
+                <p>ابن سينا</p>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a>
+                </li>
+                <li class="expandable">
+                    <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>تدبير التلاميذ</span><i
+                            class="fas fa-chevron-down arrow"></i></a>
+                    <ul class="sub-menu">
+                        <li><a href="index.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
+                    </ul>
+                </li>
+                <li class="expandable active">
+                    <a href="#" class="nav-link active"><i class="fas fa-chart-line"></i><span>تدبير النتائج</span><i
+                            class="fas fa-chevron-down arrow"></i></a>
+                    <ul class="sub-menu" style="display: block;">
+                        <li><a href="grades.html" class="active"><i class="fas fa-star"></i> النتائج والإحصائيات</a>
+                        </li>
+                        <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 style="margin-right: 20px;"><i class="fas fa-chart-line"></i> تدبير النتائج</h2>
+            </div>
+            <div class="header-right">
+                <select id="semester-select">
+                    <option value="1">الدورة الأولى</option>
+                    <option value="2">الدورة الثانية</option>
+                </select>
+                <div class="user-info" id="user-info">
+                    <span id="user-email">المستخدم</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="grade-stat-card excellent">
+                    <div class="stat-icon"><i class="fas fa-trophy"></i></div>
+                    <div class="stat-details">
+                        <h3 id="excellent-count">0</h3>
+                        <p>المتفوقون (≥14)</p>
+                    </div>
+                </div>
+                <div class="grade-stat-card struggling">
+                    <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="stat-details">
+                        <h3 id="struggling-count">0</h3>
+                        <p>المتعثرون (8-10)</p>
+                    </div>
+                </div>
+                <div class="grade-stat-card at-risk">
+                    <div class="stat-icon"><i class="fas fa-user-times"></i></div>
+                    <div class="stat-details">
+                        <h3 id="atrisk-count">0</h3>
+                        <p>المهددون بالتكرار (<8)< /p>
+                    </div>
+                </div>
+                <div class="grade-stat-card dropout">
+                    <div class="stat-icon"><i class="fas fa-running"></i></div>
+                    <div class="stat-details">
+                        <h3 id="dropout-count">0</h3>
+                        <p>المهددون بالانقطاع</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import Section -->
+            <div class="import-section">
+                <h3><i class="fas fa-file-import"></i> استيراد النتائج</h3>
+                <div class="import-dropzone" id="grades-dropzone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>اسحب ملفات Excel هنا أو انقر للاختيار</p>
+                    <p style="font-size: 12px; color: #999;">يدعم ملفات .xlsx و .xls</p>
+                </div>
+                <input type="file" id="grades-file-input" accept=".xlsx,.xls" multiple style="display: none;">
+                <div class="import-log" id="import-log"></div>
+
+                <!-- أزرار العمليات -->
+                <div class="operations-buttons" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <!-- زر حساب معدل المادة -->
+                    <button id="calc-subject-avg-btn" disabled
+                        style="flex: 1; min-width: 150px; padding: 12px 20px; background: linear-gradient(135deg, #3498db, #2980b9); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; opacity: 0.5; transition: all 0.3s;">
+                        <i class="fas fa-calculator"></i> حساب معدل المادة
+                    </button>
+
+                    <!-- زر حساب المعدل العام -->
+                    <button id="calc-general-avg-btn" disabled
+                        style="flex: 1; min-width: 150px; padding: 12px 20px; background: linear-gradient(135deg, #9b59b6, #8e44ad); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; opacity: 0.5; transition: all 0.3s;">
+                        <i class="fas fa-chart-line"></i> حساب المعدل العام
+                    </button>
+
+                    <!-- زر الحفظ -->
+                    <button id="save-grades-btn" disabled
+                        style="flex: 1; min-width: 150px; padding: 12px 20px; background: linear-gradient(135deg, #27ae60, #2ecc71); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; opacity: 0.5; transition: all 0.3s;">
+                        <i class="fas fa-save"></i> حفظ البيانات
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Section -->
+            <div class="search-section">
+                <h3><i class="fas fa-search"></i> البحث عن تلميذ</h3>
+                <div class="search-form">
+                    <input type="text" id="search-student" placeholder="اسم التلميذ أو الرمز...">
+                    <select id="filter-level">
+                        <option value="all">جميع المستويات</option>
+                        <!-- ستُملأ ديناميكياً من البيانات المحفوظة -->
+                    </select>
+                    <select id="filter-section">
+                        <option value="all">جميع الأقسام</option>
+                    </select>
+                    <select id="filter-status">
+                        <option value="all">جميع الحالات</option>
+                        <option value="excellent">المتفوقون</option>
+                        <option value="struggling">المتعثرون</option>
+                        <option value="at-risk">المهددون بالتكرار</option>
+                        <option value="dropout">المهددون بالانقطاع</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Students Results -->
+            <div class="students-results" id="students-results">
+                <h3><i class="fas fa-users"></i> قائمة التلاميذ <span id="results-count">(0)</span></h3>
+                <div id="students-list">
+                    <p style="text-align: center; color: #666; padding: 40px;">
+                        <i class="fas fa-database" style="font-size: 48px; margin-bottom: 15px; display: block;"></i>
+                        قم باستيراد ملفات النتائج لعرض البيانات
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Student Details Modal -->
+    <div class="student-modal" id="student-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="student-avatar" id="modal-avatar">م</div>
+                <div>
+                    <h3 id="modal-student-name">اسم التلميذ</h3>
+                    <p id="modal-student-info">القسم - الرمز</p>
+                </div>
+                <div id="modal-general-average" style="text-align: center; margin-right: 20px;">
+                    <div style="font-size: 32px; font-weight: 800; color: var(--primary);">--</div>
+                    <div style="font-size: 12px; color: #666;">المعدل العام</div>
+                </div>
+                <button class="print-btn" id="print-bulletin"
+                    style="margin-left: 10px; background: var(--secondary); color: white; border: none; width: 35px; height: 35px; border-radius: 50%; cursor: pointer;"
+                    title="طباعة بيان النقط">
+                    <i class="fas fa-print"></i>
+                </button>
+                <button class="close-btn" id="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Subject grades will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data storage
+        let gradesData = [];
+
+        // Pagination variables
+        let currentPage = 1;
+        const STUDENTS_PER_PAGE = 10;
+        let filteredStudentsList = []; // لتخزين التلاميذ المفلترين للتصفح
+        let studentsWithGrades = [];
+        let totalStudentsCount = 0; // العدد الإجمالي للتلاميذ
+
+        // ============ SUBJECT AVERAGE CALCULATION ============
+        /**
+         * حساب معدل المادة بناءً على نوع المادة
+         * 
+         * القواعد:
+         * - معظم المواد: معدل الفروض 75% + الأنشطة المدمجة 25%
+         * - اللغة الفرنسية: معدل الفروض 80% + الأنشطة المدمجة 20%
+         * - الرياضيات والتربية البدنية: المعدل العادي (بدون الأنشطة المدمجة)
+         * 
+         * @param {string} subject - اسم المادة
+         * @param {Array} grades - مصفوفة النقط [{value: number, name: string}]
+         * @returns {number|null} - المعدل المحسوب أو null إذا لم تتوفر نقط
+         */
+        function calculateSubjectAverage(subject, grades) {
+            if (!grades || grades.length === 0) return null;
+
+            // استخراج النقط الصالحة
+            const validGrades = grades.filter(g => g.value !== null && g.value !== undefined && !isNaN(g.value));
+            if (validGrades.length === 0) return null;
+
+            // تحديد نوع المادة
+            const subjectLower = subject.toLowerCase();
+            const subjectNormalized = subject.trim();
+
+            // المواد التي تستخدم المعدل العادي (بدون أنشطة مدمجة)
+            const noActivitiesSubjects = [
+                'الرياضيات', 'رياضيات', 'math', 'maths', 'mathématiques', 'mathematiques',
+                'التربية البدنية', 'تربية بدنية', 'eps', 'education physique', 'sport'
+            ];
+
+            // مادة اللغة الفرنسية (80/20)
+            const frenchSubjects = [
+                'اللغة الفرنسية', 'الفرنسية', 'لغة فرنسية', 'français', 'francais', 'french'
+            ];
+
+            // التحقق من نوع المادة
+            const isNoActivitiesSubject = noActivitiesSubjects.some(s =>
+                subjectLower.includes(s.toLowerCase()) || subjectNormalized.includes(s)
+            );
+
+            const isFrenchSubject = frenchSubjects.some(s =>
+                subjectLower.includes(s.toLowerCase()) || subjectNormalized.includes(s)
+            );
+
+            // فصل الفروض عن الأنشطة المدمجة
+            const examGrades = []; // الفروض
+            const activityGrades = []; // الأنشطة المدمجة
+
+            validGrades.forEach(g => {
+                const gradeName = (g.name || '').toLowerCase();
+                // التعرف على نقط الأنشطة المدمجة
+                if (gradeName.includes('أنشطة') || gradeName.includes('نشاط') ||
+                    gradeName.includes('activité') || gradeName.includes('activity') ||
+                    gradeName.includes('الأنشطة المدمجة') || gradeName.includes('أنشطة مدمجة')) {
+                    activityGrades.push(g.value);
+                } else {
+                    // باقي النقط تعتبر فروض
+                    examGrades.push(g.value);
+                }
+            });
+
+            // === حساب المعدل حسب نوع المادة ===
+
+            // 1. الرياضيات والتربية البدنية: معدل عادي
+            if (isNoActivitiesSubject) {
+                const sum = validGrades.reduce((acc, g) => acc + g.value, 0);
+                return sum / validGrades.length;
+            }
+
+            // 2. إذا لم توجد أنشطة مدمجة: معدل عادي
+            if (activityGrades.length === 0) {
+                const sum = validGrades.reduce((acc, g) => acc + g.value, 0);
+                return sum / validGrades.length;
+            }
+
+            // 3. حساب معدل الفروض
+            const examAverage = examGrades.length > 0
+                ? examGrades.reduce((a, b) => a + b, 0) / examGrades.length
+                : 0;
+
+            // 4. حساب معدل الأنشطة المدمجة
+            const activityAverage = activityGrades.length > 0
+                ? activityGrades.reduce((a, b) => a + b, 0) / activityGrades.length
+                : 0;
+
+            // 5. تطبيق الأوزان حسب المادة
+            if (isFrenchSubject) {
+                // اللغة الفرنسية: 80% فروض + 20% أنشطة
+                return (examAverage * 0.80) + (activityAverage * 0.20);
+            } else {
+                // باقي المواد: 75% فروض + 25% أنشطة
+                return (examAverage * 0.75) + (activityAverage * 0.25);
+            }
+        }
+
+        // ============ GENERAL AVERAGE CALCULATION ============
+
+        // معاملات المواد حسب المستوى والشعبة (مذكرة 43 + التعديلات المطلوبة)
+        const COEFFICIENTS = {
+            // 1. الجذع المشترك العلمي (TCS)
+            'tcs': {
+                'math': 4, 'pc': 4, 'svt': 4, 'arabe': 2, 'francais': 4,
+                'anglais': 2, 'hist-geo': 2, 'islamic': 2, 'philo': 2,
+                'info': 2, 'eps': 2, 'conduite': 1
+            },
+            // 2. الأولى باكالوريا علوم تجريبية (1Bac Exp)
+            '1bacexp': {
+                'math': 7, 'pc': 7, 'svt': 5, 'arabe': 2, 'francais': 4,
+                'anglais': 2, 'hist-geo': 2, 'islamic': 2, 'philo': 2,
+                'eps': 2, 'conduite': 1
+            },
+            // 3. الأولى باكالوريا علوم رياضية (1Bac SM)
+            '1bacsm': {
+                'math': 9, 'pc': 7, 'svt': 3, 'arabe': 2, 'francais': 4,
+                'anglais': 2, 'hist-geo': 2, 'islamic': 2, 'philo': 2,
+                'eps': 1, 'conduite': 1
+            },
+            // 4. الأولى باكالوريا علوم اقتصادية وتدبير (1Bac Eco)
+            '1baceco': {
+                'math': 4, 'francais': 4, 'eco-gen': 4, 'orga': 4, 'compta': 4,
+                'droit': 2, 'arabe': 2, 'anglais': 3, 'hist-geo': 2,
+                'islamic': 2, 'eps': 2, 'conduite': 1
+            },
+            // 5. الثانية باكالوريا علوم فيزيائية (2Bac PC)
+            '2bacpc': {
+                'math': 7, 'pc': 7, 'svt': 5, 'anglais': 2, 'philo': 2,
+                'islamic': 2, 'eps': 2, 'conduite': 1
+            },
+            // 6. الثانية باكالوريا علوم رياضية (2Bac SM A/B)
+            '2bacsm': {
+                'math': 9, 'pc': 7, 'svt': 3, 'si': 3, 'anglais': 2,
+                'philo': 2, 'islamic': 2, 'eps': 2, 'conduite': 1
+            },
+            // 7. الثانية باكالوريا علوم اقتصادية / تدبير (2Bac Eco/GC)
+            '2baceco': {
+                'math': 4, 'anglais': 3, 'philo': 2, 'eco-gen': 6,
+                'orga': 3, 'compta': 4, 'droit': 1,
+                'islamic': 2, 'eps': 2, 'conduite': 1
+            },
+            // 8. الجذع المشترك للآداب والعلوم الإنسانية (TCL)
+            'tcl': {
+                'arabe': 4, 'francais': 3, 'anglais': 3, 'hist-geo': 4,
+                'islamic': 2, 'philo': 2, 'math': 2, 'svt': 2,
+                'info': 2, 'eps': 2, 'conduite': 1
+            },
+            // 9. الأولى باكالوريا آداب وعلوم إنسانية (1Bac L)
+            '1bacl': {
+                'arabe': 4, 'francais': 3, 'anglais': 4, 'hist-geo': 4,
+                'islamic': 2, 'philo': 2, 'math': 1, 'sciences': 1,
+                'eps': 2, 'conduite': 1
+            },
+            // 10. الثانية باكالوريا علوم إنسانية (2Bac SH)
+            '2bacsh': {
+                'arabe': 3, 'francais': 3, 'anglais': 3, 'hist-geo': 4,
+                'philo': 4, 'islamic': 2, 'math': 2, 'eps': 2, 'conduite': 1
+            }
+        };
+
+        function normalizeSubjectName(subject) {
+            const s = subject.toLowerCase().trim();
+            // المواد الأساسية
+            if (s.includes('رياضيات') || s.includes('math')) return 'math';
+            // فيزياء وكيمياء - نستثني "education physique" التي هي التربية البدنية
+            if ((s.includes('فيزياء') || s.includes('pc') || s.includes('chimie') || (s.includes('physique') && !s.includes('education'))) && !s.includes('بدنية')) return 'pc';
+            if (s.includes('حياة') || s.includes('svt') || s.includes('naturelle') || s.includes('أرض') || s.includes('ارض') || (s.includes('vie') && s.includes('terre')) || (s.includes('sc.') && s.includes('vie'))) return 'svt';
+            if (s.includes('عربية') || s.includes('arabe') || s.includes('arabic')) return 'arabe';
+            if (s.includes('فرنسية') || s.includes('français') || s.includes('french') || s.includes('francais')) return 'francais';
+            if (s.includes('إنجليزية') || s.includes('anglais') || s.includes('english')) return 'anglais';
+            if (s.includes('اجتماعيات') || s.includes('hist') || s.includes('geo')) return 'hist-geo';
+            if (s.includes('إسلام') || s.includes('اسلام') || s.includes('islamic') || s.includes('islamique') || s.includes('islamiya') || s.includes('tarbiya') || s.includes('دين') || s.includes('تربية إسلامية') || s.includes('تربية اسلامية') || s.includes('education islamique') || s.includes('relig') || s.includes('مادة غير محددة')) return 'islamic';
+            if (s.includes('فلسفة') || s.includes('philo')) return 'philo';
+            if (s.includes('إعلاميات') || s.includes('info') || s.includes('informatique')) return 'info';
+            if (s.includes('بدنية') || s.includes('sport') || s.includes('eps') || s.includes('education physique')) return 'eps';
+            if (s.includes('ترجمة') || s.includes('translation') || s.includes('traduction')) return 'translation';
+            if (s.includes('مواظبة') || s.includes('سلوك') || s.includes('conduite') || s.includes('assiduité')) return 'conduite';
+
+            // مواد الاقتصاد
+            if (s.includes('عام') && (s.includes('اقتصاد') || s.includes('eco'))) return 'eco-gen';
+            if (s.includes('stat') || s.includes('إحصاء')) return 'eco-gen';
+            if (s.includes('تنظيم') || s.includes('orga')) return 'orga';
+            if (s.includes('محاسبة') || s.includes('compta')) return 'compta';
+            if (s.includes('قانون') || s.includes('droit')) return 'droit';
+
+            // مواد العلوم
+            if (s.includes('مهندس') || s.includes('ingénieur') || s.includes('si')) return 'si';
+            if (s.includes('علوم') && !s.includes('حياة') && !s.includes('svt') && !s.includes('فيزياء') && !s.includes('إنسانية')) return 'sciences'; // للأولى آداب
+
+            return 'other';
+        }
+
+        function calculateGeneralAverage(student) {
+            const levelInfo = getLevelFromSection(student.section);
+            const levelCode = levelInfo.code;
+
+            // تحديد المعاملات المناسبة (أقرب تطابق)
+            let coeffs = COEFFICIENTS[levelCode];
+
+            // محاولة مطابقة ذكية إذا لم نجد الكود مباشرة
+            if (!coeffs) {
+                if (levelCode.includes('sm') && levelCode.includes('1')) coeffs = COEFFICIENTS['1bacsm'];
+                else if (levelCode.includes('sm') && levelCode.includes('2')) coeffs = COEFFICIENTS['2bacsm'];
+                else if (levelCode.includes('eco') && levelCode.includes('1')) coeffs = COEFFICIENTS['1baceco'];
+                else if ((levelCode.includes('eco') || levelCode.includes('gc')) && levelCode.includes('2')) coeffs = COEFFICIENTS['2baceco'];
+                else if (levelCode.startsWith('1bac') && (levelCode.includes('l') || levelCode.includes('lettre'))) coeffs = COEFFICIENTS['1bacl'];
+                else if (levelCode.startsWith('2bac') && (levelCode.includes('sh') || levelCode.includes('human'))) coeffs = COEFFICIENTS['2bacsh'];
+                else if (levelCode.startsWith('tcl') || (levelCode.includes('tc') && levelCode.includes('l'))) coeffs = COEFFICIENTS['tcl'];
+
+                // Fallbacks للعلوم
+                else if (levelCode.startsWith('1bac')) coeffs = COEFFICIENTS['1bacexp'];
+                else if (levelCode.startsWith('2bac')) coeffs = COEFFICIENTS['2bacpc'];
+                else if (levelCode.includes('tc')) coeffs = COEFFICIENTS['tcs'];
+            }
+
+            // إذا تعذر العثور على معاملات، نستخدم المعدل العادي
+            if (!coeffs) {
+                const validGrades = student.grades.filter(g => g.moyenne !== null);
+                if (validGrades.length === 0) return null;
+                const sum = validGrades.reduce((a, b) => a + b.moyenne, 0);
+                return sum / validGrades.length;
+            }
+
+            let totalWeightedGrades = 0;
+            let totalCoeffs = 0;
+            let appliedCoeffs = [];
+
+            student.grades.forEach(grade => {
+                if (grade.moyenne === null) return;
+
+                const subjectKey = normalizeSubjectName(grade.subject);
+                let coeff = coeffs[subjectKey];
+
+                // Debug logging - سيظهر في Console المتصفح
+                console.log(`🔍 [${student.code}] Subject: "${grade.subject}" → Key: "${subjectKey}" → Coeff: ${coeff}`);
+
+                // إذا لم يتم العثور على المادة في جدول المعاملات لهذا المستوى، نتجاهلها
+                // هذا يضمن أن المواد المحذوفة (مثل المعلوميات والترجمة في بعض المستويات) لا تؤثر على المعدل
+                if (coeff === undefined) {
+                    console.warn(`⚠️ [${student.code}] Excluded: "${grade.subject}" (${subjectKey}) - no coefficient for level ${levelCode}`);
+                    return;
+                }
+
+                totalWeightedGrades += grade.moyenne * coeff;
+                totalCoeffs += coeff;
+
+                appliedCoeffs.push(`${subjectKey}:${coeff}`);
+            });
+
+
+            if (totalCoeffs === 0) return null;
+            // console.log(`Calculated General Average for ${student.code} (${levelCode}):`, appliedCoeffs);
+            return totalWeightedGrades / totalCoeffs;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStudentsData();
+            setupEventListeners();
+
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    document.getElementById('user-email').textContent = user.email;
+                }
+            });
+
+            document.getElementById('logout-btn').addEventListener('click', async () => {
+                if (confirm('هل تريد تسجيل الخروج؟')) {
+                    await auth.signOut();
+                    window.location.href = 'login.html';
+                }
+            });
+        });
+
+        // ============ LOCAL STORAGE FUNCTIONS ============
+
+        // Save grades to localStorage (instant!)
+        function saveGradesToLocalStorage() {
+            try {
+                const dataToSave = studentsWithGrades.map(s => ({
+                    docId: s.docId,
+                    code: s.code,
+                    name: s.name,
+                    section: s.section,
+                    grades: (s.grades || []).map(g => ({
+                        subject: g.subject,
+                        section: g.section,
+                        grades: g.grades || [],
+                        gradeNames: g.gradeNames || [],
+                        moyenne: g.moyenne
+                    })),
+                    generalAverage: s.generalAverage,
+                    absences: s.absences || 0
+                }));
+
+                localStorage.setItem('studentGrades', JSON.stringify(dataToSave));
+                localStorage.setItem('gradesLastUpdate', new Date().toISOString());
+
+                return true;
+            } catch (e) {
+                console.error('Error saving to localStorage:', e);
+                return false;
+            }
+        }
+
+        // Load grades from localStorage
+        function loadGradesFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('studentGrades');
+                if (saved) {
+                    return JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Error loading from localStorage:', e);
+            }
+            return null;
+        }
+
+        // Merge localStorage data with Firestore data
+        function mergeLocalGrades(firestoreStudents) {
+            const localGrades = loadGradesFromLocalStorage();
+            if (!localGrades) return firestoreStudents;
+
+            const localMap = new Map(localGrades.map(s => [s.docId, s]));
+
+            return firestoreStudents.map(student => {
+                const local = localMap.get(student.docId);
+                if (local && local.grades && local.grades.length > 0) {
+                    return {
+                        ...student,
+                        grades: local.grades,
+                        generalAverage: local.generalAverage,
+                        absences: local.absences
+                    };
+                }
+                return student;
+            });
+        }
+
+        // Load students from SQLite
+        const currentSchoolYear = '2025/2026'; // الموسم الدراسي الحالي
+
+        async function loadStudentsData() {
+            try {
+                console.log('Loading students from SQLite for year:', currentSchoolYear);
+
+                // جلب التلاميذ من SQLite عبر API
+                const students = await window.api.students.getAll(currentSchoolYear);
+
+                console.log('Found', students.length, 'students for', currentSchoolYear);
+
+                if (students && students.length > 0) {
+                    // تحويل بيانات SQLite لتتوافق مع الصيغة المطلوبة
+                    let sqliteStudents = students.map(s => {
+                        // معالجة النتائج المخزنة
+                        let processedGrades = [];
+                        if (s.grades) {
+                            try {
+                                const gradesData = typeof s.grades === 'string' ? JSON.parse(s.grades) : s.grades;
+                                if (Array.isArray(gradesData)) {
+                                    processedGrades = gradesData.map(g => ({
+                                        subject: g.subject || '',
+                                        section: g.section || '',
+                                        grades: (g.grades || []).map(grade => {
+                                            if (typeof grade === 'object' && grade !== null) {
+                                                return { value: grade.value, name: grade.name || '' };
+                                            }
+                                            return { value: grade, name: '' };
+                                        }),
+                                        gradeNames: g.gradeNames || [],
+                                        moyenne: g.moyenne || null
+                                    }));
+                                }
+                            } catch (e) {
+                                console.warn('Could not parse grades for student:', s.code);
+                            }
+                        }
+
+                        return {
+                            docId: s.id.toString(),
+                            id: s.id,
+                            code: s.code,
+                            firstName: s.full_name,
+                            familyName: s.family_name,
+                            birthDate: s.birth_date,
+                            gender: s.gender,
+                            section: s.section,
+                            schoolYear: s.school_year,
+                            status: s.status,
+                            grades: processedGrades,
+                            absences: s.absences || 0,
+                            generalAverage: s.general_average || null
+                        };
+                    });
+
+                    // دمج مع النتائج المحفوظة محلياً
+                    studentsWithGrades = mergeLocalGrades(sqliteStudents);
+                    totalStudentsCount = sqliteStudents.length;
+
+                    console.log('Total students:', totalStudentsCount, 'With grades:', studentsWithGrades.filter(s => s.grades && s.grades.length > 0).length);
+
+                    populateLevelFilter();
+                    populateSectionFilter();
+                    updateStatistics();
+                    displayStudents();
+                } else {
+                    console.log('No students found in database');
+                    studentsWithGrades = [];
+                    totalStudentsCount = 0;
+                    displayStudents();
+                }
+            } catch (error) {
+                console.error('Error loading students:', error);
+                studentsWithGrades = [];
+                totalStudentsCount = 0;
+                displayStudents();
+            }
+        }
+
+        // Save student grades to Firestore
+        async function saveStudentGrades(student) {
+            try {
+                // Convert grades to plain objects for Firestore
+                const gradesData = student.grades.map(g => ({
+                    subject: g.subject || '',
+                    section: g.section || '',
+                    grades: (g.grades || []).map(grade => {
+                        if (typeof grade === 'object') {
+                            return { value: grade.value, name: grade.name };
+                        }
+                        return { value: grade, name: '' };
+                    }),
+                    gradeNames: g.gradeNames || [],
+                    moyenne: g.moyenne || null
+                }));
+
+                await db.collection('students').doc(student.docId).update({
+                    grades: gradesData,
+                    generalAverage: student.generalAverage || null,
+                    absences: student.absences || 0
+                });
+                return true;
+            } catch (error) {
+                console.error('Error saving grades for student:', student.code, error);
+                return false;
+            }
+        }
+
+        // Save grades - LOCAL STORAGE FIRST (instant!)
+        async function saveAllGradesToFirestore() {
+            const studentsToSave = studentsWithGrades.filter(s =>
+                (s.grades && s.grades.length > 0) || s.generalAverage !== null
+            );
+            const totalCount = studentsToSave.length;
+
+            addLog(`📊 عدد التلاميذ الإجمالي: ${studentsWithGrades.length}`, 'info');
+            addLog(`📊 التلاميذ الذين لديهم نتائج: ${totalCount}`, 'info');
+
+            if (totalCount === 0) {
+                addLog(`ℹ️ لا توجد بيانات للحفظ - تأكد من استيراد ملفات النتائج أولاً`, 'warning');
+                return;
+            }
+
+            // === STEP 1: Save to LocalStorage INSTANTLY ===
+            addLog(`💾 جاري الحفظ المحلي...`, 'info');
+            const localSaved = saveGradesToLocalStorage();
+
+            if (localSaved) {
+                addLog(`✅ تم الحفظ المحلي بنجاح! (${totalCount} تلميذ)`, 'success');
+                showToast(`✅ تم حفظ ${totalCount} تلميذ محلياً!`, 'success');
+            } else {
+                addLog(`❌ فشل الحفظ المحلي`, 'error');
+                showToast(`فشل الحفظ المحلي`, 'error');
+                return;
+            }
+
+            addLog(`ℹ️ البيانات محفوظة محلياً وستظهر عند تحديث الصفحة`, 'info');
+            addLog(`💡 يمكنك إغلاق الصفحة الآن - البيانات آمنة!`, 'success');
+        }
+
+        // Get level from section name
+        function getLevelFromSection(section) {
+            if (!section) return { code: 'other', name: 'أخرى', order: 99 };
+            const s = section.toUpperCase();
+
+            // استخراج البادئة (قبل الرقم مثل TCSF-1 → TCSF)
+            const prefix = s.replace(/-\d+$/, '');
+
+            // === الجذع المشترك ===
+            if (prefix === 'TCSF' || prefix === 'TCS' || s.startsWith('TCSF')) {
+                return { code: 'tcsf', name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 };
+            }
+            if (prefix === 'TCSA' || s.startsWith('TCSA')) {
+                return { code: 'tcsa', name: 'الجذع المشترك العلمي خيار عربية', order: 2 };
+            }
+            if (prefix === 'TCLSH' || prefix === 'TCL' || s.startsWith('TCLSH') || s.startsWith('TCL')) {
+                return { code: 'tclsh', name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 };
+            }
+
+            // === الأولى باكالوريا ===
+            if (prefix === '1BACSM' || s.startsWith('1BACSM')) {
+                return { code: '1bacsm', name: 'الأولى باكالوريا العلوم الرياضية خيار فرنسية', order: 4 };
+            }
+            if (prefix === '1BACSH' || prefix === '1BACL' || s.startsWith('1BACSH') || s.startsWith('1BACL')) {
+                return { code: '1bacsh', name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 5 };
+            }
+            if (prefix === '1BACSEF' || s.startsWith('1BACSEF')) {
+                return { code: '1bacsef', name: 'الأولى باكالوريا علوم تجريبية خيار فرنسية', order: 6 };
+            }
+            if (prefix === '1BACECO' || prefix === '1BACGE' || s.startsWith('1BACECO') || s.startsWith('1BACGE')) {
+                return { code: '1baceco', name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 7 };
+            }
+            if (prefix === '1BACSEA' || s.startsWith('1BACSEA')) {
+                return { code: '1bacsea', name: 'الأولى باكالوريا علوم تجريبية خيار عربية', order: 8 };
+            }
+            if (prefix === '1BACSE' || s.startsWith('1BACSE')) {
+                return { code: '1bacse', name: 'الأولى باكالوريا علوم تجريبية', order: 6 };
+            }
+
+            // === الثانية باكالوريا ===
+            if (prefix === '2BACSA' || s.startsWith('2BACSA')) {
+                return { code: '2bacsa', name: 'الثانية باكالوريا علوم شرعية', order: 9 };
+            }
+            if (prefix === '2BACSM' || s.startsWith('2BACSM')) {
+                return { code: '2bacsm', name: 'الثانية باكالوريا العلوم الرياضية', order: 10 };
+            }
+            if (prefix === '2BACSVT' || s.startsWith('2BACSVT') || s.includes('SVT')) {
+                return { code: '2bacsvt', name: 'الثانية باكالوريا علوم الحياة والأرض', order: 11 };
+            }
+            if (prefix === '2BACPC' || s.startsWith('2BACPC') || (s.includes('2BAC') && s.includes('PC'))) {
+                return { code: '2bacpc', name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 12 };
+            }
+            if (prefix === '2BACSH' || prefix === '2BACL' || s.startsWith('2BACSH') || s.startsWith('2BACL')) {
+                return { code: '2bacsh', name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 13 };
+            }
+            if (prefix === '2BACECO' || prefix === '2BACGC' || s.includes('ECO') || s.includes('GESTION')) {
+                return { code: '2baceco', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 14 };
+            }
+
+            // Fallbacks
+            if (s.includes('1BAC')) return { code: '1bac', name: 'الأولى باكالوريا', order: 15 };
+            if (s.includes('2BAC')) return { code: '2bac', name: 'الثانية باكالوريا', order: 16 };
+            if (s.startsWith('TC')) return { code: 'tc', name: 'الجذع المشترك', order: 4 };
+
+            return { code: 'other', name: section, order: 99 };
+        }
+
+        // ملء قائمة المستويات ديناميكياً من الإعدادات المحفوظة
+        async function populateLevelFilter() {
+            try {
+                // محاولة استرجاع المستويات المحفوظة من Excel
+                const levelsJson = await window.api.settings.get('levels');
+                const select = document.getElementById('filter-level');
+                select.innerHTML = '<option value="all">جميع المستويات</option>';
+
+                if (levelsJson) {
+                    const levels = JSON.parse(levelsJson);
+                    levels.forEach(level => {
+                        const option = document.createElement('option');
+                        option.value = level.code;
+                        option.textContent = level.name;
+                        select.appendChild(option);
+                    });
+                    console.log('✅ Loaded levels from settings:', levels.length);
+                } else {
+                    // Fallback: استخراج من بيانات التلاميذ الحالية
+                    const sections = [...new Set(studentsWithGrades.map(s => s.section))].filter(s => s);
+                    const levelsMap = new Map();
+
+                    sections.forEach(section => {
+                        const level = getLevelFromSection(section);
+                        if (level.code !== 'other' && !levelsMap.has(level.code)) {
+                            levelsMap.set(level.code, {
+                                code: level.code,
+                                name: level.name,
+                                order: level.order
+                            });
+                        }
+                    });
+
+                    const levels = [...levelsMap.values()].sort((a, b) => a.order - b.order);
+                    levels.forEach(level => {
+                        const option = document.createElement('option');
+                        option.value = level.code;
+                        option.textContent = level.name;
+                        select.appendChild(option);
+                    });
+                    console.log('✅ Generated levels from sections:', levels.length);
+                }
+            } catch (error) {
+                console.error('Error populating level filter:', error);
+            }
+        }
+
+        function populateSectionFilter() {
+            const sections = [...new Set(studentsWithGrades.map(s => s.section))].filter(s => s);
+
+            // Sort sections by level then by name
+            sections.sort((a, b) => {
+                const levelA = getLevelFromSection(a);
+                const levelB = getLevelFromSection(b);
+                if (levelA.order !== levelB.order) {
+                    return levelA.order - levelB.order;
+                }
+                return a.localeCompare(b, 'ar');
+            });
+
+            const select = document.getElementById('filter-section');
+            // Clear existing options except first
+            select.innerHTML = '<option value="all">جميع الأقسام</option>';
+
+            // Group sections by level
+            let currentLevel = null;
+            sections.forEach(section => {
+                const level = getLevelFromSection(section);
+
+                // Add optgroup for new level
+                if (currentLevel !== level.code) {
+                    currentLevel = level.code;
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = level.name;
+
+                    // Add all sections of this level to the optgroup
+                    const levelSections = sections.filter(s => getLevelFromSection(s).code === level.code);
+                    levelSections.forEach(ls => {
+                        const option = document.createElement('option');
+                        option.value = ls;
+                        option.textContent = ls;
+                        optgroup.appendChild(option);
+                    });
+
+                    select.appendChild(optgroup);
+                }
+            });
+        }
+
+        function updateSectionsForLevel(level) {
+            const allSections = [...new Set(studentsWithGrades.map(s => s.section))].filter(s => s);
+            const select = document.getElementById('filter-section');
+
+            // Clear existing options
+            select.innerHTML = '<option value="all">جميع الأقسام</option>';
+
+            // Filter sections by level
+            let filteredSections = allSections;
+            if (level !== 'all') {
+                filteredSections = allSections.filter(s => getLevelFromSection(s).code === level);
+            }
+
+            // Sort sections
+            filteredSections.sort((a, b) => {
+                const levelA = getLevelFromSection(a);
+                const levelB = getLevelFromSection(b);
+                if (levelA.order !== levelB.order) {
+                    return levelA.order - levelB.order;
+                }
+                return a.localeCompare(b, 'ar');
+            });
+
+            // Group by level if showing all
+            if (level === 'all') {
+                let currentLevel = null;
+                filteredSections.forEach(section => {
+                    const sLevel = getLevelFromSection(section);
+                    if (currentLevel !== sLevel.code) {
+                        currentLevel = sLevel.code;
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = sLevel.name;
+
+                        const levelSections = filteredSections.filter(s => getLevelFromSection(s).code === sLevel.code);
+                        levelSections.forEach(ls => {
+                            const option = document.createElement('option');
+                            option.value = ls;
+                            option.textContent = ls;
+                            optgroup.appendChild(option);
+                        });
+
+                        select.appendChild(optgroup);
+                    }
+                });
+            } else {
+                filteredSections.forEach(section => {
+                    const option = document.createElement('option');
+                    option.value = section;
+                    option.textContent = section;
+                    select.appendChild(option);
+                });
+            }
+        }
+
+        function setupEventListeners() {
+            // Import dropzone
+            const dropzone = document.getElementById('grades-dropzone');
+            const fileInput = document.getElementById('grades-file-input');
+
+            dropzone.addEventListener('click', () => fileInput.click());
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = 'var(--primary)';
+            });
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.style.borderColor = '#e0e0e0';
+            });
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.style.borderColor = '#e0e0e0';
+                handleFiles(e.dataTransfer.files);
+            });
+            fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+            // Search and filters
+            document.getElementById('search-student').addEventListener('input', filterStudents);
+            document.getElementById('filter-level').addEventListener('change', (e) => {
+                updateSectionsForLevel(e.target.value);
+                filterStudents();
+            });
+            document.getElementById('filter-section').addEventListener('change', filterStudents);
+            document.getElementById('filter-status').addEventListener('change', filterStudents);
+
+            // ============ أزرار العمليات ============
+
+            // زر حساب معدل المادة
+            document.getElementById('calc-subject-avg-btn').addEventListener('click', () => {
+                const btn = document.getElementById('calc-subject-avg-btn');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
+
+                addLog(`📊 بدء حساب معدلات المواد...`, 'info');
+
+                let calculatedCount = 0;
+                studentsWithGrades.forEach(student => {
+                    if (student.grades && student.grades.length > 0) {
+                        student.grades.forEach(grade => {
+                            if (grade.grades && grade.grades.length > 0) {
+                                const moyenne = calculateSubjectAverage(grade.subject, grade.grades);
+                                if (moyenne !== null) {
+                                    grade.moyenne = moyenne;
+                                    calculatedCount++;
+                                }
+                            }
+                        });
+                    }
+                });
+
+                addLog(`✅ تم حساب ${calculatedCount} معدل مادة`, 'success');
+                showToast(`تم حساب معدلات المواد بنجاح!`, 'success');
+
+                btn.innerHTML = '<i class="fas fa-check"></i> تم الحساب';
+                btn.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
+
+                // تفعيل زر حساب المعدل العام
+                const calcGeneralBtn = document.getElementById('calc-general-avg-btn');
+                calcGeneralBtn.disabled = false;
+                calcGeneralBtn.style.opacity = '1';
+
+                addLog(`💡 اضغط على زر "حساب المعدل العام" لحساب المعدل العام`, 'info');
+                displayStudents();
+            });
+
+            // زر حساب المعدل العام
+            document.getElementById('calc-general-avg-btn').addEventListener('click', () => {
+                const btn = document.getElementById('calc-general-avg-btn');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
+
+                addLog(`🎓 بدء حساب المعدلات العامة...`, 'info');
+
+                let calculatedCount = 0;
+                studentsWithGrades.forEach(student => {
+                    if (student.grades && student.grades.length > 0) {
+                        const generalAvg = calculateGeneralAverage(student);
+                        if (generalAvg !== null) {
+                            student.generalAverage = generalAvg;
+                            calculatedCount++;
+                        }
+                    }
+                });
+
+                addLog(`✅ تم حساب ${calculatedCount} معدل عام`, 'success');
+                showToast(`تم حساب المعدلات العامة بنجاح!`, 'success');
+
+                btn.innerHTML = '<i class="fas fa-check"></i> تم الحساب';
+                btn.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
+
+                // تفعيل زر الحفظ
+                const saveBtn = document.getElementById('save-grades-btn');
+                saveBtn.disabled = false;
+                saveBtn.style.opacity = '1';
+
+                updateStatistics();
+                displayStudents();
+                addLog(`💡 اضغط على زر "حفظ البيانات" لحفظ النتائج`, 'info');
+            });
+
+            // زر الحفظ
+            document.getElementById('save-grades-btn').addEventListener('click', async () => {
+                const btn = document.getElementById('save-grades-btn');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+                await saveAllGradesToFirestore();
+                btn.innerHTML = '<i class="fas fa-check"></i> تم الحفظ';
+                btn.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
+                showToast(`تم حفظ البيانات بنجاح!`, 'success');
+            });
+
+            // Modal
+            document.getElementById('close-modal').addEventListener('click', () => {
+                document.getElementById('student-modal').classList.remove('active');
+            });
+            document.getElementById('student-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'student-modal') {
+                    document.getElementById('student-modal').classList.remove('active');
+                }
+            });
+        }
+
+        function handleFiles(files) {
+            const log = document.getElementById('import-log');
+            log.innerHTML = '';
+            log.classList.add('show');
+
+            showToast(`جاري معالجة ${files.length} ملف(ات)...`, 'info');
+            addLog(`📂 بدء استيراد ${files.length} ملف(ات)`, 'info');
+
+            let processedCount = 0;
+
+            Array.from(files).forEach(file => {
+                addLog(`📄 قراءة الملف: ${file.name}`, 'info');
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        await processGradesFile(workbook, file.name);
+                        processedCount++;
+
+                        if (processedCount === files.length) {
+                            showToast(`✅ تم استيراد ${files.length} ملف(ات) بنجاح!`, 'success');
+                        }
+                    } catch (error) {
+                        addLog(`❌ خطأ في قراءة الملف: ${file.name} - ${error.message}`, 'error');
+                        showToast(`خطأ في قراءة الملف: ${file.name}`, 'error');
+                    }
+                };
+                reader.onerror = () => {
+                    addLog(`❌ فشل قراءة الملف: ${file.name}`, 'error');
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : type === 'warning' ? 'exclamation-circle' : 'info-circle'}"></i> ${message}`;
+            container.appendChild(toast);
+
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('import-log');
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.textContent = message;
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function processGradesFile(workbook, fileName) {
+            addLog(`🔍 تحليل الملف: ${fileName}`, 'info');
+
+            // Extract section and subject from filename first (as fallback)
+            const parts = fileName.split('_');
+            let section = '';
+            let subject = '';
+
+            if (parts.length >= 3) {
+                section = parts[2]; // e.g., "1BACSEF-3"
+                // محاولة استخراج المادة من الجزء الثالث (وقد يكون الرابع إذا كان الاسم طويلاً)
+                if (parts[3]) {
+                    subject = parts[3].replace('.xlsx', '').replace('.xls', '').replace('(1)', '').trim();
+                }
+            }
+
+            // تحسين اكتشاف التربية الإسلامية من اسم الملف
+            const fNameLower = fileName.toLowerCase();
+            if (fNameLower.includes('islam') || fileName.includes('اسلام') || fileName.includes('إسلام')) {
+                subject = 'التربية الإسلامية';
+                addLog(`🔍 تم التعرف على المادة من اسم الملف: التربية الإسلامية`, 'success');
+            }
+
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            addLog(`📊 عدد الصفوف: ${jsonData.length}`, 'info');
+
+            // Try to find subject name in the Excel file header rows (usually labeled "المادة:")
+            for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+                const row = jsonData[i];
+                if (!row) continue;
+
+                for (let j = 0; j < row.length; j++) {
+                    const cellValue = String(row[j] || '').trim();
+                    const nextCellValue = row[j + 1] ? String(row[j + 1]).trim() : '';
+
+                    // Check if this cell contains "المادة" and next cell has the subject name
+                    if (cellValue.includes('المادة') || cellValue === 'المادة' || cellValue === 'المادة:') {
+                        if (nextCellValue && !nextCellValue.includes(':') && nextCellValue.length > 2) {
+                            subject = nextCellValue;
+                            addLog(`✅ تم العثور على اسم المادة: "${subject}"`, 'success');
+                            break;
+                        }
+                    }
+
+                    // Check if cell contains "المادة: <name>" format
+                    const maddaMatch = cellValue.match(/المادة\s*[:\s]\s*(.+)/);
+                    if (maddaMatch && maddaMatch[1]) {
+                        subject = maddaMatch[1].trim();
+                        addLog(`✅ تم العثور على اسم المادة: "${subject}"`, 'success');
+                        break;
+                    }
+                }
+                if (subject && !(/^\d+$/.test(subject))) break; // Found valid subject name
+            }
+
+            // If subject is still just a number code, try to map it to a known subject name
+            if (/^\d+$/.test(subject)) {
+                const subjectCodeMap = {
+                    '0060': 'المواظبة والسلوك',
+                    '0010': 'اللغة العربية',
+                    '0020': 'اللغة الفرنسية',
+                    '0030': 'اللغة الانجليزية',
+                    '0040': 'الرياضيات',
+                    '0050': 'الفيزياء والكيمياء',
+                    '0070': 'علوم الحياة والأرض',
+                    '0080': 'التربية الإسلامية',
+                    '0090': 'الفلسفة',
+                    '0100': 'التاريخ والجغرافيا',
+                    '0110': 'الاجتماعيات',
+                    '0120': 'التربية البدنية',
+                    '0130': 'الإعلاميات'
+                };
+
+                if (subjectCodeMap[subject]) {
+                    addLog(`📝 تحويل رمز المادة ${subject} إلى: ${subjectCodeMap[subject]}`, 'info');
+                    subject = subjectCodeMap[subject];
+                }
+            }
+
+            // Fallback if still no valid subject
+            if (!subject || subject === 'غير محدد' || /^\d+$/.test(subject)) {
+                // محاولة أخيرة: التحقق من اسم الملف مرة أخرى بشكل أعمق
+                if (fileName.toLowerCase().includes('islam') || fileName.includes('اسلام') || fileName.includes('إسلام')) {
+                    subject = 'التربية الإسلامية';
+                    addLog(`⚠️ تم تعيين المادة "التربية الإسلامية" استناداً لاسم الملف`, 'warning');
+                } else {
+                    subject = 'مادة غير محددة';
+                }
+            }
+
+            addLog(`📚 المادة: ${subject} | القسم: ${section}`, 'info');
+
+            // Show first 5 rows for debugging
+            for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+                const row = jsonData[i];
+                if (row && row.length > 0) {
+                    addLog(`📄 صف ${i}: ${row.slice(0, 8).join(' | ')}...`, 'info');
+                    // Debug: إظهار جميع الأعمدة التي تحتوي على قيم تشبه MASSAR
+                    if (i >= 4) {
+                        const massarCandidates = [];
+                        row.forEach((cell, idx) => {
+                            const val = String(cell || '');
+                            if (/^[A-Z]\d{5,}$/i.test(val) || /^[A-Z]{1,2}\d{4,}$/i.test(val)) {
+                                massarCandidates.push(`[${idx}]: ${val}`);
+                            }
+                        });
+                        if (massarCandidates.length > 0) {
+                            addLog(`🔍 رموز محتملة في صف ${i}: ${massarCandidates.join(', ')}`, 'info');
+                        }
+                    }
+                }
+            }
+
+            // Find header row - look for row with MASSAR code pattern in data
+            let headerRowIndex = -1;
+            let codeColFound = -1;
+
+            // First, try to find a row that looks like headers (contains meaningful text, not just letters)
+            for (let i = 0; i < Math.min(20, jsonData.length); i++) {
+                const row = jsonData[i];
+                if (!row || row.length < 3) continue;
+
+                const rowStr = row.join(' ').toUpperCase();
+
+                // Skip rows that are just single letters (A, B, C, D...)
+                const allSingleLetters = row.every(cell =>
+                    !cell || (typeof cell === 'string' && /^[A-Z]$/i.test(cell.trim()))
+                );
+                if (allSingleLetters) continue;
+
+                // Look for header keywords
+                if (rowStr.includes('CODE') || rowStr.includes('MASSAR') ||
+                    rowStr.includes('NOM') || rowStr.includes('PRENOM') ||
+                    rowStr.includes('ELEVE') || rowStr.includes('الاسم') ||
+                    rowStr.includes('CC1') || rowStr.includes('CC2')) {
+                    headerRowIndex = i;
+                    addLog(`✅ تم العثور على صف العناوين في الصف ${i}`, 'success');
+                    break;
+                }
+            }
+
+            // If no header found, look for the row BEFORE the first data row with MASSAR codes
+            if (headerRowIndex === -1) {
+                for (let i = 0; i < Math.min(20, jsonData.length); i++) {
+                    const row = jsonData[i];
+                    if (!row) continue;
+
+                    // البحث عن رمز MASSAR الحقيقي (حرف + 9 أرقام مثل K149073769)
+                    // نفضل هذا النمط على الأنماط الأخرى
+                    for (let j = 0; j < row.length; j++) {
+                        const val = String(row[j] || '');
+                        // MASSAR الحقيقي: حرف واحد + 9 أرقام (مثل K149073769, G160044350)
+                        if (/^[A-Z]\d{9}$/i.test(val)) {
+                            headerRowIndex = Math.max(0, i - 1);
+                            codeColFound = j;
+                            addLog(`✅ تم اكتشاف رمز MASSAR في الصف ${i}، العمود ${j}: ${val}`, 'success');
+                            addLog(`📋 صف العناوين المفترض: ${headerRowIndex}`, 'info');
+                            break;
+                        }
+                    }
+                    if (headerRowIndex !== -1) break;
+                }
+            }
+
+            // إذا لم يُعثر على MASSAR الحقيقي، جرب الأنماط الأخرى
+            if (headerRowIndex === -1) {
+                for (let i = 0; i < Math.min(20, jsonData.length); i++) {
+                    const row = jsonData[i];
+                    if (!row) continue;
+
+                    for (let j = 0; j < row.length; j++) {
+                        const val = String(row[j] || '');
+                        // أنماط بديلة
+                        if (/^[A-Z]\d{5,}$/i.test(val) || /^[A-Z]{1,2}\d{4,}$/i.test(val)) {
+                            headerRowIndex = Math.max(0, i - 1);
+                            codeColFound = j;
+                            addLog(`✅ تم اكتشاف رمز بديل في الصف ${i}، العمود ${j}: ${val}`, 'success');
+                            addLog(`📋 صف العناوين المفترض: ${headerRowIndex}`, 'info');
+                            break;
+                        }
+                    }
+                    if (headerRowIndex !== -1) break;
+                }
+            }
+
+            if (headerRowIndex === -1) {
+                addLog(`⚠️ لم يتم العثور على صف العناوين، جاري البحث عن البيانات مباشرة...`, 'warning');
+                headerRowIndex = 0;
+            }
+
+            const headers = jsonData[headerRowIndex] || [];
+            addLog(`📋 العناوين في الصف ${headerRowIndex}: [${headers.join(' | ')}]`, 'info');
+
+            // Check for multi-row headers (like: الفرض الأول | الفرض الثاني... then النقطة | النقطة...)
+            // Look for a row BEFORE headerRowIndex that has actual assignment names
+            let actualHeaderRow = headerRowIndex;
+            let gradeHeaderNames = {}; // Map column index to actual grade name
+
+            // Check if current row contains mostly "النقطة" - if so, look for real names in previous row
+            const currentRowStr = headers.join(' ');
+            if (currentRowStr.includes('النقطة') || currentRowStr.includes('نقطة')) {
+                // Look for the row with actual assignment names (الفرض الأول، الفرض الثاني، etc.)
+                for (let prevRow = headerRowIndex - 1; prevRow >= 0; prevRow--) {
+                    const prevRowData = jsonData[prevRow] || [];
+                    const prevRowStr = prevRowData.join(' ');
+                    if (prevRowStr.includes('الفرض') || prevRowStr.includes('فرض') ||
+                        prevRowStr.includes('الأنشطة') || prevRowStr.includes('أنشطة')) {
+                        // Found the actual header names row
+                        addLog(`✅ تم العثور على صف أسماء الفروض في الصف ${prevRow}`, 'success');
+                        prevRowData.forEach((name, colIdx) => {
+                            if (name && String(name).trim()) {
+                                gradeHeaderNames[colIdx] = String(name).trim();
+                            }
+                        });
+                        break;
+                    }
+                }
+            }
+
+            // Find column indices - very flexible matching
+            // Use codeColFound if it was detected automatically
+            let codeCol = codeColFound !== -1 ? codeColFound : -1;
+            let gradeColumns = [];
+            let moyenneCol = -1;
+
+            headers.forEach((header, idx) => {
+                if (!header) return;
+                const h = String(header).toUpperCase().trim();
+                const hLower = String(header).toLowerCase().trim();
+                const hOriginal = String(header).trim();
+
+                // Code/Massar column - check many variations
+                if (codeCol === -1) {
+                    if (h.includes('CODE') || h.includes('MASSAR') || h.includes('رمز') ||
+                        h.includes('ELEVE') || h === 'ID' || h.includes('مسار') ||
+                        hLower.includes('code') || hLower.includes('massar')) {
+                        codeCol = idx;
+                    }
+                }
+
+                // Grade columns - check for النقطة or other grade indicators
+                // Use the actual name from gradeHeaderNames if available
+                if (hOriginal === 'النقطة' || hOriginal === 'نقطة' || h.includes('نقط') ||
+                    h.includes('CC') || h.includes('CTRL') || h.includes('فرض') || h.includes('الفرض') ||
+                    h.includes('أنشطة') || h.includes('الأنشطة') ||
+                    /^C\d+$/.test(h) || /^CC\d*$/.test(h) || /^CTRL\d*$/.test(h) || h.includes('NOTE')) {
+
+                    // Get the actual name from the previous row if available
+                    let displayName = gradeHeaderNames[idx] || hOriginal;
+
+                    // Skip if this is just "النقطة" and we don't have a real name
+                    if ((displayName === 'النقطة' || displayName === 'نقطة') && !gradeHeaderNames[idx]) {
+                        // Try to generate a name based on position
+                        displayName = `فرض ${gradeColumns.length + 1}`;
+                    }
+
+                    gradeColumns.push({ index: idx, name: displayName });
+                }
+
+                // Average column
+                if (h.includes('MOY') || h.includes('معدل') || h.includes('MOYENNE') ||
+                    h === 'M' || h.includes('AVERAGE') || h.includes('AVG')) {
+                    moyenneCol = idx;
+                }
+            });
+
+            addLog(`📝 أسماء الفروض المكتشفة: ${gradeColumns.map(c => c.name).join(' | ')}`, 'info');
+
+            // If still no code column, try to find any column that looks like a code
+            if (codeCol === -1 && jsonData.length > headerRowIndex + 1) {
+                const firstDataRow = jsonData[headerRowIndex + 1];
+
+                // أولاً: البحث عن رمز MASSAR الحقيقي (حرف + 9 أرقام)
+                for (let idx = 0; idx < firstDataRow.length; idx++) {
+                    const val = String(firstDataRow[idx] || '');
+                    if (/^[A-Z]\d{9}$/i.test(val)) {
+                        codeCol = idx;
+                        addLog(`🔍 اكتشاف رمز MASSAR في العمود ${idx}: ${val}`, 'success');
+                        break;
+                    }
+                }
+
+                // ثانياً: إذا لم يُعثر، جرب الأنماط الأخرى
+                if (codeCol === -1) {
+                    for (let idx = 0; idx < firstDataRow.length; idx++) {
+                        const val = String(firstDataRow[idx] || '');
+                        if (/^[A-Z]\d{5,}$/i.test(val) || /^[A-Z]{1,2}\d{4,}$/i.test(val)) {
+                            codeCol = idx;
+                            addLog(`🔍 اكتشاف رمز بديل في العمود ${idx}: ${val}`, 'info');
+                            break;
+                        }
+                    }
+                }
+            }
+
+            addLog(`🔢 عمود الرمز: ${codeCol}, أعمدة النقط: [${gradeColumns.join(',')}], عمود المعدل: ${moyenneCol}`, 'info');
+
+            if (codeCol === -1) {
+                addLog(`❌ لم يتم العثور على عمود الرمز. العناوين الموجودة: ${headers.join(', ')}`, 'error');
+                showToast('لم يتم العثور على عمود الرمز في الملف. راجع السجل للتفاصيل.', 'error');
+                return;
+            }
+
+            // Process data rows
+            let matchedStudents = 0;
+            let totalRows = 0;
+
+            for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (!row || row.length === 0) continue;
+
+                const code = String(row[codeCol] || '').trim();
+                if (!code) continue;
+
+                totalRows++;
+
+                // Debug: طباعة عينة من الرموز للمقارنة
+                if (totalRows <= 3) {
+                    const sampleCodes = studentsWithGrades.slice(0, 5).map(s => s.code);
+                    addLog(`🔍 رمز الطالب في Excel: "${code}" | عينة من رموز قاعدة البيانات: [${sampleCodes.join(', ')}]`, 'info');
+                }
+
+                // Find student - try exact match first, then partial
+                let student = studentsWithGrades.find(s => s.code === code);
+
+                if (!student) {
+                    // Try partial match
+                    student = studentsWithGrades.find(s =>
+                        s.code && (s.code.includes(code) || code.includes(s.code))
+                    );
+                }
+
+                if (student) {
+                    matchedStudents++;
+                    const grades = gradeColumns.map(col => {
+                        const val = parseFloat(row[col.index]);
+                        return { value: isNaN(val) ? null : val, name: col.name };
+                    });
+
+                    // تخزين النقط فقط بدون حساب المعدلات (ستُحسب لاحقاً)
+                    // Store grades only - averages will be calculated separately
+
+                    // Check if this subject already exists
+                    const existingGrade = student.grades.find(g => g.subject === subject);
+                    if (existingGrade) {
+                        // Update existing
+                        existingGrade.grades = grades;
+                        existingGrade.gradeNames = gradeColumns.map(col => col.name);
+                        // لا نحسب المعدل هنا - سيتم حسابه عند الضغط على الزر
+                        existingGrade.moyenne = null;
+                    } else {
+                        // Add new
+                        student.grades.push({
+                            subject: subject,
+                            section: section,
+                            grades: grades.filter(g => g.value !== null),
+                            gradeNames: gradeColumns.map(col => col.name),
+                            moyenne: null // سيتم حسابه لاحقاً
+                        });
+                    }
+
+                    // لا نحسب المعدل العام هنا - سيتم حسابه عند الضغط على الزر
+                }
+            }
+
+            addLog(`✅ تم مطابقة ${matchedStudents} من ${totalRows} تلميذ`, matchedStudents > 0 ? 'success' : 'warning');
+
+            if (matchedStudents === 0) {
+                addLog(`⚠️ لم يتم العثور على أي تلميذ مطابق. تأكد من استيراد لائحة التلاميذ أولاً.`, 'warning');
+                showToast('لم يتم العثور على تلاميذ مطابقين. استورد لائحة التلاميذ أولاً.', 'warning');
+            } else {
+                // تفعيل زر حساب معدل المادة
+                const calcSubjectBtn = document.getElementById('calc-subject-avg-btn');
+                calcSubjectBtn.disabled = false;
+                calcSubjectBtn.style.opacity = '1';
+                addLog(`💡 اضغط على زر "حساب معدل المادة" لحساب معدلات المواد`, 'info');
+            }
+
+            displayStudents();
+        }
+
+        function updateStatistics() {
+            const studentsWithAvg = studentsWithGrades.filter(s => s.generalAverage !== null);
+
+            const excellent = studentsWithAvg.filter(s => s.generalAverage >= 14).length;
+            const struggling = studentsWithAvg.filter(s => s.generalAverage >= 8 && s.generalAverage < 10).length;
+            const atRisk = studentsWithAvg.filter(s => s.generalAverage < 8).length;
+            const dropout = studentsWithGrades.filter(s => s.absences > 20).length; // More than 20 absences
+
+            document.getElementById('excellent-count').textContent = excellent;
+            document.getElementById('struggling-count').textContent = struggling;
+            document.getElementById('atrisk-count').textContent = atRisk;
+            document.getElementById('dropout-count').textContent = dropout;
+        }
+
+        function displayStudents() {
+            const studentsWithData = studentsWithGrades.filter(s => s.grades && s.grades.length > 0);
+            filteredStudentsList = studentsWithData;
+            currentPage = 1;
+            renderStudentsPage();
+        }
+
+        function renderStudentsPage() {
+            const container = document.getElementById('students-list');
+            const totalStudents = totalStudentsCount || studentsWithGrades.length;
+            const totalFiltered = filteredStudentsList.length;
+            const totalPages = Math.ceil(totalFiltered / STUDENTS_PER_PAGE);
+
+            document.getElementById('results-count').textContent = `(${totalFiltered} من ${totalStudents})`;
+
+            if (totalFiltered === 0) {
+                container.innerHTML = `
+                    <p style="text-align: center; color: #666; padding: 40px;">
+                        <i class="fas fa-database" style="font-size: 48px; margin-bottom: 15px; display: block;"></i>
+                        قم باستيراد ملفات النتائج لعرض البيانات
+                    </p>`;
+                return;
+            }
+
+            // حساب التلاميذ للصفحة الحالية
+            const startIndex = (currentPage - 1) * STUDENTS_PER_PAGE;
+            const endIndex = startIndex + STUDENTS_PER_PAGE;
+            const pageStudents = filteredStudentsList.slice(startIndex, endIndex);
+
+            // عرض التلاميذ
+            let html = pageStudents.map(student => {
+                const avgClass = getAverageClass(student.generalAverage);
+                return `
+                    <div class="student-card" onclick="showStudentDetails('${student.code}')">
+                        <div class="student-avatar ${student.gender === 'ذكر' ? 'male' : 'female'}">
+                            ${student.firstName ? student.firstName.charAt(0) : '؟'}
+                        </div>
+                        <div class="student-info">
+                            <h4>${student.familyName} ${student.firstName}</h4>
+                            <p>${student.section} | ${student.code}</p>
+                        </div>
+                        <div class="student-stats">
+                            <div class="stat">
+                                <div class="stat-value ${avgClass}">${student.generalAverage ? student.generalAverage.toFixed(2) : '--'}</div>
+                                <div class="stat-label">المعدل العام</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value">${student.grades.length}</div>
+                                <div class="stat-label">المواد</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // إضافة أزرار التصفح إذا كان هناك أكثر من صفحة
+            if (totalPages > 1) {
+                html += renderPagination(totalPages);
+            }
+
+            container.innerHTML = html;
+        }
+
+        function renderPagination(totalPages) {
+            let paginationHtml = '<div class="pagination">';
+
+            // زر الصفحة السابقة
+            paginationHtml += `<button class="nav-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>
+                <i class="fas fa-chevron-right"></i> السابق
+            </button>`;
+
+            // أزرار الصفحات
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                paginationHtml += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+                if (startPage > 2) {
+                    paginationHtml += '<span style="padding: 0 5px;">...</span>';
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHtml += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHtml += '<span style="padding: 0 5px;">...</span>';
+                }
+                paginationHtml += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+            }
+
+            // معلومات الصفحة
+            paginationHtml += `<span class="page-info">صفحة ${currentPage} من ${totalPages}</span>`;
+
+            // زر الصفحة التالية
+            paginationHtml += `<button class="nav-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>
+                التالي <i class="fas fa-chevron-left"></i>
+            </button>`;
+
+            paginationHtml += '</div>';
+            return paginationHtml;
+        }
+
+        function goToPage(page) {
+            const totalPages = Math.ceil(filteredStudentsList.length / STUDENTS_PER_PAGE);
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            renderStudentsPage();
+            // التمرير لأعلى القائمة
+            document.getElementById('students-results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function getAverageClass(avg) {
+            if (!avg) return '';
+            if (avg >= 14) return 'good';
+            if (avg >= 10) return 'warning';
+            return 'danger';
+        }
+
+        function filterStudents() {
+            const search = document.getElementById('search-student').value.toLowerCase();
+            const level = document.getElementById('filter-level').value;
+            const section = document.getElementById('filter-section').value;
+            const status = document.getElementById('filter-status').value;
+
+            let filtered = studentsWithGrades.filter(s => s.grades.length > 0);
+
+            if (search) {
+                filtered = filtered.filter(s =>
+                    s.firstName.toLowerCase().includes(search) ||
+                    s.familyName.toLowerCase().includes(search) ||
+                    s.code.toLowerCase().includes(search)
+                );
+            }
+
+            // Filter by level
+            if (level !== 'all') {
+                filtered = filtered.filter(s => getLevelFromSection(s.section).code === level);
+            }
+
+            if (section !== 'all') {
+                filtered = filtered.filter(s => s.section === section);
+            }
+
+            if (status !== 'all') {
+                switch (status) {
+                    case 'excellent':
+                        filtered = filtered.filter(s => s.generalAverage >= 14);
+                        break;
+                    case 'struggling':
+                        filtered = filtered.filter(s => s.generalAverage >= 8 && s.generalAverage < 10);
+                        break;
+                    case 'at-risk':
+                        filtered = filtered.filter(s => s.generalAverage < 8);
+                        break;
+                    case 'dropout':
+                        filtered = filtered.filter(s => s.absences > 20);
+                        break;
+                }
+            }
+
+            displayFilteredStudents(filtered);
+        }
+
+        function displayFilteredStudents(students) {
+            filteredStudentsList = students;
+            currentPage = 1;
+            renderStudentsPage();
+        }
+
+        function showStudentDetails(code) {
+            const student = studentsWithGrades.find(s => s.code === code);
+            if (!student) return;
+
+            const modal = document.getElementById('student-modal');
+            document.getElementById('modal-avatar').textContent = student.firstName.charAt(0);
+            document.getElementById('modal-avatar').className = `student-avatar ${student.gender === 'ذكر' ? 'male' : 'female'}`;
+            document.getElementById('modal-student-name').textContent = `${student.familyName} ${student.firstName}`;
+            document.getElementById('modal-student-info').textContent = `${student.section} | ${student.code}`;
+            document.getElementById('modal-general-average').querySelector('div').textContent =
+                student.generalAverage ? student.generalAverage.toFixed(2) : '--';
+
+            const body = document.getElementById('modal-body');
+            body.innerHTML = student.grades.map(grade => {
+                const avgClass = getGradeClass(grade.moyenne);
+                return `
+                    <div class="subject-grades">
+                        <div class="subject-header">
+                            <h4><i class="fas fa-book"></i> ${grade.subject}</h4>
+                            <div class="average">${grade.moyenne ? grade.moyenne.toFixed(2) : '--'}</div>
+                        </div>
+                        <table class="grades-table">
+                            <thead>
+                                <tr>
+                                    ${grade.grades.map((g, i) => `<th>${g.name || (grade.gradeNames && grade.gradeNames[i]) || 'فرض ' + (i + 1)}</th>`).join('')}
+                                    <th>المعدل</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    ${grade.grades.map(g => {
+                    const gradeValue = typeof g === 'object' ? g.value : g;
+                    return `<td class="grade-cell ${getGradeClass(gradeValue)}">${gradeValue !== null ? gradeValue.toFixed(2) : '-'}</td>`;
+                }).join('')}
+                                    <td class="grade-cell ${avgClass}" style="font-weight: 800;">${grade.moyenne ? grade.moyenne.toFixed(2) : '--'}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }).join('');
+
+            modal.classList.add('active');
+        }
+
+        function getGradeClass(grade) {
+            if (!grade && grade !== 0) return '';
+            if (grade >= 14) return 'excellent';
+            if (grade >= 12) return 'good';
+            if (grade >= 10) return 'average';
+            return 'poor';
+        }
+
+        // ============ PRINT BULLETIN GENERATION ============
+        document.getElementById('print-bulletin').addEventListener('click', function () {
+            const infoText = document.getElementById('modal-student-info').textContent;
+            // Info format: "Section | Code"
+            const parts = infoText.split('|');
+            if (parts.length < 2) return;
+
+            const code = parts[1].trim();
+            const student = studentsWithGrades.find(s => s.code === code);
+
+            if (student) {
+                generateAndPrintBulletin(student);
+            }
+        });
+
+        function generateAndPrintBulletin(student) {
+            const levelInfo = getLevelFromSection(student.section);
+            const levelCode = levelInfo.code;
+
+            // Identify coefficients (reuse logic or simple lookup)
+            let coeffs = COEFFICIENTS[levelCode];
+            // Fallback match logic (simplified from calculateGeneralAverage)
+            if (!coeffs) {
+                if (levelCode.includes('sm') && levelCode.includes('1')) coeffs = COEFFICIENTS['1bacsm'];
+                else if (levelCode.includes('sm') && levelCode.includes('2')) coeffs = COEFFICIENTS['2bacsm'];
+                else if (levelCode.includes('eco') && levelCode.includes('1')) coeffs = COEFFICIENTS['1baceco'];
+                else if ((levelCode.includes('eco') || levelCode.includes('gc')) && levelCode.includes('2')) coeffs = COEFFICIENTS['2baceco'];
+                else if (levelCode.startsWith('1bac') && (levelCode.includes('l') || levelCode.includes('lettre'))) coeffs = COEFFICIENTS['1bacl'];
+                else if (levelCode.startsWith('2bac') && (levelCode.includes('sh') || levelCode.includes('human'))) coeffs = COEFFICIENTS['2bacsh'];
+                else if (levelCode.startsWith('tcl') || (levelCode.includes('tc') && levelCode.includes('l'))) coeffs = COEFFICIENTS['tcl'];
+                else if (levelCode.startsWith('1bac')) coeffs = COEFFICIENTS['1bacexp'];
+                else if (levelCode.startsWith('2bac')) coeffs = COEFFICIENTS['2bacpc'];
+                else if (levelCode.includes('tc')) coeffs = COEFFICIENTS['tcs'];
+            }
+
+            let rowsHtml = '';
+            let totalCoeffs = 0;
+            let totalWeighted = 0;
+
+            // Define subject order preference if needed, here we use grades order
+            // Ideally we should sort by standard subject order (Islamic, Arabic, French, English, HistGeo, Math, PC, SVT...)
+            const subjectOrder = [
+                'التربية الإسلامية', 'اللغة العربية', 'اللغة الفرنسية', 'اللغة الإنجليزية', 'الإجتماعيات',
+                'الرياضيات', 'الفيزياء والكيمياء', 'علوم الحياة والأرض', 'الفلسفة',
+                'المعلوميات', 'التربية البدنية', 'المواظبة'
+            ];
+
+            // Create a map for sorting
+            const gradesCopy = [...student.grades];
+            gradesCopy.sort((a, b) => {
+                const nameA = normalizeSubjectName(a.subject);
+                const nameB = normalizeSubjectName(b.subject);
+                // We need a better sort key, but for now leave as is or basic sort
+                return 0;
+            });
+
+            gradesCopy.forEach(grade => {
+                const subjectKey = normalizeSubjectName(grade.subject);
+                let coeff = coeffs ? coeffs[subjectKey] : 1;
+
+                // Debug logging - سيظهر في Console المتصفح
+                console.log(`📊 Subject: "${grade.subject}" → Key: "${subjectKey}" → Coeff: ${coeff}`);
+
+                // إظهار جميع المواد المستوردة (بدون تجاهل أي مادة)
+                // إذا لم يوجد معامل، نستخدم 1 كقيمة افتراضية
+                if (coeff === undefined || coeff === null) {
+                    coeff = 1;
+                    console.warn(`⚠️ No coefficient found for "${grade.subject}" (${subjectKey}), using default 1`);
+                }
+
+                const moy = grade.moyenne !== null ? grade.moyenne : 0;
+                const weighted = moy * coeff;
+
+                totalCoeffs += coeff;
+                totalWeighted += weighted;
+
+                let note = '';
+                if (moy >= 16) note = 'حسن جدا';
+                else if (moy >= 14) note = 'حسن';
+                else if (moy >= 12) note = 'لا بأس به';
+                else if (moy >= 10) note = 'مقبول';
+                else note = 'ضعيف';
+
+                rowsHtml += `
+                    <tr>
+                        <td class="subject-cell">${grade.subject}</td>
+                        <td style="font-size: 11px; color: #555;">${grade.grades.map(g => (typeof g === 'object' ? g.value : g).toFixed(2)).join(' | ')}</td>
+                        <td>${moy.toFixed(2)}</td>
+                        <td>${coeff}</td>
+                        <td>${weighted.toFixed(2)}</td>
+                        <td>${note}</td>
+                    </tr>
+                `;
+            });
+
+            const generalAvg = totalCoeffs > 0 ? (totalWeighted / totalCoeffs).toFixed(2) : '0.00';
+            let mention = '';
+            if (generalAvg >= 16) mention = 'حسن جدا';
+            else if (generalAvg >= 14) mention = 'حسن';
+            else if (generalAvg >= 12) mention = 'لا بأس به';
+            else if (generalAvg >= 10) mention = 'مقبول';
+            else mention = 'دون المتوسط';
+
+            const bulletinHtml = `
+                <div class="bulletin-container">
+                    <div class="bulletin-header">
+                        <div class="header-text" style="width: 100%; text-align: center;">
+                            <h1>المملكة المغربية</h1>
+                            <h2>وزارة التربية الوطنية والتعليم الأولي والرياضة</h2>
+                            <h3>بيان النقط - الدورة الأولى</h3>
+                        </div>
+                    </div>
+                    
+                    <div class="student-info-box">
+                        <div class="student-info-col">
+                            <div class="student-info-row"><span class="student-info-label">الاسم الكامل:</span> ${student.firstName} ${student.familyName}</div>
+                            <div class="student-info-row"><span class="student-info-label">رقم مسار:</span> ${student.code}</div>
+                        </div>
+                        <div class="student-info-col">
+                            <div class="student-info-row"><span class="student-info-label">المستــوى:</span> ${levelCode}</div>
+                            <div class="student-info-row"><span class="student-info-label">القســـم:</span> ${student.section}</div>
+                        </div>
+                         <div class="student-info-col">
+                            <div class="student-info-row"><span class="student-info-label">السنة الدراسية:</span> 2025/2026</div>
+                        </div>
+                    </div>
+
+                    <table class="bulletin-table">
+                        <thead>
+                            <tr>
+                                <th width="20%">المادة</th>
+                                <th width="30%">فروض المراقبة المستمرة</th>
+                                <th width="10%">المعدل الدوري</th>
+                                <th width="5%">المعامل</th>
+                                <th width="10%">النقاط</th>
+                                <th width="15%">الملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                            <tr class="total-row">
+                                <td colspan="3">المجموع العام</td>
+                                <td>${totalCoeffs}</td>
+                                <td>${totalWeighted.toFixed(2)}</td>
+                                <td>-</td>
+                            </tr>
+                            <tr class="total-row" style="background-color: #e0e0e0; font-size: 16px;">
+                                <td colspan="4" style="text-align: center;">المعدل العام للدورة</td>
+                                <td colspan="2" style="text-align: center;">${generalAvg} / 20</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div class="decision-box">
+                         الميزة: ${mention} &nbsp; | &nbsp; قرار مجلس القسم: ${generalAvg >= 10 ? 'ينتقل / ناجح' : 'يكرر / متعثر'}
+                    </div>
+
+                    <div class="bulletin-footer">
+                        <div class="signature-box">
+                            <p>توقيع الولي</p>
+                        </div>
+                        <div class="signature-box">
+                             <p>توقيع السيد المدير</p>
+                             <br><br>
+                        </div>
+                    </div>
+                    
+                    <div class="print-watermark">نظام تدبير النتائج</div>
+                </div>
+            `;
+
+            // Insert hidden div if not exists
+            let printDiv = document.getElementById('printable-bulletin');
+            if (printDiv) printDiv.remove();
+
+            document.body.insertAdjacentHTML('beforeend', '<div id="printable-bulletin">' + bulletinHtml + '</div>');
+
+            // Print
+            window.print();
+        }
+
+        // Sidebar toggle
+        document.getElementById('menu-toggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        });
+    </script>
+</body>
+
+</html>

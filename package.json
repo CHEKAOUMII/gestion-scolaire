@@ -1,0 +1,31 @@
+{
+  "name": "gestion-scolaire",
+  "version": "1.0.0",
+  "description": "برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا",
+  "main": "main.js",
+  "scripts": {
+    "start": "set ELECTRON_RUN_AS_NODE=&& electron .",
+    "build": "electron-builder"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "sql.js": "^1.9.0",
+    "xlsx": "^0.18.5"
+  },
+  "build": {
+    "appId": "com.ibnsina.gestion-scolaire",
+    "productName": "برنامج التدبير المدرسي",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    }
+  }
+}
