@@ -1,0 +1,1136 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوائح التلاميذ | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js" defer></script>
+    <script src="js/sidebar.js" defer></script>
+    <script src="js/ux-enhancements.js" defer></script>
+    <style>
+        /* ─── Search Section Enhancement ─── */
+        .sl-search-section {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+            animation: fadeInUp 0.4s ease-out both;
+        }
+
+        .sl-search-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            color: var(--color-primary);
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .sl-search-header i {
+            font-size: 17px;
+            color: var(--color-primary-light);
+        }
+
+        .sl-search-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .sl-search-grid select,
+        .sl-search-grid input,
+        .sl-search-grid .btn {
+            height: 46px;
+            margin: 0;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-size: 14px;
+        }
+
+        .sl-search-grid input {
+            padding: 0 14px;
+            border: 1px solid var(--color-accent);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            transition: var(--transition-fast);
+        }
+
+        .sl-search-grid input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-mist);
+        }
+
+        .sl-search-grid input::placeholder {
+            color: var(--color-text-light);
+        }
+
+        .sl-search-grid select {
+            padding: 0 12px;
+            border: 1px solid var(--color-accent);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+
+        .sl-search-grid select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-mist);
+        }
+
+        /* ─── Results Section ─── */
+        .sl-results-section {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            box-shadow: var(--shadow-card);
+            animation: fadeInUp 0.4s ease-out 0.08s both;
+        }
+
+        .sl-results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .sl-results-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+            color: var(--color-primary);
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .sl-results-title i {
+            font-size: 17px;
+            color: var(--color-primary-light);
+        }
+
+        .sl-count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 28px;
+            padding: 0 10px;
+            border-radius: var(--radius-full);
+            background: var(--gradient-primary);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            font-family: var(--font-display);
+            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+        }
+
+        .sl-results-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ─── Table ─── */
+        .sl-table-wrapper {
+            overflow-x: auto;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--color-accent);
+        }
+
+        .sl-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .sl-table th {
+            background: var(--gradient-primary);
+            color: #fff;
+            padding: 14px 16px;
+            text-align: right;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 14px;
+            border-bottom: none;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            cursor: pointer;
+            user-select: none;
+            transition: var(--transition-fast);
+        }
+
+        .sl-table th:hover {
+            background: linear-gradient(135deg, #1B3D30 0%, #2D5F4A 100%);
+        }
+
+        .sl-table th .sort-icon {
+            margin-right: 6px;
+            font-size: 11px;
+            opacity: 0.5;
+            transition: var(--transition-fast);
+        }
+
+        .sl-table th.sorted .sort-icon {
+            opacity: 1;
+            color: #ffd700;
+        }
+
+        .sl-table td {
+            padding: 12px 16px;
+            text-align: right;
+            font-size: 14px;
+            color: var(--color-text-main);
+            border-bottom: 1px solid var(--color-accent);
+            transition: var(--transition-fast);
+            vertical-align: middle;
+        }
+
+        .sl-table tbody tr {
+            transition: var(--transition-fast);
+        }
+
+        .sl-table tbody tr:nth-child(even) {
+            background: var(--color-surface-alt);
+        }
+
+        .sl-table tbody tr:hover {
+            background: var(--color-primary-mist);
+            transform: scale(1.002);
+        }
+
+        .sl-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* ─── Avatar ─── */
+        .sl-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+            font-family: var(--font-display);
+            flex-shrink: 0;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+        }
+
+        .sl-student-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sl-student-name {
+            font-weight: 600;
+            color: var(--color-text-main);
+        }
+
+        /* ─── Gender Badge ─── */
+        .sl-gender-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .sl-gender-badge.male {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .sl-gender-badge.female {
+            background: rgba(236, 72, 153, 0.1);
+            color: #ec4899;
+            border: 1px solid rgba(236, 72, 153, 0.2);
+        }
+
+        .sl-gender-badge i {
+            font-size: 11px;
+        }
+
+        /* ─── Class Badge ─── */
+        .sl-class-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: var(--radius-full);
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--color-primary-mist);
+            color: var(--color-primary);
+            border: 1px solid rgba(45, 95, 74, 0.15);
+        }
+
+        /* ─── Empty State ─── */
+        .sl-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .sl-empty-icon {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--color-primary-mist);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        .sl-empty-icon i {
+            font-size: 42px;
+            color: var(--color-primary-light);
+        }
+
+        .sl-empty-state h4 {
+            color: var(--color-text-main);
+            font-family: var(--font-display);
+            font-size: 18px;
+            margin: 0 0 8px;
+        }
+
+        .sl-empty-state p {
+            color: var(--color-text-light);
+            font-size: 14px;
+            margin: 0;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 0.85;
+            }
+        }
+
+        /* ─── Loading State ─── */
+        .sl-loading-state {
+            text-align: center;
+            padding: 50px 20px;
+        }
+
+        .sl-loading-state i {
+            font-size: 36px;
+            color: var(--color-primary);
+            margin-bottom: 14px;
+            display: block;
+        }
+
+        .sl-loading-state span {
+            color: var(--color-text-muted);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* ─── Error State ─── */
+        .sl-error-state {
+            text-align: center;
+            padding: 50px 20px;
+        }
+
+        .sl-error-state i {
+            font-size: 42px;
+            color: var(--color-danger);
+            margin-bottom: 14px;
+            display: block;
+        }
+
+        .sl-error-state span {
+            color: var(--color-text-muted);
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* ─── Pagination ─── */
+        .sl-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .sl-pagination button {
+            min-width: 38px;
+            height: 38px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-main);
+        }
+
+        .sl-pagination button:hover:not(:disabled):not(.active) {
+            background: var(--color-primary-mist);
+            border-color: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        .sl-pagination button.active {
+            background: var(--gradient-primary);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+        }
+
+        .sl-pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .sl-pagination-info {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            margin: 0 10px;
+            font-weight: 500;
+        }
+
+        /* ─── Detail KPIs inside modal ─── */
+        .sl-detail-kpis {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .sl-detail-kpi {
+            flex: 1;
+            min-width: 80px;
+            background: var(--color-surface-alt);
+            border-radius: var(--radius-sm);
+            padding: 12px 10px;
+            text-align: center;
+            box-shadow: var(--shadow-card);
+            border: 1px solid var(--color-accent);
+        }
+
+        .sl-detail-kpi .kpi-val {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--color-primary);
+        }
+
+        .sl-detail-kpi .kpi-lbl {
+            font-size: 11px;
+            color: var(--color-text-muted);
+            margin-top: 2px;
+        }
+
+        /* ─── Subject blocks ─── */
+        .sl-subject-block {
+            background: var(--color-surface-alt);
+            border-radius: var(--radius-sm);
+            margin-bottom: 12px;
+            overflow: hidden;
+            border: 1px solid var(--color-accent);
+            transition: 0.2s;
+        }
+
+        .sl-subject-block:hover {
+            border-color: var(--color-primary-light);
+        }
+
+        .sl-subject-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+        }
+
+        .sl-subject-block-header .subj-name {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--color-text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sl-subject-block-header .subj-name i {
+            color: var(--color-primary);
+            font-size: 15px;
+        }
+
+        .sl-subject-block-header .subj-avg {
+            font-weight: 800;
+            font-size: 16px;
+            padding: 3px 12px;
+            border-radius: var(--radius-full);
+            color: white;
+        }
+
+        .sl-subject-block-body {
+            padding: 0 16px 14px;
+        }
+
+        /* ─── Grade chips ─── */
+        .sl-grades-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .sl-grade-chip {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-xs, 6px);
+            padding: 8px 14px;
+            min-width: 75px;
+            transition: 0.2s;
+        }
+
+        .sl-grade-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-card);
+        }
+
+        .sl-grade-chip .chip-label {
+            font-size: 10px;
+            color: var(--color-text-muted);
+            white-space: nowrap;
+        }
+
+        .sl-grade-chip .chip-value {
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .sl-grade-chip .chip-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--color-accent);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .sl-grade-chip .chip-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.4s ease;
+        }
+
+        /* ─── Grades section header ─── */
+        .sl-grades-section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--color-text-main);
+            margin: 18px 0 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sl-grades-section-title i {
+            color: var(--color-primary);
+        }
+
+        /* ─── Grades loading & empty ─── */
+        .sl-grades-loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--color-text-muted);
+            font-size: 14px;
+        }
+
+        .sl-grades-empty {
+            text-align: center;
+            padding: 24px;
+            color: var(--color-text-muted);
+        }
+
+        .sl-grades-empty i {
+            font-size: 36px;
+            margin-bottom: 8px;
+            opacity: 0.3;
+            display: block;
+        }
+
+        /* ─── Action Button in Table ─── */
+        .sl-action-btn {
+            width: 34px;
+            height: 34px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-primary);
+            cursor: pointer;
+            transition: var(--transition-fast);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .sl-action-btn:hover {
+            background: var(--color-primary);
+            color: #fff;
+            border-color: var(--color-primary);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(45, 95, 74, 0.25);
+        }
+
+        /* ─── Student Modal ─── */
+        .sl-modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 12000;
+            background: rgba(12, 18, 22, 0.54);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .sl-modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .sl-modal {
+            width: min(820px, 100%);
+            background: var(--color-surface);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-elevated);
+            overflow: hidden;
+            animation: scaleIn 0.25s ease;
+        }
+
+        .sl-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 22px;
+            background: linear-gradient(135deg, var(--color-primary-soft, var(--color-primary-mist)), rgba(74, 139, 111, 0.08));
+            border-bottom: 1px solid var(--color-accent);
+        }
+
+        .sl-modal-header h3 {
+            margin: 0;
+            color: var(--color-primary);
+            font-family: var(--font-display);
+            font-size: 17px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sl-modal-close {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 1px solid var(--color-accent);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            cursor: pointer;
+            transition: var(--transition-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sl-modal-close:hover {
+            background: rgba(232, 93, 93, 0.1);
+            color: var(--color-danger);
+            transform: rotate(90deg);
+        }
+
+        .sl-modal-body {
+            padding: 24px;
+        }
+
+        .sl-modal-avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 800;
+            color: #fff;
+            margin: 0 auto 18px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            font-family: var(--font-display);
+        }
+
+        .sl-modal-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .sl-modal-info-item {
+            background: var(--color-surface-alt);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+        }
+
+        .sl-modal-info-label {
+            font-size: 12px;
+            color: var(--color-text-light);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .sl-modal-info-value {
+            font-size: 15px;
+            color: var(--color-text-main);
+            font-weight: 700;
+            font-family: var(--font-display);
+        }
+
+        .sl-modal-info-item.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .sl-modal-footer {
+            padding: 14px 22px;
+            border-top: 1px solid var(--color-accent);
+            background: var(--color-surface-alt);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* ─── Print Preview ─── */
+        .sl-print-preview-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 12000;
+            background: rgba(12, 18, 22, 0.54);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 26px 18px;
+        }
+
+        .sl-print-preview-overlay.active {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .sl-print-dialog {
+            width: min(1100px, 100%);
+            max-height: calc(100vh - 52px);
+            background: var(--color-surface);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-elevated);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sl-print-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--color-accent);
+            background: linear-gradient(135deg, var(--color-primary-mist), rgba(74, 139, 111, 0.08));
+        }
+
+        .sl-print-header h3 {
+            margin: 0;
+            font-size: 17px;
+            color: var(--color-primary);
+            font-family: var(--font-display);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sl-print-body {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+            background: radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 42%), linear-gradient(160deg, #eef3f8, #e3edf4);
+        }
+
+        .sl-print-page {
+            display: flex;
+            justify-content: center;
+            min-height: 100%;
+        }
+
+        .sl-print-sheet {
+            box-sizing: border-box;
+            width: min(210mm, 100%);
+            min-height: 297mm;
+            background: #fff;
+            color: #111;
+            border-radius: 8px;
+            padding: 12mm;
+            box-shadow: 0 14px 36px rgba(15, 26, 34, 0.2);
+            font-size: 12px;
+            font-family: "Noto Kufi Arabic", sans-serif;
+        }
+
+        .sl-print-sheet-title {
+            text-align: center;
+            font-size: 20px;
+            font-weight: 800;
+            color: #1B3D30;
+            margin-bottom: 6px;
+        }
+
+        .sl-print-sheet-subtitle {
+            text-align: center;
+            font-size: 13px;
+            color: #6B7B72;
+            margin-bottom: 18px;
+        }
+
+        .sl-print-sheet table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #d6dde3;
+        }
+
+        .sl-print-sheet table th {
+            background: #1a5276;
+            color: #fff;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .sl-print-sheet table td {
+            padding: 7px 10px;
+            font-size: 12px;
+            color: #111;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: right;
+        }
+
+        .sl-print-sheet table tbody tr:nth-child(even) {
+            background: #f5f8fa;
+        }
+
+        .sl-print-sheet .print-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #6B7B72;
+            margin-top: 16px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 8px;
+        }
+
+        .sl-print-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 12px 18px;
+            border-top: 1px solid var(--color-accent);
+            background: var(--color-surface-alt);
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 768px) {
+            .sl-search-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .sl-results-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .sl-modal-info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .sl-table th,
+            .sl-table td {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+
+            .sl-avatar {
+                width: 30px;
+                height: 30px;
+                font-size: 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sl-search-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ─── Print Styles ─── */
+        @media print {
+
+            .sl-search-section,
+            .header,
+            .sidebar,
+            .sl-pagination,
+            .sl-results-actions,
+            .sl-modal-overlay,
+            .sl-print-preview-overlay,
+            .quick-nav-toggle,
+            .toast-container {
+                display: none !important;
+            }
+
+            .sl-results-section {
+                border: none !important;
+                box-shadow: none !important;
+                backdrop-filter: none !important;
+                padding: 0 !important;
+            }
+
+            .sl-table th {
+                background: #1a5276 !important;
+                color: #fff !important;
+            }
+        }
+
+        /* ─── Forced Print Mode (for Electron printToPDF) ─── */
+        #sl-print-root {
+            display: none;
+        }
+
+        body.sl-printing-active {
+            display: block !important;
+            background: #fff !important;
+            background-image: none !important;
+            min-height: auto !important;
+            overflow: visible !important;
+        }
+
+        body.sl-printing-active>#sl-print-root {
+            display: block !important;
+        }
+
+        body.sl-printing-active>*:not(#sl-print-root) {
+            display: none !important;
+        }
+
+        body.sl-printing-active #sl-print-root {
+            position: static !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            overflow: visible !important;
+        }
+
+        body.sl-printing-active #sl-print-root .sl-print-sheet {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            padding: 5mm !important;
+            width: 100% !important;
+            min-height: auto !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle" aria-label="فتح أو إغلاق القائمة الجانبية"><i
+                        class="fas fa-bars" aria-hidden="true"></i></button>
+                <h2 class="page-title"><i class="fas fa-users" aria-hidden="true"></i> لوائح التلاميذ</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر" aria-label="تبديل المظهر"><i
+                        class="fas fa-moon" aria-hidden="true"></i></button>
+                <label class="sr-only" for="school-year">السنة الدراسية</label>
+                <select id="school-year" name="school-year" aria-label="السنة الدراسية">
+                    <option value="2025/2026" selected>2025/2026</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <!-- Search Section -->
+            <div class="sl-search-section">
+                <div class="sl-search-header">
+                    <i class="fas fa-filter"></i> البحث والتصفية
+                </div>
+                <form id="search-form" class="sl-search-grid" role="search" aria-label="نموذج البحث عن التلاميذ">
+                    <label class="sr-only" for="search-name">الاسم</label>
+                    <input id="search-name" name="search-name" type="text" placeholder="🔍 بحث بالاسم..."
+                        autocomplete="name">
+                    <label class="sr-only" for="search-class">القسم</label>
+                    <select id="search-class" name="search-class" aria-label="القسم">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <label class="sr-only" for="search-gender">الجنس</label>
+                    <select id="search-gender" name="search-gender" aria-label="الجنس">
+                        <option value="">كل الجنسين</option>
+                        <option value="M">ذكور</option>
+                        <option value="F">إناث</option>
+                    </select>
+                    <label class="sr-only" for="search-code">رمز مسار</label>
+                    <input id="search-code" name="search-code" type="text" placeholder="رمز مسار" autocomplete="off">
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-search" aria-hidden="true"></i>
+                        بحث</button>
+                </form>
+            </div>
+
+            <!-- Results Section -->
+            <div class="sl-results-section">
+                <div class="sl-results-header">
+                    <h3 class="sl-results-title">
+                        <i class="fas fa-table-list"></i>
+                        قائمة التلاميذ
+                        <span id="count-badge" class="sl-count-badge" aria-live="polite">0</span>
+                    </h3>
+                    <div class="sl-results-actions">
+                        <button class="btn btn-primary" type="button" id="print-preview-btn" disabled>
+                            <i class="fas fa-eye" aria-hidden="true"></i> معاينة الطباعة
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sl-table-wrapper">
+                    <table class="sl-table" id="students-table">
+                        <caption class="sr-only">جدول لوائح التلاميذ حسب معايير البحث</caption>
+                        <thead>
+                            <tr>
+                                <th data-sort="index"># <i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="massar_code">رمز مسار <i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="full_name">الاسم الكامل <i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="class_name">القسم <i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="gender">الجنس <i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="birth_date">تاريخ الازدياد <i class="fas fa-sort sort-icon"></i></th>
+                                <th>الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="students-tbody">
+                            <tr>
+                                <td colspan="7">
+                                    <div class="sl-loading-state">
+                                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                                        <span>جاري تحميل البيانات...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div id="pagination" class="sl-pagination" style="display:none;"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Student Modal -->
+    <div class="sl-modal-overlay" id="student-modal" aria-hidden="true">
+        <div class="sl-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"
+            style="max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+            <div class="sl-modal-header">
+                <h3 id="modal-title"><i class="fas fa-user-graduate"></i> ملف التلميذ(ة)</h3>
+                <button type="button" class="sl-modal-close" id="modal-close" aria-label="إغلاق"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="sl-modal-body" id="modal-body" style="overflow-y:auto;flex:1;"></div>
+            <div class="sl-modal-footer">
+                <button class="btn btn-secondary" type="button" id="modal-close-btn">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Preview -->
+    <div class="sl-print-preview-overlay" id="print-preview-overlay" aria-hidden="true">
+        <div class="sl-print-dialog" role="dialog" aria-modal="true">
+            <div class="sl-print-header">
+                <h3><i class="fas fa-print"></i> معاينة قبل الطباعة</h3>
+                <button type="button" class="sl-modal-close" id="print-preview-close" aria-label="إغلاق"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="sl-print-body">
+                <div class="sl-print-page" id="print-page"></div>
+            </div>
+            <div class="sl-print-actions">
+                <button class="btn btn-secondary" type="button" id="print-cancel"><i class="fas fa-times"></i>
+                    إلغاء</button>
+                <button class="btn btn-success" type="button" id="print-export-pdf"><i class="fas fa-file-pdf"></i>
+                    تصدير PDF</button>
+                <button class="btn btn-primary" type="button" id="print-confirm"><i class="fas fa-print"></i> طباعة
+                    الآن</button>
+            </div>
+        </div>
+    </div>
+
+    <p id="students-feedback" class="sr-only" aria-live="polite"></p>
+
+    <!-- Persistent print root (hidden, used for PDF export) -->
+    <div id="sl-print-root" aria-hidden="true"></div>
+
+    <script src="js/pages/students-list.js" defer></script>
+</body>
+
+</html>

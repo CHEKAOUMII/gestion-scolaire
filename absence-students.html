@@ -1,0 +1,153 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>غياب التلاميذ | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-user-times"></i> غياب التلاميذ</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <h3><i class="fas fa-search"></i> البحث في سجل الغياب</h3>
+                <form class="search-form"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    <input id="search-name" placeholder="الاسم">
+                    <select id="class-select">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <input id="massar-code" placeholder="رمز مسار">
+                    <button class="btn btn-primary" type="button" id="search-btn"><i class="fas fa-search"></i>
+                        بحث</button>
+                </form>
+            </div>
+
+            <div class="students-results">
+                <h3><i class="fas fa-clipboard-list"></i> سجل الغياب</h3>
+                <div class="table-responsive">
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>رمز مسار</th>
+                                <th>الاسم الكامل</th>
+                                <th>القسم</th>
+                                <th>ساعات مبررة</th>
+                                <th>ساعات غير مبررة</th>
+                                <th>المجموع</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const year = '2025/2026';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadClasses();
+            await search();
+            document.getElementById('search-btn').addEventListener('click', search);
+        });
+
+        async function loadClasses() {
+            const classes = await window.api.classes.getAll(year) || [];
+            const absences = await window.api.absences.getAll(year) || [];
+            const fallbackSections = Array.from(new Set(
+                absences.map(a => String(a.section || '').trim()).filter(Boolean)
+            )).map(name => ({ name }));
+            const merged = [...classes];
+            fallbackSections.forEach(c => {
+                if (!merged.some(x => String(x.name || '').trim() === c.name)) {
+                    merged.push(c);
+                }
+            });
+            const select = document.getElementById('class-select');
+            merged
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ar'))
+                .forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name;
+                    opt.textContent = c.name;
+                    select.appendChild(opt);
+                });
+        }
+
+        async function search() {
+            const name = document.getElementById('search-name').value.trim();
+            const className = document.getElementById('class-select').value;
+            const code = document.getElementById('massar-code').value.trim();
+
+            const rows = await window.api.absences.getAll(year) || [];
+            const byStudent = new Map();
+            rows.forEach(r => {
+                const key = String(r.student_code || '').trim();
+                if (!key) return;
+                if (!byStudent.has(key)) {
+                    byStudent.set(key, {
+                        massar_code: key,
+                        student_name: String(r.full_name || r.student_code || '-').trim(),
+                        class_name: String(r.section || '').trim(),
+                        justified_hours: 0,
+                        unjustified_hours: 0
+                    });
+                }
+                const item = byStudent.get(key);
+                const hours = Number(r.hours) || 0;
+                if (String(r.absence_type || '') === 'justified') item.justified_hours += hours;
+                else item.unjustified_hours += hours;
+                if (!item.class_name && r.section) item.class_name = String(r.section).trim();
+                if ((!item.student_name || item.student_name === '-') && r.full_name) item.student_name = String(r.full_name).trim();
+            });
+
+            let filtered = Array.from(byStudent.values());
+            if (className) filtered = filtered.filter(a => (a.class_name || '') === className);
+            if (name) filtered = filtered.filter(a => (a.student_name || '').includes(name));
+            if (code) filtered = filtered.filter(a => String(a.massar_code || '').trim() === code);
+            filtered.sort((a, b) => String(a.class_name || '').localeCompare(String(b.class_name || ''), 'ar') || String(a.student_name || '').localeCompare(String(b.student_name || ''), 'ar'));
+
+            document.getElementById('tbody').innerHTML = filtered.length ? filtered.map((a, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${a.massar_code || '-'}</td>
+                    <td>${a.student_name || '-'}</td>
+                    <td>${a.class_name || '-'}</td>
+                    <td style="color: #10b981;">${a.justified_hours || 0}</td>
+                    <td style="color: #dc2626;">${a.unjustified_hours || 0}</td>
+                    <td style="font-weight: bold;">${(a.justified_hours || 0) + (a.unjustified_hours || 0)}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="7" style="padding: 20px; text-align: center;">لا توجد سجلات غياب</td></tr>';
+        }
+    </script>
+</body>
+
+</html>

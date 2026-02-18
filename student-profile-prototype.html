@@ -1,0 +1,384 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ملف التلميذ | Interactive Profile</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css"> <!-- Fallback styles -->
+    <style>
+        /* Specific Styles for Profile */
+        .profile-header-card {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+            border-radius: var(--radius);
+            padding: 40px 30px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: var(--shadow-hover);
+        }
+
+        .profile-header-card::before {
+            content: '';
+            position: absolute;
+            top: -50px;
+            left: -50px;
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            color: var(--color-primary);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .profile-info h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 800;
+        }
+
+        .profile-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .profile-meta span {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 16px;
+            border-radius: 50px;
+            backdrop-filter: blur(4px);
+        }
+
+        .profile-status {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            background: var(--color-success);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .profile-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 25px;
+        }
+
+        .info-card {
+            background: var(--color-surface);
+            border-radius: var(--radius);
+            padding: 25px;
+            box-shadow: var(--shadow-card);
+            border: 1px solid var(--color-accent);
+            height: 100%;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 0;
+            border-bottom: 1px solid var(--color-accent);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: var(--color-text-muted);
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: var(--color-text-main);
+            font-weight: 700;
+        }
+
+        .tabs-nav {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--color-accent);
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: var(--color-text-muted);
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            position: relative;
+            transition: var(--transition-fast);
+            font-family: inherit;
+        }
+
+        .tab-btn.active {
+            color: var(--color-primary);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -11px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--color-primary);
+            border-radius: 3px 3px 0 0;
+        }
+
+        .tab-btn:hover {
+            color: var(--color-primary-dark);
+        }
+
+        .stats-mini-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .mini-stat {
+            background: var(--color-secondary);
+            padding: 15px;
+            border-radius: var(--radius-sm);
+            text-align: center;
+        }
+
+        .mini-stat h4 {
+            font-size: 12px;
+            color: var(--color-text-muted);
+            margin-bottom: 5px;
+        }
+
+        .mini-stat .val {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--color-primary);
+        }
+
+        @media (max-width: 1024px) {
+            .profile-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <aside class="sidebar">
+        <!-- Reusing sidebar structure from index.html (simplified for prototype) -->
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a>
+                </li>
+                <li><a href="#" class="nav-link active"><i class="fas fa-user-graduate"></i><span>التلاميذ</span></a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header unified-header">
+            <div class="header-left">
+                <button class="menu-toggle"><i class="fas fa-bars"></i></button>
+                <div class="page-title-row">
+                    <h2><i class="fas fa-user-circle"></i> ملف التلميذ</h2>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="notification-btn"><i class="fas fa-bell"></i></button>
+                <div class="user-info">admin</div>
+            </div>
+        </header>
+
+        <!-- Profile Content -->
+
+        <div class="profile-header-card">
+            <div class="profile-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="profile-info">
+                <h1>محمد أحمد العلوي</h1>
+                <div class="profile-meta">
+                    <span><i class="fas fa-fingerprint"></i> الرقم الوطني: K134567890</span>
+                    <span><i class="fas fa-graduation-cap"></i> الثانية باك علوم فيزيائية 1</span>
+                    <span><i class="fas fa-calendar"></i> تاريخ الازدياد: 15/03/2006</span>
+                </div>
+            </div>
+            <div class="profile-status">نشيط <i class="fas fa-check-circle"></i></div>
+        </div>
+
+        <div class="profile-grid">
+            <!-- Left Column: Quick Info -->
+            <div class="left-col">
+                <div class="info-card">
+                    <h3 style="margin-bottom: 20px; color: var(--color-primary-dark);"><i
+                            class="fas fa-info-circle"></i> معلومات شخصية</h3>
+
+                    <div class="info-row">
+                        <span class="info-label">الجنس</span>
+                        <span class="info-value">ذكر</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">مكان الازدياد</span>
+                        <span class="info-value">الرباط</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">العنوان</span>
+                        <span class="info-value">حي الرياض، زنقة 5 رقم 12</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">ولي الأمر</span>
+                        <span class="info-value">أحمد العلوي</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">هاتف الولي</span>
+                        <span class="info-value">0661123456</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">البريد الإلكتروني</span>
+                        <span class="info-value">mohamed.alaoui@taalim.ma</span>
+                    </div>
+                </div>
+
+                <div class="info-card" style="margin-top: 25px;">
+                    <h3 style="margin-bottom: 20px; color: var(--color-primary-dark);"><i class="fas fa-history"></i>
+                        المسار الدراسي</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="margin-bottom: 15px; position: relative; padding-right: 20px;">
+                            <div
+                                style="position: absolute; right: 0; top: 5px; width: 10px; height: 10px; background: var(--color-primary); border-radius: 50%;">
+                            </div>
+                            <strong style="display: block; color: var(--color-text-main);">2025/2026</strong>
+                            <span style="color: var(--color-text-muted); font-size: 13px;">الثانية باك علوم فيزيائية
+                                1</span>
+                        </li>
+                        <li style="margin-bottom: 15px; position: relative; padding-right: 20px;">
+                            <div
+                                style="position: absolute; right: 0; top: 5px; width: 10px; height: 10px; background: var(--color-text-muted); border-radius: 50%;">
+                            </div>
+                            <strong style="display: block; color: var(--color-text-main);">2024/2025</strong>
+                            <span style="color: var(--color-text-muted); font-size: 13px;">الأولى باك علوم رياضية</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Right Column: Interactive Tabs -->
+            <div class="right-col">
+                <div class="tabs-nav">
+                    <button class="tab-btn active">النتائج الدراسية</button>
+                    <button class="tab-btn">الغياب والمواظبة</button>
+                    <button class="tab-btn">الوثائق والتقارير</button>
+                    <button class="tab-btn">التواصل</button>
+                </div>
+
+                <div class="info-card">
+                    <!-- Results Tab Content -->
+                    <div class="stats-mini-grid">
+                        <div class="mini-stat">
+                            <h4>المعدل العام</h4>
+                            <div class="val" style="color: var(--total-color);">16.45</div>
+                        </div>
+                        <div class="mini-stat">
+                            <h4>الرتبة في القسم</h4>
+                            <div class="val">3 / 32</div>
+                        </div>
+                        <div class="mini-stat">
+                            <h4>ساعات الغياب</h4>
+                            <div class="val" style="color: var(--color-danger);">4</div>
+                        </div>
+                    </div>
+
+                    <h3
+                        style="margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>تطور النتائج</span>
+                        <select
+                            style="font-size: 13px; padding: 5px; border-radius: 5px; border: 1px solid var(--color-accent);">
+                            <option>الفصل الأول</option>
+                            <option>الفصل الثاني</option>
+                        </select>
+                    </h3>
+
+                    <div
+                        style="height: 300px; background: var(--color-secondary); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: var(--color-text-light);">
+                        [Chart Placeholder: Line Chart for Grades]
+                    </div>
+
+                    <div style="margin-top: 25px;">
+                        <h3 style="margin-bottom: 15px;">آخر الفروض</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr
+                                    style="background: var(--color-secondary); color: var(--color-text-muted); font-size: 13px;">
+                                    <th style="padding: 10px; text-align: right; border-radius: 0 8px 8px 0;">المادة
+                                    </th>
+                                    <th style="padding: 10px; text-align: center;">الفرض</th>
+                                    <th style="padding: 10px; text-align: center;">النقطة</th>
+                                    <th style="padding: 10px; text-align: center; border-radius: 8px 0 0 8px;">التاريخ
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid var(--color-accent);">
+                                    <td style="padding: 12px 10px; font-weight: 600;">الرياضيات</td>
+                                    <td style="padding: 12px 10px; text-align: center;">الفرض المحروس 1</td>
+                                    <td
+                                        style="padding: 12px 10px; text-align: center; color: var(--color-success); font-weight: 700;">
+                                        18.50</td>
+                                    <td style="padding: 12px 10px; text-align: center; color: var(--color-text-muted);">
+                                        20/10/2025</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid var(--color-accent);">
+                                    <td style="padding: 12px 10px; font-weight: 600;">الفيزياء</td>
+                                    <td style="padding: 12px 10px; text-align: center;">الفرض المحروس 1</td>
+                                    <td
+                                        style="padding: 12px 10px; text-align: center; color: var(--color-primary); font-weight: 700;">
+                                        16.75</td>
+                                    <td style="padding: 12px 10px; text-align: center; color: var(--color-text-muted);">
+                                        22/10/2025</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

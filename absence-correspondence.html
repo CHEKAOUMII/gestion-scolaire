@@ -1,0 +1,121 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مراسلة الأولياء | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-envelope"></i> مراسلة الأولياء</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <h3><i class="fas fa-pen-fancy"></i> إنشاء مراسلة</h3>
+                <form id="form" class="search-form"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    <input id="massar-code" placeholder="رمز مسار التلميذ" required>
+                    <select id="letter-type">
+                        <option value="absence">إشعار بالغياب</option>
+                        <option value="warning">إنذار أول</option>
+                        <option value="final-warning">إنذار ثاني</option>
+                        <option value="expulsion">قرار الفصل</option>
+                    </select>
+                    <input type="date" id="date" required>
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-file-alt"></i> توليد</button>
+                </form>
+            </div>
+
+            <div class="students-results">
+                <h3><i class="fas fa-eye"></i> معاينة الرسالة</h3>
+                <div id="preview" class="page-empty-state">
+                    <i class="fas fa-envelope-open-text"></i>
+                    <p>أدخل بيانات التلميذ واختر نوع الرسالة</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const year = '2025/2026';
+        const typeLabels = {
+            absence: 'إشعار بالغياب',
+            warning: 'إنذار أول',
+            'final-warning': 'إنذار ثاني',
+            expulsion: 'قرار الفصل'
+        };
+
+        prefillFromUrl();
+
+        document.getElementById('form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const code = document.getElementById('massar-code').value.trim();
+            const type = document.getElementById('letter-type').value;
+            const date = document.getElementById('date').value;
+            const students = await window.api.students.search('', '', '', year) || [];
+            const student = students.find((s) => s.massar_code === code || s.code === code);
+
+            if (!student) {
+                showToast('لم يتم العثور على التلميذ', 'error');
+                return;
+            }
+
+            document.getElementById('preview').innerHTML =
+                '<div style="border: 2px solid var(--primary); padding: 40px; border-radius: 12px; text-align: right; background: white; max-width: 700px; margin: 0 auto;">' +
+                '<h2 style="text-align: center; margin-bottom: 30px;">' + (typeLabels[type] || 'مراسلة') + '</h2>' +
+                '<p>التاريخ: ' + date + '</p>' +
+                '<p>إلى ولي أمر التلميذ(ة): ' + (student.full_name || '-') + '</p>' +
+                '<p>القسم: ' + (student.class_name || student.section || '-') + '</p>' +
+                '<p>رقم مسار: ' + (student.massar_code || student.code || '-') + '</p>' +
+                '<p style="margin-top: 20px;">نحيطكم علماً بأن ابنكم/ابنتكم قد تجاوز عدد ساعات الغياب المسموح بها...</p>' +
+                '<button class="btn btn-primary" onclick="openPrintPreview({title:\'مراسلة الغياب\',pageSize:\'A4\'})" style="margin-top: 30px;"><i class="fas fa-eye"></i> معاينة الطباعة</button>' +
+                '</div>';
+
+            showToast('تم توليد الرسالة', 'success');
+        });
+
+        function prefillFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const studentCode = (params.get('student_code') || '').trim();
+            const action = (params.get('action') || '').trim();
+            const today = new Date().toISOString().slice(0, 10);
+
+            if (studentCode) {
+                document.getElementById('massar-code').value = studentCode;
+            }
+
+            if (action === 'absence_warning') {
+                document.getElementById('letter-type').value = 'absence';
+            }
+
+            if (!document.getElementById('date').value) {
+                document.getElementById('date').value = today;
+            }
+        }
+    </script>
+</body>
+
+</html>

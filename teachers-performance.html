@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مؤشرات أداء الأساتذة | برنامج التدبير المدرسي</title>
+    <meta name="description"
+        content="تحليل شامل لمؤشرات أداء الأساتذة: مقارنة المعدلات، نسب النجاح، التصنيف، والمقارنة بين الدورات">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js" defer></script>
+    <script src="js/sidebar.js" defer></script>
+    <script src="js/ux-enhancements.js" defer></script>
+    <script src="js/pages/teachers-performance.js" defer></script>
+    <style>
+        .tp-header-title {
+            margin-right: 20px;
+        }
+
+        /* ─── Filters ─── */
+        .tp-filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+
+        .tp-filters-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .tp-state-line {
+            margin-top: 10px;
+            color: var(--color-text-muted);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ─── KPI Cards ─── */
+        .tp-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .tp-kpi {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 20px 18px;
+            box-shadow: var(--shadow-card);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .tp-kpi:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .tp-kpi:nth-child(2) {
+            animation-delay: 0.06s;
+        }
+
+        .tp-kpi:nth-child(3) {
+            animation-delay: 0.12s;
+        }
+
+        .tp-kpi:nth-child(4) {
+            animation-delay: 0.18s;
+        }
+
+        .tp-kpi:nth-child(5) {
+            animation-delay: 0.24s;
+        }
+
+        .tp-kpi:nth-child(6) {
+            animation-delay: 0.30s;
+        }
+
+        .tp-kpi::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            left: 0;
+            height: 4px;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+
+        .tp-kpi:nth-child(1)::before {
+            background: linear-gradient(90deg, var(--color-primary) 0%, #4A8B6F 100%);
+        }
+
+        .tp-kpi:nth-child(2)::before {
+            background: linear-gradient(90deg, #3C95D0 0%, #67B7F7 100%);
+        }
+
+        .tp-kpi:nth-child(3)::before {
+            background: linear-gradient(90deg, var(--color-success) 0%, #38ef7d 100%);
+        }
+
+        .tp-kpi:nth-child(4)::before {
+            background: linear-gradient(90deg, var(--color-warning) 0%, #ffd200 100%);
+        }
+
+        .tp-kpi:nth-child(5)::before {
+            background: linear-gradient(90deg, #a770ef 0%, #cf8bf3 100%);
+        }
+
+        .tp-kpi:nth-child(6)::before {
+            background: linear-gradient(90deg, var(--color-danger) 0%, #ff9a76 100%);
+        }
+
+        .tp-kpi:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .tp-kpi-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+
+        .tp-kpi:nth-child(1) .tp-kpi-icon {
+            background: linear-gradient(135deg, var(--color-primary), #4A8B6F);
+        }
+
+        .tp-kpi:nth-child(2) .tp-kpi-icon {
+            background: linear-gradient(135deg, #3C95D0, #67B7F7);
+        }
+
+        .tp-kpi:nth-child(3) .tp-kpi-icon {
+            background: linear-gradient(135deg, var(--color-success), #38ef7d);
+        }
+
+        .tp-kpi:nth-child(4) .tp-kpi-icon {
+            background: linear-gradient(135deg, var(--color-warning), #ffd200);
+        }
+
+        .tp-kpi:nth-child(5) .tp-kpi-icon {
+            background: linear-gradient(135deg, #a770ef, #cf8bf3);
+        }
+
+        .tp-kpi:nth-child(6) .tp-kpi-icon {
+            background: linear-gradient(135deg, var(--color-danger), #ff9a76);
+        }
+
+        .tp-kpi-label {
+            font-size: 12px;
+            color: var(--color-text-muted);
+            font-weight: 700;
+            margin-bottom: 7px;
+            font-family: var(--font-main);
+        }
+
+        .tp-kpi-value {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--color-text-main);
+            line-height: 1.15;
+            margin-bottom: 4px;
+            font-family: var(--font-display);
+        }
+
+        .tp-kpi-sub {
+            font-size: 12px;
+            color: var(--color-text-light);
+            font-weight: 600;
+        }
+
+        /* ─── Collapsible Blocks ─── */
+        .tp-block {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+            transition: var(--transition-normal);
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .tp-block:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .tp-block:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .tp-block:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        .tp-block:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .tp-block>summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 18px 22px;
+            color: var(--color-primary);
+            font-size: 17px;
+            font-weight: 800;
+            font-family: var(--font-display);
+            background: var(--gradient-surface);
+            border-bottom: 2px solid var(--color-accent);
+            user-select: none;
+            transition: var(--transition-normal);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tp-block>summary::after {
+            content: '\f078';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 13px;
+            margin-right: auto;
+            margin-left: 0;
+            transition: transform 0.3s ease;
+            color: var(--color-text-light);
+        }
+
+        .tp-block[open]>summary::after {
+            transform: rotate(180deg);
+        }
+
+        .tp-block>summary:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .tp-block[open]>summary {
+            background: var(--color-primary-mist);
+            border-bottom-color: var(--color-primary-light);
+        }
+
+        .tp-block>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .tp-block-body {
+            padding: 18px;
+        }
+
+        /* ─── Grids ─── */
+        .tp-grid-two {
+            display: grid;
+            grid-template-columns: 1.35fr 0.95fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .tp-grid-three {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        /* ─── Panels ─── */
+        .tp-panel {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-card);
+            padding: 18px;
+            transition: var(--transition-normal);
+        }
+
+        .tp-panel:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .tp-panel h3 {
+            margin: 0 0 12px;
+            color: var(--color-primary);
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--color-accent);
+            font-family: var(--font-display);
+        }
+
+        .tp-panel h3 i {
+            font-size: 17px;
+            color: var(--color-primary-light);
+        }
+
+        .tp-panel-note {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            margin: 0 0 10px;
+        }
+
+        /* ─── Charts ─── */
+        .tp-chart-wrap {
+            position: relative;
+            height: 360px;
+        }
+
+        .tp-chart-short {
+            height: 230px;
+        }
+
+        .tp-chart-medium {
+            height: 280px;
+        }
+
+        /* ─── Alerts ─── */
+        .tp-alert {
+            border: 1px solid #f3c563;
+            background: #fff8e6;
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            color: #8a6112;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .tp-alert-ok {
+            border-color: #7bc79f;
+            background: #ecf9f1;
+            color: #146a43;
+        }
+
+        /* ─── Table ─── */
+        .tp-table-wrap {
+            overflow: auto;
+        }
+
+        .tp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .tp-table th,
+        .tp-table td {
+            border-bottom: 1px solid var(--color-accent);
+            padding: 10px 8px;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .tp-table th {
+            background: var(--gradient-primary);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+            font-family: var(--font-display);
+        }
+
+        .tp-table tr:hover td {
+            background: rgba(45, 95, 74, 0.06);
+        }
+
+        .tp-table tr.tp-row-selected td {
+            background: rgba(74, 139, 111, 0.12);
+        }
+
+        .tp-sort-ind {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-right: 5px;
+        }
+
+        /* ─── Grade Pills ─── */
+        .tp-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-full);
+            padding: 3px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            min-width: 48px;
+            text-align: center;
+        }
+
+        .tp-pill-excellent {
+            background: linear-gradient(135deg, #2FB36D, #38ef7d);
+        }
+
+        .tp-pill-good {
+            background: linear-gradient(135deg, #3C95D0, #67B7F7);
+        }
+
+        .tp-pill-average {
+            background: linear-gradient(135deg, #F0AD4E, #ffd200);
+            color: #614a02;
+        }
+
+        .tp-pill-weak {
+            background: linear-gradient(135deg, #E85D5D, #ff9a76);
+        }
+
+        /* ─── Rating Badge ─── */
+        .tp-rating {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+        }
+
+        .tp-rating-excellent {
+            background: rgba(47, 179, 109, 0.15);
+            color: #1a7a43;
+        }
+
+        .tp-rating-good {
+            background: rgba(60, 149, 208, 0.15);
+            color: #1c5a8e;
+        }
+
+        .tp-rating-average {
+            background: rgba(240, 173, 78, 0.15);
+            color: #8a6112;
+        }
+
+        .tp-rating-weak {
+            background: rgba(232, 93, 93, 0.15);
+            color: #a42323;
+        }
+
+        /* ─── Teacher Card ─── */
+        .tp-teacher-card {
+            margin-bottom: 14px;
+            padding: 18px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--glass-border);
+            background: var(--gradient-glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-card);
+            transition: var(--transition-normal);
+        }
+
+        .tp-teacher-card:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .tp-teacher-name {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--color-primary);
+            margin-bottom: 8px;
+            font-family: var(--font-display);
+        }
+
+        .tp-teacher-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tp-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(45, 95, 74, 0.1);
+            border: 1px solid rgba(45, 95, 74, 0.2);
+            color: #214b3a;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            transition: var(--transition-fast);
+        }
+
+        .tp-badge:hover {
+            background: rgba(45, 95, 74, 0.18);
+            transform: translateY(-1px);
+        }
+
+        /* ─── Empty State ─── */
+        .tp-empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--color-text-light);
+        }
+
+        .tp-empty-state i {
+            font-size: 56px;
+            margin-bottom: 16px;
+            color: var(--color-accent);
+            display: block;
+        }
+
+        .tp-empty-state p {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* ─── Benchmark bar ─── */
+        .tp-benchmark-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--color-text-muted);
+            font-weight: 600;
+        }
+
+        .tp-benchmark-track {
+            flex: 1;
+            height: 8px;
+            background: var(--color-surface-alt);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+
+        .tp-benchmark-fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 1100px) {
+            .tp-grid-two {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 960px) {
+            .tp-grid-three {
+                grid-template-columns: 1fr;
+            }
+
+            .tp-chart-wrap {
+                height: 300px;
+            }
+
+            .tp-chart-short {
+                height: 260px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .tp-kpis {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .tp-kpi {
+                padding: 16px 14px;
+            }
+
+            .tp-kpi-value {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="tp-header-title"><i class="fas fa-ranking-star"></i> مؤشرات أداء الأساتذة</h2>
+            </div>
+            <div class="header-right">
+                <button class="btn btn-secondary" id="tp-export-btn" title="تصدير التقرير">
+                    <i class="fas fa-file-export"></i> تصدير
+                </button>
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <!-- Filters -->
+            <div class="search-section">
+                <h3><i class="fas fa-filter"></i> فلترة التحليل</h3>
+                <form id="teacher-performance-form" class="search-form tp-filters-grid">
+                    <select id="tp-level-filter">
+                        <option value="">كل المستويات</option>
+                    </select>
+                    <select id="tp-class-filter">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <select id="tp-subject-filter">
+                        <option value="">كل المواد</option>
+                    </select>
+                    <select id="tp-semester-filter">
+                        <option value="">كل الدورات</option>
+                    </select>
+                    <select id="tp-teacher-filter">
+                        <option value="">كل الأساتذة</option>
+                    </select>
+                    <div class="tp-filters-actions">
+                        <button type="button" class="btn btn-primary" id="tp-analyze-btn"><i
+                                class="fas fa-chart-column"></i>
+                            تحليل</button>
+                        <button type="button" class="btn btn-secondary" id="tp-reset-btn"><i class="fas fa-rotate"></i>
+                            إعادة</button>
+                    </div>
+                </form>
+                <div id="tp-state-line" class="tp-state-line">جاري تحميل المعطيات...</div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div id="tp-kpis" class="tp-kpis"></div>
+
+            <!-- Block 1: Comparison & Quality -->
+            <details class="tp-block" open>
+                <summary><i class="fas fa-users-viewfinder"></i> المقارنة العامة وجودة البيانات</summary>
+                <div class="tp-block-body">
+                    <div class="tp-grid-two">
+                        <section class="tp-panel">
+                            <h3><i class="fas fa-chart-bar"></i> مقارنة الأساتذة حسب النسبة</h3>
+                            <p id="tp-comparison-meta" class="tp-panel-note">-</p>
+                            <div class="tp-chart-wrap">
+                                <canvas id="tp-teacher-compare-chart"></canvas>
+                            </div>
+                        </section>
+                        <section class="tp-panel">
+                            <h3><i class="fas fa-shield-halved"></i> جودة بيانات الأستاذ</h3>
+                            <div id="tp-quality-alert" class="tp-alert">-</div>
+                        </section>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Block 2: Detailed Table -->
+            <details class="tp-block" open>
+                <summary><i class="fas fa-table"></i> الجدول التفصيلي للأساتذة</summary>
+                <div class="tp-block-body">
+                    <div class="tp-table-wrap">
+                        <table class="tp-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort-key="teacher">الأستاذ <span id="sort-teacher"
+                                            class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="subject">المادة <span id="sort-subject"
+                                            class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="sectionsCount">الأقسام <span id="sort-sectionsCount"
+                                            class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="studentCount">التلاميذ <span id="sort-studentCount"
+                                            class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="avg">المعدل <span id="sort-avg" class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="passRate">النجاح <span id="sort-passRate"
+                                            class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="rating">التصنيف <span id="sort-rating"
+                                            class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="semesterDiff">التطور <span id="sort-semesterDiff"
+                                            class="tp-sort-ind"></span></th>
+                                    <th data-sort-key="lastImportedMs">آخر استيراد <span id="sort-lastImportedMs"
+                                            class="tp-sort-ind"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tp-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Block 3: Teacher Detail Card -->
+            <details class="tp-block" open>
+                <summary><i class="fas fa-user-check"></i> بطاقة الأستاذ المختار</summary>
+                <div class="tp-block-body">
+                    <div id="tp-teacher-card" class="tp-teacher-card">
+                        <div id="tp-teacher-name" class="tp-teacher-name">-</div>
+                        <div id="tp-teacher-meta" class="tp-teacher-meta"></div>
+                        <div id="tp-teacher-benchmark" class="tp-benchmark-bar"></div>
+                    </div>
+                    <div class="tp-grid-three">
+                        <div class="tp-panel">
+                            <h3><i class="fas fa-school"></i> الأداء حسب الأقسام</h3>
+                            <div class="tp-chart-wrap tp-chart-short">
+                                <canvas id="tp-section-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="tp-panel">
+                            <h3><i class="fas fa-chart-pie"></i> توزيع نقط الأستاذ</h3>
+                            <div class="tp-chart-wrap tp-chart-short">
+                                <canvas id="tp-distribution-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="tp-panel">
+                            <h3><i class="fas fa-wave-square"></i> تطور الأداء بين الفروض</h3>
+                            <p id="tp-trend-note" class="tp-panel-note">-</p>
+                            <div class="tp-chart-wrap tp-chart-short">
+                                <canvas id="tp-trend-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Block 4: Semester Comparison & Radar -->
+            <details class="tp-block" open>
+                <summary><i class="fas fa-arrow-right-arrow-left"></i> مقارنة الدورات والتصنيف العام</summary>
+                <div class="tp-block-body">
+                    <div class="tp-grid-two">
+                        <section class="tp-panel">
+                            <h3><i class="fas fa-scale-balanced"></i> مقارنة الدورة 1 و الدورة 2</h3>
+                            <p id="tp-semester-compare-note" class="tp-panel-note">-</p>
+                            <div class="tp-chart-wrap tp-chart-medium">
+                                <canvas id="tp-semester-compare-chart"></canvas>
+                            </div>
+                        </section>
+                        <section class="tp-panel">
+                            <h3><i class="fas fa-crosshairs"></i> ملف الأداء الشامل</h3>
+                            <p id="tp-radar-note" class="tp-panel-note">-</p>
+                            <div class="tp-chart-wrap tp-chart-medium">
+                                <canvas id="tp-radar-chart"></canvas>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </main>
+</body>
+
+</html>

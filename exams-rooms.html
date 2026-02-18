@@ -1,0 +1,130 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>قاعات الامتحان | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-door-open"></i> قاعات الامتحان</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <form id="form" class="search-form"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    <input type="hidden" id="id">
+                    <input id="name" placeholder="اسم القاعة" required>
+                    <input id="capacity" type="number" placeholder="السعة">
+                    <input id="building" placeholder="المبنى">
+                    <button class="btn btn-success" type="submit">حفظ</button>
+                </form>
+            </div>
+
+            <div class="students-results">
+                <table class="students-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>اسم القاعة</th>
+                            <th>السعة</th>
+                            <th>المبنى</th>
+                            <th>الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let rows = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadRows();
+            document.getElementById('form').addEventListener('submit', save);
+        });
+
+        async function loadRows() {
+            rows = await window.api.rooms.getAll() || [];
+            document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${r.name || '-'}</td>
+                    <td>${r.capacity || '-'}</td>
+                    <td>${r.building || '-'}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editRow(${r.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-secondary" onclick="delRow(${r.id})"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="5" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
+        }
+
+        async function save(e) {
+            e.preventDefault();
+            const payload = {
+                id: document.getElementById('id').value ? Number(document.getElementById('id').value) : undefined,
+                name: document.getElementById('name').value.trim(),
+                capacity: document.getElementById('capacity').value,
+                building: document.getElementById('building').value.trim()
+            };
+            const res = await window.api.rooms.save(payload);
+            if (!res || res.success === false) {
+                showToast('فشل الحفظ', 'error');
+                return;
+            }
+            showToast('تم الحفظ', 'success');
+            e.target.reset();
+            document.getElementById('id').value = '';
+            await loadRows();
+        }
+
+        function editRow(id) {
+            const r = rows.find(x => x.id === id);
+            if (!r) return;
+            document.getElementById('id').value = r.id;
+            document.getElementById('name').value = r.name || '';
+            document.getElementById('capacity').value = r.capacity || '';
+            document.getElementById('building').value = r.building || '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        async function delRow(id) {
+            if (!confirm('حذف هذه القاعة؟')) return;
+            const res = await window.api.rooms.delete(id);
+            if (!res || res.success === false) {
+                showToast('فشل الحذف', 'error');
+                return;
+            }
+            await loadRows();
+        }
+    </script>
+</body>
+
+</html>

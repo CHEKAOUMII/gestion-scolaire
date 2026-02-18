@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>معلومات المؤسسة | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-school"></i> معلومات المؤسسة</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <form id="form" class="search-form"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+                    <input id="school-name" placeholder="اسم المؤسسة">
+                    <input id="school-code" placeholder="رمز المؤسسة">
+                    <input id="school-city" placeholder="المدينة">
+                    <textarea id="school-address" placeholder="العنوان"
+                        style="grid-column: 1/-1; min-height: 90px;"></textarea>
+                    <button class="btn btn-success" type="submit">حفظ</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', load);
+
+        async function load() {
+            const val = await window.api.settings.get('school_info');
+            if (!val) return;
+            try {
+                const d = JSON.parse(val);
+                document.getElementById('school-name').value = d.name || '';
+                document.getElementById('school-code').value = d.code || '';
+                document.getElementById('school-city').value = d.city || '';
+                document.getElementById('school-address').value = d.address || '';
+            } catch { }
+        }
+
+        document.getElementById('form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('school-name').value.trim(),
+                code: document.getElementById('school-code').value.trim(),
+                city: document.getElementById('school-city').value.trim(),
+                address: document.getElementById('school-address').value.trim()
+            };
+            const res = await window.api.settings.set('school_info', JSON.stringify(payload));
+            if (!res || res.success === false) {
+                showToast('فشل الحفظ', 'error');
+                return;
+            }
+            showToast('تم حفظ معلومات المؤسسة', 'success');
+        });
+    </script>
+</body>
+
+</html>

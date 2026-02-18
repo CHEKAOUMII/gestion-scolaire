@@ -1,53 +1,44 @@
-// Firebase Configuration - Shared across all pages
-// ملف تهيئة Firebase الموحد
+// Compatibility auth helpers (SQLite-based)
+// الملف بقي بنفس الاسم للحفاظ على التوافق مع الصفحات القديمة
 
-const firebaseConfig = {
-    apiKey: "AIzaSyCdhGx_UNgo3Ynx2__7xYNHThN68U0Hnak",
-    authDomain: "gestionscholaire.firebaseapp.com",
-    projectId: "gestionscholaire",
-    storageBucket: "gestionscholaire.firebasestorage.app",
-    messagingSenderId: "971615999680",
-    appId: "1:971615999680:web:46c0e1f2e10a3c8ecb7f25"
-};
-
-// Initialize Firebase (only once)
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
-
-const db = firebase.firestore();
-const auth = firebase.auth();
-
-// دالة التحقق من المصادقة الموحدة - مع منع حلقة التوجيه
 function checkAuthentication(redirectToLogin = true) {
     return new Promise((resolve, reject) => {
-        // Check if we just logged in
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('loggedin') === '1') {
-            window.history.replaceState({}, '', window.location.pathname);
-            resolve(null); // Assume logged in
+        const isActive = !!(window.AuthSession && window.AuthSession.isActive && window.AuthSession.isActive());
+        if (!isActive) {
+            if (redirectToLogin) {
+                window.location.replace('login.html');
+            }
+            reject(new Error('Not authenticated'));
             return;
         }
 
-        let authCheckDone = false;
+        if (window.api?.auth?.getSession) {
+            window.api.auth
+                .getSession()
+                .then((res) => {
+                    if (!res?.success || !res?.authenticated) {
+                        window.AuthSession?.clear?.();
+                        if (redirectToLogin) {
+                            window.location.replace('login.html');
+                        }
+                        reject(new Error('Not authenticated'));
+                        return;
+                    }
+                    resolve(res.user || null);
+                })
+                .catch((err) => {
+                    if (redirectToLogin) {
+                        window.location.replace('login.html');
+                    }
+                    reject(err);
+                });
+            return;
+        }
 
-        setTimeout(() => {
-            auth.onAuthStateChanged(user => {
-                if (authCheckDone) return;
-                authCheckDone = true;
-
-                if (!user && redirectToLogin) {
-                    window.location.replace('login.html');
-                    reject('Not authenticated');
-                } else {
-                    resolve(user);
-                }
-            });
-        }, 100);
+        resolve(window.AuthSession?.get?.() || null);
     });
 }
 
-// دالة الحماية من XSS
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
     const div = document.createElement('div');
@@ -55,30 +46,35 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// دالة تسجيل الخروج
 async function logout() {
-    if (confirm('هل تريد تسجيل الخروج؟')) {
-        await auth.signOut();
-        window.location.href = 'login.html';
+    if (!confirm('هل تريد تسجيل الخروج؟')) return;
+
+    if (window.api?.auth?.logout) {
+        await window.api.auth.logout();
     }
+
+    try {
+        localStorage.removeItem('gsl_auth_session_v1');
+        sessionStorage.setItem('justLoggedOut', '1');
+    } catch (_err) {
+        // ignore storage errors
+    }
+
+    window.location.replace('login.html');
 }
 
-// دالة عرض رسائل Toast آمنة
 function showToast(message, type = 'success') {
-    // إزالة أي toast موجود
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
 
-    // إنشاء toast جديد مع حماية XSS
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
 
-    // استخدام textContent بدلاً من innerHTML للأمان
     const icon = document.createElement('i');
     icon.className = `fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}`;
 
     const span = document.createElement('span');
-    span.textContent = message; // آمن من XSS
+    span.textContent = message;
 
     toast.appendChild(icon);
     toast.appendChild(span);

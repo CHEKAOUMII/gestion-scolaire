@@ -4,385 +4,627 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لائحة التلاميذ الحاصلين على 0 | الثانوية التأهيلية ابن سينا</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+    <title>التلاميذ الحاصلون على صفر | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Tajawal', sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
-            direction: rtl;
-            min-height: 100vh;
-        }
-
-        .print-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 30px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-
-        .print-header {
-            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .print-header h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .sz-search-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 10px;
+            align-items: stretch;
         }
 
-        .print-header .school-name {
-            font-size: 18px;
-            opacity: 0.9;
-            margin-bottom: 5px;
-        }
-
-        .print-header .date {
-            font-size: 14px;
-            opacity: 0.8;
-        }
-
-        .print-body {
-            padding: 30px;
-        }
-
-        .summary-box {
-            background: #fff8f8;
-            border: 2px solid #ffcdd2;
-            border-radius: 10px;
-            padding: 15px 20px;
-            margin-bottom: 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .summary-item {
-            text-align: center;
-        }
-
-        .summary-item .count {
-            font-size: 28px;
-            font-weight: 800;
-            color: #d32f2f;
-        }
-
-        .summary-item .label {
-            color: #666;
-            font-size: 13px;
-        }
-
-        .students-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-
-        .students-table th,
-        .students-table td {
-            padding: 12px 15px;
-            text-align: right;
-            border: 1px solid #e0e0e0;
-        }
-
-        .students-table th {
-            background: #263238;
-            color: white;
-            font-weight: 600;
-        }
-
-        .students-table tr:nth-child(even) {
-            background: #fafafa;
-        }
-
-        .students-table tr:hover {
-            background: #fff8f8;
-        }
-
-        .students-table .grade-zero {
-            background: #ffebee;
-            color: #c62828;
-            font-weight: 700;
-            padding: 4px 12px;
-            border-radius: 15px;
-            display: inline-block;
-        }
-
-        .subject-badge {
-            background: #e3f2fd;
-            color: #1565c0;
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .print-footer {
-            padding: 20px 30px;
-            background: #f5f5f5;
-            text-align: center;
-            color: #666;
-            font-size: 12px;
-            border-top: 1px solid #e0e0e0;
-        }
-
-        .actions-bar {
-            padding: 20px 30px;
-            background: #fafafa;
-            display: flex;
+        .sz-search-form .btn {
+            min-height: 46px;
+            margin: 0;
             justify-content: center;
-            gap: 15px;
-            border-bottom: 1px solid #e0e0e0;
         }
 
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 14px;
+        .sz-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+            animation: fadeInUp 0.4s ease-out 0.03s both;
+        }
+
+        .sz-kpi-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .sz-kpi-label {
+            color: var(--color-text-light);
+            font-size: 12px;
+            margin-bottom: 6px;
             font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
+            font-family: var(--font-display);
+        }
+
+        .sz-kpi-value {
+            color: var(--color-primary);
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+            font-family: var(--font-display);
+        }
+
+        .sz-results-head {
             display: flex;
             align-items: center;
-            gap: 8px;
-            text-decoration: none;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
         }
 
-        .btn-print {
-            background: linear-gradient(135deg, #00838f 0%, #00acc1 100%);
-            color: white;
+        .sz-results-head h3 {
+            margin-bottom: 0;
         }
 
-        .btn-print:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 131, 143, 0.3);
+        .sz-results-meta {
+            color: var(--color-text-muted);
+            font-size: 13px;
+            font-weight: 600;
         }
 
-        .btn-back {
-            background: linear-gradient(135deg, #7b1fa2 0%, #9c27b0 100%);
-            color: white;
-        }
-
-        .btn-back:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(123, 31, 162, 0.3);
-        }
-
-        .no-data {
-            text-align: center;
-            padding: 60px 20px;
-            color: #666;
-        }
-
-        .no-data i {
-            font-size: 60px;
-            color: #4caf50;
-            margin-bottom: 15px;
-        }
-
-        .no-data h3 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        /* Print Styles */
-        @media print {
-            body {
-                background: white;
-                padding: 0;
+        @media (max-width: 768px) {
+            .sz-search-form {
+                grid-template-columns: 1fr 1fr;
             }
+        }
 
-            .print-container {
-                box-shadow: none;
-                border-radius: 0;
-            }
-
-            .actions-bar {
-                display: none !important;
-            }
-
-            .print-header {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-
-            .students-table th {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-
-            .students-table tr:nth-child(even) {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-
-            .grade-zero,
-            .subject-badge {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
+        @media (max-width: 520px) {
+            .sz-search-form {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 
 <body>
-    <div class="print-container">
-        <div class="actions-bar">
-            <button class="btn btn-print" onclick="window.print()">
-                <i class="fas fa-print"></i>
-                طباعة
-            </button>
-            <a href="analytics.html" class="btn btn-back">
-                <i class="fas fa-arrow-right"></i>
-                العودة للتحليل
-            </a>
-        </div>
+    <div class="toast-container" id="toast-container"></div>
 
-        <div class="print-header">
-            <div class="school-name">الثانوية التأهيلية ابن سينا</div>
-            <h1><i class="fas fa-exclamation-triangle"></i> لائحة التلاميذ الحاصلين على 0</h1>
-            <div class="date" id="current-date"></div>
-        </div>
+    <aside class="sidebar" id="sidebar"></aside>
 
-        <div class="print-body">
-            <div class="summary-box" id="summary-box">
-                <div class="summary-item">
-                    <div class="label">إجمالي الحالات</div>
-                    <div class="count" id="total-cases">0</div>
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-exclamation-circle"></i> التلاميذ الحاصلون على صفر</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <h3><i class="fas fa-filter"></i> تصفية النتائج</h3>
+                <form class="search-form sz-search-form" id="filters-form">
+                    <input id="search-input" type="text" placeholder="بحث بالاسم، رمز مسار أو المادة" autocomplete="off">
+                    <select id="class-select">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <select id="semester-select">
+                        <option value="">كل الدورات</option>
+                        <option value="1">الدورة الأولى</option>
+                        <option value="2">الدورة الثانية</option>
+                    </select>
+                    <select id="page-size-select" aria-label="عدد النتائج في الصفحة">
+                        <option value="10">10 في الصفحة</option>
+                        <option value="25" selected>25 في الصفحة</option>
+                        <option value="50">50 في الصفحة</option>
+                        <option value="100">100 في الصفحة</option>
+                    </select>
+                    <button class="btn btn-primary" type="button" id="search-btn"><i class="fas fa-search"></i>
+                        بحث</button>
+                    <button class="btn btn-success" type="button" id="export-btn" disabled><i class="fas fa-print"></i>
+                        معاينة الطباعة / PDF</button>
+                </form>
+            </div>
+
+            <div class="sz-kpis" aria-live="polite">
+                <div class="sz-kpi-card">
+                    <div class="sz-kpi-label">حالات الصفر</div>
+                    <div class="sz-kpi-value" id="kpi-total-cases">0</div>
                 </div>
-                <div class="summary-item">
-                    <div class="label">عدد التلاميذ</div>
-                    <div class="count" id="unique-students">0</div>
+                <div class="sz-kpi-card">
+                    <div class="sz-kpi-label">عدد التلاميذ</div>
+                    <div class="sz-kpi-value" id="kpi-unique-students">0</div>
                 </div>
-                <div class="summary-item">
-                    <div class="label">الموسم الدراسي</div>
-                    <div class="count" style="font-size: 18px; color: #333;">2025/2026</div>
+                <div class="sz-kpi-card">
+                    <div class="sz-kpi-label">الأقسام المتأثرة</div>
+                    <div class="sz-kpi-value" id="kpi-sections-count">0</div>
+                </div>
+                <div class="sz-kpi-card">
+                    <div class="sz-kpi-label">مرتبطة بالغياب</div>
+                    <div class="sz-kpi-value" id="kpi-absence-linked">0</div>
                 </div>
             </div>
 
-            <div id="table-container">
-                <!-- سيتم ملؤها بواسطة JavaScript -->
+            <div class="students-results">
+                <div class="sz-results-head">
+                    <h3><i class="fas fa-list"></i> قائمة التلاميذ الحاصلين على صفر <span class="count-badge"
+                            id="results-count">0</span></h3>
+                    <div class="sz-results-meta" id="results-meta">-</div>
+                </div>
+                <div class="table-responsive">
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>رمز مسار</th>
+                                <th>الاسم الكامل</th>
+                                <th>القسم</th>
+                                <th>المادة</th>
+                                <th>الدورة</th>
+                                <th>السبب</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="pagination" style="display:none;"></div>
             </div>
         </div>
-
-        <div class="print-footer">
-            <p>© <span id="year"></span> برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا</p>
-        </div>
-    </div>
+    </main>
 
     <script>
-        // تحديث التاريخ
-        document.getElementById('current-date').textContent = new Date().toLocaleDateString('ar-MA', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-        document.getElementById('year').textContent = new Date().getFullYear();
+        const year = '2025/2026';
+        let currentPage = 1;
+        let searchDebounceTimer = null;
+        let activeRequestId = 0;
 
-        // جلب البيانات من localStorage
-        function loadData() {
-            const data = localStorage.getItem('zeroGradeStudents');
-            const container = document.getElementById('table-container');
-
-            if (!data) {
-                container.innerHTML = `
-                    <div class="no-data">
-                        <i class="fas fa-check-circle"></i>
-                        <h3>🎉 لا توجد بيانات</h3>
-                        <p>لم يتم العثور على بيانات. يرجى العودة لصفحة التحليل والنقر على بطاقة "الحاصلون على 0".</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const students = JSON.parse(data);
-
-            if (students.length === 0) {
-                container.innerHTML = `
-                    <div class="no-data">
-                        <i class="fas fa-check-circle"></i>
-                        <h3>🎉 لا يوجد تلاميذ حاصلون على 0</h3>
-                        <p>جميع التلاميذ حصلوا على نقط أعلى من الصفر</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // حساب عدد التلاميذ الفريدين
-            const uniqueStudentCodes = [...new Set(students.map(s => s.code))];
-
-            // تحديث الإحصائيات
-            document.getElementById('total-cases').textContent = students.length;
-            document.getElementById('unique-students').textContent = uniqueStudentCodes.length;
-
-            // إنشاء الجدول
-            let tableRows = students.map((s, idx) => `
-                <tr>
-                    <td>${idx + 1}</td>
-                    <td>${escapeHtml(s.level)}</td>
-                    <td>${escapeHtml(s.section)}</td>
-                    <td>${escapeHtml(s.code)}</td>
-                    <td>${escapeHtml(s.familyName)}</td>
-                    <td>${escapeHtml(s.firstName)}</td>
-                    <td><span class="subject-badge">${escapeHtml(s.subject)}</span></td>
-                    <td>${escapeHtml(s.examName)}</td>
-                    <td><span class="grade-zero">${s.grade}</span></td>
-                </tr>
-            `).join('');
-
-            container.innerHTML = `
-                <table class="students-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>المستوى</th>
-                            <th>القسم</th>
-                            <th>الرمز</th>
-                            <th>النسب</th>
-                            <th>الاسم</th>
-                            <th>المادة</th>
-                            <th>الفرض</th>
-                            <th>النقطة</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${tableRows}
-                    </tbody>
-                </table>
-            `;
+        function $(id) {
+            return document.getElementById(id);
         }
 
-        // دالة تنقية HTML
-        function escapeHtml(text) {
-            if (text === null || text === undefined) return '';
+        function asNumber(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : NaN;
+        }
+
+        function escapeHtml(value) {
             const div = document.createElement('div');
-            div.textContent = String(text);
+            div.textContent = value == null ? '' : String(value);
             return div.innerHTML;
         }
 
-        // تحميل البيانات عند فتح الصفحة
-        loadData();
+        function semesterLabel(value) {
+            const sem = String(value || '');
+            return sem === '1' ? 'الأولى' : sem === '2' ? 'الثانية' : '-';
+        }
+
+        function formatNow() {
+            return new Date().toLocaleString('ar-MA', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function getFilters() {
+            return {
+                className: $('class-select').value,
+                semester: $('semester-select').value,
+                searchTerm: $('search-input').value.trim()
+            };
+        }
+
+        function getPageSize() {
+            const value = Number($('page-size-select').value);
+            return Number.isFinite(value) && value > 0 ? value : 25;
+        }
+
+        function renderMessageRow(message, iconClass = 'fa-info-circle', color = '#6b7280') {
+            const tbody = $('tbody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="padding: 20px; text-align: center;">
+                        <i class="fas ${iconClass}" style="color: ${color}; font-size: 32px; display: block; margin-bottom: 10px;"></i>
+                        ${escapeHtml(message)}
+                    </td>
+                </tr>
+            `;
+        }
+
+        function updateKpis(summary = {}) {
+            $('kpi-total-cases').textContent = String(summary.totalCases || 0);
+            $('kpi-unique-students').textContent = String(summary.uniqueStudents || 0);
+            $('kpi-sections-count').textContent = String(summary.sectionsCount || 0);
+            $('kpi-absence-linked').textContent = String(summary.absenceLinkedCases || 0);
+        }
+
+        function updateResultsMeta(pagination) {
+            const totalRows = Number(pagination?.totalRows || 0);
+            const page = Number(pagination?.page || 1);
+            const pageSize = Number(pagination?.pageSize || getPageSize());
+            if (!totalRows) {
+                $('results-meta').textContent = '-';
+                $('results-count').textContent = '0';
+                return;
+            }
+
+            const start = (page - 1) * pageSize + 1;
+            const end = Math.min(page * pageSize, totalRows);
+            $('results-meta').textContent = `عرض ${start} - ${end} من ${totalRows}`;
+            $('results-count').textContent = String(totalRows);
+        }
+
+        function renderRows(rows, pagination) {
+            const tbody = $('tbody');
+            const startIndex = (Number(pagination.page || 1) - 1) * Number(pagination.pageSize || getPageSize());
+
+            tbody.innerHTML = rows.map((row, idx) => {
+                const massarCode = row.student_code || row.massar_code || '-';
+                const studentName = row.student_name || row.full_name || '-';
+                const section = row.class_name || row.section || '-';
+                const subject = row.subject || '-';
+                const reason = row.zero_reason || (Number(row.absence_count || 0) > 0 ? 'غياب' : 'تعثر دراسي');
+
+                return `
+                    <tr>
+                        <td>${startIndex + idx + 1}</td>
+                        <td>${escapeHtml(massarCode)}</td>
+                        <td>${escapeHtml(studentName)}</td>
+                        <td>${escapeHtml(section)}</td>
+                        <td>${escapeHtml(subject)}</td>
+                        <td>${semesterLabel(row.semester)}</td>
+                        <td>${escapeHtml(reason)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function buildPageList(current, totalPages) {
+            if (totalPages <= 7) {
+                return Array.from({ length: totalPages }, (_, i) => i + 1);
+            }
+
+            const pages = [1];
+            const start = Math.max(2, current - 1);
+            const end = Math.min(totalPages - 1, current + 1);
+
+            if (start > 2) pages.push('...');
+            for (let p = start; p <= end; p += 1) pages.push(p);
+            if (end < totalPages - 1) pages.push('...');
+
+            pages.push(totalPages);
+            return pages;
+        }
+
+        function renderPagination(pagination) {
+            const container = $('pagination');
+            const totalRows = Number(pagination?.totalRows || 0);
+            const totalPages = Number(pagination?.totalPages || 1);
+            const page = Number(pagination?.page || 1);
+
+            if (!totalRows || totalPages <= 1) {
+                container.style.display = 'none';
+                container.innerHTML = '';
+                return;
+            }
+
+            const pageItems = buildPageList(page, totalPages);
+            const pagesHtml = pageItems.map((item) => {
+                if (item === '...') return '<span class="ellipsis">...</span>';
+                return `<button type="button" class="page-btn ${item === page ? 'active' : ''}" data-page="${item}">${item}</button>`;
+            }).join('');
+
+            container.innerHTML = `
+                <button type="button" class="nav-btn" data-page="${page - 1}" ${page <= 1 ? 'disabled' : ''}>السابق</button>
+                ${pagesHtml}
+                <button type="button" class="nav-btn" data-page="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>التالي</button>
+                <span class="page-info">صفحة ${page} من ${totalPages}</span>
+            `;
+            container.style.display = 'flex';
+        }
+
+        function normalizeZeroRows(rows = []) {
+            return rows
+                .map((g) => ({
+                    id: g.id,
+                    student_code: g.student_code || g.massar_code || '',
+                    student_name: g.student_name || g.full_name || '',
+                    class_name: g.class_name || g.section || '',
+                    subject: g.subject || '',
+                    semester: String(g.semester || ''),
+                    grade: asNumber(g.grade),
+                    absence_count: Number(g.absence_count || 0),
+                    zero_reason: g.zero_reason || ''
+                }))
+                .filter((g) => g.grade === 0);
+        }
+
+        async function buildFallbackZeroStudents({ className = '', semester = '', searchTerm = '', page = 1, pageSize = 25, exportAll = false } = {}) {
+            const rawGrades = await window.api.grades.getAll(year);
+            const allGrades = normalizeZeroRows(Array.isArray(rawGrades) ? rawGrades : []);
+            const search = searchTerm.trim().toLowerCase();
+
+            let filtered = allGrades;
+            if (className) filtered = filtered.filter((g) => g.class_name === className);
+            if (semester) filtered = filtered.filter((g) => String(g.semester) === String(semester));
+            if (search) {
+                filtered = filtered.filter((g) =>
+                    String(g.student_name || '').toLowerCase().includes(search) ||
+                    String(g.student_code || '').toLowerCase().includes(search) ||
+                    String(g.subject || '').toLowerCase().includes(search)
+                );
+            }
+
+            filtered.sort((a, b) => {
+                const bySection = String(a.class_name || '').localeCompare(String(b.class_name || ''), 'ar');
+                if (bySection !== 0) return bySection;
+                return String(a.student_name || '').localeCompare(String(b.student_name || ''), 'ar');
+            });
+
+            const totalRows = filtered.length;
+            const totalPages = totalRows ? Math.ceil(totalRows / pageSize) : 1;
+            const safePage = Math.min(Math.max(1, page), totalPages);
+            const start = (safePage - 1) * pageSize;
+            const rows = exportAll ? filtered : filtered.slice(start, start + pageSize);
+
+            return {
+                success: true,
+                rows: rows.map((r) => ({
+                    ...r,
+                    zero_reason: r.zero_reason || 'تعثر دراسي'
+                })),
+                pagination: {
+                    page: exportAll ? 1 : safePage,
+                    pageSize: exportAll ? rows.length || pageSize : pageSize,
+                    totalRows,
+                    totalPages: exportAll ? 1 : totalPages
+                },
+                summary: {
+                    totalCases: totalRows,
+                    uniqueStudents: new Set(filtered.map((r) => r.student_code || r.student_name)).size,
+                    sectionsCount: new Set(filtered.map((r) => r.class_name)).size,
+                    absenceLinkedCases: 0
+                }
+            };
+        }
+
+        async function fetchZeroStudents({ className = '', semester = '', searchTerm = '', page = 1, pageSize = 25, exportAll = false } = {}) {
+            if (typeof window.api?.grades?.getZeroStudents === 'function') {
+                try {
+                    const result = await window.api.grades.getZeroStudents({
+                        schoolYear: year,
+                        className,
+                        semester,
+                        searchTerm,
+                        page,
+                        pageSize,
+                        exportAll
+                    });
+
+                    if (result?.success) {
+                        return result;
+                    }
+
+                    console.warn('grades:getZeroStudents returned non-success, falling back to local filtering:', result?.error || result);
+                } catch (err) {
+                    console.warn('grades:getZeroStudents failed, using local fallback:', err);
+                }
+            }
+
+            return buildFallbackZeroStudents({ className, semester, searchTerm, page, pageSize, exportAll });
+        }
+
+        async function loadClasses() {
+            try {
+                const classes = await window.api.classes.getAll(year) || [];
+                const select = $('class-select');
+                while (select.options.length > 1) select.remove(1);
+                classes.forEach((c) => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name;
+                    opt.textContent = c.name;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.warn('Failed to load classes:', err);
+                showToast('تعذر تحميل الأقسام', 'error');
+            }
+        }
+
+        async function search({ resetPage = false } = {}) {
+            if (resetPage) currentPage = 1;
+
+            const requestId = ++activeRequestId;
+            const filters = getFilters();
+            const pageSize = getPageSize();
+
+            try {
+                renderMessageRow('جاري تحميل المعطيات...', 'fa-spinner fa-spin', '#2D5F4A');
+
+                const result = await fetchZeroStudents({
+                    ...filters,
+                    page: currentPage,
+                    pageSize,
+                    exportAll: false
+                });
+
+                if (requestId !== activeRequestId) return;
+                if (!result?.success) {
+                    throw new Error(result?.error || 'تعذر جلب المعطيات');
+                }
+
+                currentPage = Number(result.pagination?.page || 1);
+                updateKpis(result.summary || {});
+                updateResultsMeta(result.pagination || {});
+                renderPagination(result.pagination || {});
+
+                const rows = Array.isArray(result.rows) ? result.rows : [];
+                $('export-btn').disabled = !rows.length && !Number(result.pagination?.totalRows || 0);
+
+                if (!rows.length) {
+                    renderMessageRow('لا يوجد تلاميذ حاصلون على صفر وفق الفلاتر الحالية', 'fa-check-circle', '#10b981');
+                    return;
+                }
+
+                renderRows(rows, result.pagination || {});
+            } catch (err) {
+                console.warn('Failed to load zero students:', err);
+                updateKpis({ totalCases: 0, uniqueStudents: 0, sectionsCount: 0, absenceLinkedCases: 0 });
+                updateResultsMeta({ totalRows: 0 });
+                renderPagination({ totalRows: 0, totalPages: 1, page: 1 });
+                renderMessageRow('تعذر جلب المعطيات، حاول مرة أخرى', 'fa-triangle-exclamation', '#e85d5d');
+                showToast('تعذر جلب المعطيات', 'error');
+            }
+        }
+
+        async function showPrintPreview() {
+            try {
+                showToast('جاري تحضير معاينة الطباعة...', 'info');
+
+                const filters = getFilters();
+                const result = await fetchZeroStudents({
+                    ...filters,
+                    page: 1,
+                    pageSize: getPageSize(),
+                    exportAll: true
+                });
+
+                if (!result?.success) {
+                    throw new Error(result?.error || 'تعذر تجهيز المعاينة');
+                }
+
+                const rows = Array.isArray(result.rows) ? result.rows : [];
+                if (!rows.length) {
+                    showToast('لا توجد بيانات للمعاينة', 'warning');
+                    return;
+                }
+
+                const bodyRows = rows.map((row, idx) => {
+                    const reason = row.zero_reason || (Number(row.absence_count || 0) > 0 ? 'غياب' : 'تعثر دراسي');
+                    return `
+                        <tr>
+                            <td>${idx + 1}</td>
+                            <td>${escapeHtml(row.student_code || row.massar_code || '-')}</td>
+                            <td>${escapeHtml(row.student_name || row.full_name || '-')}</td>
+                            <td>${escapeHtml(row.class_name || row.section || '-')}</td>
+                            <td>${escapeHtml(row.subject || '-')}</td>
+                            <td>${escapeHtml(semesterLabel(row.semester))}</td>
+                            <td>${escapeHtml(reason)}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                const filtersText = [
+                    filters.className ? `القسم: ${escapeHtml(filters.className)}` : 'كل الأقسام',
+                    filters.semester ? `الدورة: ${escapeHtml(semesterLabel(filters.semester))}` : 'كل الدورات',
+                    filters.searchTerm ? `بحث: ${escapeHtml(filters.searchTerm)}` : 'بدون بحث'
+                ].join(' | ');
+
+                const printSource = document.createElement('div');
+                printSource.id = 'sz-print-source';
+                printSource.style.position = 'absolute';
+                printSource.style.left = '-99999px';
+                printSource.style.top = '0';
+                printSource.style.width = '210mm';
+                printSource.innerHTML = `
+                    <section class="students-results">
+                        <div class="sz-results-head">
+                            <h3><i class="fas fa-list"></i> قائمة التلاميذ الحاصلين على صفر</h3>
+                            <div class="sz-results-meta">السنة الدراسية: ${escapeHtml(year)} | عدد السجلات: ${rows.length} | ${filtersText} | تاريخ المعاينة: ${escapeHtml(formatNow())}</div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="students-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>رمز مسار</th>
+                                        <th>الاسم الكامل</th>
+                                        <th>القسم</th>
+                                        <th>المادة</th>
+                                        <th>الدورة</th>
+                                        <th>السبب</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${bodyRows}</tbody>
+                            </table>
+                        </div>
+                    </section>
+                `;
+
+                document.body.appendChild(printSource);
+                try {
+                    const previewFn =
+                        (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
+                        (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
+
+                    if (previewFn) {
+                        previewFn({
+                            title: 'التلاميذ الحاصلون على صفر',
+                            pageSize: 'A4',
+                            contentSelector: '#sz-print-source .students-results',
+                            defaultFileName: `تلاميذ_الصفر_${year.replace('/', '-')}`
+                        });
+                    } else {
+                        window.print();
+                    }
+                } finally {
+                    printSource.remove();
+                }
+
+                showToast(`تم تجهيز المعاينة (${rows.length} سجل)`, 'success');
+            } catch (err) {
+                console.warn('Print preview error:', err);
+                showToast('تعذر فتح معاينة الطباعة', 'error');
+            }
+        }
+
+        function bindEvents() {
+            $('filters-form').addEventListener('submit', (event) => {
+                event.preventDefault();
+                search({ resetPage: true });
+            });
+
+            $('search-btn').addEventListener('click', () => search({ resetPage: true }));
+            $('export-btn').addEventListener('click', showPrintPreview);
+
+            ['class-select', 'semester-select', 'page-size-select'].forEach((id) => {
+                $(id).addEventListener('change', () => search({ resetPage: true }));
+            });
+
+            $('search-input').addEventListener('input', () => {
+                clearTimeout(searchDebounceTimer);
+                searchDebounceTimer = setTimeout(() => {
+                    search({ resetPage: true });
+                }, 250);
+            });
+
+            $('pagination').addEventListener('click', (event) => {
+                const button = event.target.closest('button[data-page]');
+                if (!button || button.disabled) return;
+                const targetPage = Number(button.dataset.page);
+                if (!Number.isFinite(targetPage) || targetPage < 1 || targetPage === currentPage) return;
+                currentPage = targetPage;
+                search();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            bindEvents();
+            await loadClasses();
+            await search({ resetPage: true });
+        });
     </script>
 </body>
 

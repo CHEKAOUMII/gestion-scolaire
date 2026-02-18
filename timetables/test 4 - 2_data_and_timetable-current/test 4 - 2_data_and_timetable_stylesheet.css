@@ -1,0 +1,100 @@
+﻿@charset "UTF-8";
+
+/* ملف التصميم CSS للملف test 4 - 2_data_and_timetable.fet
+   تحذير! الأنشطة المنجزة 798 من 941 فقط!
+   التصميم انتج بواسطة FET 7.4.7 في 7‏/2‏/2026 3:00 ص */
+
+/* لجعل صفحة فاصلة(page-break) بعد كل جدول ثانٍ، احذف "page-break-befor: always;"في "table.even_table". */
+/* حذف "page-break-before: always;" في "table.even_table" و في "table.odd_table" لتخطي page-breaks. */
+/* لإخفاء عنصر يكفي كتابة الجملة التالية داخل العنصر: "display: none;" (بدون مزدوجتين). */
+
+p.back {
+  margin-top: 4ex;
+  margin-bottom: 5ex;
+}
+
+table {
+  text-align: center;
+  page-break-inside: avoid;
+}
+
+table.odd_table {
+  page-break-before: always;
+}
+
+table.even_table {
+  page-break-before: always;
+}
+
+table.detailed {
+  margin-left: auto; margin-right: auto;
+  text-align: center;
+  border: 0px;
+  border-spacing: 0;
+  border-collapse: collapse;
+}
+
+caption {
+
+}
+
+span.institution {
+  font-weight: bold;
+}
+
+span.name {
+
+}
+
+span.comment {
+  /*font-style: italic;*/
+}
+
+span.legend_title {
+  font-weight: bold;
+}
+
+thead {
+
+}
+
+/* بعض البرامج تستورد "tfoot" بشكل خاطئ. لذلك نستخدم "tr.foot" بدلا من "tfoot". */
+
+tr.foot {
+
+}
+
+tbody {
+
+}
+
+th {
+
+}
+
+td {
+
+}
+
+td.detailed {
+  border: 1px dashed silver;
+  border-bottom: 0;
+  border-top: 0;
+}
+
+th.xAxis {
+/* width: 8em; */
+}
+
+th.yAxis {
+  height: 8ex;
+}
+
+/* تصميم جدول الفترات الحرة للمدرسين */
+
+div.DESCRIPTION {
+  text-align: left;
+  font-size: smaller;
+}
+
+/* نهاية الملف. */

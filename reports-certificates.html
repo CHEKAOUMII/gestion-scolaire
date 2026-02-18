@@ -1,0 +1,97 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الشواهد المدرسية | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-certificate"></i> الشواهد المدرسية</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <h3><i class="fas fa-pen"></i> توليد شهادة مدرسية</h3>
+                <form id="form" class="search-form"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                    <input id="student-code" placeholder="رمز مسار التلميذ" required>
+                    <select id="cert-type">
+                        <option value="attendance">شهادة التمدرس</option>
+                        <option value="enrollment">شهادة التسجيل</option>
+                        <option value="withdrawal">شهادة المغادرة</option>
+                    </select>
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-print"></i> توليد</button>
+                </form>
+            </div>
+
+            <div class="students-results">
+                <h3><i class="fas fa-eye"></i> الشهادات الصادرة</h3>
+                <div id="preview" class="page-empty-state">
+                    <i class="fas fa-file-alt"></i>
+                    <p>أدخل رمز مسار التلميذ واختر نوع الشهادة ثم اضغط "توليد"</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.getElementById('form').addEventListener('submit', async e => {
+            e.preventDefault();
+            const code = document.getElementById('student-code').value.trim();
+            const type = document.getElementById('cert-type').value;
+
+            const students = await window.api.students.search('', '', '', '2025/2026');
+            const student = (students || []).find(s => s.massar_code === code);
+
+            if (!student) {
+                showToast('لم يتم العثور على التلميذ', 'error');
+                return;
+            }
+
+            const typeLabels = {
+                'attendance': 'شهادة التمدرس',
+                'enrollment': 'شهادة التسجيل',
+                'withdrawal': 'شهادة المغادرة'
+            };
+
+            document.getElementById('preview').innerHTML = `
+                <div style="border: 2px solid var(--primary); padding: 30px; border-radius: 12px; text-align: center; max-width: 600px; margin: 0 auto; background: white;">
+                    <h2 style="margin-bottom: 20px; color: var(--primary);">${typeLabels[type]}</h2>
+                    <p style="margin: 15px 0;"><strong>الاسم الكامل:</strong> ${student.full_name || '-'}</p>
+                    <p style="margin: 15px 0;"><strong>رقم مسار:</strong> ${student.massar_code || '-'}</p>
+                    <p style="margin: 15px 0;"><strong>القسم:</strong> ${student.class_name || '-'}</p>
+                    <p style="margin: 15px 0;"><strong>السنة الدراسية:</strong> 2025/2026</p>
+                    <p style="margin: 15px 0;"><strong>تاريخ الإصدار:</strong> ${new Date().toLocaleDateString('ar-MA')}</p>
+                    <button class="btn btn-primary" onclick="openPrintPreview({title:'شهادة',pageSize:'A4'})" style="margin-top: 20px;"><i class="fas fa-eye"></i> معاينة الطباعة</button>
+                </div>
+            `;
+            showToast('تم توليد الشهادة', 'success');
+        });
+    </script>
+</body>
+
+</html>

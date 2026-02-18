@@ -3,6 +3,54 @@ let studentsData = [];
 let isDbReady = false;
 let currentSchoolYear = '2025/2026'; // الموسم الدراسي الحالي
 
+const EXTERNAL_LIBS = {
+    chart: 'https://cdn.jsdelivr.net/npm/chart.js',
+    xlsx: 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js'
+};
+
+let chartLibPromise = null;
+let xlsxLibPromise = null;
+
+function loadExternalScriptOnce(src, globalName) {
+    if (globalName && window[globalName]) {
+        return Promise.resolve(window[globalName]);
+    }
+
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[data-dynamic-src="${src}"]`);
+        if (existing) {
+            existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true), { once: true });
+            existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.defer = true;
+        script.dataset.dynamicSrc = src;
+        script.onload = () => resolve(globalName ? window[globalName] : true);
+        script.onerror = () => reject(new Error(`Failed to load ${src}`));
+        document.head.appendChild(script);
+    });
+}
+
+function ensureChartLoaded() {
+    if (window.Chart) return Promise.resolve(window.Chart);
+    if (!chartLibPromise) {
+        chartLibPromise = loadExternalScriptOnce(EXTERNAL_LIBS.chart, 'Chart');
+    }
+    return chartLibPromise;
+}
+
+function ensureXlsxLoaded() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (!xlsxLibPromise) {
+        xlsxLibPromise = loadExternalScriptOnce(EXTERNAL_LIBS.xlsx, 'XLSX');
+    }
+    return xlsxLibPromise;
+}
+
 // === دالة الحماية من XSS ===
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
@@ -18,7 +66,14 @@ async function initDatabase(schoolYear = null) {
         const year = schoolYear || currentSchoolYear;
         currentSchoolYear = year;
 
-        // جلب التلاميذ من SQLite
+        // جلب التلاميذ من SQLite (مع التحقق من وجود المنفذ)
+        if (!window.api || !window.api.students) {
+            console.warn('⚠️ Students API not available - matching browser environment');
+            studentsData = [];
+            refreshDashboard();
+            return;
+        }
+
         const students = await window.api.students.getAll(year);
 
         if (students && students.length > 0) {
@@ -370,10 +425,149 @@ function renderStatsCards() {
     document.getElementById('stats-section').innerHTML = html;
 }
 
-// Render Charts
-let ageChartInstance = null;
+let ownerSyncLastRenderedAt = 0;
 
-function renderCharts(filterSection = 'all') {
+function isAdminRoleOnDashboard() {
+    const session = window.AuthSession?.get?.();
+    return String(session?.role || '').toLowerCase() === 'admin';
+}
+
+function renderOwnerSyncError(message) {
+    const section = document.getElementById('owner-sync-section');
+    if (!section) return;
+    section.style.display = 'block';
+    section.innerHTML = `
+        <div class="students-results" style="margin-bottom: 20px; border: 1px dashed #f59e0b; background: #fff8e8;">
+            <h3><i class="fas fa-satellite-dish"></i> متابعة الأجهزة المثبّتة</h3>
+            <p style="margin: 10px 0; color: #7a4b0e;">${escapeHtml(message || 'تعذر تحميل بيانات الأجهزة')}</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary" id="owner-sync-refresh-btn"><i class="fas fa-sync-alt"></i> تحديث</button>
+                <button type="button" class="btn btn-warning" id="owner-sync-sync-btn"><i class="fas fa-cloud-upload-alt"></i> مزامنة الآن</button>
+            </div>
+        </div>
+    `;
+}
+
+async function renderOwnerSyncSection(force = false) {
+    const section = document.getElementById('owner-sync-section');
+    if (!section) return;
+
+    if (!isAdminRoleOnDashboard()) {
+        section.style.display = 'none';
+        section.innerHTML = '';
+        return;
+    }
+
+    const now = Date.now();
+    if (!force && now - ownerSyncLastRenderedAt < 20000) return;
+    ownerSyncLastRenderedAt = now;
+
+    if (!window.api?.ownerTelemetry) {
+        renderOwnerSyncError('وحدة Owner Telemetry غير متوفرة');
+        return;
+    }
+
+    try {
+        const [overviewRes, devicesRes] = await Promise.all([
+            window.api.ownerTelemetry.getOverview(),
+            window.api.ownerTelemetry.getDevices({ limit: 10 })
+        ]);
+
+        if (!overviewRes?.success) {
+            renderOwnerSyncError(overviewRes?.error || 'قم بإعداد مزامنة الأجهزة في صفحة الترخيص');
+            return;
+        }
+
+        const summary = overviewRes.summary || {};
+        const devices = Array.isArray(devicesRes?.devices) ? devicesRes.devices : [];
+
+        section.style.display = 'block';
+        section.innerHTML = `
+            <div class="students-results" style="margin-bottom: 20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+                    <h3><i class="fas fa-satellite-dish"></i> متابعة الأجهزة المثبّتة</h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button type="button" class="btn btn-primary" id="owner-sync-refresh-btn"><i class="fas fa-sync-alt"></i> تحديث</button>
+                        <button type="button" class="btn btn-warning" id="owner-sync-sync-btn"><i class="fas fa-cloud-upload-alt"></i> مزامنة الآن</button>
+                    </div>
+                </div>
+
+                <div class="stats-grid" style="margin-bottom: 10px;">
+                    <div class="stat-card total"><div class="stat-content"><h3>إجمالي الأجهزة</h3><p class="stat-number">${Number(summary.totalDevices || 0)}</p></div></div>
+                    <div class="stat-card sections"><div class="stat-content"><h3>نشط آخر 24 ساعة</h3><p class="stat-number">${Number(summary.active24h || 0)}</p></div></div>
+                    <div class="stat-card females"><div class="stat-content"><h3>أجهزة مفعلة</h3><p class="stat-number">${Number(summary.activatedDevices || 0)}</p></div></div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th>الجهاز</th>
+                                <th>المنصة</th>
+                                <th>الباقة</th>
+                                <th>الحالة</th>
+                                <th>آخر ظهور</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${devices.length
+                                ? devices
+                                      .map(
+                                          (d) => `
+                                <tr>
+                                    <td>${escapeHtml(d.deviceName || d.deviceCode || '-')}</td>
+                                    <td>${escapeHtml(d.platform || '-')}</td>
+                                    <td>${escapeHtml((d.planCode || '-').toUpperCase())}</td>
+                                    <td>${d.activated ? 'مفعّل' : 'غير مفعّل'}</td>
+                                    <td>${escapeHtml(d.lastSeenAt || '-')}</td>
+                                </tr>`
+                                      )
+                                      .join('')
+                                : '<tr><td colspan="5" style="text-align:center;padding:18px;">لا توجد أجهزة بعد</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        renderOwnerSyncError(error?.message || 'تعذر الاتصال بخادم المتابعة');
+    }
+}
+
+// Render Charts
+const chartInstances = {
+    age: null,
+    gender: null,
+    levels: null,
+    place: null
+};
+
+function destroyChartInstances() {
+    Object.keys(chartInstances).forEach((key) => {
+        const instance = chartInstances[key];
+        if (instance && typeof instance.destroy === 'function') {
+            instance.destroy();
+        }
+        chartInstances[key] = null;
+    });
+}
+
+async function renderCharts(filterSection = 'all') {
+    try {
+        await ensureChartLoaded();
+    } catch (error) {
+        console.error('Chart.js load failed:', error);
+        document.getElementById('charts-section').innerHTML = `
+            <div class="chart-card">
+                <div class="chart-body" style="padding:20px;text-align:center;color:#8b0000;">
+                    تعذر تحميل مكتبة الرسوم البيانية. تحقق من الاتصال ثم أعد المحاولة.
+                </div>
+            </div>`;
+        return;
+    }
+
+    destroyChartInstances();
+
     const stats = calculateStats();
     const sectionsOptions = stats.sectionsList.map(s => `<option value="${s}" ${filterSection === s ? 'selected' : ''}>${s}</option>`).join('');
 
@@ -401,23 +595,23 @@ function renderCharts(filterSection = 'all') {
     });
 
     const ages = Object.keys(ageStats).sort((a, b) => a - b);
-    ageChartInstance = new Chart(document.getElementById('ageChart'), {
+    chartInstances.age = new Chart(document.getElementById('ageChart'), {
         type: 'bar',
         data: {
             labels: ages.map(a => a + ' سنة'),
             datasets: [
-                { label: 'عدد التلاميذ', data: ages.map(a => ageStats[a].total), backgroundColor: '#8b0000' },
-                { label: 'الإناث', data: ages.map(a => ageStats[a].females), backgroundColor: '#00bcd4' },
-                { label: 'الذكور', data: ages.map(a => ageStats[a].males), backgroundColor: '#ff5722' }
+                { label: 'عدد التلاميذ', data: ages.map(a => ageStats[a].total), backgroundColor: '#2D5F4A', borderRadius: 6 },
+                { label: 'الإناث', data: ages.map(a => ageStats[a].females), backgroundColor: '#4A8B6F', borderRadius: 6 },
+                { label: 'الذكور', data: ages.map(a => ageStats[a].males), backgroundColor: '#C8A882', borderRadius: 6 }
             ]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
 
     // Gender Chart
-    new Chart(document.getElementById('genderChart'), {
+    chartInstances.gender = new Chart(document.getElementById('genderChart'), {
         type: 'doughnut',
-        data: { labels: ['الإناث', 'الذكور'], datasets: [{ data: [stats.females, stats.males], backgroundColor: ['#00bcd4', '#ff5722'] }] },
+        data: { labels: ['الإناث', 'الذكور'], datasets: [{ data: [stats.females, stats.males], backgroundColor: ['#4A8B6F', '#C8A882'], borderWidth: 0, hoverOffset: 8 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
 
@@ -429,14 +623,14 @@ function renderCharts(filterSection = 'all') {
         s.gender === "ذكر" ? sectionStats[s.section].males++ : sectionStats[s.section].females++;
     });
     const sectionNames = Object.keys(sectionStats);
-    new Chart(document.getElementById('levelsChart'), {
+    chartInstances.levels = new Chart(document.getElementById('levelsChart'), {
         type: 'bar',
         data: {
             labels: sectionNames,
             datasets: [
-                { label: 'المجموع', data: sectionNames.map(s => sectionStats[s].total), backgroundColor: '#8b0000' },
-                { label: 'إناث', data: sectionNames.map(s => sectionStats[s].females), backgroundColor: '#00bcd4' },
-                { label: 'ذكور', data: sectionNames.map(s => sectionStats[s].males), backgroundColor: '#ff5722' }
+                { label: 'المجموع', data: sectionNames.map(s => sectionStats[s].total), backgroundColor: '#2D5F4A', borderRadius: 6 },
+                { label: 'إناث', data: sectionNames.map(s => sectionStats[s].females), backgroundColor: '#4A8B6F', borderRadius: 6 },
+                { label: 'ذكور', data: sectionNames.map(s => sectionStats[s].males), backgroundColor: '#C8A882', borderRadius: 6 }
             ]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
@@ -446,9 +640,9 @@ function renderCharts(filterSection = 'all') {
     const places = {};
     studentsData.forEach(s => { const p = s.birthPlace || '-'; places[p] = (places[p] || 0) + 1; });
     const topPlaces = Object.entries(places).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    new Chart(document.getElementById('placeChart'), {
+    chartInstances.place = new Chart(document.getElementById('placeChart'), {
         type: 'bar',
-        data: { labels: topPlaces.map(p => p[0]), datasets: [{ label: 'العدد', data: topPlaces.map(p => p[1]), backgroundColor: '#00838f' }] },
+        data: { labels: topPlaces.map(p => p[0]), datasets: [{ label: 'العدد', data: topPlaces.map(p => p[1]), backgroundColor: '#1B3D30', borderRadius: 6 }] },
         options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } }
     });
 
@@ -652,26 +846,14 @@ function clearSearch() {
     renderStudentsTable('', '', 'all', 1);
 }
 
-// Update Time
-function updateTime() {
-    const now = new Date();
-    const time = now.toLocaleTimeString('ar-MA', { hour: '2-digit', minute: '2-digit' });
-    const date = `${now.getDate()}/${now.getMonth() + 1}`;
-    document.getElementById('current-time').textContent = time;
-    document.getElementById('current-date').textContent = date;
-}
+
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize database
     initDatabase();
 
-    renderStatsCards();
-    renderCharts();
-    renderMovement();
-    renderStudentsTable();
-    updateTime();
-    setInterval(updateTime, 1000);
+    // Initial skeleton render is handled by initDatabase() -> refreshDashboard()
 
     // Sidebar toggle
     document.getElementById('menu-toggle').addEventListener('click', () => {
@@ -756,10 +938,18 @@ function resetModal() {
     currentWorkbook = null;
 }
 
-function handleFile(file) {
+async function handleFile(file) {
     if (!file.name.match(/\.(xlsx|xls)$/i)) {
         showToast('يرجى اختيار ملف Excel صالح', 'error'); return;
     }
+
+    try {
+        await ensureXlsxLoaded();
+    } catch (error) {
+        showToast('تعذر تحميل مكتبة Excel: ' + error.message, 'error');
+        return;
+    }
+
     document.getElementById('dropzone').style.display = 'none';
     document.getElementById('import-progress').style.display = 'block';
 
@@ -1025,7 +1215,13 @@ function showPreview() {
     document.querySelector('#import-preview h4').textContent = `معاينة البيانات (${importedData.length} تلميذ${sectionInfo})`;
 }
 
-function refreshDashboard() { renderStatsCards(); renderCharts(); renderMovement(); renderStudentsTable(); }
+function refreshDashboard() {
+    renderStatsCards();
+    renderCharts();
+    renderMovement();
+    renderStudentsTable();
+    void renderOwnerSyncSection();
+}
 
 // ===== وظائف الأزرار =====
 
@@ -1094,42 +1290,45 @@ function showNotifications() {
 }
 
 // زر طباعة الجدول
-function printTable() {
+async function printTable() {
     const tableSection = document.getElementById('table-section');
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html dir="rtl" lang="ar">
-        <head>
-            <meta charset="UTF-8">
-            <title>طباعة لائحة التلاميذ</title>
-            <style>
-                body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; padding: 20px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #333; padding: 8px; text-align: center; }
-                th { background: #8b0000; color: white; }
-                h1 { text-align: center; color: #8b0000; }
-                .print-header { text-align: center; margin-bottom: 20px; }
-                @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-            </style>
-        </head>
-        <body>
-            <div class="print-header">
-                <h1>الثانوية التأهيلية ابن سينا</h1>
-                <h2>لائحة التلاميذ - ${currentSchoolYear}</h2>
-            </div>
-            ${tableSection.querySelector('.table-wrapper').innerHTML}
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    if (!tableSection) return;
+
+    const wrapper = tableSection.querySelector('.table-wrapper');
+    if (!wrapper) return;
+
+    const htmlContent = `
+        <div class="print-header">
+            <div class="school-name">الثانوية التأهيلية ابن سينا</div>
+            <div class="doc-title">لائحة التلاميذ - ${currentSchoolYear}</div>
+            <div class="doc-date">${new Date().toLocaleDateString('ar-MA')}</div>
+        </div>
+        ${wrapper.innerHTML}
+    `;
+
+    if (typeof electronPrint === 'function') {
+        await electronPrint({
+            htmlContent,
+            title: 'لائحة التلاميذ - ' + currentSchoolYear,
+            defaultFileName: 'لائحة_التلاميذ_' + currentSchoolYear.replace('/', '-'),
+            pageSize: 'A4'
+        });
+    } else {
+        window.print();
+    }
 }
 
 // زر تصدير إلى Excel
-function exportToExcel() {
+async function exportToExcel() {
     if (studentsData.length === 0) {
         showToast('لا توجد بيانات للتصدير', 'error');
+        return;
+    }
+
+    try {
+        await ensureXlsxLoaded();
+    } catch (error) {
+        showToast('تعذر تحميل مكتبة Excel: ' + error.message, 'error');
         return;
     }
 
@@ -1151,32 +1350,29 @@ function exportToExcel() {
 }
 
 // زر طباعة الرسم البياني
-function printChart(chartId, title) {
+async function printChart(chartId, title) {
     const canvas = document.getElementById(chartId);
     if (!canvas) return;
 
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html dir="rtl" lang="ar">
-        <head>
-            <meta charset="UTF-8">
-            <title>${title}</title>
-            <style>
-                body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; padding: 20px; text-align: center; }
-                h1 { color: #8b0000; }
-                img { max-width: 100%; margin-top: 20px; }
-            </style>
-        </head>
-        <body>
-            <h1>الثانوية التأهيلية ابن سينا</h1>
-            <h2>${title}</h2>
-            <img src="${canvas.toDataURL('image/png')}" alt="${title}">
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    const htmlContent = `
+        <div class="print-header">
+            <div class="school-name">الثانوية التأهيلية ابن سينا</div>
+            <div class="doc-title">${title}</div>
+            <div class="doc-date">${new Date().toLocaleDateString('ar-MA')}</div>
+        </div>
+        <img src="${canvas.toDataURL('image/png')}" alt="${title}">
+    `;
+
+    if (typeof electronPrint === 'function') {
+        await electronPrint({
+            htmlContent,
+            title,
+            defaultFileName: title.replace(/[\\/:*?"<>|]/g, '_'),
+            pageSize: 'A4'
+        });
+    } else {
+        window.print();
+    }
 }
 
 // تهيئة الأزرار الإضافية
@@ -1195,6 +1391,28 @@ function initExtraButtons() {
 
     // أزرار الطباعة في الرسوم البيانية
     document.addEventListener('click', (e) => {
+        if (e.target.closest('#owner-sync-refresh-btn')) {
+            void renderOwnerSyncSection(true);
+        }
+
+        if (e.target.closest('#owner-sync-sync-btn')) {
+            if (!window.api?.ownerTelemetry?.syncNow) {
+                showToast('خدمة المزامنة غير متاحة', 'error');
+            } else {
+                window.api.ownerTelemetry
+                    .syncNow()
+                    .then((res) => {
+                        if (!res?.success) {
+                            showToast(res?.error || 'فشلت المزامنة', 'error');
+                            return;
+                        }
+                        showToast('تمت مزامنة الأجهزة بنجاح', 'success');
+                        void renderOwnerSyncSection(true);
+                    })
+                    .catch((err) => showToast(err?.message || 'فشلت المزامنة', 'error'));
+            }
+        }
+
         if (e.target.closest('.chart-card button')) {
             const chartCard = e.target.closest('.chart-card');
             const canvas = chartCard.querySelector('canvas');

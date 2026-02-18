@@ -1,0 +1,362 @@
+/* 
+   ╔══════════════════════════════════════════════════════╗
+   ║  Design System — Soft UI & Glassmorphism            ║
+   ║  Palette: Pine Green · Silver Mist · Light Cream    ║
+   ║  Typography: Noto Kufi Arabic + IBM Plex Sans Arabic ║
+   ╚══════════════════════════════════════════════════════╝
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+
+:root {
+    /* ─── Color Palette ─── */
+    --color-primary: #2D5F4A;
+    /* Pine Green */
+    --color-primary-dark: #1B3D30;
+    /* Deep Pine */
+    --color-primary-light: #4A8B6F;
+    /* Soft Pine */
+    --color-primary-mist: rgba(45, 95, 74, 0.08);
+    /* Faintest Pine tint */
+
+    --color-secondary: #FAF8F5;
+    /* Light Cream — page bg */
+    --color-surface: #FFFEFB;
+    /* Soft Ivory — cards */
+    --color-surface-alt: #F6F5F2;
+    /* Warm off-white — alt rows */
+
+    --color-text-main: #1F2D24;
+    /* Charcoal Green */
+    --color-text-muted: #6B7B72;
+    /* Warm Slate */
+    --color-text-light: #9CA8A0;
+    /* Soft mist text */
+
+    --color-accent: #E8ECE9;
+    /* Sage Fog — borders */
+    --color-silver: #C8CED3;
+    /* Silver Mist */
+
+    --color-success: #2ECC71;
+    --color-warning: #F0AD4E;
+    --color-danger: #E85D5D;
+    --info: #5B9BD5;
+
+    /* ─── Glassmorphism ─── */
+    --glass-bg: rgba(255, 254, 251, 0.72);
+    --glass-border: rgba(200, 206, 211, 0.4);
+    --glass-shadow: 0 8px 32px rgba(31, 45, 36, 0.06);
+    --glass-blur: blur(16px);
+
+    /* ─── Soft UI Shadows ─── */
+    --shadow-soft:
+        6px 6px 16px rgba(200, 206, 211, 0.45),
+        -6px -6px 16px rgba(255, 255, 255, 0.8);
+    --shadow-card:
+        0 1px 3px rgba(31, 45, 36, 0.04),
+        0 4px 12px rgba(31, 45, 36, 0.03);
+    --shadow-hover:
+        0 8px 24px rgba(31, 45, 36, 0.06),
+        0 2px 6px rgba(31, 45, 36, 0.03);
+    --shadow-elevated:
+        0 12px 40px rgba(31, 45, 36, 0.08),
+        0 4px 12px rgba(31, 45, 36, 0.04);
+
+    /* ─── Typography ─── */
+    --font-display: 'Noto Kufi Arabic', 'Tajawal', sans-serif;
+    --font-main: 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
+
+    /* ─── Spacing & Radius ─── */
+    --radius-xs: 6px;
+    --radius-sm: 10px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+    --radius-xl: 32px;
+    --radius-full: 9999px;
+
+    --spacing-xs: 0.5rem;
+    --spacing-sm: 1rem;
+    --spacing-md: 1.5rem;
+    --spacing-lg: 2rem;
+    --spacing-xl: 3rem;
+
+    /* ─── Transitions ─── */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* ─── Gradients ─── */
+    --gradient-primary: linear-gradient(135deg, #2D5F4A 0%, #4A8B6F 100%);
+    --gradient-surface: linear-gradient(180deg, #FFFEFB 0%, #F6F5F2 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(255, 254, 251, 0.8) 0%, rgba(246, 245, 242, 0.6) 100%);
+}
+
+/* ─── Smooth Theme Transition ─── */
+html {
+    transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+html[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+/* ─── Dark Mode ─── */
+[data-theme="dark"] {
+    /* Core surfaces */
+    --color-secondary: #121A14;
+    --color-surface: #1A241C;
+    --color-surface-alt: #222E25;
+
+    /* Text */
+    --color-text-main: #E8ECE9;
+    --color-text-muted: #9CA8A0;
+    --color-text-light: #6B7B72;
+
+    /* Borders & accent */
+    --color-accent: #2A3A2E;
+    --color-silver: #3A4A3E;
+
+    /* Primary tints for dark */
+    --color-primary-mist: rgba(74, 139, 111, 0.12);
+
+    /* Glassmorphism */
+    --glass-bg: rgba(26, 36, 28, 0.82);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+
+    /* Shadows */
+    --shadow-soft: none;
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.4);
+
+    /* Gradients */
+    --gradient-surface: linear-gradient(180deg, #1A241C, #121A14);
+    --gradient-glass: linear-gradient(135deg, rgba(26, 36, 28, 0.75) 0%, rgba(18, 26, 20, 0.6) 100%);
+}
+
+/* ═══════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════ */
+
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-md);
+}
+
+.soft-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    transition: var(--transition-normal);
+    border: 1px solid var(--color-accent);
+}
+
+.soft-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--color-primary-light);
+}
+
+.frosted-card {
+    background: var(--gradient-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    transition: var(--transition-normal);
+}
+
+.frosted-card:hover {
+    box-shadow: var(--shadow-hover);
+}
+
+/* ─── Buttons ─── */
+.btn-primary {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 0.7rem 1.4rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-main);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-primary:hover {
+    background: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(45, 95, 74, 0.35);
+}
+
+.btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-accent);
+    padding: 0.7rem 1.4rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-main);
+    font-weight: 500;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.btn-secondary:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-mist);
+}
+
+.btn-glass {
+    background: rgba(255, 254, 251, 0.3);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--glass-border);
+    color: var(--color-text-main);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+    font-family: var(--font-main);
+    font-weight: 500;
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.btn-glass:hover {
+    background: rgba(255, 254, 251, 0.6);
+    border-color: var(--color-primary-light);
+}
+
+.btn-success {
+    background: var(--color-success);
+    color: white;
+    border: none;
+    padding: 0.7rem 1.4rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-main);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    box-shadow: 0 2px 8px rgba(46, 204, 113, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-success:hover {
+    background: #27ae60;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(46, 204, 113, 0.35);
+}
+
+.btn-success:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* ─── Animations ─── */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-in {
+    animation: fadeInUp 0.4s ease-out both;
+}
+
+.animate-in-delay-1 {
+    animation-delay: 0.05s;
+}
+
+.animate-in-delay-2 {
+    animation-delay: 0.1s;
+}
+
+.animate-in-delay-3 {
+    animation-delay: 0.15s;
+}
+
+.animate-in-delay-4 {
+    animation-delay: 0.2s;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-silver);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-primary-light);
+}
+
+/* ─── Selection ─── */
+::selection {
+    background: rgba(45, 95, 74, 0.2);
+    color: var(--color-text-main);
+}

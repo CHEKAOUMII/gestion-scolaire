@@ -1,0 +1,10 @@
+node_modules/
+dist/
+logs/
+timetables/
+.tmp.driveupload/
+.firebase/
+*.pdf
+*.xlsx
+*.xls
+*.mp4

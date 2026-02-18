@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة الترخيص | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+    <style>
+        .license-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .license-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-soft);
+            padding: 12px;
+        }
+
+        .license-card .label {
+            color: var(--color-text-light);
+            font-size: 12px;
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+
+        .license-card .value {
+            font-size: 19px;
+            font-weight: 800;
+            color: var(--color-primary);
+        }
+
+        .license-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .muted-note {
+            color: var(--color-text-muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .serial-output {
+            width: 100%;
+            min-height: 84px;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            padding: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+            direction: ltr;
+            background: #fff;
+        }
+
+        .owner-sync-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 10px;
+            align-items: center;
+        }
+
+        .owner-sync-device-table {
+            max-height: 240px;
+            overflow: auto;
+            margin-top: 10px;
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-key"></i> إدارة الترخيص</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <h3><i class="fas fa-plug"></i> تفعيل المفتاح</h3>
+                <form id="activate-form" class="search-form"
+                    style="display:grid; grid-template-columns: 2fr 1fr auto; gap:10px; align-items:center;">
+                    <input id="license-key" type="text" placeholder="ألصق مفتاح الترخيص هنا" required autocomplete="off">
+                    <input id="device-name" type="text" placeholder="اسم الجهاز (اختياري)">
+                    <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> تفعيل</button>
+                </form>
+                <p class="muted-note" style="margin-top:8px;">Basic = 1 جهاز | Pro = 3 أجهزة | Business = 10 أجهزة</p>
+            </div>
+
+            <div class="search-section">
+                <h3><i class="fas fa-magic"></i> مولد السيريال (Admin Tool)</h3>
+                <form id="serial-form" class="search-form"
+                    style="display:grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:center;">
+                    <select id="serial-plan" required>
+                        <option value="basic">Basic (1)</option>
+                        <option value="pro">Pro (3)</option>
+                        <option value="business">Business (10)</option>
+                    </select>
+                    <input id="serial-days" type="number" min="1" max="3650" value="365" placeholder="عدد الأيام">
+                    <input id="serial-customer" type="text" placeholder="مرجع الزبون (اختياري)">
+                    <input id="serial-device-code" type="text" placeholder="Device Code (64-hex, اختياري)">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--color-text-main);">
+                        <input id="serial-online" type="checkbox"> يتطلب تحقق إنترنت
+                    </label>
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-key"></i> توليد</button>
+                </form>
+
+                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <textarea id="serial-output" class="serial-output" readonly placeholder="سيظهر السيريال هنا"></textarea>
+                    <button id="copy-serial-btn" class="btn btn-secondary" type="button"><i class="fas fa-copy"></i> نسخ السيريال</button>
+                </div>
+                <p class="muted-note" style="margin-top:8px;">لربط السيريال بجهاز محدد، ألصق Device Code الذي يرسله العميل.</p>
+            </div>
+
+            <div class="search-section">
+                <h3><i class="fas fa-satellite-dish"></i> مزامنة أجهزة العملاء (Owner Dashboard Sync)</h3>
+                <form id="owner-sync-form" class="owner-sync-grid">
+                    <input id="owner-sync-url" type="text" placeholder="رابط الخادم (مثال: https://my-server.com)">
+                    <input id="owner-sync-write-token" type="text" placeholder="Write Token (للأجهزة المباعة)">
+                    <input id="owner-sync-read-token" type="text" placeholder="Read Token (Dashboard admin)">
+                    <input id="owner-sync-heartbeat" type="number" min="5" max="1440" placeholder="كل كم دقيقة؟" value="360">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--color-text-main);">
+                        <input id="owner-sync-enabled" type="checkbox"> تفعيل المزامنة
+                    </label>
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> حفظ الإعدادات</button>
+                    <button class="btn btn-secondary" id="owner-sync-test" type="button"><i class="fas fa-vial"></i> اختبار الاتصال</button>
+                    <button class="btn btn-warning" id="owner-sync-now" type="button"><i class="fas fa-cloud-upload-alt"></i> مزامنة الآن</button>
+                </form>
+
+                <div class="license-grid" style="margin-top:12px;">
+                    <div class="license-card">
+                        <div class="label">إجمالي الأجهزة (الخادم)</div>
+                        <div class="value" id="owner-total-devices">0</div>
+                    </div>
+                    <div class="license-card">
+                        <div class="label">نشط آخر 24 ساعة</div>
+                        <div class="value" id="owner-active-24h">0</div>
+                    </div>
+                    <div class="license-card">
+                        <div class="label">الأجهزة المفعلة</div>
+                        <div class="value" id="owner-activated-devices">0</div>
+                    </div>
+                </div>
+
+                <div class="owner-sync-device-table">
+                    <table class="students-table" style="margin:0;">
+                        <thead>
+                            <tr>
+                                <th>الجهاز</th>
+                                <th>المنصة</th>
+                                <th>الباقة</th>
+                                <th>الحالة</th>
+                                <th>آخر ظهور</th>
+                            </tr>
+                        </thead>
+                        <tbody id="owner-devices-tbody">
+                            <tr><td colspan="5" style="text-align:center;padding:16px;">لا توجد بيانات بعد</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="muted-note" style="margin-top:8px;">هذه البيانات تأتي من خادم مركزي وتظهر نفس الأجهزة في لوحة التحكم الرئيسية.</p>
+                <p class="muted-note">Write Token للأجهزة المباعة (إرسال فقط) و Read Token للأدمن (عرض الإحصاءات).</p>
+            </div>
+
+            <div class="license-grid" aria-live="polite">
+                <div class="license-card">
+                    <div class="label">الحالة</div>
+                    <div class="value" id="status-value">-</div>
+                </div>
+                <div class="license-card">
+                    <div class="label">الباقة</div>
+                    <div class="value" id="plan-value">-</div>
+                </div>
+                <div class="license-card">
+                    <div class="label">الأجهزة</div>
+                    <div class="value" id="devices-value">0 / 0</div>
+                </div>
+                <div class="license-card">
+                    <div class="label">انتهاء الترخيص</div>
+                    <div class="value" id="expiry-value">-</div>
+                </div>
+                <div class="license-card">
+                    <div class="label">المهلة دون إنترنت</div>
+                    <div class="value" id="grace-value">-</div>
+                </div>
+                <div class="license-card">
+                    <div class="label">آخر تحقق</div>
+                    <div class="value" id="validated-value">-</div>
+                </div>
+            </div>
+
+            <div class="students-results">
+                <div class="license-actions">
+                    <button class="btn btn-primary" type="button" id="refresh-btn"><i class="fas fa-sync-alt"></i> تحديث</button>
+                    <button class="btn btn-warning" type="button" id="revalidate-btn"><i class="fas fa-cloud-check"></i> تحديث التحقق</button>
+                    <button class="btn btn-secondary" type="button" id="deactivate-btn"><i class="fas fa-unlink"></i> تعطيل هذا الجهاز</button>
+                </div>
+                <p class="muted-note" style="margin-bottom:10px;">
+                    <i class="fas fa-shield-alt"></i>
+                    لوحة الإدارة: يمكنك تعطيل أي جهاز مفعّل من الجدول أدناه.
+                </p>
+
+                <table class="students-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الجهاز</th>
+                            <th>النظام</th>
+                            <th>آخر استخدام</th>
+                            <th>هذه الآلة</th>
+                            <th>نسبة التطابق</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="devices-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function el(id) {
+            return document.getElementById(id);
+        }
+
+        function esc(value) {
+            const div = document.createElement('div');
+            div.textContent = value == null ? '' : String(value);
+            return div.innerHTML;
+        }
+
+        function fmtDate(value) {
+            if (!value) return '-';
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return '-';
+            return d.toLocaleString('ar-MA', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function statusLabel(status) {
+            const labels = {
+                not_activated: 'غير مفعل',
+                active: 'نشط',
+                grace_warning: 'نشط (قرب انتهاء المهلة)',
+                grace_expired: 'المهلة منتهية',
+                expired: 'منتهي',
+                suspended: 'موقوف',
+                inactive: 'غير نشط',
+                revoked: 'ملغى',
+                device_not_activated: 'الجهاز غير مفعل'
+            };
+            return labels[status] || status || '-';
+        }
+
+        function renderStatus(status) {
+            el('status-value').textContent = statusLabel(status?.status);
+            el('plan-value').textContent = (status?.planName || status?.planCode || '-').toUpperCase();
+            el('devices-value').textContent = `${Number(status?.activeDevices || 0)} / ${Number(status?.maxDevices || 0)}`;
+            el('expiry-value').textContent = fmtDate(status?.expiresAt);
+            el('validated-value').textContent = fmtDate(status?.lastValidatedAt);
+
+            if (status?.requiresOnlineValidation) {
+                const days = Number(status?.graceRemainingDays || 0);
+                el('grace-value').textContent = `${days} يوم`;
+            } else {
+                el('grace-value').textContent = 'غير مطلوب';
+            }
+
+            const hasActivation = status?.status !== 'not_activated';
+            el('deactivate-btn').disabled = !hasActivation;
+            el('revalidate-btn').disabled = !hasActivation;
+        }
+
+        function renderDevices(devices) {
+            const tbody = el('devices-tbody');
+            if (!Array.isArray(devices) || !devices.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;">لا توجد أجهزة مفعلة</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = devices.map((device, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${esc(device.deviceName || '-')}</td>
+                    <td>${esc(device.platform || '-')}</td>
+                    <td>${esc(fmtDate(device.lastSeenAt))}</td>
+                    <td>${device.isCurrentDevice ? '<span style="color:#0b8f4e;font-weight:700;">نعم</span>' : '-'}</td>
+                    <td>${Number(device.matchScore || 0)}%</td>
+                    <td>
+                        <button
+                            type="button"
+                            class="btn btn-danger"
+                            data-action="admin-revoke"
+                            data-device-id="${Number(device.id || 0)}"
+                            style="padding:6px 10px;font-size:12px;"
+                        >
+                            تعطيل
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function onAdminRevokeDevice(activationId) {
+            const id = Number(activationId);
+            if (!Number.isInteger(id) || id <= 0) return;
+
+            if (!confirm('هل تريد تعطيل هذا الجهاز من الترخيص؟')) return;
+
+            const res = await window.api.licensing.adminRevokeDevice({ activationId: id });
+            if (!res?.success) {
+                showToast(res?.error || 'تعذر تعطيل الجهاز', 'error');
+                return;
+            }
+
+            showToast('تم تعطيل الجهاز بنجاح', 'success');
+            await loadData();
+        }
+
+        async function loadData() {
+            try {
+                const statusRes = await window.api.licensing.getStatus();
+                if (!statusRes?.success) {
+                    throw new Error(statusRes?.error || 'تعذر تحميل حالة الترخيص');
+                }
+
+                const devicesRes = await window.api.licensing.listDevices();
+                renderStatus(statusRes);
+                renderDevices(devicesRes?.devices || []);
+            } catch (err) {
+                showToast(err?.message || 'حدث خطأ أثناء تحميل الترخيص', 'error');
+            }
+        }
+
+        async function onActivate(event) {
+            event.preventDefault();
+            const licenseKey = el('license-key').value.trim();
+            const deviceName = el('device-name').value.trim();
+            if (!licenseKey) return;
+
+            const res = await window.api.licensing.activate({ licenseKey, deviceName });
+            if (!res?.success) {
+                showToast(res?.error || 'فشل تفعيل المفتاح', 'error');
+                return;
+            }
+
+            showToast('تم تفعيل الترخيص بنجاح', 'success');
+            el('license-key').value = '';
+            await loadData();
+        }
+
+        async function onDeactivateCurrent() {
+            const res = await window.api.licensing.deactivateCurrentDevice();
+            if (!res?.success) {
+                showToast(res?.error || 'تعذر تعطيل الجهاز', 'error');
+                return;
+            }
+            showToast('تم تعطيل الجهاز الحالي', 'success');
+            await loadData();
+        }
+
+        async function onRefreshValidation() {
+            const res = await window.api.licensing.refreshValidation();
+            if (!res?.success) {
+                showToast(res?.error || 'تعذر تحديث التحقق', 'error');
+                return;
+            }
+            showToast('تم تحديث حالة التحقق', 'success');
+            await loadData();
+        }
+
+        async function onGenerateSerial(event) {
+            event.preventDefault();
+
+            const payload = {
+                planCode: el('serial-plan').value,
+                days: Number(el('serial-days').value || 365),
+                customerRef: el('serial-customer').value.trim(),
+                deviceCode: el('serial-device-code').value.trim().toLowerCase(),
+                requiresOnlineValidation: el('serial-online').checked
+            };
+
+            const res = await window.api.licensing.generateSerial(payload);
+            if (!res?.success) {
+                showToast(res?.error || 'تعذر توليد السيريال', 'error');
+                return;
+            }
+
+            el('serial-output').value = res.serialKey || '';
+            showToast('تم توليد السيريال بنجاح', 'success');
+        }
+
+        async function copySerialOutput() {
+            const value = el('serial-output').value.trim();
+            if (!value) return;
+            try {
+                await navigator.clipboard.writeText(value);
+                showToast('تم نسخ السيريال', 'success');
+            } catch (_err) {
+                el('serial-output').select();
+                document.execCommand('copy');
+                showToast('تم نسخ السيريال', 'success');
+            }
+        }
+
+        function renderOwnerDevices(devices) {
+            const tbody = el('owner-devices-tbody');
+            if (!Array.isArray(devices) || !devices.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;">لا توجد بيانات بعد</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = devices.map((device) => `
+                <tr>
+                    <td>${esc(device.deviceName || device.deviceCode || '-')}</td>
+                    <td>${esc(device.platform || '-')}</td>
+                    <td>${esc((device.planCode || '-').toUpperCase())}</td>
+                    <td>${device.activated ? 'مفعّل' : 'غير مفعّل'}</td>
+                    <td>${esc(fmtDate(device.lastSeenAt))}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadOwnerSyncConfig() {
+            if (!window.api?.ownerTelemetry?.getConfig) return;
+            const res = await window.api.ownerTelemetry.getConfig();
+            if (!res?.success) {
+                showToast(res?.error || 'تعذر تحميل إعدادات المزامنة', 'error');
+                return;
+            }
+
+            const cfg = res.config || {};
+            el('owner-sync-url').value = cfg.serverUrl || '';
+            el('owner-sync-write-token').value = cfg.writeToken || cfg.ownerToken || '';
+            el('owner-sync-read-token').value = cfg.readToken || cfg.ownerToken || '';
+            el('owner-sync-heartbeat').value = Number(cfg.heartbeatIntervalMinutes || 360);
+            el('owner-sync-enabled').checked = !!cfg.enabled;
+        }
+
+        async function loadOwnerTelemetryOverview() {
+            if (!window.api?.ownerTelemetry?.getOverview) return;
+
+            const overviewRes = await window.api.ownerTelemetry.getOverview();
+            if (!overviewRes?.success) {
+                el('owner-total-devices').textContent = '0';
+                el('owner-active-24h').textContent = '0';
+                el('owner-activated-devices').textContent = '0';
+                renderOwnerDevices([]);
+                return;
+            }
+
+            const summary = overviewRes.summary || {};
+            el('owner-total-devices').textContent = Number(summary.totalDevices || 0);
+            el('owner-active-24h').textContent = Number(summary.active24h || 0);
+            el('owner-activated-devices').textContent = Number(summary.activatedDevices || 0);
+
+            const devicesRes = await window.api.ownerTelemetry.getDevices({ limit: 50 });
+            renderOwnerDevices(devicesRes?.success ? devicesRes.devices : []);
+        }
+
+        async function onSaveOwnerSyncConfig(event) {
+            event.preventDefault();
+            if (!window.api?.ownerTelemetry?.saveConfig) return;
+
+            const payload = {
+                serverUrl: el('owner-sync-url').value.trim(),
+                writeToken: el('owner-sync-write-token').value.trim(),
+                readToken: el('owner-sync-read-token').value.trim(),
+                heartbeatIntervalMinutes: Number(el('owner-sync-heartbeat').value || 360),
+                enabled: el('owner-sync-enabled').checked
+            };
+
+            const res = await window.api.ownerTelemetry.saveConfig(payload);
+            if (!res?.success) {
+                showToast(res?.error || 'تعذر حفظ إعدادات المزامنة', 'error');
+                return;
+            }
+
+            showToast('تم حفظ إعدادات المزامنة', 'success');
+            await loadOwnerSyncConfig();
+            await loadOwnerTelemetryOverview();
+        }
+
+        async function onTestOwnerSyncConnection() {
+            if (!window.api?.ownerTelemetry?.testConnection) return;
+
+            const payload = {
+                serverUrl: el('owner-sync-url').value.trim(),
+                writeToken: el('owner-sync-write-token').value.trim(),
+                readToken: el('owner-sync-read-token').value.trim()
+            };
+
+            const res = await window.api.ownerTelemetry.testConnection(payload);
+            if (!res?.success) {
+                showToast(res?.error || 'فشل اختبار الاتصال', 'error');
+                return;
+            }
+
+            showToast('اختبار الاتصال ناجح (الخادم + write token + read token)', 'success');
+        }
+
+        async function onOwnerSyncNow() {
+            if (!window.api?.ownerTelemetry?.syncNow) return;
+
+            const res = await window.api.ownerTelemetry.syncNow();
+            if (!res?.success) {
+                showToast(res?.error || 'فشلت مزامنة الأجهزة', 'error');
+                return;
+            }
+
+            showToast(`تمت المزامنة (مرسلة: ${Number(res.sentCount || 0)})`, 'success');
+            await loadOwnerTelemetryOverview();
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            el('activate-form').addEventListener('submit', onActivate);
+            el('serial-form').addEventListener('submit', onGenerateSerial);
+            el('owner-sync-form').addEventListener('submit', onSaveOwnerSyncConfig);
+            el('refresh-btn').addEventListener('click', loadData);
+            el('deactivate-btn').addEventListener('click', onDeactivateCurrent);
+            el('revalidate-btn').addEventListener('click', onRefreshValidation);
+            el('copy-serial-btn').addEventListener('click', copySerialOutput);
+            el('owner-sync-test').addEventListener('click', onTestOwnerSyncConnection);
+            el('owner-sync-now').addEventListener('click', onOwnerSyncNow);
+            el('devices-tbody').addEventListener('click', (event) => {
+                const button = event.target.closest('button[data-action="admin-revoke"]');
+                if (!button) return;
+                void onAdminRevokeDevice(button.dataset.deviceId);
+            });
+            await loadOwnerSyncConfig();
+            await loadData();
+            await loadOwnerTelemetryOverview();
+        });
+    </script>
+</body>
+
+</html>

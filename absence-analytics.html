@@ -1,0 +1,2739 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>تحليل الغياب | برنامج التدبير المدرسي</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="ux-enhancements.css">
+  <script src="js/utils.js" defer></script>
+  <script src="js/sidebar.js" defer></script>
+  <script src="js/ux-enhancements.js" defer></script>
+  <style>
+    /* ===== Analytics Page Styles ===== */
+    .analytics-page {
+      padding: 0;
+    }
+
+    /* Filters Section */
+    .filters-section {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+
+    .filters-section h3 {
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .filters-section h3 i {
+      color: var(--primary);
+    }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      align-items: end;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .filter-group label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted, #64748b);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filter-group label i {
+      font-size: 12px;
+      color: var(--primary);
+    }
+
+    .filter-group select,
+    .filter-group input {
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      background: #fff;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .filter-group select:hover,
+    .filter-group input:hover {
+      border-color: #cbd5e1;
+    }
+
+    .filter-group select:focus,
+    .filter-group input:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.08);
+    }
+
+    .btn-filter {
+      padding: 12px 24px;
+      background: var(--gradient-primary);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .btn-filter:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(45, 95, 74, 0.2);
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid transparent;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: 4px;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    .kpi-card.blue::before {
+      background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+    }
+
+    .kpi-card.green::before {
+      background: linear-gradient(90deg, #047857, #10b981);
+    }
+
+    .kpi-card.purple::before {
+      background: linear-gradient(90deg, #6d28d9, #8b5cf6);
+    }
+
+    .kpi-card.orange::before {
+      background: linear-gradient(90deg, #c2410c, #f97316);
+    }
+
+    .kpi-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .kpi-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .kpi-card.blue .kpi-icon {
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
+    }
+
+    .kpi-card.green .kpi-icon {
+      background: rgba(16, 185, 129, 0.12);
+      color: #059669;
+    }
+
+    .kpi-card.purple .kpi-icon {
+      background: rgba(139, 92, 246, 0.12);
+      color: #7c3aed;
+    }
+
+    .kpi-card.orange .kpi-icon {
+      background: rgba(249, 115, 22, 0.12);
+      color: #ea580c;
+    }
+
+    .kpi-title {
+      font-size: 14px;
+      color: var(--text-muted, #64748b);
+      font-weight: 500;
+    }
+
+    .kpi-value {
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin: 8px 0;
+      line-height: 1;
+    }
+
+    .kpi-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary, #94a3b8);
+    }
+
+    .kpi-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+
+    .kpi-trend.up {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    .kpi-trend.down {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .kpi-trend.neutral {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    /* Section Card */
+    .section-card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .section-header h3 {
+      margin: 0;
+      font-size: 17px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-header h3 i {
+      color: var(--primary);
+    }
+
+    .section-body {
+      padding: 24px;
+    }
+
+
+    /* Top Students List */
+    .students-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .student-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 12px;
+      transition: all 0.3s ease;
+      border: 1px solid transparent;
+    }
+
+    .student-item:hover {
+      background: #fff;
+      border-color: #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .student-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--gradient-primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .student-info h4 {
+      margin: 0 0 4px 0;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+
+    .student-meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .student-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .student-stats {
+      text-align: start;
+    }
+
+    .student-hours {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .student-percent {
+      font-size: 12px;
+      color: var(--text-muted, #64748b);
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 99px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .progress-bar i {
+      display: block;
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #f59e0b, #ef4444);
+    }
+
+    .badge {
+      padding: 4px 12px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge.warn {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge.danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge.ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    /* Data Table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table th,
+    .data-table td {
+      padding: 14px 16px;
+      text-align: right;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .data-table th {
+      background: var(--bg-subtle, #f8fafc);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-muted, #64748b);
+      white-space: nowrap;
+    }
+
+    .data-table tbody tr {
+      transition: background 0.2s;
+    }
+
+    .data-table tbody tr:hover {
+      background: #fafbfc;
+    }
+
+    .data-table .justified {
+      color: #059669;
+    }
+
+    .data-table .unjustified {
+      color: #dc2626;
+    }
+
+    .week-cell {
+      text-align: center;
+      padding: 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .week-cell.low {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .week-cell.medium {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .week-cell.high {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    /* Student Detail Section */
+    .student-detail-section {
+      display: none;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .student-detail-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .student-profile {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .profile-item {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .profile-item strong {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted, #64748b);
+      margin-bottom: 6px;
+    }
+
+    .profile-item span {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* Calendar */
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+
+    .cal-header {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted, #64748b);
+      padding: 8px;
+    }
+
+    .cal-day {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+      cursor: default;
+    }
+
+    .cal-day.present {
+      background: #f0fdf4;
+      color: #166534;
+      border-color: #bbf7d0;
+    }
+
+    .cal-day.justified {
+      background: #fffbeb;
+      color: #92400e;
+      border-color: #fde68a;
+    }
+
+    .cal-day.unjustified {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
+
+    .cal-day.empty {
+      background: transparent;
+      border-color: transparent;
+    }
+
+    .cal-day.estimated {
+      border-style: dashed;
+    }
+
+    /* Charts Grid */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .charts-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Note Box */
+    .note-box {
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .note-box.info {
+      background: #eff6ff;
+      color: #1e40af;
+    }
+
+    .note-box.warning {
+      background: #fff7ed;
+      color: #9a3412;
+    }
+
+    /* Print Styles */
+    @media print {
+      body {
+        background: #fff !important;
+      }
+
+      .sidebar,
+      .header,
+      .filters-section,
+      .btn,
+      button,
+      .loading-overlay {
+        display: none !important;
+      }
+
+      .main-content {
+        margin: 0 !important;
+        padding: 20px !important;
+      }
+
+      .section-card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+        page-break-inside: avoid;
+      }
+
+      .kpi-card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+      }
+
+      .student-detail-section.active {
+        display: block !important;
+      }
+
+      @page {
+        margin: 1.5cm;
+      }
+
+      .print-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #333;
+      }
+
+      .print-header h1 {
+        font-size: 24px;
+        margin: 0 0 10px 0;
+      }
+
+      .print-header p {
+        color: #666;
+        margin: 0;
+      }
+    }
+
+    .print-header {
+      display: none;
+    }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+      font-size: 18px;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .loading-overlay.active {
+      display: flex;
+    }
+
+    .loading-overlay i {
+      font-size: 36px;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted, #94a3b8);
+    }
+
+    .empty-state i {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    /* Header Actions */
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* Student Detail Controls */
+    .student-detail-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .student-detail-controls select {
+      padding: 10px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-family: inherit;
+    }
+
+    /* Section Subtitle */
+    .section-subtitle {
+      margin: 0 0 16px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-subtitle i {
+      color: var(--primary);
+    }
+
+    .chart-spacer {
+      margin-top: 20px;
+    }
+
+    .history-spacer {
+      margin-top: 24px;
+    }
+
+    .reason-text {
+      color: var(--text-muted, #64748b);
+      font-size: 13px;
+      max-width: 200px;
+    }
+
+    /* Search Box */
+    .table-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 0 1 280px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 10px 16px 10px 40px;
+      border: 2px solid var(--border-color, #e2e8f0);
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      background: #fff;
+      transition: border-color 0.3s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.08);
+    }
+
+    .search-box i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted, #94a3b8);
+      font-size: 14px;
+    }
+
+    .results-counter {
+      font-size: 13px;
+      color: var(--text-muted, #64748b);
+      font-weight: 500;
+    }
+
+    /* Sortable Headers */
+    .data-table th.sortable {
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s;
+    }
+
+    .data-table th.sortable:hover {
+      color: var(--primary);
+    }
+
+    .data-table th.sortable .sort-icon {
+      margin-right: 4px;
+      font-size: 11px;
+      opacity: 0.4;
+    }
+
+    .data-table th.sortable.sort-asc .sort-icon,
+    .data-table th.sortable.sort-desc .sort-icon {
+      opacity: 1;
+      color: var(--primary);
+    }
+
+    /* Calendar Legend */
+    .cal-legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: var(--bg-subtle, #f8fafc);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--text-muted, #64748b);
+    }
+
+    .cal-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cal-legend-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      border: 2px solid;
+    }
+
+    .cal-legend-dot.present {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .cal-legend-dot.justified {
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+
+    .cal-legend-dot.unjustified {
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    .cal-legend-dot.estimated {
+      background: #fef2f2;
+      border-color: #fecaca;
+      border-style: dashed;
+    }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 0 0;
+    }
+
+    .pagination button {
+      padding: 8px 14px;
+      border: 2px solid var(--border-color, #e2e8f0);
+      border-radius: 8px;
+      background: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-primary);
+    }
+
+    .pagination button:hover:not(:disabled) {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .pagination button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .pagination button.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .pagination .page-info {
+      font-size: 13px;
+      color: var(--text-muted, #64748b);
+    }
+
+    /* Section Compare Chart */
+    .section-compare-chart {
+      max-height: 350px;
+    }
+
+    /* Stats Mini Grid */
+    .stats-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .stats-mini-item {
+      text-align: center;
+      padding: 12px;
+      background: var(--bg-subtle, #f8fafc);
+      border-radius: 10px;
+      border: 1px solid var(--border-color, #e2e8f0);
+    }
+
+    .stats-mini-item .value {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .stats-mini-item .label {
+      font-size: 12px;
+      color: var(--text-muted, #64748b);
+      margin-top: 4px;
+    }
+
+    /* New KPI Card Colors */
+    .kpi-card.teal::before {
+      background: linear-gradient(90deg, #0d9488, #14b8a6);
+    }
+
+    .kpi-card.rose::before {
+      background: linear-gradient(90deg, #e11d48, #fb7185);
+    }
+
+    /* Heatmap Grid */
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      direction: ltr;
+    }
+
+    .heatmap-cell {
+      aspect-ratio: 1;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      transition: transform 0.2s;
+      border: 1px solid rgba(0, 0, 0, 0.04);
+    }
+
+    .heatmap-cell:hover {
+      transform: scale(1.08);
+    }
+
+    .heatmap-cell .day-name {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      opacity: 0.7;
+    }
+
+    .heatmap-cell.heat-0 {
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .heatmap-cell.heat-1 {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .heatmap-cell.heat-2 {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+
+    .heatmap-cell.heat-3 {
+      background: #fed7aa;
+      color: #9a3412;
+    }
+
+    .heatmap-cell.heat-4 {
+      background: #fecaca;
+      color: #991b1b;
+    }
+
+    .heatmap-cell.heat-5 {
+      background: #fca5a5;
+      color: #7f1d1d;
+    }
+
+    /* Histogram */
+    .histogram-container {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 180px;
+      padding: 16px 0 0;
+    }
+
+    .histogram-bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .histogram-bar {
+      width: 100%;
+      border-radius: 6px 6px 0 0;
+      min-height: 4px;
+      transition: height 0.4s ease;
+      position: relative;
+    }
+
+    .histogram-bar .bar-count {
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted, #64748b);
+    }
+
+    .histogram-label {
+      font-size: 10px;
+      color: var(--text-muted, #64748b);
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    /* Level Summary Table */
+    .level-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .level-table th,
+    .level-table td {
+      padding: 10px 14px;
+      text-align: center;
+      border-bottom: 1px solid var(--border-color, #e2e8f0);
+    }
+
+    .level-table th {
+      background: var(--bg-subtle, #f8fafc);
+      font-weight: 600;
+      color: var(--text-muted, #64748b);
+      font-size: 12px;
+    }
+
+    .level-table tbody tr:hover {
+      background: #fafbfc;
+    }
+
+    .level-table .level-name {
+      font-weight: 700;
+      color: var(--text-primary);
+      text-align: start;
+    }
+
+    /* Improvement / Decline Cards */
+    .change-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 600px) {
+      .change-cards {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .change-card {
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid var(--border-color, #e2e8f0);
+    }
+
+    .change-card.improve {
+      background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+      border-color: #86efac;
+    }
+
+    .change-card.decline {
+      background: linear-gradient(135deg, #fef2f2, #fee2e2);
+      border-color: #fca5a5;
+    }
+
+    .change-card h4 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .change-card.improve h4 {
+      color: #166534;
+    }
+
+    .change-card.decline h4 {
+      color: #991b1b;
+    }
+
+    .change-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 13px;
+    }
+
+    .change-list li {
+      padding: 6px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .change-list li:last-child {
+      border-bottom: none;
+    }
+
+    .change-delta {
+      font-weight: 700;
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+
+    .change-card.improve .change-delta {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .change-card.decline .change-delta {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    /* Full width chart row */
+    .chart-full {
+      margin-bottom: 24px;
+    }
+
+    .chart-full canvas {
+      max-height: 300px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="toast-container" id="toast-container"></div>
+  <div class="loading-overlay" id="loading-overlay">
+    <i class="fas fa-spinner fa-spin"></i>
+    <span>جاري تحميل البيانات...</span>
+  </div>
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content analytics-page">
+    <header class="header">
+      <div class="header-left">
+        <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+        <h2><i class="fas fa-chart-pie"></i> تحليل الغياب والمتابعة</h2>
+      </div>
+      <div class="header-right header-actions">
+        <button class="btn btn-secondary" id="export-btn"><i class="fas fa-file-export"></i> تصدير</button>
+        <button class="btn btn-success" id="print-btn"><i class="fas fa-eye"></i> معاينة الطباعة</button>
+        <button class="theme-toggle" id="theme-toggle"><i class="fas fa-moon"></i></button>
+      </div>
+    </header>
+
+    <!-- Print Header -->
+    <div class="print-header">
+      <h1>تقرير تحليل الغياب</h1>
+      <p id="print-date"></p>
+    </div>
+
+    <div class="grades-container">
+      <!-- Filters -->
+      <section class="filters-section">
+        <h3><i class="fas fa-filter"></i> فلاتر التحليل</h3>
+        <form class="filters-grid" id="f">
+          <div class="filter-group">
+            <label><i class="fas fa-calendar-alt"></i> السنة الدراسية</label>
+            <select id="y"></select>
+          </div>
+          <div class="filter-group">
+            <label><i class="fas fa-calendar-day"></i> الشهر</label>
+            <select id="m"></select>
+          </div>
+          <div class="filter-group">
+            <label><i class="fas fa-layer-group"></i> المستوى</label>
+            <select id="lv">
+              <option value="">كل المستويات</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label><i class="fas fa-users"></i> القسم</label>
+            <select id="c">
+              <option value="">كل الأقسام</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label><i class="fas fa-tag"></i> نوع الغياب</label>
+            <select id="t">
+              <option value="all">الكل</option>
+              <option value="justified">مبرر</option>
+              <option value="unjustified">غير مبرر</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label><i class="fas fa-percent"></i> أكثر من %</label>
+            <input id="r" type="number" min="0" max="100" value="0" placeholder="0">
+          </div>
+          <div class="filter-group">
+            <button class="btn-filter" type="submit"><i class="fas fa-sync-alt"></i> تحديث</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- KPI Cards -->
+      <section class="kpi-grid">
+        <div class="kpi-card blue">
+          <div class="kpi-header">
+            <div class="kpi-icon"><i class="fas fa-calendar-xmark"></i></div>
+          </div>
+          <div class="kpi-title">ساعات الغياب غير المبرر</div>
+          <div class="kpi-value" id="k1">0</div>
+          <div class="kpi-subtitle" id="k1s">0 يوم تقديري</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-header">
+            <div class="kpi-icon"><i class="fas fa-chart-line"></i></div>
+          </div>
+          <div class="kpi-title">متوسط الغياب غ.م لكل طالب</div>
+          <div class="kpi-value" id="k2">0</div>
+          <div class="kpi-subtitle">ساعة / طالب</div>
+        </div>
+        <div class="kpi-card purple">
+          <div class="kpi-header">
+            <div class="kpi-icon"><i class="fas fa-user-check"></i></div>
+          </div>
+          <div class="kpi-title">نسبة الحضور العامة</div>
+          <div class="kpi-value" id="k3">0%</div>
+          <div class="kpi-subtitle">تقدير 6 ساعات يومياً</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-header">
+            <div class="kpi-icon"><i class="fas fa-arrows-up-down"></i></div>
+          </div>
+          <div class="kpi-title">مقارنة بالشهر الماضي</div>
+          <div class="kpi-value" id="k4">0%</div>
+          <div class="kpi-trend neutral" id="k4t"><i class="fas fa-minus"></i> <span id="k4s"></span></div>
+        </div>
+        <div class="kpi-card teal">
+          <div class="kpi-header">
+            <div class="kpi-icon"><i class="fas fa-file-circle-check"></i></div>
+          </div>
+          <div class="kpi-title">نسبة التبرير</div>
+          <div class="kpi-value" id="k5">0%</div>
+          <div class="kpi-subtitle" id="k5s">مبرر / إجمالي</div>
+        </div>
+        <div class="kpi-card rose">
+          <div class="kpi-header">
+            <div class="kpi-icon"><i class="fas fa-user-shield"></i></div>
+          </div>
+          <div class="kpi-title">طلاب بدون غياب</div>
+          <div class="kpi-value" id="k6">0</div>
+          <div class="kpi-subtitle" id="k6s">من إجمالي الطلاب</div>
+        </div>
+      </section>
+
+      <!-- Charts Row -->
+      <div class="charts-row">
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-chart-area"></i> اتجاه الغياب (آخر 6 أشهر)</h3>
+          </div>
+          <div class="section-body">
+            <canvas id="trend" height="100"></canvas>
+          </div>
+        </section>
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> الأكثر غياباً (Top 5)</h3>
+          </div>
+          <div class="section-body">
+            <div class="students-list" id="risk"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Row: Status Pie + Stacked Bar -->
+      <div class="charts-row">
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-chart-pie"></i> توزيع الحالات</h3>
+          </div>
+          <div class="section-body">
+            <canvas id="status-pie" height="200"></canvas>
+          </div>
+        </section>
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-layer-group"></i> مبرر / غير مبرر بالأشهر</h3>
+          </div>
+          <div class="section-body">
+            <canvas id="stacked-bar" height="200"></canvas>
+          </div>
+        </section>
+      </div>
+
+      <!-- Row: Section Compare + Stats Summary -->
+      <div class="charts-row">
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-chart-bar"></i> مقارنة الأقسام</h3>
+          </div>
+          <div class="section-body">
+            <canvas id="section-compare" class="section-compare-chart" height="120"></canvas>
+          </div>
+        </section>
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-calculator"></i> ملخص إحصائي</h3>
+          </div>
+          <div class="section-body">
+            <div class="stats-mini-grid" id="stats-summary"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Row: Heatmap + Histogram -->
+      <div class="charts-row">
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-fire"></i> خريطة أيام الأسبوع</h3>
+          </div>
+          <div class="section-body">
+            <div class="heatmap-grid" id="heatmap"></div>
+          </div>
+        </section>
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-signal"></i> توزيع النسب</h3>
+          </div>
+          <div class="section-body">
+            <div class="histogram-container" id="histogram"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Monthly per-section line chart -->
+      <section class="section-card chart-full">
+        <div class="section-header">
+          <h3><i class="fas fa-chart-line"></i> تطور الغياب الشهري حسب القسم</h3>
+        </div>
+        <div class="section-body">
+          <canvas id="monthly-sections" height="120"></canvas>
+        </div>
+      </section>
+
+      <!-- Improving/Declining Sections -->
+      <div class="charts-row">
+        <section class="section-card">
+          <div class="section-header">
+            <h3><i class="fas fa-exchange-alt"></i> أقسام متحسنة / متراجعة</h3>
+          </div>
+          <div class="section-body">
+            <div class="change-cards" id="change-cards"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Level Summary Table -->
+      <section class="section-card">
+        <div class="section-header">
+          <h3><i class="fas fa-layer-group"></i> ملخص حسب المستوى</h3>
+        </div>
+        <div class="section-body">
+          <div class="table-responsive" style="overflow-x:auto;">
+            <table class="level-table" id="level-table">
+              <thead>
+                <tr>
+                  <th>المستوى</th>
+                  <th>عدد الطلاب</th>
+                  <th>متوسط غ.م</th>
+                  <th>أدنى</th>
+                  <th>أعلى</th>
+                  <th>خطر</th>
+                  <th>تحذير</th>
+                </tr>
+              </thead>
+              <tbody id="level-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Class Level Table (Student List - Last) -->
+      <section class="section-card">
+        <div class="section-header">
+          <h3><i class="fas fa-table"></i> جدول مستوى الفصل</h3>
+        </div>
+        <div class="section-body">
+          <div class="note-box info" id="cn"><i class="fas fa-info-circle"></i> البيانات المعروضة أسبوعية/تقديرية بناءً
+            على السجلات الشهرية.</div>
+          <div class="table-toolbar">
+            <div class="search-box">
+              <i class="fas fa-search"></i>
+              <input type="text" id="table-search" placeholder="بحث بالاسم أو الرمز...">
+            </div>
+            <div class="results-counter" id="results-counter"></div>
+          </div>
+          <div class="table-responsive" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+            <table class="data-table" id="main-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="sortable" data-sort="name">الطالب <i class="fas fa-sort sort-icon"></i></th>
+                  <th>رمز مسار</th>
+                  <th class="sortable" data-sort="justified">مبرر <i class="fas fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-sort="unjustified">غير مبرر <i class="fas fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-sort="totalHours">الإجمالي <i class="fas fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-sort="ratio">النسبة غ.م% <i class="fas fa-sort sort-icon"></i></th>
+                  <th>أ1</th>
+                  <th>أ2</th>
+                  <th>أ3</th>
+                  <th>أ4</th>
+                  <th>أ5</th>
+                </tr>
+              </thead>
+              <tbody id="ct"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="table-pagination"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    /* ===== Constants ===== */
+    const SCHOOL_YEAR = '2025/2026';
+    const WARNING_THRESHOLD = 10;
+    const DANGER_THRESHOLD = 15;
+    const HOURS_PER_DAY = 6;
+    const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js';
+
+    const MONTHS = [
+      ['يناير', 1], ['فبراير', 2], ['مارس', 3], ['أبريل', 4],
+      ['ماي', 5], ['يونيو', 6], ['يوليوز', 7], ['غشت', 8],
+      ['شتنبر', 9], ['أكتوبر', 10], ['نونبر', 11], ['دجنبر', 12]
+    ];
+
+    const MONTH_INDEX = {
+      jan: 1, january: 1, 'يناير': 1, feb: 2, february: 2, 'فبراير': 2,
+      mar: 3, march: 3, 'مارس': 3, apr: 4, april: 4, 'أبريل': 4,
+      may: 5, 'ماي': 5, jun: 6, june: 6, 'يونيو': 6,
+      jul: 7, july: 7, 'يوليوز': 7, aug: 8, august: 8, 'غشت': 8,
+      sep: 9, sept: 9, september: 9, 'شتنبر': 9,
+      oct: 10, october: 10, 'أكتوبر': 10,
+      nov: 11, november: 11, 'نونبر': 11,
+      dec: 12, december: 12, 'دجنبر': 12
+    };
+
+    /* ===== Application State ===== */
+    const appState = {
+      schoolYear: SCHOOL_YEAR,
+      rows: [],
+      classes: [],
+      students: [],
+      studentIndex: new Map(),
+      trendChart: null,
+      donutChart: null,
+      sectionChart: null,
+      statusPieChart: null,
+      stackedBarChart: null,
+      monthlySectionsChart: null,
+      selectedStudent: '',
+      derived: null,
+      // Table features
+      currentPage: 1,
+      pageSize: 30,
+      searchQuery: '',
+      sortKey: null,
+      sortDir: 'asc'
+    };
+
+    let chartLoaderPromise = null;
+
+    /* ===== Utilities ===== */
+    function debounce(func, waitMs) {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => func(...args), waitMs);
+      };
+    }
+
+    function formatNumber(value) {
+      return (Number(value) || 0).toLocaleString('ar-MA', { maximumFractionDigits: 1 });
+    }
+
+    function monthLabel(index) {
+      return (MONTHS.find(x => x[1] === index) || ['' + index])[0];
+    }
+
+    function formatDate(date) {
+      return date.toLocaleDateString('ar-MA', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function escapeHtml(text) {
+      return String(text || '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[ch]));
+    }
+
+    function escapeAttr(text) {
+      return escapeHtml(text).replace(/`/g, '&#96;');
+    }
+
+    function escapeCsv(value) {
+      return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
+    }
+
+    function normalizeCode(value) {
+      return String(value || '').trim().toUpperCase();
+    }
+
+    function showLoading(visible) {
+      document.getElementById('loading-overlay').classList.toggle('active', visible);
+    }
+
+    /* ===== DOM References ===== */
+    function getEl(id) { return document.getElementById(id); }
+
+    /* ===== Chart.js Loader ===== */
+    function ensureChartJsLoaded() {
+      if (window.Chart) return Promise.resolve(window.Chart);
+      if (chartLoaderPromise) return chartLoaderPromise;
+
+      chartLoaderPromise = new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[data-dynamic-src="${CHART_JS_CDN}"]`);
+        if (existing) {
+          existing.addEventListener('load', () => resolve(window.Chart), { once: true });
+          existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), { once: true });
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = CHART_JS_CDN;
+        script.async = true;
+        script.defer = true;
+        script.dataset.dynamicSrc = CHART_JS_CDN;
+        script.onload = () => resolve(window.Chart);
+        script.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
+        document.head.appendChild(script);
+      });
+      return chartLoaderPromise;
+    }
+
+    /* ===== Initialization ===== */
+    document.addEventListener('DOMContentLoaded', init);
+
+    async function init() {
+      try {
+        await ensureChartJsLoaded();
+        wireEvents();
+        await loadData();
+        initFilters();
+        restoreFiltersFromUrl();
+        render();
+      } catch (error) {
+        console.error('Absence analytics init failed:', error);
+        showToast('تعذر تحميل مكتبة الرسوم البيانية', 'error');
+      }
+      getEl('print-date').textContent = 'تاريخ الطباعة: ' + new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    function wireEvents() {
+      const filterForm = getEl('f');
+      const monthSelect = getEl('m');
+      const sectionSelect = getEl('c');
+      const typeSelect = getEl('t');
+      const percentInput = getEl('r');
+      const levelSelect = getEl('lv');
+
+      filterForm.onsubmit = async (e) => {
+        e.preventDefault();
+        appState.schoolYear = getEl('y').value || SCHOOL_YEAR;
+        await loadData();
+        render();
+      };
+
+      // Level → Section cascade
+      levelSelect.onchange = () => {
+        const selectedLevel = levelSelect.value;
+        const sectionEl = getEl('c');
+        const currentSection = sectionEl.value;
+
+        const allSections = Array.from(new Set(
+          (appState.classes || []).map(x => String(x.name || x.class_name || '').trim()).filter(Boolean)
+        )).concat(
+          Array.from(new Set(appState.rows.map(x => x.section).filter(Boolean)))
+        );
+
+        const uniqueSections = Array.from(new Set(allSections)).sort((a, b) => a.localeCompare(b, 'ar'));
+        const filtered = selectedLevel
+          ? uniqueSections.filter(s => extractLevel(s) === selectedLevel)
+          : uniqueSections;
+
+        sectionEl.innerHTML = '<option value="">\u0643\u0644 \u0627\u0644\u0623\u0642\u0633\u0627\u0645</option>' +
+          filtered.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+
+        if (filtered.includes(currentSection)) sectionEl.value = currentSection;
+        render();
+      };
+
+      [monthSelect, sectionSelect, typeSelect].forEach(el => {
+        if (el) el.onchange = render;
+      });
+
+      if (percentInput) {
+        percentInput.oninput = debounce(render, 300);
+      }
+
+      // Table search
+      const searchInput = getEl('table-search');
+      if (searchInput) {
+        searchInput.oninput = debounce(() => {
+          appState.searchQuery = searchInput.value.trim().toLowerCase();
+          appState.currentPage = 1;
+          renderClassTable();
+        }, 250);
+      }
+
+      // Sortable column headers
+      getEl('main-table').querySelector('thead').addEventListener('click', (e) => {
+        const th = e.target.closest('th.sortable');
+        if (!th) return;
+        const key = th.dataset.sort;
+        if (appState.sortKey === key) {
+          appState.sortDir = appState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          appState.sortKey = key;
+          appState.sortDir = 'asc';
+        }
+        appState.currentPage = 1;
+        renderClassTable();
+        updateSortIcons();
+      });
+
+      getEl('print-btn').onclick = () => openPrintPreview({ title: '\u062a\u0642\u0631\u064a\u0631 \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u063a\u064a\u0627\u0628', pageSize: 'A4' });
+      getEl('export-btn').onclick = exportCsv;
+    }
+
+    function updateSortIcons() {
+      getEl('main-table').querySelectorAll('th.sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        const icon = th.querySelector('.sort-icon');
+        if (th.dataset.sort === appState.sortKey) {
+          th.classList.add(appState.sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+          icon.className = 'fas fa-sort-' + (appState.sortDir === 'asc' ? 'up' : 'down') + ' sort-icon';
+        } else {
+          icon.className = 'fas fa-sort sort-icon';
+        }
+      });
+    }
+
+    async function loadData() {
+      showLoading(true);
+      try {
+        const [absences, classes, students] = await Promise.all([
+          window.api.absences.getAll(appState.schoolYear) || [],
+          window.api.classes.getAll(appState.schoolYear) || [],
+          window.api.students.search('', '', '', appState.schoolYear) || []
+        ]);
+
+        appState.classes = classes || [];
+        appState.students = students || [];
+
+        appState.studentIndex = new Map(
+          (appState.students || [])
+            .map(s => [normalizeCode(s.code || s.student_code || s.massar_code), s])
+            .filter(x => x[0])
+        );
+
+        appState.rows = (absences || []).map(normalizeRow);
+
+        // Build sections list for dropdown
+        const sectionsSet = new Set();
+        appState.classes.forEach(x => {
+          const name = String(x.name || x.class_name || '').trim();
+          if (name) sectionsSet.add(name);
+        });
+        appState.students.forEach(x => {
+          const name = String(x.class_name || x.section || '').trim();
+          if (name) sectionsSet.add(name);
+        });
+        appState.rows.forEach(x => {
+          if (x.section) sectionsSet.add(x.section);
+        });
+
+        const sortedSections = Array.from(sectionsSet).sort((a, b) =>
+          String(a).localeCompare(String(b), 'ar')
+        );
+
+        getEl('c').innerHTML = '<option value="">كل الأقسام</option>' +
+          sortedSections.map(x => `<option>${escapeHtml(x)}</option>`).join('');
+
+        // Dynamically populate levels dropdown
+        const levelsSet = new Set();
+        sortedSections.forEach(sec => {
+          const extracted = extractLevel(sec);
+          if (extracted) levelsSet.add(extracted);
+        });
+
+        const levelSelect = getEl('lv');
+        const currentLevel = levelSelect.value;
+        levelSelect.innerHTML = '<option value="">كل المستويات</option>' +
+          Array.from(levelsSet).sort((a, b) => a.localeCompare(b, 'ar'))
+            .map(lv => `<option value="${escapeHtml(lv)}">${escapeHtml(lv)}</option>`).join('');
+        if (currentLevel) levelSelect.value = currentLevel;
+
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    /** Extract the level prefix from a section name, e.g. "2BAC SMA 1" → "2BAC" */
+    function extractLevel(sectionName) {
+      const s = String(sectionName || '').trim();
+      // Common patterns: "جذع مشترك ...", "أولى باك ...", "ثانية باك ...", "1BAC...", "2BAC...", "TC..."
+      const patterns = [
+        { regex: /^جذع\s*مشترك/i, label: 'جذع مشترك' },
+        { regex: /^أولى\s*باك/i, label: 'أولى باك' },
+        { regex: /^ثانية\s*باك/i, label: 'ثانية باك' },
+        { regex: /^1\s*BAC/i, label: '1BAC' },
+        { regex: /^2\s*BAC/i, label: '2BAC' },
+        { regex: /^TC/i, label: 'TC' },
+        { regex: /^TCS/i, label: 'TCS' },
+        { regex: /^1ère\s*année/i, label: '1ère année BAC' },
+        { regex: /^2ème\s*année/i, label: '2ème année BAC' },
+      ];
+      for (const p of patterns) {
+        if (p.regex.test(s)) return p.label;
+      }
+      // Fallback: use first word as level
+      const firstWord = s.split(/[\s\-_]+/)[0];
+      return firstWord || null;
+    }
+
+    function initFilters() {
+      const yearSelect = getEl('y');
+      const monthSelect = getEl('m');
+      yearSelect.innerHTML = `<option>${SCHOOL_YEAR}</option>`;
+      monthSelect.innerHTML = '<option value="all">كل الشهور</option>' +
+        MONTHS.map(x => `<option value="${x[1]}">${x[0]}</option>`).join('');
+      monthSelect.value = String(new Date().getMonth() + 1);
+    }
+
+    /* ===== Data Normalization ===== */
+    function normalizeRow(record) {
+      const date = parseDate(record.absence_date);
+      const monthIndex = date ? date.getMonth() + 1 : detectMonthIndex(record);
+      const rawCode = String(record.student_code || record.massar_code || record.code || '').trim();
+      const student = appState.studentIndex.get(normalizeCode(rawCode));
+      const code = rawCode || String(student?.code || student?.student_code || student?.massar_code || '').trim();
+      const type = normalizeType(record.absence_type);
+
+      return {
+        ...record,
+        code,
+        name: String(record.full_name || record.student_name || student?.full_name || student?.student_name || code || '-').trim(),
+        section: String(record.section || record.class_name || student?.section || student?.class_name || '').trim(),
+        hours: Number(record.hours) || 0,
+        days: Number(record.days) || 0,
+        type,
+        mi: monthIndex,
+        date
+      };
+    }
+
+    function normalizeType(value) {
+      const t = String(value || '').trim().toLowerCase();
+      if (!t) return 'unjustified';
+      if (t.includes('unjust') || t.includes('غير') || t === '0' || t === 'false') return 'unjustified';
+      if (t.includes('justifi') || t.includes('مبرر') || t === '1' || t === 'true') return 'justified';
+      return 'unjustified';
+    }
+
+    function parseDate(value) {
+      if (!value) return null;
+      const s = String(value).trim();
+
+      // DD/MM/YYYY (Massar)
+      if (s.includes('/')) {
+        const p = s.split('/');
+        if (p.length === 3) {
+          const day = parseInt(p[0], 10);
+          const month = parseInt(p[1], 10);
+          const year = parseInt(p[2], 10);
+          if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year > 1900) {
+            const d = new Date(year, month - 1, day);
+            if (!isNaN(d.getTime())) return d;
+          }
+        }
+      }
+
+      // DD-MM-YYYY
+      if (s.includes('-') && /^\d{2}-\d{2}-\d{4}$/.test(s)) {
+        const p = s.split('-');
+        const d = new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+        if (!isNaN(d.getTime())) return d;
+      }
+
+      // Standard (YYYY-MM-DD, ISO)
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function detectMonthIndex(record) {
+      const raw = String(record.month || '').trim();
+      const rawLower = raw.toLowerCase();
+
+      if (rawLower === 'سنوي' || rawLower === 'annuel' || rawLower === 'annual') {
+        const d = parseDate(record.absence_date);
+        if (d) return d.getMonth() + 1;
+        return 0;
+      }
+
+      if (/^\d+$/.test(raw)) {
+        const n = Number(raw);
+        if (n >= 1 && n <= 12) return n;
+      }
+
+      if (raw.includes('/')) {
+        const n = raw.split('/').map(Number).find(x => x >= 1 && x <= 12);
+        if (n) return n;
+      }
+
+      const words = rawLower.split(/[\s\-_.]+/);
+      for (const word of words) {
+        if (MONTH_INDEX[word]) return MONTH_INDEX[word];
+      }
+
+      const d = parseDate(record.absence_date);
+      return d ? d.getMonth() + 1 : 0;
+    }
+
+    /* ===== Filters ===== */
+    function getFilters() {
+      const levelSelect = getEl('lv');
+      return {
+        month: getEl('m').value === 'all' ? null : Number(getEl('m').value),
+        section: getEl('c').value,
+        type: getEl('t').value,
+        minPercent: Number(getEl('r').value) || 0,
+        level: levelSelect ? levelSelect.value : ''
+      };
+    }
+
+    function getWorkingDays(month, year) {
+      const yearValue = Number((year || SCHOOL_YEAR).split('/')[0]) || new Date().getFullYear();
+      const daysInMonth = new Date(yearValue, month, 0).getDate();
+      let count = 0;
+      for (let i = 1; i <= daysInMonth; i++) {
+        const dow = new Date(yearValue, month - 1, i).getDay();
+        if (dow !== 0 && dow !== 6) count++; // استبعاد السبت والأحد
+      }
+      return count;
+    }
+
+    /* ===== Derived Data ===== */
+    function dominantType(current, newType) {
+      if (!current) return newType;
+      if (current === 'unjustified') return current;
+      return newType === 'unjustified' ? 'unjustified' : current;
+    }
+
+    function deriveData() {
+      const filters = getFilters();
+
+      // Filter rows
+      const filteredRows = appState.rows.filter(row => {
+        if (filters.month && row.mi !== filters.month) return false;
+        if (filters.section && row.section !== filters.section) return false;
+        if (filters.type !== 'all' && row.type !== filters.type) return false;
+        if (filters.level) {
+          const rowLevel = extractLevel(row.section);
+          if (rowLevel !== filters.level) return false;
+        }
+        return true;
+      });
+
+      // Aggregate per student
+      const studentMap = new Map();
+      filteredRows.forEach(row => {
+        if (!row.code) return;
+
+        if (!studentMap.has(row.code)) {
+          studentMap.set(row.code, {
+            code: row.code,
+            name: row.name,
+            section: row.section,
+            justified: 0,
+            unjustified: 0,
+            totalHours: 0,
+            totalDays: 0,
+            weekHours: [0, 0, 0, 0, 0],
+            weekTypes: [null, null, null, null, null],
+            hasDaily: false,
+            records: []
+          });
+        }
+
+        const student = studentMap.get(row.code);
+        student.records.push(row);
+        student.totalHours += row.hours;
+        student.totalDays += row.days || (row.hours / HOURS_PER_DAY);
+
+        if (row.type === 'justified') {
+          student.justified += row.hours;
+        } else {
+          student.unjustified += row.hours;
+        }
+
+        if (row.date) {
+          student.hasDaily = true;
+          const weekIndex = Math.min(4, Math.floor((row.date.getDate() - 1) / 7));
+          student.weekHours[weekIndex] += row.hours;
+          student.weekTypes[weekIndex] = dominantType(student.weekTypes[weekIndex], row.type);
+        } else {
+          student.weekHours[0] += row.hours;
+          student.weekTypes[0] = dominantType(student.weekTypes[0], row.type);
+        }
+      });
+
+      // Calculate ratios based on UNJUSTIFIED hours only
+      const currentMonth = filters.month || new Date().getMonth() + 1;
+      const workingDays = getWorkingDays(currentMonth, appState.schoolYear);
+      const expectedHours = Math.max(1, workingDays * HOURS_PER_DAY);
+
+      const studentPool = Math.max(
+        (appState.students || []).filter(s => {
+          if (!filters.section) return true;
+          return String(s.class_name || s.section || '').trim() === filters.section;
+        }).length,
+        studentMap.size || 1
+      );
+
+      let studentArray = Array.from(studentMap.values()).map(s => ({
+        ...s,
+        ratio: s.unjustified / expectedHours * 100,
+        level: (s.unjustified / expectedHours * 100) >= DANGER_THRESHOLD ? 'danger'
+          : (s.unjustified / expectedHours * 100) >= WARNING_THRESHOLD ? 'warn' : 'ok'
+      }));
+
+      studentArray = studentArray
+        .filter(s => s.ratio >= filters.minPercent)
+        .sort((a, b) => b.unjustified - a.unjustified);
+
+      const totalUnjustified = studentArray.reduce((sum, s) => sum + s.unjustified, 0);
+      const totalDays = studentArray.reduce((sum, s) => sum + s.totalDays, 0);
+      const avgUnjustified = totalUnjustified / Math.max(studentArray.length || studentPool, 1);
+      const totalExpected = studentPool * expectedHours;
+      const attendanceRate = Math.max(0, Math.min(100,
+        totalExpected > 0 ? (totalExpected - totalUnjustified) / totalExpected * 100 : 100
+      ));
+
+      // Monthly trend (unjustified only)
+      const monthTotals = monthlyTotals(filters.section, filters.type, filters.level);
+      const currentMonthTotal = monthTotals[currentMonth] || 0;
+      const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+      const prevMonthTotal = monthTotals[prevMonth] || 0;
+      const deltaPercent = prevMonthTotal === 0
+        ? (currentMonthTotal > 0 ? 100 : 0)
+        : (currentMonthTotal - prevMonthTotal) / prevMonthTotal * 100;
+
+      const topStudents = studentArray.filter(s => s.ratio >= WARNING_THRESHOLD).slice(0, 5);
+      const trend = buildTrend(monthTotals, currentMonth);
+
+      return {
+        filters, currentMonth, rows: studentArray, topStudents, studentPool,
+        workingDays, expectedHours, totalUnjustified, totalDays, avgUnjustified,
+        attendanceRate, deltaPercent, currentMonthTotal, prevMonthTotal,
+        hasDaily: studentArray.some(s => s.hasDaily), trend
+      };
+    }
+
+    function monthlyTotals(section, type, level) {
+      const result = {};
+      MONTHS.forEach(m => result[m[1]] = 0);
+
+      const studentMonthMap = new Map();
+      let annualHours = 0;
+
+      appState.rows.forEach(row => {
+        if (section && row.section !== section) return;
+        if (type !== 'all' && row.type !== type) return;
+        if (level) {
+          const rowLevel = extractLevel(row.section);
+          if (rowLevel !== level) return;
+        }
+
+        if (row.mi === 0) {
+          annualHours += row.hours;
+        } else {
+          const key = `${row.code}_${row.mi}`;
+          studentMonthMap.set(key, (studentMonthMap.get(key) || 0) + row.hours);
+        }
+      });
+
+      studentMonthMap.forEach((hours, key) => {
+        const mi = parseInt(key.split('_').pop(), 10);
+        if (mi >= 1 && mi <= 12) {
+          result[mi] = (result[mi] || 0) + hours;
+        }
+      });
+
+      if (annualHours > 0) {
+        const schoolMonths = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
+        const perMonth = annualHours / schoolMonths.length;
+        schoolMonths.forEach(m => {
+          result[m] = (result[m] || 0) + perMonth;
+        });
+      }
+
+      return result;
+    }
+
+    function buildTrend(totals, currentMonth) {
+      const labels = [];
+      const values = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthNum = ((currentMonth - i - 1 + 12) % 12) + 1;
+        labels.push(monthLabel(monthNum));
+        values.push(Number(totals[monthNum] || 0));
+      }
+      return { labels, values };
+    }
+
+    /* ===== Rendering ===== */
+    function render() {
+      appState.derived = deriveData();
+      appState.currentPage = 1;
+      appState.searchQuery = '';
+      const searchEl = getEl('table-search');
+      if (searchEl) searchEl.value = '';
+      renderDashboard();
+      renderClassTable();
+      renderSectionCompare();
+      renderStatsSummary();
+      renderStatusPie();
+      renderStackedBar();
+      renderHeatmap();
+      renderHistogram();
+      renderMonthlySections();
+      renderLevelTable();
+      renderChangeCards();
+      saveFiltersToUrl();
+    }
+
+    function getInitials(name) {
+      const parts = (name || '').split(' ').filter(Boolean);
+      if (parts.length >= 2) return parts[0][0] + parts[1][0];
+      return parts[0] ? parts[0].slice(0, 2) : '؟';
+    }
+
+    function renderDashboard() {
+      const d = appState.derived;
+
+      getEl('k1').textContent = formatNumber(d.totalUnjustified);
+      getEl('k1s').textContent = `${formatNumber(d.totalDays)} يوم تقديري`;
+      getEl('k2').textContent = formatNumber(d.avgUnjustified);
+      getEl('k3').textContent = `${formatNumber(d.attendanceRate)}%`;
+
+      const direction = d.deltaPercent > 0 ? 'up' : (d.deltaPercent < 0 ? 'down' : 'neutral');
+      getEl('k4').textContent = `${d.deltaPercent > 0 ? '+' : ''}${formatNumber(d.deltaPercent)}%`;
+
+      const trendBadge = getEl('k4t');
+      trendBadge.className = 'kpi-trend ' + direction;
+      const icon = direction === 'up' ? 'arrow-up' : (direction === 'down' ? 'arrow-down' : 'minus');
+      trendBadge.innerHTML = `<i class="fas fa-${icon}"></i> <span>\u0627\u0644\u062d\u0627\u0644\u064a ${formatNumber(d.currentMonthTotal)} | \u0627\u0644\u0633\u0627\u0628\u0642 ${formatNumber(d.prevMonthTotal)}</span>`;
+
+      // KPI 5: Justification rate
+      const totalAll = d.rows.reduce((s, r) => s + r.totalHours, 0);
+      const totalJust = d.rows.reduce((s, r) => s + r.justified, 0);
+      const justRate = totalAll > 0 ? (totalJust / totalAll * 100) : 0;
+      getEl('k5').textContent = formatNumber(justRate) + '%';
+      getEl('k5s').textContent = `${formatNumber(totalJust)} / ${formatNumber(totalAll)} \u0633\u0627\u0639\u0629`;
+
+      // KPI 6: Students with zero absences
+      const absentCodes = new Set(d.rows.map(r => r.code));
+      const totalStudentCount = Math.max(d.studentPool, absentCodes.size);
+      const zeroAbsenceCount = Math.max(0, totalStudentCount - absentCodes.size);
+      getEl('k6').textContent = formatNumber(zeroAbsenceCount);
+      getEl('k6s').textContent = `\u0645\u0646 ${formatNumber(totalStudentCount)} \u0637\u0627\u0644\u0628`;
+
+      // Top students (event delegation via data-code)
+      const riskContainer = getEl('risk');
+      if (d.topStudents.length) {
+        riskContainer.innerHTML = d.topStudents.map(s => `
+          <div class="student-item" data-code="${encodeURIComponent(s.code)}" style="cursor:pointer;">
+            <div class="student-avatar">${getInitials(s.name)}</div>
+            <div class="student-info">
+              <h4>${escapeHtml(s.name)}</h4>
+              <div class="student-meta">
+                <span><i class="fas fa-users"></i> ${escapeHtml(s.section || '-')}</span>
+                <span class="badge ${s.level}">${s.level === 'danger' ? 'خطر' : 'تحذير'}</span>
+              </div>
+            </div>
+            <div class="student-stats">
+              <div class="student-hours">${formatNumber(s.unjustified)}</div>
+              <div class="student-percent">${formatNumber(s.ratio)}%</div>
+              <div class="progress-bar"><i style="width:${Math.min(100, s.ratio / DANGER_THRESHOLD * 100)}%"></i></div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        riskContainer.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>لا يوجد طلاب فوق العتبة.</p></div>';
+      }
+
+      // Trend chart (update if exists, else create)
+      const trendData = {
+        labels: d.trend.labels,
+        datasets: [{
+          data: d.trend.values,
+          borderColor: '#0891b2',
+          backgroundColor: 'rgba(8,145,178,0.1)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 3,
+          pointBackgroundColor: '#0891b2',
+          pointRadius: 5,
+          pointHoverRadius: 7
+        }]
+      };
+      const trendOpts = {
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+          x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 } }
+        }
+      };
+
+      if (appState.trendChart) {
+        appState.trendChart.data = trendData;
+        appState.trendChart.update();
+      } else {
+        appState.trendChart = new Chart(
+          getEl('trend').getContext('2d'),
+          { type: 'line', data: trendData, options: trendOpts }
+        );
+      }
+    }
+
+
+
+    function renderClassTable() {
+      const d = appState.derived;
+      const noteBox = getEl('cn');
+
+      noteBox.className = 'note-box ' + (d.hasDaily ? 'info' : 'warning');
+      noteBox.innerHTML = `<i class="fas fa-${d.hasDaily ? 'info-circle' : 'exclamation-triangle'}"></i> ` +
+        (d.hasDaily
+          ? '\u062a\u0645 \u062f\u0645\u062c \u0628\u064a\u0627\u0646\u0627\u062a \u064a\u0648\u0645\u064a\u0629 \u062d\u064a\u062b \u062a\u0648\u0641\u0631\u062a\u060c \u0645\u0639 \u0639\u0631\u0636 \u0623\u0633\u0628\u0648\u0639\u064a \u0644\u0644\u0645\u0642\u0627\u0631\u0646\u0629 \u0627\u0644\u0633\u0631\u064a\u0639\u0629.'
+          : '\u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u0639\u0631\u0648\u0636\u0629 \u0623\u0633\u0628\u0648\u0639\u064a\u0629/\u062a\u0642\u062f\u064a\u0631\u064a\u0629 \u0628\u0646\u0627\u0621\u064b \u0639\u0644\u0649 \u0627\u0644\u0633\u062c\u0644\u0627\u062a \u0627\u0644\u0634\u0647\u0631\u064a\u0629.');
+
+      // Filter by search query
+      let rows = d.rows;
+      if (appState.searchQuery) {
+        rows = rows.filter(s =>
+          s.name.toLowerCase().includes(appState.searchQuery) ||
+          s.code.toLowerCase().includes(appState.searchQuery)
+        );
+      }
+
+      // Sort if a sort key is active
+      if (appState.sortKey) {
+        const key = appState.sortKey;
+        const dir = appState.sortDir === 'asc' ? 1 : -1;
+        rows = [...rows].sort((a, b) => {
+          const va = key === 'name' ? (a[key] || '') : (Number(a[key]) || 0);
+          const vb = key === 'name' ? (b[key] || '') : (Number(b[key]) || 0);
+          if (typeof va === 'string') return va.localeCompare(vb, 'ar') * dir;
+          return (va - vb) * dir;
+        });
+      }
+
+      // Update counter
+      const counterText = `\u0639\u0631\u0636 ${rows.length} \u0645\u0646 ${d.rows.length} \u0637\u0627\u0644\u0628`;
+      getEl('results-counter').textContent = counterText;
+
+      // Pagination
+      const totalPages = Math.max(1, Math.ceil(rows.length / appState.pageSize));
+      if (appState.currentPage > totalPages) appState.currentPage = totalPages;
+      const start = (appState.currentPage - 1) * appState.pageSize;
+      const pageRows = rows.slice(start, start + appState.pageSize);
+
+      const tableBody = getEl('ct');
+      if (pageRows.length) {
+        tableBody.innerHTML = pageRows.map((s, i) => `
+          <tr data-code="${encodeURIComponent(s.code)}" style="cursor:pointer;">
+            <td>${start + i + 1}</td>
+            <td><strong>${escapeHtml(s.name)}</strong></td>
+            <td style="font-family:monospace;">${escapeHtml(s.code)}</td>
+            <td class="justified">${formatNumber(s.justified)}</td>
+            <td class="unjustified">${formatNumber(s.unjustified)}</td>
+            <td><strong>${formatNumber(s.totalHours)}</strong>
+              <div class="progress-bar"><i style="width:${Math.min(100, s.ratio / DANGER_THRESHOLD * 100)}%"></i></div>
+            </td>
+            <td><span class="badge ${s.level}">${formatNumber(s.ratio)}%</span></td>
+            ${s.weekHours.map((h, ix) =>
+          `<td><span class="week-cell ${!h ? 'low' : (s.weekTypes[ix] === 'unjustified' ? 'high' : 'medium')}">${formatNumber(h)}</span></td>`
+        ).join('')}
+          </tr>
+        `).join('');
+      } else {
+        tableBody.innerHTML = '<tr><td colspan="12"><div class="empty-state"><i class="fas fa-inbox"></i><p>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a.</p></div></td></tr>';
+      }
+
+      // Render pagination controls
+      renderPagination(totalPages);
+    }
+
+    function renderPagination(totalPages) {
+      const container = getEl('table-pagination');
+      if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+      const maxVisible = 5;
+      let startPage = Math.max(1, appState.currentPage - Math.floor(maxVisible / 2));
+      let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+      if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
+
+      let html = `<button ${appState.currentPage <= 1 ? 'disabled' : ''} data-page="${appState.currentPage - 1}"><i class="fas fa-chevron-right"></i></button>`;
+      for (let p = startPage; p <= endPage; p++) {
+        html += `<button class="${p === appState.currentPage ? 'active' : ''}" data-page="${p}">${p}</button>`;
+      }
+      html += `<button ${appState.currentPage >= totalPages ? 'disabled' : ''} data-page="${appState.currentPage + 1}"><i class="fas fa-chevron-left"></i></button>`;
+      container.innerHTML = html;
+
+      container.onclick = (e) => {
+        const btn = e.target.closest('button[data-page]');
+        if (!btn || btn.disabled) return;
+        appState.currentPage = Number(btn.dataset.page);
+        renderClassTable();
+      };
+    }
+
+    function pickStudent() {
+      const d = appState.derived;
+    }
+
+    /* ===== Section Compare Chart ===== */
+    function renderSectionCompare() {
+      const d = appState.derived;
+      if (!d || !d.rows.length) {
+        if (appState.sectionChart) { appState.sectionChart.destroy(); appState.sectionChart = null; }
+        return;
+      }
+
+      // Group by section
+      const sectionMap = new Map();
+      d.rows.forEach(s => {
+        const sec = s.section || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f';
+        if (!sectionMap.has(sec)) sectionMap.set(sec, { total: 0, count: 0 });
+        const entry = sectionMap.get(sec);
+        entry.total += s.unjustified || 0;
+        entry.count++;
+      });
+
+      const sections = Array.from(sectionMap.entries())
+        .map(([name, data]) => ({ name, avg: data.total / Math.max(data.count, 1), count: data.count }))
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 15);
+
+      const chartData = {
+        labels: sections.map(s => s.name),
+        datasets: [{
+          label: '\u0645\u062a\u0648\u0633\u0637 \u0633\u0627\u0639\u0627\u062a \u063a.\u0645',
+          data: sections.map(s => +s.avg.toFixed(1)),
+          backgroundColor: sections.map(s => s.avg >= DANGER_THRESHOLD ? 'rgba(239,68,68,0.7)' :
+            s.avg >= WARNING_THRESHOLD ? 'rgba(245,158,11,0.7)' : 'rgba(16,185,129,0.7)'),
+          borderRadius: 6,
+          barThickness: 20
+        }]
+      };
+
+      const opts = {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.raw} \u0633\u0627\u0639\u0629 (\u0639\u062f\u062f: ${sections[ctx.dataIndex].count})` } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: { grid: { display: false }, ticks: { font: { size: 12 } } }
+        }
+      };
+
+      const canvas = getEl('section-compare');
+      canvas.style.height = Math.max(200, sections.length * 35) + 'px';
+
+      if (appState.sectionChart) {
+        appState.sectionChart.data = chartData;
+        appState.sectionChart.options.plugins.tooltip.callbacks.label = opts.plugins.tooltip.callbacks.label;
+        appState.sectionChart.update();
+      } else {
+        appState.sectionChart = new Chart(canvas.getContext('2d'), { type: 'bar', data: chartData, options: opts });
+      }
+    }
+
+    /* ===== Stats Summary ===== */
+    function renderStatsSummary() {
+      const d = appState.derived;
+      const container = getEl('stats-summary');
+      if (!d || !d.rows.length) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-calculator"></i><p>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a \u0643\u0627\u0641\u064a\u0629.</p></div>';
+        return;
+      }
+
+      const ratios = d.rows.map(s => s.ratio).sort((a, b) => a - b);
+      const n = ratios.length;
+      const median = n % 2 === 0 ? (ratios[n / 2 - 1] + ratios[n / 2]) / 2 : ratios[Math.floor(n / 2)];
+      const mean = ratios.reduce((a, b) => a + b, 0) / n;
+      const variance = ratios.reduce((acc, v) => acc + (v - mean) ** 2, 0) / n;
+      const stdDev = Math.sqrt(variance);
+      const min = ratios[0];
+      const max = ratios[n - 1];
+      const dangerCount = d.rows.filter(s => s.level === 'danger').length;
+      const warnCount = d.rows.filter(s => s.level === 'warn').length;
+
+      container.innerHTML = `
+        <div class="stats-mini-item"><div class="value">${formatNumber(median)}%</div><div class="label">\u0627\u0644\u0648\u0633\u064a\u0637</div></div>
+        <div class="stats-mini-item"><div class="value">${formatNumber(stdDev)}%</div><div class="label">\u0627\u0644\u0627\u0646\u062d\u0631\u0627\u0641 \u0627\u0644\u0645\u0639\u064a\u0627\u0631\u064a</div></div>
+        <div class="stats-mini-item"><div class="value">${formatNumber(min)}%</div><div class="label">\u0623\u062f\u0646\u0649 \u0646\u0633\u0628\u0629</div></div>
+        <div class="stats-mini-item"><div class="value">${formatNumber(max)}%</div><div class="label">\u0623\u0639\u0644\u0649 \u0646\u0633\u0628\u0629</div></div>
+        <div class="stats-mini-item"><div class="value" style="color:#ef4444;">${dangerCount}</div><div class="label">\u062d\u0627\u0644\u0629 \u062e\u0637\u0631</div></div>
+        <div class="stats-mini-item"><div class="value" style="color:#f59e0b;">${warnCount}</div><div class="label">\u062d\u0627\u0644\u0629 \u062a\u062d\u0630\u064a\u0631</div></div>
+      `;
+    }
+
+    /* ===== Status Distribution Pie ===== */
+    function renderStatusPie() {
+      const d = appState.derived;
+      if (!d || !d.rows.length) return;
+
+      const danger = d.rows.filter(s => s.level === 'danger').length;
+      const warn = d.rows.filter(s => s.level === 'warn').length;
+      const ok = d.rows.filter(s => s.level === 'ok').length;
+
+      const data = {
+        labels: ['\u062e\u0637\u0631', '\u062a\u062d\u0630\u064a\u0631', '\u0645\u0633\u062a\u0642\u0631'],
+        datasets: [{
+          data: [danger, warn, ok],
+          backgroundColor: ['#ef4444', '#f59e0b', '#10b981'],
+          borderWidth: 0,
+          hoverOffset: 8
+        }]
+      };
+
+      const opts = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} \u0637\u0627\u0644\u0628` } }
+        }
+      };
+
+      if (appState.statusPieChart) {
+        appState.statusPieChart.data = data;
+        appState.statusPieChart.update();
+      } else {
+        appState.statusPieChart = new Chart(getEl('status-pie').getContext('2d'), { type: 'doughnut', data, options: opts });
+      }
+    }
+
+    /* ===== Stacked Bar (Justified vs Unjustified by Month) ===== */
+    function renderStackedBar() {
+      const d = appState.derived;
+      if (!d) return;
+
+      const justByMonth = {};
+      const unjustByMonth = {};
+
+      appState.rows.forEach(row => {
+        const mi = row.mi;
+        if (!mi) return;
+        if (!justByMonth[mi]) { justByMonth[mi] = 0; unjustByMonth[mi] = 0; }
+        if (row.type === 'justified') justByMonth[mi] += row.hours;
+        else unjustByMonth[mi] += row.hours;
+      });
+
+      const months = MONTHS.map(m => m[1]).filter(mi => (justByMonth[mi] || 0) + (unjustByMonth[mi] || 0) > 0);
+      const labels = months.map(mi => monthLabel(mi));
+
+      const data = {
+        labels,
+        datasets: [
+          { label: '\u0645\u0628\u0631\u0631', data: months.map(mi => +(justByMonth[mi] || 0).toFixed(1)), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 },
+          { label: '\u063a\u064a\u0631 \u0645\u0628\u0631\u0631', data: months.map(mi => +(unjustByMonth[mi] || 0).toFixed(1)), backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 }
+        ]
+      };
+
+      const opts = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 12 } } } },
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' } }
+        }
+      };
+
+      if (appState.stackedBarChart) {
+        appState.stackedBarChart.data = data;
+        appState.stackedBarChart.update();
+      } else {
+        appState.stackedBarChart = new Chart(getEl('stacked-bar').getContext('2d'), { type: 'bar', data, options: opts });
+      }
+    }
+
+    /* ===== Weekly Heatmap ===== */
+    function renderHeatmap() {
+      const d = appState.derived;
+      const container = getEl('heatmap');
+      if (!d || !d.rows.length) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-fire"></i><p>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a \u064a\u0648\u0645\u064a\u0629.</p></div>';
+        return;
+      }
+
+      // Count hours per day-of-week (0=Sun ... 6=Sat)
+      const dowTotals = [0, 0, 0, 0, 0, 0, 0];
+      let hasDates = false;
+      d.rows.forEach(s => {
+        s.records.forEach(r => {
+          if (r.date) {
+            hasDates = true;
+            dowTotals[r.date.getDay()] += r.hours;
+          }
+        });
+      });
+
+      if (!hasDates) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-fire"></i><p>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a \u064a\u0648\u0645\u064a\u0629 \u0644\u0639\u0631\u0636 \u0627\u0644\u062e\u0631\u064a\u0637\u0629.</p></div>';
+        return;
+      }
+
+      const dayNames = ['\u0623\u062d\u062f', '\u0627\u0579\u0646\u064a\u0646', '\u062b\u0644\u0627\u062b\u0627\u0621', '\u0623\u0631\u0628\u0639\u0627\u0621', '\u062e\u0645\u064a\u0633', '\u062c\u0645\u0639\u0629', '\u0633\u0628\u062a'];
+      const maxVal = Math.max(...dowTotals, 1);
+
+      container.innerHTML = dowTotals.map((val, i) => {
+        const intensity = Math.min(5, Math.floor(val / maxVal * 5));
+        return `<div class="heatmap-cell heat-${intensity}" title="${dayNames[i]}: ${formatNumber(val)} \u0633\u0627\u0639\u0629">
+          <div class="day-name">${dayNames[i]}</div>${formatNumber(val)}</div>`;
+      }).join('');
+    }
+
+    /* ===== Ratio Histogram ===== */
+    function renderHistogram() {
+      const d = appState.derived;
+      const container = getEl('histogram');
+      if (!d || !d.rows.length) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-signal"></i><p>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a.</p></div>';
+        return;
+      }
+
+      const bins = [
+        { min: 0, max: 5, label: '0-5%', color: '#10b981' },
+        { min: 5, max: 10, label: '5-10%', color: '#34d399' },
+        { min: 10, max: 15, label: '10-15%', color: '#fbbf24' },
+        { min: 15, max: 25, label: '15-25%', color: '#f97316' },
+        { min: 25, max: 50, label: '25-50%', color: '#ef4444' },
+        { min: 50, max: Infinity, label: '50%+', color: '#991b1b' }
+      ];
+
+      bins.forEach(b => { b.count = d.rows.filter(s => s.ratio >= b.min && s.ratio < b.max).length; });
+      const maxCount = Math.max(...bins.map(b => b.count), 1);
+
+      container.innerHTML = bins.map(b => {
+        const h = Math.max(4, (b.count / maxCount) * 160);
+        return `<div class="histogram-bar-wrap">
+          <div class="histogram-bar" style="height:${h}px;background:${b.color};">
+            <span class="bar-count">${b.count || ''}</span>
+          </div>
+          <div class="histogram-label">${b.label}</div>
+        </div>`;
+      }).join('');
+    }
+
+    /* ===== Monthly Per-Section Line Chart ===== */
+    function renderMonthlySections() {
+      const d = appState.derived;
+      if (!d) return;
+
+      // Top 5 sections by unjustified hours
+      const sectionSet = new Map();
+      d.rows.forEach(s => {
+        const sec = s.section || '\u063a.\u0645';
+        sectionSet.set(sec, (sectionSet.get(sec) || 0) + s.unjustified);
+      });
+      const topSections = Array.from(sectionSet.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(e => e[0]);
+
+      if (!topSections.length) return;
+
+      const allMonths = MONTHS.map(m => m[1]);
+      const colors = ['#0891b2', '#8b5cf6', '#ef4444', '#f59e0b', '#10b981'];
+
+      const datasets = topSections.map((sec, i) => {
+        const monthData = allMonths.map(mi => {
+          let total = 0;
+          appState.rows.forEach(r => {
+            if (r.section === sec && r.mi === mi && r.type === 'unjustified') total += r.hours;
+          });
+          return +total.toFixed(1);
+        });
+        return {
+          label: sec,
+          data: monthData,
+          borderColor: colors[i % colors.length],
+          backgroundColor: 'transparent',
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 6
+        };
+      });
+
+      const data = { labels: allMonths.map(mi => monthLabel(mi)), datasets };
+      const opts = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+          x: { grid: { display: false } }
+        }
+      };
+
+      if (appState.monthlySectionsChart) {
+        appState.monthlySectionsChart.data = data;
+        appState.monthlySectionsChart.update();
+      } else {
+        appState.monthlySectionsChart = new Chart(getEl('monthly-sections').getContext('2d'), { type: 'line', data, options: opts });
+      }
+    }
+
+    /* ===== Level Summary Table ===== */
+    function renderLevelTable() {
+      const d = appState.derived;
+      const tbody = getEl('level-tbody');
+      if (!d || !d.rows.length) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-layer-group"></i><p>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a.</p></div></td></tr>';
+        return;
+      }
+
+      const levelMap = new Map();
+      d.rows.forEach(s => {
+        const lv = extractLevel(s.section) || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f';
+        if (!levelMap.has(lv)) levelMap.set(lv, []);
+        levelMap.get(lv).push(s);
+      });
+
+      const sorted = Array.from(levelMap.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ar'));
+
+      tbody.innerHTML = sorted.map(([level, students]) => {
+        const ratios = students.map(s => s.ratio);
+        const avg = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+        const min = Math.min(...ratios);
+        const max = Math.max(...ratios);
+        const dangerCnt = students.filter(s => s.level === 'danger').length;
+        const warnCnt = students.filter(s => s.level === 'warn').length;
+        return `<tr>
+          <td class="level-name">${escapeHtml(level)}</td>
+          <td>${students.length}</td>
+          <td>${formatNumber(avg)}%</td>
+          <td>${formatNumber(min)}%</td>
+          <td>${formatNumber(max)}%</td>
+          <td><span class="badge danger">${dangerCnt}</span></td>
+          <td><span class="badge warn">${warnCnt}</span></td>
+        </tr>`;
+      }).join('');
+    }
+
+    /* ===== Improving / Declining Sections ===== */
+    function renderChangeCards() {
+      const container = getEl('change-cards');
+      const d = appState.derived;
+      if (!d || !d.rows.length) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-exchange-alt"></i><p>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a \u0643\u0627\u0641\u064a\u0629 \u0644\u0644\u0645\u0642\u0627\u0631\u0646\u0629.</p></div>';
+        return;
+      }
+
+      const currentMonth = d.currentMonth;
+      const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+
+      const sectionCurrentMap = new Map();
+      const sectionPrevMap = new Map();
+
+      appState.rows.forEach(r => {
+        if (r.type !== 'unjustified') return;
+        const sec = r.section;
+        if (!sec) return;
+        if (r.mi === currentMonth) sectionCurrentMap.set(sec, (sectionCurrentMap.get(sec) || 0) + r.hours);
+        if (r.mi === prevMonth) sectionPrevMap.set(sec, (sectionPrevMap.get(sec) || 0) + r.hours);
+      });
+
+      const allSecs = new Set([...sectionCurrentMap.keys(), ...sectionPrevMap.keys()]);
+      const changes = [];
+      allSecs.forEach(sec => {
+        const cur = sectionCurrentMap.get(sec) || 0;
+        const prev = sectionPrevMap.get(sec) || 0;
+        if (prev === 0 && cur === 0) return;
+        const delta = prev > 0 ? ((cur - prev) / prev * 100) : (cur > 0 ? 100 : 0);
+        changes.push({ name: sec, cur, prev, delta });
+      });
+
+      const improving = changes.filter(c => c.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
+      const declining = changes.filter(c => c.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
+
+      const renderList = (items, type) => {
+        if (!items.length) return `<p style="text-align:center;color:#94a3b8;font-size:13px;">\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a</p>`;
+        return `<ul class="change-list">${items.map(c =>
+          `<li><span>${escapeHtml(c.name)}</span><span class="change-delta">${c.delta > 0 ? '+' : ''}${formatNumber(c.delta)}%</span></li>`
+        ).join('')}</ul>`;
+      };
+
+      container.innerHTML = `
+        <div class="change-card improve">
+          <h4><i class="fas fa-arrow-down"></i> \u0623\u0642\u0633\u0627\u0645 \u0645\u062a\u062d\u0633\u0646\u0629</h4>
+          ${renderList(improving, 'improve')}
+        </div>
+        <div class="change-card decline">
+          <h4><i class="fas fa-arrow-up"></i> \u0623\u0642\u0633\u0627\u0645 \u0645\u062a\u0631\u0627\u062c\u0639\u0629</h4>
+          ${renderList(declining, 'decline')}
+        </div>
+      `;
+    }
+
+    /* ===== URL State ===== */
+    function saveFiltersToUrl() {
+      const params = new URLSearchParams();
+      const m = getEl('m').value; if (m && m !== 'all') params.set('month', m);
+      const c = getEl('c').value; if (c) params.set('section', c);
+      const t = getEl('t').value; if (t && t !== 'all') params.set('type', t);
+      const lv = getEl('lv').value; if (lv) params.set('level', lv);
+      const r = getEl('r').value; if (r && Number(r) > 0) params.set('min', r);
+      const qs = params.toString();
+      const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+      history.replaceState(null, '', newUrl);
+    }
+
+    function restoreFiltersFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('month')) getEl('m').value = params.get('month');
+      if (params.has('section')) getEl('c').value = params.get('section');
+      if (params.has('type')) getEl('t').value = params.get('type');
+      if (params.has('level')) getEl('lv').value = params.get('level');
+      if (params.has('min')) getEl('r').value = params.get('min');
+    }
+
+    /* ===== Navigation & Export ===== */
+    function goToCorrespondence(code) {
+      window.location.href = `absence-correspondence.html?student_code=${encodeURIComponent(decodeURIComponent(code))}&action=absence_warning`;
+    }
+
+    function focusStudent(code) {
+      // Student detail removed — navigate to correspondence instead
+      goToCorrespondence(code);
+    }
+
+    function exportCsv() {
+      const d = appState.derived;
+      let csv = 'الاسم,القسم,رمز مسار,مبرر,غير مبرر,الإجمالي,النسبة غ.م\n';
+      csv += d.rows.map(s =>
+        [escapeCsv(s.name), escapeCsv(s.section || ''), escapeCsv(s.code),
+        s.justified, s.unjustified, s.totalHours, formatNumber(s.ratio)
+        ].join(',')
+      ).join('\n');
+
+      if (!csv.trim()) {
+        showToast('لا توجد بيانات للتصدير', 'warning');
+        return;
+      }
+
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `absence_analytics_${Date.now()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast('تم تصدير البيانات بنجاح', 'success');
+    }
+
+    // Expose for external links
+    window.goToCorrespondence = goToCorrespondence;
+    window.focusStudent = focusStudent;
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>التسجيل والحركة العامة | برنامج التدبير المدرسي</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="ux-enhancements.css">
+  <script src="js/utils.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+  <div class="toast-container" id="toast-container"></div>
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <header class="header">
+      <div class="header-left">
+        <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+        <h2 class="page-title"><i class="fas fa-user-plus"></i> التسجيل والحركة العامة</h2>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+      </div>
+    </header>
+
+    <div class="grades-container">
+      <div class="search-section">
+        <h3><i class="fas fa-pen"></i> تسجيل تلميذ جديد</h3>
+        <form id="form" class="search-form"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+          <input id="massar-code" placeholder="رمز مسار" required>
+          <input id="full-name" placeholder="الاسم الكامل" required>
+          <select id="class-name">
+            <option value="">اختر القسم</option>
+          </select>
+          <select id="gender">
+            <option value="M">ذكر</option>
+            <option value="F">أنثى</option>
+          </select>
+          <input type="date" id="birth-date">
+          <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> تسجيل</button>
+        </form>
+      </div>
+
+      <div class="students-results">
+        <h3><i class="fas fa-chart-bar"></i> إحصائيات التسجيل</h3>
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; padding: 20px;">
+          <div
+            style="background: var(--gradient-primary); color: white; padding: 25px; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-size: 36px; font-weight: bold;" id="total-count">0</div>
+            <div>إجمالي التلاميذ</div>
+          </div>
+          <div
+            style="background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary)); color: white; padding: 25px; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-size: 36px; font-weight: bold;" id="male-count">0</div>
+            <div>الذكور</div>
+          </div>
+          <div
+            style="background: linear-gradient(135deg, #d97706, #f59e0b); color: white; padding: 25px; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-size: 36px; font-weight: bold;" id="female-count">0</div>
+            <div>الإناث</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const year = '2025/2026';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadClasses();
+      await loadStats();
+      document.getElementById('form').addEventListener('submit', register);
+    });
+
+    async function loadClasses() {
+      const classes = await window.api.classes.getAll(year) || [];
+      const select = document.getElementById('class-name');
+      classes.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadStats() {
+      const students = await window.api.students.search('', '', '', year) || [];
+      document.getElementById('total-count').textContent = students.length;
+      document.getElementById('male-count').textContent = students.filter(s => s.gender === 'M').length;
+      document.getElementById('female-count').textContent = students.filter(s => s.gender === 'F').length;
+    }
+
+    async function register(e) {
+      e.preventDefault();
+      const payload = {
+        massar_code: document.getElementById('massar-code').value.trim(),
+        full_name: document.getElementById('full-name').value.trim(),
+        class_name: document.getElementById('class-name').value,
+        gender: document.getElementById('gender').value,
+        birth_date: document.getElementById('birth-date').value,
+        school_year: year
+      };
+      const res = await window.api.students.add(payload);
+      if (!res || res.success === false) {
+        showToast('فشل التسجيل: ' + (res?.error || ''), 'error');
+        return;
+      }
+      showToast('تم تسجيل التلميذ بنجاح', 'success');
+      e.target.reset();
+      await loadStats();
+    }
+  </script>
+</body>
+
+</html>

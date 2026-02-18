@@ -1,0 +1,2678 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقارير الفصل | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+    <style>
+        /* ─── Report Header ─── */
+        .report-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            color: var(--color-primary);
+        }
+
+        .report-header h3 {
+            margin: 0;
+            font-size: 22px;
+            font-family: var(--font-display);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ─── Filters ─── */
+        .report-filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .report-filters-grid select,
+        .report-filters-grid .btn {
+            height: 48px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        /* ─── KPI Cards ─── */
+        .report-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .report-kpi-card {
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 22px 20px;
+            box-shadow: var(--shadow-card);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .report-kpi-card:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .report-kpi-card:nth-child(2) {
+            animation-delay: 0.06s;
+        }
+
+        .report-kpi-card:nth-child(3) {
+            animation-delay: 0.06s;
+        }
+
+        .report-kpi-card:nth-child(4) {
+            animation-delay: 0.12s;
+        }
+
+        .report-kpi-card:nth-child(5) {
+            animation-delay: 0.18s;
+        }
+
+        .report-kpi-card:nth-child(6) {
+            animation-delay: 0.24s;
+        }
+
+        .report-kpi-card:nth-child(7) {
+            animation-delay: 0.30s;
+        }
+
+        .report-kpi-card:nth-child(8) {
+            animation-delay: 0.36s;
+        }
+
+        .report-kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 4px;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+
+        .report-kpi-card:nth-child(1)::before {
+            background: var(--gradient-primary);
+        }
+
+        .report-kpi-card:nth-child(2)::before {
+            background: linear-gradient(90deg, var(--color-success), #38ef7d);
+        }
+
+        .report-kpi-card:nth-child(3)::before {
+            background: linear-gradient(90deg, var(--color-warning), #ffd200);
+        }
+
+        .report-kpi-card:nth-child(4)::before {
+            background: linear-gradient(90deg, #a770ef, #cf8bf3);
+        }
+
+        .report-kpi-card:nth-child(5)::before {
+            background: linear-gradient(90deg, var(--color-danger), #ff9a76);
+        }
+
+        .report-kpi-card:nth-child(6)::before {
+            background: linear-gradient(90deg, #11998e, #38ef7d);
+        }
+
+        .report-kpi-card:nth-child(7)::before {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        .report-kpi-card:nth-child(8)::before {
+            background: linear-gradient(90deg, #f093fb, #f5576c);
+        }
+
+        .report-kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-elevated);
+            border-color: var(--color-primary-light);
+        }
+
+        .report-kpi-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-bottom: 14px;
+            color: #fff;
+        }
+
+        .report-kpi-label {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-family: var(--font-main);
+        }
+
+        .report-kpi-value {
+            font-size: 30px;
+            line-height: 1.1;
+            font-weight: 800;
+            color: var(--color-text-main);
+            font-family: var(--font-display);
+            margin-bottom: 4px;
+        }
+
+        .report-kpi-sub {
+            font-size: 12px;
+            color: var(--color-text-light);
+            margin-top: 6px;
+            font-weight: 500;
+        }
+
+        /* ─── Grid Layouts ─── */
+        .report-grid-two {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .report-grid-three {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        /* ─── Panels (Glassmorphism) ─── */
+        .report-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 22px;
+            box-shadow: var(--shadow-card);
+            transition: var(--transition-normal);
+        }
+
+        .report-panel:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .report-panel h4 {
+            margin: 0 0 16px;
+            color: var(--color-primary);
+            font-size: 16px;
+            font-weight: 700;
+            font-family: var(--font-display);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--color-accent);
+        }
+
+        .report-panel h4 i {
+            font-size: 17px;
+            color: var(--color-primary-light);
+        }
+
+        .report-canvas {
+            width: 100%;
+            height: 260px !important;
+        }
+
+        /* ─── Progress Bars ─── */
+        .report-progress-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .report-progress-item {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            transition: var(--transition-normal);
+        }
+
+        .report-progress-item:hover {
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-2px);
+        }
+
+        .report-progress-title {
+            font-size: 14px;
+            color: var(--color-text-main);
+            margin-bottom: 10px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .report-progress-title i {
+            font-size: 16px;
+        }
+
+        .report-progress-item:nth-child(1) .report-progress-title i {
+            color: var(--color-success);
+        }
+
+        .report-progress-item:nth-child(2) .report-progress-title i {
+            color: var(--color-warning);
+        }
+
+        .report-progress-item:nth-child(3) .report-progress-title i {
+            color: var(--color-danger);
+        }
+
+        .report-progress-track {
+            height: 22px;
+            background: var(--color-surface-alt);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin-bottom: 8px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+        }
+
+        .report-progress-value {
+            height: 100%;
+            border-radius: var(--radius-full);
+            position: relative;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            min-width: 32px;
+        }
+
+        .report-progress-value::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0) 100%);
+            animation: shimmer 2.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        .report-progress-meta {
+            font-size: 12px;
+            color: var(--color-text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* ─── Summary Table ─── */
+        .report-summary-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            border: 1px solid var(--color-accent);
+        }
+
+        .report-summary-table th,
+        .report-summary-table td {
+            padding: 13px 16px;
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .report-summary-table th {
+            background: var(--gradient-primary);
+            color: #fff;
+            font-weight: 700;
+            font-family: var(--font-display);
+            border-bottom: none;
+        }
+
+        .report-summary-table td {
+            color: var(--color-text-main);
+            border-bottom: 1px solid var(--color-accent);
+        }
+
+        .report-summary-table tbody tr:nth-child(even) {
+            background: var(--color-surface-alt);
+        }
+
+        .report-summary-table tbody tr:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .report-summary-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .report-grade-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-full);
+            padding: 4px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        /* ─── Collapsible Blocks ─── */
+        .report-block {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+            transition: var(--transition-normal);
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .report-block:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .report-block:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .report-block:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        .report-block:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .report-block>summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 18px 22px;
+            color: var(--color-primary);
+            font-size: 17px;
+            font-weight: 800;
+            font-family: var(--font-display);
+            background: var(--gradient-surface);
+            border-bottom: 2px solid var(--color-accent);
+            user-select: none;
+            transition: var(--transition-normal);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .report-block>summary::after {
+            content: '\f078';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 13px;
+            margin-right: auto;
+            margin-left: 0;
+            transition: transform 0.3s ease;
+            color: var(--color-text-light);
+        }
+
+        .report-block[open]>summary::after {
+            transform: rotate(180deg);
+        }
+
+        .report-block>summary:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .report-block[open]>summary {
+            background: var(--color-primary-mist);
+            border-bottom-color: var(--color-primary-light);
+        }
+
+        .report-block>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .report-block-body {
+            padding: 18px;
+        }
+
+        /* ─── Empty State ─── */
+        .report-empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--color-text-light);
+        }
+
+        .report-empty-state i {
+            font-size: 56px;
+            margin-bottom: 16px;
+            color: var(--color-accent);
+            display: block;
+        }
+
+        .report-empty-state p {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 1100px) {
+
+            .report-grid-two,
+            .report-grid-three {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .report-kpis {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .report-kpi-card {
+                padding: 16px 14px;
+            }
+
+            .report-kpi-value {
+                font-size: 24px;
+            }
+        }
+
+        /* ─── In-App Print Preview ─── */
+        .report-print-preview-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 12000;
+            background: rgba(12, 18, 22, 0.54);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            padding: 26px 18px;
+            display: none;
+        }
+
+        .report-print-preview-modal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .report-print-preview-dialog {
+            width: min(1140px, 100%);
+            max-height: calc(100vh - 52px);
+            background: var(--color-surface);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-elevated);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .report-print-preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--color-accent);
+            background: linear-gradient(135deg, var(--color-primary-soft), var(--color-secondary-soft));
+        }
+
+        .report-print-preview-title {
+            margin: 0;
+            font-size: 17px;
+            color: var(--color-primary-dark);
+            font-family: var(--font-display);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .report-print-preview-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--color-accent);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+
+        .report-print-preview-close:hover {
+            background: var(--color-danger-soft);
+            color: var(--color-danger);
+            transform: rotate(90deg);
+        }
+
+        .report-print-preview-body {
+            flex: 1;
+            overflow: auto;
+            padding: 18px;
+            background:
+                radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 42%),
+                linear-gradient(160deg, #eef3f8, #e3edf4);
+        }
+
+        .report-print-preview-page {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100%;
+        }
+
+        .report-print-preview-sheet {
+            box-sizing: border-box;
+            width: min(210mm, 100%);
+            min-height: 297mm;
+            background: #fff;
+            color: #111;
+            border-radius: 8px;
+            padding: 10mm;
+            box-shadow: 0 14px 36px rgba(15, 26, 34, 0.2);
+            font-size: 11px;
+        }
+
+        /* ─── Preview sheet compact sizing (matches print output) ─── */
+        .report-print-preview-sheet .report-kpis {
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 6px !important;
+            margin-bottom: 6px !important;
+        }
+
+        .report-print-preview-sheet .report-kpi-card {
+            padding: 8px 8px 6px !important;
+            border-radius: 6px !important;
+            box-shadow: none !important;
+            animation: none !important;
+        }
+
+        .report-print-preview-sheet .report-kpi-icon {
+            width: 26px !important;
+            height: 26px !important;
+            font-size: 12px !important;
+            margin-bottom: 4px !important;
+        }
+
+        .report-print-preview-sheet .report-kpi-label {
+            font-size: 9px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .report-print-preview-sheet .report-kpi-value {
+            font-size: 16px !important;
+            margin-bottom: 1px !important;
+        }
+
+        .report-print-preview-sheet .report-kpi-sub {
+            font-size: 8px !important;
+        }
+
+        .report-print-preview-sheet .report-grid-two {
+            gap: 6px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .report-print-preview-sheet .report-grid-three {
+            gap: 6px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .report-print-preview-sheet .report-panel {
+            padding: 10px !important;
+            border-radius: 8px !important;
+            box-shadow: none !important;
+        }
+
+        .report-print-preview-sheet .report-panel h4 {
+            font-size: 11px !important;
+            margin: 0 0 8px !important;
+            padding-bottom: 6px !important;
+        }
+
+        .report-print-preview-sheet .report-panel h4 i {
+            font-size: 12px !important;
+        }
+
+        .report-print-preview-sheet .report-canvas-preview-image {
+            max-height: 160px !important;
+            object-fit: contain;
+        }
+
+        .report-print-preview-sheet details.report-block {
+            margin-bottom: 2px !important;
+            box-shadow: none !important;
+        }
+
+        .report-print-preview-sheet details.report-block>summary {
+            padding: 6px 10px !important;
+            font-size: 11px !important;
+        }
+
+        .report-print-preview-sheet details.report-block>.report-block-body {
+            padding: 4px !important;
+        }
+
+        .report-print-preview-sheet .report-progress-item {
+            padding: 7px 10px !important;
+        }
+
+        .report-print-preview-sheet .report-progress-title {
+            font-size: 10px !important;
+            margin-bottom: 4px !important;
+        }
+
+        .report-print-preview-sheet .report-progress-track {
+            height: 14px !important;
+            margin-bottom: 3px !important;
+        }
+
+        .report-print-preview-sheet .report-progress-value {
+            font-size: 8px !important;
+        }
+
+        .report-print-preview-sheet .report-progress-value::after {
+            display: none !important;
+        }
+
+        .report-print-preview-sheet .report-progress-meta {
+            font-size: 9px !important;
+        }
+
+        .report-print-preview-sheet .report-summary-table th,
+        .report-print-preview-sheet .report-summary-table td {
+            padding: 5px 8px !important;
+            font-size: 10px !important;
+        }
+
+        .report-print-preview-sheet .report-grade-pill {
+            padding: 2px 8px !important;
+            font-size: 9px !important;
+        }
+
+        .report-print-preview-sheet .report-print-security-bar {
+            padding: 6px 10px !important;
+            margin-bottom: 8px !important;
+        }
+
+        .report-print-preview-sheet .report-print-security-meta {
+            font-size: 9px !important;
+        }
+
+        .report-print-preview-sheet .report-print-qr {
+            width: 52px !important;
+            height: 52px !important;
+        }
+
+        .report-print-preview-sheet .report-print-code {
+            font-size: 8px !important;
+        }
+
+        .report-canvas-preview-image {
+            width: 100%;
+            height: auto !important;
+            display: block;
+            border-radius: var(--radius-sm);
+        }
+
+        .report-print-preview-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 12px 16px 14px;
+            border-top: 1px solid var(--color-accent);
+            background: var(--color-surface-alt);
+        }
+
+        body.preview-open {
+            overflow: hidden;
+        }
+
+        @media (max-width: 780px) {
+            .report-print-preview-modal {
+                padding: 12px 10px;
+            }
+
+            .report-print-preview-dialog {
+                max-height: calc(100vh - 24px);
+            }
+
+            .report-print-preview-sheet {
+                width: 100%;
+                min-height: auto;
+                padding: 14px 12px;
+                border-radius: 6px;
+            }
+
+            .report-print-preview-actions {
+                justify-content: space-between;
+            }
+
+            .report-print-preview-actions .btn {
+                flex: 1;
+            }
+        }
+
+        #printable-report-root {
+            display: none;
+        }
+
+        body.printing-active {
+            display: block !important;
+            background: #fff !important;
+            background-image: none !important;
+            min-height: auto !important;
+            overflow: visible !important;
+        }
+
+        body.printing-active>#printable-report-root {
+            display: block !important;
+        }
+
+        body.printing-active>*:not(#printable-report-root) {
+            display: none !important;
+        }
+
+        body.printing-active #printable-report-root {
+            position: static !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            overflow: visible !important;
+        }
+
+        body.printing-active #printable-report-root .report-print-document {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: auto !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            border: 0 !important;
+        }
+
+        .report-print-document {
+            position: relative;
+            width: 100%;
+            min-height: 100%;
+            background: #fff !important;
+            color: #111 !important;
+            font-family: "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif;
+            padding: 0;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .report-print-document.main-content {
+            margin: 0 !important;
+            width: 100% !important;
+            padding: 0 !important;
+        }
+
+        .report-print-security-bar {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 14px;
+            align-items: center;
+            border: 1px solid #cfd8df;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 14px;
+            background: linear-gradient(180deg, #f8fbfd, #eef4f8);
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .report-print-security-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            font-size: 11px;
+            color: #1f2f3a;
+        }
+
+        .report-print-security-meta b {
+            color: #10212a;
+            margin-left: 4px;
+        }
+
+        .report-print-verify {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-right: 1px dashed #b8c5cf;
+            padding-right: 12px;
+        }
+
+        .report-print-qr {
+            width: 74px;
+            height: 74px;
+            border: 1px solid #aebdca;
+            border-radius: 6px;
+            object-fit: contain;
+            background: #fff;
+        }
+
+        .report-print-code {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-size: 10px;
+            line-height: 1.45;
+            color: #20333f;
+        }
+
+        .report-print-code .mono {
+            font-family: Consolas, "Courier New", monospace;
+            letter-spacing: 0.04em;
+            direction: ltr;
+            unicode-bidi: plaintext;
+        }
+
+        .report-print-watermark {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .report-print-watermark span {
+            font-size: 68px;
+            letter-spacing: 0.14em;
+            font-weight: 800;
+            color: rgba(25, 55, 72, 0.075);
+            transform: rotate(-28deg);
+            user-select: none;
+        }
+
+        .report-print-document>.grades-container {
+            position: relative;
+            z-index: 1;
+            padding: 0;
+        }
+
+        .report-print-document .header,
+        .report-print-document .search-section,
+        .report-print-document .no-print {
+            display: none !important;
+        }
+
+        .report-print-document details.report-block {
+            display: block !important;
+            border: 1px solid #d6dde3;
+            box-shadow: none !important;
+            margin-bottom: 2px !important;
+            overflow: visible !important;
+            background: #fff !important;
+            animation: none !important;
+        }
+
+        .report-print-document details.report-block>summary {
+            display: block !important;
+            background: #edf2f6 !important;
+            color: #162730 !important;
+            border-bottom: 1px solid #d6dde3;
+            padding: 6px 10px !important;
+            font-size: 12px !important;
+        }
+
+        .report-print-document details.report-block>summary::after {
+            display: none !important;
+        }
+
+        .report-print-document details.report-block>.report-block-body {
+            display: block !important;
+            padding: 6px !important;
+        }
+
+        .report-print-document .report-grid-two {
+            gap: 6px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .report-print-document .report-grid-three {
+            gap: 6px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .report-print-document .report-kpis {
+            gap: 6px !important;
+            margin-bottom: 6px !important;
+        }
+
+        .report-print-document .report-panel {
+            box-shadow: none !important;
+            border: 1px solid #dde5ea !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            background: #fff !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .report-print-document .report-kpi-card {
+            box-shadow: none !important;
+            border: 1px solid #dde5ea !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            background: #fff !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            animation: none !important;
+        }
+
+        .report-print-document .report-summary-table {
+            border-collapse: collapse;
+            border-spacing: 0;
+            border: 1px solid #d6dde3;
+            break-inside: auto;
+            page-break-inside: auto;
+        }
+
+        .report-print-document .report-summary-table thead {
+            display: table-header-group;
+        }
+
+        .report-print-document .report-summary-table tfoot {
+            display: table-footer-group;
+        }
+
+        .report-print-document .report-summary-table tr,
+        .report-print-document .report-progress-item {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .report-print-document .report-canvas,
+        .report-print-document .report-canvas-preview-image {
+            width: 100%;
+            max-width: 100% !important;
+            height: auto !important;
+        }
+
+        .report-print-document .report-progress-value::after {
+            display: none !important;
+        }
+
+        .report-print-document .report-progress-item {
+            background: #fff !important;
+            border: 1px solid #dde5ea !important;
+        }
+
+        .report-print-document .report-progress-track {
+            background: #eef2f5 !important;
+        }
+
+        .report-print-document .report-kpi-label {
+            color: #4a5568 !important;
+        }
+
+        .report-print-document .report-kpi-value {
+            color: #111 !important;
+        }
+
+        .report-print-document .report-kpi-sub {
+            color: #6b7280 !important;
+        }
+
+        .report-print-document .report-panel h4 {
+            color: #162730 !important;
+            border-bottom-color: #d6dde3 !important;
+        }
+
+        .report-print-document .report-summary-table th {
+            background: #1a5276 !important;
+            color: #fff !important;
+        }
+
+        .report-print-document .report-summary-table td {
+            color: #111 !important;
+        }
+
+        .report-print-document .report-summary-table tbody tr:nth-child(even) {
+            background: #f5f8fa !important;
+        }
+
+        .report-print-document .report-progress-meta {
+            color: #4a5568 !important;
+        }
+
+        .report-print-document .report-progress-title {
+            color: #111 !important;
+        }
+
+        .report-print-document * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* ─── Print Styles ─── */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+
+            body {
+                display: block !important;
+                background: #fff !important;
+                background-image: none !important;
+                min-height: auto !important;
+                overflow: visible !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            body>#printable-report-root:not(#printable-bulletin) {
+                display: block !important;
+            }
+
+            body>*:not(#printable-report-root):not(#printable-bulletin) {
+                display: none !important;
+            }
+
+            #printable-report-root {
+                position: static !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            #printable-report-root .report-print-document {
+                margin: 0 !important;
+                padding: 0 !important;
+                min-height: auto !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                border: 0 !important;
+                background: #fff !important;
+                color: #111 !important;
+            }
+
+            /* KPI grid — compact */
+            .report-kpis {
+                display: grid !important;
+                grid-template-columns: repeat(4, 1fr) !important;
+                gap: 6px !important;
+                margin-bottom: 8px !important;
+            }
+
+            .report-kpi-card {
+                box-shadow: none !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                border: 1px solid #dde5ea !important;
+                background: #fff !important;
+                padding: 8px 8px 6px !important;
+                border-radius: 6px !important;
+                animation: none !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .report-kpi-icon {
+                width: 26px !important;
+                height: 26px !important;
+                font-size: 12px !important;
+                margin-bottom: 4px !important;
+            }
+
+            .report-kpi-label {
+                font-size: 9px !important;
+                margin-bottom: 2px !important;
+            }
+
+            .report-kpi-value {
+                font-size: 16px !important;
+                margin-bottom: 1px !important;
+            }
+
+            .report-kpi-sub {
+                font-size: 8px !important;
+            }
+
+            #printable-report-root *,
+            .report-print-document * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            /* Grids — compact */
+            .report-grid-two {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 6px !important;
+                margin-bottom: 2px !important;
+            }
+
+            .report-grid-three {
+                display: grid !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 6px !important;
+                margin-bottom: 2px !important;
+            }
+
+            /* Panels — compact */
+            .report-panel {
+                box-shadow: none !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                border: 1px solid #dde5ea !important;
+                background: #fff !important;
+                padding: 8px !important;
+                border-radius: 6px !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .report-panel h4 {
+                font-size: 11px !important;
+                margin: 0 0 8px !important;
+                padding-bottom: 6px !important;
+                color: #162730 !important;
+                border-bottom-color: #d6dde3 !important;
+            }
+
+            .report-panel h4 i {
+                font-size: 12px !important;
+            }
+
+            /* Chart images — constrained */
+            .report-canvas,
+            .report-canvas-preview-image {
+                max-height: 160px !important;
+                height: auto !important;
+                object-fit: contain;
+            }
+
+            /* Blocks — compact */
+            details.report-block {
+                box-shadow: none !important;
+                margin-bottom: 2px !important;
+                overflow: visible !important;
+                background: #fff !important;
+                animation: none !important;
+            }
+
+            details.report-block>summary {
+                padding: 6px 10px !important;
+                font-size: 11px !important;
+                background: #edf2f6 !important;
+                color: #162730 !important;
+            }
+
+            details.report-block>.report-block-body {
+                padding: 4px !important;
+            }
+
+            /* Table — compact */
+            .report-summary-table th,
+            .report-summary-table td {
+                padding: 5px 8px !important;
+                font-size: 10px !important;
+            }
+
+            /* Grade pills */
+            .report-grade-pill {
+                padding: 2px 8px !important;
+                font-size: 9px !important;
+            }
+
+            /* Progress bars — compact */
+            .report-progress-item {
+                padding: 7px 10px !important;
+                background: #fff !important;
+                border: 1px solid #dde5ea !important;
+            }
+
+            .report-progress-track {
+                height: 14px !important;
+                margin-bottom: 3px !important;
+                background: #eef2f5 !important;
+            }
+
+            .report-summary-table th {
+                background: #1a5276 !important;
+                color: #fff !important;
+            }
+
+            .report-summary-table tbody tr:nth-child(even) {
+                background: #f5f8fa !important;
+            }
+
+            .report-progress-title {
+                font-size: 10px !important;
+                margin-bottom: 4px !important;
+            }
+
+            .report-progress-value {
+                font-size: 8px !important;
+            }
+
+            .report-progress-value::after {
+                display: none !important;
+            }
+
+            .report-progress-meta {
+                font-size: 9px !important;
+            }
+
+            /* Security bar — compact */
+            .report-print-security-bar {
+                padding: 6px 10px !important;
+                margin-bottom: 8px !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .report-print-security-meta {
+                font-size: 9px !important;
+            }
+
+            .report-print-qr {
+                width: 52px !important;
+                height: 52px !important;
+            }
+
+            .report-print-code {
+                font-size: 8px !important;
+            }
+
+            /* Hide preview modal */
+            .report-print-preview-modal {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-chart-pie"></i> تقارير الفصل</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <!-- Filters -->
+            <div class="search-section">
+                <div class="report-header">
+                    <h3><i class="fas fa-filter"></i> توليد تقرير الفصل</h3>
+                </div>
+                <form id="form" class="search-form report-filters-grid">
+                    <select id="semester">
+                        <option value="1">الدورة الأولى</option>
+                        <option value="2">الدورة الثانية</option>
+                        <option value="annual">المعدل السنوي</option>
+                    </select>
+                    <select id="level-select">
+                        <option value="">كل المستويات</option>
+                    </select>
+                    <select id="class-select">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <select id="subject-select">
+                        <option value="">كل المواد</option>
+                    </select>
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-file-pdf"></i> توليد التقرير</button>
+                    <button class="btn btn-success no-print" type="button" id="print-btn" style="display:none;">
+                        <i class="fas fa-eye"></i> معاينة الطباعة
+                    </button>
+                </form>
+            </div>
+
+            <!-- KPIs -->
+            <div id="report-kpis" class="report-kpis" style="display:none;"></div>
+
+            <!-- Empty state -->
+            <div id="report-empty" class="report-empty-state">
+                <i class="fas fa-chart-bar"></i>
+                <p>اختر الفصل والقسم ثم اضغط "توليد التقرير"</p>
+            </div>
+
+            <!-- Overview Block -->
+            <details class="report-block" id="overview-block" style="display:none;" open>
+                <summary><i class="fas fa-gauge-high"></i> نظرة شمولية</summary>
+                <div class="report-block-body">
+                    <div class="report-grid-three">
+                        <div class="report-panel">
+                            <h4><i class="fas fa-chart-column"></i> عدد التلاميذ لكل تقدير</h4>
+                            <canvas id="grades-bar-chart" class="report-canvas"></canvas>
+                        </div>
+                        <div class="report-panel">
+                            <h4><i class="fas fa-chart-pie"></i> نسب التقديرات</h4>
+                            <canvas id="grades-donut-chart" class="report-canvas"></canvas>
+                        </div>
+                        <div class="report-panel">
+                            <h4><i class="fas fa-chart-bar"></i> مقارنة الأقسام</h4>
+                            <canvas id="sections-comparison-chart" class="report-canvas"></canvas>
+                        </div>
+                    </div>
+                    <div class="report-grid-two">
+                        <div class="report-panel">
+                            <h4><i class="fas fa-wave-square"></i> مؤشرات الأداء</h4>
+                            <div id="report-progress" class="report-progress-grid"></div>
+                        </div>
+                        <div class="report-panel">
+                            <h4><i class="fas fa-user-clock"></i> الغياب حسب القسم</h4>
+                            <canvas id="absence-chart" class="report-canvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Performance Indicators Block -->
+            <details class="report-block" id="performance-block" style="display:none;" open>
+                <summary><i class="fas fa-arrow-trend-up"></i> مؤشرات التحسن والتقهقر</summary>
+                <div class="report-block-body">
+                    <div class="report-grid-two">
+                        <div class="report-panel">
+                            <h4><i class="fas fa-chart-line"></i> تطور المعدل العام عبر الفروض</h4>
+                            <canvas id="trend-chart" class="report-canvas"></canvas>
+                        </div>
+                        <div class="report-panel">
+                            <h4><i class="fas fa-arrows-up-down"></i> نسب التحسن والتقهقر</h4>
+                            <div id="perf-progress" class="report-progress-grid"></div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Support Analysis Block -->
+            <details class="report-block" id="support-block" style="display:none;" open>
+                <summary><i class="fas fa-hands-helping"></i> تحليل التلاميذ المحتاجين للدعم</summary>
+                <div class="report-block-body">
+                    <div class="report-grid-three">
+                        <div class="report-panel">
+                            <h4><i class="fas fa-book"></i> توزيع حسب المادة</h4>
+                            <canvas id="support-by-subject" class="report-canvas"></canvas>
+                        </div>
+                        <div class="report-panel">
+                            <h4><i class="fas fa-layer-group"></i> توزيع حسب الفئة</h4>
+                            <canvas id="support-by-level" class="report-canvas"></canvas>
+                        </div>
+                        <div class="report-panel">
+                            <h4><i class="fas fa-users-between-lines"></i> مقارنة بين الأقسام</h4>
+                            <canvas id="support-by-section" class="report-canvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Detail Table Block -->
+            <details class="report-block" id="table-block" style="display:none;" open>
+                <summary><i class="fas fa-table"></i> جدول تفصيلي حسب القسم</summary>
+                <div class="report-block-body">
+                    <div id="report-table-container"></div>
+                </div>
+            </details>
+        </div>
+    </main>
+
+    <div id="printable-report-root" aria-hidden="true"></div>
+
+    <div class="report-print-preview-modal no-print" id="print-preview-modal" aria-hidden="true">
+        <div class="report-print-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="print-preview-title">
+            <div class="report-print-preview-header">
+                <h3 class="report-print-preview-title" id="print-preview-title">
+                    <i class="fas fa-print"></i> معاينة قبل الطباعة
+                </h3>
+                <button type="button" class="report-print-preview-close" id="close-print-preview"
+                    aria-label="إغلاق المعاينة">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="report-print-preview-body">
+                <div class="report-print-preview-page" id="print-preview-page"></div>
+            </div>
+            <div class="report-print-preview-actions">
+                <button class="btn btn-secondary" type="button" id="cancel-print-preview">
+                    <i class="fas fa-times"></i> إلغاء
+                </button>
+                <button class="btn btn-success" type="button" id="preview-export-pdf">
+                    <i class="fas fa-file-pdf"></i> تصدير PDF
+                </button>
+                <button class="btn btn-primary" type="button" id="confirm-print-preview">
+                    <i class="fas fa-print"></i> طباعة الآن
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const year = '2025/2026';
+        const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js';
+        let chartInstances = {};
+        let chartLoaderPromise = null;
+        let lastReportContext = null;
+        let lastPreparedSnapshot = null;
+
+        const gradeBands = [
+            { key: 'excellent', label: 'ممتاز', min: 16, max: 20, color: '#2FB36D' },
+            { key: 'veryGood', label: 'حسن جدا', min: 14, max: 16, color: '#3C95D0' },
+            { key: 'good', label: 'حسن', min: 12, max: 14, color: '#F0C20E' },
+            { key: 'acceptable', label: 'مقبول', min: 10, max: 12, color: '#E67F22' },
+            { key: 'weak', label: 'ضعيف', min: 0, max: 10, color: '#E74C3C' }
+        ];
+
+        // ─── Utility functions ───
+        function asNumber(v) { const n = Number(v); return Number.isFinite(n) ? n : NaN; }
+        function avg(vals) { return vals.length ? vals.reduce((s, x) => s + x, 0) / vals.length : 0; }
+        function median(vals) {
+            if (!vals.length) return 0;
+            const s = [...vals].sort((a, b) => a - b);
+            const m = Math.floor(s.length / 2);
+            return s.length % 2 !== 0 ? s[m] : (s[m - 1] + s[m]) / 2;
+        }
+        function stdDev(vals) {
+            if (vals.length < 2) return 0;
+            const m = avg(vals);
+            return Math.sqrt(vals.reduce((s, x) => s + (x - m) ** 2, 0) / vals.length);
+        }
+        function pct(part, whole) { return whole ? (part / whole * 100) : 0; }
+
+        function getBand(grade) {
+            for (const b of gradeBands) {
+                if (grade >= b.min && (grade < b.max || (b.max === 20 && grade <= 20))) return b;
+            }
+            return gradeBands[gradeBands.length - 1];
+        }
+
+        function countBands(grades) {
+            const counts = {};
+            gradeBands.forEach(b => counts[b.key] = 0);
+            grades.forEach(g => { const b = getBand(g); counts[b.key]++; });
+            return counts;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatDateTime(date) {
+            return new Intl.DateTimeFormat('ar-MA', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).format(date);
+        }
+
+        function resolveCurrentActor() {
+            const guesses = [
+                localStorage.getItem('currentUserName'),
+                localStorage.getItem('userName'),
+                localStorage.getItem('user_email'),
+                localStorage.getItem('email'),
+                sessionStorage.getItem('userName'),
+                sessionStorage.getItem('email')
+            ].filter(Boolean);
+            if (guesses.length) return guesses[0];
+            const firebaseEmail = window.firebase?.auth?.()?.currentUser?.email;
+            return firebaseEmail || 'مستخدم غير محدد';
+        }
+
+        function makePrintReference() {
+            const now = new Date();
+            const p = (n) => String(n).padStart(2, '0');
+            const stamp = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+            const random = Math.random().toString(36).slice(2, 7).toUpperCase();
+            return `SEM-${stamp}-${random}`;
+        }
+
+        function fallbackHash(input) {
+            let h = 2166136261;
+            for (let i = 0; i < input.length; i++) {
+                h ^= input.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return `F${(h >>> 0).toString(16).padStart(8, '0')}`.toUpperCase();
+        }
+
+        async function sha256Hex(input) {
+            if (!window.crypto?.subtle) return fallbackHash(input);
+            const bytes = new TextEncoder().encode(input);
+            const hash = await crypto.subtle.digest('SHA-256', bytes);
+            return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function buildQrImageUrl(text) {
+            return `https://quickchart.io/qr?size=140&margin=0&text=${encodeURIComponent(text)}`;
+        }
+
+        function canvasToHighResDataUrl(canvas, scale = 2) {
+            try {
+                const out = document.createElement('canvas');
+                out.width = Math.max(1, Math.floor(canvas.width * scale));
+                out.height = Math.max(1, Math.floor(canvas.height * scale));
+                const ctx = out.getContext('2d');
+                if (!ctx) return canvas.toDataURL('image/png', 1);
+                ctx.scale(scale, scale);
+                ctx.drawImage(canvas, 0, 0);
+                return out.toDataURL('image/png', 1);
+            } catch {
+                return canvas.toDataURL('image/png', 1);
+            }
+        }
+
+        function isReportReadyForPrint() {
+            const printBtn = document.getElementById('print-btn');
+            return !!printBtn && getComputedStyle(printBtn).display !== 'none';
+        }
+
+        async function preparePrintableDocument() {
+            if (!isReportReadyForPrint()) return null;
+            const sourceMain = document.querySelector('main.main-content');
+            const printableRoot = document.getElementById('printable-report-root');
+            if (!sourceMain || !printableRoot) return null;
+
+            const now = new Date();
+            const actor = resolveCurrentActor();
+            const reference = makePrintReference();
+            const securityPayload = {
+                ref: reference,
+                printedAt: now.toISOString(),
+                actor,
+                report: lastReportContext || {}
+            };
+            const fingerprint = (await sha256Hex(JSON.stringify(securityPayload))).toUpperCase();
+            const shortFingerprint = fingerprint.slice(0, 20);
+            const qrPayload = JSON.stringify({
+                ref: reference,
+                fp: shortFingerprint,
+                year: year,
+                sem: lastReportContext?.semester || ''
+            });
+
+            const printableClone = sourceMain.cloneNode(true);
+            printableClone.classList.add('report-print-document');
+
+            // Remove non-print controls and empty state
+            printableClone.querySelectorAll('.header, .search-section, .no-print, .report-empty-state').forEach(el => el.remove());
+            // Force all blocks visible and open (strip any residual inline display:none)
+            printableClone.querySelectorAll('details.report-block').forEach(block => {
+                block.setAttribute('open', 'open');
+                block.style.display = 'block';
+            });
+            // Force KPI grid visible
+            printableClone.querySelectorAll('.report-kpis').forEach(el => {
+                el.style.display = 'grid';
+            });
+            // Ensure all inner content elements are visible
+            printableClone.querySelectorAll('.report-block-body, .report-grid-two, .report-grid-three, .report-panel, .report-progress-grid, .report-progress-item, .report-summary-table').forEach(el => {
+                if (el.style.display === 'none') el.style.display = '';
+            });
+
+            // Canvas is not preserved when cloned: replace with hi-res image snapshots.
+            const sourceCanvases = sourceMain.querySelectorAll('canvas.report-canvas');
+            const cloneCanvases = printableClone.querySelectorAll('canvas.report-canvas');
+            cloneCanvases.forEach((cloneCanvas, idx) => {
+                const sourceCanvas = sourceCanvases[idx];
+                if (!sourceCanvas) {
+                    cloneCanvas.remove();
+                    return;
+                }
+                try {
+                    const img = document.createElement('img');
+                    img.src = canvasToHighResDataUrl(sourceCanvas, 2);
+                    img.alt = 'رسم بياني';
+                    img.className = 'report-canvas-preview-image';
+                    cloneCanvas.replaceWith(img);
+                } catch {
+                    cloneCanvas.remove();
+                }
+            });
+
+            const securityBar = document.createElement('div');
+            securityBar.className = 'report-print-security-bar';
+            securityBar.innerHTML = `
+                <div class="report-print-security-meta">
+                    <span><b>المرجع:</b> <span class="mono">${escapeHtml(reference)}</span></span>
+                    <span><b>الطابع الزمني:</b> ${escapeHtml(formatDateTime(now))}</span>
+                    <span><b>المستخدم:</b> ${escapeHtml(actor)}</span>
+                    <span><b>الموسم:</b> ${escapeHtml(year)}</span>
+                    <span><b>الدورة:</b> ${escapeHtml(lastReportContext?.semesterLabel || 'غير محدد')}</span>
+                    <span><b>القسم:</b> ${escapeHtml(lastReportContext?.className || 'كل الأقسام')}</span>
+                </div>
+                <div class="report-print-verify">
+                    <img class="report-print-qr" src="${buildQrImageUrl(qrPayload)}" alt="QR تحقق"
+                        onerror="this.replaceWith((() => { const n=document.createElement('div'); n.className='report-print-qr'; n.style.display='grid'; n.style.placeItems='center'; n.style.fontSize='10px'; n.textContent='QR'; return n; })())">
+                    <div class="report-print-code">
+                        <span><b>بصمة التحقق:</b></span>
+                        <span class="mono">${escapeHtml(shortFingerprint)}</span>
+                        <span><b>نوع التقرير:</b> تقرير الفصل</span>
+                    </div>
+                </div>
+            `;
+
+            const watermark = document.createElement('div');
+            watermark.className = 'report-print-watermark';
+            watermark.innerHTML = `<span>${escapeHtml(reference)}</span>`;
+
+            const container = printableClone.querySelector('.grades-container') || printableClone;
+            container.insertBefore(securityBar, container.firstChild);
+            printableClone.insertBefore(watermark, printableClone.firstChild);
+
+            // Avoid duplicate IDs while keeping structure unchanged.
+            printableClone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+
+            printableRoot.innerHTML = '';
+            printableRoot.appendChild(printableClone);
+
+            lastPreparedSnapshot = {
+                reference,
+                fingerprint,
+                shortFingerprint,
+                printedAt: now.toISOString(),
+                actor,
+                payload: securityPayload
+            };
+
+            return {
+                printableNode: printableClone,
+                snapshot: lastPreparedSnapshot
+            };
+        }
+
+        async function openPrintPreview() {
+            if (!isReportReadyForPrint()) {
+                showToast('قم بتوليد التقرير أولاً قبل المعاينة', 'warning');
+                return;
+            }
+
+            const modal = document.getElementById('print-preview-modal');
+            const previewPage = document.getElementById('print-preview-page');
+            if (!modal || !previewPage) return;
+
+            const prepared = await preparePrintableDocument();
+            if (!prepared?.printableNode) {
+                showToast('تعذر إنشاء معاينة الطباعة', 'error');
+                return;
+            }
+
+            const sheet = document.createElement('div');
+            sheet.className = 'report-print-preview-sheet';
+            sheet.appendChild(prepared.printableNode.cloneNode(true));
+
+            previewPage.innerHTML = '';
+            previewPage.appendChild(sheet);
+            modal.classList.add('active');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('preview-open');
+        }
+
+        function closePrintPreview() {
+            const modal = document.getElementById('print-preview-modal');
+            const previewPage = document.getElementById('print-preview-page');
+            modal?.classList.remove('active');
+            modal?.setAttribute('aria-hidden', 'true');
+            if (previewPage) previewPage.innerHTML = '';
+            document.body.classList.remove('preview-open');
+        }
+
+        function enableForcedPrintMode() {
+            const printableRoot = document.getElementById('printable-report-root');
+            document.body.classList.add('printing-active');
+            printableRoot?.setAttribute('aria-hidden', 'false');
+        }
+
+        function disableForcedPrintMode() {
+            const printableRoot = document.getElementById('printable-report-root');
+            document.body.classList.remove('printing-active');
+            printableRoot?.setAttribute('aria-hidden', 'true');
+        }
+
+        async function logPrintEvent(status, snapshot, extra = null) {
+            if (!window.api?.systemLogs?.add || !snapshot) return;
+            const details = {
+                status,
+                ref: snapshot.reference,
+                fingerprint: snapshot.shortFingerprint,
+                at: new Date().toISOString(),
+                actor: snapshot.actor,
+                semester: snapshot.payload?.report?.semester || null,
+                className: snapshot.payload?.report?.className || null,
+                level: snapshot.payload?.report?.levelFilter || null,
+                subject: snapshot.payload?.report?.subjectFilter || null,
+                extra
+            };
+            try {
+                await window.api.systemLogs.add({
+                    action: 'print_semester_report',
+                    details: JSON.stringify(details),
+                    entity_type: 'print',
+                    entity_id: snapshot.reference
+                });
+            } catch (err) {
+                console.warn('Failed to log print event:', err);
+            }
+        }
+
+        async function executePrintFromPreview() {
+            const printableRoot = document.getElementById('printable-report-root');
+            let prepared = null;
+            if (lastPreparedSnapshot && printableRoot?.firstElementChild) {
+                prepared = {
+                    printableNode: printableRoot.firstElementChild,
+                    snapshot: lastPreparedSnapshot
+                };
+            } else {
+                prepared = await preparePrintableDocument();
+            }
+            if (!prepared?.snapshot) {
+                showToast('تعذر تجهيز النسخة المخصصة للطباعة', 'error');
+                return;
+            }
+
+            closePrintPreview();
+            await new Promise(resolve => setTimeout(resolve, 60));
+            await logPrintEvent('requested', prepared.snapshot);
+            enableForcedPrintMode();
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            try {
+                if (window.api?.system?.printCurrentWindow) {
+                    const result = await window.api.system.printCurrentWindow({
+                        printBackground: true,
+                        pageSize: 'A4',
+                        landscape: false,
+                        margins: { marginType: 'default' }
+                    });
+                    if (result?.success) {
+                        await logPrintEvent('success', prepared.snapshot);
+                        showToast('تم إرسال التقرير للطباعة', 'success');
+                    } else {
+                        await logPrintEvent('failed', prepared.snapshot, { reason: result?.error || 'Unknown error' });
+                        console.warn('IPC print failed:', result?.error || 'Unknown error');
+                    }
+                } else {
+                    // Fallback for browser context.
+                    const cleanupAfterPrint = () => disableForcedPrintMode();
+                    window.addEventListener('afterprint', cleanupAfterPrint, { once: true });
+                    window.print();
+                    await logPrintEvent('fallback_window_print', prepared.snapshot);
+                    setTimeout(disableForcedPrintMode, 1200);
+                    return;
+                }
+            } catch (err) {
+                await logPrintEvent('failed', prepared.snapshot, { reason: err.message });
+                console.warn('IPC print error:', err);
+            } finally {
+                disableForcedPrintMode();
+            }
+        }
+
+        function _extractReportInlineStyles() {
+            const styles = [];
+            document.querySelectorAll('style').forEach(s => {
+                let css = s.textContent.trim();
+                if (!css) return;
+                // Strip rules that hide #printable-report-root (it doesn't exist in print window)
+                css = css.replace(/#printable-report-root\s*\{[^}]*\}/g, '');
+                css = css.replace(/body\.printing-active[^{]*\{[^}]*\}/g, '');
+                // Strip the @media print block (print-window.js has its own)
+                css = css.replace(/@media\s+print\s*\{[\s\S]*?\}\s*\}/g, '');
+                if (css.trim()) styles.push(css);
+            });
+            return styles.join('\n');
+        }
+
+        async function exportPdf() {
+            if (!isReportReadyForPrint()) {
+                showToast('قم بتوليد التقرير أولاً قبل التصدير', 'warning');
+                return;
+            }
+
+            closePrintPreview();
+            await new Promise(resolve => setTimeout(resolve, 80));
+
+            // Always prepare a fresh printable document for export
+            const prepared = await preparePrintableDocument();
+            if (!prepared?.snapshot) {
+                showToast('تعذر تجهيز التقرير للتصدير', 'error');
+                return;
+            }
+
+            await logPrintEvent('pdf_export_requested', prepared.snapshot);
+
+            enableForcedPrintMode();
+            // Allow enough time for layout + any external images (QR) to settle
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            try {
+                if (window.api?.system?.printToPDF) {
+                    const result = await window.api.system.printToPDF({
+                        printBackground: true,
+                        pageSize: 'A4',
+                        landscape: false,
+                        margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+                    });
+                    if (result?.success) {
+                        await logPrintEvent('pdf_export_success', prepared.snapshot);
+                        showToast('تم تصدير التقرير بنجاح', 'success');
+                    } else if (result?.error !== 'Cancelled by user') {
+                        await logPrintEvent('pdf_export_failed', prepared.snapshot, { reason: result?.error });
+                        showToast('تعذر تصدير التقرير: ' + (result?.error || ''), 'error');
+                    }
+                } else {
+                    showToast('تصدير PDF غير متاح في هذا السياق', 'warning');
+                }
+            } catch (err) {
+                await logPrintEvent('pdf_export_failed', prepared.snapshot, { reason: err.message });
+                console.warn('PDF export error:', err);
+                showToast('تعذر تصدير التقرير: ' + err.message, 'error');
+            } finally {
+                disableForcedPrintMode();
+            }
+        }
+
+        // ─── Chart.js loader ───
+        function ensureChartJs() {
+            if (window.Chart) return Promise.resolve(window.Chart);
+            if (chartLoaderPromise) return chartLoaderPromise;
+            chartLoaderPromise = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = CHART_JS_CDN; s.async = true;
+                s.onload = () => resolve(window.Chart);
+                s.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
+                document.head.appendChild(s);
+            });
+            return chartLoaderPromise;
+        }
+
+        function destroyCharts() {
+            Object.values(chartInstances).forEach(c => c && c.destroy());
+            chartInstances = {};
+        }
+
+        function makeChart(id, config) {
+            if (chartInstances[id]) chartInstances[id].destroy();
+            const ctx = document.getElementById(id);
+            if (!ctx) return null;
+            chartInstances[id] = new Chart(ctx, config);
+            return chartInstances[id];
+        }
+
+        // ─── Extract level from section name ───
+        // e.g. "1ASCG1" → "1ASC", "2ASCG3" → "2ASC", "TCSG1" → "TCS"
+        function extractLevel(section) {
+            const s = String(section || '').trim();
+            // Match patterns like: 1ASCG1, 2ASCG2, TCSG1, 1BACSEG1, 2BACPCG2
+            const m = s.match(/^(\d*(?:TCS|TSC|TCSF|ASC|ASCI|ASCG|BACSE|BACPC|BACSM|BACSH|BACSVT|BACSMA|BACSP|BACL|BAC)[A-Z]*)\s*/i);
+            if (m) return m[1].replace(/G?\d*$/, '').toUpperCase();
+            // Fallback: take first chars before last digit group
+            const f = s.match(/^(.+?)\d*$/);
+            return f ? f[1].toUpperCase() : s.toUpperCase();
+        }
+
+        // Store all classes for level filtering
+        let allClasses = [];
+
+        // ─── DOM Ready ───
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const [classes, grades] = await Promise.all([
+                    window.api.classes.getAll(year),
+                    window.api.grades.getAll(year)
+                ]);
+
+                allClasses = classes || [];
+
+                // Populate level dropdown from unique levels
+                const levelSelect = document.getElementById('level-select');
+                const levels = [...new Set(allClasses.map(c => extractLevel(c.name)))].sort();
+                levels.forEach(lv => {
+                    const opt = document.createElement('option');
+                    opt.value = lv; opt.textContent = lv;
+                    levelSelect.appendChild(opt);
+                });
+
+                // Populate class dropdown (all initially)
+                const classSelect = document.getElementById('class-select');
+                allClasses.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name; opt.textContent = c.name;
+                    classSelect.appendChild(opt);
+                });
+
+                // Level → filter classes
+                levelSelect.addEventListener('change', () => {
+                    const selectedLevel = levelSelect.value;
+                    classSelect.innerHTML = '<option value="">كل الأقسام</option>';
+                    const filtered = selectedLevel
+                        ? allClasses.filter(c => extractLevel(c.name) === selectedLevel)
+                        : allClasses;
+                    filtered.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.name; opt.textContent = c.name;
+                        classSelect.appendChild(opt);
+                    });
+                });
+
+                // Populate subject dropdown from grades using baseSubject (deduplicated)
+                const subjectSelect = document.getElementById('subject-select');
+                const subjectNames = [...new Set((grades || []).map(g => baseSubject(g.subject)).filter(Boolean))].sort();
+                subjectNames.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name; opt.textContent = name;
+                    subjectSelect.appendChild(opt);
+                });
+            } catch (err) {
+                console.error('Init error:', err);
+            }
+        });
+
+        // ─── Helpers for subject name normalization ───
+        function baseSubject(subj) {
+            return String(subj || '')
+                .replace(/\s*\(فرض\s*\d+\)\s*$/, '')
+                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
+                .trim();
+        }
+        function testOrder(subj) {
+            const m = String(subj || '').match(/\(فرض\s*(\d+)\)/);
+            return m ? parseInt(m[1]) : 0;
+        }
+        function isIntegratedActivity(subj) {
+            return String(subj || '').includes('الأنشطة المندمجة');
+        }
+
+        // ─── Form submit ───
+        document.getElementById('form').addEventListener('submit', async e => {
+            e.preventDefault();
+            await generateReport();
+        });
+
+        // ─── Print button ───
+        document.getElementById('print-btn').addEventListener('click', () => {
+            void openPrintPreview();
+        });
+
+        document.getElementById('close-print-preview')?.addEventListener('click', closePrintPreview);
+        document.getElementById('cancel-print-preview')?.addEventListener('click', closePrintPreview);
+        document.getElementById('confirm-print-preview')?.addEventListener('click', executePrintFromPreview);
+        document.getElementById('preview-export-pdf')?.addEventListener('click', () => void exportPdf());
+
+        document.getElementById('print-preview-modal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'print-preview-modal') closePrintPreview();
+        });
+
+        // Intercept Ctrl/Cmd + P and open in-app preview instead of system preview.
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                void openPrintPreview();
+                return;
+            }
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('print-preview-modal');
+                if (modal?.classList.contains('active')) closePrintPreview();
+            }
+        }, true);
+
+        async function generateReport() {
+            const semester = document.getElementById('semester').value;
+            const levelFilter = document.getElementById('level-select').value;
+            const className = document.getElementById('class-select').value;
+            const subjectFilter = document.getElementById('subject-select').value;
+            const semesterLabel = semester === '1' ? 'الدورة الأولى' : semester === '2' ? 'الدورة الثانية' : 'المعدل السنوي';
+
+            try {
+                await ensureChartJs();
+
+                // Fetch data
+                const [allGrades, allStudents, allAbsences] = await Promise.all([
+                    window.api.grades.getAll(year),
+                    window.api.students.getAll(year),
+                    window.api.absences.getAll(year)
+                ]);
+
+                // Filter grades by semester (or all for annual)
+                let grades = semester === 'annual'
+                    ? (allGrades || [])
+                    : (allGrades || []).filter(g => String(g.semester) === semester);
+                if (levelFilter) grades = grades.filter(g => extractLevel(String(g.section || '').trim()) === levelFilter);
+                if (className) grades = grades.filter(g => String(g.section || '').trim() === className);
+                // Use baseSubject matching so "الرياضيات" matches "الرياضيات (فرض 1)"
+                if (subjectFilter) grades = grades.filter(g => baseSubject(g.subject) === subjectFilter);
+
+                // Filter students
+                let students = allStudents || [];
+                if (levelFilter) students = students.filter(s => extractLevel(String(s.section || '').trim()) === levelFilter);
+                if (className) students = students.filter(s => String(s.section || '').trim() === className);
+
+                // Filter absences
+                let absences = allAbsences || [];
+                if (className) absences = absences.filter(a => {
+                    const st = students.find(s => s.id === a.student_id || s.code === a.student_code);
+                    return !!st;
+                });
+
+                const gradeValues = grades.map(g => asNumber(g.grade)).filter(v => !isNaN(v));
+
+                if (!gradeValues.length) {
+                    showToast('لا توجد نقط لهذا الاختيار', 'warning');
+                    return;
+                }
+
+                destroyCharts();
+
+                // ─── KPIs ───
+                const totalStudents = students.length;
+                const average = avg(gradeValues);
+                const med = median(gradeValues);
+                const sd = stdDev(gradeValues);
+                const minGrade = Math.min(...gradeValues);
+                const maxGrade = Math.max(...gradeValues);
+                const passCount = gradeValues.filter(v => v >= 10).length;
+                const passRate = pct(passCount, gradeValues.length);
+                const totalAbsHours = absences.reduce((s, a) => s + (Number(a.hours) || 0), 0);
+
+                const kpiHTML = `
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: var(--gradient-primary);"><i class="fas fa-users"></i></div>
+                        <div class="report-kpi-label">إجمالي التلاميذ</div>
+                        <div class="report-kpi-value">${totalStudents}</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, var(--color-success), #38ef7d);"><i class="fas fa-calculator"></i></div>
+                        <div class="report-kpi-label">المعدل العام</div>
+                        <div class="report-kpi-value">${average.toFixed(2)}</div>
+                        <div class="report-kpi-sub">الوسيط: ${med.toFixed(2)}</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, var(--color-warning), #ffd200);"><i class="fas fa-percent"></i></div>
+                        <div class="report-kpi-label">نسبة النجاح</div>
+                        <div class="report-kpi-value">${passRate.toFixed(1)}%</div>
+                        <div class="report-kpi-sub">${passCount} / ${gradeValues.length} نقطة</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, #a770ef, #cf8bf3);"><i class="fas fa-chart-area"></i></div>
+                        <div class="report-kpi-label">الانحراف المعياري</div>
+                        <div class="report-kpi-value">${sd.toFixed(2)}</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, var(--color-danger), #ff9a76);"><i class="fas fa-arrow-down"></i></div>
+                        <div class="report-kpi-label">أدنى نقطة</div>
+                        <div class="report-kpi-value">${minGrade.toFixed(2)}</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, #11998e, #38ef7d);"><i class="fas fa-arrow-up"></i></div>
+                        <div class="report-kpi-label">أعلى نقطة</div>
+                        <div class="report-kpi-value">${maxGrade.toFixed(2)}</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);"><i class="fas fa-book"></i></div>
+                        <div class="report-kpi-label">عدد النقط</div>
+                        <div class="report-kpi-value">${gradeValues.length}</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><i class="fas fa-clock"></i></div>
+                        <div class="report-kpi-label">ساعات الغياب</div>
+                        <div class="report-kpi-value">${totalAbsHours}</div>
+                    </div>
+                `;
+
+                document.getElementById('report-kpis').innerHTML = kpiHTML;
+                document.getElementById('report-kpis').style.display = 'grid';
+                document.getElementById('report-empty').style.display = 'none';
+                document.getElementById('overview-block').style.display = '';
+                document.getElementById('performance-block').style.display = '';
+                document.getElementById('support-block').style.display = '';
+                document.getElementById('table-block').style.display = '';
+                document.getElementById('print-btn').style.display = '';
+
+                // ─── Bar Chart: Grade Bands ───
+                const bandCounts = countBands(gradeValues);
+                makeChart('grades-bar-chart', {
+                    type: 'bar',
+                    data: {
+                        labels: gradeBands.map(b => b.label),
+                        datasets: [{
+                            data: gradeBands.map(b => bandCounts[b.key]),
+                            backgroundColor: gradeBands.map(b => b.color + 'CC'),
+                            borderColor: gradeBands.map(b => b.color),
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+
+                // ─── Donut Chart: Band Percentages ───
+                makeChart('grades-donut-chart', {
+                    type: 'doughnut',
+                    data: {
+                        labels: gradeBands.map(b => b.label),
+                        datasets: [{
+                            data: gradeBands.map(b => bandCounts[b.key]),
+                            backgroundColor: gradeBands.map(b => b.color + 'DD'),
+                            borderColor: '#fff',
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        cutout: '55%',
+                        plugins: {
+                            legend: { position: 'bottom', labels: { font: { family: "'Noto Kufi Arabic'" }, padding: 12 } },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const v = ctx.raw, total = ctx.dataset.data.reduce((s, x) => s + x, 0);
+                                        return `${ctx.label}: ${v} (${pct(v, total).toFixed(1)}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // ─── Sections Comparison Chart ───
+                const sections = [...new Set(grades.map(g => String(g.section || '').trim()).filter(Boolean))];
+                const sectionAvgs = sections.map(sec => {
+                    const vals = grades.filter(g => String(g.section || '').trim() === sec)
+                        .map(g => asNumber(g.grade)).filter(v => !isNaN(v));
+                    return avg(vals);
+                });
+
+                makeChart('sections-comparison-chart', {
+                    type: 'bar',
+                    data: {
+                        labels: sections,
+                        datasets: [{
+                            label: 'المعدل',
+                            data: sectionAvgs,
+                            backgroundColor: sections.map((_, i) => {
+                                const palette = ['#2D5F4A', '#3C95D0', '#E67F22', '#a770ef', '#E74C3C', '#11998e', '#667eea'];
+                                return palette[i % palette.length] + 'BB';
+                            }),
+                            borderRadius: 8,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { beginAtZero: true, max: 20, grid: { color: 'rgba(0,0,0,0.04)' } },
+                            y: { grid: { display: false } }
+                        }
+                    }
+                });
+
+                // ─── Performance Indicators (Progress Bars) ───
+                const passRatePct = passRate;
+                const goodPlusPct = pct(bandCounts.excellent + bandCounts.veryGood + bandCounts.good, gradeValues.length);
+                const weakPct = pct(bandCounts.weak, gradeValues.length);
+
+                document.getElementById('report-progress').innerHTML = `
+                    <div class="report-progress-item">
+                        <div class="report-progress-title"><i class="fas fa-check-circle"></i> نسبة النجاح (≥ 10)</div>
+                        <div class="report-progress-track">
+                            <div class="report-progress-value" style="width: ${passRatePct}%; background: linear-gradient(90deg, var(--color-success), #38ef7d);">${passRatePct.toFixed(1)}%</div>
+                        </div>
+                        <div class="report-progress-meta"><span>${passCount} ناجح</span><span>${gradeValues.length - passCount} راسب</span></div>
+                    </div>
+                    <div class="report-progress-item">
+                        <div class="report-progress-title"><i class="fas fa-star"></i> نسبة التقديرات الجيدة (≥ 12)</div>
+                        <div class="report-progress-track">
+                            <div class="report-progress-value" style="width: ${goodPlusPct}%; background: linear-gradient(90deg, var(--color-warning), #ffd200);">${goodPlusPct.toFixed(1)}%</div>
+                        </div>
+                    </div>
+                    <div class="report-progress-item">
+                        <div class="report-progress-title"><i class="fas fa-exclamation-triangle"></i> نسبة الضعفاء (&lt; 10)</div>
+                        <div class="report-progress-track">
+                            <div class="report-progress-value" style="width: ${weakPct}%; background: linear-gradient(90deg, var(--color-danger), #ff9a76);">${weakPct.toFixed(1)}%</div>
+                        </div>
+                        <div class="report-progress-meta"><span>${bandCounts.weak} تلميذ</span></div>
+                    </div>
+                `;
+
+                // ─── Absence Chart ───
+                const absenceBySec = {};
+                absences.forEach(a => {
+                    const st = students.find(s => s.id === a.student_id || s.code === a.student_code);
+                    const sec = st ? String(st.section || '').trim() : 'غير محدد';
+                    absenceBySec[sec] = (absenceBySec[sec] || 0) + (Number(a.hours) || 0);
+                });
+
+                const absSections = Object.keys(absenceBySec);
+                const absValues = absSections.map(s => absenceBySec[s]);
+
+                makeChart('absence-chart', {
+                    type: 'bar',
+                    data: {
+                        labels: absSections,
+                        datasets: [{
+                            label: 'ساعات الغياب',
+                            data: absValues,
+                            backgroundColor: '#f093fbBB',
+                            borderColor: '#f5576c',
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+
+                // ─────────────────────────────────────────────
+                // ─── Performance: Improvement / Decline ───
+                // ─────────────────────────────────────────────
+                // Use ALL grades (both semesters) for evolution tracking
+                // Strip "(فرض X)" suffix to group tests of same base subject together
+
+                // Filter to relevant students (by class if selected)
+                const relevantStudentCodes = new Set(students.map(s => String(s.code || '').trim()).filter(Boolean));
+                let allYearGrades = (allGrades || []).filter(g => {
+                    if (isNaN(asNumber(g.grade))) return false;
+                    const code = String(g.student_code || '').trim();
+                    return relevantStudentCodes.has(code);
+                });
+
+                // For specific semester, only compare exams within that semester
+                if (semester !== 'annual') {
+                    allYearGrades = allYearGrades.filter(g => String(g.semester) === semester);
+                }
+
+                // If subject filter is set, also filter by base subject
+                // Exclude integrated activities from performance comparison
+                let perfGrades = subjectFilter
+                    ? allYearGrades.filter(g => baseSubject(g.subject) === baseSubject(subjectFilter))
+                    : allYearGrades;
+                perfGrades = perfGrades.filter(g => !isIntegratedActivity(g.subject));
+
+                const studentGradeMap = {};
+                perfGrades.forEach(g => {
+                    const key = String(g.student_code || g.student_id || '');
+                    if (!key) return;
+                    if (!studentGradeMap[key]) studentGradeMap[key] = [];
+                    studentGradeMap[key].push({
+                        grade: asNumber(g.grade),
+                        subject: baseSubject(g.subject),
+                        semester: Number(g.semester) || 1,
+                        testNum: testOrder(g.subject),
+                        id: g.id
+                    });
+                });
+
+                let improved = 0, declined = 0, stable = 0;
+                const avgsByOrder = {}; // to track average per "test order"
+
+                Object.values(studentGradeMap).forEach(records => {
+                    // Group by BASE subject
+                    const bySubject = {};
+                    records.forEach(r => {
+                        if (!bySubject[r.subject]) bySubject[r.subject] = [];
+                        bySubject[r.subject].push(r);
+                    });
+
+                    let totalDelta = 0, subjectCount = 0;
+                    Object.values(bySubject).forEach(subGrades => {
+                        // Sort chronologically: semester first, then test number, then id
+                        subGrades.sort((a, b) => a.semester - b.semester || a.testNum - b.testNum || a.id - b.id);
+                        if (subGrades.length < 2) return;
+
+                        // Track by order for trend chart
+                        subGrades.forEach((sg, i) => {
+                            const order = i + 1;
+                            if (!avgsByOrder[order]) avgsByOrder[order] = [];
+                            avgsByOrder[order].push(sg.grade);
+                        });
+
+                        const first = subGrades[0].grade;
+                        const last = subGrades[subGrades.length - 1].grade;
+                        totalDelta += (last - first);
+                        subjectCount++;
+                    });
+
+                    if (subjectCount > 0) {
+                        const delta = totalDelta / subjectCount;
+                        if (delta > 0.5) improved++;
+                        else if (delta < -0.5) declined++;
+                        else stable++;
+                    }
+                });
+
+                const perfTotal = improved + declined + stable;
+                const impPct = pct(improved, perfTotal);
+                const decPct = pct(declined, perfTotal);
+                const stbPct = pct(stable, perfTotal);
+
+                document.getElementById('perf-progress').innerHTML = perfTotal > 0 ? `
+                    <div class="report-progress-item">
+                        <div class="report-progress-title"><i class="fas fa-arrow-up"></i> متحسنون</div>
+                        <div class="report-progress-track">
+                            <div class="report-progress-value" style="width: ${impPct}%; background: linear-gradient(90deg, var(--color-success), #38ef7d);">${impPct.toFixed(1)}%</div>
+                        </div>
+                        <div class="report-progress-meta"><span>${improved} تلميذ</span></div>
+                    </div>
+                    <div class="report-progress-item">
+                        <div class="report-progress-title"><i class="fas fa-minus"></i> مستقرون</div>
+                        <div class="report-progress-track">
+                            <div class="report-progress-value" style="width: ${stbPct}%; background: linear-gradient(90deg, #3C95D0, #89bfe8);">${stbPct.toFixed(1)}%</div>
+                        </div>
+                        <div class="report-progress-meta"><span>${stable} تلميذ</span></div>
+                    </div>
+                    <div class="report-progress-item">
+                        <div class="report-progress-title"><i class="fas fa-arrow-down"></i> متقهقرون</div>
+                        <div class="report-progress-track">
+                            <div class="report-progress-value" style="width: ${decPct}%; background: linear-gradient(90deg, var(--color-danger), #ff9a76);">${decPct.toFixed(1)}%</div>
+                        </div>
+                        <div class="report-progress-meta"><span>${declined} تلميذ</span></div>
+                    </div>
+                ` : '<p style="text-align:center; color:var(--color-text-muted);">لا توجد بيانات كافية (يلزم أكثر من فرض واحد لكل مادة أو بيانات الدورتين)</p>';
+
+                // ─── Trend Chart (average per test order) ───
+                const orderKeys = Object.keys(avgsByOrder).map(Number).sort((a, b) => a - b);
+                const trendLabels = orderKeys.map(k => `الفرض ${k}`);
+                const trendData = orderKeys.map(k => avg(avgsByOrder[k]));
+
+                if (trendData.length > 1) {
+                    makeChart('trend-chart', {
+                        type: 'line',
+                        data: {
+                            labels: trendLabels,
+                            datasets: [{
+                                label: 'المعدل العام',
+                                data: trendData,
+                                borderColor: '#2D5F4A',
+                                backgroundColor: 'rgba(45, 95, 74, 0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 6,
+                                pointBackgroundColor: '#fff',
+                                pointBorderColor: '#2D5F4A',
+                                pointBorderWidth: 3,
+                                borderWidth: 3
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: ctx => `المعدل: ${ctx.raw.toFixed(2)}`
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: { beginAtZero: true, max: 20, grid: { color: 'rgba(0,0,0,0.04)' } },
+                                x: { grid: { display: false } }
+                            }
+                        }
+                    });
+                }
+
+                // ─── Support Analysis Charts (students < 10) ───
+                const supportGrades = grades.filter(g => {
+                    const v = asNumber(g.grade);
+                    return !isNaN(v) && v < 10;
+                });
+
+                if (supportGrades.length) {
+                    // Chart 1: By subject
+                    const supportSubjectCount = {};
+                    supportGrades.forEach(g => {
+                        const subj = baseSubject(g.subject);
+                        if (subj) supportSubjectCount[subj] = (supportSubjectCount[subj] || 0) + 1;
+                    });
+                    const sortedSupportSubjects = Object.entries(supportSubjectCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                    const supportSubjectColors = sortedSupportSubjects.map((_, i) => {
+                        const hues = [210, 340, 45, 160, 270, 30, 190, 0, 120, 300];
+                        return `hsla(${hues[i % hues.length]}, 70%, 55%, 0.85)`;
+                    });
+
+                    makeChart('support-by-subject', {
+                        type: 'bar',
+                        data: {
+                            labels: sortedSupportSubjects.map(s => s[0]),
+                            datasets: [{
+                                label: 'عدد المتعثرين',
+                                data: sortedSupportSubjects.map(s => s[1]),
+                                backgroundColor: supportSubjectColors,
+                                borderRadius: 6,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                                x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+                            }
+                        }
+                    });
+
+                    // Chart 2: By support level (doughnut)
+                    const supportCritical = supportGrades.filter(g => asNumber(g.grade) < 5).length;
+                    const supportMedium = supportGrades.filter(g => { const v = asNumber(g.grade); return v >= 5 && v < 8; }).length;
+                    const supportNear = supportGrades.filter(g => asNumber(g.grade) >= 8).length;
+
+                    makeChart('support-by-level', {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['حرج (0-5)', 'متوسط (5-8)', 'قريب من المعدل (8-10)'],
+                            datasets: [{
+                                data: [supportCritical, supportMedium, supportNear],
+                                backgroundColor: ['#dc2626', '#f59e0b', '#3b82f6'],
+                                borderWidth: 2,
+                                borderColor: '#fff'
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            cutout: '55%',
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: { font: { family: "'Noto Kufi Arabic'", size: 11 }, padding: 10 }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (ctx) => {
+                                            const v = ctx.raw, total = ctx.dataset.data.reduce((s, x) => s + x, 0);
+                                            return `${ctx.label}: ${v} (${pct(v, total).toFixed(1)}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Chart 3: By section (horizontal bar)
+                    const supportSectionCount = {};
+                    supportGrades.forEach(g => {
+                        const sec = String(g.section || '').trim();
+                        if (sec) supportSectionCount[sec] = (supportSectionCount[sec] || 0) + 1;
+                    });
+                    const sortedSupportSections = Object.entries(supportSectionCount).sort((a, b) => b[1] - a[1]).slice(0, 12);
+
+                    makeChart('support-by-section', {
+                        type: 'bar',
+                        data: {
+                            labels: sortedSupportSections.map(s => s[0]),
+                            datasets: [{
+                                label: 'عدد المتعثرين',
+                                data: sortedSupportSections.map(s => s[1]),
+                                backgroundColor: 'rgba(220, 38, 38, 0.65)',
+                                borderRadius: 6,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                                y: { ticks: { font: { size: 10 } }, grid: { display: false } }
+                            }
+                        }
+                    });
+                }
+
+                // ─── Detail Table ───
+                const tableSections = sections.length ? sections : ['—'];
+                let tableHTML = `
+                    <table class="report-summary-table">
+                        <thead><tr>
+                            <th>القسم</th>
+                            <th>عدد التلاميذ</th>
+                            <th>المعدل</th>
+                            <th>نسبة النجاح</th>
+                            <th>ممتاز</th>
+                            <th>حسن جدا</th>
+                            <th>حسن</th>
+                            <th>مقبول</th>
+                            <th>ضعيف</th>
+                        </tr></thead><tbody>
+                `;
+
+                tableSections.forEach(sec => {
+                    const secGrades = sec === '—' ? gradeValues :
+                        grades.filter(g => String(g.section || '').trim() === sec)
+                            .map(g => asNumber(g.grade)).filter(v => !isNaN(v));
+                    const secStudents = sec === '—' ? students :
+                        students.filter(s => String(s.section || '').trim() === sec);
+                    const secAvg = avg(secGrades);
+                    const secPass = pct(secGrades.filter(v => v >= 10).length, secGrades.length);
+                    const bc = countBands(secGrades);
+
+                    tableHTML += `<tr>
+                        <td style="font-weight:700;">${sec}</td>
+                        <td>${secStudents.length}</td>
+                        <td><span class="report-grade-pill" style="background:${getBand(secAvg).color}">${secAvg.toFixed(2)}</span></td>
+                        <td>${secPass.toFixed(1)}%</td>
+                        <td>${bc.excellent}</td>
+                        <td>${bc.veryGood}</td>
+                        <td>${bc.good}</td>
+                        <td>${bc.acceptable}</td>
+                        <td>${bc.weak}</td>
+                    </tr>`;
+                });
+
+                // Total row
+                const totalBc = countBands(gradeValues);
+                tableHTML += `<tr style="font-weight:800; background: var(--color-primary-mist);">
+                    <td>الإجمالي</td>
+                    <td>${totalStudents}</td>
+                    <td><span class="report-grade-pill" style="background:${getBand(average).color}">${average.toFixed(2)}</span></td>
+                    <td>${passRate.toFixed(1)}%</td>
+                    <td>${totalBc.excellent}</td>
+                    <td>${totalBc.veryGood}</td>
+                    <td>${totalBc.good}</td>
+                    <td>${totalBc.acceptable}</td>
+                    <td>${totalBc.weak}</td>
+                </tr>`;
+
+                tableHTML += '</tbody></table>';
+                document.getElementById('report-table-container').innerHTML = tableHTML;
+
+                lastReportContext = {
+                    schoolYear: year,
+                    semester,
+                    semesterLabel,
+                    levelFilter: levelFilter || null,
+                    className: className || null,
+                    subjectFilter: subjectFilter || null,
+                    totalStudents,
+                    gradeCount: gradeValues.length,
+                    average: Number(average.toFixed(4)),
+                    passRate: Number(passRate.toFixed(2)),
+                    generatedAt: new Date().toISOString()
+                };
+                lastPreparedSnapshot = null;
+                const printableRoot = document.getElementById('printable-report-root');
+                if (printableRoot) printableRoot.innerHTML = '';
+
+                showToast(`تم توليد تقرير ${semesterLabel}`, 'success');
+                document.getElementById('print-btn').style.display = '';
+
+            } catch (err) {
+                console.error('Report generation error:', err);
+                showToast('تعذر توليد التقرير: ' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

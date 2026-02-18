@@ -5,23 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تسجيل الدخول | برنامج التدبير المدرسي</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyCdhGx_UNgo3Ynx2__7xYNHThN68U0Hnak",
-            authDomain: "gestionscholaire.firebaseapp.com",
-            projectId: "gestionscholaire",
-            storageBucket: "gestionscholaire.firebasestorage.app",
-            messagingSenderId: "971615999680",
-            appId: "1:971615999680:web:46c0e1f2e10a3c8ecb7f25"
-        };
-        firebase.initializeApp(firebaseConfig);
-    </script>
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/ux-enhancements.js"></script>
+    <link rel="stylesheet" href="css/design-system.css">
     <style>
         * {
             margin: 0;
@@ -30,12 +20,15 @@
         }
 
         body {
-            font-family: 'Tajawal', sans-serif;
+            font-family: var(--font-main);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background-color: var(--color-secondary);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(45, 95, 74, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(45, 95, 74, 0.05) 0px, transparent 50%);
             padding: 20px;
         }
 
@@ -45,10 +38,13 @@
         }
 
         .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
             padding: 40px;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            box-shadow: var(--shadow-card);
             animation: slideUp 0.6s ease-out;
         }
 
@@ -72,13 +68,14 @@
         .login-logo {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #00838f, #00acc1);
-            border-radius: 20px;
+            background: var(--gradient-primary);
+            border-radius: var(--radius-md);
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
-            box-shadow: 0 10px 30px rgba(0, 131, 143, 0.3);
+            box-shadow: var(--shadow-soft);
+            transform: rotate(-5deg);
         }
 
         .login-logo i {
@@ -87,13 +84,15 @@
         }
 
         .login-header h1 {
+            font-family: var(--font-display);
             font-size: 24px;
-            color: #1a1a2e;
+            color: var(--color-text-main);
             margin-bottom: 8px;
+            font-weight: 700;
         }
 
         .login-header p {
-            color: #666;
+            color: var(--color-text-muted);
             font-size: 14px;
         }
 
@@ -105,7 +104,7 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #333;
+            color: var(--color-text-main);
             font-size: 14px;
         }
 
@@ -118,49 +117,51 @@
             right: 15px;
             top: 50%;
             transform: translateY(-50%);
-            color: #999;
+            color: var(--color-text-muted);
             font-size: 18px;
         }
 
         .form-group input {
             width: 100%;
             padding: 15px 45px 15px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
             font-size: 16px;
             font-family: inherit;
-            transition: all 0.3s ease;
-            background: #f8f9fa;
+            transition: var(--transition-fast);
+            background: rgba(255, 255, 255, 0.8);
         }
 
         .form-group input:focus {
             outline: none;
-            border-color: #00838f;
+            border-color: var(--color-primary);
             background: white;
-            box-shadow: 0 0 0 4px rgba(0, 131, 143, 0.1);
+            box-shadow: 0 0 0 4px rgba(45, 95, 74, 0.15);
         }
 
         .btn-login {
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, #00838f 0%, #00acc1 100%);
+            background: var(--color-primary);
             color: white;
             border: none;
-            border-radius: 12px;
+            border-radius: var(--radius-sm);
             font-size: 18px;
             font-weight: 700;
             font-family: inherit;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: var(--transition-fast);
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
+            box-shadow: 0 4px 6px -1px rgba(45, 95, 74, 0.3);
         }
 
         .btn-login:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(0, 131, 143, 0.4);
+            background: var(--color-primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(45, 95, 74, 0.4);
         }
 
         .btn-login:disabled {
@@ -194,10 +195,10 @@
         }
 
         .error-message {
-            background: #ffebee;
-            color: #c62828;
+            background: #FED7D7;
+            color: #C53030;
             padding: 12px 15px;
-            border-radius: 10px;
+            border-radius: variables(--radius-sm);
             margin-bottom: 20px;
             font-size: 14px;
             display: none;
@@ -213,23 +214,25 @@
             text-align: center;
             margin-top: 25px;
             padding-top: 20px;
-            border-top: 1px solid #eee;
+            border-top: 1px solid var(--color-accent);
         }
 
         .login-footer p {
-            color: #666;
+            color: var(--color-text-muted);
             font-size: 13px;
         }
 
         .school-name {
             text-align: center;
             margin-top: 30px;
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--color-text-muted);
             font-size: 14px;
+            font-weight: 600;
         }
 
         .school-name i {
             margin-left: 5px;
+            color: var(--color-primary);
         }
     </style>
 </head>
@@ -242,7 +245,7 @@
                     <i class="fas fa-graduation-cap"></i>
                 </div>
                 <h1>برنامج التدبير المدرسي</h1>
-                <p>الرجاء تسجيل الدخول للمتابعة</p>
+                <p>تسجيل دخول المشرف فقط</p>
             </div>
 
             <div class="error-message" id="error-message">
@@ -290,28 +293,33 @@
         const errorMessage = document.getElementById('error-message');
         const errorText = document.getElementById('error-text');
 
-        // Check if already logged in - with delay to prevent loop
-        (function () {
-            // Skip check if we just logged out
-            if (sessionStorage.getItem('justLoggedOut')) {
-                sessionStorage.removeItem('justLoggedOut');
-                return;
+        function getSafeNextPage() {
+            const params = new URLSearchParams(window.location.search);
+            const next = String(params.get('next') || '').trim();
+            if (/^[a-zA-Z0-9._-]+\.html$/.test(next)) return next;
+            return 'index.html';
+        }
+
+        async function checkExistingAdminSession() {
+            if (!window.api?.auth?.getSession) return;
+            try {
+                const res = await window.api.auth.getSession();
+                if (res?.success && res?.authenticated && String(res.user?.role || '').toLowerCase() === 'admin') {
+                    const nextPage = getSafeNextPage();
+                    window.location.replace(`${nextPage}?loggedin=1`);
+                }
+            } catch (_err) {
+                // ignore
             }
+        }
 
-            let loginCheckDone = false;
-
-            // Wait for Firebase to stabilize
-            setTimeout(() => {
-                firebase.auth().onAuthStateChanged(user => {
-                    if (loginCheckDone) return;
-                    loginCheckDone = true;
-
-                    if (user) {
-                        window.location.replace('index.html?loggedin=1');
-                    }
-                });
-            }, 100);
-        })();
+        function clearLocalSession() {
+            try {
+                localStorage.removeItem('gsl_auth_session_v1');
+            } catch (_err) {
+                // ignore storage errors
+            }
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -324,24 +332,66 @@
             errorMessage.classList.remove('show');
 
             try {
-                await firebase.auth().signInWithEmailAndPassword(email, password);
-                // Add flag to prevent redirect loop
-                window.location.replace('index.html?loggedin=1');
+                if (!window.api?.auth?.login) {
+                    throw new Error('تعذر تهيئة جلسة التطبيق');
+                }
+
+                const appSessionRes = await window.api.auth.login({ email, password });
+                if (!appSessionRes?.success || !appSessionRes?.authenticated) {
+                    clearLocalSession();
+                    errorText.textContent = appSessionRes?.error || 'فشل تسجيل الدخول';
+                    errorMessage.classList.add('show');
+                    btnLogin.classList.remove('loading');
+                    btnLogin.disabled = false;
+                    return;
+                }
+
+                const sessionUser = appSessionRes.user || {};
+                if (String(sessionUser.role || '').toLowerCase() !== 'admin') {
+                    await window.api.auth.logout();
+                    clearLocalSession();
+                    errorText.textContent = 'هذه الصفحة مخصصة للمشرف فقط';
+                    errorMessage.classList.add('show');
+                    btnLogin.classList.remove('loading');
+                    btnLogin.disabled = false;
+                    return;
+                }
+
+                localStorage.setItem(
+                    'gsl_auth_session_v1',
+                    JSON.stringify({
+                        userId: Number(sessionUser.userId || 0),
+                        name: String(sessionUser.name || ''),
+                        email: String(sessionUser.email || email || '').trim().toLowerCase(),
+                        role: 'admin',
+                        loggedAt: Date.now(),
+                        source: 'sqlite'
+                    })
+                );
+
+                const nextPage = getSafeNextPage();
+                window.location.replace(`${nextPage}?loggedin=1`);
             } catch (error) {
                 let message = 'حدث خطأ أثناء تسجيل الدخول';
 
                 switch (error.code) {
-                    case 'auth/user-not-found':
+                    case 'USER_NOT_FOUND':
                         message = 'البريد الإلكتروني غير مسجل';
                         break;
-                    case 'auth/wrong-password':
+                    case 'INVALID_CREDENTIALS':
                         message = 'كلمة المرور غير صحيحة';
                         break;
-                    case 'auth/invalid-email':
+                    case 'INVALID_EMAIL':
                         message = 'البريد الإلكتروني غير صالح';
                         break;
-                    case 'auth/too-many-requests':
-                        message = 'تم تجاوز عدد المحاولات، حاول لاحقاً';
+                    case 'INVALID_PASSWORD':
+                        message = 'كلمة المرور مطلوبة';
+                        break;
+                    case 'PASSWORD_NOT_SET':
+                        message = 'لم يتم إعداد كلمة مرور لهذا المستخدم';
+                        break;
+                    case 'USER_DISABLED':
+                        message = 'هذا المستخدم معطّل من طرف الإدارة';
                         break;
                 }
 
@@ -351,6 +401,8 @@
                 btnLogin.disabled = false;
             }
         });
+
+        checkExistingAdminSession();
     </script>
 </body>
 

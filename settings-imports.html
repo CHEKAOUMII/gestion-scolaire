@@ -1,0 +1,306 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="صفحة استيراد بيانات التلاميذ والنقط والغياب والجداول الزمنية">
+    <meta name="theme-color" content="#0f172a">
+    <title>استيراد البيانات | برنامج التدبير المدرسي</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <link rel="stylesheet" href="css/modern-imports.css">
+    <script src="js/utils.js" defer></script>
+    <script src="js/sidebar.js" defer></script>
+    <script src="js/ux-enhancements.js" defer></script>
+    <noscript>
+        <style>
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: #0f172a;
+                color: #f1f5f9;
+                font-family: 'Tajawal', sans-serif;
+            }
+        </style>
+        <div style="text-align: center; padding: 40px;">
+            <i class="fas fa-exclamation-triangle"
+                style="font-size: 3rem; color: #f59e0b; margin-bottom: 1rem; display: block;"></i>
+            <h2>⚠️ يرجى تفعيل JavaScript لاستخدام صفحة الاستيراد</h2>
+        </div>
+    </noscript>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+    <!-- Hidden file inputs for each import type -->
+    <input type="file" id="students-file-input" class="file-input-hidden"
+        accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv">
+    <input type="file" id="grades-file-input" class="file-input-hidden"
+        accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+        multiple>
+    <input type="file" id="absences-file-input" class="file-input-hidden"
+        accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+        multiple>
+    <input type="file" id="fet-file-input" class="file-input-hidden" accept=".xml,text/xml,application/xml">
+
+    <aside class="sidebar" id="sidebar">
+        <!-- Sidebar will be injected by sidebar.js -->
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle" type="button" aria-label="فتح القائمة الجانبية"
+                    title="القائمة">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="page-title"><i class="fas fa-file-import"></i> استيراد البيانات</h1>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" type="button" aria-label="تبديل المظهر"
+                    title="تبديل المظهر">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="theme-toggle" id="shortcuts-btn" type="button" aria-label="عرض اختصارات لوحة المفاتيح"
+                    title="اختصارات لوحة المفاتيح (?)">
+                    <i class="fas fa-keyboard"></i>
+                </button>
+                <label for="school-year" class="visually-hidden">الموسم الدراسي</label>
+                <select id="school-year" title="الموسم الدراسي">
+                    <option value="2025/2026" selected>2025/2026</option>
+                </select>
+                <div class="user-info" id="user-info">
+                    <span id="user-email">المستخدم</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grades-container">
+
+            <!-- Data Stats Section -->
+            <div class="students-results data-stats-section">
+                <h3><i class="fas fa-database"></i> البيانات المخزنة</h3>
+                <div class="data-stats-grid">
+                    <div class="stat-card" id="stat-card-students">
+                        <div class="stat-card-icon"><i class="fas fa-user-graduate"></i></div>
+                        <div class="stat-card-value" id="stat-students-count"><i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <div class="stat-card-label">تلميذ</div>
+                    </div>
+                    <div class="stat-card" id="stat-card-grades">
+                        <div class="stat-card-icon"><i class="fas fa-star"></i></div>
+                        <div class="stat-card-value" id="stat-grades-count"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="stat-card-label">نقطة</div>
+                    </div>
+                    <div class="stat-card" id="stat-card-absences">
+                        <div class="stat-card-icon"><i class="fas fa-user-clock"></i></div>
+                        <div class="stat-card-value" id="stat-absences-count"><i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <div class="stat-card-label">سجل غياب</div>
+                    </div>
+                    <div class="stat-card" id="stat-card-timetable">
+                        <div class="stat-card-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <div class="stat-card-value" id="stat-timetable-status"><i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <div class="stat-card-label">الجدول الزمني</div>
+                    </div>
+                </div>
+                <div class="data-actions">
+                    <button class="btn btn-danger-outline" id="btn-clear-students" type="button"
+                        title="حذف جميع بيانات التلاميذ لهذه السنة">
+                        <i class="fas fa-trash-alt"></i> حذف التلاميذ
+                    </button>
+                    <button class="btn btn-danger-outline" id="btn-clear-grades" type="button"
+                        title="حذف جميع النقط لهذه السنة">
+                        <i class="fas fa-trash-alt"></i> حذف النقط
+                    </button>
+                    <button class="btn btn-danger-outline" id="btn-clear-absences" type="button"
+                        title="حذف جميع سجلات الغياب لهذه السنة">
+                        <i class="fas fa-trash-alt"></i> حذف الغياب
+                    </button>
+                    <button class="btn btn-danger-outline" id="btn-clear-timetable" type="button"
+                        title="حذف بيانات الجدول الزمني">
+                        <i class="fas fa-trash-alt"></i> حذف الجدول
+                    </button>
+                </div>
+            </div>
+
+            <!-- Import Center -->
+            <div class="students-results">
+                <h3><i class="fas fa-cloud-upload-alt"></i> مركز الاستيراد</h3>
+                <div class="imports-grid">
+                    <button class="btn btn-primary" data-action="students" type="button">
+                        <i class="fas fa-user-graduate"></i>
+                        <span>استيراد لائحة التلاميذ</span>
+                        <small class="import-format-hint">.xlsx .xls .csv</small>
+                    </button>
+                    <button class="btn btn-primary" data-action="grades" type="button">
+                        <i class="fas fa-star"></i>
+                        <span>استيراد النقط</span>
+                        <small class="import-format-hint">.xlsx .xls .csv — متعدد الملفات</small>
+                    </button>
+                    <button class="btn btn-primary" data-action="absences" type="button">
+                        <i class="fas fa-user-clock"></i>
+                        <span>استيراد الغياب</span>
+                        <small class="import-format-hint">.xlsx .xls .csv — متعدد الملفات</small>
+                    </button>
+                    <button class="btn btn-primary" data-action="fet" type="button">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>استيراد FET (XML)</span>
+                        <small class="import-format-hint">.xml — ملف _teachers.xml</small>
+                    </button>
+                </div>
+
+                <!-- Drag & Drop Zone -->
+                <div class="drop-zone" id="drop-zone" role="region" aria-label="منطقة سحب وإفلات الملفات">
+                    <div class="drop-zone-content">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>اسحب الملفات وأفلتها هنا</p>
+                        <small>أو اختر نوع الاستيراد من الأزرار أعلاه</small>
+                    </div>
+                </div>
+
+                <p class="import-hint">
+                    <i class="fas fa-info-circle"></i> اختر نوع البيانات المراد استيرادها من ملفات Excel أو CSV أو XML
+                    حسب نوع الاستيراد
+                </p>
+                <div class="import-progress-card" id="import-progress-card" aria-live="polite" aria-atomic="true">
+                    <div class="import-progress-head">
+                        <span id="import-progress-title"><i class="fas fa-upload"></i> جاري الاستيراد...</span>
+                        <span id="import-progress-percent">0%</span>
+                    </div>
+                    <div class="import-progress-track" role="progressbar" aria-label="تقدم الاستيراد" aria-valuemin="0"
+                        aria-valuemax="100" aria-valuenow="0">
+                        <div class="import-progress-fill" id="import-progress-fill"></div>
+                    </div>
+                    <p id="import-progress-message">جاري تجهيز الملف...</p>
+                </div>
+            </div>
+
+            <!-- Recent Imports -->
+            <div class="students-results">
+                <h3><i class="fas fa-history"></i> عمليات الاستيراد الأخيرة</h3>
+                <div class="table-responsive">
+                    <table class="students-table">
+                        <caption class="visually-hidden">سجل آخر عمليات استيراد البيانات</caption>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>العملية</th>
+                                <th>التفاصيل</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="import-logs-tbody">
+                            <tr>
+                                <td colspan="4" class="loading-cell">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    جاري التحميل...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Quick Navigation Panel -->
+    <div class="quick-nav-panel" id="quick-nav-panel" role="navigation" aria-label="التنقل السريع" aria-hidden="true">
+        <div class="quick-nav-header">
+            <h3><i class="fas fa-compass"></i> التنقل السريع</h3>
+            <button class="quick-nav-close" id="quick-nav-close" type="button" aria-label="إغلاق لوحة التنقل السريع">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="quick-nav-search">
+            <label for="quick-nav-search-input" class="visually-hidden">ابحث في صفحات التنقل السريع</label>
+            <input type="text" id="quick-nav-search-input" placeholder="بحث...">
+        </div>
+        <div class="quick-nav-list" id="quick-nav-pages-list">
+            <a class="quick-nav-item" href="index.html"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a>
+            <a class="quick-nav-item" href="students-list.html"><i class="fas fa-users"></i><span>لوائح
+                    التلاميذ</span></a>
+            <a class="quick-nav-item" href="grades.html"><i class="fas fa-star"></i><span>النتائج</span></a>
+            <a class="quick-nav-item" href="analytics.html"><i class="fas fa-chart-bar"></i><span>التحليلات</span></a>
+            <a class="quick-nav-item" href="absence-analytics.html"><i class="fas fa-chart-area"></i><span>تحليلات
+                    الغياب</span></a>
+            <a class="quick-nav-item" href="timetable.html"><i class="fas fa-table"></i><span>جداول الحصص</span></a>
+            <a class="quick-nav-item" href="reports-semester.html"><i class="fas fa-file-alt"></i><span>التقارير
+                    الدورية</span></a>
+            <a class="quick-nav-item active" href="settings-imports.html"><i
+                    class="fas fa-file-import"></i><span>استيراد البيانات</span></a>
+        </div>
+    </div>
+    <button class="quick-nav-toggle" id="quick-nav-toggle" type="button" aria-label="فتح التنقل السريع"
+        aria-controls="quick-nav-panel" aria-expanded="false" title="التنقل السريع (Ctrl+K)">
+        <i class="fas fa-compass"></i>
+    </button>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div class="shortcuts-modal" id="shortcuts-modal" role="dialog" aria-modal="true"
+        aria-labelledby="shortcuts-modal-title" aria-hidden="true">
+        <div class="shortcuts-content" tabindex="-1">
+            <div class="modal-header">
+                <h3 id="shortcuts-modal-title"><i class="fas fa-keyboard"></i> اختصارات لوحة المفاتيح</h3>
+                <button class="close-modal" id="shortcuts-close" type="button" aria-label="إغلاق نافذة الاختصارات">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="shortcuts-grid">
+                    <div class="shortcut-item"><span>طباعة</span>
+                        <div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span
+                                class="shortcut-key">P</span></div>
+                    </div>
+                    <div class="shortcut-item"><span>البحث</span>
+                        <div class="shortcut-keys"><span class="shortcut-key">/</span></div>
+                    </div>
+                    <div class="shortcut-item"><span>التنقل السريع</span>
+                        <div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span
+                                class="shortcut-key">K</span></div>
+                    </div>
+                    <div class="shortcut-item"><span>استيراد تلاميذ</span>
+                        <div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span
+                                class="shortcut-key">1</span></div>
+                    </div>
+                    <div class="shortcut-item"><span>استيراد نقط</span>
+                        <div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span
+                                class="shortcut-key">2</span></div>
+                    </div>
+                    <div class="shortcut-item"><span>استيراد غياب</span>
+                        <div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span
+                                class="shortcut-key">3</span></div>
+                    </div>
+                    <div class="shortcut-item"><span>استيراد FET</span>
+                        <div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span
+                                class="shortcut-key">4</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="import-confirm-overlay" id="import-confirm-overlay" role="dialog" aria-modal="true"
+        aria-labelledby="confirm-import-title" aria-describedby="confirm-import-message" aria-hidden="true">
+        <div class="import-confirm-box">
+            <h3 id="confirm-import-title"><i class="fas fa-file-upload"></i> تأكيد الاستيراد</h3>
+            <p id="confirm-import-message">هل تريد متابعة الاستيراد؟</p>
+            <div class="import-confirm-actions">
+                <button class="btn btn-secondary" id="confirm-import-cancel" type="button">إلغاء</button>
+                <button class="btn btn-primary" id="confirm-import-ok" type="button">تأكيد</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/pages/settings-imports.js" defer></script>
+</body>
+
+</html>

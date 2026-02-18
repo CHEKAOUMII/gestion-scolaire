@@ -1,0 +1,124 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>حركية التلاميذ | برنامج التدبير المدرسي</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="ux-enhancements.css">
+  <script src="js/utils.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+  <div class="toast-container" id="toast-container"></div>
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <header class="header">
+      <div class="header-left">
+        <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+        <h2 class="page-title"><i class="fas fa-exchange-alt"></i> حركية التلاميذ</h2>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+      </div>
+    </header>
+
+    <div class="grades-container">
+      <div class="search-section">
+        <h3><i class="fas fa-pen"></i> تسجيل حركة</h3>
+        <form id="form" class="search-form"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+          <input id="massar-code" placeholder="رمز مسار التلميذ" required>
+          <select id="movement-type">
+            <option value="transfer_in">وافد من مؤسسة أخرى</option>
+            <option value="transfer_out">مغادر لمؤسسة أخرى</option>
+            <option value="dropout">منقطع عن الدراسة</option>
+            <option value="expulsion">مطرود</option>
+            <option value="reinstatement">عودة بعد انقطاع</option>
+          </select>
+          <input type="date" id="movement-date" required>
+          <textarea id="notes" placeholder="ملاحظات" style="grid-column: 1/-1;"></textarea>
+          <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> تسجيل</button>
+        </form>
+      </div>
+
+      <div class="students-results">
+        <h3><i class="fas fa-clipboard-list"></i> سجل الحركات</h3>
+        <table class="students-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>رمز مسار</th>
+              <th>الاسم</th>
+              <th>نوع الحركة</th>
+              <th>التاريخ</th>
+              <th>ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const year = '2025/2026';
+    const typeLabels = {
+      'transfer_in': 'وافد من مؤسسة أخرى',
+      'transfer_out': 'مغادر لمؤسسة أخرى',
+      'dropout': 'منقطع عن الدراسة',
+      'expulsion': 'مطرود',
+      'reinstatement': 'عودة بعد انقطاع'
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadMovements();
+      document.getElementById('form').addEventListener('submit', save);
+    });
+
+    async function loadMovements() {
+      const rows = await window.api.studentMovements.getAll(year) || [];
+      document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${r.massar_code || '-'}</td>
+                    <td>${r.student_name || '-'}</td>
+                    <td>${typeLabels[r.movement_type] || r.movement_type || '-'}</td>
+                    <td>${r.movement_date || '-'}</td>
+                    <td>${r.notes || '-'}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد حركات مسجلة</td></tr>';
+    }
+
+    async function save(e) {
+      e.preventDefault();
+      const payload = {
+        massar_code: document.getElementById('massar-code').value.trim(),
+        movement_type: document.getElementById('movement-type').value,
+        movement_date: document.getElementById('movement-date').value,
+        notes: document.getElementById('notes').value.trim(),
+        school_year: year
+      };
+      const res = await window.api.studentMovements.add(payload);
+      if (!res || res.success === false) {
+        showToast('فشل التسجيل', 'error');
+        return;
+      }
+      showToast('تم تسجيل الحركة', 'success');
+      e.target.reset();
+      await loadMovements();
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,125 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ورقة الغياب الأسبوعية | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-calendar-week"></i> ورقة الغياب الأسبوعية</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <h3><i class="fas fa-calendar-alt"></i> اختيار الأسبوع</h3>
+                <form class="search-form"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    <select id="class-select">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <input type="date" id="week-start" required>
+                    <button class="btn btn-primary" type="button" id="generate-btn"><i class="fas fa-table"></i>
+                        توليد</button>
+                    <button class="btn btn-success" type="button" id="print-btn"><i class="fas fa-eye"></i>
+                        معاينة الطباعة</button>
+                </form>
+            </div>
+
+            <div class="students-results">
+                <h3><i class="fas fa-clipboard-list"></i> ورقة الغياب</h3>
+                <div id="sheet" class="page-empty-state">
+                    <i class="fas fa-calendar-week"></i>
+                    <p>اختر القسم وتاريخ بداية الأسبوع ثم اضغط "توليد"</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const year = '2025/2026';
+        const days = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadClasses();
+            document.getElementById('generate-btn').addEventListener('click', generate);
+            document.getElementById('print-btn').addEventListener('click', () => openPrintPreview({ title: 'ورقة الغياب الأسبوعية', pageSize: 'A4' }));
+        });
+
+        async function loadClasses() {
+            const classes = await window.api.classes.getAll(year) || [];
+            const select = document.getElementById('class-select');
+            classes.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.name;
+                opt.textContent = c.name;
+                select.appendChild(opt);
+            });
+        }
+
+        async function generate() {
+            const className = document.getElementById('class-select').value;
+            const weekStart = document.getElementById('week-start').value;
+
+            if (!className || !weekStart) {
+                showToast('اختر القسم وتاريخ البداية', 'warning');
+                return;
+            }
+
+            const students = await window.api.students.search('', className, '', year) || [];
+
+            document.getElementById('sheet').innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 12px; text-align: right; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto;">
+                    <h2 style="text-align: center; margin-bottom: 15px;">ورقة الغياب الأسبوعية</h2>
+                    <p style="text-align: center; margin-bottom: 20px;">القسم: ${className} | الأسبوع من: ${weekStart}</p>
+                    <table class="students-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>الاسم الكامل</th>
+                                ${days.map(d => `<th>${d}<br><small>ص | م</small></th>`).join('')}
+                                <th>المجموع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${students.map((s, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td>${s.full_name || '-'}</td>
+                                    ${days.map(() => '<td style="min-width: 60px;"></td>').join('')}
+                                    <td></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            showToast('تم توليد ورقة الغياب', 'success');
+        }
+    </script>
+</body>
+
+</html>

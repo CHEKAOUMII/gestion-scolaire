@@ -1,0 +1,151 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>المستخدمون | برنامج التدبير المدرسي</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-users-cog"></i> المستخدمون</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <div class="search-section">
+                <form id="form" class="search-form"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    <input id="name" placeholder="الاسم" required>
+                    <input id="email" type="email" placeholder="البريد" required>
+                    <input id="password" type="password" placeholder="كلمة المرور">
+                    <select id="role">
+                        <option value="admin">admin</option>
+                        <option value="staff">staff</option>
+                        <option value="viewer">viewer</option>
+                    </select>
+                    <button class="btn btn-success" type="submit">إضافة مستخدم</button>
+                </form>
+            </div>
+
+            <div class="students-results">
+                <table class="students-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الاسم</th>
+                            <th>البريد</th>
+                            <th>الدور</th>
+                            <th>الحالة</th>
+                            <th>الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let rows = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadRows();
+            document.getElementById('form').addEventListener('submit', addUser);
+        });
+
+        async function loadRows() {
+            const res = await window.api.users.getAll();
+            if (!Array.isArray(res)) {
+                showToast(res?.error || 'غير مصرح بالوصول لهذه الصفحة', 'error');
+                rows = [];
+                document.getElementById('tbody').innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center;">غير مصرح</td></tr>';
+                return;
+            }
+
+            rows = res || [];
+            document.getElementById('tbody').innerHTML = rows.length ? rows.map((u, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${u.name || '-'}</td>
+                    <td>${u.email || '-'}</td>
+                    <td>
+                        <select onchange="changeRole(${u.id}, this.value)">
+                            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+                            <option value="staff" ${u.role === 'staff' ? 'selected' : ''}>staff</option>
+                            <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>viewer</option>
+                        </select>
+                    </td>
+                    <td>${u.disabled ? '<span style="color:#c00;">معطل</span>' : '<span style="color:#080;">نشط</span>'}</td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="toggleDisable(${u.id}, ${u.disabled ? 0 : 1})">${u.disabled ? 'تفعيل' : 'تعطيل'}</button>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا يوجد مستخدمون</td></tr>';
+        }
+
+        async function addUser(e) {
+            e.preventDefault();
+            const payload = {
+                name: document.getElementById('name').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value,
+                disabled: false
+            };
+            const res = await window.api.users.add(payload);
+            if (!res || res.success === false) {
+                showToast('فشل إضافة المستخدم: ' + (res?.error || ''), 'error');
+                return;
+            }
+            if (res?.usedDefaultPassword) {
+                showToast(`تمت الإضافة. كلمة المرور المؤقتة: ${res.defaultPassword}`, 'warning', 6000);
+            } else {
+                showToast('تمت الإضافة', 'success');
+            }
+            e.target.reset();
+            await loadRows();
+        }
+
+        async function changeRole(id, role) {
+            const res = await window.api.users.updateRole(id, role);
+            if (!res || res.success === false) {
+                showToast('فشل تعديل الدور', 'error');
+                return;
+            }
+            await loadRows();
+        }
+
+        async function toggleDisable(id, disabled) {
+            const res = await window.api.users.disable(id, !!disabled);
+            if (!res || res.success === false) {
+                showToast('فشل تحديث الحالة', 'error');
+                return;
+            }
+            await loadRows();
+        }
+    </script>
+</body>
+
+</html>

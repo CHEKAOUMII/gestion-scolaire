@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ترتيب الملفات | برنامج التدبير المدرسي</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="ux-enhancements.css">
+  <script src="js/utils.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/ux-enhancements.js"></script>
+</head>
+
+<body>
+  <div class="toast-container" id="toast-container"></div>
+
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <header class="header">
+      <div class="header-left">
+        <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+        <h2 class="page-title"><i class="fas fa-folder-open"></i> ترتيب الملفات</h2>
+      </div>
+      <div class="header-right">
+        <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+      </div>
+    </header>
+
+    <div class="grades-container">
+      <div class="search-section">
+        <h3><i class="fas fa-search"></i> البحث عن ملف</h3>
+        <form class="search-form"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+          <select id="class-select">
+            <option value="">كل الأقسام</option>
+          </select>
+          <input id="file-number" placeholder="رقم الملف">
+          <button class="btn btn-primary" type="button" id="search-btn"><i class="fas fa-search"></i> بحث</button>
+        </form>
+      </div>
+
+      <div class="students-results">
+        <h3><i class="fas fa-list-ol"></i> ترتيب ملفات التلاميذ</h3>
+        <p style="padding: 15px; color: var(--color-text-muted);">
+          <i class="fas fa-info-circle"></i>
+          يتم ترتيب الملفات أبجدياً حسب القسم ثم حسب الاسم. يمكنك استخدام البحث لإيجاد ملف محدد.
+        </p>
+        <div class="table-responsive">
+          <table class="students-table">
+            <thead>
+              <tr>
+                <th>رقم الملف</th>
+                <th>رمز مسار</th>
+                <th>الاسم الكامل</th>
+                <th>القسم</th>
+                <th>الموقع</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const year = '2025/2026';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadClasses();
+      await loadFiles();
+      document.getElementById('search-btn').addEventListener('click', loadFiles);
+    });
+
+    async function loadClasses() {
+      const classes = await window.api.classes.getAll(year) || [];
+      const select = document.getElementById('class-select');
+      classes.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadFiles() {
+      const className = document.getElementById('class-select').value;
+      const fileNumber = document.getElementById('file-number').value.trim();
+
+      let students = await window.api.students.search('', className, '', year) || [];
+
+      // Sort alphabetically
+      students.sort((a, b) => {
+        if (a.class_name !== b.class_name) {
+          return (a.class_name || '').localeCompare(b.class_name || '', 'ar');
+        }
+        return (a.full_name || '').localeCompare(b.full_name || '', 'ar');
+      });
+
+      // Assign file numbers
+      students = students.map((s, i) => ({ ...s, file_number: i + 1 }));
+
+      // Filter by file number if specified
+      if (fileNumber) {
+        students = students.filter(s => s.file_number === parseInt(fileNumber));
+      }
+
+      document.getElementById('tbody').innerHTML = students.length ? students.map(s => `
+                <tr>
+                    <td style="font-weight: bold; color: var(--primary);">${s.file_number}</td>
+                    <td>${s.massar_code || '-'}</td>
+                    <td>${s.full_name || '-'}</td>
+                    <td>${s.class_name || '-'}</td>
+                    <td>خزانة ${Math.ceil(s.file_number / 50)} - رف ${Math.ceil((s.file_number % 50 || 50) / 10)}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="5" style="padding: 20px; text-align: center;">لا توجد ملفات</td></tr>';
+    }
+  </script>
+</body>
+
+</html>

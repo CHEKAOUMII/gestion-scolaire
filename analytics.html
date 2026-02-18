@@ -1,1780 +1,1524 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تحليل النتائج | برنامج التدبير المدرسي</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Electron + SQLite - No Firebase needed -->
+    <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js" defer></script>
+    <script src="js/sidebar.js" defer></script>
+    <script src="js/ux-enhancements.js" defer></script>
     <style>
-        /* Analytics Page Specific Styles */
-        .analytics-container {
-            padding: 20px;
+        /* ─── Analysis Header ─── */
+        .analysis-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            color: var(--color-primary);
         }
 
-        .filters-section {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 25px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        .analysis-header h3 {
+            margin: 0;
+            font-size: 22px;
+            font-family: var(--font-display);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        .filters-section h3 {
-            margin-bottom: 15px;
-            color: var(--primary);
-        }
-
-        .filters-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .filter-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #555;
-        }
-
-        .filter-group select {
-            width: 100%;
-            padding: 10px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 14px;
-            background: white;
-            cursor: pointer;
-        }
-
-        .filter-group select:focus {
-            border-color: var(--primary);
-            outline: none;
-        }
-
-        .stats-overview {
+        /* ─── Filters ─── */
+        .analysis-filters-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-3px);
-        }
-
-        .stat-card .icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 10px;
-            font-size: 20px;
-        }
-
-        .stat-card.students .icon {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .stat-card.highest .icon {
-            background: #e8f5e9;
-            color: #388e3c;
-        }
-
-        .stat-card.lowest .icon {
-            background: #ffebee;
-            color: #d32f2f;
-        }
-
-        .stat-card.average .icon {
-            background: #fff3e0;
-            color: #f57c00;
-        }
-
-        .stat-card.success .icon {
-            background: #e8f5e9;
-            color: #388e3c;
-        }
-
-        .stat-card.mastery .icon {
-            background: #f3e5f5;
-            color: #7b1fa2;
-        }
-
-        .stat-card.zero-grade .icon {
-            background: #212121;
-            color: #fff;
-        }
-
-        .stat-card.zero-grade .value {
-            color: #d32f2f;
-        }
-
-        .stat-card .value {
-            font-size: 28px;
-            font-weight: 800;
-            color: var(--text);
-        }
-
-        .stat-card .label {
-            font-size: 13px;
-            color: #666;
-            margin-top: 5px;
-        }
-
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
-        }
-
-        .chart-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .chart-card h4 {
-            margin-bottom: 20px;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .chart-container {
-            position: relative;
-            height: 300px;
-        }
-
-        .grades-table-section {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            margin-bottom: 30px;
-        }
-
-        .grades-table-section h4 {
-            margin-bottom: 20px;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .distribution-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .distribution-table th,
-        .distribution-table td {
-            padding: 12px 15px;
-            text-align: center;
-            border-bottom: 1px solid #eee;
-        }
-
-        .distribution-table th {
-            background: #f8f9fa;
-            font-weight: 700;
-            color: #555;
-        }
-
-        .distribution-table tr:hover {
-            background: #f8f9fa;
-        }
-
-        .grade-badge {
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        .grade-badge.excellent {
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
-
-        .grade-badge.very-good {
-            background: #e3f2fd;
-            color: #1565c0;
-        }
-
-        .grade-badge.good {
-            background: #fff8e1;
-            color: #f9a825;
-        }
-
-        .grade-badge.acceptable {
-            background: #fff3e0;
-            color: #ef6c00;
-        }
-
-        .grade-badge.weak {
-            background: #ffebee;
-            color: #c62828;
-        }
-
-        .progress-section {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .progress-section h4 {
-            margin-bottom: 20px;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .progress-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-
-        .progress-card {
-            background: linear-gradient(135deg, #f8f9fa, #fff);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid #e0e0e0;
-        }
-
-        .progress-card h5 {
-            margin-bottom: 15px;
-            color: #333;
-            font-size: 14px;
-        }
-
-        .progress-bar-container {
-            background: #e0e0e0;
-            border-radius: 10px;
-            height: 20px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-
-        .progress-bar {
-            height: 100%;
-            border-radius: 10px;
-            transition: width 0.5s ease;
-        }
-
-        .progress-bar.success {
-            background: linear-gradient(135deg, #27ae60, #2ecc71);
-        }
-
-        .progress-bar.warning {
-            background: linear-gradient(135deg, #f39c12, #f1c40f);
-        }
-
-        .progress-bar.danger {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-        }
-
-        .progress-stats {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .no-data {
-            text-align: center;
-            padding: 60px 20px;
-            color: #666;
-        }
-
-        .no-data i {
-            font-size: 60px;
-            margin-bottom: 15px;
-            color: #ccc;
-        }
-
-        @media (max-width: 768px) {
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .chart-container {
-                height: 250px;
-            }
-        }
-
-        /* Zero Grade Modal Styles */
-        .zero-grade-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .zero-grade-modal.active {
-            display: flex;
-        }
-
-        .zero-modal-content {
-            background: white;
-            border-radius: 20px;
-            width: 100%;
-            max-width: 900px;
-            max-height: 85vh;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .zero-modal-header {
-            padding: 20px 25px;
-            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .zero-modal-header h3 {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 18px;
-        }
-
-        .zero-modal-header .close-btn {
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
-            border: none;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-
-        .zero-modal-header .close-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .zero-modal-body {
-            padding: 20px;
-            max-height: calc(85vh - 80px);
-            overflow-y: auto;
-        }
-
-        .zero-students-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .zero-students-table th,
-        .zero-students-table td {
-            padding: 12px 15px;
-            text-align: right;
-            border-bottom: 1px solid #eee;
-        }
-
-        .zero-students-table th {
-            background: #f8f9fa;
-            font-weight: 700;
-            color: #333;
-            position: sticky;
-            top: 0;
-        }
-
-        .zero-students-table tr:hover {
-            background: #fff8f8;
-        }
-
-        .zero-students-table .subject-badge {
-            background: #ffebee;
-            color: #c62828;
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .stat-card.zero-grade {
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .stat-card.zero-grade:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(211, 47, 47, 0.2);
-        }
-
-        .no-zero-students {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-        }
-
-        .no-zero-students i {
-            font-size: 48px;
-            color: #4caf50;
-            margin-bottom: 15px;
-        }
-
-        /* Zero Stats Section */
-        .zero-stats-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 25px;
-            margin-top: 30px;
-        }
-
-        .zero-stats-card {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .zero-stats-card h4 {
-            color: var(--primary);
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 16px;
-        }
-
-        .level-zero-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .level-zero-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 15px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border-right: 4px solid #d32f2f;
-        }
-
-        .level-zero-item .level-name {
-            font-weight: 600;
-            color: #333;
-        }
-
-        .level-zero-item .zero-count {
-            background: #ffebee;
-            color: #c62828;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 14px;
-        }
-
-        .top-zeros-list {
-            display: flex;
-            flex-direction: column;
             gap: 12px;
         }
 
-        .top-zeros-item {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: linear-gradient(135deg, #fff8f8, #fff);
-            border-radius: 12px;
-            border: 1px solid #ffcdd2;
+        /* ─── KPI Cards ─── */
+        .analysis-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
         }
 
-        .top-zeros-item .rank {
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
+        .analysis-kpi-card {
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 22px 20px;
+            box-shadow: var(--shadow-card);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .analysis-kpi-card:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .analysis-kpi-card:nth-child(2) {
+            animation-delay: 0.06s;
+        }
+
+        .analysis-kpi-card:nth-child(3) {
+            animation-delay: 0.12s;
+        }
+
+        .analysis-kpi-card:nth-child(4) {
+            animation-delay: 0.18s;
+        }
+
+        .analysis-kpi-card:nth-child(5) {
+            animation-delay: 0.24s;
+        }
+
+        .analysis-kpi-card:nth-child(6) {
+            animation-delay: 0.30s;
+        }
+
+        .analysis-kpi-card:nth-child(7) {
+            animation-delay: 0.36s;
+        }
+
+        .analysis-kpi-card:nth-child(8) {
+            animation-delay: 0.42s;
+        }
+
+        .analysis-kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 4px;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .analysis-kpi-card:nth-child(1)::before {
+            background: var(--gradient-primary);
+        }
+
+        .analysis-kpi-card:nth-child(2)::before {
+            background: linear-gradient(90deg, var(--color-success) 0%, #38ef7d 100%);
+        }
+
+        .analysis-kpi-card:nth-child(3)::before {
+            background: linear-gradient(90deg, var(--color-warning) 0%, #ffd200 100%);
+        }
+
+        .analysis-kpi-card:nth-child(4)::before {
+            background: linear-gradient(90deg, #a770ef 0%, #cf8bf3 100%);
+        }
+
+        .analysis-kpi-card:nth-child(5)::before {
+            background: linear-gradient(90deg, var(--color-danger) 0%, #ff9a76 100%);
+        }
+
+        .analysis-kpi-card:nth-child(6)::before {
+            background: linear-gradient(90deg, var(--info) 0%, #89bfe8 100%);
+        }
+
+        .analysis-kpi-card:nth-child(7)::before {
+            background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .analysis-kpi-card:nth-child(8)::before {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .analysis-kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-elevated);
+            border-color: var(--color-primary-light);
+        }
+
+        .analysis-kpi-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 20px;
+            margin-bottom: 14px;
+            color: #fff;
+        }
+
+        .analysis-kpi-label {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-family: var(--font-main);
+        }
+
+        .analysis-kpi-value {
+            font-size: 30px;
+            line-height: 1.1;
             font-weight: 800;
-            font-size: 14px;
+            color: var(--color-text-main);
+            font-family: var(--font-display);
+            margin-bottom: 6px;
         }
 
-        .top-zeros-item .rank.rank-1 {
-            background: linear-gradient(135deg, #d32f2f, #c62828);
-            color: white;
-        }
-
-        .top-zeros-item .rank.rank-2 {
-            background: linear-gradient(135deg, #ff5722, #e64a19);
-            color: white;
-        }
-
-        .top-zeros-item .rank.rank-3 {
-            background: linear-gradient(135deg, #ff9800, #f57c00);
-            color: white;
-        }
-
-        .top-zeros-item .student-info {
-            flex: 1;
-        }
-
-        .top-zeros-item .student-name {
-            font-weight: 700;
-            color: #333;
-            font-size: 15px;
-        }
-
-        .top-zeros-item .student-section {
+        .analysis-kpi-sub {
             font-size: 12px;
-            color: #666;
-            margin-top: 3px;
+            color: var(--color-text-light);
+            margin-top: 6px;
+            font-weight: 500;
         }
 
-        .top-zeros-item .zeros-badge {
-            background: #d32f2f;
-            color: white;
-            padding: 8px 15px;
-            border-radius: 20px;
+        /* ─── Grid Layouts ─── */
+        .analysis-grid-two {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .analysis-grid-three {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        /* ─── Panels (Glassmorphism) ─── */
+        .analysis-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            padding: 22px;
+            box-shadow: var(--shadow-card);
+            transition: var(--transition-normal);
+        }
+
+        .analysis-panel:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .analysis-panel h4 {
+            margin: 0 0 16px;
+            color: var(--color-primary);
+            font-size: 16px;
             font-weight: 700;
+            font-family: var(--font-display);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--color-accent);
+        }
+
+        .analysis-panel h4 i {
+            font-size: 17px;
+            color: var(--color-primary-light);
+        }
+
+        /* ─── Progress Bars ─── */
+        .analysis-progress-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .analysis-progress-item {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            transition: var(--transition-normal);
+        }
+
+        .analysis-progress-item:hover {
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-2px);
+        }
+
+        .analysis-progress-title {
+            font-size: 14px;
+            color: var(--color-text-main);
+            margin-bottom: 10px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .analysis-progress-title i {
+            font-size: 16px;
+        }
+
+        .analysis-progress-item:nth-child(1) .analysis-progress-title i {
+            color: var(--color-success);
+        }
+
+        .analysis-progress-item:nth-child(2) .analysis-progress-title i {
+            color: var(--color-warning);
+        }
+
+        .analysis-progress-item:nth-child(3) .analysis-progress-title i {
+            color: var(--color-danger);
+        }
+
+        .analysis-progress-track {
+            height: 22px;
+            background: var(--color-surface-alt);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            margin-bottom: 8px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+        }
+
+        .analysis-progress-value {
+            height: 100%;
+            border-radius: var(--radius-full);
+            position: relative;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            min-width: 32px;
+        }
+
+        .analysis-progress-value::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0) 100%);
+            animation: shimmer 2.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
+        }
+
+        .analysis-progress-meta {
+            font-size: 12px;
+            color: var(--color-text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* ─── Zero Students List ─── */
+        .analysis-zero-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .analysis-zero-item {
+            border: 1px solid rgba(232, 93, 93, 0.2);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            padding: 14px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--color-text-main);
+            transition: var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analysis-zero-item::before {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            background: linear-gradient(180deg, var(--color-danger), #ff9a76);
+        }
+
+        .analysis-zero-item:hover {
+            transform: translateX(-4px);
+            box-shadow: var(--shadow-hover);
+            border-color: rgba(232, 93, 93, 0.4);
+        }
+
+        .analysis-zero-badge {
+            background: linear-gradient(135deg, var(--color-danger), #ff9a76);
+            color: #fff;
+            border-radius: var(--radius-full);
+            padding: 5px 14px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        /* ─── Summary Table ─── */
+        .analysis-summary-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            border: 1px solid var(--color-accent);
+        }
+
+        .analysis-summary-table th,
+        .analysis-summary-table td {
+            padding: 13px 16px;
+            text-align: right;
             font-size: 14px;
         }
 
-        .no-top-zeros {
-            text-align: center;
-            padding: 30px;
-            color: #4caf50;
+        .analysis-summary-table th {
+            background: var(--gradient-primary);
+            color: #fff;
+            font-weight: 700;
+            font-family: var(--font-display);
+            border-bottom: none;
         }
 
-        @media (max-width: 768px) {
-            .zero-stats-section {
+        .analysis-summary-table td {
+            color: var(--color-text-main);
+            border-bottom: 1px solid var(--color-accent);
+        }
+
+        .analysis-summary-table tbody tr:nth-child(even) {
+            background: var(--color-surface-alt);
+        }
+
+        .analysis-summary-table tbody tr:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .analysis-summary-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .analysis-grade-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-full);
+            padding: 4px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        /* ─── Charts ─── */
+        .analysis-detail-chart {
+            min-height: 280px;
+            max-height: 320px;
+        }
+
+        .analysis-canvas {
+            width: 100%;
+            height: 260px !important;
+        }
+
+        .analysis-canvas-tall {
+            height: 320px !important;
+        }
+
+        .analysis-panel-note {
+            margin: -4px 0 10px;
+            font-size: 12px;
+            color: var(--color-text-muted);
+            font-weight: 600;
+        }
+
+        /* ─── Collapsible Blocks ─── */
+        .analysis-block {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+            transition: var(--transition-normal);
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .analysis-block:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .analysis-block:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .analysis-block:hover {
+            box-shadow: var(--shadow-hover);
+        }
+
+        .analysis-block>summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 18px 22px;
+            color: var(--color-primary);
+            font-size: 17px;
+            font-weight: 800;
+            font-family: var(--font-display);
+            background: var(--gradient-surface);
+            border-bottom: 2px solid var(--color-accent);
+            user-select: none;
+            transition: var(--transition-normal);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .analysis-block>summary::after {
+            content: '\f078';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 13px;
+            margin-right: auto;
+            margin-left: 0;
+            transition: transform 0.3s ease;
+            color: var(--color-text-light);
+        }
+
+        .analysis-block[open]>summary::after {
+            transform: rotate(180deg);
+        }
+
+        .analysis-block>summary:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .analysis-block[open]>summary {
+            background: var(--color-primary-mist);
+            border-bottom-color: var(--color-primary-light);
+        }
+
+        .analysis-block>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .analysis-block-body {
+            padding: 18px;
+        }
+
+        /* ─── Empty State ─── */
+        .analysis-empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--color-text-light);
+        }
+
+        .analysis-empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: var(--color-accent);
+        }
+
+        .analysis-empty-state p {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 1100px) {
+            .analysis-grid-two {
                 grid-template-columns: 1fr;
+            }
+
+            .analysis-grid-three {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .analysis-kpis {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .analysis-kpi-card {
+                padding: 16px 14px;
+            }
+
+            .analysis-kpi-value {
+                font-size: 24px;
             }
         }
     </style>
 </head>
 
 <body>
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo"><i class="fas fa-network-wired"></i></div>
-            <h2>برنامج التدبير</h2>
-            <span class="version">v 2.0</span>
-        </div>
-        <div class="school-info">
-            <i class="fas fa-university"></i>
-            <div class="school-details">
-                <h3>الثانوية التأهيلية</h3>
-                <p>ابن سينا</p>
-            </div>
-        </div>
-        <nav class="sidebar-nav">
-            <ul>
-                <li><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>تدبير التلاميذ</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="index.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
-                    </ul>
-                </li>
-                <li class="expandable active">
-                    <a href="#" class="nav-link active"><i class="fas fa-chart-line"></i><span>تدبير النتائج</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu" style="display: block;">
-                        <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
-                        <li><a href="analytics.html" class="active"><i class="fas fa-chart-bar"></i> تحليل النتائج</a>
-                        </li>
-                    </ul>
-                </li>
-            </ul>
-        </nav>
-    </aside>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content">
         <header class="header">
             <div class="header-left">
                 <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 style="margin-right: 20px;"><i class="fas fa-chart-bar"></i> تحليل النتائج</h2>
+                <h2 class="page-title"><i class="fas fa-chart-bar"></i> تحليل النتائج</h2>
             </div>
             <div class="header-right">
-                <div class="user-info" id="user-info">
-                    <span id="user-email"></span>
-                    <button class="logout-btn" id="logout-btn" title="تسجيل الخروج"><i
-                            class="fas fa-sign-out-alt"></i></button>
-                </div>
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
             </div>
         </header>
 
-        <div class="analytics-container">
-            <!-- Filters Section -->
-            <div class="filters-section">
-                <h3><i class="fas fa-filter"></i> فلترة البيانات</h3>
-                <div class="filters-grid">
-                    <div class="filter-group">
-                        <label>المستوى</label>
-                        <select id="filter-level">
-                            <option value="all">جميع المستويات</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label>القسم</label>
-                        <select id="filter-section">
-                            <option value="all">جميع الأقسام</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label>المادة</label>
-                        <select id="filter-subject">
-                            <option value="all">جميع المواد</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label>الفرض</label>
-                        <select id="filter-exam">
-                            <option value="all">جميع الفروض</option>
-                        </select>
-                    </div>
+        <div class="grades-container">
+            <div class="search-section">
+                <div class="analysis-header">
+                    <h3><i class="fas fa-filter"></i> فلترة البيانات</h3>
                 </div>
+                <form id="analysis-form" class="search-form analysis-filters-grid">
+                    <select id="level-select">
+                        <option value="">كل المستويات</option>
+                    </select>
+                    <select id="class-select">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <select id="subject-select">
+                        <option value="">كل المواد</option>
+                    </select>
+                    <select id="analysis-type">
+                        <option value="distribution">توزيع النقط</option>
+                        <option value="comparison">مقارنة الأقسام</option>
+                        <option value="teachers">مقارنة الأساتذة</option>
+                    </select>
+                    <select id="teacher-subject-select" style="display:none;">
+                        <option value="">كل المواد (مقارنة الأساتذة)</option>
+                    </select>
+                    <button class="btn btn-primary" type="button" id="analyze-btn"><i class="fas fa-chart-line"></i>
+                        تحليل</button>
+                </form>
             </div>
 
-            <!-- Statistics Overview -->
-            <div class="stats-overview" id="stats-overview">
-                <div class="stat-card students">
-                    <div class="icon"><i class="fas fa-users"></i></div>
-                    <div class="value" id="total-students">0</div>
-                    <div class="label">عدد التلاميذ</div>
-                </div>
-                <div class="stat-card highest">
-                    <div class="icon"><i class="fas fa-arrow-up"></i></div>
-                    <div class="value" id="highest-grade">--</div>
-                    <div class="label">أعلى نقطة</div>
-                </div>
-                <div class="stat-card lowest">
-                    <div class="icon"><i class="fas fa-arrow-down"></i></div>
-                    <div class="value" id="lowest-grade">--</div>
-                    <div class="label">أدنى نقطة</div>
-                </div>
-                <div class="stat-card average">
-                    <div class="icon"><i class="fas fa-calculator"></i></div>
-                    <div class="value" id="average-grade">--</div>
-                    <div class="label">متوسط النقط</div>
-                </div>
-                <div class="stat-card success">
-                    <div class="icon"><i class="fas fa-check-circle"></i></div>
-                    <div class="value" id="success-rate">--%</div>
-                    <div class="label">نسبة النجاح</div>
-                </div>
-                <div class="stat-card mastery">
-                    <div class="icon"><i class="fas fa-trophy"></i></div>
-                    <div class="value" id="mastery-rate">--%</div>
-                    <div class="label">نسبة التفوق</div>
-                </div>
-                <div class="stat-card zero-grade" id="zero-grade-card" onclick="showZeroGradeStudents()"
-                    title="انقر لعرض التفاصيل">
-                    <div class="icon"><i class="fas fa-ban"></i></div>
-                    <div class="value" id="zero-count">0</div>
-                    <div class="label">الحاصلون على 0 <i class="fas fa-external-link-alt"
-                            style="font-size: 10px; margin-right: 5px;"></i></div>
-                </div>
-            </div>
+            <div id="analysis-kpis" class="analysis-kpis"></div>
 
-            <!-- Grade Distribution Table -->
-            <div class="grades-table-section">
-                <h4><i class="fas fa-table"></i> توزيع التقديرات</h4>
-                <table class="distribution-table">
-                    <thead>
-                        <tr>
-                            <th>التقدير</th>
-                            <th>النطاق</th>
-                            <th>عدد التلاميذ</th>
-                            <th>النسبة</th>
-                        </tr>
-                    </thead>
-                    <tbody id="distribution-body">
-                        <tr>
-                            <td><span class="grade-badge excellent">ممتاز</span></td>
-                            <td>16 - 20</td>
-                            <td id="count-excellent">0</td>
-                            <td id="percent-excellent">0%</td>
-                        </tr>
-                        <tr>
-                            <td><span class="grade-badge very-good">حسن جداً</span></td>
-                            <td>14 - 15.99</td>
-                            <td id="count-verygood">0</td>
-                            <td id="percent-verygood">0%</td>
-                        </tr>
-                        <tr>
-                            <td><span class="grade-badge good">حسن</span></td>
-                            <td>12 - 13.99</td>
-                            <td id="count-good">0</td>
-                            <td id="percent-good">0%</td>
-                        </tr>
-                        <tr>
-                            <td><span class="grade-badge acceptable">مقبول</span></td>
-                            <td>10 - 11.99</td>
-                            <td id="count-acceptable">0</td>
-                            <td id="percent-acceptable">0%</td>
-                        </tr>
-                        <tr>
-                            <td><span class="grade-badge weak">ضعيف</span></td>
-                            <td>0 - 9.99</td>
-                            <td id="count-weak">0</td>
-                            <td id="percent-weak">0%</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <details class="analysis-block" open>
+                <summary><i class="fas fa-gauge-high"></i> نظرة شمولية</summary>
+                <div class="analysis-block-body">
+                    <div class="analysis-grid-three">
+                        <div class="analysis-panel">
+                            <h4><i class="fas fa-chart-column"></i> عدد التلاميذ لكل تقدير</h4>
+                            <canvas id="grades-bar-chart" class="analysis-canvas"></canvas>
+                        </div>
+                        <div class="analysis-panel">
+                            <h4><i class="fas fa-chart-pie"></i> نسب التقديرات</h4>
+                            <canvas id="grades-donut-chart" class="analysis-canvas"></canvas>
+                        </div>
+                        <div class="analysis-panel">
+                            <h4><i class="fas fa-chart-bar"></i> الأصفار حسب القسم</h4>
+                            <canvas id="zero-sections-chart" class="analysis-canvas"></canvas>
+                        </div>
+                    </div>
+                    <div class="analysis-grid-two">
+                        <div class="analysis-panel">
+                            <h4><i class="fas fa-wave-square"></i> مؤشرات الأداء</h4>
+                            <div id="analysis-progress" class="analysis-progress-grid"></div>
+                        </div>
+                        <div class="analysis-panel">
+                            <h4><i class="fas fa-triangle-exclamation"></i> التلاميذ الأكثر حصولا على 0</h4>
+                            <div id="zero-students-list" class="analysis-zero-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </details>
 
-            <!-- Charts -->
-            <div class="charts-grid">
-                <div class="chart-card">
-                    <h4><i class="fas fa-chart-pie"></i> نسب التقديرات</h4>
-                    <div class="chart-container">
-                        <canvas id="distribution-pie-chart"></canvas>
+            <details class="analysis-block" open>
+                <summary><i class="fas fa-layer-group"></i> تفاصيل متقدمة</summary>
+                <div class="analysis-block-body">
+                    <div class="analysis-panel" style="margin-bottom: 12px;">
+                        <h4><i class="fas fa-chart-line"></i> تحليل تفصيلي حسب الاختيار</h4>
+                        <canvas id="detail-chart" class="analysis-detail-chart"></canvas>
+                    </div>
+                    <div class="analysis-panel">
+                        <h4><i class="fas fa-table"></i> توزيع التقديرات</h4>
+                        <div id="analysis-summary"></div>
                     </div>
                 </div>
-                <div class="chart-card">
-                    <h4><i class="fas fa-chart-bar"></i> عدد التلاميذ لكل تقدير</h4>
-                    <div class="chart-container">
-                        <canvas id="distribution-bar-chart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Progress Section -->
-            <div class="progress-section">
-                <h4><i class="fas fa-chart-line"></i> تحليل التقدم بين الفروض</h4>
-                <div class="progress-cards" id="progress-cards">
-                    <div class="progress-card">
-                        <h5>📈 نسبة التحسن</h5>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar success" id="improvement-bar" style="width: 0%"></div>
-                        </div>
-                        <div class="progress-stats">
-                            <span>تلاميذ تحسنوا: <strong id="improved-count">0</strong></span>
-                            <span id="improvement-percent">0%</span>
-                        </div>
-                    </div>
-                    <div class="progress-card">
-                        <h5>📉 نسبة التراجع</h5>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar danger" id="decline-bar" style="width: 0%"></div>
-                        </div>
-                        <div class="progress-stats">
-                            <span>تلاميذ تراجعوا: <strong id="declined-count">0</strong></span>
-                            <span id="decline-percent">0%</span>
-                        </div>
-                    </div>
-                    <div class="progress-card">
-                        <h5>➡️ نسبة الثبات</h5>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar warning" id="stable-bar" style="width: 0%"></div>
-                        </div>
-                        <div class="progress-stats">
-                            <span>تلاميذ مستقرون: <strong id="stable-count">0</strong></span>
-                            <span id="stable-percent">0%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Zero Stats by Level Section -->
-            <div class="zero-stats-section">
-                <div class="zero-stats-card">
-                    <h4><i class="fas fa-chart-bar"></i> الأصفار حسب المستوى</h4>
-                    <div class="chart-container" style="height: 250px;">
-                        <canvas id="zeros-by-level-chart"></canvas>
-                    </div>
-                </div>
-                <div class="zero-stats-card">
-                    <h4><i class="fas fa-exclamation-triangle"></i> التلاميذ الأكثر حصولاً على 0</h4>
-                    <div class="top-zeros-list" id="top-zeros-list">
-                        <!-- سيتم ملؤها بواسطة JavaScript -->
-                    </div>
-                </div>
-            </div>
+            </details>
         </div>
     </main>
 
-    <!-- Zero Grade Students Modal -->
-    <div class="zero-grade-modal" id="zero-grade-modal">
-        <div class="zero-modal-content">
-            <div class="zero-modal-header">
-                <h3><i class="fas fa-ban"></i> التلاميذ الحاصلون على 0</h3>
-                <button class="close-btn" onclick="closeZeroGradeModal()"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="zero-modal-body" id="zero-modal-body">
-                <!-- سيتم ملؤها بواسطة JavaScript -->
-            </div>
-        </div>
-    </div>
-
     <script>
-        // Data storage
-        let studentsData = [];
-        let totalStudentsCount = 0; // العدد الإجمالي للتلاميذ
-        let pieChart = null;
+        const year = '2025/2026';
+        const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js';
+        let detailChart = null;
         let barChart = null;
-        let zerosByLevelChart = null;
+        let donutChart = null;
+        let zeroSectionsChart = null;
+        let chartLoaderPromise = null;
+        let analyzeInProgress = false;
+        let allSections = [];
+        let allGradesCache = [];
+        let sectionToLevel = {};
+        const gradeBands = [
+            { key: 'excellent', label: 'ممتاز', min: 16, max: 20, color: '#2FB36D' },
+            { key: 'veryGood', label: 'حسن جدا', min: 14, max: 16, color: '#3C95D0' },
+            { key: 'good', label: 'حسن', min: 12, max: 14, color: '#F0C20E' },
+            { key: 'acceptable', label: 'مقبول', min: 10, max: 12, color: '#E67F22' },
+            { key: 'weak', label: 'ضعيف', min: 0, max: 10, color: '#E74C3C' }
+        ];
 
-        // Moroccan grading system
-        const GRADE_LEVELS = {
-            excellent: { min: 16, max: 20, label: 'ممتاز', color: '#27ae60' },
-            veryGood: { min: 14, max: 15.99, label: 'حسن جداً', color: '#3498db' },
-            good: { min: 12, max: 13.99, label: 'حسن', color: '#f1c40f' },
-            acceptable: { min: 10, max: 11.99, label: 'مقبول', color: '#e67e22' },
-            weak: { min: 0, max: 9.99, label: 'ضعيف', color: '#e74c3c' }
-        };
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await loadFilters();
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            loadStudentsData();
-            setupEventListeners();
+                const analyzeBtn = document.getElementById('analyze-btn');
+                if (analyzeBtn) analyzeBtn.addEventListener('click', analyze);
 
-            // Set user email (local app - no auth needed)
-            document.getElementById('user-email').textContent = 'المستخدم';
+                const levelSelect = document.getElementById('level-select');
+                const classSelect = document.getElementById('class-select');
+                const typeSelect = document.getElementById('analysis-type');
 
-            document.getElementById('logout-btn').addEventListener('click', () => {
-                if (confirm('هل تريد العودة للصفحة الرئيسية؟')) {
-                    window.location.href = 'index.html';
+                // Cascading: Level → Class → Subject
+                if (levelSelect) {
+                    levelSelect.addEventListener('change', () => {
+                        renderClassOptions(levelSelect.value);
+                        renderSubjectOptions(levelSelect.value, '');
+                        renderTeacherSubjectOptions(levelSelect.value, '');
+                    });
                 }
-            });
+
+                if (classSelect) {
+                    classSelect.addEventListener('change', () => {
+                        const levelName = levelSelect ? levelSelect.value : '';
+                        renderSubjectOptions(levelName, classSelect.value);
+                        renderTeacherSubjectOptions(levelName, classSelect.value);
+                    });
+                }
+
+                if (typeSelect) {
+                    typeSelect.addEventListener('change', () => {
+                        const levelName = levelSelect ? levelSelect.value : '';
+                        const className = classSelect ? classSelect.value : '';
+                        renderTeacherSubjectOptions(levelName, className);
+                        toggleTeacherSubjectFilter();
+                    });
+                }
+
+                const form = document.getElementById('analysis-form');
+                if (form) {
+                    form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        await analyze();
+                    });
+                }
+
+                await analyze();
+            } catch (error) {
+                console.error('Analytics init error:', error);
+                showToast('تعذر تحميل صفحة التحليل', 'error');
+            }
         });
 
-        function setupEventListeners() {
-            // Sidebar toggle
-            document.getElementById('menu-toggle').addEventListener('click', () => {
-                document.getElementById('sidebar').classList.toggle('collapsed');
-            });
+        function ensureChartJsLoaded() {
+            if (window.Chart) return Promise.resolve(window.Chart);
+            if (chartLoaderPromise) return chartLoaderPromise;
 
-            // Filters
-            document.getElementById('filter-level').addEventListener('change', (e) => {
-                updateSectionsForLevel(e.target.value);
-                updateSubjectsForFilters();
-                updateExamsForFilters();
-                updateAnalytics();
-            });
-            document.getElementById('filter-section').addEventListener('change', () => {
-                updateSubjectsForFilters();
-                updateExamsForFilters();
-                updateAnalytics();
-            });
-            document.getElementById('filter-subject').addEventListener('change', () => {
-                updateExamsForFilters();
-                updateAnalytics();
-            });
-            document.getElementById('filter-exam').addEventListener('change', updateAnalytics);
-        }
-
-        function updateSectionsForLevel(levelCode) {
-            const sectionSelect = document.getElementById('filter-section');
-            sectionSelect.innerHTML = '<option value="all">جميع الأقسام</option>';
-
-            let sections;
-            if (levelCode === 'all') {
-                sections = [...new Set(studentsData.map(s => s.section))].filter(s => s);
-            } else {
-                sections = [...new Set(
-                    studentsData
-                        .filter(s => getLevelFromSection(s.section).code === levelCode)
-                        .map(s => s.section)
-                )].filter(s => s);
-            }
-
-            sections.sort().forEach(section => {
-                sectionSelect.innerHTML += `<option value="${section}">${section}</option>`;
-            });
-        }
-
-        function updateSubjectsForFilters() {
-            const levelFilter = document.getElementById('filter-level').value;
-            const sectionFilter = document.getElementById('filter-section').value;
-            const subjectSelect = document.getElementById('filter-subject');
-
-            subjectSelect.innerHTML = '<option value="all">جميع المواد</option>';
-
-            let filtered = studentsData;
-            if (levelFilter !== 'all') {
-                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
-            }
-            if (sectionFilter !== 'all') {
-                filtered = filtered.filter(s => s.section === sectionFilter);
-            }
-
-            const subjects = new Set();
-            filtered.forEach(s => {
-                s.grades.forEach(g => subjects.add(g.subject));
-            });
-
-            [...subjects].sort().forEach(subject => {
-                subjectSelect.innerHTML += `<option value="${subject}">${translateSubject(subject)}</option>`;
-            });
-        }
-
-        function updateExamsForFilters() {
-            const levelFilter = document.getElementById('filter-level').value;
-            const sectionFilter = document.getElementById('filter-section').value;
-            const subjectFilter = document.getElementById('filter-subject').value;
-            const examSelect = document.getElementById('filter-exam');
-
-            examSelect.innerHTML = '<option value="all">جميع الفروض</option>';
-
-            let filtered = studentsData;
-            if (levelFilter !== 'all') {
-                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
-            }
-            if (sectionFilter !== 'all') {
-                filtered = filtered.filter(s => s.section === sectionFilter);
-            }
-
-            const exams = new Set();
-            filtered.forEach(student => {
-                student.grades.forEach(subjectGrade => {
-                    if (subjectFilter !== 'all' && subjectGrade.subject !== subjectFilter) return;
-
-                    if (subjectGrade.grades && subjectGrade.grades.length > 0) {
-                        subjectGrade.grades.forEach((g, idx) => {
-                            const name = typeof g === 'object' ? (g.name || `فرض ${idx + 1}`) : `فرض ${idx + 1}`;
-                            exams.add(name);
-                        });
-                    }
-                });
-            });
-
-            [...exams].sort().forEach(exam => {
-                examSelect.innerHTML += `<option value="${exam}">${exam}</option>`;
-            });
-        }
-
-        // Load from localStorage
-        function loadGradesFromLocalStorage() {
-            try {
-                const saved = localStorage.getItem('studentGrades');
-                if (saved) {
-                    return JSON.parse(saved);
-                }
-            } catch (e) {
-                console.error('Error loading from localStorage:', e);
-            }
-            return null;
-        }
-
-        const currentSchoolYear = '2025/2026'; // الموسم الدراسي الحالي
-
-        async function loadStudentsData() {
-            try {
-                console.log('Loading students data from SQLite for year:', currentSchoolYear);
-
-                // Check if Electron API is available
-                if (!window.api) {
-                    console.warn('Electron API not available, trying localStorage fallback');
-                    const localGrades = loadGradesFromLocalStorage();
-                    if (localGrades && localGrades.length > 0) {
-                        studentsData = localGrades.filter(s => s.grades && s.grades.length > 0);
-                        totalStudentsCount = localGrades.length;
-                        populateFilters();
-                        updateAnalytics();
-                    }
+            chartLoaderPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector(`script[data-dynamic-src="${CHART_JS_CDN}"]`);
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(window.Chart), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), { once: true });
                     return;
                 }
 
-                // جلب التلاميذ من SQLite
-                const students = await window.api.students.getAll(currentSchoolYear);
+                const script = document.createElement('script');
+                script.src = CHART_JS_CDN;
+                script.async = true;
+                script.defer = true;
+                script.dataset.dynamicSrc = CHART_JS_CDN;
+                script.onload = () => resolve(window.Chart);
+                script.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
+                document.head.appendChild(script);
+            });
 
-                // جلب النقط من SQLite
-                const grades = await window.api.grades.getAll(currentSchoolYear);
-
-                console.log('Loaded students:', students?.length || 0, 'Grades records:', grades?.length || 0);
-
-                if (students && students.length > 0) {
-                    // إنشاء خريطة للنقط حسب معرف التلميذ
-                    const gradesMap = new Map();
-                    if (grades && grades.length > 0) {
-                        grades.forEach(g => {
-                            if (!gradesMap.has(g.student_id)) {
-                                gradesMap.set(g.student_id, []);
-                            }
-                            gradesMap.get(g.student_id).push({
-                                subject: g.subject,
-                                moyenne: g.moyenne,
-                                grades: g.grades_data ? JSON.parse(g.grades_data) : []
-                            });
-                        });
-                    }
-
-                    // دمج التلاميذ مع نقطهم
-                    let allStudents = students.map(s => ({
-                        id: s.id,
-                        docId: s.id.toString(),
-                        code: s.code,
-                        firstName: s.first_name,
-                        familyName: s.family_name,
-                        section: s.section,
-                        level: s.level,
-                        gender: s.gender,
-                        grades: gradesMap.get(s.id) || [],
-                        generalAverage: s.general_average
-                    }));
-
-                    // Merge with localStorage if available
-                    const localGrades = loadGradesFromLocalStorage();
-                    if (localGrades && localGrades.length > 0) {
-                        const localMap = new Map(localGrades.map(s => [s.docId || s.id?.toString(), s]));
-                        allStudents = allStudents.map(student => {
-                            const local = localMap.get(student.docId);
-                            if (local && local.grades && local.grades.length > 0) {
-                                return {
-                                    ...student,
-                                    grades: local.grades,
-                                    generalAverage: local.generalAverage || student.generalAverage
-                                };
-                            }
-                            return student;
-                        });
-                    }
-
-                    studentsData = allStudents.filter(s => s.grades && s.grades.length > 0);
-                    totalStudentsCount = allStudents.length;
-                    console.log('Total students:', totalStudentsCount, 'With grades:', studentsData.length);
-
-                    populateFilters();
-                    updateAnalytics();
-                } else {
-                    // Fallback to localStorage
-                    const localGrades = loadGradesFromLocalStorage();
-                    if (localGrades && localGrades.length > 0) {
-                        studentsData = localGrades.filter(s => s.grades && s.grades.length > 0);
-                        totalStudentsCount = localGrades.length;
-                        populateFilters();
-                        updateAnalytics();
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading students:', error);
-                // Fallback to localStorage on error
-                const localGrades = loadGradesFromLocalStorage();
-                if (localGrades && localGrades.length > 0) {
-                    studentsData = localGrades.filter(s => s.grades && s.grades.length > 0);
-                    totalStudentsCount = localGrades.length;
-                    populateFilters();
-                    updateAnalytics();
-                }
-            }
+            return chartLoaderPromise;
         }
 
-        function populateFilters() {
-            // Get unique levels with their order
-            const levelsMap = new Map();
-            studentsData.forEach(s => {
-                const level = getLevelFromSection(s.section);
-                if (!levelsMap.has(level.code)) {
-                    levelsMap.set(level.code, { code: level.code, name: level.name, order: level.order });
-                }
-            });
+        function destroyAnalysisCharts() {
+            if (detailChart) detailChart.destroy();
+            if (barChart) barChart.destroy();
+            if (donutChart) donutChart.destroy();
+            if (zeroSectionsChart) zeroSectionsChart.destroy();
+            detailChart = null;
+            barChart = null;
+            donutChart = null;
+            zeroSectionsChart = null;
+        }
 
-            // Sort levels by order (TC first, then 1BAC, then 2BAC)
-            const sortedLevels = [...levelsMap.values()].sort((a, b) => a.order - b.order);
+        function asNumber(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : NaN;
+        }
 
-            const levelSelect = document.getElementById('filter-level');
-            levelSelect.innerHTML = '<option value="all">جميع المستويات</option>';
-            sortedLevels.forEach(level => {
-                levelSelect.innerHTML += `<option value="${level.code}">${level.name}</option>`;
-            });
+        function avg(values) {
+            if (!values.length) return 0;
+            return values.reduce((s, x) => s + x, 0) / values.length;
+        }
 
-            // Get unique sections
-            const sections = [...new Set(studentsData.map(s => s.section))].filter(s => s);
-            const sectionSelect = document.getElementById('filter-section');
-            sectionSelect.innerHTML = '<option value="all">جميع الأقسام</option>';
-            sections.sort().forEach(section => {
-                sectionSelect.innerHTML += `<option value="${section}">${section}</option>`;
-            });
+        function percentage(part, whole) {
+            if (!whole) return 0;
+            return (part / whole) * 100;
+        }
 
-            // Get unique subjects
-            const subjects = new Set();
-            studentsData.forEach(s => {
-                s.grades.forEach(g => subjects.add(g.subject));
-            });
-            const subjectSelect = document.getElementById('filter-subject');
-            subjectSelect.innerHTML = '<option value="all">جميع المواد</option>';
-            [...subjects].sort().forEach(subject => {
-                subjectSelect.innerHTML += `<option value="${subject}">${translateSubject(subject)}</option>`;
-            });
+        function median(values) {
+            if (!values.length) return 0;
+            const sorted = [...values].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        }
+
+        function stdDev(values) {
+            if (values.length < 2) return 0;
+            const m = avg(values);
+            const variance = values.reduce((s, x) => s + (x - m) ** 2, 0) / values.length;
+            return Math.sqrt(variance);
+        }
+
+        function studentIdentity(record) {
+            return String(record.student_id || record.student_code || record.full_name || 'غير محدد');
+        }
+
+        function studentLabel(record) {
+            return String(record.full_name || record.student_code || record.student_id || 'غير محدد');
+        }
+
+        function tooltipLabelWithPercent(context, total) {
+            const label = context.label || '';
+            const value = Number(context.raw || 0);
+            const pct = percentage(value, total);
+            return `${label}: ${value} (${pct.toFixed(1)}%)`;
         }
 
         function getLevelFromSection(section) {
-            if (!section) return { code: 'other', name: 'أخرى', order: 99 };
-            const s = section.toUpperCase();
+            const s = String(section || '').trim();
+            if (!s) return '';
+            if (sectionToLevel[s]) return sectionToLevel[s];
 
-            // استخراج البادئة (قبل الرقم مثل TCSF-1 → TCSF)
-            const prefix = s.replace(/-\d+$/, '');
+            const compact = s.replace(/[\s_]/g, '').toUpperCase();
+            if (compact.startsWith('TCS')) return 'الجذع المشترك';
+            if (compact.startsWith('1BACSEF')) return 'الأولى باكالوريا العلوم التجريبية – خيار فرنسية';
+            if (compact.startsWith('1BACSMF')) return 'الأولى باكالوريا العلوم الرياضية – خيار فرنسية';
+            if (compact.startsWith('1BACSH')) return 'الأولى باكالوريا العلوم الإنسانية';
+            if (compact.startsWith('1BACSEG')) return 'الأولى باكالوريا العلوم الاقتصادية والتدبير';
+            if (compact.startsWith('1BAC')) return 'الأولى باكالوريا';
+            if (compact.startsWith('2BACSPF')) return 'الثانية باكالوريا العلوم الفيزيائية – خيار فرنسية';
+            if (compact.startsWith('2BACSE')) return 'الثانية باكالوريا علوم الحياة والأرض';
+            if (compact.startsWith('2BACSH')) return 'الثانية باكالوريا العلوم الإنسانية';
+            if (compact.startsWith('2BAC')) return 'الثانية باكالوريا';
 
-            // === الجذع المشترك ===
-            if (prefix === 'TCSF' || prefix === 'TCS' || s.startsWith('TCSF')) {
-                return { code: 'tcsf', name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 };
-            }
-            if (prefix === 'TCSA' || s.startsWith('TCSA')) {
-                return { code: 'tcsa', name: 'الجذع المشترك العلمي خيار عربية', order: 2 };
-            }
-            if (prefix === 'TCLSH' || prefix === 'TCL' || s.startsWith('TCLSH') || s.startsWith('TCL')) {
-                return { code: 'tclsh', name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 };
-            }
-
-            // === الأولى باكالوريا ===
-            if (prefix === '1BACSM' || s.startsWith('1BACSM')) {
-                return { code: '1bacsm', name: 'الأولى باكالوريا العلوم الرياضية خيار فرنسية', order: 4 };
-            }
-            if (prefix === '1BACSH' || prefix === '1BACL' || s.startsWith('1BACSH') || s.startsWith('1BACL')) {
-                return { code: '1bacsh', name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 5 };
-            }
-            if (prefix === '1BACSEF' || s.startsWith('1BACSEF')) {
-                return { code: '1bacsef', name: 'الأولى باكالوريا علوم تجريبية خيار فرنسية', order: 6 };
-            }
-            if (prefix === '1BACECO' || prefix === '1BACGE' || s.startsWith('1BACECO') || s.startsWith('1BACGE')) {
-                return { code: '1baceco', name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 7 };
-            }
-            if (prefix === '1BACSEA' || s.startsWith('1BACSEA')) {
-                return { code: '1bacsea', name: 'الأولى باكالوريا علوم تجريبية خيار عربية', order: 8 };
-            }
-            if (prefix === '1BACSE' || s.startsWith('1BACSE')) {
-                return { code: '1bacse', name: 'الأولى باكالوريا علوم تجريبية', order: 6 };
-            }
-
-            // === الثانية باكالوريا ===
-            if (prefix === '2BACSA' || s.startsWith('2BACSA')) {
-                return { code: '2bacsa', name: 'الثانية باكالوريا علوم شرعية', order: 9 };
-            }
-            if (prefix === '2BACSM' || s.startsWith('2BACSM')) {
-                return { code: '2bacsm', name: 'الثانية باكالوريا العلوم الرياضية', order: 10 };
-            }
-            if (prefix === '2BACSVT' || s.startsWith('2BACSVT') || s.includes('SVT')) {
-                return { code: '2bacsvt', name: 'الثانية باكالوريا علوم الحياة والأرض', order: 11 };
-            }
-            if (prefix === '2BACPC' || s.startsWith('2BACPC') || (s.includes('2BAC') && s.includes('PC'))) {
-                return { code: '2bacpc', name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 12 };
-            }
-            if (prefix === '2BACSH' || prefix === '2BACL' || s.startsWith('2BACSH') || s.startsWith('2BACL')) {
-                return { code: '2bacsh', name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 13 };
-            }
-            if (prefix === '2BACECO' || prefix === '2BACGC' || s.includes('ECO') || s.includes('GESTION')) {
-                return { code: '2baceco', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 14 };
-            }
-
-            // Fallbacks
-            if (s.includes('1BAC')) return { code: '1bac', name: 'الأولى باكالوريا', order: 15 };
-            if (s.includes('2BAC')) return { code: '2bac', name: 'الثانية باكالوريا', order: 16 };
-            if (s.startsWith('TC')) return { code: 'tc', name: 'الجذع المشترك', order: 4 };
-
-            return { code: 'other', name: section, order: 99 };
+            if (s.includes('-')) return s.split('-')[0].trim();
+            if (s.includes(' ')) return s.split(' ')[0].trim();
+            return s;
         }
 
-        function getLevelInfo(code) {
-            const levels = {
-                'tcsf': 'الجذع المشترك العلمي خيار فرنسية',
-                'tcsa': 'الجذع المشترك العلمي خيار عربية',
-                'tclsh': 'الجذع المشترك للآداب والعلوم الإنسانية',
-                'tc': 'الجذع المشترك',
-                '1bacsm': 'الأولى باكالوريا العلوم الرياضية خيار فرنسية',
-                '1bacsef': 'الأولى باكالوريا علوم تجريبية خيار فرنسية',
-                '1bacse': 'الأولى باكالوريا علوم تجريبية',
-                '1baceco': 'الأولى باكالوريا علوم الإقتصاد والتدبير',
-                '1bacsh': 'الأولى باكالوريا آداب وعلوم إنسانية',
-                '1bac': 'الأولى باكالوريا',
-                '2bacsm': 'الثانية باكالوريا العلوم الرياضية',
-                '2bacpc': 'الثانية باكالوريا علوم فيزيائية خيار فرنسية',
-                '2bacsvt': 'الثانية باكالوريا علوم الحياة والأرض',
-                '2baceco': 'الثانية باكالوريا علوم الإقتصاد والتدبير',
-                '2bacsh': 'الثانية باكالوريا آداب وعلوم إنسانية',
-                '2bac': 'الثانية باكالوريا',
-                'other': 'أخرى'
-            };
-            return levels[code] || code;
-        }
+        function renderClassOptions(selectedLevel = '') {
+            const classSelect = document.getElementById('class-select');
+            if (!classSelect) return;
+            classSelect.innerHTML = '<option value="">كل الأقسام</option>';
 
-        // ترجمة أسماء المواد من الفرنسية إلى العربية
-        function translateSubject(subject) {
-            if (!subject) return '';
-            const s = subject.toUpperCase().trim();
+            const list = selectedLevel
+                ? allSections.filter(section => getLevelFromSection(section) === selectedLevel)
+                : allSections.slice();
 
-            const translations = {
-                // العلوم
-                'MATHEMATIQUES': 'الرياضيات',
-                'MATH': 'الرياضيات',
-                'MATHS': 'الرياضيات',
-                'SC. DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-                'SVT': 'علوم الحياة والأرض',
-                'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-                'PHYSIQUE': 'الفيزياء',
-                'CHIMIE': 'الكيمياء',
-                'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
-                'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء',
-                'PC': 'الفيزياء والكيمياء',
-                'INFORMATIQUE': 'المعلوميات',
-
-                // اللغات
-                'FRANCAIS': 'الفرنسية',
-                'FRANÇAIS': 'الفرنسية',
-                'LANGUE FRANCAISE': 'الفرنسية',
-                'ARABE': 'العربية',
-                'LANGUE ARABE': 'العربية',
-                'ANGLAIS': 'الإنجليزية',
-                'LANGUE ANGLAISE': 'الإنجليزية',
-                'ESPAGNOL': 'الإسبانية',
-                'ALLEMAND': 'الألمانية',
-                'ITALIEN': 'الإيطالية',
-
-                // العلوم الإنسانية
-                'PHILOSOPHIE': 'الفلسفة',
-                'PHILO': 'الفلسفة',
-                'HISTOIRE': 'التاريخ',
-                'GEOGRAPHIE': 'الجغرافيا',
-                'HISTOIRE-GEOGRAPHIE': 'التاريخ والجغرافيا',
-                'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا',
-                'HG': 'التاريخ والجغرافيا',
-                'HIST-GEO': 'التاريخ والجغرافيا',
-                'EDUCATION ISLAMIQUE': 'التربية الإسلامية',
-                'ISLAMIC': 'التربية الإسلامية',
-                'ED. ISLAMIQUE': 'التربية الإسلامية',
-
-                // مواد أخرى
-                'ECONOMIE': 'الاقتصاد',
-                'ECONOMIE GENERALE': 'الاقتصاد العام',
-                'COMPTABILITE': 'المحاسبة',
-                'GESTION': 'التدبير',
-                'DROIT': 'القانون',
-                'ORGANISATION': 'التنظيم',
-                'ORGANISATION DES ENTREPRISES': 'تنظيم المقاولات',
-                'EPS': 'التربية البدنية',
-                'EDUCATION PHYSIQUE': 'التربية البدنية',
-                'SPORT': 'التربية البدنية',
-                'TRADUCTION': 'الترجمة',
-                'LITTERATURE': 'الأدب',
-                'LITTERATURE ARABE': 'الأدب العربي',
-                'CONDUITE': 'السلوك',
-                'STATISTIQUES': 'الإحصاء',
-                'STAT': 'الإحصاء'
-            };
-
-            // البحث عن الترجمة المطابقة تماماً
-            if (translations[s]) {
-                return translations[s];
-            }
-
-            // البحث عن الترجمة الجزئية
-            for (const [french, arabic] of Object.entries(translations)) {
-                if (s.includes(french) || french.includes(s)) {
-                    return arabic;
-                }
-            }
-
-            // إرجاع الاسم الأصلي إذا لم توجد ترجمة
-            return subject;
-        }
-
-        function updateAnalytics() {
-            const levelFilter = document.getElementById('filter-level').value;
-            const sectionFilter = document.getElementById('filter-section').value;
-            const subjectFilter = document.getElementById('filter-subject').value;
-            const examFilter = document.getElementById('filter-exam').value;
-
-            // Filter students
-            let filtered = studentsData;
-            if (levelFilter !== 'all') {
-                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
-            }
-            if (sectionFilter !== 'all') {
-                filtered = filtered.filter(s => s.section === sectionFilter);
-            }
-
-            // Get all grades for analysis
-            let allGrades = [];
-            let gradesByExam = {};
-
-            filtered.forEach(student => {
-                student.grades.forEach(subjectGrade => {
-                    if (subjectFilter !== 'all' && subjectGrade.subject !== subjectFilter) return;
-
-                    // Individual exam grades
-                    if (subjectGrade.grades && subjectGrade.grades.length > 0) {
-                        subjectGrade.grades.forEach((g, idx) => {
-                            const value = typeof g === 'object' ? g.value : g;
-                            const name = typeof g === 'object' ? (g.name || `فرض ${idx + 1}`) : `فرض ${idx + 1}`;
-                            if (value !== null && value !== undefined) {
-                                if (!gradesByExam[name]) gradesByExam[name] = [];
-                                gradesByExam[name].push({ studentCode: student.code, value: value });
-
-                                // إذا تم اختيار فرض معين، نضيف فقط نقط هذا الفرض
-                                if (examFilter !== 'all') {
-                                    if (name === examFilter) {
-                                        allGrades.push(value);
-                                    }
-                                }
-                            }
-                        });
-                    }
-
-                    // إذا كان "جميع الفروض"، نستخدم معدل المادة
-                    if (examFilter === 'all') {
-                        if (subjectGrade.moyenne !== null && subjectGrade.moyenne !== undefined) {
-                            allGrades.push(subjectGrade.moyenne);
-                        }
-                    }
+            list
+                .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
+                .forEach(section => {
+                    const opt = document.createElement('option');
+                    opt.value = section;
+                    opt.textContent = section;
+                    classSelect.appendChild(opt);
                 });
-            });
-
-            // حساب معدلات التلاميذ للتوزيع (generalAverage)
-            const studentAverages = filtered
-                .filter(s => s.generalAverage !== null && s.generalAverage !== undefined)
-                .map(s => s.generalAverage);
-
-            // Update statistics - pass total students count
-            updateStatistics(allGrades, totalStudentsCount, filtered);
-            // تمرير معدلات التلاميذ للتوزيع بدلاً من نقط المواد
-            updateDistribution(studentAverages);
-            updateCharts(studentAverages);
-            updateProgress(gradesByExam);
-            updateZeroStats();
         }
 
-        function updateStatistics(grades, totalStudents, filteredStudents) {
-            document.getElementById('total-students').textContent = totalStudents;
-
-            // حساب عدد الحاصلين على 0 من النقط الفردية للفروض
-            const zeroGradesList = getZeroGradeStudents();
-            const zeroCount = zeroGradesList.length;
-
-            if (grades.length === 0) {
-                document.getElementById('highest-grade').textContent = '--';
-                document.getElementById('lowest-grade').textContent = '--';
-                document.getElementById('average-grade').textContent = '--';
-                document.getElementById('success-rate').textContent = '--%';
-                document.getElementById('mastery-rate').textContent = '--%';
-                document.getElementById('zero-count').textContent = zeroCount;
-                return;
+        function getAvailableSubjects(selectedLevel = '', selectedClass = '') {
+            let filteredGrades = allGradesCache;
+            if (selectedClass) {
+                filteredGrades = filteredGrades.filter(g => (g.section || '') === selectedClass);
+            } else if (selectedLevel) {
+                filteredGrades = filteredGrades.filter(g => getLevelFromSection(g.section) === selectedLevel);
             }
 
-            const highest = Math.max(...grades);
-            const lowest = Math.min(...grades);
-            const average = grades.reduce((a, b) => a + b, 0) / grades.length;
-            const successCount = grades.filter(g => g >= 10).length;
-            const masteryCount = grades.filter(g => g >= 14).length;
-
-            document.getElementById('highest-grade').textContent = highest.toFixed(2);
-            document.getElementById('lowest-grade').textContent = lowest.toFixed(2);
-            document.getElementById('average-grade').textContent = average.toFixed(2);
-            document.getElementById('success-rate').textContent = ((successCount / grades.length) * 100).toFixed(1) + '%';
-            document.getElementById('mastery-rate').textContent = ((masteryCount / grades.length) * 100).toFixed(1) + '%';
-            document.getElementById('zero-count').textContent = zeroCount;
-        }
-
-        function updateDistribution(grades) {
-            const total = grades.length;
-            const distribution = {
-                excellent: grades.filter(g => g >= 16).length,
-                veryGood: grades.filter(g => g >= 14 && g < 16).length,
-                good: grades.filter(g => g >= 12 && g < 14).length,
-                acceptable: grades.filter(g => g >= 10 && g < 12).length,
-                weak: grades.filter(g => g < 10).length
-            };
-
-            document.getElementById('count-excellent').textContent = distribution.excellent;
-            document.getElementById('count-verygood').textContent = distribution.veryGood;
-            document.getElementById('count-good').textContent = distribution.good;
-            document.getElementById('count-acceptable').textContent = distribution.acceptable;
-            document.getElementById('count-weak').textContent = distribution.weak;
-
-            const pct = (count) => total > 0 ? ((count / total) * 100).toFixed(1) + '%' : '0%';
-            document.getElementById('percent-excellent').textContent = pct(distribution.excellent);
-            document.getElementById('percent-verygood').textContent = pct(distribution.veryGood);
-            document.getElementById('percent-good').textContent = pct(distribution.good);
-            document.getElementById('percent-acceptable').textContent = pct(distribution.acceptable);
-            document.getElementById('percent-weak').textContent = pct(distribution.weak);
-
-            return distribution;
-        }
-
-        function updateCharts(grades) {
-            const distribution = {
-                excellent: grades.filter(g => g >= 16).length,
-                veryGood: grades.filter(g => g >= 14 && g < 16).length,
-                good: grades.filter(g => g >= 12 && g < 14).length,
-                acceptable: grades.filter(g => g >= 10 && g < 12).length,
-                weak: grades.filter(g => g < 10).length
-            };
-
-            const labels = ['ممتاز', 'حسن جداً', 'حسن', 'مقبول', 'ضعيف'];
-            const data = [distribution.excellent, distribution.veryGood, distribution.good, distribution.acceptable, distribution.weak];
-            const colors = ['#27ae60', '#3498db', '#f1c40f', '#e67e22', '#e74c3c'];
-
-            // Pie Chart
-            const pieCtx = document.getElementById('distribution-pie-chart').getContext('2d');
-            if (pieChart) pieChart.destroy();
-            pieChart = new Chart(pieCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: data,
-                        backgroundColor: colors,
-                        borderWidth: 2,
-                        borderColor: '#fff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            rtl: true,
-                            labels: {
-                                font: { family: 'Tajawal', size: 12 },
-                                padding: 15
-                            }
-                        }
+            const subjects = new Set();
+            const invalidSubjectNames = ['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة'];
+            filteredGrades.forEach(g => {
+                if (g.subject) {
+                    const normalizedSubject = normalizeSubjectName(g.subject);
+                    const normalized = normalizedSubject.toLowerCase();
+                    if (!invalidSubjectNames.includes(normalized)) {
+                        subjects.add(normalizedSubject);
                     }
                 }
             });
 
-            // Bar Chart
-            const barCtx = document.getElementById('distribution-bar-chart').getContext('2d');
-            if (barChart) barChart.destroy();
-            barChart = new Chart(barCtx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'عدد التلاميذ',
-                        data: data,
-                        backgroundColor: colors,
-                        borderRadius: 8
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: 'x',
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { font: { family: 'Tajawal' } }
-                        },
-                        x: {
-                            ticks: { font: { family: 'Tajawal' } }
-                        }
-                    }
-                }
+            return Array.from(subjects).sort((a, b) => String(a).localeCompare(String(b), 'ar'));
+        }
+
+        function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
+            const subjectSelect = document.getElementById('subject-select');
+            if (!subjectSelect) return;
+            subjectSelect.innerHTML = '<option value="">كل المواد</option>';
+
+            getAvailableSubjects(selectedLevel, selectedClass).forEach(subject => {
+                const opt = document.createElement('option');
+                opt.value = subject;
+                opt.textContent = subject;
+                subjectSelect.appendChild(opt);
             });
         }
 
-        function updateProgress(gradesByExam) {
-            const examNames = Object.keys(gradesByExam);
-            if (examNames.length < 2) {
-                // Not enough exams to compare
-                document.getElementById('improved-count').textContent = '0';
-                document.getElementById('declined-count').textContent = '0';
-                document.getElementById('stable-count').textContent = '0';
-                document.getElementById('improvement-percent').textContent = '0%';
-                document.getElementById('decline-percent').textContent = '0%';
-                document.getElementById('stable-percent').textContent = '0%';
-                document.getElementById('improvement-bar').style.width = '0%';
-                document.getElementById('decline-bar').style.width = '0%';
-                document.getElementById('stable-bar').style.width = '0%';
-                return;
-            }
+        function renderTeacherSubjectOptions(selectedLevel = '', selectedClass = '') {
+            const teacherSubjectSelect = document.getElementById('teacher-subject-select');
+            if (!teacherSubjectSelect) return;
+            const previousValue = teacherSubjectSelect.value;
+            teacherSubjectSelect.innerHTML = '<option value="">كل المواد (مقارنة الأساتذة)</option>';
 
-            // Compare first and last exam
-            const firstExam = gradesByExam[examNames[0]];
-            const lastExam = gradesByExam[examNames[examNames.length - 1]];
-
-            // Create maps for comparison
-            const firstMap = new Map(firstExam.map(g => [g.studentCode, g.value]));
-            const lastMap = new Map(lastExam.map(g => [g.studentCode, g.value]));
-
-            let improved = 0, declined = 0, stable = 0;
-
-            firstMap.forEach((firstValue, code) => {
-                if (lastMap.has(code)) {
-                    const lastValue = lastMap.get(code);
-                    const diff = lastValue - firstValue;
-                    if (diff > 0.5) improved++;
-                    else if (diff < -0.5) declined++;
-                    else stable++;
-                }
+            getAvailableSubjects(selectedLevel, selectedClass).forEach(subject => {
+                const opt = document.createElement('option');
+                opt.value = subject;
+                opt.textContent = subject;
+                teacherSubjectSelect.appendChild(opt);
             });
 
-            const total = improved + declined + stable;
-            if (total === 0) return;
-
-            document.getElementById('improved-count').textContent = improved;
-            document.getElementById('declined-count').textContent = declined;
-            document.getElementById('stable-count').textContent = stable;
-
-            const improvedPct = ((improved / total) * 100).toFixed(1);
-            const declinedPct = ((declined / total) * 100).toFixed(1);
-            const stablePct = ((stable / total) * 100).toFixed(1);
-
-            document.getElementById('improvement-percent').textContent = improvedPct + '%';
-            document.getElementById('decline-percent').textContent = declinedPct + '%';
-            document.getElementById('stable-percent').textContent = stablePct + '%';
-
-            document.getElementById('improvement-bar').style.width = improvedPct + '%';
-            document.getElementById('decline-bar').style.width = declinedPct + '%';
-            document.getElementById('stable-bar').style.width = stablePct + '%';
+            if (previousValue && Array.from(teacherSubjectSelect.options).some(opt => opt.value === previousValue)) {
+                teacherSubjectSelect.value = previousValue;
+            }
         }
 
-        // ============ ZERO GRADE STUDENTS FUNCTIONS ============
+        function toggleTeacherSubjectFilter() {
+            const typeSelect = document.getElementById('analysis-type');
+            const subjectSelect = document.getElementById('subject-select');
+            const teacherSubjectSelect = document.getElementById('teacher-subject-select');
+            if (!typeSelect || !subjectSelect || !teacherSubjectSelect) return;
 
-        // متغير لتخزين بيانات التلاميذ الحاصلين على 0
-        let zeroGradeStudentsList = [];
+            const isTeacherMode = typeSelect.value === 'teachers';
+            subjectSelect.style.display = isTeacherMode ? 'none' : '';
+            teacherSubjectSelect.style.display = isTeacherMode ? '' : 'none';
+        }
 
-        // جلب التلاميذ الحاصلين على 0
-        function getZeroGradeStudents() {
-            const levelFilter = document.getElementById('filter-level').value;
-            const sectionFilter = document.getElementById('filter-section').value;
-            const subjectFilter = document.getElementById('filter-subject').value;
+        // Calculate general average per student (average of all subject averages)
+        function calculateStudentGeneralAverage(grades, studentId) {
+            const studentGrades = grades.filter(g => studentIdentity(g) === studentId);
+            const bySubject = {};
+            studentGrades.forEach(g => {
+                const subject = normalizeSubjectName(g.subject);
+                if (!bySubject[subject]) bySubject[subject] = [];
+                bySubject[subject].push(g.grade);
+            });
+            const subjectAverages = Object.values(bySubject).map(arr => avg(arr));
+            return avg(subjectAverages);
+        }
 
-            let filtered = studentsData;
-            if (levelFilter !== 'all') {
-                filtered = filtered.filter(s => getLevelFromSection(s.section).code === levelFilter);
+        function normalizeSubjectName(subject) {
+            const clean = String(subject || '')
+                .replace(/\s*\(\s*فرض\s*\d+\s*\)\s*$/i, '')
+                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
+                .trim();
+            return clean || 'غير محدد';
+        }
+
+        function normalizeLoose(value) {
+            return String(value || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim()
+                .toLowerCase()
+                .replace(/[\u064B-\u065F]/g, '')
+                .replace(/[^a-z0-9\u0600-\u06FF]+/g, '');
+        }
+
+        function sanitizeTeacherName(value) {
+            const raw = String(value || '')
+                .replace(/_/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (!raw) return '';
+            if (/^\d+([.,]\d+)?$/.test(raw)) return '';
+
+            const normalized = normalizeLoose(raw);
+            if (!normalized) return '';
+
+            const invalidExact = new Set([
+                'teacher',
+                'teachername',
+                'enseignant',
+                'prof',
+                'professeur',
+                'استاذ',
+                'الاستاذ',
+                'الأستاذ',
+                'ملاحظات',
+                'ملاحظة',
+                'ملاحظاتالاستاذ',
+                'ملاحظاتالأستاذ',
+                'notes',
+                'note',
+                'observation',
+                'observations',
+                'comment',
+                'comments',
+                'remarque',
+                'remarques',
+                'غيرمحدد',
+                'unknown',
+                'na',
+                'n/a'
+            ].map(normalizeLoose));
+            if (invalidExact.has(normalized)) return '';
+
+            const invalidContains = ['ملاحظات', 'ملاحظة', 'observation', 'comment', 'remarque', 'notes', 'note'].map(
+                normalizeLoose
+            );
+            if (invalidContains.some((x) => normalized.includes(x))) return '';
+
+            return raw;
+        }
+
+        function buildTeacherPerformanceRows(grades) {
+            const byTeacher = new Map();
+            grades.forEach(g => {
+                const teacher = sanitizeTeacherName(g.teacher_name);
+                if (!teacher) return;
+
+                let agg = byTeacher.get(teacher);
+                if (!agg) {
+                    agg = { sum: 0, count: 0, pass: 0, students: new Set() };
+                    byTeacher.set(teacher, agg);
+                }
+
+                agg.sum += g.grade;
+                agg.count += 1;
+                if (g.grade >= 10) agg.pass += 1;
+                agg.students.add(studentIdentity(g));
+            });
+
+            return Array.from(byTeacher.entries())
+                .map(([name, stats]) => ({
+                    name,
+                    avg: stats.count ? stats.sum / stats.count : 0,
+                    passRate: stats.count ? percentage(stats.pass, stats.count) : 0,
+                    gradeCount: stats.count,
+                    studentCount: stats.students.size
+                }))
+                .sort((a, b) => b.avg - a.avg || b.passRate - a.passRate || b.gradeCount - a.gradeCount);
+        }
+
+        async function loadFilters() {
+            const levelSelect = document.getElementById('level-select');
+            const students = await window.api.students.getAll(year) || [];
+            const grades = await window.api.grades.getAll(year) || [];
+            allGradesCache = grades;
+
+            // Debug: Log loaded data
+            console.log('Analytics - Students loaded:', students.length);
+            console.log('Analytics - Grades loaded:', grades.length);
+            if (grades.length > 0) {
+                console.log('Analytics - Sample grade:', grades[0]);
+                console.log('Analytics - Unique subjects:', [...new Set(grades.map(g => normalizeSubjectName(g.subject)).filter(Boolean))]);
             }
-            if (sectionFilter !== 'all') {
-                filtered = filtered.filter(s => s.section === sectionFilter);
-            }
 
-            const zeroStudents = [];
+            const mappingRaw = await window.api.settings.get('levelsMapping');
+            let parsedMapping = {};
+            try { parsedMapping = mappingRaw ? JSON.parse(mappingRaw) : {}; } catch (_) { parsedMapping = {}; }
+            sectionToLevel = parsedMapping || {};
 
-            filtered.forEach(student => {
-                student.grades.forEach(subjectGrade => {
-                    if (subjectFilter !== 'all' && subjectGrade.subject !== subjectFilter) return;
+            const sections = new Set();
+            const levels = new Set();
+            students.forEach(s => { if (s.section) sections.add(s.section); });
+            grades.forEach(g => { if (g.section) sections.add(g.section); });
+            allSections = Array.from(sections);
+            sections.forEach(section => {
+                const level = getLevelFromSection(section);
+                if (level) levels.add(level);
+            });
 
-                    if (subjectGrade.grades && subjectGrade.grades.length > 0) {
-                        subjectGrade.grades.forEach((g, idx) => {
-                            const value = typeof g === 'object' ? g.value : g;
-                            const examName = typeof g === 'object' ? (g.name || `فرض ${idx + 1}`) : `فرض ${idx + 1}`;
+            renderClassOptions('');
+            renderSubjectOptions('', '');
+            renderTeacherSubjectOptions('', '');
+            toggleTeacherSubjectFilter();
 
-                            if (value === 0) {
-                                const levelInfo = getLevelFromSection(student.section);
-                                zeroStudents.push({
-                                    code: student.code,
-                                    firstName: student.firstName,
-                                    familyName: student.familyName,
-                                    section: student.section,
-                                    level: levelInfo.name,
-                                    subject: translateSubject(subjectGrade.subject),
-                                    examName: examName,
-                                    grade: value
-                                });
-                            }
-                        });
-                    }
+            Array.from(levels)
+                .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
+                .forEach(level => {
+                    const opt = document.createElement('option');
+                    opt.value = level;
+                    opt.textContent = level;
+                    levelSelect.appendChild(opt);
                 });
-            });
-
-            return zeroStudents;
         }
 
-        // تحديث إحصائيات الأصفار حسب المستوى وأكثر التلاميذ
-        function updateZeroStats() {
-            const zeroList = getZeroGradeStudents();
+        async function analyze() {
+            if (analyzeInProgress) return;
 
-            // === 1. الأصفار حسب المستوى - رسم بياني ===
-            const zerosByLevel = {};
-            zeroList.forEach(z => {
-                if (!zerosByLevel[z.level]) {
-                    zerosByLevel[z.level] = 0;
-                }
-                zerosByLevel[z.level]++;
-            });
-
-            // ترتيب حسب عدد الأصفار (تنازلي)
-            const sortedLevels = Object.entries(zerosByLevel)
-                .sort((a, b) => b[1] - a[1]);
-
-            const levelLabels = sortedLevels.map(([level]) => level);
-            const levelCounts = sortedLevels.map(([, count]) => count);
-
-            // ألوان متدرجة للأعمدة
-            const barColors = [
-                '#d32f2f', '#e53935', '#f44336', '#ef5350', '#e57373',
-                '#ef9a9a', '#ffcdd2', '#ffebee'
-            ];
-
-            // حذف الرسم البياني القديم إن وجد
-            if (zerosByLevelChart) {
-                zerosByLevelChart.destroy();
+            const analyzeBtn = document.getElementById('analyze-btn');
+            analyzeInProgress = true;
+            if (analyzeBtn) {
+                analyzeBtn.disabled = true;
+                analyzeBtn.setAttribute('aria-busy', 'true');
             }
 
-            const ctx = document.getElementById('zeros-by-level-chart');
-            if (ctx) {
-                zerosByLevelChart = new Chart(ctx, {
+            try {
+                const className = document.getElementById('class-select').value;
+                const levelName = document.getElementById('level-select').value;
+                const subjectName = document.getElementById('subject-select').value;
+                const teacherSubjectName = document.getElementById('teacher-subject-select')?.value || '';
+                const type = document.getElementById('analysis-type').value;
+
+                const allGrades = allGradesCache.length ? allGradesCache : await window.api.grades.getAll(year) || [];
+                const grades = allGrades
+                    .map(g => ({ ...g, grade: asNumber(g.grade) }))
+                    .filter(g => Number.isFinite(g.grade));
+
+                let filtered = grades;
+                if (className) filtered = filtered.filter(g => (g.section || '') === className);
+                if (levelName) filtered = filtered.filter(g => getLevelFromSection(g.section) === levelName);
+                if (type === 'teachers') {
+                    if (teacherSubjectName) filtered = filtered.filter(g => normalizeSubjectName(g.subject) === teacherSubjectName);
+                } else if (subjectName) {
+                    filtered = filtered.filter(g => normalizeSubjectName(g.subject) === subjectName);
+                }
+
+                if (!filtered.length) {
+                    document.getElementById('analysis-kpis').innerHTML = '';
+                    document.getElementById('analysis-progress').innerHTML = '';
+                    document.getElementById('analysis-summary').innerHTML = '<p>لا توجد معطيات نقط مطابقة للفلاتر الحالية.</p>';
+                    document.getElementById('zero-students-list').innerHTML = '<p>لا توجد معطيات.</p>';
+                    destroyAnalysisCharts();
+                    showToast('لا توجد معطيات للتحليل', 'warning');
+                    return;
+                }
+
+                await ensureChartJsLoaded();
+
+                const passCount = filtered.filter(g => g.grade >= 10).length;
+                const passRate = filtered.length ? (passCount / filtered.length) * 100 : 0;
+                const globalAvg = avg(filtered.map(g => g.grade));
+                const excellenceCount = filtered.filter(g => g.grade >= 16).length;
+                const zeroCount = filtered.filter(g => g.grade === 0).length;
+                const sectionsCount = new Set(filtered.map(g => g.section || 'غير محدد')).size;
+                const studentCount = new Set(filtered.map(studentIdentity)).size;
+                const minGrade = Math.min(...filtered.map(g => g.grade));
+                const maxGrade = Math.max(...filtered.map(g => g.grade));
+
+                // Calculate subject and student averages in one pass
+                const subjectStats = new Map();
+                const studentStats = new Map();
+                filtered.forEach(g => {
+                    const subject = normalizeSubjectName(g.subject);
+
+                    const subjectAgg = subjectStats.get(subject) || { sum: 0, count: 0 };
+                    subjectAgg.sum += g.grade;
+                    subjectAgg.count += 1;
+                    subjectStats.set(subject, subjectAgg);
+
+                    const id = studentIdentity(g);
+                    let studentAgg = studentStats.get(id);
+                    if (!studentAgg) {
+                        studentAgg = new Map();
+                        studentStats.set(id, studentAgg);
+                    }
+
+                    const studentSubjectAgg = studentAgg.get(subject) || { sum: 0, count: 0 };
+                    studentSubjectAgg.sum += g.grade;
+                    studentSubjectAgg.count += 1;
+                    studentAgg.set(subject, studentSubjectAgg);
+                });
+
+                const subjectAverages = Array.from(subjectStats.entries(), ([subject, stats]) => ({
+                    subject,
+                    avg: stats.sum / stats.count
+                }));
+                const overallSubjectAvg = avg(subjectAverages.map(s => s.avg));
+
+                const studentGeneralAverages = Array.from(studentStats.values(), bySubject => {
+                    const studentSubjectAvgs = Array.from(bySubject.values(), stats => stats.sum / stats.count);
+                    return avg(studentSubjectAvgs);
+                });
+                const generalAvg = avg(studentGeneralAverages);
+
+                const distribution = gradeBands.map(band => {
+                    const count = filtered.filter(g => g.grade >= band.min && g.grade < band.max + (band.max === 20 ? 0.001 : 0)).length;
+                    return {
+                        ...band,
+                        count,
+                        ratio: percentage(count, filtered.length)
+                    };
+                });
+
+                const gradeValues = filtered.map(g => g.grade);
+                const medianGrade = median(gradeValues);
+                const stdDevGrade = stdDev(gradeValues);
+
+                document.getElementById('analysis-kpis').innerHTML = `
+                    <div class="analysis-kpi-card">
+                        <div class="analysis-kpi-icon" style="background: var(--gradient-primary);"><i class="fas fa-users"></i></div>
+                        <div class="analysis-kpi-label">عدد التلاميذ</div>
+                        <div class="analysis-kpi-value">${studentCount}</div>
+                        <div class="analysis-kpi-sub">${sectionsCount} قسم · ${subjectStats.size} مادة</div>
+                    </div>
+                    <div class="analysis-kpi-card">
+                        <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--color-success), #38ef7d);"><i class="fas fa-calculator"></i></div>
+                        <div class="analysis-kpi-label">المعدل العام</div>
+                        <div class="analysis-kpi-value">${generalAvg.toFixed(2)}</div>
+                        <div class="analysis-kpi-sub">الوسيط: ${medianGrade.toFixed(2)}</div>
+                    </div>
+                    <div class="analysis-kpi-card">
+                        <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--color-warning), #ffd200);"><i class="fas fa-chart-area"></i></div>
+                        <div class="analysis-kpi-label">الانحراف المعياري</div>
+                        <div class="analysis-kpi-value">${stdDevGrade.toFixed(2)}</div>
+                        <div class="analysis-kpi-sub">أدنى: ${minGrade.toFixed(1)} · أعلى: ${maxGrade.toFixed(1)}</div>
+                    </div>
+                    <div class="analysis-kpi-card">
+                        <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, #a770ef, #cf8bf3);"><i class="fas fa-trophy"></i></div>
+                        <div class="analysis-kpi-label">نسبة النجاح</div>
+                        <div class="analysis-kpi-value">${passRate.toFixed(1)}%</div>
+                        <div class="analysis-kpi-sub">${passCount} ناجح من ${filtered.length} نقطة</div>
+                    </div>
+                    <div class="analysis-kpi-card">
+                        <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--color-danger), #ff9a76);"><i class="fas fa-star"></i></div>
+                        <div class="analysis-kpi-label">نسبة التفوق</div>
+                        <div class="analysis-kpi-value">${percentage(excellenceCount, filtered.length).toFixed(1)}%</div>
+                        <div class="analysis-kpi-sub">${excellenceCount} بنقطة ≥ 16</div>
+                    </div>
+                    <div class="analysis-kpi-card">
+                        <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--info), #89bfe8);"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="analysis-kpi-label">الحاصلون على 0</div>
+                        <div class="analysis-kpi-value">${zeroCount}</div>
+                        <div class="analysis-kpi-sub">${percentage(zeroCount, filtered.length).toFixed(1)}% من المجموع</div>
+                    </div>
+                `;
+
+                const improved = filtered.filter(g => g.grade >= 12).length;
+                const stable = filtered.filter(g => g.grade >= 10 && g.grade < 12).length;
+                const declined = filtered.filter(g => g.grade < 10).length;
+                document.getElementById('analysis-progress').innerHTML = `
+                    <div class="analysis-progress-item">
+                        <div class="analysis-progress-title"><i class="fas fa-arrow-trend-up"></i> نقط 12 فأكثر (جيد وأعلى)</div>
+                        <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(improved, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-success), #38ef7d);">${percentage(improved, filtered.length).toFixed(0)}%</div></div>
+                        <div class="analysis-progress-meta"><span>${percentage(improved, filtered.length).toFixed(1)}%</span><span>${improved} نقطة</span></div>
+                    </div>
+                    <div class="analysis-progress-item">
+                        <div class="analysis-progress-title"><i class="fas fa-minus"></i> نقط 10 - 12 (مقبول)</div>
+                        <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(stable, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-warning), #ffd200);">${percentage(stable, filtered.length).toFixed(0)}%</div></div>
+                        <div class="analysis-progress-meta"><span>${percentage(stable, filtered.length).toFixed(1)}%</span><span>${stable} نقطة</span></div>
+                    </div>
+                    <div class="analysis-progress-item">
+                        <div class="analysis-progress-title"><i class="fas fa-arrow-trend-down"></i> نقط أقل من 10 (ضعيف)</div>
+                        <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(declined, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-danger), #ff9a76);">${percentage(declined, filtered.length).toFixed(0)}%</div></div>
+                        <div class="analysis-progress-meta"><span>${percentage(declined, filtered.length).toFixed(1)}%</span><span>${declined} نقطة</span></div>
+                    </div>
+                `;
+
+                const summaryRows = distribution.map(row => {
+                    const maxLabel = row.max === 20 ? '20' : (row.max - 0.01).toFixed(2);
+                    return `
+                        <tr>
+                            <td><span class="analysis-grade-pill" style="background:${row.color};">${row.label}</span></td>
+                            <td>${row.min} - ${maxLabel}</td>
+                            <td>${row.count}</td>
+                            <td>${row.ratio.toFixed(1)}%</td>
+                        </tr>
+                    `;
+                }).join('');
+                document.getElementById('analysis-summary').innerHTML = `
+                    <table class="analysis-summary-table">
+                        <thead>
+                            <tr>
+                                <th>التقدير</th>
+                                <th>النطاق</th>
+                                <th>عدد التلاميذ</th>
+                                <th>النسبة</th>
+                            </tr>
+                        </thead>
+                        <tbody>${summaryRows}</tbody>
+                    </table>
+                `;
+
+                const zeroByStudent = {};
+                filtered.forEach(g => {
+                    if (g.grade !== 0) return;
+                    const key = studentIdentity(g);
+                    if (!zeroByStudent[key]) {
+                        zeroByStudent[key] = {
+                            label: studentLabel(g),
+                            section: g.section || 'غير محدد',
+                            count: 0
+                        };
+                    }
+                    zeroByStudent[key].count += 1;
+                });
+                const topZeroStudents = Object.values(zeroByStudent)
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 5);
+                document.getElementById('zero-students-list').innerHTML = topZeroStudents.length
+                    ? topZeroStudents.map((s, i) => `
+                        <div class="analysis-zero-item">
+                            <div><strong>${i + 1}. ${s.label}</strong><div style="font-size:12px; color:#6b7280;">${s.section}</div></div>
+                            <span class="analysis-zero-badge">${s.count} صفر</span>
+                        </div>
+                    `).join('')
+                    : '<p>لا يوجد تلاميذ حاصلون على 0 ضمن الفلاتر الحالية.</p>';
+
+                const zeroBySection = {};
+                filtered.forEach(g => {
+                    if (g.grade !== 0) return;
+                    const section = g.section || 'غير محدد';
+                    zeroBySection[section] = (zeroBySection[section] || 0) + 1;
+                });
+                const zeroSectionLabels = Object.keys(zeroBySection).sort((a, b) => zeroBySection[b] - zeroBySection[a]).slice(0, 8);
+                const zeroSectionData = zeroSectionLabels.map(label => zeroBySection[label]);
+                if (zeroSectionsChart) zeroSectionsChart.destroy();
+                zeroSectionsChart = new Chart(document.getElementById('zero-sections-chart').getContext('2d'), {
                     type: 'bar',
                     data: {
-                        labels: levelLabels,
+                        labels: zeroSectionLabels.length ? zeroSectionLabels : ['لا توجد بيانات'],
                         datasets: [{
                             label: 'عدد الأصفار',
-                            data: levelCounts,
-                            backgroundColor: levelLabels.map((_, i) => barColors[i % barColors.length]),
-                            borderColor: levelLabels.map((_, i) => barColors[i % barColors.length]),
-                            borderWidth: 1,
-                            borderRadius: 8
+                            data: zeroSectionLabels.length ? zeroSectionData : [0],
+                            backgroundColor: 'rgba(232, 93, 93, 0.8)',
+                            borderRadius: 6,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: { duration: 800, easing: 'easeOutQuart' },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { callbacks: { label: (ctx) => `عدد الأصفار: ${ctx.raw}` } }
+                        },
+                        scales: { x: { grid: { display: false } }, y: { grid: { display: false } } }
+                    }
+                });
+
+                const distributionLabels = distribution.map(d => d.label);
+                const distributionCounts = distribution.map(d => d.count);
+                const distributionColors = distribution.map(d => d.color);
+
+                if (barChart) barChart.destroy();
+                barChart = new Chart(document.getElementById('grades-bar-chart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: distributionLabels,
+                        datasets: [{
+                            label: 'عدد التلاميذ',
+                            data: distributionCounts,
+                            backgroundColor: distributionColors.map(c => c + 'CC'),
+                            borderRadius: 8,
+                            borderSkipped: false
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        indexAxis: 'y', // أعمدة أفقية للسهولة في القراءة
+                        animation: { duration: 800, easing: 'easeOutQuart' },
                         plugins: {
-                            legend: {
-                                display: false
-                            },
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
-                                    label: function (context) {
-                                        return context.raw + ' صفر';
-                                    }
+                                    label: (ctx) => tooltipLabelWithPercent(ctx, filtered.length)
                                 }
                             }
                         },
-                        scales: {
-                            x: {
-                                beginAtZero: true,
-                                position: 'top', // القيم في الأعلى
-                                reverse: true, // عكس الاتجاه للـ RTL
-                                grid: {
-                                    display: false
-                                },
-                                ticks: {
-                                    font: {
-                                        family: 'Tajawal'
-                                    }
-                                }
-                            },
-                            y: {
-                                position: 'right', // أسماء المستويات على اليمين
-                                grid: {
-                                    display: false
-                                },
-                                ticks: {
-                                    font: {
-                                        family: 'Tajawal',
-                                        size: 11
-                                    },
-                                    mirror: false
+                        scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(0,0,0,0.04)' } } }
+                    }
+                });
+
+                if (donutChart) donutChart.destroy();
+                donutChart = new Chart(document.getElementById('grades-donut-chart').getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: distributionLabels,
+                        datasets: [{
+                            data: distributionCounts,
+                            backgroundColor: distributionColors,
+                            borderWidth: 3,
+                            borderColor: 'rgba(255,255,255,0.9)',
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '60%',
+                        animation: { duration: 800, easing: 'easeOutQuart' },
+                        plugins: {
+                            legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true, pointStyle: 'circle' } },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => tooltipLabelWithPercent(ctx, filtered.length)
                                 }
                             }
                         }
                     }
                 });
-            }
 
-            // === 2. أكثر 3 تلاميذ حصولاً على 0 ===
-            const studentZeroCounts = {};
-            zeroList.forEach(z => {
-                const key = z.code;
-                if (!studentZeroCounts[key]) {
-                    studentZeroCounts[key] = {
-                        code: z.code,
-                        firstName: z.firstName,
-                        familyName: z.familyName,
-                        section: z.section,
-                        count: 0
-                    };
+                if (detailChart) detailChart.destroy();
+                const detailCtx = document.getElementById('detail-chart').getContext('2d');
+                if (type === 'distribution') {
+                    const ranges = ['0-5', '5-8', '8-10', '10-12', '12-14', '14-16', '16-20'];
+                    const counts = [
+                        filtered.filter(g => g.grade < 5).length,
+                        filtered.filter(g => g.grade >= 5 && g.grade < 8).length,
+                        filtered.filter(g => g.grade >= 8 && g.grade < 10).length,
+                        filtered.filter(g => g.grade >= 10 && g.grade < 12).length,
+                        filtered.filter(g => g.grade >= 12 && g.grade < 14).length,
+                        filtered.filter(g => g.grade >= 14 && g.grade < 16).length,
+                        filtered.filter(g => g.grade >= 16).length
+                    ];
+
+                    detailChart = new Chart(detailCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: ranges,
+                            datasets: [{ label: 'عدد النقط', data: counts, backgroundColor: 'rgba(45, 95, 74, 0.7)', borderRadius: 6, borderSkipped: false }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: { duration: 800, easing: 'easeOutQuart' },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (ctx) => tooltipLabelWithPercent(ctx, filtered.length)
+                                    }
+                                }
+                            },
+                            scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(0,0,0,0.04)' } } }
+                        }
+                    });
+                } else if (type === 'comparison') {
+                    const bySection = {};
+                    filtered.forEach(g => {
+                        const s = g.section || 'غير محدد';
+                        if (!bySection[s]) bySection[s] = [];
+                        bySection[s].push(g.grade);
+                    });
+
+                    const labels = Object.keys(bySection).sort((a, b) => a.localeCompare(b, 'ar'));
+                    const data = labels.map(s => Number(avg(bySection[s]).toFixed(2)));
+
+                    detailChart = new Chart(detailCtx, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [{ label: 'معدل القسم', data, backgroundColor: 'rgba(74, 139, 111, 0.7)', borderRadius: 6, borderSkipped: false }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: { duration: 800, easing: 'easeOutQuart' },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (ctx) => `معدل القسم: ${Number(ctx.raw).toFixed(2)}`
+                                    }
+                                }
+                            },
+                            scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(0,0,0,0.04)' }, beginAtZero: true } }
+                        }
+                    });
+                } else if (type === 'teachers') {
+                    const teacherRows = buildTeacherPerformanceRows(filtered).sort(
+                        (a, b) => b.passRate - a.passRate || b.avg - a.avg || b.gradeCount - a.gradeCount
+                    );
+                    const topTeachers = teacherRows.slice(0, 20);
+                    const labels = topTeachers.map(t => t.name);
+                    const data = topTeachers.map(t => Number(t.passRate.toFixed(1)));
+                    const colors = topTeachers.map(t => {
+                        if (t.passRate >= 85) return 'rgba(47, 179, 109, 0.85)';
+                        if (t.passRate >= 70) return 'rgba(60, 149, 208, 0.85)';
+                        if (t.passRate >= 50) return 'rgba(240, 194, 14, 0.85)';
+                        return 'rgba(231, 76, 60, 0.85)';
+                    });
+
+                    detailChart = new Chart(detailCtx, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [{
+                                label: 'نسبة نجاح الأستاذ (%)',
+                                data,
+                                backgroundColor: colors,
+                                borderRadius: 6,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: { duration: 800, easing: 'easeOutQuart' },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (ctx) => `نسبة النجاح: ${Number(ctx.raw).toFixed(1)}%`,
+                                        afterBody: (items) => {
+                                            const idx = items[0]?.dataIndex ?? -1;
+                                            const row = topTeachers[idx];
+                                            if (!row) return '';
+                                            return [
+                                                `معدل الأستاذ: ${row.avg.toFixed(2)}`,
+                                                `عدد النقط: ${row.gradeCount}`,
+                                                `عدد التلاميذ: ${row.studentCount}`
+                                            ];
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    min: 0,
+                                    max: 100,
+                                    ticks: {
+                                        stepSize: 10,
+                                        callback: (value) => `${value}%`
+                                    },
+                                    grid: { color: 'rgba(0,0,0,0.04)' }
+                                },
+                                y: { grid: { display: false } }
+                            }
+                        }
+                    });
                 }
-                studentZeroCounts[key].count++;
-            });
 
-            // ترتيب حسب عدد الأصفار وأخذ أول 3
-            const topStudents = Object.values(studentZeroCounts)
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 3);
-
-            const topZerosContainer = document.getElementById('top-zeros-list');
-            if (topStudents.length === 0) {
-                topZerosContainer.innerHTML = `
-                    <div class="no-top-zeros">
-                        <i class="fas fa-check-circle" style="font-size: 40px; margin-bottom: 10px;"></i>
-                        <p>🎉 لا يوجد تلاميذ حاصلون على 0</p>
-                    </div>
-                `;
-            } else {
-                topZerosContainer.innerHTML = topStudents.map((student, idx) => `
-                    <div class="top-zeros-item">
-                        <div class="rank rank-${idx + 1}">${idx + 1}</div>
-                        <div class="student-info">
-                            <div class="student-name">${escapeHtml(student.familyName)} ${escapeHtml(student.firstName)}</div>
-                            <div class="student-section">${escapeHtml(student.section)}</div>
-                        </div>
-                        <div class="zeros-badge">${student.count} صفر</div>
-                    </div>
-                `).join('');
+                showToast('تم التحليل', 'success');
+            } catch (error) {
+                console.error('Analyze error:', error);
+                showToast('تعذر تنفيذ التحليل، تحقق من المعطيات', 'error');
+            } finally {
+                analyzeInProgress = false;
+                if (analyzeBtn) {
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.removeAttribute('aria-busy');
+                }
             }
-        }
-
-        // فتح صفحة التلاميذ الحاصلين على 0
-        function showZeroGradeStudents() {
-            zeroGradeStudentsList = getZeroGradeStudents();
-
-            if (zeroGradeStudentsList.length === 0) {
-                alert('🎉 لا يوجد تلاميذ حاصلون على 0\nجميع التلاميذ حصلوا على نقط أعلى من الصفر');
-                return;
-            }
-
-            // حفظ البيانات في localStorage
-            localStorage.setItem('zeroGradeStudents', JSON.stringify(zeroGradeStudentsList));
-
-            // فتح الصفحة الجديدة
-            window.open('studentzero.html', '_blank');
-        }
-
-        // إغلاق النافذة المنبثقة (للتوافق مع الكود القديم)
-        function closeZeroGradeModal() {
-            const modal = document.getElementById('zero-grade-modal');
-            if (modal) {
-                modal.classList.remove('active');
-            }
-        }
-
-        // دالة تنقية HTML للحماية من XSS
-        function escapeHtml(text) {
-            if (text === null || text === undefined) return '';
-            const div = document.createElement('div');
-            div.textContent = String(text);
-            return div.innerHTML;
         }
     </script>
 </body>
