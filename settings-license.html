@@ -106,7 +106,8 @@
                 <h3><i class="fas fa-plug"></i> تفعيل المفتاح</h3>
                 <form id="activate-form" class="search-form"
                     style="display:grid; grid-template-columns: 2fr 1fr auto; gap:10px; align-items:center;">
-                    <input id="license-key" type="text" placeholder="ألصق مفتاح الترخيص هنا" required autocomplete="off">
+                    <input id="license-key" type="text" placeholder="ألصق مفتاح الترخيص هنا" required
+                        autocomplete="off">
                     <input id="device-name" type="text" placeholder="اسم الجهاز (اختياري)">
                     <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> تفعيل</button>
                 </form>
@@ -125,17 +126,21 @@
                     <input id="serial-days" type="number" min="1" max="3650" value="365" placeholder="عدد الأيام">
                     <input id="serial-customer" type="text" placeholder="مرجع الزبون (اختياري)">
                     <input id="serial-device-code" type="text" placeholder="Device Code (64-hex, اختياري)">
-                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--color-text-main);">
+                    <label
+                        style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--color-text-main);">
                         <input id="serial-online" type="checkbox"> يتطلب تحقق إنترنت
                     </label>
                     <button class="btn btn-primary" type="submit"><i class="fas fa-key"></i> توليد</button>
                 </form>
 
                 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-                    <textarea id="serial-output" class="serial-output" readonly placeholder="سيظهر السيريال هنا"></textarea>
-                    <button id="copy-serial-btn" class="btn btn-secondary" type="button"><i class="fas fa-copy"></i> نسخ السيريال</button>
+                    <textarea id="serial-output" class="serial-output" readonly
+                        placeholder="سيظهر السيريال هنا"></textarea>
+                    <button id="copy-serial-btn" class="btn btn-secondary" type="button"><i class="fas fa-copy"></i> نسخ
+                        السيريال</button>
                 </div>
-                <p class="muted-note" style="margin-top:8px;">لربط السيريال بجهاز محدد، ألصق Device Code الذي يرسله العميل.</p>
+                <p class="muted-note" style="margin-top:8px;">لربط السيريال بجهاز محدد، ألصق Device Code الذي يرسله
+                    العميل.</p>
             </div>
 
             <div class="search-section">
@@ -144,13 +149,17 @@
                     <input id="owner-sync-url" type="text" placeholder="رابط الخادم (مثال: https://my-server.com)">
                     <input id="owner-sync-write-token" type="text" placeholder="Write Token (للأجهزة المباعة)">
                     <input id="owner-sync-read-token" type="text" placeholder="Read Token (Dashboard admin)">
-                    <input id="owner-sync-heartbeat" type="number" min="5" max="1440" placeholder="كل كم دقيقة؟" value="360">
-                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--color-text-main);">
+                    <input id="owner-sync-heartbeat" type="number" min="5" max="1440" placeholder="كل كم دقيقة؟"
+                        value="360">
+                    <label
+                        style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--color-text-main);">
                         <input id="owner-sync-enabled" type="checkbox"> تفعيل المزامنة
                     </label>
                     <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> حفظ الإعدادات</button>
-                    <button class="btn btn-secondary" id="owner-sync-test" type="button"><i class="fas fa-vial"></i> اختبار الاتصال</button>
-                    <button class="btn btn-warning" id="owner-sync-now" type="button"><i class="fas fa-cloud-upload-alt"></i> مزامنة الآن</button>
+                    <button class="btn btn-secondary" id="owner-sync-test" type="button"><i class="fas fa-vial"></i>
+                        اختبار الاتصال</button>
+                    <button class="btn btn-warning" id="owner-sync-now" type="button"><i
+                            class="fas fa-cloud-upload-alt"></i> مزامنة الآن</button>
                 </form>
 
                 <div class="license-grid" style="margin-top:12px;">
@@ -180,11 +189,14 @@
                             </tr>
                         </thead>
                         <tbody id="owner-devices-tbody">
-                            <tr><td colspan="5" style="text-align:center;padding:16px;">لا توجد بيانات بعد</td></tr>
+                            <tr>
+                                <td colspan="5" style="text-align:center;padding:16px;">لا توجد بيانات بعد</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
-                <p class="muted-note" style="margin-top:8px;">هذه البيانات تأتي من خادم مركزي وتظهر نفس الأجهزة في لوحة التحكم الرئيسية.</p>
+                <p class="muted-note" style="margin-top:8px;">هذه البيانات تأتي من خادم مركزي وتظهر نفس الأجهزة في لوحة
+                    التحكم الرئيسية.</p>
                 <p class="muted-note">Write Token للأجهزة المباعة (إرسال فقط) و Read Token للأدمن (عرض الإحصاءات).</p>
             </div>
 
@@ -217,9 +229,12 @@
 
             <div class="students-results">
                 <div class="license-actions">
-                    <button class="btn btn-primary" type="button" id="refresh-btn"><i class="fas fa-sync-alt"></i> تحديث</button>
-                    <button class="btn btn-warning" type="button" id="revalidate-btn"><i class="fas fa-cloud-check"></i> تحديث التحقق</button>
-                    <button class="btn btn-secondary" type="button" id="deactivate-btn"><i class="fas fa-unlink"></i> تعطيل هذا الجهاز</button>
+                    <button class="btn btn-primary" type="button" id="refresh-btn"><i class="fas fa-sync-alt"></i>
+                        تحديث</button>
+                    <button class="btn btn-warning" type="button" id="revalidate-btn"><i class="fas fa-cloud-check"></i>
+                        تحديث التحقق</button>
+                    <button class="btn btn-secondary" type="button" id="deactivate-btn"><i class="fas fa-unlink"></i>
+                        تعطيل هذا الجهاز</button>
                 </div>
                 <p class="muted-note" style="margin-bottom:10px;">
                     <i class="fas fa-shield-alt"></i>
@@ -320,10 +335,9 @@
                     <td>
                         <button
                             type="button"
-                            class="btn btn-danger"
+                            class="btn btn-sm btn-danger"
                             data-action="admin-revoke"
                             data-device-id="${Number(device.id || 0)}"
-                            style="padding:6px 10px;font-size:12px;"
                         >
                             تعطيل
                         </button>
@@ -456,7 +470,10 @@
             if (!window.api?.ownerTelemetry?.getConfig) return;
             const res = await window.api.ownerTelemetry.getConfig();
             if (!res?.success) {
-                showToast(res?.error || 'تعذر تحميل إعدادات المزامنة', 'error');
+                // Silently skip auth / config-missing errors — fields stay at defaults
+                if (res?.code !== 'UNAUTHENTICATED' && res?.code !== 'OWNER_SYNC_CONFIG_MISSING') {
+                    showToast(res?.error || 'تعذر تحميل إعدادات المزامنة', 'error');
+                }
                 return;
             }
 
@@ -477,6 +494,10 @@
                 el('owner-active-24h').textContent = '0';
                 el('owner-activated-devices').textContent = '0';
                 renderOwnerDevices([]);
+                // Show toast only for unexpected errors, not for missing config or auth
+                if (overviewRes?.code !== 'OWNER_SYNC_CONFIG_MISSING' && overviewRes?.code !== 'UNAUTHENTICATED') {
+                    showToast(overviewRes?.error || 'تعذر تحميل بيانات المزامنة', 'error');
+                }
                 return;
             }
 

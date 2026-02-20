@@ -1491,7 +1491,7 @@
 
     <script>
         const year = '2025/2026';
-        const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js';
+        const CHART_JS_CDN = 'vendor/chart.min.js';
         let chartInstances = {};
         let chartLoaderPromise = null;
         let lastReportContext = null;
@@ -1755,6 +1755,10 @@
             modal.classList.add('active');
             modal.setAttribute('aria-hidden', 'false');
             document.body.classList.add('preview-open');
+
+            // Force light theme during preview
+            if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
+            else if (typeof window.UXEnhancements?.forceLightThemeForPrint === 'function') window.UXEnhancements.forceLightThemeForPrint();
         }
 
         function closePrintPreview() {
@@ -1764,17 +1768,25 @@
             modal?.setAttribute('aria-hidden', 'true');
             if (previewPage) previewPage.innerHTML = '';
             document.body.classList.remove('preview-open');
+
+            // Restore theme after preview
+            if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
+            else if (typeof window.UXEnhancements?.restoreThemeAfterPrint === 'function') window.UXEnhancements.restoreThemeAfterPrint();
         }
 
         function enableForcedPrintMode() {
             const printableRoot = document.getElementById('printable-report-root');
             document.body.classList.add('printing-active');
+            if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
+            else if (typeof window.UXEnhancements?.forceLightThemeForPrint === 'function') window.UXEnhancements.forceLightThemeForPrint();
             printableRoot?.setAttribute('aria-hidden', 'false');
         }
 
         function disableForcedPrintMode() {
             const printableRoot = document.getElementById('printable-report-root');
             document.body.classList.remove('printing-active');
+            if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
+            else if (typeof window.UXEnhancements?.restoreThemeAfterPrint === 'function') window.UXEnhancements.restoreThemeAfterPrint();
             printableRoot?.setAttribute('aria-hidden', 'true');
         }
 

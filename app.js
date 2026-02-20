@@ -4,8 +4,8 @@ let isDbReady = false;
 let currentSchoolYear = '2025/2026'; // الموسم الدراسي الحالي
 
 const EXTERNAL_LIBS = {
-    chart: 'https://cdn.jsdelivr.net/npm/chart.js',
-    xlsx: 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js'
+    chart: 'vendor/chart.min.js',
+    xlsx: 'vendor/xlsx.full.min.js'
 };
 
 let chartLibPromise = null;
@@ -511,9 +511,9 @@ async function renderOwnerSyncSection(force = false) {
                         </thead>
                         <tbody>
                             ${devices.length
-                                ? devices
-                                      .map(
-                                          (d) => `
+                ? devices
+                    .map(
+                        (d) => `
                                 <tr>
                                     <td>${escapeHtml(d.deviceName || d.deviceCode || '-')}</td>
                                     <td>${escapeHtml(d.platform || '-')}</td>
@@ -521,9 +521,9 @@ async function renderOwnerSyncSection(force = false) {
                                     <td>${d.activated ? 'مفعّل' : 'غير مفعّل'}</td>
                                     <td>${escapeHtml(d.lastSeenAt || '-')}</td>
                                 </tr>`
-                                      )
-                                      .join('')
-                                : '<tr><td colspan="5" style="text-align:center;padding:18px;">لا توجد أجهزة بعد</td></tr>'}
+                    )
+                    .join('')
+                : '<tr><td colspan="5" style="text-align:center;padding:18px;">لا توجد أجهزة بعد</td></tr>'}
                         </tbody>
                     </table>
                 </div>
@@ -756,13 +756,6 @@ function renderStudentsTable(searchName = '', searchFamily = '', filterSection =
                     <input id="search-family" placeholder="النسب..." value="${searchFamily}">
                 </div>
             </div>
-            <div class="table-actions">
-                <button class="btn btn-import" id="btn-import"><i class="fas fa-file-import"></i> استيراد لائحة</button>
-                <button class="btn btn-search" id="btn-search"><i class="fas fa-search"></i> بحث</button>
-                <button class="btn btn-clear" id="btn-clear"><i class="fas fa-times"></i> مسح</button>
-                <button class="btn btn-print"><i class="fas fa-print"></i> طباعة</button>
-                <button class="btn btn-export"><i class="fas fa-file-excel"></i> تصدير</button>
-            </div>
         </div>
         <div class="table-wrapper">
             <table class="students-table">
@@ -800,11 +793,7 @@ function renderStudentsTable(searchName = '', searchFamily = '', filterSection =
 }
 
 function handleTableClick(e) {
-    if (e.target.id === 'btn-search' || e.target.closest('#btn-search')) {
-        performSearch();
-    } else if (e.target.id === 'btn-clear' || e.target.closest('#btn-clear')) {
-        clearSearch();
-    } else if (e.target.id === 'prev-page' || e.target.closest('#prev-page')) {
+    if (e.target.id === 'prev-page' || e.target.closest('#prev-page')) {
         goToPage(currentTablePage - 1);
     } else if (e.target.id === 'next-page' || e.target.closest('#next-page')) {
         goToPage(currentTablePage + 1);
@@ -855,365 +844,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial skeleton render is handled by initDatabase() -> refreshDashboard()
 
-    // Sidebar toggle
-    document.getElementById('menu-toggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('collapsed');
-        document.querySelector('.main-content').style.marginRight = document.getElementById('sidebar').classList.contains('collapsed') ? '80px' : '280px';
-    });
-
-    // Expandable menu
-    document.querySelectorAll('.expandable > a').forEach(el => {
-        el.addEventListener('click', (e) => { e.preventDefault(); el.parentElement.classList.toggle('open'); });
-    });
-
-    // Initialize import functionality
-    initImport();
-
     // Initialize extra buttons (notifications, home, print, export)
     initExtraButtons();
 });
 
-// Import functionality
-let importedData = [];
-let currentWorkbook = null;
 
-function initImport() {
-    const modal = document.getElementById('import-modal');
-    const fileInput = document.getElementById('file-input');
-    const dropzone = document.getElementById('dropzone');
-    const browseBtn = document.getElementById('browse-btn');
-    const modalClose = document.getElementById('modal-close');
-    const cancelImport = document.getElementById('cancel-import');
-    const confirmImport = document.getElementById('confirm-import');
 
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('#btn-import')) openModal();
-    });
-
-    function openModal() { modal.classList.add('active'); resetModal(); }
-    function closeModal() { modal.classList.remove('active'); }
-
-    modalClose.addEventListener('click', closeModal);
-    cancelImport.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-    browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
-    fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
-
-    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault(); dropzone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
-    });
-
-    confirmImport.addEventListener('click', async () => {
-        if (importedData.length > 0) {
-            studentsData = importedData;
-            refreshDashboard();
-
-            // Save to SQLite
-            const saved = await saveToDatabase(importedData);
-            closeModal();
-
-            if (saved) {
-                showToast('تم استيراد ' + importedData.length + ' تلميذ وحفظهم في قاعدة البيانات', 'success');
-            } else {
-                showToast('تم استيراد ' + importedData.length + ' تلميذ (حدث خطأ في الحفظ)', 'error');
-            }
-        }
-    });
-
-    // Back to upload button
-    document.getElementById('back-to-upload').addEventListener('click', resetModal);
-}
-
-function resetModal() {
-    document.getElementById('dropzone').style.display = 'block';
-    document.getElementById('import-progress').style.display = 'none';
-    document.getElementById('import-preview').style.display = 'none';
-    document.getElementById('sheet-selector').style.display = 'none';
-    document.getElementById('file-input').value = '';
-    document.getElementById('progress-fill').style.width = '0%';
-    importedData = [];
-    currentWorkbook = null;
-}
-
-async function handleFile(file) {
-    if (!file.name.match(/\.(xlsx|xls)$/i)) {
-        showToast('يرجى اختيار ملف Excel صالح', 'error'); return;
-    }
-
-    try {
-        await ensureXlsxLoaded();
-    } catch (error) {
-        showToast('تعذر تحميل مكتبة Excel: ' + error.message, 'error');
-        return;
-    }
-
-    document.getElementById('dropzone').style.display = 'none';
-    document.getElementById('import-progress').style.display = 'block';
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            currentWorkbook = XLSX.read(data, { type: 'array' });
-
-            let progress = 0;
-            const progressFill = document.getElementById('progress-fill');
-            const interval = setInterval(() => {
-                progress += 10; progressFill.style.width = progress + '%';
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    // Check if multiple sheets
-                    if (currentWorkbook.SheetNames.length > 1) {
-                        showSheetSelector();
-                    } else {
-                        processSheet(currentWorkbook.SheetNames[0]);
-                    }
-                }
-            }, 50);
-        } catch (error) { showToast('خطأ: ' + error.message, 'error'); resetModal(); }
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-function showSheetSelector() {
-    document.getElementById('import-progress').style.display = 'none';
-    document.getElementById('sheet-selector').style.display = 'block';
-
-    const sheetsList = document.getElementById('sheets-list');
-    sheetsList.innerHTML = '';
-
-    // Calculate total rows for all sheets info
-    let totalRows = 0;
-    currentWorkbook.SheetNames.forEach(sheetName => {
-        const sheet = currentWorkbook.Sheets[sheetName];
-        const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
-        totalRows += range.e.r - range.s.r + 1;
-    });
-
-    currentWorkbook.SheetNames.forEach((sheetName, index) => {
-        const sheet = currentWorkbook.Sheets[sheetName];
-        const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
-        const rowCount = range.e.r - range.s.r + 1;
-
-        const sheetItem = document.createElement('div');
-        sheetItem.className = 'sheet-item';
-        sheetItem.innerHTML = `
-            <span class="sheet-name"><i class="fas fa-file-alt"></i> ${sheetName}</span>
-            <span class="sheet-rows">${rowCount} صف</span>
-        `;
-        sheetItem.addEventListener('click', () => {
-            document.getElementById('sheet-selector').style.display = 'none';
-            document.getElementById('import-progress').style.display = 'block';
-            document.getElementById('progress-fill').style.width = '0%';
-
-            let progress = 0;
-            const progressFill = document.getElementById('progress-fill');
-            const interval = setInterval(() => {
-                progress += 20; progressFill.style.width = progress + '%';
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    processSheet(sheetName);
-                }
-            }, 30);
-        });
-        sheetsList.appendChild(sheetItem);
-    });
-
-    // Add Import All button listener
-    document.getElementById('import-all-sheets').onclick = () => {
-        document.getElementById('sheet-selector').style.display = 'none';
-        document.getElementById('import-progress').style.display = 'block';
-        document.getElementById('import-status').textContent = 'جاري استيراد جميع الأوراق...';
-        document.getElementById('progress-fill').style.width = '0%';
-
-        let progress = 0;
-        const progressFill = document.getElementById('progress-fill');
-        const interval = setInterval(() => {
-            progress += 10; progressFill.style.width = progress + '%';
-            if (progress >= 100) {
-                clearInterval(interval);
-                processAllSheets();
-            }
-        }, 40);
-    };
-}
-
-function processAllSheets() {
-    importedData = [];
-    let studentId = 1;
-    const extractedLevels = new Map(); // لحفظ المستويات المستخرجة
-
-    currentWorkbook.SheetNames.forEach(sheetName => {
-        const sheet = currentWorkbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-        // Find header row
-        let headerRowIndex = -1, headers = {};
-        for (let i = 0; i < Math.min(jsonData.length, 15); i++) {
-            const row = jsonData[i];
-            if (row && row.some(cell => cell && (String(cell).includes('الرمز') || String(cell).includes('ر.ت')))) {
-                headerRowIndex = i;
-                row.forEach((cell, idx) => {
-                    const c = String(cell || '').trim();
-                    if (c.includes('ر.ت') || c === 'الرقم') headers.id = idx;
-                    if (c === 'الرمز') headers.code = idx;
-                    if (c === 'النسب') headers.familyName = idx;
-                    if (c === 'الإسم' || c === 'الاسم') headers.firstName = idx;
-                    if (c === 'النوع') headers.gender = idx;
-                    if (c.includes('تاريخ')) headers.birthDate = idx;
-                    if (c.includes('مكان')) headers.birthPlace = idx;
-                });
-                break;
-            }
-        }
-
-        if (headerRowIndex === -1) return; // Skip sheets without valid headers
-
-        // البحث عن عمود المستوى ديناميكياً
-        let levelColumnIndex = -1;
-        const headerRow = jsonData[headerRowIndex];
-        if (headerRow) {
-            // طباعة جميع أسماء الأعمدة للتشخيص
-            console.log(`📊 Sheet: ${sheetName}, Headers (${headerRow.length} columns):`, headerRow.filter(h => h).join(' | '));
-
-            headerRow.forEach((cell, idx) => {
-                const c = String(cell || '').trim();
-                if (c === 'المستوى' || c.includes('مستوى') || c.includes('Level')) {
-                    levelColumnIndex = idx;
-                    console.log(`📍 Found level column at index ${idx}: "${c}"`);
-                }
-            });
-        }
-
-        // Fallback: جرب العمود DC (index 107) أو 106
-        if (levelColumnIndex === -1) {
-            // حساب عمود DC: A-Z = 0-25, AA-AZ = 26-51, BA-BZ = 52-77, CA-CZ = 78-103, DA-DC = 104-106
-            levelColumnIndex = 106; // DC
-            console.log(`📍 Using fallback column DC (index 106)`);
-        }
-
-        // طباعة قيمة الصف الأول للتشخيص
-        const firstDataRow = jsonData[headerRowIndex + 1];
-        if (firstDataRow) {
-            console.log(`🔍 First data row, column ${levelColumnIndex} value:`, firstDataRow[levelColumnIndex]);
-            // طباعة عدة أعمدة للمساعدة في التشخيص
-            console.log(`🔍 Columns 100-110:`, firstDataRow.slice(100, 111));
-        }
-
-        // Extract students from this sheet
-        for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
-            const row = jsonData[i];
-            if (!row || !row[headers.code]) continue;
-
-            let birthDate = row[headers.birthDate] || '';
-            if (typeof birthDate === 'number') {
-                const date = new Date((birthDate - 25569) * 86400 * 1000);
-                birthDate = date.toISOString().split('T')[0];
-            }
-
-            // استخراج اسم المستوى من العمود المحدد
-            const levelName = row[levelColumnIndex] ? String(row[levelColumnIndex]).trim() : '';
-
-            // ربط اسم القسم (sheetName) بالمستوى
-            if (levelName && !extractedLevels.has(sheetName)) {
-                extractedLevels.set(sheetName, levelName);
-                console.log(`📋 Level extracted: ${sheetName} → ${levelName}`);
-            }
-
-            importedData.push({
-                id: studentId++,
-                code: String(row[headers.code] || ''),
-                familyName: String(row[headers.familyName] || ''),
-                firstName: String(row[headers.firstName] || ''),
-                gender: String(row[headers.gender] || ''),
-                birthDate: String(birthDate),
-                birthPlace: String(row[headers.birthPlace] || '-'),
-                section: sheetName, // Use sheet name as section
-                level: levelName // اسم المستوى من العمود DC
-            });
-        }
-    });
-
-    // حفظ المستويات المستخرجة
-    if (extractedLevels.size > 0) {
-        saveLevelsMapping(extractedLevels);
-    }
-
-    if (importedData.length === 0) {
-        showToast('لم يتم العثور على بيانات صالحة في الأوراق', 'error');
-        resetModal();
-        return;
-    }
-
-    showPreview();
-}
-
-function processSheet(sheetName) {
-    const sheet = currentWorkbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    processExcelData(jsonData, sheetName);
-}
-
-function processExcelData(jsonData, sheetName = 'TCSF-1') {
-    let headerRowIndex = -1, headers = {};
-    for (let i = 0; i < Math.min(jsonData.length, 15); i++) {
-        const row = jsonData[i];
-        if (row && row.some(cell => cell && (String(cell).includes('الرمز') || String(cell).includes('ر.ت')))) {
-            headerRowIndex = i;
-            row.forEach((cell, idx) => {
-                const c = String(cell || '').trim();
-                if (c.includes('ر.ت') || c === 'الرقم') headers.id = idx;
-                if (c === 'الرمز') headers.code = idx;
-                if (c === 'النسب') headers.familyName = idx;
-                if (c === 'الإسم' || c === 'الاسم') headers.firstName = idx;
-                if (c === 'النوع') headers.gender = idx;
-                if (c.includes('تاريخ')) headers.birthDate = idx;
-                if (c.includes('مكان')) headers.birthPlace = idx;
-            });
-            break;
-        }
-    }
-    if (headerRowIndex === -1) { showToast('لم يتم العثور على رؤوس الأعمدة', 'error'); resetModal(); return; }
-
-    importedData = [];
-    for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
-        const row = jsonData[i];
-        if (!row || !row[headers.code]) continue;
-        let birthDate = row[headers.birthDate] || '';
-        if (typeof birthDate === 'number') {
-            const date = new Date((birthDate - 25569) * 86400 * 1000);
-            birthDate = date.toISOString().split('T')[0];
-        }
-        importedData.push({
-            id: importedData.length + 1, code: String(row[headers.code] || ''),
-            familyName: String(row[headers.familyName] || ''), firstName: String(row[headers.firstName] || ''),
-            gender: String(row[headers.gender] || ''), birthDate: String(birthDate),
-            birthPlace: String(row[headers.birthPlace] || '-'), section: sheetName
-        });
-    }
-    if (importedData.length === 0) { showToast('لم يتم العثور على بيانات', 'error'); resetModal(); return; }
-    showPreview();
-}
-
-function showPreview() {
-    document.getElementById('import-progress').style.display = 'none';
-    document.getElementById('import-preview').style.display = 'block';
-    const previewRows = importedData.slice(0, 10);
-
-    // Count unique sections
-    const sections = [...new Set(importedData.map(s => s.section))];
-    const sectionCount = sections.length;
-
-    document.getElementById('preview-table').innerHTML = `
-        <thead><tr><th>الرقم</th><th>القسم</th><th>الرمز</th><th>النسب</th><th>الاسم</th><th>النوع</th></tr></thead>
-        <tbody>${previewRows.map(s => `<tr><td>${s.id}</td><td>${s.section}</td><td>${s.code}</td><td>${s.familyName}</td><td>${s.firstName}</td><td>${s.gender}</td></tr>`).join('')}</tbody>`;
-
-    const sectionInfo = sectionCount > 1 ? ` - ${sectionCount} أقسام` : '';
-    document.querySelector('#import-preview h4').textContent = `معاينة البيانات (${importedData.length} تلميذ${sectionInfo})`;
-}
 
 function refreshDashboard() {
     renderStatsCards();

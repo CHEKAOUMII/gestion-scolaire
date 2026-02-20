@@ -1,9 +1,8 @@
 const { getDb } = require('../db/context');
 const { printHTML } = require('../print-window');
 const { requireRole } = require('./auth');
-const { hashPassword } = require('../auth/password');
+const { hashPassword, generateRandomPassword } = require('../auth/password');
 
-const DEFAULT_USER_PASSWORD = 'ChangeMe123';
 
 function authErrorResponse(err) {
     const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
@@ -84,18 +83,26 @@ function registerSystemIpc(ipcMain) {
             requireRole(event, ['admin']);
             const db = getDb();
             const password = String(payload?.password || '').trim();
-            const finalPassword = password || DEFAULT_USER_PASSWORD;
+            const usedGenerated = !password;
+            const finalPassword = password || generateRandomPassword();
             db.prepare(`
-                INSERT INTO users(name, email, role, password_hash, disabled)
-                VALUES(?, ?, ?, ?, ?)
+                INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
+                VALUES(?, ?, ?, ?, ?, ?)
             `).run(
                 payload.name,
                 payload.email || null,
                 payload.role || 'staff',
                 hashPassword(finalPassword),
-                payload.disabled ? 1 : 0
+                payload.disabled ? 1 : 0,
+                usedGenerated ? 1 : 0
             );
-            return { success: true, usedDefaultPassword: !password, defaultPassword: !password ? DEFAULT_USER_PASSWORD : null };
+            // Return the generated password only once so admin can share it securely.
+            // Never return a hardcoded constant.
+            return {
+                success: true,
+                usedGeneratedPassword: usedGenerated,
+                temporaryPassword: usedGenerated ? finalPassword : null
+            };
         } catch (err) {
             return { success: false, error: err.message };
         }

@@ -1,7 +1,18 @@
 const { getDb } = require('../db/context');
+const { requireRole } = require('./auth');
+
+function authErrorResponse(err) {
+    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
+    return {
+        success: false,
+        code: isAuthError ? err.code : 'INTERNAL_ERROR',
+        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
+    };
+}
 
 function registerSchoolOpsIpc(ipcMain) {
-    // IPC Handlers - Student files
+    // ── Read handlers (no auth required) ──
+
     ipcMain.handle('studentFiles:getByYear', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
@@ -21,8 +32,11 @@ function registerSchoolOpsIpc(ipcMain) {
         });
     });
 
+    // ── Write handlers (require admin or staff role) ──
+
     ipcMain.handle('studentFiles:upsert', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare(`
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
@@ -32,12 +46,13 @@ function registerSchoolOpsIpc(ipcMain) {
             `).run(payload.student_id, payload.doc_key, payload.is_present ? 1 : 0, payload.school_year);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('studentFiles:upsertBulk', async (event, items) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             const upsert = db.prepare(`
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
@@ -53,12 +68,13 @@ function registerSchoolOpsIpc(ipcMain) {
             upsertMany(items);
             return { success: true, count: items.length };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('studentFiles:setDocumentStatus', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare(`
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
@@ -68,11 +84,12 @@ function registerSchoolOpsIpc(ipcMain) {
             `).run(payload.student_id, payload.doc_key, payload.is_present ? 1 : 0, payload.school_year);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
-    // IPC Handlers - Student movements
+    // ── Student movements (read = open, write = admin/staff) ──
+
     ipcMain.handle('studentMovements:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
@@ -87,6 +104,7 @@ function registerSchoolOpsIpc(ipcMain) {
 
     ipcMain.handle('studentMovements:add', async (event, movement) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             const addMovement = db.transaction(() => {
                 db.prepare(`
@@ -115,7 +133,7 @@ function registerSchoolOpsIpc(ipcMain) {
             addMovement();
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 

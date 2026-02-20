@@ -584,6 +584,7 @@ function closeStudentModal() {
 
 // ─── Forced Print Mode Helpers ───
 function enableForcedPrintMode() {
+    if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
     const printRoot = document.getElementById('sl-print-root');
     document.body.classList.add('sl-printing-active');
     printRoot?.setAttribute('aria-hidden', 'false');
@@ -594,6 +595,7 @@ function disableForcedPrintMode() {
     document.body.classList.remove('sl-printing-active');
     printRoot?.setAttribute('aria-hidden', 'true');
     printRoot.innerHTML = '';
+    if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
 }
 
 // ─── Build print content into the persistent #sl-print-root ───

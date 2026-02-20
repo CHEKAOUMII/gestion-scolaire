@@ -184,6 +184,23 @@
                 </div>
             </div>
 
+            <!-- Backup Section -->
+            <div class="students-results">
+                <h3><i class="fas fa-shield-alt"></i> النسخ الاحتياطي</h3>
+                <div style="padding: 2rem; text-align: center;">
+                    <p style="margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 0.95rem;">حماية بياناتك من الضياع — إنشاء نسخة احتياطية أو استعادة نسخة سابقة</p>
+                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn btn-primary" id="create-backup-btn" type="button" style="gap: 10px;">
+                            <i class="fas fa-download"></i> إنشاء نسخة احتياطية
+                        </button>
+                        <button class="btn btn-secondary" id="restore-backup-btn" type="button" style="gap: 10px;">
+                            <i class="fas fa-upload"></i> استعادة نسخة سابقة
+                        </button>
+                    </div>
+                    <input type="file" id="backup-file-input" accept=".json" style="display: none;">
+                </div>
+            </div>
+
             <!-- Recent Imports -->
             <div class="students-results">
                 <h3><i class="fas fa-history"></i> عمليات الاستيراد الأخيرة</h3>
@@ -300,6 +317,7 @@
         </div>
     </div>
 
+    <script src="js/backup.js" defer></script>
     <script src="js/pages/settings-imports.js" defer></script>
 </body>
 

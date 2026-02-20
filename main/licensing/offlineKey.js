@@ -1,8 +1,72 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const { LICENSE_DEFAULTS } = require('./licenseDefaults');
 
 const KEY_PREFIX = 'GSLK-';
-const DEFAULT_SIGNING_SECRET = process.env.GESTION_LICENSE_SECRET || 'gestion-scolaire-dev-secret';
 const ALLOWED_PLANS = new Set(['basic', 'pro', 'business']);
+
+/**
+ * Resolve the signing secret using a strict priority:
+ *   1. GESTION_LICENSE_SECRET env var (set at build time or for the CLI script)
+ *   2. Hardcoded app-wide secret from licenseDefaults.js (portable across machines)
+ *   3. Per-installation persistent secret file in userData (legacy fallback)
+ */
+let _cachedSecret = null;
+
+function _readPerInstallationSecret() {
+    try {
+        const { app } = require('electron');
+        const secretPath = path.join(app.getPath('userData'), '.license-secret');
+        if (fs.existsSync(secretPath)) {
+            const stored = fs.readFileSync(secretPath, 'utf8').trim();
+            if (stored.length >= 32) return stored;
+        }
+    } catch (_) { /* outside Electron */ }
+    return null;
+}
+
+function getSigningSecret() {
+    if (_cachedSecret) return _cachedSecret;
+
+    // Priority 1: Explicit env var (build-time / CLI)
+    const envSecret = (process.env.GESTION_LICENSE_SECRET || '').trim();
+    if (envSecret) {
+        _cachedSecret = envSecret;
+        return _cachedSecret;
+    }
+
+    // Priority 2: Hardcoded app-wide secret (ensures serials work across all installations)
+    const defaultSecret = (LICENSE_DEFAULTS.signingSecret || '').trim();
+    if (defaultSecret.length >= 32) {
+        _cachedSecret = defaultSecret;
+        return _cachedSecret;
+    }
+
+    // Priority 3: Per-installation persistent secret file (legacy fallback)
+    const localSecret = _readPerInstallationSecret();
+    if (localSecret) {
+        _cachedSecret = localSecret;
+        return _cachedSecret;
+    }
+
+    // Priority 4: Generate a new per-installation secret (first launch, no defaults configured)
+    try {
+        const { app } = require('electron');
+        const secretPath = path.join(app.getPath('userData'), '.license-secret');
+        const newSecret = crypto.randomBytes(64).toString('hex');
+        fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+        fs.writeFileSync(secretPath, newSecret, { mode: 0o600 });
+        _cachedSecret = newSecret;
+        return _cachedSecret;
+    } catch (_err) {
+        throw new Error(
+            'GESTION_LICENSE_SECRET environment variable must be set when running outside Electron.\n' +
+            'Example: set GESTION_LICENSE_SECRET=<your-secret>&& node scripts/generate-license-key.js ...'
+        );
+    }
+}
 
 function normalizeLicenseKey(value) {
     return String(value || '')
@@ -22,8 +86,10 @@ function safeEqual(a, b) {
 }
 
 function signPayloadBase64(payloadBase64) {
-    return crypto.createHmac('sha256', DEFAULT_SIGNING_SECRET).update(payloadBase64).digest('base64url');
+    return crypto.createHmac('sha256', getSigningSecret()).update(payloadBase64).digest('base64url');
 }
+
+
 
 function createOfflineLicenseKey({
     planCode = 'basic',
@@ -71,7 +137,18 @@ function decodeOfflineLicenseKey(rawKey) {
 
     const [payloadBase64, signature] = parts;
     const expectedSignature = signPayloadBase64(payloadBase64);
-    if (!safeEqual(signature, expectedSignature)) {
+    let signatureValid = safeEqual(signature, expectedSignature);
+
+    // Fallback: try per-installation secret for backward compatibility with old serials
+    if (!signatureValid) {
+        const localSecret = _readPerInstallationSecret();
+        if (localSecret && localSecret !== getSigningSecret()) {
+            const localSig = crypto.createHmac('sha256', localSecret).update(payloadBase64).digest('base64url');
+            signatureValid = safeEqual(signature, localSig);
+        }
+    }
+
+    if (!signatureValid) {
         return { ok: false, error: 'Invalid license signature' };
     }
 

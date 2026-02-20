@@ -485,14 +485,13 @@
 }
 
 [data-theme="dark"] .ux-pp-orient-btn.active {
-    background: var(--color-surface, #1A241C) !important;
     color: var(--color-primary-light, #4A8B6F) !important;
 }
 
 /* ==================== Theme Toggle Button ==================== */
 .theme-toggle {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border-radius: 12px;
     border: 2px solid var(--ux-border);
     background: var(--ux-bg-glass);
@@ -647,8 +646,8 @@
     background: rgba(255, 255, 255, 0.2);
     border: none;
     color: white;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     border-radius: 8px;
     cursor: pointer;
     transition: var(--ux-transition);
@@ -822,8 +821,8 @@
     }
 
     .theme-toggle {
-        width: 38px;
-        height: 38px;
+        width: 44px;
+        height: 44px;
         font-size: 16px;
     }
 }
@@ -837,6 +836,192 @@
     background: var(--ux-bg-glass);
     border: 1px solid var(--ux-border);
     color: var(--ux-text-primary);
+}
+
+/* ==================== Auto-Updater Notification Banner ==================== */
+.ux-update-banner {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 340px;
+    max-width: 480px;
+    padding: 14px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(245, 248, 250, 0.97));
+    border: 1px solid rgba(45, 95, 74, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(45, 95, 74, 0.1);
+    backdrop-filter: blur(12px);
+    font-family: inherit;
+    direction: rtl;
+    transform: translateY(120%);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.ux-update-banner.visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ux-update-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2D5F4A, #4A8B6F);
+    color: #fff;
+    font-size: 18px;
+}
+
+.ux-update-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ux-update-title {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: #1a2e23;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ux-update-subtitle {
+    font-size: 0.8rem;
+    color: #6b7c72;
+}
+
+.ux-update-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.ux-update-progress-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #e0e7e3;
+    overflow: hidden;
+}
+
+.ux-update-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2D5F4A, #4A8B6F);
+    transition: width 0.3s ease;
+    width: 0;
+}
+
+.ux-update-progress-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #2D5F4A;
+    min-width: 32px;
+    text-align: left;
+}
+
+.ux-update-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.ux-update-btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.ux-update-download {
+    background: linear-gradient(135deg, #2D5F4A, #4A8B6F);
+    color: #fff;
+}
+
+.ux-update-download:hover:not(:disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(45, 95, 74, 0.3);
+}
+
+.ux-update-download:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ux-update-install {
+    background: linear-gradient(135deg, #1a8cd8, #2da4ef);
+    color: #fff;
+}
+
+.ux-update-install:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(26, 140, 216, 0.3);
+}
+
+.ux-update-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #9ca8a0;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.ux-update-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #4a5a50;
+}
+
+/* Dark mode */
+[data-theme="dark"] .ux-update-banner {
+    background: linear-gradient(135deg, rgba(26, 36, 28, 0.97), rgba(34, 46, 37, 0.97));
+    border-color: rgba(74, 139, 111, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(74, 139, 111, 0.15);
+}
+
+[data-theme="dark"] .ux-update-title {
+    color: #e8ece9;
+}
+
+[data-theme="dark"] .ux-update-subtitle {
+    color: #9ca8a0;
+}
+
+[data-theme="dark"] .ux-update-progress-bar {
+    background: #2a3a2e;
+}
+
+[data-theme="dark"] .ux-update-close {
+    color: #6b7c72;
+}
+
+[data-theme="dark"] .ux-update-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #c0ccc4;
 }
 
 /* ==================== Print Mode (injected content) ==================== */
@@ -992,11 +1177,52 @@ body.ux-printing-active #ux-print-root .room-timetable-wrapper {
 /* ==================== Print Styles ==================== */
 @media print {
 
+    /* Force light theme: disable ALL dark mode overrides during printing */
+    [data-theme="dark"],
+    [data-theme="dark"] body,
+    [data-theme="dark"] .main-content,
+    [data-theme="dark"] .header {
+        background: #fff !important;
+        background-image: none !important;
+        color: #111 !important;
+        border-color: #dde5ea !important;
+    }
+
+    [data-theme="dark"] table,
+    [data-theme="dark"] th,
+    [data-theme="dark"] td,
+    [data-theme="dark"] h1,
+    [data-theme="dark"] h2,
+    [data-theme="dark"] h3,
+    [data-theme="dark"] h4,
+    [data-theme="dark"] p,
+    [data-theme="dark"] span,
+    [data-theme="dark"] div,
+    [data-theme="dark"] label,
+    [data-theme="dark"] a {
+        color: inherit !important;
+    }
+
+    [data-theme="dark"] .stat-card,
+    [data-theme="dark"] .glass-panel,
+    [data-theme="dark"] .report-panel,
+    [data-theme="dark"] .report-kpi-card,
+    [data-theme="dark"] .card,
+    [data-theme="dark"] details,
+    [data-theme="dark"] .search-section,
+    [data-theme="dark"] .students-results {
+        background: #fff !important;
+        border-color: #dde5ea !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+    }
+
     .theme-toggle,
     .quick-nav-toggle,
     .quick-nav-panel,
     .shortcuts-modal,
     .ux-pp-modal,
+    .ux-update-banner,
     .toast-container,
     .menu-toggle,
     .no-print {

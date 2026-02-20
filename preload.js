@@ -213,6 +213,18 @@ contextBridge.exposeInMainWorld('api', {
         printHTML: (payload = {}) => ipcRenderer.invoke('system:printHTML', payload),
         backupDb: () => ipcRenderer.invoke('system:backupDb'),
         restoreDb: (payload) => ipcRenderer.invoke('system:restoreDb', payload)
+    },
+
+    // Auto-updater
+    updater: {
+        checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
+        downloadUpdate: () => ipcRenderer.invoke('updater:downloadUpdate'),
+        installUpdate: () => ipcRenderer.invoke('updater:installUpdate'),
+        onStatus: (callback) => {
+            const handler = (_event, data) => callback(data);
+            ipcRenderer.on('updater:status', handler);
+            return () => ipcRenderer.removeListener('updater:status', handler);
+        }
     }
 });
 

@@ -43,10 +43,21 @@ function sendJson(res, statusCode, payload) {
     res.end(data);
 }
 
+const MAX_BODY_BYTES = 1_048_576; // 1 MB
+
 function parseBody(req) {
     return new Promise((resolve, reject) => {
         const chunks = [];
-        req.on('data', (chunk) => chunks.push(chunk));
+        let totalBytes = 0;
+        req.on('data', (chunk) => {
+            totalBytes += chunk.length;
+            if (totalBytes > MAX_BODY_BYTES) {
+                req.destroy();
+                reject(new Error('Body too large'));
+                return;
+            }
+            chunks.push(chunk);
+        });
         req.on('end', () => {
             if (!chunks.length) {
                 resolve({});

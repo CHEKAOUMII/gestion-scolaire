@@ -283,6 +283,7 @@
             document.body.appendChild(root);
         }
         root.innerHTML = capturedHTML;
+        if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
         document.body.classList.add('ux-printing-active');
 
         await new Promise(r => setTimeout(r, 300));
@@ -310,6 +311,7 @@
         } finally {
             document.body.classList.remove('ux-printing-active');
             if (root) root.innerHTML = '';
+            if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
         }
     }
 
@@ -332,6 +334,7 @@
             document.body.appendChild(root);
         }
         root.innerHTML = capturedHTML;
+        if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
         document.body.classList.add('ux-printing-active');
 
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -355,6 +358,7 @@
         } finally {
             document.body.classList.remove('ux-printing-active');
             if (root) root.innerHTML = '';
+            if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
         }
     }
 

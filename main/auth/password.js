@@ -1,7 +1,19 @@
 const crypto = require('crypto');
 
-const DEFAULT_ADMIN_PASSWORD = 'Admin@123';
 const HASH_KEY_LENGTH = 64;
+
+/**
+ * Generate a cryptographically random temporary password.
+ * Format: 8 random hex chars + special char + 4 random hex chars (13 chars total).
+ * This is used for initial admin seed and new user creation when no password is provided.
+ */
+function generateRandomPassword() {
+    const part1 = crypto.randomBytes(4).toString('hex');      // 8 hex chars
+    const part2 = crypto.randomBytes(2).toString('hex');      // 4 hex chars
+    const specials = '!@#$%&*';
+    const special = specials[crypto.randomInt(specials.length)];
+    return `${part1}${special}${part2}`;
+}
 
 function hashPassword(password, saltHex = null) {
     const plain = String(password || '');
@@ -34,7 +46,7 @@ function verifyPassword(password, storedHash) {
 }
 
 module.exports = {
-    DEFAULT_ADMIN_PASSWORD,
+    generateRandomPassword,
     hashPassword,
     verifyPassword
 };

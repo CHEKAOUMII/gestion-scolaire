@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════ */
 
 const DEFAULT_YEAR = '2025/2026';
-const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js';
+const CHART_JS_CDN = 'vendor/chart.min.js';
 
 let chartLoaderPromise = null;
 let allGradesCache = [];

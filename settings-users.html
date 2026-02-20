@@ -119,8 +119,8 @@
                 showToast('فشل إضافة المستخدم: ' + (res?.error || ''), 'error');
                 return;
             }
-            if (res?.usedDefaultPassword) {
-                showToast(`تمت الإضافة. كلمة المرور المؤقتة: ${res.defaultPassword}`, 'warning', 6000);
+            if (res?.usedGeneratedPassword && res.temporaryPassword) {
+                showToast(`تمت الإضافة. كلمة المرور المؤقتة: ${res.temporaryPassword} — شاركها بشكل آمن مع المستخدم`, 'warning', 8000);
             } else {
                 showToast('تمت الإضافة', 'success');
             }

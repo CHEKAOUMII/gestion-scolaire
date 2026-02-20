@@ -22,13 +22,23 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "electron-updater": "^6.8.3",
     "xlsx": "^0.18.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CHEKAOUMII/project6.2.git"
   },
   "build": {
     "appId": "com.ibnsina.gestion-scolaire",
     "productName": "برنامج التدبير المدرسي",
     "directories": {
       "output": "dist"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "CHEKAOUMII",
+      "repo": "project6.2"
     },
     "win": {
       "target": "nsis",

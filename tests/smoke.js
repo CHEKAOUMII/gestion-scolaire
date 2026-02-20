@@ -125,6 +125,42 @@ function runRestoreSafetySmoke() {
     console.log('[smoke] Restore safety checks OK');
 }
 
+function runNoCdnSmoke() {
+    const cdnPattern = /https?:\/\/cdn\.(jsdelivr\.net|sheetjs\.com|cloudflare\.com|unpkg\.com|cdnjs\.cloudflare\.com)/;
+    const skipDirs = new Set(['node_modules', 'vendor', 'timetables', '.git', 'dist', 'build', '.tmp-analytics-check.js']);
+    const extensions = new Set(['.js', '.html']);
+
+    function walk(dir) {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        const hits = [];
+        for (const entry of entries) {
+            if (skipDirs.has(entry.name)) continue;
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                hits.push(...walk(full));
+            } else if (extensions.has(path.extname(entry.name))) {
+                const content = fs.readFileSync(full, 'utf8');
+                const lines = content.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                    if (cdnPattern.test(lines[i])) {
+                        hits.push(`${path.relative(root, full)}:${i + 1}`);
+                    }
+                }
+            }
+        }
+        return hits;
+    }
+
+    const hits = walk(root);
+    assert.strictEqual(hits.length, 0, `CDN URLs found in source files (vendor locally instead):\n  ${hits.join('\n  ')}`);
+
+    // Verify vendor files exist
+    assert.ok(fs.existsSync(path.join(root, 'vendor', 'chart.min.js')), 'vendor/chart.min.js missing');
+    assert.ok(fs.existsSync(path.join(root, 'vendor', 'xlsx.full.min.js')), 'vendor/xlsx.full.min.js missing');
+
+    console.log('[smoke] No-CDN policy OK (vendor files present)');
+}
+
 function run() {
     runContractSmoke();
     runModuleExportsSmoke();
@@ -132,6 +168,7 @@ function run() {
     runMigrationSmoke();
     runLazyLoadSmoke();
     runRestoreSafetySmoke();
+    runNoCdnSmoke();
     console.log('[smoke] All smoke checks passed');
 }
 

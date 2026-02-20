@@ -29,8 +29,14 @@ Thumbs.db
 *.temp
 .cache/
 
-# Sensitive files (auto-detected)
-node_modules
+# Sensitive / data files — never commit PII or database artifacts
+school_backup_*.json
+*.xlsx
+*.db
+*.db-journal
+*.db-wal
+*.pdf
+server/owner-telemetry.json
 
 # Project specific ignores
 "نتائج/"

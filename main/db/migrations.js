@@ -1,6 +1,6 @@
 const { getDb } = require('./context');
 const { ensureColumn, ensureLicensingSchema, ensureOwnerSyncSchema } = require('./schema');
-const { DEFAULT_ADMIN_PASSWORD, hashPassword } = require('../auth/password');
+const { generateRandomPassword, hashPassword } = require('../auth/password');
 
 const MIGRATIONS = [
     {
@@ -47,7 +47,7 @@ const MIGRATIONS = [
                     WHERE lower(email) = 'admin@school.local'
                       AND (password_hash IS NULL OR trim(password_hash) = '')
                 `
-            ).run(hashPassword(DEFAULT_ADMIN_PASSWORD));
+            ).run(hashPassword(generateRandomPassword()));
         }
     },
     {

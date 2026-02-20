@@ -166,6 +166,8 @@ function _isSidebarLinkBlocked(href, role) {
 }
 
 function applyNavigationRestrictions(role) {
+    const isAdmin = _isAdminRole(role);
+
     document.querySelectorAll('.sidebar-nav a[href]').forEach((link) => {
         if (!link.dataset.limitedGuardBound) {
             link.addEventListener('click', (event) => {
@@ -182,7 +184,19 @@ function applyNavigationRestrictions(role) {
             link.dataset.limitedGuardBound = '1';
         }
 
+        const href = _normalizeHref(link.getAttribute('href'));
+        const isAdminOnlyPage = ADMIN_ONLY_PAGES.has(href);
         const blocked = _isSidebarLinkBlocked(link.getAttribute('href'), role);
+        const listItem = link.closest('li');
+
+        // Completely hide admin-only pages for non-admin users
+        if (isAdminOnlyPage && !isAdmin) {
+            if (listItem) listItem.style.display = 'none';
+            return;
+        } else if (isAdminOnlyPage && isAdmin) {
+            if (listItem) listItem.style.display = '';
+        }
+
         if (blocked) {
             link.style.opacity = '0.45';
             link.style.filter = 'grayscale(0.5)';
@@ -503,7 +517,7 @@ function ensureAdminAuthButton(role) {
         activateBtn.type = 'button';
         activateBtn.className = 'theme-toggle';
         activateBtn.setAttribute('data-activate-link-btn', '1');
-        activateBtn.style.cssText = 'padding:8px 12px;display:flex;align-items:center;gap:6px;';
+        activateBtn.style.cssText = 'padding:8px 14px;display:flex;align-items:center;gap:6px;width:auto;height:auto;white-space:nowrap;font-size:13px;';
         activateBtn.innerHTML = '<i class="fas fa-key"></i><span>تفعيل البرنامج</span>';
         activateBtn.title = 'فتح نموذج التفعيل';
         activateBtn.addEventListener('click', () => {
@@ -517,7 +531,7 @@ function ensureAdminAuthButton(role) {
         btn.type = 'button';
         btn.className = 'theme-toggle';
         btn.setAttribute('data-admin-auth-btn', '1');
-        btn.style.cssText = 'padding:8px 12px;display:flex;align-items:center;gap:6px;';
+        btn.style.cssText = 'padding:8px 14px;display:flex;align-items:center;gap:6px;width:auto;height:auto;white-space:nowrap;font-size:13px;';
         target.appendChild(btn);
         btn.addEventListener('click', async () => {
             const currentRole = getCurrentAppRole();

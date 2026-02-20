@@ -1,7 +1,18 @@
 const { getDb } = require('../db/context');
+const { requireRole } = require('./auth');
+
+function authErrorResponse(err) {
+    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
+    return {
+        success: false,
+        code: isAuthError ? err.code : 'INTERNAL_ERROR',
+        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
+    };
+}
 
 function registerStudentsIpc(ipcMain) {
-    // IPC Handlers - Students
+    // ── Read handlers (no auth required — app starts without login) ──
+
     ipcMain.handle('students:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
@@ -30,8 +41,11 @@ function registerStudentsIpc(ipcMain) {
         }));
     });
 
+    // ── Write handlers (require admin or staff role) ──
+
     ipcMain.handle('students:add', async (event, student) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare(`
                 INSERT INTO students(code, full_name, family_name, birth_date, gender, section, school_year, status, registration_type)
@@ -49,10 +63,11 @@ function registerStudentsIpc(ipcMain) {
             );
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
+    // No auth: bulk-import is used by settings-imports page before login
     ipcMain.handle('students:addBulk', async (event, students) => {
         try {
             const db = getDb();
@@ -78,12 +93,13 @@ function registerStudentsIpc(ipcMain) {
             insertMany(students);
             return { success: true, count: students.length };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('students:update', async (event, id, data) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             const studentId = Number(id);
             if (!Number.isFinite(studentId) || studentId <= 0) {
@@ -117,12 +133,13 @@ function registerStudentsIpc(ipcMain) {
             db.prepare(`UPDATE students SET ${setClause} WHERE id = ?`).run(...values);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('students:delete', async (event, id) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             const studentId = Number(id);
             if (!Number.isFinite(studentId) || studentId <= 0) {
@@ -132,10 +149,11 @@ function registerStudentsIpc(ipcMain) {
             db.prepare('DELETE FROM students WHERE id = ?').run(studentId);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
+    // No auth: used by settings-imports page to clear data before re-import
     ipcMain.handle('students:deleteByYear', async (event, schoolYear) => {
         try {
             const db = getDb();
@@ -151,11 +169,12 @@ function registerStudentsIpc(ipcMain) {
             const count = runDelete(year);
             return { success: true, count };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
-    // IPC Handlers - Settings
+    // ── Settings (read = open, write = admin only) ──
+
     ipcMain.handle('settings:get', async (event, key) => {
         const db = getDb();
         const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
@@ -164,15 +183,17 @@ function registerStudentsIpc(ipcMain) {
 
     ipcMain.handle('settings:set', async (event, key, value) => {
         try {
+            requireRole(event, ['admin']);
             const db = getDb();
             db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
-    // IPC Handlers - Grades
+    // ── Grades (read = open, write = admin/staff) ──
+
     ipcMain.handle('grades:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
@@ -316,6 +337,7 @@ function registerStudentsIpc(ipcMain) {
 
     ipcMain.handle('grades:save', async (event, grade) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare(`
                 INSERT OR REPLACE INTO grades (student_id, student_code, subject, grade, semester, teacher_name, level, section, school_year)
@@ -333,10 +355,11 @@ function registerStudentsIpc(ipcMain) {
             );
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
+    // No auth: bulk-import is used by settings-imports page before login
     ipcMain.handle('grades:saveBulk', async (event, grades) => {
         try {
             const db = getDb();
@@ -362,10 +385,11 @@ function registerStudentsIpc(ipcMain) {
             insertMany(grades);
             return { success: true, count: grades.length };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
+    // No auth: used by settings-imports page to clear data before re-import
     ipcMain.handle('grades:deleteByYear', async (event, schoolYear) => {
         try {
             const db = getDb();
@@ -373,11 +397,11 @@ function registerStudentsIpc(ipcMain) {
             const info = db.prepare('DELETE FROM grades WHERE school_year = ?').run(year);
             return { success: true, count: info.changes };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
-    // IPC Handlers - Statistics
+    // ── Statistics (read = open) ──
 
     ipcMain.handle('stats:get', async (event, schoolYear) => {
         const db = getDb();
@@ -404,7 +428,8 @@ function registerStudentsIpc(ipcMain) {
         };
     });
 
-    // IPC Handlers - Catalogs/lookup (compatibility)
+    // ── Catalogs/lookup (read = open) ──
+
     ipcMain.handle('classes:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';

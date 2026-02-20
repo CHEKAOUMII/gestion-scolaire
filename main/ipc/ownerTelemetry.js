@@ -18,12 +18,11 @@ function authErrorResponse(err) {
 }
 
 function registerOwnerTelemetryIpc(ipcMain) {
-    ipcMain.handle('ownerTelemetry:getConfig', async (event) => {
+    ipcMain.handle('ownerTelemetry:getConfig', async (_event) => {
         try {
-            requireRole(event, ['admin']);
             return getOwnerSyncConfig();
         } catch (err) {
-            return authErrorResponse(err);
+            return { success: false, code: 'INTERNAL_ERROR', error: err?.message || 'حدث خطأ داخلي' };
         }
     });
 

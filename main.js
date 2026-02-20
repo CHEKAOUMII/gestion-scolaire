@@ -5,6 +5,7 @@ const { initDatabase } = require('./main/db/init');
 const { getDb } = require('./main/db/context');
 const { registerAllIpcHandlers } = require('./main/ipc/registerAll');
 const { startOwnerSyncBackground } = require('./main/licensing/ownerSync');
+const { initAutoUpdater } = require('./main/updater');
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -24,13 +25,16 @@ function createWindow() {
     mainWindow.loadFile('index.html');
 
     // mainWindow.webContents.openDevTools();
+
+    return mainWindow;
 }
 
 app.whenReady().then(() => {
     initDatabase();
     registerAllIpcHandlers(ipcMain);
     startOwnerSyncBackground();
-    createWindow();
+    const mainWindow = createWindow();
+    initAutoUpdater(mainWindow);
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

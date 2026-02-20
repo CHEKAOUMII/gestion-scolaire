@@ -11,7 +11,7 @@ const ACTION_LABELS = {
     fet: 'FET'
 };
 
-const XLSX_CDN = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+const XLSX_CDN = 'vendor/xlsx.full.min.js';
 let xlsxLoaderPromise = null;
 
 function ensureXlsxLoaded() {
@@ -186,6 +186,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('btn-clear-grades')?.addEventListener('click', () => clearData('grades'));
         document.getElementById('btn-clear-absences')?.addEventListener('click', () => clearData('absences'));
         document.getElementById('btn-clear-timetable')?.addEventListener('click', () => clearData('timetable'));
+
+        // Backup buttons
+        const createBackupBtn = document.getElementById('create-backup-btn');
+        const restoreBackupBtn = document.getElementById('restore-backup-btn');
+        const backupFileInput = document.getElementById('backup-file-input');
+
+        if (createBackupBtn && typeof BackupManager !== 'undefined') {
+            createBackupBtn.addEventListener('click', async () => {
+                try {
+                    createBackupBtn.disabled = true;
+                    createBackupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...';
+                    const backup = await BackupManager.createBackup();
+                    BackupManager.downloadBackup(backup);
+                    showToast('تم إنشاء النسخة الاحتياطية بنجاح (' + BackupManager.formatSize(backup.size) + ')', 'success');
+                } catch (err) {
+                    showToast(err.message || 'فشل إنشاء النسخة الاحتياطية', 'error');
+                } finally {
+                    createBackupBtn.disabled = false;
+                    createBackupBtn.innerHTML = '<i class="fas fa-download"></i> إنشاء نسخة احتياطية';
+                }
+            });
+        }
+
+        if (restoreBackupBtn && backupFileInput && typeof BackupManager !== 'undefined') {
+            restoreBackupBtn.addEventListener('click', () => backupFileInput.click());
+            backupFileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (!confirm('سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية. هل أنت متأكد؟')) {
+                    backupFileInput.value = '';
+                    return;
+                }
+                try {
+                    restoreBackupBtn.disabled = true;
+                    restoreBackupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاستعادة...';
+                    const result = await BackupManager.restoreFromFile(file);
+                    showToast('تم استعادة النسخة الاحتياطية بنجاح (' + result.restoredItems + ' عنصر)', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } catch (err) {
+                    showToast(err.message || 'فشل استعادة النسخة الاحتياطية', 'error');
+                } finally {
+                    restoreBackupBtn.disabled = false;
+                    restoreBackupBtn.innerHTML = '<i class="fas fa-upload"></i> استعادة نسخة سابقة';
+                    backupFileInput.value = '';
+                }
+            });
+        }
 
         await Promise.all([loadLogs(), loadDataStats()]);
     } catch (error) {

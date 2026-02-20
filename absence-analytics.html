@@ -1174,6 +1174,315 @@
     .chart-full canvas {
       max-height: 300px;
     }
+
+    /* ═════════════════════════════════════════
+       DARK MODE OVERRIDES
+       ═════════════════════════════════════════ */
+    [data-theme="dark"] .filters-section {
+      background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-surface-alt) 100%);
+      border-color: var(--color-accent);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    [data-theme="dark"] .filter-group select,
+    [data-theme="dark"] .filter-group input {
+      background: var(--color-surface-alt);
+      border-color: var(--color-accent);
+      color: var(--color-text-main);
+    }
+
+    [data-theme="dark"] .filter-group select:hover,
+    [data-theme="dark"] .filter-group input:hover {
+      border-color: var(--color-silver);
+    }
+
+    /* KPI Cards */
+    [data-theme="dark"] .kpi-card {
+      background: var(--color-surface);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      border-color: var(--color-accent);
+    }
+
+    [data-theme="dark"] .kpi-card:hover {
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="dark"] .kpi-card.blue .kpi-icon {
+      background: rgba(59, 130, 246, 0.18);
+      color: #60a5fa;
+    }
+
+    [data-theme="dark"] .kpi-card.green .kpi-icon {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+    }
+
+    [data-theme="dark"] .kpi-card.purple .kpi-icon {
+      background: rgba(139, 92, 246, 0.18);
+      color: #a78bfa;
+    }
+
+    [data-theme="dark"] .kpi-card.orange .kpi-icon {
+      background: rgba(249, 115, 22, 0.18);
+      color: #fb923c;
+    }
+
+    [data-theme="dark"] .kpi-trend.up {
+      background: rgba(180, 83, 9, 0.2);
+      color: #fbbf24;
+    }
+
+    [data-theme="dark"] .kpi-trend.down {
+      background: rgba(21, 128, 61, 0.2);
+      color: #4ade80;
+    }
+
+    [data-theme="dark"] .kpi-trend.neutral {
+      background: var(--color-surface-alt);
+      color: var(--color-text-muted);
+    }
+
+    /* Section Cards */
+    [data-theme="dark"] .section-card {
+      background: var(--color-surface);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    [data-theme="dark"] .section-header {
+      border-bottom-color: var(--color-accent);
+    }
+
+    /* Student Items */
+    [data-theme="dark"] .student-item {
+      background: var(--color-surface-alt);
+      border-color: transparent;
+    }
+
+    [data-theme="dark"] .student-item:hover {
+      background: var(--color-surface);
+      border-color: var(--color-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    [data-theme="dark"] .student-meta {
+      color: var(--color-text-muted);
+    }
+
+    [data-theme="dark"] .progress-bar {
+      background: var(--color-accent);
+    }
+
+    /* Badges */
+    [data-theme="dark"] .badge.warn {
+      background: rgba(146, 64, 14, 0.25);
+      color: #fbbf24;
+    }
+
+    [data-theme="dark"] .badge.danger {
+      background: rgba(153, 27, 27, 0.25);
+      color: #f87171;
+    }
+
+    [data-theme="dark"] .badge.ok {
+      background: rgba(22, 101, 52, 0.25);
+      color: #4ade80;
+    }
+
+    /* Data Table */
+    [data-theme="dark"] .data-table th,
+    [data-theme="dark"] .data-table td {
+      border-bottom-color: var(--color-accent);
+    }
+
+    [data-theme="dark"] .data-table th {
+      background: var(--color-surface-alt);
+      color: var(--color-text-muted);
+    }
+
+    [data-theme="dark"] .data-table tbody tr:hover {
+      background: var(--color-surface-alt);
+    }
+
+    [data-theme="dark"] .data-table .justified {
+      color: #34d399;
+    }
+
+    [data-theme="dark"] .data-table .unjustified {
+      color: #f87171;
+    }
+
+    /* Week Cells */
+    [data-theme="dark"] .week-cell.low {
+      background: rgba(22, 101, 52, 0.2);
+      color: #4ade80;
+    }
+
+    [data-theme="dark"] .week-cell.medium {
+      background: rgba(146, 64, 14, 0.2);
+      color: #fbbf24;
+    }
+
+    [data-theme="dark"] .week-cell.high {
+      background: rgba(153, 27, 27, 0.2);
+      color: #f87171;
+    }
+
+    /* Profile Items */
+    [data-theme="dark"] .profile-item {
+      background: var(--color-surface-alt);
+      border-color: var(--color-accent);
+    }
+
+    /* Calendar */
+    [data-theme="dark"] .cal-day.present {
+      background: rgba(22, 101, 52, 0.2);
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.3);
+    }
+
+    [data-theme="dark"] .cal-day.justified {
+      background: rgba(146, 64, 14, 0.2);
+      color: #fbbf24;
+      border-color: rgba(251, 191, 36, 0.3);
+    }
+
+    [data-theme="dark"] .cal-day.unjustified {
+      background: rgba(153, 27, 27, 0.2);
+      color: #f87171;
+      border-color: rgba(248, 113, 113, 0.3);
+    }
+
+    /* Calendar legend dots */
+    [data-theme="dark"] .cal-legend-dot.present {
+      background: rgba(22, 101, 52, 0.3);
+      border-color: rgba(74, 222, 128, 0.4);
+    }
+
+    [data-theme="dark"] .cal-legend-dot.justified {
+      background: rgba(146, 64, 14, 0.3);
+      border-color: rgba(251, 191, 36, 0.4);
+    }
+
+    [data-theme="dark"] .cal-legend-dot.unjustified,
+    [data-theme="dark"] .cal-legend-dot.estimated {
+      background: rgba(153, 27, 27, 0.3);
+      border-color: rgba(248, 113, 113, 0.4);
+    }
+
+    /* Heatmap */
+    [data-theme="dark"] .heatmap-cell {
+      border-color: rgba(255, 255, 255, 0.05);
+    }
+
+    [data-theme="dark"] .heatmap-cell.heat-0 {
+      background: rgba(22, 101, 52, 0.15);
+      color: #4ade80;
+    }
+
+    [data-theme="dark"] .heatmap-cell.heat-1 {
+      background: rgba(22, 101, 52, 0.25);
+      color: #4ade80;
+    }
+
+    [data-theme="dark"] .heatmap-cell.heat-2 {
+      background: rgba(133, 77, 14, 0.25);
+      color: #fbbf24;
+    }
+
+    [data-theme="dark"] .heatmap-cell.heat-3 {
+      background: rgba(154, 52, 18, 0.3);
+      color: #fb923c;
+    }
+
+    [data-theme="dark"] .heatmap-cell.heat-4 {
+      background: rgba(153, 27, 27, 0.3);
+      color: #f87171;
+    }
+
+    [data-theme="dark"] .heatmap-cell.heat-5 {
+      background: rgba(127, 29, 29, 0.4);
+      color: #fca5a5;
+    }
+
+    /* Search Box */
+    [data-theme="dark"] .search-box input {
+      background: var(--color-surface-alt);
+      border-color: var(--color-accent);
+      color: var(--color-text-main);
+    }
+
+    /* Pagination */
+    [data-theme="dark"] .pagination button {
+      background: var(--color-surface);
+      border-color: var(--color-accent);
+      color: var(--color-text-main);
+    }
+
+    [data-theme="dark"] .pagination button:hover:not(:disabled) {
+      border-color: var(--color-primary-light);
+      color: var(--color-primary-light);
+    }
+
+    /* Level Table */
+    [data-theme="dark"] .level-table tbody tr:hover {
+      background: var(--color-surface-alt);
+    }
+
+    /* Change Cards */
+    [data-theme="dark"] .change-card.improve {
+      background: linear-gradient(135deg, rgba(22, 101, 52, 0.15), rgba(22, 101, 52, 0.08));
+      border-color: rgba(74, 222, 128, 0.25);
+    }
+
+    [data-theme="dark"] .change-card.decline {
+      background: linear-gradient(135deg, rgba(153, 27, 27, 0.15), rgba(153, 27, 27, 0.08));
+      border-color: rgba(248, 113, 113, 0.25);
+    }
+
+    [data-theme="dark"] .change-card.improve h4 {
+      color: #4ade80;
+    }
+
+    [data-theme="dark"] .change-card.decline h4 {
+      color: #f87171;
+    }
+
+    [data-theme="dark"] .change-card.improve .change-delta {
+      background: rgba(22, 101, 52, 0.25);
+      color: #4ade80;
+    }
+
+    [data-theme="dark"] .change-card.decline .change-delta {
+      background: rgba(153, 27, 27, 0.25);
+      color: #f87171;
+    }
+
+    [data-theme="dark"] .change-list li {
+      border-bottom-color: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Note Box */
+    [data-theme="dark"] .note-box.info {
+      background: rgba(30, 64, 175, 0.15);
+      color: #93c5fd;
+    }
+
+    [data-theme="dark"] .note-box.warning {
+      background: rgba(154, 52, 18, 0.15);
+      color: #fdba74;
+    }
+
+    /* Loading Overlay */
+    [data-theme="dark"] .loading-overlay {
+      background: rgba(18, 26, 20, 0.85);
+    }
+
+    /* Student Detail Controls */
+    [data-theme="dark"] .student-detail-controls select {
+      background: var(--color-surface-alt);
+      border-color: var(--color-accent);
+      color: var(--color-text-main);
+    }
   </style>
 </head>
 
@@ -1473,7 +1782,7 @@
     const WARNING_THRESHOLD = 10;
     const DANGER_THRESHOLD = 15;
     const HOURS_PER_DAY = 6;
-    const CHART_JS_CDN = 'https://cdn.jsdelivr.net/npm/chart.js';
+    const CHART_JS_CDN = 'vendor/chart.min.js';
 
     const MONTHS = [
       ['يناير', 1], ['فبراير', 2], ['مارس', 3], ['أبريل', 4],

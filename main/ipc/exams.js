@@ -1,15 +1,29 @@
 const { getDb } = require('../db/context');
+const { requireRole } = require('./auth');
+
+function authErrorResponse(err) {
+    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
+    return {
+        success: false,
+        code: isAuthError ? err.code : 'INTERNAL_ERROR',
+        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
+    };
+}
 
 function registerExamsIpc(ipcMain) {
-    // IPC Handlers - Exams
+    // ── Read handlers (no auth required) ──
+
     ipcMain.handle('exams:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
         return db.prepare('SELECT * FROM exams WHERE school_year = ? ORDER BY exam_date, exam_time').all(year);
     });
 
+    // ── Write handlers (require admin or staff role) ──
+
     ipcMain.handle('exams:save', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             if (payload.id) {
                 db.prepare(`
@@ -39,21 +53,23 @@ function registerExamsIpc(ipcMain) {
             }
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('exams:delete', async (event, id) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare('DELETE FROM exams WHERE id = ?').run(id);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
-    // IPC Handlers - Exam proctors
+    // ── Exam proctors (read = open, write = admin/staff) ──
+
     ipcMain.handle('examProctors:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
@@ -69,6 +85,7 @@ function registerExamsIpc(ipcMain) {
 
     ipcMain.handle('examProctors:saveManual', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare(`
                 INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, room, school_year)
@@ -82,12 +99,13 @@ function registerExamsIpc(ipcMain) {
             );
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('examProctors:generateRoundRobin', async (event, payload) => {
         try {
+            requireRole(event, ['admin']);
             const db = getDb();
             const year = payload.school_year || '2025/2026';
             const exams = db.prepare('SELECT id FROM exams WHERE school_year = ? ORDER BY exam_date, id').all(year);
@@ -111,17 +129,18 @@ function registerExamsIpc(ipcMain) {
             generate();
             return { success: true, count: exams.length };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('examProctors:delete', async (event, id) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare('DELETE FROM exam_proctors WHERE id = ?').run(id);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
@@ -138,6 +157,7 @@ function registerExamsIpc(ipcMain) {
 
     ipcMain.handle('proctors:save', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             const year = payload.school_year || '2025/2026';
             if (payload.id) {
@@ -169,21 +189,23 @@ function registerExamsIpc(ipcMain) {
             }
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('proctors:delete', async (event, id) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare('DELETE FROM exam_proctors WHERE id = ?').run(id);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
-    // IPC Handlers - Exam rooms
+    // ── Exam rooms (read = open, write = admin/staff) ──
+
     ipcMain.handle('examRooms:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
@@ -192,6 +214,7 @@ function registerExamsIpc(ipcMain) {
 
     ipcMain.handle('examRooms:save', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             if (payload.id) {
                 db.prepare(
@@ -213,17 +236,18 @@ function registerExamsIpc(ipcMain) {
             }
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('examRooms:delete', async (event, id) => {
         try {
+            requireRole(event, ['admin']);
             const db = getDb();
             db.prepare('DELETE FROM exam_rooms WHERE id = ?').run(id);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
@@ -238,6 +262,7 @@ function registerExamsIpc(ipcMain) {
 
     ipcMain.handle('rooms:save', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             const year = payload.school_year || '2025/2026';
             if (payload.id) {
@@ -260,17 +285,18 @@ function registerExamsIpc(ipcMain) {
             }
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('rooms:delete', async (event, id) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare('DELETE FROM exam_rooms WHERE id = ?').run(id);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
@@ -279,7 +305,8 @@ function registerExamsIpc(ipcMain) {
     ipcMain.handle('timetable:getByRoom', async () => []);
     ipcMain.handle('timetable:getByClass', async () => []);
 
-    // IPC Handlers - Tests
+    // ── Tests (read = open, write = admin/staff) ──
+
     ipcMain.handle('tests:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
@@ -288,6 +315,7 @@ function registerExamsIpc(ipcMain) {
 
     ipcMain.handle('tests:save', async (event, payload) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             if (payload.id) {
                 db.prepare(`
@@ -319,17 +347,18 @@ function registerExamsIpc(ipcMain) {
             }
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 
     ipcMain.handle('tests:delete', async (event, id) => {
         try {
+            requireRole(event, ['admin', 'staff']);
             const db = getDb();
             db.prepare('DELETE FROM tests WHERE id = ?').run(id);
             return { success: true };
         } catch (err) {
-            return { success: false, error: err.message };
+            return authErrorResponse(err);
         }
     });
 }

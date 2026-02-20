@@ -1,5 +1,5 @@
 const { getDb } = require('./context');
-const { DEFAULT_ADMIN_PASSWORD, hashPassword } = require('../auth/password');
+const { generateRandomPassword, hashPassword } = require('../auth/password');
 
 // Create tables
 function createTables() {
@@ -203,33 +203,56 @@ function createTables() {
         role TEXT DEFAULT 'staff',
         password_hash TEXT,
         disabled INTEGER DEFAULT 0,
+        must_change_password INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     `);
 
     // Backward-compatibility for existing databases created before password auth
     ensureColumn('users', 'password_hash', 'TEXT');
+    ensureColumn('users', 'must_change_password', 'INTEGER DEFAULT 0');
 
     ensureLicensingSchema(db);
     ensureOwnerSyncSchema(db);
 
     // Set default school year
     db.prepare(`INSERT OR IGNORE INTO settings(key, value) VALUES('currentSchoolYear', '2025/2026')`).run();
+    const adminPassword = generateRandomPassword();
     db.prepare(
         `
-            INSERT OR IGNORE INTO users(id, name, email, role, password_hash, disabled)
-            VALUES(1, 'Admin', 'admin@school.local', 'admin', ?, 0)
+            INSERT OR IGNORE INTO users(id, name, email, role, password_hash, disabled, must_change_password)
+            VALUES(1, 'Admin', 'admin@school.local', 'admin', ?, 0, 1)
         `
-    ).run(hashPassword(DEFAULT_ADMIN_PASSWORD));
+    ).run(hashPassword(adminPassword));
 
     db.prepare(
         `
             UPDATE users
-            SET password_hash = ?
+            SET password_hash = ?, must_change_password = 1
             WHERE lower(email) = 'admin@school.local'
               AND (password_hash IS NULL OR trim(password_hash) = '')
         `
-    ).run(hashPassword(DEFAULT_ADMIN_PASSWORD));
+    ).run(hashPassword(generateRandomPassword()));
+
+    // Log the initial admin password to console on first-ever database creation
+    const adminRow = db.prepare("SELECT id FROM users WHERE id = 1").get();
+    if (adminRow) {
+        console.log('[SETUP] Initial admin password: ' + adminPassword);
+        console.log('[SETUP] You will be required to change this password on first login.');
+    }
+
+    // ── Performance indexes ──
+    // Almost every query filters by school_year; many JOIN on student_code.
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_students_year       ON students(school_year);
+        CREATE INDEX IF NOT EXISTS idx_students_code_year   ON students(code, school_year);
+        CREATE INDEX IF NOT EXISTS idx_grades_year_code     ON grades(school_year, student_code);
+        CREATE INDEX IF NOT EXISTS idx_grades_year_subject  ON grades(school_year, subject);
+        CREATE INDEX IF NOT EXISTS idx_absences_year_code   ON absences(school_year, student_code);
+        CREATE INDEX IF NOT EXISTS idx_absences_year_month  ON absences(school_year, month);
+        CREATE INDEX IF NOT EXISTS idx_teachers_year        ON teachers(school_year);
+        CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
+    `);
 }
 
 function ensureLicensingSchema(existingDb) {

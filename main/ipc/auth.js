@@ -5,6 +5,43 @@ const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
 const ALLOWED_ROLES = new Set(['admin', 'staff', 'viewer']);
 
+// ── Login throttling ──
+const LOGIN_ATTEMPTS = new Map(); // email → { count, lockedUntil }
+const MAX_ATTEMPTS_BEFORE_LOCK = 5;
+const LOCKOUT_SCHEDULE_MS = [5_000, 15_000, 30_000, 60_000, 120_000]; // escalating
+const ATTEMPT_TTL_MS = 30 * 60_000; // auto-clean entries after 30 min
+
+function getLoginAttemptRecord(email) {
+    return LOGIN_ATTEMPTS.get(email) || null;
+}
+
+function recordFailedLogin(email) {
+    const now = Date.now();
+    const rec = LOGIN_ATTEMPTS.get(email) || { count: 0, lockedUntil: 0, lastAttempt: 0 };
+    rec.count += 1;
+    rec.lastAttempt = now;
+    if (rec.count >= MAX_ATTEMPTS_BEFORE_LOCK) {
+        const tier = Math.min(rec.count - MAX_ATTEMPTS_BEFORE_LOCK, LOCKOUT_SCHEDULE_MS.length - 1);
+        rec.lockedUntil = now + LOCKOUT_SCHEDULE_MS[tier];
+    }
+    LOGIN_ATTEMPTS.set(email, rec);
+}
+
+function clearLoginAttempts(email) {
+    LOGIN_ATTEMPTS.delete(email);
+}
+
+// Periodic cleanup of stale entries (runs at most every 5 min)
+let _lastCleanup = Date.now();
+function cleanupStaleAttempts() {
+    const now = Date.now();
+    if (now - _lastCleanup < 5 * 60_000) return;
+    _lastCleanup = now;
+    for (const [email, rec] of LOGIN_ATTEMPTS) {
+        if (now - rec.lastAttempt > ATTEMPT_TTL_MS) LOGIN_ATTEMPTS.delete(email);
+    }
+}
+
 function normalizeEmail(value) {
     return String(value || '')
         .trim()
@@ -23,6 +60,7 @@ function buildPublicSession(userRow) {
         name: String(userRow.name || ''),
         email: normalizeEmail(userRow.email),
         role: normalizeRole(userRow.role),
+        mustChangePassword: !!(userRow.must_change_password),
         authenticatedAt: new Date().toISOString()
     };
 }
@@ -86,7 +124,7 @@ function findUserByEmail(email) {
         db
             .prepare(
                 `
-                SELECT id, name, email, role, password_hash, disabled
+                SELECT id, name, email, role, password_hash, disabled, must_change_password
                 FROM users
                 WHERE lower(email) = ?
                 LIMIT 1
@@ -124,8 +162,21 @@ function registerAuthIpc(ipcMain) {
                 return { success: false, code: 'INVALID_PASSWORD', error: 'كلمة المرور مطلوبة' };
             }
 
+            // ── Throttle check ──
+            cleanupStaleAttempts();
+            const attempt = getLoginAttemptRecord(email);
+            if (attempt && attempt.lockedUntil > Date.now()) {
+                const waitSec = Math.ceil((attempt.lockedUntil - Date.now()) / 1000);
+                return {
+                    success: false,
+                    code: 'TOO_MANY_ATTEMPTS',
+                    error: `تم تجاوز عدد المحاولات المسموح. الرجاء الانتظار ${waitSec} ثانية.`
+                };
+            }
+
             const user = findUserByEmail(email);
             if (!user) {
+                recordFailedLogin(email);
                 return {
                     success: false,
                     code: 'USER_NOT_FOUND',
@@ -151,6 +202,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             if (!verifyPassword(password, storedHash)) {
+                recordFailedLogin(email);
                 return {
                     success: false,
                     code: 'INVALID_CREDENTIALS',
@@ -158,6 +210,8 @@ function registerAuthIpc(ipcMain) {
                 };
             }
 
+            // Success — clear throttle record
+            clearLoginAttempts(email);
             const session = setSessionForEvent(event, user);
             return {
                 success: true,

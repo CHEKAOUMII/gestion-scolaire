@@ -14,125 +14,14 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js" defer></script>
+    <script src="js/sidebar.js" defer></script>
     <script src="js/backup.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
 </head>
 
 <body>
     <aside class="sidebar" id="sidebar">
-
-        <div class="school-info">
-            <i class="fas fa-university"></i>
-            <div class="school-details">
-                <h3>الثانوية التأهيلية</h3>
-                <p>ابن سينا</p>
-            </div>
-        </div>
-        <nav class="sidebar-nav">
-            <ul>
-                <li><a href="index.html" class="nav-link active"><i class="fas fa-chart-pie"></i><span>لوحة
-                            التحكم</span></a></li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>التلاميذ</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="students-list.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
-                        <li><a href="students-register.html"><i class="fas fa-user-plus"></i> التسجيل والحركة العامة</a>
-                        </li>
-                        <li><a href="students-files.html"><i class="fas fa-folder-open"></i> ترتيب الملفات</a></li>
-                        <li><a href="students-movement.html"><i class="fas fa-exchange-alt"></i> حركية التلاميذ</a></li>
-                    </ul>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-chalkboard-teacher"></i><span>الأساتذة</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="teachers-list.html"><i class="fas fa-users"></i> قائمة الأساتذة</a></li>
-                        <li><a href="teachers-schedule.html"><i class="fas fa-clock"></i> حصص الأساتذة</a></li>
-                        <li><a href="teachers-absence.html"><i class="fas fa-user-minus"></i> غياب الأساتذة</a></li>
-                        <li><a href="teachers-performance.html"><i class="fas fa-chart-line"></i> مؤشرات الأداء</a></li>
-                    </ul>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>الاستعمال الزمني</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="timetable.html"><i class="fas fa-table"></i> جداول الحصص</a></li>
-                        <li><a href="timetable-students.html"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</a>
-                        </li>
-                        <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول القاعات</a></li>
-                    </ul>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-chart-line"></i><span>التقويم والنتائج</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
-                        <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
-                        <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
-                        <li><a href="studentzero.html"><i class="fas fa-exclamation-circle"></i> التلاميذ الحاصلون على
-                                صفر</a></li>
-                        <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> الدعم التربوي</a></li>
-                    </ul>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-user-clock"></i><span>الغياب والمتابعة</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="absence-weekly.html"><i class="fas fa-calendar-week"></i> ورقة الغياب الأسبوعية</a>
-                        </li>
-                        <li><a href="absence-students.html"><i class="fas fa-user-times"></i> غياب التلاميذ</a></li>
-                        <li><a href="absence-correspondence.html"><i class="fas fa-envelope"></i> مراسلة الأولياء</a>
-                        </li>
-                        <li><a href="absence-analytics.html"><i class="fas fa-chart-bar"></i> إحصائيات الغياب</a></li>
-                    </ul>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-file-signature"></i><span>مركز الامتحانات</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="exams-schedule.html"><i class="fas fa-calendar-check"></i> برمجة الامتحانات</a>
-                        </li>
-                        <li><a href="exams-proctors.html"><i class="fas fa-user-shield"></i> توزيع الحراسة</a></li>
-                        <li><a href="exams-rooms.html"><i class="fas fa-door-open"></i> قاعات الامتحان</a></li>
-                        <li><a href="exams-tests.html"><i class="fas fa-clipboard-list"></i> تدبير الفروض</a></li>
-                    </ul>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-file-alt"></i><span>التقارير والوثائق</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="reports-certificates.html"><i class="fas fa-certificate"></i> الشواهد المدرسية</a>
-                        </li>
-                        <li><a href="reports-forms.html"><i class="fas fa-file-invoice"></i> الاستمارات الإدارية</a>
-                        </li>
-                        <li><a href="reports-semester.html"><i class="fas fa-chart-pie"></i> تقارير الفصل</a></li>
-                    </ul>
-                </li>
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-cog"></i><span>الإعدادات</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="settings-school.html"><i class="fas fa-school"></i> معلومات المؤسسة</a></li>
-                        <li><a href="settings-imports.html"><i class="fas fa-file-import"></i> استيراد البيانات</a></li>
-                        <li><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
-                        <li><a href="settings-license.html"><i class="fas fa-key"></i> الترخيص والأجهزة</a></li>
-                        <li><a href="settings-logs.html"><i class="fas fa-history"></i> سجل النشاطات</a></li>
-                    </ul>
-                </li>
-                <!-- Prototypes Links for Review -->
-                <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-paint-brush"></i><span>التصاميم الجديدة</span><i
-                            class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
-                        <li><a href="student-profile-prototype.html"><i class="fas fa-user-circle"></i> ملف التلميذ
-                                (جديد)</a></li>
-                        <li><a href="communication-center-prototype.html"><i class="fas fa-comments"></i> مركز التواصل
-                                (جديد)</a></li>
-                    </ul>
-                </li>
-            </ul>
-        </nav>
+        <!-- Sidebar will be injected by sidebar.js -->
     </aside>
     <main class="main-content">
         <header class="header">
@@ -152,8 +41,6 @@
                 <select id="school-year">
                     <option value="2025/2026" selected>2025/2026</option>
                 </select>
-                <button class="backup-btn" id="backup-btn" title="النسخ الاحتياطي"><i
-                        class="fas fa-database"></i></button>
                 <button class="notification-btn"><i class="fas fa-bell"></i><span class="badge">3</span></button>
                 <div class="user-info" id="user-info">
                     <span id="user-email">المستخدم</span>
@@ -167,80 +54,6 @@
         <section class="table-section" id="table-section"></section>
     </main>
 
-    <!-- Import Modal -->
-    <div class="modal-overlay" id="import-modal">
-        <div class="modal">
-            <div class="modal-header">
-                <h3><i class="fas fa-file-import"></i> استيراد لائحة التلاميذ</h3>
-                <button class="modal-close" id="modal-close"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body">
-                <div class="import-dropzone" id="dropzone">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <p>اسحب ملف Excel هنا</p>
-                    <span>أو</span>
-                    <button class="btn btn-primary" id="browse-btn">تصفح الملفات</button>
-                    <p class="file-types">الملفات المدعومة: .xlsx, .xls</p>
-                </div>
-                <div class="import-progress" id="import-progress" style="display:none;">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progress-fill"></div>
-                    </div>
-                    <p id="import-status">جاري القراءة...</p>
-                </div>
-                <div class="sheet-selector" id="sheet-selector" style="display:none;">
-                    <h4><i class="fas fa-file-excel"></i> اختر ورقة العمل</h4>
-                    <p class="sheet-info">الملف يحتوي على عدة أوراق عمل (أقسام). اختر ورقة أو استورد الكل:</p>
-                    <button class="btn btn-import-all" id="import-all-sheets">
-                        <i class="fas fa-layer-group"></i> استيراد جميع الأوراق دفعة واحدة
-                    </button>
-                    <div class="sheets-divider"><span>أو اختر ورقة محددة</span></div>
-                    <div class="sheets-list" id="sheets-list"></div>
-                    <div class="sheet-actions">
-                        <button class="btn btn-secondary" id="back-to-upload"><i class="fas fa-arrow-right"></i>
-                            رجوع</button>
-                    </div>
-                </div>
-                <div class="import-preview" id="import-preview" style="display:none;">
-                    <h4>معاينة البيانات</h4>
-                    <div class="preview-table-wrapper">
-                        <table id="preview-table"></table>
-                    </div>
-                    <div class="import-actions">
-                        <button class="btn btn-secondary" id="cancel-import">إلغاء</button>
-                        <button class="btn btn-success" id="confirm-import"><i class="fas fa-check"></i> تأكيد
-                            الاستيراد</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none;">
-
-    <!-- Backup Modal -->
-    <div class="modal-overlay" id="backup-modal">
-        <div class="modal" style="max-width: 450px;">
-            <div class="modal-header">
-                <h3><i class="fas fa-database"></i> النسخ الاحتياطي</h3>
-                <button class="modal-close" id="backup-close"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body" style="padding: 30px; text-align: center;">
-                <div style="margin-bottom: 20px;">
-                    <i class="fas fa-shield-alt" style="font-size: 48px; color: var(--primary);"></i>
-                </div>
-                <p style="margin-bottom: 25px; color: #666;">حماية بياناتك من الضياع</p>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    <button class="btn btn-success" id="create-backup-btn" style="padding: 15px; font-size: 16px;">
-                        <i class="fas fa-download"></i> إنشاء نسخة احتياطية
-                    </button>
-                    <button class="btn btn-secondary" id="restore-backup-btn" style="padding: 15px; font-size: 16px;">
-                        <i class="fas fa-upload"></i> استعادة نسخة سابقة
-                    </button>
-                </div>
-                <input type="file" id="backup-file-input" accept=".json" style="display: none;">
-            </div>
-        </div>
-    </div>
 
     <!-- Quick Navigation Panel -->
     <div class="quick-nav-panel" id="quick-nav-panel">

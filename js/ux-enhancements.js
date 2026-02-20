@@ -229,6 +229,27 @@ if (document.readyState === 'loading') {
 let _printPreviewModal = null;
 let _printPreviewOptions = {};
 let _printPreviewLandscape = false;
+let _savedThemeBeforePreview = null;
+let _savedThemeBeforePrint = null;
+
+// ─── Force light theme for printing (global helpers) ───
+function _forceLightThemeForPrint() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    if (currentTheme === 'dark') {
+        _savedThemeBeforePrint = 'dark';
+        document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+        _savedThemeBeforePrint = null;
+    }
+}
+
+function _restoreThemeAfterPrint() {
+    if (_savedThemeBeforePrint) {
+        document.documentElement.setAttribute('data-theme', _savedThemeBeforePrint);
+        updateThemeIcon(_savedThemeBeforePrint);
+        _savedThemeBeforePrint = null;
+    }
+}
 
 function _ensurePrintPreviewModal() {
     if (_printPreviewModal && document.body.contains(_printPreviewModal)) return;
@@ -365,6 +386,14 @@ function openPrintPreview(options = {}) {
     _printPreviewModal.classList.add('active');
     _printPreviewModal.style.display = 'flex';
     document.body.classList.add('ux-preview-open');
+
+    // Force light theme during print preview
+    _savedThemeBeforePreview = document.documentElement.getAttribute('data-theme');
+    if (_savedThemeBeforePreview === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        updateThemeIcon('light');
+    }
+
     _updateOrientationUI();
 }
 
@@ -376,6 +405,13 @@ function closePrintPreviewGlobal() {
         if (sheet) sheet.innerHTML = '';
     }
     document.body.classList.remove('ux-preview-open');
+
+    // Restore saved theme after closing print preview
+    if (_savedThemeBeforePreview) {
+        document.documentElement.setAttribute('data-theme', _savedThemeBeforePreview);
+        updateThemeIcon(_savedThemeBeforePreview);
+        _savedThemeBeforePreview = null;
+    }
 }
 
 function _updateOrientationUI() {
@@ -395,6 +431,7 @@ function _captureSheetHTML() {
 }
 
 function _enablePrintMode(capturedHTML) {
+    _forceLightThemeForPrint();
     let root = document.getElementById('ux-print-root');
     if (!root) {
         root = document.createElement('div');
@@ -409,6 +446,7 @@ function _disablePrintMode() {
     document.body.classList.remove('ux-printing-active');
     const root = document.getElementById('ux-print-root');
     if (root) root.innerHTML = '';
+    _restoreThemeAfterPrint();
 }
 
 async function _executePrintFromPreview() {
@@ -467,6 +505,140 @@ async function electronPrint(options = {}) {
     return { success: true };
 }
 
+// ==================== Auto-Updater Notification UI ====================
+
+let _updateBanner = null;
+
+function _ensureUpdateBanner() {
+    if (_updateBanner && document.body.contains(_updateBanner)) return;
+
+    _updateBanner = document.createElement('div');
+    _updateBanner.id = 'ux-update-banner';
+    _updateBanner.className = 'ux-update-banner';
+    _updateBanner.setAttribute('role', 'alert');
+    _updateBanner.innerHTML = `
+        <div class="ux-update-icon"><i class="fas fa-arrow-circle-up"></i></div>
+        <div class="ux-update-body">
+            <div class="ux-update-title"></div>
+            <div class="ux-update-subtitle"></div>
+            <div class="ux-update-progress" style="display:none">
+                <div class="ux-update-progress-bar"><div class="ux-update-progress-fill"></div></div>
+                <span class="ux-update-progress-text">0%</span>
+            </div>
+        </div>
+        <div class="ux-update-actions">
+            <button class="ux-update-btn ux-update-download" style="display:none">تحميل</button>
+            <button class="ux-update-btn ux-update-install" style="display:none">تثبيت وإعادة التشغيل</button>
+            <button class="ux-update-close" title="إغلاق">&times;</button>
+        </div>
+    `;
+    document.body.appendChild(_updateBanner);
+
+    // Download button
+    _updateBanner.querySelector('.ux-update-download').addEventListener('click', async () => {
+        if (window.api?.updater?.downloadUpdate) {
+            const btn = _updateBanner.querySelector('.ux-update-download');
+            btn.disabled = true;
+            btn.textContent = 'جاري التحميل...';
+            await window.api.updater.downloadUpdate();
+        }
+    });
+
+    // Install button
+    _updateBanner.querySelector('.ux-update-install').addEventListener('click', () => {
+        if (window.api?.updater?.installUpdate) {
+            window.api.updater.installUpdate();
+        }
+    });
+
+    // Close button
+    _updateBanner.querySelector('.ux-update-close').addEventListener('click', () => {
+        _updateBanner.classList.remove('visible');
+    });
+}
+
+function _showUpdateBanner(state) {
+    _ensureUpdateBanner();
+    const title = _updateBanner.querySelector('.ux-update-title');
+    const subtitle = _updateBanner.querySelector('.ux-update-subtitle');
+    const progress = _updateBanner.querySelector('.ux-update-progress');
+    const progressFill = _updateBanner.querySelector('.ux-update-progress-fill');
+    const progressText = _updateBanner.querySelector('.ux-update-progress-text');
+    const downloadBtn = _updateBanner.querySelector('.ux-update-download');
+    const installBtn = _updateBanner.querySelector('.ux-update-install');
+    const icon = _updateBanner.querySelector('.ux-update-icon i');
+
+    switch (state.status) {
+        case 'available':
+            icon.className = 'fas fa-arrow-circle-up';
+            title.textContent = `تحديث جديد متوفر: v${state.version}`;
+            subtitle.textContent = 'يتوفر إصدار جديد من البرنامج';
+            progress.style.display = 'none';
+            downloadBtn.style.display = 'inline-flex';
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = 'تحميل';
+            installBtn.style.display = 'none';
+            _updateBanner.classList.add('visible');
+            break;
+
+        case 'downloading':
+            icon.className = 'fas fa-cloud-download-alt';
+            title.textContent = 'جاري تحميل التحديث...';
+            subtitle.textContent = `${state.percent}% مكتمل`;
+            progress.style.display = 'flex';
+            progressFill.style.width = state.percent + '%';
+            progressText.textContent = state.percent + '%';
+            downloadBtn.style.display = 'none';
+            installBtn.style.display = 'none';
+            _updateBanner.classList.add('visible');
+            break;
+
+        case 'downloaded':
+            icon.className = 'fas fa-check-circle';
+            title.textContent = `تم تحميل التحديث v${state.version}`;
+            subtitle.textContent = 'أعد تشغيل البرنامج لتثبيت التحديث';
+            progress.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            installBtn.style.display = 'inline-flex';
+            _updateBanner.classList.add('visible');
+            break;
+
+        case 'error':
+            icon.className = 'fas fa-exclamation-triangle';
+            title.textContent = 'خطأ في التحديث';
+            subtitle.textContent = state.error || 'تعذر التحقق من التحديثات';
+            progress.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            installBtn.style.display = 'none';
+            _updateBanner.classList.add('visible');
+            // Auto-hide errors after 8 seconds
+            setTimeout(() => _updateBanner?.classList.remove('visible'), 8000);
+            break;
+
+        default:
+            // 'checking', 'up-to-date': do nothing visible
+            break;
+    }
+}
+
+function initUpdaterUI() {
+    if (!window.api?.updater?.onStatus) return;
+
+    window.api.updater.onStatus((data) => {
+        _showUpdateBanner(data);
+    });
+
+    console.log('[updater-ui] Update notification listener active');
+}
+
+// Initialize updater UI on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initUpdaterUI);
+} else {
+    // Small delay to ensure preload API is available
+    setTimeout(initUpdaterUI, 100);
+}
+
 window.UXEnhancements = {
     initTheme,
     toggleTheme,
@@ -476,5 +648,7 @@ window.UXEnhancements = {
     closeAllUXModals,
     electronPrint,
     openPrintPreview,
-    closePrintPreview: closePrintPreviewGlobal
+    closePrintPreview: closePrintPreviewGlobal,
+    forceLightThemeForPrint: _forceLightThemeForPrint,
+    restoreThemeAfterPrint: _restoreThemeAfterPrint
 };
