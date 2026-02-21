@@ -235,7 +235,7 @@ function createTables() {
     ).run(hashPassword(generateRandomPassword()));
 
     // Log the initial admin password to console on first-ever database creation
-    const adminRow = db.prepare("SELECT id FROM users WHERE id = 1").get();
+    const adminRow = db.prepare('SELECT id FROM users WHERE id = 1').get();
     if (adminRow) {
         console.log('[SETUP] Initial admin password: ' + adminPassword);
         console.log('[SETUP] You will be required to change this password on first login.');
@@ -313,15 +313,9 @@ function ensureLicensingSchema(existingDb) {
         );
     `);
 
-    db.prepare(
-        `INSERT OR IGNORE INTO license_plans(code, name, max_devices) VALUES('basic', 'Basic', 1)`
-    ).run();
-    db.prepare(
-        `INSERT OR IGNORE INTO license_plans(code, name, max_devices) VALUES('pro', 'Pro', 3)`
-    ).run();
-    db.prepare(
-        `INSERT OR IGNORE INTO license_plans(code, name, max_devices) VALUES('business', 'Business', 10)`
-    ).run();
+    db.prepare(`INSERT OR IGNORE INTO license_plans(code, name, max_devices) VALUES('basic', 'Basic', 1)`).run();
+    db.prepare(`INSERT OR IGNORE INTO license_plans(code, name, max_devices) VALUES('pro', 'Pro', 3)`).run();
+    db.prepare(`INSERT OR IGNORE INTO license_plans(code, name, max_devices) VALUES('business', 'Business', 10)`).run();
 
     db.prepare(`UPDATE license_plans SET max_devices = 1 WHERE code = 'basic'`).run();
     db.prepare(`UPDATE license_plans SET max_devices = 3 WHERE code = 'pro'`).run();

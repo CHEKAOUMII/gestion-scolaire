@@ -8,8 +8,8 @@ const HASH_KEY_LENGTH = 64;
  * This is used for initial admin seed and new user creation when no password is provided.
  */
 function generateRandomPassword() {
-    const part1 = crypto.randomBytes(4).toString('hex');      // 8 hex chars
-    const part2 = crypto.randomBytes(2).toString('hex');      // 4 hex chars
+    const part1 = crypto.randomBytes(4).toString('hex'); // 8 hex chars
+    const part2 = crypto.randomBytes(2).toString('hex'); // 4 hex chars
     const specials = '!@#$%&*';
     const special = specials[crypto.randomInt(specials.length)];
     return `${part1}${special}${part2}`;

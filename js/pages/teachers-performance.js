@@ -47,31 +47,47 @@ function bindEvents() {
     const exportBtn = document.getElementById('tp-export-btn');
 
     if (analyzeBtn) analyzeBtn.addEventListener('click', () => runAnalysis());
-    if (resetBtn) resetBtn.addEventListener('click', () => {
-        [levelFilter, classFilter, subjectFilter, semesterFilter, teacherFilter].forEach(s => { if (s) s.value = ''; });
-        selectedTeacherName = '';
-        renderClassFilter(); renderSubjectFilter(); renderSemesterFilter(); renderTeacherFilter();
-        runAnalysis();
-    });
+    if (resetBtn)
+        resetBtn.addEventListener('click', () => {
+            [levelFilter, classFilter, subjectFilter, semesterFilter, teacherFilter].forEach((s) => {
+                if (s) s.value = '';
+            });
+            selectedTeacherName = '';
+            renderClassFilter();
+            renderSubjectFilter();
+            renderSemesterFilter();
+            renderTeacherFilter();
+            runAnalysis();
+        });
 
-    if (levelFilter) levelFilter.addEventListener('change', () => {
-        renderClassFilter(); renderSubjectFilter(); renderSemesterFilter(); renderTeacherFilter();
-    });
-    if (classFilter) classFilter.addEventListener('change', () => {
-        renderSubjectFilter(); renderSemesterFilter(); renderTeacherFilter();
-    });
-    if (subjectFilter) subjectFilter.addEventListener('change', () => {
-        renderSemesterFilter(); renderTeacherFilter();
-    });
+    if (levelFilter)
+        levelFilter.addEventListener('change', () => {
+            renderClassFilter();
+            renderSubjectFilter();
+            renderSemesterFilter();
+            renderTeacherFilter();
+        });
+    if (classFilter)
+        classFilter.addEventListener('change', () => {
+            renderSubjectFilter();
+            renderSemesterFilter();
+            renderTeacherFilter();
+        });
+    if (subjectFilter)
+        subjectFilter.addEventListener('change', () => {
+            renderSemesterFilter();
+            renderTeacherFilter();
+        });
     if (semesterFilter) semesterFilter.addEventListener('change', () => renderTeacherFilter());
 
-    if (teacherFilter) teacherFilter.addEventListener('change', () => {
-        selectedTeacherName = teacherFilter.value;
-        runAnalysis();
-    });
+    if (teacherFilter)
+        teacherFilter.addEventListener('change', () => {
+            selectedTeacherName = teacherFilter.value;
+            runAnalysis();
+        });
 
     // Table header sort
-    document.querySelectorAll('.tp-table th[data-sort-key]').forEach(th => {
+    document.querySelectorAll('.tp-table th[data-sort-key]').forEach((th) => {
         th.addEventListener('click', () => {
             const key = th.dataset.sortKey;
             if (sortState.key === key) {
@@ -99,8 +115,7 @@ function bindEvents() {
 
 /* ─── Data Loading ─── */
 function getCurrentYear() {
-    const stored = typeof window.api?.settings?.get === 'function'
-        ? null : null;
+    const stored = typeof window.api?.settings?.get === 'function' ? null : null;
     return DEFAULT_YEAR;
 }
 
@@ -118,7 +133,7 @@ async function loadInitialData() {
     }
 
     allGradesCache = (gradesRaw || [])
-        .map(grade => {
+        .map((grade) => {
             const value = Number(grade.grade);
             if (!Number.isFinite(value)) return null;
             const subjectRaw = String(grade.subject || '').trim();
@@ -150,9 +165,16 @@ function renderLevelFilter() {
     const select = document.getElementById('tp-level-filter');
     if (!select) return;
     const previous = select.value;
-    const levels = Array.from(new Set(allGradesCache.map(g => g._level).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ar'));
+    const levels = Array.from(new Set(allGradesCache.map((g) => g._level).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, 'ar')
+    );
     select.innerHTML = '<option value="">كل المستويات</option>';
-    levels.forEach(level => { const o = document.createElement('option'); o.value = level; o.textContent = level; select.appendChild(o); });
+    levels.forEach((level) => {
+        const o = document.createElement('option');
+        o.value = level;
+        o.textContent = level;
+        select.appendChild(o);
+    });
     if (previous && levels.includes(previous)) select.value = previous;
 }
 
@@ -161,9 +183,21 @@ function renderClassFilter() {
     const s = document.getElementById('tp-class-filter');
     if (!s) return;
     const prev = s.value;
-    const classes = Array.from(new Set(allGradesCache.filter(g => !level || g._level === level).map(g => String(g.section || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ar'));
+    const classes = Array.from(
+        new Set(
+            allGradesCache
+                .filter((g) => !level || g._level === level)
+                .map((g) => String(g.section || '').trim())
+                .filter(Boolean)
+        )
+    ).sort((a, b) => a.localeCompare(b, 'ar'));
     s.innerHTML = '<option value="">كل الأقسام</option>';
-    classes.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; s.appendChild(o); });
+    classes.forEach((c) => {
+        const o = document.createElement('option');
+        o.value = c;
+        o.textContent = c;
+        s.appendChild(o);
+    });
     if (prev && classes.includes(prev)) s.value = prev;
 }
 
@@ -173,9 +207,21 @@ function renderSubjectFilter() {
     const s = document.getElementById('tp-subject-filter');
     if (!s) return;
     const prev = s.value;
-    const subjects = Array.from(new Set(allGradesCache.filter(g => (!level || g._level === level) && (!className || String(g.section || '') === className)).map(g => g._subject).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ar'));
+    const subjects = Array.from(
+        new Set(
+            allGradesCache
+                .filter((g) => (!level || g._level === level) && (!className || String(g.section || '') === className))
+                .map((g) => g._subject)
+                .filter(Boolean)
+        )
+    ).sort((a, b) => a.localeCompare(b, 'ar'));
     s.innerHTML = '<option value="">كل المواد</option>';
-    subjects.forEach(sub => { const o = document.createElement('option'); o.value = sub; o.textContent = sub; s.appendChild(o); });
+    subjects.forEach((sub) => {
+        const o = document.createElement('option');
+        o.value = sub;
+        o.textContent = sub;
+        s.appendChild(o);
+    });
     if (prev && subjects.includes(prev)) s.value = prev;
 }
 
@@ -186,9 +232,26 @@ function renderSemesterFilter() {
     const s = document.getElementById('tp-semester-filter');
     if (!s) return;
     const prev = s.value;
-    const semesters = Array.from(new Set(allGradesCache.filter(g => (!level || g._level === level) && (!className || String(g.section || '') === className) && (!subject || g._subject === subject)).map(g => Number(g.semester)).filter(n => Number.isFinite(n) && n > 0))).sort((a, b) => a - b);
+    const semesters = Array.from(
+        new Set(
+            allGradesCache
+                .filter(
+                    (g) =>
+                        (!level || g._level === level) &&
+                        (!className || String(g.section || '') === className) &&
+                        (!subject || g._subject === subject)
+                )
+                .map((g) => Number(g.semester))
+                .filter((n) => Number.isFinite(n) && n > 0)
+        )
+    ).sort((a, b) => a - b);
     s.innerHTML = '<option value="">كل الدورات</option>';
-    semesters.forEach(sem => { const o = document.createElement('option'); o.value = String(sem); o.textContent = `الدورة ${sem}`; s.appendChild(o); });
+    semesters.forEach((sem) => {
+        const o = document.createElement('option');
+        o.value = String(sem);
+        o.textContent = `الدورة ${sem}`;
+        s.appendChild(o);
+    });
     if (prev && semesters.includes(Number(prev))) s.value = prev;
 }
 
@@ -197,11 +260,20 @@ function renderTeacherFilter() {
     const s = document.getElementById('tp-teacher-filter');
     if (!s) return;
     const prev = s.value || selectedTeacherName;
-    const teachers = Array.from(new Set(base.map(g => g._teacher).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ar'));
+    const teachers = Array.from(new Set(base.map((g) => g._teacher).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, 'ar')
+    );
     s.innerHTML = '<option value="">كل الأساتذة</option>';
-    teachers.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; s.appendChild(o); });
-    if (prev && teachers.includes(prev)) { s.value = prev; selectedTeacherName = prev; }
-    else if (selectedTeacherName && !teachers.includes(selectedTeacherName)) selectedTeacherName = '';
+    teachers.forEach((t) => {
+        const o = document.createElement('option');
+        o.value = t;
+        o.textContent = t;
+        s.appendChild(o);
+    });
+    if (prev && teachers.includes(prev)) {
+        s.value = prev;
+        selectedTeacherName = prev;
+    } else if (selectedTeacherName && !teachers.includes(selectedTeacherName)) selectedTeacherName = '';
 }
 
 /* ─── Utility Functions ─── */
@@ -230,7 +302,7 @@ function getBaseFilteredGrades() {
     const className = document.getElementById('tp-class-filter')?.value || '';
     const subject = document.getElementById('tp-subject-filter')?.value || '';
     const semester = Number(document.getElementById('tp-semester-filter')?.value || 0);
-    return allGradesCache.filter(g => {
+    return allGradesCache.filter((g) => {
         if (level && g._level !== level) return false;
         if (className && String(g.section || '') !== className) return false;
         if (subject && g._subject !== subject) return false;
@@ -252,35 +324,101 @@ function normalizeSubjectName(subject) {
 }
 
 function normalizeLoose(value) {
-    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/[\u064B-\u065F]/g, '').replace(/[^a-z0-9\u0600-\u06FF]+/g, '');
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\u064B-\u065F]/g, '')
+        .replace(/[^a-z0-9\u0600-\u06FF]+/g, '');
 }
 
 function sanitizeTeacherName(value) {
-    const raw = String(value || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    const raw = String(value || '')
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
     if (!raw) return '';
     if (/^\d+([.,]\d+)?$/.test(raw)) return '';
     const normalized = normalizeLoose(raw);
     if (!normalized) return '';
-    const invalidExact = new Set(['teacher', 'teachername', 'enseignant', 'prof', 'professeur', 'استاذ', 'الاستاذ', 'الأستاذ', 'اساتذ', 'ملاحظات', 'ملاحظة', 'ملاحظاتالاستاذ', 'ملاحظاتالأستاذ', 'notes', 'note', 'observation', 'observations', 'comment', 'comments', 'remarque', 'remarques', 'غيرمحدد', 'unknown', 'na', 'n/a'].map(normalizeLoose));
+    const invalidExact = new Set(
+        [
+            'teacher',
+            'teachername',
+            'enseignant',
+            'prof',
+            'professeur',
+            'استاذ',
+            'الاستاذ',
+            'الأستاذ',
+            'اساتذ',
+            'ملاحظات',
+            'ملاحظة',
+            'ملاحظاتالاستاذ',
+            'ملاحظاتالأستاذ',
+            'notes',
+            'note',
+            'observation',
+            'observations',
+            'comment',
+            'comments',
+            'remarque',
+            'remarques',
+            'غيرمحدد',
+            'unknown',
+            'na',
+            'n/a'
+        ].map(normalizeLoose)
+    );
     if (invalidExact.has(normalized)) return '';
-    const invalidContains = ['ملاحظات', 'ملاحظة', 'observation', 'comment', 'remarque', 'notes', 'note'].map(normalizeLoose);
-    if (invalidContains.some(token => normalized.includes(token))) return '';
+    const invalidContains = ['ملاحظات', 'ملاحظة', 'observation', 'comment', 'remarque', 'notes', 'note'].map(
+        normalizeLoose
+    );
+    if (invalidContains.some((token) => normalized.includes(token))) return '';
     return raw;
 }
 
-function parseDateMs(value) { if (!value) return 0; const d = new Date(value); return Number.isFinite(d.getTime()) ? d.getTime() : 0; }
+function parseDateMs(value) {
+    if (!value) return 0;
+    const d = new Date(value);
+    return Number.isFinite(d.getTime()) ? d.getTime() : 0;
+}
 
 function formatDateTime(value, fallbackRaw = '') {
     const ms = Number(value) || parseDateMs(fallbackRaw);
     if (!ms) return '-';
-    return new Date(ms).toLocaleString('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return new Date(ms).toLocaleString('ar-MA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
-function avg(values) { if (!values.length) return 0; return values.reduce((s, n) => s + n, 0) / values.length; }
-function median(values) { if (!values.length) return 0; const sorted = [...values].sort((a, b) => a - b); const mid = Math.floor(sorted.length / 2); return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2; }
-function stdDev(values) { if (values.length < 2) return 0; const m = avg(values); return Math.sqrt(values.reduce((s, v) => s + (v - m) ** 2, 0) / values.length); }
-function percentage(part, whole) { if (!whole) return 0; return (part / whole) * 100; }
-function toLatinDigits(input) { return String(input || '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))); }
+function avg(values) {
+    if (!values.length) return 0;
+    return values.reduce((s, n) => s + n, 0) / values.length;
+}
+function median(values) {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+function stdDev(values) {
+    if (values.length < 2) return 0;
+    const m = avg(values);
+    return Math.sqrt(values.reduce((s, v) => s + (v - m) ** 2, 0) / values.length);
+}
+function percentage(part, whole) {
+    if (!whole) return 0;
+    return (part / whole) * 100;
+}
+function toLatinDigits(input) {
+    return String(input || '').replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+}
 
 function extractExamNumber(subjectRaw) {
     const normalized = toLatinDigits(subjectRaw);
@@ -291,12 +429,18 @@ function extractExamNumber(subjectRaw) {
 }
 
 function escapeHtml(value) {
-    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 /* ─── Teacher Rating ─── */
 function getTeacherRating(avgScore, passRate) {
-    if (avgScore >= 14 && passRate >= 85) return { label: 'ممتاز', stars: '⭐⭐⭐', cls: 'tp-rating-excellent', value: 4 };
+    if (avgScore >= 14 && passRate >= 85)
+        return { label: 'ممتاز', stars: '⭐⭐⭐', cls: 'tp-rating-excellent', value: 4 };
     if (avgScore >= 12 && passRate >= 70) return { label: 'جيد', stars: '⭐⭐', cls: 'tp-rating-good', value: 3 };
     if (avgScore >= 10 && passRate >= 50) return { label: 'مقبول', stars: '⭐', cls: 'tp-rating-average', value: 2 };
     return { label: 'يحتاج دعم', stars: '⚠️', cls: 'tp-rating-weak', value: 1 };
@@ -319,12 +463,24 @@ function getAvgPillClass(avgScore) {
 /* ─── Build Teacher Rows ─── */
 function buildTeacherRows(grades) {
     const byTeacher = new Map();
-    grades.forEach(grade => {
+    grades.forEach((grade) => {
         const teacher = grade._teacher;
         if (!teacher) return;
         let row = byTeacher.get(teacher);
         if (!row) {
-            row = { teacher, sum: 0, count: 0, pass: 0, students: new Set(), sections: new Set(), subjects: new Set(), lastImportedMs: 0, gradeValues: [], sem1Grades: [], sem2Grades: [] };
+            row = {
+                teacher,
+                sum: 0,
+                count: 0,
+                pass: 0,
+                students: new Set(),
+                sections: new Set(),
+                subjects: new Set(),
+                lastImportedMs: 0,
+                gradeValues: [],
+                sem1Grades: [],
+                sem2Grades: []
+            };
             byTeacher.set(teacher, row);
         }
         row.sum += grade.grade;
@@ -340,13 +496,13 @@ function buildTeacherRows(grades) {
         else if (sem === 2) row.sem2Grades.push(grade.grade);
     });
 
-    return Array.from(byTeacher.values()).map(row => {
+    return Array.from(byTeacher.values()).map((row) => {
         const avgScore = row.count ? row.sum / row.count : 0;
         const passRate = row.count ? percentage(row.pass, row.count) : 0;
         const rating = getTeacherRating(avgScore, passRate);
         const sem1Avg = row.sem1Grades.length ? avg(row.sem1Grades) : null;
         const sem2Avg = row.sem2Grades.length ? avg(row.sem2Grades) : null;
-        const semesterDiff = (sem1Avg !== null && sem2Avg !== null) ? sem2Avg - sem1Avg : null;
+        const semesterDiff = sem1Avg !== null && sem2Avg !== null ? sem2Avg - sem1Avg : null;
         return {
             teacher: row.teacher,
             avg: avgScore,
@@ -362,8 +518,12 @@ function buildTeacherRows(grades) {
             sem1Avg,
             sem2Avg,
             semesterDiff,
-            sem1PassRate: row.sem1Grades.length ? percentage(row.sem1Grades.filter(g => g >= 10).length, row.sem1Grades.length) : null,
-            sem2PassRate: row.sem2Grades.length ? percentage(row.sem2Grades.filter(g => g >= 10).length, row.sem2Grades.length) : null
+            sem1PassRate: row.sem1Grades.length
+                ? percentage(row.sem1Grades.filter((g) => g >= 10).length, row.sem1Grades.length)
+                : null,
+            sem2PassRate: row.sem2Grades.length
+                ? percentage(row.sem2Grades.filter((g) => g >= 10).length, row.sem2Grades.length)
+                : null
         };
     });
 }
@@ -375,12 +535,24 @@ function getSortedRows(rows) {
     const key = sortState.key;
     sorted.sort((a, b) => {
         let left, right;
-        if (key === 'subject') { left = rowSubjectLabel(a, currentSubjectFilter); right = rowSubjectLabel(b, currentSubjectFilter); }
-        else if (key === 'teacher') { left = a.teacher; right = b.teacher; }
-        else if (key === 'rating') { left = a.rating.value; right = b.rating.value; }
-        else if (key === 'semesterDiff') { left = a.semesterDiff ?? -999; right = b.semesterDiff ?? -999; }
-        else { left = a[key]; right = b[key]; }
-        const ln = Number(left), rn = Number(right);
+        if (key === 'subject') {
+            left = rowSubjectLabel(a, currentSubjectFilter);
+            right = rowSubjectLabel(b, currentSubjectFilter);
+        } else if (key === 'teacher') {
+            left = a.teacher;
+            right = b.teacher;
+        } else if (key === 'rating') {
+            left = a.rating.value;
+            right = b.rating.value;
+        } else if (key === 'semesterDiff') {
+            left = a.semesterDiff ?? -999;
+            right = b.semesterDiff ?? -999;
+        } else {
+            left = a[key];
+            right = b[key];
+        }
+        const ln = Number(left),
+            rn = Number(right);
         if (Number.isFinite(ln) && Number.isFinite(rn)) {
             if (ln === rn) return String(a.teacher).localeCompare(String(b.teacher), 'ar');
             return (ln - rn) * dir;
@@ -404,7 +576,9 @@ function rowSectionLabel(row) {
 }
 
 function renderSortIndicators() {
-    document.querySelectorAll('.tp-sort-ind').forEach(el => { el.textContent = ''; });
+    document.querySelectorAll('.tp-sort-ind').forEach((el) => {
+        el.textContent = '';
+    });
     const target = document.getElementById(`sort-${sortState.key}`);
     if (target) target.textContent = sortState.direction === 'asc' ? '▲' : '▼';
 }
@@ -421,8 +595,8 @@ function renderKpis(baseFiltered, rows) {
 
     const studentCount = new Set(baseFiltered.map(studentIdentity)).size;
     const teachersCount = rows.length;
-    const allGrades = baseFiltered.map(g => g.grade);
-    const passRate = percentage(allGrades.filter(g => g >= 10).length, allGrades.length);
+    const allGrades = baseFiltered.map((g) => g.grade);
+    const passRate = percentage(allGrades.filter((g) => g >= 10).length, allGrades.length);
     const globalAvg = avg(allGrades);
     const globalMedian = median(allGrades);
     const globalStdDev = stdDev(allGrades);
@@ -473,15 +647,19 @@ function renderKpis(baseFiltered, rows) {
 
 function getBestSubject(grades) {
     const bySubject = {};
-    grades.forEach(g => {
+    grades.forEach((g) => {
         if (!g._subject) return;
         if (!bySubject[g._subject]) bySubject[g._subject] = [];
         bySubject[g._subject].push(g.grade);
     });
-    let bestSub = '-', bestAvg = -1;
+    let bestSub = '-',
+        bestAvg = -1;
     for (const [subject, values] of Object.entries(bySubject)) {
         const a = avg(values);
-        if (a > bestAvg) { bestAvg = a; bestSub = subject; }
+        if (a > bestAvg) {
+            bestAvg = a;
+            bestSub = subject;
+        }
     }
     return escapeHtml(bestSub);
 }
@@ -497,9 +675,14 @@ function renderQualityAlert(baseFiltered) {
         return;
     }
 
-    const invalidRows = baseFiltered.filter(g => !g._teacher);
-    const totalSections = new Set(baseFiltered.map(g => g.section).filter(Boolean)).size;
-    const coveredSections = new Set(baseFiltered.filter(g => g._teacher).map(g => g.section).filter(Boolean)).size;
+    const invalidRows = baseFiltered.filter((g) => !g._teacher);
+    const totalSections = new Set(baseFiltered.map((g) => g.section).filter(Boolean)).size;
+    const coveredSections = new Set(
+        baseFiltered
+            .filter((g) => g._teacher)
+            .map((g) => g.section)
+            .filter(Boolean)
+    ).size;
 
     if (!invalidRows.length) {
         container.className = 'tp-alert tp-alert-ok';
@@ -508,8 +691,15 @@ function renderQualityAlert(baseFiltered) {
     }
 
     const bySection = {};
-    invalidRows.forEach(row => { const s = String(row.section || 'غير محدد'); bySection[s] = (bySection[s] || 0) + 1; });
-    const topSections = Object.entries(bySection).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([s, c]) => `${s} (${c})`).join('، ');
+    invalidRows.forEach((row) => {
+        const s = String(row.section || 'غير محدد');
+        bySection[s] = (bySection[s] || 0) + 1;
+    });
+    const topSections = Object.entries(bySection)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([s, c]) => `${s} (${c})`)
+        .join('، ');
 
     container.className = 'tp-alert';
     container.innerHTML = `
@@ -528,11 +718,15 @@ async function ensureChartJsLoaded() {
         const existing = document.querySelector(`script[data-dynamic-src="${CHART_JS_CDN}"]`);
         if (existing) {
             existing.addEventListener('load', () => resolve(window.Chart), { once: true });
-            existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), { once: true });
+            existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), {
+                once: true
+            });
             return;
         }
         const script = document.createElement('script');
-        script.src = CHART_JS_CDN; script.async = true; script.defer = true;
+        script.src = CHART_JS_CDN;
+        script.async = true;
+        script.defer = true;
         script.dataset.dynamicSrc = CHART_JS_CDN;
         script.onload = () => resolve(window.Chart);
         script.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
@@ -541,7 +735,10 @@ async function ensureChartJsLoaded() {
     return chartLoaderPromise;
 }
 
-function destroyChart(key) { if (charts[key]) charts[key].destroy(); charts[key] = null; }
+function destroyChart(key) {
+    if (charts[key]) charts[key].destroy();
+    charts[key] = null;
+}
 
 /* ─── Comparison Chart ─── */
 function renderComparisonChart(rows) {
@@ -549,12 +746,15 @@ function renderComparisonChart(rows) {
     const meta = document.getElementById('tp-comparison-meta');
     if (!canvas || !meta || !window.Chart) return;
     destroyChart('comparison');
-    if (!rows.length) { meta.textContent = 'لا توجد أسماء أساتذة صالحة للمقارنة.'; return; }
+    if (!rows.length) {
+        meta.textContent = 'لا توجد أسماء أساتذة صالحة للمقارنة.';
+        return;
+    }
 
     const topRows = [...rows].sort((a, b) => b.passRate - a.passRate || b.avg - a.avg).slice(0, 20);
-    const labels = topRows.map(r => r.teacher);
-    const data = topRows.map(r => Number(r.passRate.toFixed(1)));
-    const colors = topRows.map(r => {
+    const labels = topRows.map((r) => r.teacher);
+    const data = topRows.map((r) => Number(r.passRate.toFixed(1)));
+    const colors = topRows.map((r) => {
         if (r.teacher === selectedTeacherName) return 'rgba(29, 110, 82, 0.95)';
         if (r.passRate >= 85) return 'rgba(47, 179, 109, 0.85)';
         if (r.passRate >= 70) return 'rgba(60, 149, 208, 0.85)';
@@ -564,32 +764,48 @@ function renderComparisonChart(rows) {
 
     charts.comparison = new Chart(canvas.getContext('2d'), {
         type: 'bar',
-        data: { labels, datasets: [{ label: 'نسبة النجاح (%)', data, backgroundColor: colors, borderRadius: 6, borderSkipped: false }] },
+        data: {
+            labels,
+            datasets: [
+                { label: 'نسبة النجاح (%)', data, backgroundColor: colors, borderRadius: 6, borderSkipped: false }
+            ]
+        },
         options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
             animation: { duration: 700, easing: 'easeOutQuart' },
             plugins: {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: ctx => `نسبة النجاح: ${Number(ctx.raw).toFixed(1)}%`,
-                        afterBody: items => {
+                        label: (ctx) => `نسبة النجاح: ${Number(ctx.raw).toFixed(1)}%`,
+                        afterBody: (items) => {
                             const idx = items[0]?.dataIndex ?? -1;
                             const r = topRows[idx];
                             if (!r) return '';
-                            return [`متوسط النقاط: ${r.avg.toFixed(2)}`, `التلاميذ: ${r.studentCount}`, `التصنيف: ${r.rating.stars} ${r.rating.label}`];
+                            return [
+                                `متوسط النقاط: ${r.avg.toFixed(2)}`,
+                                `التلاميذ: ${r.studentCount}`,
+                                `التصنيف: ${r.rating.stars} ${r.rating.label}`
+                            ];
                         }
                     }
                 }
             },
             scales: {
-                x: { min: 0, max: 100, ticks: { stepSize: 10, callback: v => `${v}%` }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: {
+                    min: 0,
+                    max: 100,
+                    ticks: { stepSize: 10, callback: (v) => `${v}%` },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
                 y: { grid: { display: false } }
             }
         }
     });
 
-    const globalPassRate = avg(rows.map(r => r.passRate));
+    const globalPassRate = avg(rows.map((r) => r.passRate));
     meta.textContent = `${rows.length} أستاذ. الأعلى: ${topRows[0].teacher} (${topRows[0].passRate.toFixed(1)}%). متوسط النجاح: ${globalPassRate.toFixed(1)}%.`;
 }
 
@@ -600,18 +816,21 @@ function renderTeacherTable(rows, subjectFilter) {
     renderSortIndicators();
 
     if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:16px;"><div class="tp-empty-state"><i class="fas fa-table"></i><p>لا توجد معطيات</p></div></td></tr>';
+        body.innerHTML =
+            '<tr><td colspan="9" style="text-align:center;padding:16px;"><div class="tp-empty-state"><i class="fas fa-table"></i><p>لا توجد معطيات</p></div></td></tr>';
         return;
     }
 
     const sorted = getSortedRows(rows);
-    body.innerHTML = sorted.map(row => {
-        const pillAvg = getAvgPillClass(row.avg);
-        const pillPass = getPassRatePillClass(row.passRate);
-        const diffHtml = row.semesterDiff !== null
-            ? `<span style="color:${row.semesterDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};font-weight:700;">${row.semesterDiff >= 0 ? '+' : ''}${row.semesterDiff.toFixed(2)}</span>`
-            : '<span style="color:var(--color-text-light);">-</span>';
-        return `
+    body.innerHTML = sorted
+        .map((row) => {
+            const pillAvg = getAvgPillClass(row.avg);
+            const pillPass = getPassRatePillClass(row.passRate);
+            const diffHtml =
+                row.semesterDiff !== null
+                    ? `<span style="color:${row.semesterDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};font-weight:700;">${row.semesterDiff >= 0 ? '+' : ''}${row.semesterDiff.toFixed(2)}</span>`
+                    : '<span style="color:var(--color-text-light);">-</span>';
+            return `
             <tr data-teacher="${escapeHtml(row.teacher)}" class="${row.teacher === selectedTeacherName ? 'tp-row-selected' : ''}">
                 <td>${escapeHtml(row.teacher)}</td>
                 <td>${escapeHtml(rowSubjectLabel(row, subjectFilter))}</td>
@@ -624,7 +843,8 @@ function renderTeacherTable(rows, subjectFilter) {
                 <td>${escapeHtml(formatDateTime(row.lastImportedMs))}</td>
             </tr>
         `;
-    }).join('');
+        })
+        .join('');
 }
 
 /* ─── Teacher Card ─── */
@@ -640,24 +860,25 @@ function renderTeacherCard(baseFiltered, rows) {
         metaNode.innerHTML = '';
         if (benchmarkNode) benchmarkNode.innerHTML = '';
         trendNoteNode.textContent = '-';
-        ['section', 'distribution', 'trend'].forEach(k => destroyChart(k));
+        ['section', 'distribution', 'trend'].forEach((k) => destroyChart(k));
         return;
     }
 
     const teacherSelect = document.getElementById('tp-teacher-filter');
     if (teacherSelect?.value) selectedTeacherName = teacherSelect.value;
-    if (!selectedTeacherName || !rows.some(r => r.teacher === selectedTeacherName)) selectedTeacherName = rows[0].teacher;
+    if (!selectedTeacherName || !rows.some((r) => r.teacher === selectedTeacherName))
+        selectedTeacherName = rows[0].teacher;
 
-    const row = rows.find(r => r.teacher === selectedTeacherName) || rows[0];
-    const teacherGrades = baseFiltered.filter(g => g._teacher === row.teacher);
+    const row = rows.find((r) => r.teacher === selectedTeacherName) || rows[0];
+    const teacherGrades = baseFiltered.filter((g) => g._teacher === row.teacher);
     const studentCount = new Set(teacherGrades.map(studentIdentity)).size;
 
     // Calculate benchmark: what % of same-subject teachers does this teacher beat?
-    const sameSubjectRows = rows.filter(r => {
+    const sameSubjectRows = rows.filter((r) => {
         if (row.subjects.length === 1 && r.subjects.length >= 1) return r.subjects.includes(row.subjects[0]);
         return true;
     });
-    const rank = sameSubjectRows.filter(r => r.avg <= row.avg).length;
+    const rank = sameSubjectRows.filter((r) => r.avg <= row.avg).length;
     const benchmarkPct = sameSubjectRows.length > 1 ? Math.round(percentage(rank, sameSubjectRows.length)) : 100;
 
     nameNode.innerHTML = `${escapeHtml(row.teacher)} <span class="tp-rating ${row.rating.cls}" style="font-size:14px;">${row.rating.stars} ${row.rating.label}</span>`;
@@ -689,13 +910,42 @@ function renderTeacherSectionChart(teacherGrades) {
     if (!canvas || !window.Chart) return;
     destroyChart('section');
     const bySection = {};
-    teacherGrades.forEach(g => { const s = String(g.section || 'غير محدد'); if (!bySection[s]) bySection[s] = []; bySection[s].push(g.grade); });
-    const labels = Object.keys(bySection).sort((a, b) => a.localeCompare(b, 'ar')).slice(0, 10);
-    const values = labels.map(l => Number(avg(bySection[l]).toFixed(2)));
+    teacherGrades.forEach((g) => {
+        const s = String(g.section || 'غير محدد');
+        if (!bySection[s]) bySection[s] = [];
+        bySection[s].push(g.grade);
+    });
+    const labels = Object.keys(bySection)
+        .sort((a, b) => a.localeCompare(b, 'ar'))
+        .slice(0, 10);
+    const values = labels.map((l) => Number(avg(bySection[l]).toFixed(2)));
     charts.section = new Chart(canvas.getContext('2d'), {
         type: 'bar',
-        data: { labels: labels.length ? labels : ['لا توجد بيانات'], datasets: [{ label: 'متوسط القسم', data: labels.length ? values : [0], backgroundColor: 'rgba(59, 130, 246, 0.75)', borderRadius: 6, borderSkipped: false }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 650, easing: 'easeOutQuart' }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `المتوسط: ${Number(ctx.raw).toFixed(2)}` } } }, scales: { y: { min: 0, max: 20, ticks: { stepSize: 4 }, grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } } }
+        data: {
+            labels: labels.length ? labels : ['لا توجد بيانات'],
+            datasets: [
+                {
+                    label: 'متوسط القسم',
+                    data: labels.length ? values : [0],
+                    backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                    borderRadius: 6,
+                    borderSkipped: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 650, easing: 'easeOutQuart' },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => `المتوسط: ${Number(ctx.raw).toFixed(2)}` } }
+            },
+            scales: {
+                y: { min: 0, max: 20, ticks: { stepSize: 4 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        }
     });
 }
 
@@ -703,11 +953,42 @@ function renderTeacherDistributionChart(teacherGrades) {
     const canvas = document.getElementById('tp-distribution-chart');
     if (!canvas || !window.Chart) return;
     destroyChart('distribution');
-    const distribution = gradeBands.map(band => ({ ...band, count: teacherGrades.filter(g => g.grade >= band.min && g.grade < band.max + (band.max === 20 ? 0.001 : 0)).length }));
+    const distribution = gradeBands.map((band) => ({
+        ...band,
+        count: teacherGrades.filter((g) => g.grade >= band.min && g.grade < band.max + (band.max === 20 ? 0.001 : 0))
+            .length
+    }));
     charts.distribution = new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
-        data: { labels: distribution.map(d => d.label), datasets: [{ data: distribution.map(d => d.count), backgroundColor: distribution.map(d => d.color), borderColor: 'rgba(255,255,255,0.9)', borderWidth: 3, hoverOffset: 6 }] },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '58%', animation: { duration: 650, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 14 } }, tooltip: { callbacks: { label: ctx => { const v = Number(ctx.raw || 0); return `${ctx.label}: ${v} (${percentage(v, teacherGrades.length).toFixed(1)}%)`; } } } } }
+        data: {
+            labels: distribution.map((d) => d.label),
+            datasets: [
+                {
+                    data: distribution.map((d) => d.count),
+                    backgroundColor: distribution.map((d) => d.color),
+                    borderColor: 'rgba(255,255,255,0.9)',
+                    borderWidth: 3,
+                    hoverOffset: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '58%',
+            animation: { duration: 650, easing: 'easeOutQuart' },
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', padding: 14 } },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => {
+                            const v = Number(ctx.raw || 0);
+                            return `${ctx.label}: ${v} (${percentage(v, teacherGrades.length).toFixed(1)}%)`;
+                        }
+                    }
+                }
+            }
+        }
     });
 }
 
@@ -716,16 +997,53 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
     if (!canvas || !window.Chart || !noteNode) return;
     destroyChart('trend');
     const byExam = {};
-    teacherGrades.forEach(g => { if (!g._examNo) return; if (!byExam[g._examNo]) byExam[g._examNo] = []; byExam[g._examNo].push(g.grade); });
-    const examKeys = Object.keys(byExam).map(Number).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
-    if (!examKeys.length) { noteNode.textContent = 'لا توجد فروض مرقمة لعرض تطور زمني.'; return; }
-    const labels = examKeys.map(n => `فرض ${n}`);
-    const values = examKeys.map(n => Number(avg(byExam[n]).toFixed(2)));
+    teacherGrades.forEach((g) => {
+        if (!g._examNo) return;
+        if (!byExam[g._examNo]) byExam[g._examNo] = [];
+        byExam[g._examNo].push(g.grade);
+    });
+    const examKeys = Object.keys(byExam)
+        .map(Number)
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b);
+    if (!examKeys.length) {
+        noteNode.textContent = 'لا توجد فروض مرقمة لعرض تطور زمني.';
+        return;
+    }
+    const labels = examKeys.map((n) => `فرض ${n}`);
+    const values = examKeys.map((n) => Number(avg(byExam[n]).toFixed(2)));
     noteNode.textContent = `تطور عبر ${examKeys.length} فروض مرقمة.`;
     charts.trend = new Chart(canvas.getContext('2d'), {
         type: 'line',
-        data: { labels, datasets: [{ label: 'متوسط الفرض', data: values, borderColor: 'rgba(22, 163, 74, 0.95)', backgroundColor: 'rgba(22, 163, 74, 0.2)', pointBackgroundColor: 'rgba(22, 163, 74, 1)', pointRadius: 4, pointHoverRadius: 5, tension: 0.35, fill: true }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 650, easing: 'easeOutQuart' }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `المتوسط: ${Number(ctx.raw).toFixed(2)}` } } }, scales: { y: { min: 0, max: 20, ticks: { stepSize: 4 }, grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } } }
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'متوسط الفرض',
+                    data: values,
+                    borderColor: 'rgba(22, 163, 74, 0.95)',
+                    backgroundColor: 'rgba(22, 163, 74, 0.2)',
+                    pointBackgroundColor: 'rgba(22, 163, 74, 1)',
+                    pointRadius: 4,
+                    pointHoverRadius: 5,
+                    tension: 0.35,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 650, easing: 'easeOutQuart' },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => `المتوسط: ${Number(ctx.raw).toFixed(2)}` } }
+            },
+            scales: {
+                y: { min: 0, max: 20, ticks: { stepSize: 4 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        }
     });
 }
 
@@ -736,31 +1054,52 @@ function renderSemesterCompareChart(rows) {
     if (!canvas || !note || !window.Chart) return;
     destroyChart('semesterCompare');
 
-    const withBoth = rows.filter(r => r.sem1Avg !== null && r.sem2Avg !== null);
-    if (!withBoth.length) { note.textContent = 'لا توجد بيانات للدورتين معاً للمقارنة.'; return; }
+    const withBoth = rows.filter((r) => r.sem1Avg !== null && r.sem2Avg !== null);
+    if (!withBoth.length) {
+        note.textContent = 'لا توجد بيانات للدورتين معاً للمقارنة.';
+        return;
+    }
 
     const top = [...withBoth].sort((a, b) => Math.abs(b.semesterDiff) - Math.abs(a.semesterDiff)).slice(0, 15);
-    const labels = top.map(r => r.teacher);
+    const labels = top.map((r) => r.teacher);
 
     charts.semesterCompare = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels,
             datasets: [
-                { label: 'الدورة 1', data: top.map(r => Number(r.sem1Avg.toFixed(2))), backgroundColor: 'rgba(59, 130, 246, 0.75)', borderRadius: 4, borderSkipped: false },
-                { label: 'الدورة 2', data: top.map(r => Number(r.sem2Avg.toFixed(2))), backgroundColor: 'rgba(22, 163, 74, 0.75)', borderRadius: 4, borderSkipped: false }
+                {
+                    label: 'الدورة 1',
+                    data: top.map((r) => Number(r.sem1Avg.toFixed(2))),
+                    backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                    borderRadius: 4,
+                    borderSkipped: false
+                },
+                {
+                    label: 'الدورة 2',
+                    data: top.map((r) => Number(r.sem2Avg.toFixed(2))),
+                    backgroundColor: 'rgba(22, 163, 74, 0.75)',
+                    borderRadius: 4,
+                    borderSkipped: false
+                }
             ]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
+            responsive: true,
+            maintainAspectRatio: false,
             animation: { duration: 700, easing: 'easeOutQuart' },
-            plugins: { legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 14 } } },
-            scales: { y: { min: 0, max: 20, ticks: { stepSize: 4 }, grid: { color: 'rgba(0,0,0,0.05)' } }, x: { grid: { display: false } } }
+            plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 14 } }
+            },
+            scales: {
+                y: { min: 0, max: 20, ticks: { stepSize: 4 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
+            }
         }
     });
 
-    const improved = withBoth.filter(r => r.semesterDiff > 0).length;
-    const declined = withBoth.filter(r => r.semesterDiff < 0).length;
+    const improved = withBoth.filter((r) => r.semesterDiff > 0).length;
+    const declined = withBoth.filter((r) => r.semesterDiff < 0).length;
     note.textContent = `${withBoth.length} أستاذ لديه بيانات للدورتين: ${improved} تحسن، ${declined} تراجع.`;
 }
 
@@ -771,8 +1110,11 @@ function renderRadarChart(rows) {
     if (!canvas || !note || !window.Chart) return;
     destroyChart('radar');
 
-    if (!selectedTeacherName || !rows.length) { note.textContent = 'اختر أستاذ من الجدول.'; return; }
-    const row = rows.find(r => r.teacher === selectedTeacherName) || rows[0];
+    if (!selectedTeacherName || !rows.length) {
+        note.textContent = 'اختر أستاذ من الجدول.';
+        return;
+    }
+    const row = rows.find((r) => r.teacher === selectedTeacherName) || rows[0];
     const sd = row.gradeValues ? stdDev(row.gradeValues) : 0;
     const consistency = Math.max(0, Math.min(100, (1 - sd / 10) * 100));
     const semProgress = row.semesterDiff !== null ? Math.max(0, Math.min(100, 50 + row.semesterDiff * 10)) : 50;
@@ -781,27 +1123,38 @@ function renderRadarChart(rows) {
         type: 'radar',
         data: {
             labels: ['المعدل العام', 'نسبة النجاح', 'تجانس النتائج', 'عدد الأقسام', 'التطور بين الدورات'],
-            datasets: [{
-                label: row.teacher,
-                data: [
-                    Math.min(100, row.avg * 5),
-                    row.passRate,
-                    consistency,
-                    Math.min(100, row.sectionsCount * 20),
-                    semProgress
-                ],
-                backgroundColor: 'rgba(45, 95, 74, 0.2)',
-                borderColor: 'rgba(45, 95, 74, 0.8)',
-                pointBackgroundColor: 'rgba(45, 95, 74, 1)',
-                pointRadius: 4,
-                borderWidth: 2
-            }]
+            datasets: [
+                {
+                    label: row.teacher,
+                    data: [
+                        Math.min(100, row.avg * 5),
+                        row.passRate,
+                        consistency,
+                        Math.min(100, row.sectionsCount * 20),
+                        semProgress
+                    ],
+                    backgroundColor: 'rgba(45, 95, 74, 0.2)',
+                    borderColor: 'rgba(45, 95, 74, 0.8)',
+                    pointBackgroundColor: 'rgba(45, 95, 74, 1)',
+                    pointRadius: 4,
+                    borderWidth: 2
+                }
+            ]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
+            responsive: true,
+            maintainAspectRatio: false,
             animation: { duration: 700, easing: 'easeOutQuart' },
             plugins: { legend: { display: false } },
-            scales: { r: { min: 0, max: 100, ticks: { stepSize: 20, display: false }, pointLabels: { font: { size: 11, family: "'IBM Plex Sans Arabic', sans-serif" } }, grid: { color: 'rgba(0,0,0,0.08)' } } }
+            scales: {
+                r: {
+                    min: 0,
+                    max: 100,
+                    ticks: { stepSize: 20, display: false },
+                    pointLabels: { font: { size: 11, family: "'IBM Plex Sans Arabic', sans-serif" } },
+                    grid: { color: 'rgba(0,0,0,0.08)' }
+                }
+            }
         }
     });
 
@@ -812,29 +1165,47 @@ function renderRadarChart(rows) {
 function renderStateLine(baseFiltered, rows) {
     const el = document.getElementById('tp-state-line');
     if (!el) return;
-    if (!baseFiltered.length) { el.textContent = 'لا توجد معطيات تطابق الفلاتر الحالية.'; return; }
-    const withTeacher = baseFiltered.filter(g => g._teacher).length;
+    if (!baseFiltered.length) {
+        el.textContent = 'لا توجد معطيات تطابق الفلاتر الحالية.';
+        return;
+    }
+    const withTeacher = baseFiltered.filter((g) => g._teacher).length;
     const withoutTeacher = baseFiltered.length - withTeacher;
     el.textContent = `${baseFiltered.length} نقطة · ${rows.length} أستاذ صالح · ${withoutTeacher} سجل يحتاج تصحيح.`;
 }
 
 /* ─── Export ─── */
 function exportReport() {
-    if (!teacherRowsCache.length) { showToast('لا توجد بيانات للتصدير', 'error'); return; }
-    const headers = ['الأستاذ', 'المادة', 'الأقسام', 'التلاميذ', 'المعدل', 'نسبة النجاح', 'التصنيف', 'فرق الدورتين', 'آخر استيراد'];
+    if (!teacherRowsCache.length) {
+        showToast('لا توجد بيانات للتصدير', 'error');
+        return;
+    }
+    const headers = [
+        'الأستاذ',
+        'المادة',
+        'الأقسام',
+        'التلاميذ',
+        'المعدل',
+        'نسبة النجاح',
+        'التصنيف',
+        'فرق الدورتين',
+        'آخر استيراد'
+    ];
     const csvRows = ['\uFEFF' + headers.join(',')];
-    getSortedRows(teacherRowsCache).forEach(row => {
-        csvRows.push([
-            `"${row.teacher}"`,
-            `"${rowSubjectLabel(row, currentSubjectFilter)}"`,
-            row.sectionsCount,
-            row.studentCount,
-            row.avg.toFixed(2),
-            row.passRate.toFixed(1) + '%',
-            `"${row.rating.label}"`,
-            row.semesterDiff !== null ? row.semesterDiff.toFixed(2) : '-',
-            `"${formatDateTime(row.lastImportedMs)}"`
-        ].join(','));
+    getSortedRows(teacherRowsCache).forEach((row) => {
+        csvRows.push(
+            [
+                `"${row.teacher}"`,
+                `"${rowSubjectLabel(row, currentSubjectFilter)}"`,
+                row.sectionsCount,
+                row.studentCount,
+                row.avg.toFixed(2),
+                row.passRate.toFixed(1) + '%',
+                `"${row.rating.label}"`,
+                row.semesterDiff !== null ? row.semesterDiff.toFixed(2) : '-',
+                `"${formatDateTime(row.lastImportedMs)}"`
+            ].join(',')
+        );
     });
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -849,15 +1220,21 @@ function exportReport() {
 async function runAnalysis() {
     const analyzeBtn = document.getElementById('tp-analyze-btn');
     const teacherSelect = document.getElementById('tp-teacher-filter');
-    if (analyzeBtn) { analyzeBtn.disabled = true; analyzeBtn.setAttribute('aria-busy', 'true'); }
+    if (analyzeBtn) {
+        analyzeBtn.disabled = true;
+        analyzeBtn.setAttribute('aria-busy', 'true');
+    }
 
     try {
         await ensureChartJsLoaded();
         const baseFiltered = getBaseFilteredGrades();
         currentSubjectFilter = document.getElementById('tp-subject-filter')?.value || '';
-        const rows = buildTeacherRows(baseFiltered).sort((a, b) => b.passRate - a.passRate || b.avg - a.avg || b.gradeCount - a.gradeCount);
+        const rows = buildTeacherRows(baseFiltered).sort(
+            (a, b) => b.passRate - a.passRate || b.avg - a.avg || b.gradeCount - a.gradeCount
+        );
         if (teacherSelect?.value) selectedTeacherName = teacherSelect.value;
-        if (rows.length && (!selectedTeacherName || !rows.some(r => r.teacher === selectedTeacherName))) selectedTeacherName = rows[0].teacher;
+        if (rows.length && (!selectedTeacherName || !rows.some((r) => r.teacher === selectedTeacherName)))
+            selectedTeacherName = rows[0].teacher;
         teacherRowsCache = rows;
 
         renderStateLine(baseFiltered, rows);
@@ -872,6 +1249,9 @@ async function runAnalysis() {
         console.error('Teacher performance analysis error:', error);
         showToast('تعذر تنفيذ التحليل', 'error');
     } finally {
-        if (analyzeBtn) { analyzeBtn.disabled = false; analyzeBtn.removeAttribute('aria-busy'); }
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+            analyzeBtn.removeAttribute('aria-busy');
+        }
     }
 }

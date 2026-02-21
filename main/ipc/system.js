@@ -3,7 +3,6 @@ const { printHTML } = require('../print-window');
 const { requireRole } = require('./auth');
 const { hashPassword, generateRandomPassword } = require('../auth/password');
 
-
 function authErrorResponse(err) {
     const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
     return {
@@ -29,9 +28,9 @@ function registerSystemIpc(ipcMain) {
     ipcMain.handle('reports:generateSemesterSummary', async (event, payload) => {
         const db = getDb();
         const year = payload.school_year || '2025/2026';
-        const grades = db.prepare(
-            'SELECT COUNT(*) as total, AVG(grade) as avg_grade FROM grades WHERE school_year = ?'
-        ).get(year);
+        const grades = db
+            .prepare('SELECT COUNT(*) as total, AVG(grade) as avg_grade FROM grades WHERE school_year = ?')
+            .get(year);
         const students = db.prepare('SELECT COUNT(*) as total_students FROM students WHERE school_year = ?').get(year);
 
         return {
@@ -45,20 +44,26 @@ function registerSystemIpc(ipcMain) {
     // IPC Handlers - System logs
     ipcMain.handle('systemLogs:getAll', async (event, limit = 200) => {
         const db = getDb();
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT * FROM system_logs
             ORDER BY id DESC
             LIMIT ?
-        `).all(limit);
+        `
+            )
+            .all(limit);
     });
 
     ipcMain.handle('systemLogs:add', async (event, payload) => {
         try {
             const db = getDb();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT INTO system_logs(action, details, entity_type, entity_id)
                 VALUES(?, ?, ?, ?)
-            `).run(payload.action, payload.details || null, payload.entity_type || null, payload.entity_id || null);
+            `
+            ).run(payload.action, payload.details || null, payload.entity_type || null, payload.entity_id || null);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -85,10 +90,12 @@ function registerSystemIpc(ipcMain) {
             const password = String(payload?.password || '').trim();
             const usedGenerated = !password;
             const finalPassword = password || generateRandomPassword();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
                 VALUES(?, ?, ?, ?, ?, ?)
-            `).run(
+            `
+            ).run(
                 payload.name,
                 payload.email || null,
                 payload.role || 'staff',

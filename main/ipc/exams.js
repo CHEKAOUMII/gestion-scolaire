@@ -26,10 +26,12 @@ function registerExamsIpc(ipcMain) {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
             if (payload.id) {
-                db.prepare(`
+                db.prepare(
+                    `
                     UPDATE exams SET title = ?, section = ?, subject = ?, exam_date = ?, exam_time = ?, school_year = ?
                     WHERE id = ?
-                `).run(
+                `
+                ).run(
                     payload.title,
                     payload.section || null,
                     payload.subject || null,
@@ -39,10 +41,12 @@ function registerExamsIpc(ipcMain) {
                     payload.id
                 );
             } else {
-                db.prepare(`
+                db.prepare(
+                    `
                     INSERT INTO exams(title, section, subject, exam_date, exam_time, school_year)
                     VALUES(?, ?, ?, ?, ?, ?)
-                `).run(
+                `
+                ).run(
                     payload.title,
                     payload.section || null,
                     payload.subject || null,
@@ -73,24 +77,30 @@ function registerExamsIpc(ipcMain) {
     ipcMain.handle('examProctors:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT p.*, e.title as exam_title, t.full_name as teacher_full_name
             FROM exam_proctors p
             LEFT JOIN exams e ON e.id = p.exam_id
             LEFT JOIN teachers t ON t.id = p.teacher_id
             WHERE p.school_year = ?
             ORDER BY p.id DESC
-        `).all(year);
+        `
+            )
+            .all(year);
     });
 
     ipcMain.handle('examProctors:saveManual', async (event, payload) => {
         try {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, room, school_year)
                 VALUES(?, ?, ?, ?, ?)
-            `).run(
+            `
+            ).run(
                 payload.exam_id || null,
                 payload.teacher_id || null,
                 payload.teacher_name || null,
@@ -109,9 +119,9 @@ function registerExamsIpc(ipcMain) {
             const db = getDb();
             const year = payload.school_year || '2025/2026';
             const exams = db.prepare('SELECT id FROM exams WHERE school_year = ? ORDER BY exam_date, id').all(year);
-            const teachers = db.prepare(
-                'SELECT id, full_name FROM teachers WHERE school_year = ? AND active = 1 ORDER BY id'
-            ).all(year);
+            const teachers = db
+                .prepare('SELECT id, full_name FROM teachers WHERE school_year = ? AND active = 1 ORDER BY id')
+                .all(year);
 
             if (!exams.length || !teachers.length) return { success: false, error: 'Missing exams or teachers' };
 
@@ -147,12 +157,16 @@ function registerExamsIpc(ipcMain) {
     ipcMain.handle('proctors:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT id, teacher_name as teacher, room, date, session
             FROM exam_proctors
             WHERE school_year = ?
             ORDER BY id DESC
-        `).all(year);
+        `
+            )
+            .all(year);
     });
 
     ipcMain.handle('proctors:save', async (event, payload) => {
@@ -161,11 +175,13 @@ function registerExamsIpc(ipcMain) {
             const db = getDb();
             const year = payload.school_year || '2025/2026';
             if (payload.id) {
-                db.prepare(`
+                db.prepare(
+                    `
                     UPDATE exam_proctors
                     SET teacher_name = ?, room = ?, date = ?, session = ?, school_year = ?
                     WHERE id = ?
-                `).run(
+                `
+                ).run(
                     payload.teacher || null,
                     payload.room || null,
                     payload.date || null,
@@ -174,10 +190,12 @@ function registerExamsIpc(ipcMain) {
                     payload.id
                 );
             } else {
-                db.prepare(`
+                db.prepare(
+                    `
                     INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, room, school_year, date, session)
                     VALUES(?, ?, ?, ?, ?, ?, ?)
-                `).run(
+                `
+                ).run(
                     null,
                     null,
                     payload.teacher || null,
@@ -227,12 +245,9 @@ function registerExamsIpc(ipcMain) {
                     payload.id
                 );
             } else {
-                db.prepare('INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)').run(
-                    payload.room_name,
-                    payload.capacity || 0,
-                    payload.equipment || null,
-                    payload.school_year
-                );
+                db.prepare(
+                    'INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)'
+                ).run(payload.room_name, payload.capacity || 0, payload.equipment || null, payload.school_year);
             }
             return { success: true };
         } catch (err) {
@@ -254,9 +269,11 @@ function registerExamsIpc(ipcMain) {
     ipcMain.handle('rooms:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        const rows = db.prepare(
-            'SELECT id, room_name, capacity, equipment FROM exam_rooms WHERE school_year = ? ORDER BY room_name'
-        ).all(year);
+        const rows = db
+            .prepare(
+                'SELECT id, room_name, capacity, equipment FROM exam_rooms WHERE school_year = ? ORDER BY room_name'
+            )
+            .all(year);
         return rows.map((r) => ({ ...r, name: r.room_name }));
     });
 
@@ -276,12 +293,9 @@ function registerExamsIpc(ipcMain) {
                     payload.id
                 );
             } else {
-                db.prepare('INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)').run(
-                    payload.name || payload.room_name,
-                    payload.capacity || 0,
-                    payload.equipment || null,
-                    year
-                );
+                db.prepare(
+                    'INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)'
+                ).run(payload.name || payload.room_name, payload.capacity || 0, payload.equipment || null, year);
             }
             return { success: true };
         } catch (err) {
@@ -318,10 +332,12 @@ function registerExamsIpc(ipcMain) {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
             if (payload.id) {
-                db.prepare(`
+                db.prepare(
+                    `
                     UPDATE tests SET title = ?, section = ?, subject = ?, teacher_name = ?, status = ?, test_date = ?, school_year = ?
                     WHERE id = ?
-                `).run(
+                `
+                ).run(
                     payload.title,
                     payload.section || null,
                     payload.subject || null,
@@ -332,10 +348,12 @@ function registerExamsIpc(ipcMain) {
                     payload.id
                 );
             } else {
-                db.prepare(`
+                db.prepare(
+                    `
                     INSERT INTO tests(title, section, subject, teacher_name, status, test_date, school_year)
                     VALUES(?, ?, ?, ?, ?, ?, ?)
-                `).run(
+                `
+                ).run(
                     payload.title,
                     payload.section || null,
                     payload.subject || null,

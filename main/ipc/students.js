@@ -25,7 +25,9 @@ function registerStudentsIpc(ipcMain) {
         const nameQ = String(name || '').trim();
         const classQ = String(className || '').trim();
         const codeQ = String(code || '').trim();
-        const rows = db.prepare(`
+        const rows = db
+            .prepare(
+                `
             SELECT *
             FROM students
             WHERE school_year = ?
@@ -33,7 +35,9 @@ function registerStudentsIpc(ipcMain) {
             AND(? = '' OR section LIKE ?)
             AND(? = '' OR code LIKE ?)
             ORDER BY section, full_name
-        `).all(year, nameQ, `%${nameQ}%`, classQ, `%${classQ}%`, codeQ, `%${codeQ}%`);
+        `
+            )
+            .all(year, nameQ, `%${nameQ}%`, classQ, `%${classQ}%`, codeQ, `%${codeQ}%`);
         return rows.map((r) => ({
             ...r,
             massar_code: r.code,
@@ -47,10 +51,12 @@ function registerStudentsIpc(ipcMain) {
         try {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT INTO students(code, full_name, family_name, birth_date, gender, section, school_year, status, registration_type)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
+            `
+            ).run(
                 student.code,
                 student.full_name,
                 student.family_name,
@@ -197,12 +203,16 @@ function registerStudentsIpc(ipcMain) {
     ipcMain.handle('grades:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT g.*, s.full_name, s.section 
             FROM grades g 
             LEFT JOIN students s ON g.student_id = s.id 
             WHERE g.school_year = ?
-        `).all(year);
+        `
+            )
+            .all(year);
     });
 
     ipcMain.handle('grades:getZeroStudents', async (event, filters = {}) => {
@@ -223,10 +233,7 @@ function registerStudentsIpc(ipcMain) {
                 ? Math.min(200, Math.max(5, Math.floor(rawPageSize)))
                 : defaultPageSize;
 
-            const whereParts = [
-                'g.school_year = ?',
-                'CAST(g.grade AS REAL) = 0'
-            ];
+            const whereParts = ['g.school_year = ?', 'CAST(g.grade AS REAL) = 0'];
             const params = [year];
 
             if (className) {
@@ -240,7 +247,9 @@ function registerStudentsIpc(ipcMain) {
             }
 
             if (searchTerm) {
-                whereParts.push("(COALESCE(s.full_name, '') LIKE ? OR COALESCE(g.student_code, s.code, '') LIKE ? OR COALESCE(g.subject, '') LIKE ?)");
+                whereParts.push(
+                    "(COALESCE(s.full_name, '') LIKE ? OR COALESCE(g.student_code, s.code, '') LIKE ? OR COALESCE(g.subject, '') LIKE ?)"
+                );
                 const like = `%${searchTerm}%`;
                 params.push(like, like, like);
             }
@@ -281,14 +290,18 @@ function registerStudentsIpc(ipcMain) {
                 WHERE ${whereSql}
             `;
 
-            const summary = db.prepare(`
+            const summary = db
+                .prepare(
+                    `
                 SELECT
                     COUNT(*) AS total_cases,
                     COUNT(DISTINCT student_code) AS unique_students,
                     COUNT(DISTINCT class_name) AS sections_count,
                     SUM(CASE WHEN absence_count > 0 THEN 1 ELSE 0 END) AS absence_linked_cases
                 FROM (${baseQuery}) z
-            `).get(...params);
+            `
+                )
+                .get(...params);
 
             const totalRows = Number(summary?.total_cases || 0);
             const totalPages = totalRows ? Math.ceil(totalRows / pageSize) : 1;
@@ -339,10 +352,12 @@ function registerStudentsIpc(ipcMain) {
         try {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT OR REPLACE INTO grades (student_id, student_code, subject, grade, semester, teacher_name, level, section, school_year)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
+            `
+            ).run(
                 grade.student_id,
                 grade.student_code,
                 grade.subject,
@@ -408,15 +423,21 @@ function registerStudentsIpc(ipcMain) {
         const year = schoolYear || '2025/2026';
 
         // Total students
-        const { total: totalStudents } = db.prepare('SELECT COUNT(*) as total FROM students WHERE school_year = ?').get(year);
+        const { total: totalStudents } = db
+            .prepare('SELECT COUNT(*) as total FROM students WHERE school_year = ?')
+            .get(year);
 
         // By gender
-        const genderRows = db.prepare('SELECT gender, COUNT(*) as count FROM students WHERE school_year = ? GROUP BY gender').all(year);
+        const genderRows = db
+            .prepare('SELECT gender, COUNT(*) as count FROM students WHERE school_year = ? GROUP BY gender')
+            .all(year);
         const byGender = {};
         for (const row of genderRows) byGender[row.gender] = row.count;
 
         // By section
-        const sectionRows = db.prepare('SELECT section, COUNT(*) as count FROM students WHERE school_year = ? GROUP BY section').all(year);
+        const sectionRows = db
+            .prepare('SELECT section, COUNT(*) as count FROM students WHERE school_year = ? GROUP BY section')
+            .all(year);
         const bySection = {};
         for (const row of sectionRows) bySection[row.section] = row.count;
 
@@ -433,30 +454,39 @@ function registerStudentsIpc(ipcMain) {
     ipcMain.handle('classes:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        const rows = db.prepare(`
+        const rows = db
+            .prepare(
+                `
             SELECT section
             FROM students
             WHERE school_year = ? AND section IS NOT NULL AND TRIM(section) <> ''
             GROUP BY section
             ORDER BY section
-        `).all(year);
+        `
+            )
+            .all(year);
         return rows.map((r) => ({ name: r.section }));
     });
 
     ipcMain.handle('subjects:getAll', async () => {
         const db = getDb();
-        const rows = db.prepare(`
+        const rows = db
+            .prepare(
+                `
             SELECT subject
             FROM grades
             WHERE subject IS NOT NULL AND TRIM(subject) <> ''
             GROUP BY subject
             ORDER BY subject
-        `).all();
+        `
+            )
+            .all();
 
-        const normalizeSubjectName = (subject) => String(subject || '')
-            .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
-            .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-            .trim();
+        const normalizeSubjectName = (subject) =>
+            String(subject || '')
+                .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
+                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
+                .trim();
 
         const invalidSubjectNames = new Set(['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة']);
         const uniqueSubjects = new Set();

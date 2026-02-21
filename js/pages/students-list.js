@@ -8,18 +8,34 @@ let sortDirection = 'asc';
 
 // Avatar color palette
 const avatarColors = [
-    '#2D5F4A', '#3C95D0', '#E67F22', '#9B59B6', '#E74C3C',
-    '#1ABC9C', '#2980B9', '#D35400', '#8E44AD', '#27AE60',
-    '#F39C12', '#C0392B', '#16A085', '#2C3E50', '#7F8C8D'
+    '#2D5F4A',
+    '#3C95D0',
+    '#E67F22',
+    '#9B59B6',
+    '#E74C3C',
+    '#1ABC9C',
+    '#2980B9',
+    '#D35400',
+    '#8E44AD',
+    '#27AE60',
+    '#F39C12',
+    '#C0392B',
+    '#16A085',
+    '#2C3E50',
+    '#7F8C8D'
 ];
 
 // Gender normalization helpers (DB may store 'M'/'F', 'ذكر'/'أنثى', etc.)
 function isMale(gender) {
-    const g = String(gender || '').trim().toLowerCase();
+    const g = String(gender || '')
+        .trim()
+        .toLowerCase();
     return g === 'm' || g === 'male' || g === 'ذكر';
 }
 function isFemale(gender) {
-    const g = String(gender || '').trim().toLowerCase();
+    const g = String(gender || '')
+        .trim()
+        .toLowerCase();
     return g === 'f' || g === 'female' || g === 'أنثى';
 }
 
@@ -77,10 +93,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // PDF export from print preview
-    document.getElementById('print-export-pdf').addEventListener('click', exportPdf);
+    // (now handled by the shared UX print preview system)
 
     // Sorting
-    document.querySelectorAll('.sl-table th[data-sort]').forEach(th => {
+    document.querySelectorAll('.sl-table th[data-sort]').forEach((th) => {
         th.addEventListener('click', () => handleSort(th.dataset.sort));
     });
 
@@ -91,14 +107,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.target === e.currentTarget) closeStudentModal();
     });
 
-    // Print preview
-    document.getElementById('print-preview-btn').addEventListener('click', openPrintPreview);
-    document.getElementById('print-preview-close').addEventListener('click', closePrintPreview);
-    document.getElementById('print-cancel').addEventListener('click', closePrintPreview);
-    document.getElementById('print-confirm').addEventListener('click', executePrint);
-    document.getElementById('print-preview-overlay').addEventListener('click', (e) => {
-        if (e.target === e.currentTarget) closePrintPreview();
-    });
+    // Print preview (uses shared UX system)
+    document.getElementById('print-preview-btn').addEventListener('click', openSlPrintPreview);
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -109,7 +119,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (e.key === 'Escape') {
             closeStudentModal();
-            closePrintPreview();
         }
     });
 });
@@ -165,7 +174,7 @@ async function searchStudents() {
 
         // Client-side gender filter
         if (gender) {
-            filteredStudents = students.filter(s => {
+            filteredStudents = students.filter((s) => {
                 if (gender === 'M') return isMale(s.gender);
                 if (gender === 'F') return isFemale(s.gender);
                 return true;
@@ -200,7 +209,7 @@ function handleSort(column) {
     }
 
     // Update sort icons
-    document.querySelectorAll('.sl-table th[data-sort]').forEach(th => {
+    document.querySelectorAll('.sl-table th[data-sort]').forEach((th) => {
         const icon = th.querySelector('.sort-icon');
         th.classList.remove('sorted');
         icon.className = 'fas fa-sort sort-icon';
@@ -250,16 +259,17 @@ function renderStudents() {
     const pageStudents = filteredStudents.slice(start, end);
 
     const tbody = document.getElementById('students-tbody');
-    tbody.innerHTML = pageStudents.map((s, i) => {
-        const idx = start + i + 1;
-        const name = s.full_name || '-';
-        const initial = getInitial(name);
-        const color = getAvatarColor(name);
-        const genderClass = isMale(s.gender) ? 'male' : isFemale(s.gender) ? 'female' : '';
-        const genderLabel = isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-';
-        const genderIcon = isMale(s.gender) ? 'fa-mars' : isFemale(s.gender) ? 'fa-venus' : '';
+    tbody.innerHTML = pageStudents
+        .map((s, i) => {
+            const idx = start + i + 1;
+            const name = s.full_name || '-';
+            const initial = getInitial(name);
+            const color = getAvatarColor(name);
+            const genderClass = isMale(s.gender) ? 'male' : isFemale(s.gender) ? 'female' : '';
+            const genderLabel = isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-';
+            const genderIcon = isMale(s.gender) ? 'fa-mars' : isFemale(s.gender) ? 'fa-venus' : '';
 
-        return `
+            return `
             <tr>
                 <td>${idx}</td>
                 <td><code style="font-size:13px;color:var(--color-text-muted)">${escapeHtml(s.massar_code || '-')}</code></td>
@@ -280,7 +290,8 @@ function renderStudents() {
                 </td>
             </tr>
         `;
-    }).join('');
+        })
+        .join('');
 
     setFeedback(`تم عرض ${filteredStudents.length} تلميذ(ة).`);
     renderPagination(totalPages);
@@ -464,16 +475,16 @@ async function viewStudent(index) {
         // Match by massar_code or full_name
         const studentId = student.massar_code || student.full_name || '';
         const rawStudentGrades = allGrades
-            .filter(g => {
+            .filter((g) => {
                 const id = String(g.student_code || g.student_id || g.full_name || '');
                 return id === studentId;
             })
-            .map(g => ({ ...g, grade: Number(g.grade) }))
-            .filter(g => Number.isFinite(g.grade));
+            .map((g) => ({ ...g, grade: Number(g.grade) }))
+            .filter((g) => Number.isFinite(g.grade));
 
         // Deduplicate: keep only the latest entry per original subject + semester
         const dedup = {};
-        rawStudentGrades.forEach(g => {
+        rawStudentGrades.forEach((g) => {
             const key = `${String(g.subject || '').trim()}||${g.semester || ''}`;
             dedup[key] = g;
         });
@@ -484,13 +495,14 @@ async function viewStudent(index) {
 
         if (!studentGrades.length) {
             kpisContainer.innerHTML = '';
-            subjectsContainer.innerHTML = '<div class="sl-grades-empty"><i class="fas fa-inbox"></i><p>لا توجد نقط مسجلة لهذا التلميذ</p></div>';
+            subjectsContainer.innerHTML =
+                '<div class="sl-grades-empty"><i class="fas fa-inbox"></i><p>لا توجد نقط مسجلة لهذا التلميذ</p></div>';
             return;
         }
 
         // Group by subject
         const bySubject = {};
-        studentGrades.forEach(g => {
+        studentGrades.forEach((g) => {
             const subj = normalizeSubjectName(g.subject) || 'غير محدد';
             if (!bySubject[subj]) bySubject[subj] = [];
             bySubject[subj].push(g);
@@ -498,14 +510,14 @@ async function viewStudent(index) {
 
         // Calculate KPIs
         const subjects = Object.keys(bySubject);
-        const subjectAvgs = subjects.map(s => {
-            const vals = bySubject[s].map(g => g.grade);
+        const subjectAvgs = subjects.map((s) => {
+            const vals = bySubject[s].map((g) => g.grade);
             return vals.reduce((a, b) => a + b, 0) / vals.length;
         });
         const generalAvg = subjectAvgs.length ? subjectAvgs.reduce((a, b) => a + b, 0) / subjectAvgs.length : 0;
         const totalGrades = studentGrades.length;
-        const maxGrade = Math.max(...studentGrades.map(g => g.grade));
-        const minGrade = Math.min(...studentGrades.map(g => g.grade));
+        const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
+        const minGrade = Math.min(...studentGrades.map((g) => g.grade));
 
         // Render KPIs
         kpisContainer.innerHTML = `
@@ -535,26 +547,29 @@ async function viewStudent(index) {
 
         // Render subject blocks
         const sortedSubjects = subjects.sort((a, b) => a.localeCompare(b, 'ar'));
-        subjectsContainer.innerHTML = sortedSubjects.map(subj => {
-            const grades = bySubject[subj];
-            const vals = grades.map(g => g.grade);
-            const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-            const clr = gradeColor(avg);
+        subjectsContainer.innerHTML = sortedSubjects
+            .map((subj) => {
+                const grades = bySubject[subj];
+                const vals = grades.map((g) => g.grade);
+                const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+                const clr = gradeColor(avg);
 
-            const chipsHtml = grades.map((g, idx) => {
-                const gc = gradeColor(g.grade);
-                const pct = Math.min((g.grade / 20) * 100, 100);
-                const semLabel = g.semester ? `الدورة ${g.semester}` : '';
-                return `
+                const chipsHtml = grades
+                    .map((g, idx) => {
+                        const gc = gradeColor(g.grade);
+                        const pct = Math.min((g.grade / 20) * 100, 100);
+                        const semLabel = g.semester ? `الدورة ${g.semester}` : '';
+                        return `
                     <div class="sl-grade-chip">
                         <span class="chip-label">فرض ${idx + 1}${semLabel ? ' — ' + semLabel : ''}</span>
                         <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
                         <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
                     </div>
                 `;
-            }).join('');
+                    })
+                    .join('');
 
-            return `
+                return `
                 <div class="sl-subject-block">
                     <div class="sl-subject-block-header">
                         <span class="subj-name"><i class="fas fa-book"></i> ${escapeHtml(subj)}</span>
@@ -565,13 +580,14 @@ async function viewStudent(index) {
                     </div>
                 </div>
             `;
-        }).join('');
-
+            })
+            .join('');
     } catch (err) {
         console.error('Error loading student grades:', err);
         const subjectsContainer = document.getElementById('modal-grades-subjects');
         if (subjectsContainer) {
-            subjectsContainer.innerHTML = '<div class="sl-grades-empty"><i class="fas fa-triangle-exclamation"></i><p>تعذر تحميل النقط</p></div>';
+            subjectsContainer.innerHTML =
+                '<div class="sl-grades-empty"><i class="fas fa-triangle-exclamation"></i><p>تعذر تحميل النقط</p></div>';
         }
     }
 }
@@ -582,93 +598,26 @@ function closeStudentModal() {
     modal.setAttribute('aria-hidden', 'true');
 }
 
-// ─── Forced Print Mode Helpers ───
-function enableForcedPrintMode() {
-    if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
-    const printRoot = document.getElementById('sl-print-root');
-    document.body.classList.add('sl-printing-active');
-    printRoot?.setAttribute('aria-hidden', 'false');
-}
-
-function disableForcedPrintMode() {
-    const printRoot = document.getElementById('sl-print-root');
-    document.body.classList.remove('sl-printing-active');
-    printRoot?.setAttribute('aria-hidden', 'true');
-    printRoot.innerHTML = '';
-    if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
-}
-
-// ─── Build print content into the persistent #sl-print-root ───
-function preparePrintContent() {
-    const printPage = document.getElementById('print-page');
-    const printRoot = document.getElementById('sl-print-root');
-    printRoot.innerHTML = printPage.innerHTML;
-}
-
-// ─── Export PDF ───
-async function exportPdf() {
-    if (!filteredStudents.length) {
-        showToast('لا توجد بيانات للتصدير', 'warning');
-        return;
-    }
-
-    closePrintPreview();
-    await new Promise(r => setTimeout(r, 100));
-
-    // Ensure print preview content is generated
-    if (!document.getElementById('print-page').innerHTML.trim()) {
-        openPrintPreview();
-        closePrintPreview();
-        await new Promise(r => setTimeout(r, 100));
-    }
-
-    preparePrintContent();
-    enableForcedPrintMode();
-
-    // Allow enough time for layout to settle
-    await new Promise(r => setTimeout(r, 300));
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-    try {
-        if (window.api?.system?.printToPDF) {
-            const result = await window.api.system.printToPDF({
-                printBackground: true,
-                pageSize: 'A4',
-                landscape: false,
-                margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
-            });
-            if (result?.success) {
-                showToast('تم تصدير اللائحة بنجاح', 'success');
-            } else if (result?.error !== 'Cancelled by user') {
-                showToast('تعذر تصدير اللائحة: ' + (result?.error || ''), 'error');
-            }
-        } else {
-            showToast('تصدير PDF غير متاح في هذا السياق', 'warning');
-        }
-    } catch (err) {
-        console.warn('PDF export error:', err);
-        showToast('تعذر تصدير اللائحة: ' + err.message, 'error');
-    } finally {
-        disableForcedPrintMode();
-    }
-}
-
-// ─── Print Preview ───
-function openPrintPreview() {
+// ─── Print Preview (uses shared UX system) ───
+function openSlPrintPreview() {
     if (!filteredStudents.length) {
         showToast('لا توجد بيانات للطباعة', 'warning');
         return;
     }
 
-    const printPage = document.getElementById('print-page');
     const classFilter = document.getElementById('search-class').value || 'كل الأقسام';
     const now = new Date();
     const dateStr = new Intl.DateTimeFormat('ar-MA', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit'
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
     }).format(now);
 
-    let tableRows = filteredStudents.map((s, i) => `
+    let tableRows = filteredStudents
+        .map(
+            (s, i) => `
         <tr>
             <td style="text-align:center">${i + 1}</td>
             <td>${escapeHtml(s.massar_code || '-')}</td>
@@ -677,13 +626,23 @@ function openPrintPreview() {
             <td>${isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-'}</td>
             <td>${escapeHtml(s.birth_date || '-')}</td>
         </tr>
-    `).join('');
+    `
+        )
+        .join('');
 
-    printPage.innerHTML = `
-        <div class="sl-print-sheet">
-            <div class="sl-print-sheet-title">لائحة التلاميذ</div>
-            <div class="sl-print-sheet-subtitle">${escapeHtml(classFilter)} — السنة الدراسية ${year} — العدد: ${filteredStudents.length}</div>
-            <table>
+    // Build temporary print source element
+    let printSource = document.getElementById('sl-print-source');
+    if (printSource) printSource.remove();
+    printSource = document.createElement('div');
+    printSource.id = 'sl-print-source';
+    printSource.style.cssText = 'position:absolute;left:-99999px;top:0;width:210mm;';
+    printSource.innerHTML = `
+        <section class="students-results">
+            <div style="text-align:center;margin-bottom:16px;">
+                <div style="font-size:20px;font-weight:800;color:#1B3D30;margin-bottom:6px;">لائحة التلاميذ</div>
+                <div style="font-size:13px;color:#6B7B72;">${escapeHtml(classFilter)} — السنة الدراسية ${year} — العدد: ${filteredStudents.length}</div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;border:1px solid #d6dde3;">
                 <thead>
                     <tr>
                         <th style="text-align:center">#</th>
@@ -696,56 +655,33 @@ function openPrintPreview() {
                 </thead>
                 <tbody>${tableRows}</tbody>
             </table>
-            <div class="print-meta">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#6B7B72;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:8px;">
                 <span>تاريخ الطباعة: ${dateStr}</span>
                 <span>برنامج التدبير المدرسي — ${year}</span>
             </div>
-        </div>
+        </section>
     `;
+    document.body.appendChild(printSource);
 
-    const overlay = document.getElementById('print-preview-overlay');
-    overlay.classList.add('active');
-    overlay.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-}
-
-function closePrintPreview() {
-    const overlay = document.getElementById('print-preview-overlay');
-    overlay.classList.remove('active');
-    overlay.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-}
-
-async function executePrint() {
-    closePrintPreview();
-    await new Promise(r => setTimeout(r, 100));
-
-    preparePrintContent();
-    enableForcedPrintMode();
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
+    // Use the shared print preview system
     try {
-        if (window.api?.system?.printCurrentWindow) {
-            const result = await window.api.system.printCurrentWindow({
-                printBackground: true,
+        const previewFn =
+            (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
+            (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
+
+        if (previewFn) {
+            previewFn({
+                title: 'لائحة التلاميذ',
                 pageSize: 'A4',
-                landscape: false,
-                margins: { marginType: 'default' }
+                contentSelector: '#sl-print-source .students-results',
+                defaultFileName: `لائحة_التلاميذ_${year.replace('/', '-')}`
             });
-            if (result?.success) {
-                showToast('تم إرسال اللائحة للطباعة', 'success');
-            }
         } else {
-            // Fallback for browser context
-            const cleanup = () => disableForcedPrintMode();
-            window.addEventListener('afterprint', cleanup, { once: true });
             window.print();
-            setTimeout(disableForcedPrintMode, 1200);
-            return;
         }
-    } catch (err) {
-        console.warn('Print error:', err);
     } finally {
-        disableForcedPrintMode();
+        setTimeout(() => {
+            if (printSource) printSource.remove();
+        }, 500);
     }
 }

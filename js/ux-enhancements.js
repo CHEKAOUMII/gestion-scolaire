@@ -229,7 +229,6 @@ if (document.readyState === 'loading') {
 let _printPreviewModal = null;
 let _printPreviewOptions = {};
 let _printPreviewLandscape = false;
-let _savedThemeBeforePreview = null;
 let _savedThemeBeforePrint = null;
 
 // ─── Force light theme for printing (global helpers) ───
@@ -289,11 +288,6 @@ function _ensurePrintPreviewModal() {
     const overlay = _printPreviewModal.querySelector('.ux-pp-overlay');
     const page = _printPreviewModal.querySelector('.ux-pp-page');
     const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
-    if (overlay) overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);';
-    if (dialog) dialog.style.cssText = 'position:relative;width:min(1180px,95vw);max-height:92vh;background:#fff;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;z-index:1;';
-    if (page) page.style.cssText = 'padding:16px;background:#eef2f7;overflow:auto;';
-    if (sheet) sheet.style.cssText = 'background:#fff;color:#111;width:210mm;min-height:297mm;margin:0 auto;padding:10mm;box-shadow:0 8px 28px rgba(0,0,0,.15);';
-    _printPreviewModal.style.cssText += 'position:fixed;inset:0;z-index:10050;align-items:center;justify-content:center;';
 
     _printPreviewModal.querySelector('.ux-pp-close')?.addEventListener('click', closePrintPreviewGlobal);
     _printPreviewModal.querySelector('.ux-pp-overlay')?.addEventListener('click', closePrintPreviewGlobal);
@@ -341,33 +335,38 @@ function openPrintPreview(options = {}) {
     }
 
     const clone = sourceEl.cloneNode(true);
-    // Strip UI controls from clone
-    clone.querySelectorAll('.header, .search-section, .search-form, .filter-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, .btn-print, .btn-export, .pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state').forEach(el => el.remove());
-    // Force solid white backgrounds on glass/card elements (override CSS variables)
-    clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details').forEach(el => {
-        el.style.background = '#fff';
-        el.style.boxShadow = 'none';
-        el.style.backdropFilter = 'none';
-        el.style.webkitBackdropFilter = 'none';
-        el.style.animation = 'none';
-    });
-    // Remove IDs to avoid duplicates
-    clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
 
-    // Replace canvases with images
-    const sourceCanvases = sourceEl.querySelectorAll('canvas');
-    const cloneCanvases = clone.querySelectorAll('canvas');
-    cloneCanvases.forEach((cc, i) => {
-        const sc = sourceCanvases[i];
-        if (!sc) { cc.remove(); return; }
-        try {
-            const img = document.createElement('img');
-            img.src = sc.toDataURL('image/png', 1);
-            img.alt = 'رسم بياني';
-            img.style.cssText = 'width:100%;height:auto;max-height:200px;object-fit:contain;display:block;border-radius:6px;';
-            cc.replaceWith(img);
-        } catch { cc.remove(); }
-    });
+    // When contentSelector is provided, the caller already prepared the content.
+    // Only do auto-cleanup when cloning raw page content.
+    if (!options.contentSelector) {
+        // Strip UI controls from clone
+        clone.querySelectorAll('.header, .search-section, .search-form, .filter-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, .btn-print, .btn-export, .pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state').forEach(el => el.remove());
+        // Force solid white backgrounds on glass/card elements (override CSS variables)
+        clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details').forEach(el => {
+            el.style.background = '#fff';
+            el.style.boxShadow = 'none';
+            el.style.backdropFilter = 'none';
+            el.style.webkitBackdropFilter = 'none';
+            el.style.animation = 'none';
+        });
+        // Remove IDs to avoid duplicates
+        clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+
+        // Replace canvases with images
+        const sourceCanvases = sourceEl.querySelectorAll('canvas');
+        const cloneCanvases = clone.querySelectorAll('canvas');
+        cloneCanvases.forEach((cc, i) => {
+            const sc = sourceCanvases[i];
+            if (!sc) { cc.remove(); return; }
+            try {
+                const img = document.createElement('img');
+                img.src = sc.toDataURL('image/png', 1);
+                img.alt = 'رسم بياني';
+                img.style.cssText = 'width:100%;height:auto;max-height:200px;object-fit:contain;display:block;border-radius:6px;';
+                cc.replaceWith(img);
+            } catch { cc.remove(); }
+        });
+    }
 
     // Build print header
     const printTitle = options.title || document.querySelector('.page-title h1')?.textContent || document.title || 'طباعة';
@@ -387,13 +386,6 @@ function openPrintPreview(options = {}) {
     _printPreviewModal.style.display = 'flex';
     document.body.classList.add('ux-preview-open');
 
-    // Force light theme during print preview
-    _savedThemeBeforePreview = document.documentElement.getAttribute('data-theme');
-    if (_savedThemeBeforePreview === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'light');
-        updateThemeIcon('light');
-    }
-
     _updateOrientationUI();
 }
 
@@ -405,13 +397,6 @@ function closePrintPreviewGlobal() {
         if (sheet) sheet.innerHTML = '';
     }
     document.body.classList.remove('ux-preview-open');
-
-    // Restore saved theme after closing print preview
-    if (_savedThemeBeforePreview) {
-        document.documentElement.setAttribute('data-theme', _savedThemeBeforePreview);
-        updateThemeIcon(_savedThemeBeforePreview);
-        _savedThemeBeforePreview = null;
-    }
 }
 
 function _updateOrientationUI() {

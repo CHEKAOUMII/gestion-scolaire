@@ -49,7 +49,9 @@ function normalizeEmail(value) {
 }
 
 function normalizeRole(value) {
-    const role = String(value || '').trim().toLowerCase();
+    const role = String(value || '')
+        .trim()
+        .toLowerCase();
     return ALLOWED_ROLES.has(role) ? role : 'staff';
 }
 
@@ -60,7 +62,7 @@ function buildPublicSession(userRow) {
         name: String(userRow.name || ''),
         email: normalizeEmail(userRow.email),
         role: normalizeRole(userRow.role),
-        mustChangePassword: !!(userRow.must_change_password),
+        mustChangePassword: !!userRow.must_change_password,
         authenticatedAt: new Date().toISOString()
     };
 }

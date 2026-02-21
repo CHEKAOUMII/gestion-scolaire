@@ -41,7 +41,9 @@ async function printHTML(opts = {}) {
     for (const cssPath of cssFiles) {
         try {
             appCSS += fs.readFileSync(cssPath, 'utf-8') + '\n';
-        } catch (_) { /* file may not exist */ }
+        } catch (_) {
+            /* file may not exist */
+        }
     }
 
     // Build the full HTML document with real app CSS
@@ -70,10 +72,12 @@ async function printHTML(opts = {}) {
         // Wait for web fonts to be ready
         try {
             await printWin.webContents.executeJavaScript('document.fonts.ready.then(() => true)', true);
-        } catch (_) { /* ignore if fonts API not available */ }
+        } catch (_) {
+            /* ignore if fonts API not available */
+        }
 
         // Settle time for fonts, images, and layout
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 1000));
 
         if (mode === 'preview') {
             printWin.setTitle(title);
@@ -93,9 +97,9 @@ async function printHTML(opts = {}) {
                         margins: { marginType: 'default' }
                     },
                     (success, failureReason) => {
-                        resolve(success
-                            ? { success: true }
-                            : { success: false, error: failureReason || 'Print failed' });
+                        resolve(
+                            success ? { success: true } : { success: false, error: failureReason || 'Print failed' }
+                        );
                     }
                 );
             });
@@ -114,7 +118,9 @@ async function printHTML(opts = {}) {
 
         const dialogParent = parentWindow || BrowserWindow.getFocusedWindow();
         const fileName = defaultFileName
-            ? (defaultFileName.endsWith('.pdf') ? defaultFileName : defaultFileName + '.pdf')
+            ? defaultFileName.endsWith('.pdf')
+                ? defaultFileName
+                : defaultFileName + '.pdf'
             : `${title.replace(/[\\/:*?"<>|]/g, '_')}_${Date.now()}.pdf`;
         const dialogOpts = {
             defaultPath: fileName,
@@ -134,7 +140,6 @@ async function printHTML(opts = {}) {
             return { success: true, filePath };
         }
         return { success: false, error: 'Cancelled by user' };
-
     } catch (err) {
         if (!printWin.isDestroyed()) printWin.close();
         _cleanupTmp(tmpFile);
@@ -143,7 +148,9 @@ async function printHTML(opts = {}) {
 }
 
 function _cleanupTmp(filePath) {
-    try { if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (_) {}
+    try {
+        if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (_) {}
 }
 
 /**
@@ -543,11 +550,7 @@ ${bodyHTML}
 }
 
 function escapeHTML(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 module.exports = { printHTML };

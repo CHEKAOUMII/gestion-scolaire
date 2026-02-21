@@ -34,7 +34,7 @@ function ensureXlsxLoaded() {
         script.onload = () => resolve(window.XLSX);
         script.onerror = () => reject(new Error('تعذر تحميل مكتبة Excel'));
         document.head.appendChild(script);
-    }).catch(err => {
+    }).catch((err) => {
         xlsxLoaderPromise = null;
         throw err;
     });
@@ -176,9 +176,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Keyboard shortcuts (Ctrl+1..4)
         document.addEventListener('keydown', (e) => {
             if (!e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
-            const map = { '1': 'students', '2': 'grades', '3': 'absences', '4': 'fet' };
+            const map = { 1: 'students', 2: 'grades', 3: 'absences', 4: 'fet' };
             const action = map[e.key];
-            if (action) { e.preventDefault(); runImport(action); }
+            if (action) {
+                e.preventDefault();
+                runImport(action);
+            }
         });
 
         // Delete buttons
@@ -199,7 +202,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     createBackupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...';
                     const backup = await BackupManager.createBackup();
                     BackupManager.downloadBackup(backup);
-                    showToast('تم إنشاء النسخة الاحتياطية بنجاح (' + BackupManager.formatSize(backup.size) + ')', 'success');
+                    showToast(
+                        'تم إنشاء النسخة الاحتياطية بنجاح (' + BackupManager.formatSize(backup.size) + ')',
+                        'success'
+                    );
                 } catch (err) {
                     showToast(err.message || 'فشل إنشاء النسخة الاحتياطية', 'error');
                 } finally {
@@ -416,29 +422,31 @@ function sanitizeTeacherName(value) {
     const normalized = normalizeKey(raw);
     if (!normalized) return '';
 
-    const invalidExact = new Set([
-        'teacher',
-        'teachername',
-        'enseignant',
-        'prof',
-        'professeur',
-        'استاذ',
-        'الاستاذ',
-        'الأستاذ',
-        'notes',
-        'note',
-        'observation',
-        'observations',
-        'comment',
-        'comments',
-        'remarque',
-        'remarques',
-        'غيرمحدد',
-        'unknow',
-        'unknown',
-        'na',
-        'n/a'
-    ].map(normalizeKey));
+    const invalidExact = new Set(
+        [
+            'teacher',
+            'teachername',
+            'enseignant',
+            'prof',
+            'professeur',
+            'استاذ',
+            'الاستاذ',
+            'الأستاذ',
+            'notes',
+            'note',
+            'observation',
+            'observations',
+            'comment',
+            'comments',
+            'remarque',
+            'remarques',
+            'غيرمحدد',
+            'unknow',
+            'unknown',
+            'na',
+            'n/a'
+        ].map(normalizeKey)
+    );
     if (invalidExact.has(normalized)) return '';
 
     const invalidContains = ['observation', 'comment', 'remarque', 'notes', 'note'].map(normalizeKey);
@@ -871,9 +879,7 @@ async function clearData(type) {
     };
     const label = labels[type] || type;
     const message =
-        type === 'timetable'
-            ? `هل تريد حذف ${label}؟`
-            : `هل تريد حذف ${label} الخاصة بالموسم ${schoolYear}؟`;
+        type === 'timetable' ? `هل تريد حذف ${label}؟` : `هل تريد حذف ${label} الخاصة بالموسم ${schoolYear}؟`;
 
     const confirmed = await showActionConfirm(message);
     if (!confirmed) return;
@@ -1739,8 +1745,8 @@ async function loadLogs() {
     if (!tb) return;
     tb.innerHTML = rows.length
         ? rows
-            .map(
-                (r, i) => `
+              .map(
+                  (r, i) => `
                 <tr>
                     <td class="log-index">${escapeHtml(r.id || i + 1)}</td>
                     <td class="log-action"><bdi dir="ltr">${escapeHtml(r.action || '-')}</bdi></td>
@@ -1751,7 +1757,7 @@ async function loadLogs() {
                     </td>
                 </tr>
             `
-            )
-            .join('')
+              )
+              .join('')
         : '<tr><td colspan="4" style="padding: 30px; text-align: center; color: #888;"><i class="fas fa-inbox" style="font-size: 32px; display: block; margin-bottom: 10px;"></i>لا توجد عمليات بعد</td></tr>';
 }

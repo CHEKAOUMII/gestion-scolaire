@@ -16,7 +16,9 @@ function registerAbsencesIpc(ipcMain) {
     ipcMain.handle('absences:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT a.*,
             COALESCE(sid.full_name, scode.full_name) as full_name,
             COALESCE(sid.section, scode.section) as section
@@ -25,7 +27,9 @@ function registerAbsencesIpc(ipcMain) {
             LEFT JOIN students scode ON scode.code = a.student_code AND scode.school_year = a.school_year
             WHERE a.school_year = ?
             ORDER BY a.absence_date DESC
-        `).all(year);
+        `
+            )
+            .all(year);
     });
 
     ipcMain.handle('absences:getByStudent', async (event, studentId) => {
@@ -36,13 +40,17 @@ function registerAbsencesIpc(ipcMain) {
     ipcMain.handle('absences:getBySection', async (event, section, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT a.*, s.full_name, s.family_name, s.code as student_code
             FROM absences a 
             LEFT JOIN students s ON a.student_id = s.id 
             WHERE s.section = ? AND a.school_year = ?
             ORDER BY s.full_name
-        `).all(section, year);
+        `
+            )
+            .all(section, year);
     });
 
     // ── Write handlers (require admin or staff role) ──
@@ -51,10 +59,12 @@ function registerAbsencesIpc(ipcMain) {
         try {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT INTO absences(student_id, student_code, absence_date, month, absence_type, hours, days, reason, school_year)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
+            `
+            ).run(
                 absence.student_id,
                 absence.student_code,
                 absence.absence_date,
@@ -90,7 +100,12 @@ function registerAbsencesIpc(ipcMain) {
 
             const upsertMany = db.transaction((items) => {
                 for (const absence of items) {
-                    const exists = check.get(absence.student_code, absence.month, absence.school_year, absence.absence_type);
+                    const exists = check.get(
+                        absence.student_code,
+                        absence.month,
+                        absence.school_year,
+                        absence.absence_type
+                    );
 
                     if (exists) {
                         update.run(
@@ -140,23 +155,35 @@ function registerAbsencesIpc(ipcMain) {
         const db = getDb();
         const year = schoolYear || '2025/2026';
 
-        const { total: totalHours } = db.prepare('SELECT COALESCE(SUM(hours), 0) as total FROM absences WHERE school_year = ?').get(year);
+        const { total: totalHours } = db
+            .prepare('SELECT COALESCE(SUM(hours), 0) as total FROM absences WHERE school_year = ?')
+            .get(year);
 
-        const bySection = db.prepare(`
+        const bySection = db
+            .prepare(
+                `
             SELECT s.section, SUM(a.hours) as total_hours, COUNT(DISTINCT a.student_id) as students_count
             FROM absences a
             LEFT JOIN students s ON a.student_id = s.id
             WHERE a.school_year = ?
             GROUP BY s.section
-        `).all(year);
+        `
+            )
+            .all(year);
 
-        const byMonth = db.prepare(`
+        const byMonth = db
+            .prepare(
+                `
             SELECT month, SUM(hours) as total_hours
             FROM absences WHERE school_year = ?
             GROUP BY month
-        `).all(year);
+        `
+            )
+            .all(year);
 
-        const topAbsentees = db.prepare(`
+        const topAbsentees = db
+            .prepare(
+                `
             SELECT a.student_id, a.student_code, s.full_name, s.section, SUM(a.hours) as total_hours
             FROM absences a
             LEFT JOIN students s ON a.student_id = s.id
@@ -164,7 +191,9 @@ function registerAbsencesIpc(ipcMain) {
             GROUP BY a.student_id
             ORDER BY total_hours DESC
             LIMIT 10
-        `).all(year);
+        `
+            )
+            .all(year);
 
         return { totalHours, bySection, byMonth, topAbsentees };
     });
@@ -172,7 +201,9 @@ function registerAbsencesIpc(ipcMain) {
     ipcMain.handle('absences:getSummaryByStudent', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT a.student_id, a.student_code, s.full_name, s.family_name, s.section,
             SUM(a.hours) as total_hours,
             SUM(CASE WHEN a.absence_type = 'justified' THEN a.hours ELSE 0 END) as justified_hours,
@@ -182,14 +213,18 @@ function registerAbsencesIpc(ipcMain) {
             WHERE a.school_year = ?
             GROUP BY a.student_id
             ORDER BY total_hours DESC
-        `).all(year);
+        `
+            )
+            .all(year);
     });
 
     ipcMain.handle('absence:getByClass', async (event, className = '', schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
         const section = String(className || '').trim();
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT a.student_code as massar_code,
             COALESCE(s.full_name, a.student_code) as student_name,
             COALESCE(s.section, '') as class_name,
@@ -201,7 +236,9 @@ function registerAbsencesIpc(ipcMain) {
             AND(? = '' OR COALESCE(s.section, '') = ?)
             GROUP BY a.student_code, COALESCE(s.full_name, a.student_code), COALESCE(s.section, '')
             ORDER BY COALESCE(s.section, ''), COALESCE(s.full_name, a.student_code)
-        `).all(year, section, section);
+        `
+            )
+            .all(year, section, section);
     });
 
     // ── Correspondence (read = open, write = admin/staff) ──
@@ -209,30 +246,38 @@ function registerAbsencesIpc(ipcMain) {
     ipcMain.handle('correspondence:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT c.*, s.full_name, s.section 
             FROM correspondence c 
             LEFT JOIN students s ON c.student_id = s.id 
             WHERE c.school_year = ?
             ORDER BY c.letter_date DESC
-        `).all(year);
+        `
+            )
+            .all(year);
     });
 
     ipcMain.handle('correspondence:save', async (event, letter) => {
         try {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
-            const info = db.prepare(`
+            const info = db
+                .prepare(
+                    `
                 INSERT INTO correspondence(student_id, student_code, letter_type, letter_date, total_hours, school_year)
                 VALUES(?, ?, ?, ?, ?, ?)
-            `).run(
-                letter.student_id,
-                letter.student_code,
-                letter.letter_type,
-                letter.letter_date,
-                letter.total_hours,
-                letter.school_year
-            );
+            `
+                )
+                .run(
+                    letter.student_id,
+                    letter.student_code,
+                    letter.letter_type,
+                    letter.letter_date,
+                    letter.total_hours,
+                    letter.school_year
+                );
             return { success: true, id: info.lastInsertRowid };
         } catch (err) {
             return authErrorResponse(err);

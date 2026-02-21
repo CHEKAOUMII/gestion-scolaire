@@ -24,7 +24,6 @@
     const generateBtn = () => $('generate-btn');
     const printPreviewBtn = () => $('print-btn');
 
-
     function getYear() {
         return yearSelect()?.value || '2025/2026';
     }
@@ -43,7 +42,7 @@
     }
 
     function updateButtons(enabled) {
-        [printPreviewBtn()].forEach(btn => {
+        [printPreviewBtn()].forEach((btn) => {
             if (btn) btn.disabled = !enabled;
         });
     }
@@ -91,31 +90,30 @@
     async function loadFilters() {
         try {
             const year = getYear();
-            const classes = await window.api.classes.getAll(year) || [];
+            const classes = (await window.api.classes.getAll(year)) || [];
             const cs = classSelect();
             // Keep the first placeholder
             while (cs.options.length > 1) cs.remove(1);
-            classes.forEach(c => {
+            classes.forEach((c) => {
                 const opt = document.createElement('option');
                 opt.value = c.name;
                 opt.textContent = c.name;
                 cs.appendChild(opt);
             });
 
-            const subjects = await window.api.subjects.getAll() || [];
+            const subjects = (await window.api.subjects.getAll()) || [];
             const ss = subjectSelect();
             while (ss.options.length > 1) ss.remove(1);
 
-            const normalizeSubjectName = (subject) => String(subject || '')
-                .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
-                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-                .trim();
+            const normalizeSubjectName = (subject) =>
+                String(subject || '')
+                    .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
+                    .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
+                    .trim();
 
-            const uniqueSubjects = Array.from(new Set(
-                subjects
-                    .map((s) => normalizeSubjectName(s.name))
-                    .filter(Boolean)
-            )).sort((a, b) => a.localeCompare(b, 'ar'));
+            const uniqueSubjects = Array.from(
+                new Set(subjects.map((s) => normalizeSubjectName(s.name)).filter(Boolean))
+            ).sort((a, b) => a.localeCompare(b, 'ar'));
 
             uniqueSubjects.forEach((subjectName) => {
                 const opt = document.createElement('option');
@@ -145,7 +143,7 @@
         updateButtons(false);
 
         try {
-            const students = await window.api.students.search('', className, '', year) || [];
+            const students = (await window.api.students.search('', className, '', year)) || [];
             currentStudents = students;
 
             if (students.length === 0) {
@@ -158,10 +156,14 @@
             const semesterLabel = semester === '1' ? 'الدورة الأولى' : 'الدورة الثانية';
             const now = new Date();
             const dateStr = new Intl.DateTimeFormat('ar-MA', {
-                year: 'numeric', month: '2-digit', day: '2-digit'
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
             }).format(now);
 
-            const tableRows = students.map((s, i) => `
+            const tableRows = students
+                .map(
+                    (s, i) => `
                 <tr>
                     <td style="text-align:center; font-weight:600; color:#666;">${i + 1}</td>
                     <td>${escapeHtml(s.massar_code || '-')}</td>
@@ -172,7 +174,9 @@
                     <td class="gs-grade-cell"></td>
                     <td class="gs-grade-cell" style="min-width:80px;"></td>
                 </tr>
-            `).join('');
+            `
+                )
+                .join('');
 
             const body = previewBody();
             body.innerHTML = `
@@ -229,7 +233,8 @@
             updateButtons(true);
             isGenerated = true;
             setFeedback(`تم توليد ورقة تنقيط بها ${students.length} تلميذ`);
-            if (typeof showToast === 'function') showToast(`تم توليد ورقة التنقيط — ${students.length} تلميذ(ة)`, 'success');
+            if (typeof showToast === 'function')
+                showToast(`تم توليد ورقة التنقيط — ${students.length} تلميذ(ة)`, 'success');
         } catch (err) {
             console.warn('Generate error:', err);
             const body = previewBody();
@@ -286,8 +291,8 @@
         if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
         document.body.classList.add('ux-printing-active');
 
-        await new Promise(r => setTimeout(r, 300));
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         try {
             if (window.api?.system?.printToPDF) {
@@ -337,7 +342,7 @@
         if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
         document.body.classList.add('ux-printing-active');
 
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
         try {
             if (window.api?.system?.printCurrentWindow) {

@@ -16,8 +16,12 @@ function registerSchoolOpsIpc(ipcMain) {
     ipcMain.handle('studentFiles:getByYear', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        const students = db.prepare('SELECT * FROM students WHERE school_year = ? ORDER BY section, full_name').all(year);
-        const files = db.prepare('SELECT student_id, doc_key, is_present FROM student_files WHERE school_year = ?').all(year);
+        const students = db
+            .prepare('SELECT * FROM students WHERE school_year = ? ORDER BY section, full_name')
+            .all(year);
+        const files = db
+            .prepare('SELECT student_id, doc_key, is_present FROM student_files WHERE school_year = ?')
+            .all(year);
 
         const byStudent = {};
         for (const row of files) {
@@ -38,12 +42,14 @@ function registerSchoolOpsIpc(ipcMain) {
         try {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
                 VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(student_id, doc_key, school_year)
                 DO UPDATE SET is_present = excluded.is_present, updated_at = CURRENT_TIMESTAMP
-            `).run(payload.student_id, payload.doc_key, payload.is_present ? 1 : 0, payload.school_year);
+            `
+            ).run(payload.student_id, payload.doc_key, payload.is_present ? 1 : 0, payload.school_year);
             return { success: true };
         } catch (err) {
             return authErrorResponse(err);
@@ -76,12 +82,14 @@ function registerSchoolOpsIpc(ipcMain) {
         try {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
-            db.prepare(`
+            db.prepare(
+                `
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
                 VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(student_id, doc_key, school_year)
                 DO UPDATE SET is_present = excluded.is_present, updated_at = CURRENT_TIMESTAMP
-            `).run(payload.student_id, payload.doc_key, payload.is_present ? 1 : 0, payload.school_year);
+            `
+            ).run(payload.student_id, payload.doc_key, payload.is_present ? 1 : 0, payload.school_year);
             return { success: true };
         } catch (err) {
             return authErrorResponse(err);
@@ -93,13 +101,17 @@ function registerSchoolOpsIpc(ipcMain) {
     ipcMain.handle('studentMovements:getAll', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        return db.prepare(`
+        return db
+            .prepare(
+                `
             SELECT m.*, s.full_name, s.code
             FROM student_movements m
             LEFT JOIN students s ON s.id = m.student_id
             WHERE m.school_year = ?
             ORDER BY m.movement_date DESC, m.id DESC
-        `).all(year);
+        `
+            )
+            .all(year);
     });
 
     ipcMain.handle('studentMovements:add', async (event, movement) => {
@@ -107,10 +119,12 @@ function registerSchoolOpsIpc(ipcMain) {
             requireRole(event, ['admin', 'staff']);
             const db = getDb();
             const addMovement = db.transaction(() => {
-                db.prepare(`
+                db.prepare(
+                    `
                     INSERT INTO student_movements(student_id, movement_type, from_section, to_section, movement_date, notes, school_year)
                     VALUES(?, ?, ?, ?, ?, ?, ?)
-                `).run(
+                `
+                ).run(
                     movement.student_id,
                     movement.movement_type,
                     movement.from_section || null,
@@ -121,7 +135,10 @@ function registerSchoolOpsIpc(ipcMain) {
                 );
 
                 if (movement.movement_type === 'internal' && movement.to_section) {
-                    db.prepare('UPDATE students SET section = ? WHERE id = ?').run(movement.to_section, movement.student_id);
+                    db.prepare('UPDATE students SET section = ? WHERE id = ?').run(
+                        movement.to_section,
+                        movement.student_id
+                    );
                 }
                 if (movement.movement_type === 'departure' || movement.movement_type === 'dropout') {
                     db.prepare("UPDATE students SET status = 'inactive' WHERE id = ?").run(movement.student_id);
@@ -140,12 +157,16 @@ function registerSchoolOpsIpc(ipcMain) {
     ipcMain.handle('studentMovements:getStats', async (event, schoolYear) => {
         const db = getDb();
         const year = schoolYear || '2025/2026';
-        const rows = db.prepare(`
+        const rows = db
+            .prepare(
+                `
             SELECT movement_type, COUNT(*) as count
             FROM student_movements
             WHERE school_year = ?
             GROUP BY movement_type
-        `).all(year);
+        `
+            )
+            .all(year);
         const stats = { arrival: 0, departure: 0, internal: 0, dropout: 0 };
         for (const row of rows) stats[row.movement_type] = row.count;
         return stats;

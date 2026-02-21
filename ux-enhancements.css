@@ -488,6 +488,284 @@
     color: var(--color-primary-light, #4A8B6F) !important;
 }
 
+/* ─── Dark Theme Exclusion: Print Sheet Content Must Stay Light ─── */
+/* Double attribute selector for specificity boost to override ALL dark mode rules */
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet div,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet section,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet span,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet p,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet h1,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet h2,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet h3,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet h4,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet h5,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet label,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet code,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet small,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet strong {
+    background: #fff !important;
+    color: #111 !important;
+    border-color: #e5e7eb !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet table {
+    background: #fff !important;
+    border-color: #d6dde3 !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet table th {
+    background: #1a5276 !important;
+    color: #fff !important;
+    border-color: #15466a !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet table td {
+    background: #fff !important;
+    color: #111 !important;
+    border-color: #e5e7eb !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet table tr:nth-child(even) td {
+    background: #f5f8fa !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet table tr:hover td {
+    background: #f0f4f7 !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .glass-panel,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .stat-card,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .report-panel,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .report-kpi-card,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .card,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet details,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .search-section,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .students-results,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet .grade-stat-card {
+    background: #fff !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-color: #dde5ea !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet input,
+[data-theme="dark"][data-theme="dark"] .ux-pp-sheet select {
+    background: #fff !important;
+    color: #111 !important;
+    border-color: #d6dde3 !important;
+}
+
+[data-theme="dark"][data-theme="dark"] .ux-pp-page {
+    background: #eef2f7 !important;
+}
+
+/* ─── Shared Print Preview Modal Layout ─── */
+.ux-pp-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.ux-pp-modal.active {
+    display: flex;
+}
+
+body.ux-preview-open {
+    overflow: hidden;
+}
+
+.ux-pp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.ux-pp-dialog {
+    position: relative;
+    width: min(1180px, 95vw);
+    max-height: 92vh;
+    background: #fff;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.ux-pp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #2D5F4A, #4A8B6F);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ux-pp-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ux-pp-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.ux-pp-close:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: rotate(90deg);
+}
+
+.ux-pp-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: #f8fafb;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 12px;
+}
+
+.ux-pp-orient-toggle {
+    display: inline-flex;
+    background: #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ux-pp-orient-btn {
+    padding: 8px 18px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #6b7280;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.ux-pp-orient-btn.active {
+    background: #fff;
+    color: #2D5F4A;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ux-pp-actions>div:last-child {
+    display: flex;
+    gap: 8px;
+}
+
+.ux-pp-print-btn,
+.ux-pp-pdf-btn {
+    padding: 9px 20px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 100px;
+    justify-content: center;
+}
+
+.ux-pp-page {
+    padding: 20px;
+    background: #eef2f7;
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.ux-pp-page.landscape .ux-pp-sheet {
+    width: 297mm;
+    min-height: 210mm;
+}
+
+.ux-pp-sheet {
+    background: #fff;
+    color: #111;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 10mm;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+}
+
+/* ─── Shared Print Preview Trigger Button ─── */
+.ux-print-preview-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px !important;
+    min-height: 44px;
+    font-size: 14px !important;
+    font-weight: 600;
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #2D5F4A, #3d7a60) !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: 0 3px 12px rgba(45, 95, 74, 0.25);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    white-space: nowrap;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.ux-print-preview-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent);
+    border-radius: inherit;
+}
+
+.ux-print-preview-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #245040, #2D5F4A) !important;
+    box-shadow: 0 5px 18px rgba(45, 95, 74, 0.35);
+    transform: translateY(-1px);
+}
+
+.ux-print-preview-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(45, 95, 74, 0.2);
+}
+
+.ux-print-preview-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.ux-print-preview-btn i {
+    font-size: 15px;
+}
+
 /* ==================== Theme Toggle Button ==================== */
 .theme-toggle {
     width: 44px;

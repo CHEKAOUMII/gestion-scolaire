@@ -23,7 +23,9 @@ function _readPerInstallationSecret() {
             const stored = fs.readFileSync(secretPath, 'utf8').trim();
             if (stored.length >= 32) return stored;
         }
-    } catch (_) { /* outside Electron */ }
+    } catch (_) {
+        /* outside Electron */
+    }
     return null;
 }
 
@@ -63,7 +65,7 @@ function getSigningSecret() {
     } catch (_err) {
         throw new Error(
             'GESTION_LICENSE_SECRET environment variable must be set when running outside Electron.\n' +
-            'Example: set GESTION_LICENSE_SECRET=<your-secret>&& node scripts/generate-license-key.js ...'
+                'Example: set GESTION_LICENSE_SECRET=<your-secret>&& node scripts/generate-license-key.js ...'
         );
     }
 }
@@ -88,8 +90,6 @@ function safeEqual(a, b) {
 function signPayloadBase64(payloadBase64) {
     return crypto.createHmac('sha256', getSigningSecret()).update(payloadBase64).digest('base64url');
 }
-
-
 
 function createOfflineLicenseKey({
     planCode = 'basic',

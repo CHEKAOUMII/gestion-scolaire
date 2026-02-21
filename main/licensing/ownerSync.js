@@ -48,15 +48,21 @@ function normalizeServerUrl(value) {
 function getBootstrapDefaults() {
     const serverUrl = normalizeServerUrl(process.env.OWNER_SYNC_URL || OWNER_SYNC_DEFAULTS.serverUrl || '');
     const fallbackToken = String(process.env.OWNER_SYNC_TOKEN || OWNER_SYNC_DEFAULTS.ownerToken || '').trim();
-    const writeToken = String(process.env.OWNER_SYNC_WRITE_TOKEN || OWNER_SYNC_DEFAULTS.writeToken || fallbackToken || '').trim();
-    const readToken = String(process.env.OWNER_SYNC_READ_TOKEN || OWNER_SYNC_DEFAULTS.readToken || fallbackToken || '').trim();
+    const writeToken = String(
+        process.env.OWNER_SYNC_WRITE_TOKEN || OWNER_SYNC_DEFAULTS.writeToken || fallbackToken || ''
+    ).trim();
+    const readToken = String(
+        process.env.OWNER_SYNC_READ_TOKEN || OWNER_SYNC_DEFAULTS.readToken || fallbackToken || ''
+    ).trim();
     const heartbeatIntervalMinutes = clampHeartbeatMinutes(
         process.env.OWNER_SYNC_HEARTBEAT_MINUTES || OWNER_SYNC_DEFAULTS.heartbeatIntervalMinutes
     );
 
     let enabled;
     if (process.env.OWNER_SYNC_ENABLED !== undefined) {
-        enabled = String(process.env.OWNER_SYNC_ENABLED) === '1' || String(process.env.OWNER_SYNC_ENABLED).toLowerCase() === 'true';
+        enabled =
+            String(process.env.OWNER_SYNC_ENABLED) === '1' ||
+            String(process.env.OWNER_SYNC_ENABLED).toLowerCase() === 'true';
     } else if (OWNER_SYNC_DEFAULTS.enabled !== undefined) {
         enabled = !!OWNER_SYNC_DEFAULTS.enabled;
     } else {
@@ -192,7 +198,9 @@ function setOwnerSyncConfig(payload = {}) {
                   : current.readToken,
         enabled: payload.enabled !== undefined ? !!payload.enabled : current.enabled,
         heartbeatIntervalMinutes: clampHeartbeatMinutes(
-            payload.heartbeatIntervalMinutes !== undefined ? payload.heartbeatIntervalMinutes : current.heartbeatIntervalMinutes
+            payload.heartbeatIntervalMinutes !== undefined
+                ? payload.heartbeatIntervalMinutes
+                : current.heartbeatIntervalMinutes
         )
     };
 
@@ -252,7 +260,11 @@ function getCurrentLicenseSnapshot(db, deviceHash) {
 
     const metadata = parseJson(license.metadata || '{}', {});
     const expiresAtDate = license.expires_at ? new Date(license.expires_at) : null;
-    const isExpired = !!(expiresAtDate && !Number.isNaN(expiresAtDate.getTime()) && expiresAtDate.getTime() < Date.now());
+    const isExpired = !!(
+        expiresAtDate &&
+        !Number.isNaN(expiresAtDate.getTime()) &&
+        expiresAtDate.getTime() < Date.now()
+    );
 
     const activation = db
         .prepare(
@@ -376,7 +388,11 @@ async function flushOwnerSyncOutbox(limit = 30) {
         }
         if (!config.serverUrl || !config.writeToken) {
             writeConfigSyncMeta({ lastError: 'Missing owner sync server URL or write token' });
-            return { success: false, error: 'Missing owner sync server URL or write token', code: 'OWNER_SYNC_CONFIG_MISSING' };
+            return {
+                success: false,
+                error: 'Missing owner sync server URL or write token',
+                code: 'OWNER_SYNC_CONFIG_MISSING'
+            };
         }
 
         const pendingRows = db
@@ -448,7 +464,8 @@ async function flushOwnerSyncOutbox(limit = 30) {
             success: failedCount === 0,
             sentCount,
             failedCount,
-            pendingCount: db.prepare(`SELECT COUNT(*) AS c FROM owner_sync_outbox WHERE status = 'pending'`).get().c || 0,
+            pendingCount:
+                db.prepare(`SELECT COUNT(*) AS c FROM owner_sync_outbox WHERE status = 'pending'`).get().c || 0,
             lastError
         };
     } finally {

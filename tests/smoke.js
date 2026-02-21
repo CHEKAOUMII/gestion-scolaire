@@ -127,7 +127,15 @@ function runRestoreSafetySmoke() {
 
 function runNoCdnSmoke() {
     const cdnPattern = /https?:\/\/cdn\.(jsdelivr\.net|sheetjs\.com|cloudflare\.com|unpkg\.com|cdnjs\.cloudflare\.com)/;
-    const skipDirs = new Set(['node_modules', 'vendor', 'timetables', '.git', 'dist', 'build', '.tmp-analytics-check.js']);
+    const skipDirs = new Set([
+        'node_modules',
+        'vendor',
+        'timetables',
+        '.git',
+        'dist',
+        'build',
+        '.tmp-analytics-check.js'
+    ]);
     const extensions = new Set(['.js', '.html']);
 
     function walk(dir) {
@@ -152,7 +160,11 @@ function runNoCdnSmoke() {
     }
 
     const hits = walk(root);
-    assert.strictEqual(hits.length, 0, `CDN URLs found in source files (vendor locally instead):\n  ${hits.join('\n  ')}`);
+    assert.strictEqual(
+        hits.length,
+        0,
+        `CDN URLs found in source files (vendor locally instead):\n  ${hits.join('\n  ')}`
+    );
 
     // Verify vendor files exist
     assert.ok(fs.existsSync(path.join(root, 'vendor', 'chart.min.js')), 'vendor/chart.min.js missing');

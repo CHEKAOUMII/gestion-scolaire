@@ -750,143 +750,7 @@
             gap: 8px;
         }
 
-        /* ─── Print Preview ─── */
-        .sl-print-preview-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 12000;
-            background: rgba(12, 18, 22, 0.54);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            display: none;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 26px 18px;
-        }
-
-        .sl-print-preview-overlay.active {
-            display: flex;
-            animation: fadeIn 0.2s ease;
-        }
-
-        .sl-print-dialog {
-            width: min(1100px, 100%);
-            max-height: calc(100vh - 52px);
-            background: var(--color-surface);
-            border: 1px solid var(--glass-border);
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-elevated);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .sl-print-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--color-accent);
-            background: linear-gradient(135deg, var(--color-primary-mist), rgba(74, 139, 111, 0.08));
-        }
-
-        .sl-print-header h3 {
-            margin: 0;
-            font-size: 17px;
-            color: var(--color-primary);
-            font-family: var(--font-display);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .sl-print-body {
-            flex: 1;
-            overflow: auto;
-            padding: 20px;
-            background: radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 42%), linear-gradient(160deg, #eef3f8, #e3edf4);
-        }
-
-        .sl-print-page {
-            display: flex;
-            justify-content: center;
-            min-height: 100%;
-        }
-
-        .sl-print-sheet {
-            box-sizing: border-box;
-            width: min(210mm, 100%);
-            min-height: 297mm;
-            background: #fff;
-            color: #111;
-            border-radius: 8px;
-            padding: 12mm;
-            box-shadow: 0 14px 36px rgba(15, 26, 34, 0.2);
-            font-size: 12px;
-            font-family: "Noto Kufi Arabic", sans-serif;
-        }
-
-        .sl-print-sheet-title {
-            text-align: center;
-            font-size: 20px;
-            font-weight: 800;
-            color: #1B3D30;
-            margin-bottom: 6px;
-        }
-
-        .sl-print-sheet-subtitle {
-            text-align: center;
-            font-size: 13px;
-            color: #6B7B72;
-            margin-bottom: 18px;
-        }
-
-        .sl-print-sheet table {
-            width: 100%;
-            border-collapse: collapse;
-            border: 1px solid #d6dde3;
-        }
-
-        .sl-print-sheet table th {
-            background: #1a5276;
-            color: #fff;
-            padding: 8px 10px;
-            font-size: 12px;
-            font-weight: 700;
-            text-align: right;
-        }
-
-        .sl-print-sheet table td {
-            padding: 7px 10px;
-            font-size: 12px;
-            color: #111;
-            border-bottom: 1px solid #e5e7eb;
-            text-align: right;
-        }
-
-        .sl-print-sheet table tbody tr:nth-child(even) {
-            background: #f5f8fa;
-        }
-
-        .sl-print-sheet .print-meta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            color: #6B7B72;
-            margin-top: 16px;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 8px;
-        }
-
-        .sl-print-actions {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 10px;
-            padding: 12px 18px;
-            border-top: 1px solid var(--color-accent);
-            background: var(--color-surface-alt);
-        }
+        /* Print Preview now uses shared ux-pp-modal system */
 
         /* ─── Responsive ─── */
         @media (max-width: 768px) {
@@ -931,7 +795,6 @@
             .sl-pagination,
             .sl-results-actions,
             .sl-modal-overlay,
-            .sl-print-preview-overlay,
             .quick-nav-toggle,
             .toast-container {
                 display: none !important;
@@ -950,43 +813,7 @@
             }
         }
 
-        /* ─── Forced Print Mode (for Electron printToPDF) ─── */
-        #sl-print-root {
-            display: none;
-        }
-
-        body.sl-printing-active {
-            display: block !important;
-            background: #fff !important;
-            background-image: none !important;
-            min-height: auto !important;
-            overflow: visible !important;
-        }
-
-        body.sl-printing-active>#sl-print-root {
-            display: block !important;
-        }
-
-        body.sl-printing-active>*:not(#sl-print-root) {
-            display: none !important;
-        }
-
-        body.sl-printing-active #sl-print-root {
-            position: static !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-            overflow: visible !important;
-        }
-
-        body.sl-printing-active #sl-print-root .sl-print-sheet {
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            padding: 5mm !important;
-            width: 100% !important;
-            min-height: auto !important;
-        }
+        /* Forced print mode now handled by shared ux-enhancements system */
     </style>
 </head>
 
@@ -1048,7 +875,8 @@
                         <span id="count-badge" class="sl-count-badge" aria-live="polite">0</span>
                     </h3>
                     <div class="sl-results-actions">
-                        <button class="btn btn-primary" type="button" id="print-preview-btn" disabled>
+                        <button class="btn btn-primary ux-print-preview-btn" type="button" id="print-preview-btn"
+                            disabled>
                             <i class="fas fa-eye" aria-hidden="true"></i> معاينة الطباعة
                         </button>
                     </div>
@@ -1103,32 +931,8 @@
         </div>
     </div>
 
-    <!-- Print Preview -->
-    <div class="sl-print-preview-overlay" id="print-preview-overlay" aria-hidden="true">
-        <div class="sl-print-dialog" role="dialog" aria-modal="true">
-            <div class="sl-print-header">
-                <h3><i class="fas fa-print"></i> معاينة قبل الطباعة</h3>
-                <button type="button" class="sl-modal-close" id="print-preview-close" aria-label="إغلاق"><i
-                        class="fas fa-times"></i></button>
-            </div>
-            <div class="sl-print-body">
-                <div class="sl-print-page" id="print-page"></div>
-            </div>
-            <div class="sl-print-actions">
-                <button class="btn btn-secondary" type="button" id="print-cancel"><i class="fas fa-times"></i>
-                    إلغاء</button>
-                <button class="btn btn-success" type="button" id="print-export-pdf"><i class="fas fa-file-pdf"></i>
-                    تصدير PDF</button>
-                <button class="btn btn-primary" type="button" id="print-confirm"><i class="fas fa-print"></i> طباعة
-                    الآن</button>
-            </div>
-        </div>
-    </div>
 
     <p id="students-feedback" class="sr-only" aria-live="polite"></p>
-
-    <!-- Persistent print root (hidden, used for PDF export) -->
-    <div id="sl-print-root" aria-hidden="true"></div>
 
     <script src="js/pages/students-list.js" defer></script>
 </body>

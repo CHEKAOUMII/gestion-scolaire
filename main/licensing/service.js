@@ -22,7 +22,10 @@ function nowIso() {
 }
 
 function sha256(value) {
-    return crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
+    return crypto
+        .createHash('sha256')
+        .update(String(value || ''), 'utf8')
+        .digest('hex');
 }
 
 function safeJsonParse(jsonText, fallbackValue) {
@@ -54,8 +57,9 @@ function pushOwnerSyncEvent(eventType, details = {}) {
 
 function getLicenseWithPlan(db) {
     return (
-        db.prepare(
-            `
+        db
+            .prepare(
+                `
             SELECT l.*, p.max_devices, p.name as plan_name
             FROM licenses l
             LEFT JOIN license_plans p ON p.code = l.plan_code
@@ -63,7 +67,8 @@ function getLicenseWithPlan(db) {
             ORDER BY l.id DESC
             LIMIT 1
         `
-        ).get() || null
+            )
+            .get() || null
     );
 }
 
@@ -143,7 +148,11 @@ function getLicenseStatus() {
     const maxDevices = Number(license.max_devices || getPlanMaxDevices(db, license.plan_code));
     const activeDevices = activeRows.length;
     const expiresAtDate = license.expires_at ? new Date(license.expires_at) : null;
-    const isExpired = !!(expiresAtDate && !Number.isNaN(expiresAtDate.getTime()) && expiresAtDate.getTime() < Date.now());
+    const isExpired = !!(
+        expiresAtDate &&
+        !Number.isNaN(expiresAtDate.getTime()) &&
+        expiresAtDate.getTime() < Date.now()
+    );
 
     const graceRemainingDays = computeGraceRemainingDays(license);
 
@@ -223,7 +232,9 @@ function generateSerialKey({
     deviceCode = '',
     requiresOnlineValidation = false
 } = {}) {
-    const normalizedPlan = String(planCode || 'basic').trim().toLowerCase();
+    const normalizedPlan = String(planCode || 'basic')
+        .trim()
+        .toLowerCase();
     const normalizedDeviceCode = String(deviceCode || '')
         .trim()
         .toLowerCase();
@@ -394,7 +405,10 @@ function activateLicense({ licenseKey, deviceName } = {}) {
             existingMatch.row.id
         );
 
-        db.prepare('UPDATE licenses SET last_validated_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(now, license.id);
+        db.prepare('UPDATE licenses SET last_validated_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+            now,
+            license.id
+        );
 
         eventLog(db, license.id, existingMatch.mode === 'fuzzy' ? 'device_reinstall_merged' : 'device_revalidated', {
             activationId: existingMatch.row.id,
@@ -410,7 +424,10 @@ function activateLicense({ licenseKey, deviceName } = {}) {
 
         return {
             success: true,
-            message: existingMatch.mode === 'fuzzy' ? 'Existing device was recognized after reinstall' : 'Device re-activated',
+            message:
+                existingMatch.mode === 'fuzzy'
+                    ? 'Existing device was recognized after reinstall'
+                    : 'Device re-activated',
             status: getLicenseStatus()
         };
     }
@@ -461,7 +478,10 @@ function activateLicense({ licenseKey, deviceName } = {}) {
         appVersion
     );
 
-    db.prepare('UPDATE licenses SET last_validated_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(now, license.id);
+    db.prepare('UPDATE licenses SET last_validated_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+        now,
+        license.id
+    );
     eventLog(db, license.id, 'device_activated', {
         deviceName: usedDeviceName,
         platform: currentFingerprint.platform
@@ -501,7 +521,10 @@ function listLicenseDevices() {
 
     const devices = rows.map((row) => {
         const vector = parseStoredVector(row.fingerprint_vector);
-        const score = row.device_hash === currentFingerprint.deviceHash ? 100 : scoreVectorMatch(vector, currentFingerprint.vector);
+        const score =
+            row.device_hash === currentFingerprint.deviceHash
+                ? 100
+                : scoreVectorMatch(vector, currentFingerprint.vector);
         return {
             id: row.id,
             deviceName: row.device_name || 'Unnamed device',
@@ -613,7 +636,10 @@ function refreshLicenseValidation() {
         return { success: false, error: 'No active license found', code: 'NO_LICENSE' };
     }
 
-    db.prepare('UPDATE licenses SET last_validated_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nowIso(), license.id);
+    db.prepare('UPDATE licenses SET last_validated_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+        nowIso(),
+        license.id
+    );
     eventLog(db, license.id, 'validation_refreshed', {});
     pushOwnerSyncEvent('validation', { trigger: 'manual_validation_refresh' });
 
