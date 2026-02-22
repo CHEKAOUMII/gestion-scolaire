@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { app } = require('electron');
 
 const { getDb } = require('../db/context');
+const { getTrialStatus } = require('./trialService');
 const { createOfflineLicenseKey, decodeOfflineLicenseKey } = require('./offlineKey');
 const {
     collectCurrentFingerprint,
@@ -214,14 +215,52 @@ function getPublicActivationStatus() {
         'grace_expired'
     ]);
 
+    const hasLicense = !activationRequiredStates.has(status.status);
+
+    // If no valid license, check trial status
+    if (!hasLicense) {
+        const trial = getTrialStatus();
+        if (trial.isTrialActive) {
+            return {
+                success: true,
+                activated: true,
+                status: 'trial',
+                planCode: status.planCode,
+                planName: status.planName,
+                expiresAt: status.expiresAt,
+                graceRemainingDays: status.graceRemainingDays,
+                trialActive: true,
+                trialDaysRemaining: trial.daysRemaining,
+                trialEndDate: trial.trialEndDate,
+                trialDuration: trial.trialDuration
+            };
+        }
+        // Trial expired and no license
+        return {
+            success: true,
+            activated: false,
+            status: 'trial_expired',
+            planCode: status.planCode,
+            planName: status.planName,
+            expiresAt: status.expiresAt,
+            graceRemainingDays: status.graceRemainingDays,
+            trialActive: false,
+            trialDaysRemaining: 0,
+            trialEndDate: trial.trialEndDate,
+            trialDuration: trial.trialDuration
+        };
+    }
+
     return {
         success: true,
-        activated: !activationRequiredStates.has(status.status),
+        activated: true,
         status: status.status,
         planCode: status.planCode,
         planName: status.planName,
         expiresAt: status.expiresAt,
-        graceRemainingDays: status.graceRemainingDays
+        graceRemainingDays: status.graceRemainingDays,
+        trialActive: false,
+        trialDaysRemaining: 0
     };
 }
 

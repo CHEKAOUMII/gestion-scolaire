@@ -17,58 +17,509 @@
     <script src="js/ux-enhancements.js" defer></script>
     <style>
         /* ==================== Dark Mode Theme Support ==================== */
-        :root {
-            --bg-light: #f5f7fa;
-            --bg-dark: #0f172a;
-            --card-light: #ffffff;
-            --card-dark: #1e293b;
-            --text-light: #1f2937;
-            --text-dark: #e2e8f0;
-            --border-light: rgba(0, 0, 0, 0.1);
-            --border-dark: rgba(255, 255, 255, 0.1);
-        }
+        /* Uses the app's Pine Green design system palette — enhanced contrast */
 
-        [data-theme="dark"] {
-            --primary: #818cf8;
-            --secondary: #6366f1;
-            --glass: rgba(30, 41, 59, 0.8);
-            --text: #e2e8f0;
-            --text-muted: #94a3b8;
-            --border: rgba(255, 255, 255, 0.1);
-            --bg-card: #1e293b;
-        }
-
-        [data-theme="dark"] body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        }
-
-        [data-theme="dark"] .sidebar {
-            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-        }
-
+        /* --- Cards, Panels & Sections --- */
         [data-theme="dark"] .header,
         [data-theme="dark"] .import-section,
         [data-theme="dark"] .filter-section,
         [data-theme="dark"] .timetable-wrapper,
         [data-theme="dark"] .stat-card,
         [data-theme="dark"] .modal-content,
-        [data-theme="dark"] .changelog-content {
-            background: var(--card-dark);
-            border-color: var(--border-dark);
+        [data-theme="dark"] .changelog-content,
+        [data-theme="dark"] .shortcuts-content,
+        [data-theme="dark"] .edit-controls,
+        [data-theme="dark"] .changes-summary-bar,
+        [data-theme="dark"] .color-legend,
+        [data-theme="dark"] .timetable-summary,
+        [data-theme="dark"] .multi-select-toolbar {
+            background: var(--color-surface, #1A241C);
+            border-color: rgba(74, 139, 111, 0.15);
+            color: var(--color-text-main, #E8ECE9);
         }
 
+        /* --- Stat Cards in dark --- */
+        [data-theme="dark"] .stat-card:nth-child(1) {
+            background: linear-gradient(135deg, rgba(45, 95, 74, 0.10) 0%, var(--color-surface, #1A241C) 100%);
+        }
+
+        [data-theme="dark"] .stat-card:nth-child(2) {
+            background: linear-gradient(135deg, rgba(38, 166, 154, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+        }
+
+        [data-theme="dark"] .stat-card:nth-child(3) {
+            background: linear-gradient(135deg, rgba(196, 164, 106, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+        }
+
+        [data-theme="dark"] .stat-card:nth-child(4) {
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+        }
+
+        [data-theme="dark"] .stat-card:nth-child(5) {
+            background: linear-gradient(135deg, rgba(107, 123, 114, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+        }
+
+        [data-theme="dark"] .stat-info h3,
+        [data-theme="dark"] .stat-info .stat-value {
+            color: #F0F4F1;
+        }
+
+        [data-theme="dark"] .stat-info p,
+        [data-theme="dark"] .stat-info .stat-label {
+            color: var(--color-text-muted, #9CA8A0);
+        }
+
+        /* --- Timetable Wrapper --- */
+        [data-theme="dark"] .timetable-wrapper {
+            background: #151D17;
+            border: 1px solid rgba(74, 139, 111, 0.12);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* --- Timetable Header --- */
         [data-theme="dark"] .timetable th {
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            background: linear-gradient(135deg, #1B3D30 0%, #264D3C 100%);
+            color: #D4E8DC;
+            border-color: rgba(74, 139, 111, 0.2);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
 
+        /* --- Table Cells --- */
         [data-theme="dark"] .timetable td {
-            background: rgba(30, 41, 59, 0.6);
-            border-color: rgba(255, 255, 255, 0.08);
+            background: #1A241C;
+            border-color: rgba(74, 139, 111, 0.10);
+            color: var(--color-text-main, #E8ECE9);
+            transition: background 0.2s ease;
         }
 
+        /* Alternating row tint for readability */
+        [data-theme="dark"] .timetable tbody tr:nth-child(even) td {
+            background: #1E2A20;
+        }
+
+        [data-theme="dark"] .timetable tr:hover td {
+            background: rgba(45, 95, 74, 0.18) !important;
+        }
+
+        /* --- Period Cells (row labels) --- */
+        [data-theme="dark"] .timetable .period-cell {
+            background: rgba(45, 95, 74, 0.20);
+            color: #7BC4A0;
+            font-weight: 700;
+        }
+
+        [data-theme="dark"] .timetable .day-cell {
+            background: linear-gradient(135deg, #1B3D30, #264D3C);
+            color: #D4E8DC;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="dark"] .timetable .total-header {
+            background: linear-gradient(135deg, #121A14, #1B3D30);
+        }
+
+        [data-theme="dark"] .timetable th.period-header {
+            background: rgba(45, 95, 74, 0.30);
+            color: #A8D5BA;
+        }
+
+        /* --- Separator Row --- */
+        [data-theme="dark"] .timetable .separator-row td {
+            background: linear-gradient(90deg, transparent, rgba(74, 139, 111, 0.5), transparent);
+        }
+
+        /* --- Timetable Header Bar --- */
+        [data-theme="dark"] .timetable-header {
+            background: linear-gradient(to left, rgba(45, 95, 74, 0.12), transparent);
+            border-color: rgba(74, 139, 111, 0.12);
+        }
+
+        [data-theme="dark"] .timetable-header-info {
+            background: linear-gradient(135deg, rgba(45, 95, 74, 0.08), transparent);
+            border-color: rgba(74, 139, 111, 0.12);
+        }
+
+        [data-theme="dark"] .timetable-header-info h3 {
+            color: #D4E8DC;
+        }
+
+        /* --- Activity Cells (filled slots) --- */
+        /* Background and border managed by JS inline styles for per-subject coloring */
+        [data-theme="dark"] .activity-cell {
+            border-radius: 8px;
+        }
+
+        /* Fallback text colors — overridden by inline styles when subject colors are applied */
+        [data-theme="dark"] .activity-cell .subject {
+            font-weight: 700;
+        }
+
+        [data-theme="dark"] .activity-cell .room {
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .empty-cell {
+            color: #4A5B50;
+        }
+
+        /* --- Multi-group Activity --- */
+        [data-theme="dark"] .activity-group {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.06));
+            border-right-color: #34d399;
+            border-radius: 8px;
+        }
+
+        [data-theme="dark"] .activity-group:first-child {
+            background: linear-gradient(135deg, rgba(45, 95, 74, 0.20), rgba(45, 95, 74, 0.08));
+            border-right-color: #4A8B6F;
+        }
+
+        [data-theme="dark"] .group-header {
+            color: #A8D5BA;
+            background: rgba(45, 95, 74, 0.30);
+            border-radius: 4px;
+        }
+
+        [data-theme="dark"] .activity-group:last-child .group-header {
+            background: rgba(16, 185, 129, 0.22);
+            color: #6ee7b7;
+        }
+
+        [data-theme="dark"] .activity-group .subject {
+            color: #D4E8DC;
+        }
+
+        [data-theme="dark"] .activity-group .teacher-name {
+            color: #8FA898;
+        }
+
+        /* --- Quick Navigation Panel --- */
         [data-theme="dark"] .quick-nav-panel {
-            background: #1e293b;
-            border-color: rgba(255, 255, 255, 0.1);
+            background: #151D17;
+            border-color: rgba(74, 139, 111, 0.12);
+            box-shadow: -5px 0 25px rgba(0, 0, 0, 0.4);
+        }
+
+        [data-theme="dark"] .quick-nav-search {
+            border-color: rgba(74, 139, 111, 0.12);
+        }
+
+        [data-theme="dark"] .quick-nav-search input {
+            background: #121A14;
+            border-color: rgba(74, 139, 111, 0.15);
+            color: #E8ECE9;
+        }
+
+        [data-theme="dark"] .quick-nav-tabs {
+            border-color: rgba(74, 139, 111, 0.12);
+        }
+
+        [data-theme="dark"] .quick-nav-tab {
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .quick-nav-tab:hover {
+            background: rgba(45, 95, 74, 0.15);
+            color: #7BC4A0;
+        }
+
+        [data-theme="dark"] .quick-nav-tab.active {
+            color: #7BC4A0;
+            border-bottom-color: #4A8B6F;
+            background: rgba(45, 95, 74, 0.15);
+        }
+
+        [data-theme="dark"] .quick-nav-item:hover {
+            background: rgba(45, 95, 74, 0.15);
+        }
+
+        [data-theme="dark"] .quick-nav-item span {
+            color: #D4E8DC;
+        }
+
+        [data-theme="dark"] .quick-nav-count {
+            background: rgba(45, 95, 74, 0.25);
+            color: #7BC4A0;
+        }
+
+        /* --- Unified Search --- */
+        [data-theme="dark"] .unified-search input {
+            background: #121A14;
+            border-color: rgba(74, 139, 111, 0.15);
+            color: #E8ECE9;
+        }
+
+        [data-theme="dark"] .unified-search input::placeholder {
+            color: #4A5B50;
+        }
+
+        [data-theme="dark"] .unified-search .search-shortcut {
+            background: rgba(74, 139, 111, 0.12);
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .search-results-dropdown {
+            background: #151D17;
+            border-color: rgba(74, 139, 111, 0.15);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        [data-theme="dark"] .search-result-group {
+            border-color: rgba(74, 139, 111, 0.08);
+        }
+
+        [data-theme="dark"] .search-result-group-title {
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .search-result-item:hover {
+            background: rgba(45, 95, 74, 0.15);
+        }
+
+        [data-theme="dark"] .search-result-item span {
+            color: #D4E8DC;
+        }
+
+        /* --- Shortcuts Modal --- */
+        [data-theme="dark"] .shortcut-item {
+            background: #121A14;
+            color: #D4E8DC;
+        }
+
+        [data-theme="dark"] .shortcut-key {
+            background: linear-gradient(135deg, #243028, #2E4034);
+            color: #A8D5BA;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(74, 139, 111, 0.2);
+        }
+
+        /* --- Undo/Redo --- */
+        [data-theme="dark"] .undo-redo-group {
+            background: rgba(74, 139, 111, 0.06);
+        }
+
+        [data-theme="dark"] .undo-redo-btn {
+            background: #1A241C;
+            border-color: rgba(74, 139, 111, 0.15);
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .undo-redo-btn:hover:not(:disabled) {
+            background: #2D5F4A;
+            border-color: #4A8B6F;
+            color: white;
+        }
+
+        /* --- Multi-Select Toolbar --- */
+        [data-theme="dark"] .multi-select-toolbar {
+            background: #151D17;
+            border: 1px solid rgba(74, 139, 111, 0.15);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        [data-theme="dark"] .multi-select-count {
+            color: #7BC4A0;
+        }
+
+        /* --- Filter Section --- */
+        [data-theme="dark"] .filter-group select {
+            background: #121A14;
+            border-color: rgba(74, 139, 111, 0.15);
+            color: #E8ECE9;
+        }
+
+        [data-theme="dark"] .filter-group select option {
+            background: #1A241C;
+            color: #E8ECE9;
+        }
+
+        /* --- Edit Controls --- */
+        [data-theme="dark"] .edit-controls {
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), #1A241C);
+            border-color: rgba(251, 191, 36, 0.25);
+        }
+
+        [data-theme="dark"] .edit-controls .info {
+            color: #fbbf24;
+        }
+
+        /* --- Modals (Edit & Changelog) --- */
+        [data-theme="dark"] .modal-content,
+        [data-theme="dark"] .changelog-content {
+            background: #1A241C;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(74, 139, 111, 0.12);
+        }
+
+        [data-theme="dark"] .modal-header {
+            border-color: rgba(74, 139, 111, 0.12);
+        }
+
+        [data-theme="dark"] .form-group select,
+        [data-theme="dark"] .form-group input {
+            background: #121A14;
+            border-color: rgba(74, 139, 111, 0.15);
+            color: #E8ECE9;
+        }
+
+        [data-theme="dark"] .form-group select option {
+            background: #1A241C;
+            color: #E8ECE9;
+        }
+
+        [data-theme="dark"] .form-group label {
+            color: #D4E8DC;
+        }
+
+        /* --- Validation Messages --- */
+        [data-theme="dark"] .validation-message.warning {
+            background: rgba(251, 191, 36, 0.12);
+            border-color: rgba(251, 191, 36, 0.25);
+            color: #fbbf24;
+        }
+
+        [data-theme="dark"] .validation-message.error {
+            background: rgba(239, 68, 68, 0.12);
+            border-color: rgba(239, 68, 68, 0.25);
+            color: #fca5a5;
+        }
+
+        /* --- Changelog Table --- */
+        [data-theme="dark"] .changelog-table th {
+            background: rgba(45, 95, 74, 0.25);
+            color: #D4E8DC;
+        }
+
+        [data-theme="dark"] .changelog-table td {
+            color: #D4E8DC;
+            border-color: rgba(74, 139, 111, 0.08);
+        }
+
+        [data-theme="dark"] .changelog-table tr:hover {
+            background: rgba(45, 95, 74, 0.12);
+        }
+
+        [data-theme="dark"] .change-type.add {
+            background: rgba(16, 185, 129, 0.18);
+            color: #6ee7b7;
+        }
+
+        [data-theme="dark"] .change-type.edit {
+            background: rgba(245, 158, 11, 0.18);
+            color: #fbbf24;
+        }
+
+        [data-theme="dark"] .change-type.delete {
+            background: rgba(239, 68, 68, 0.18);
+            color: #fca5a5;
+        }
+
+        /* --- Color Legend & Summary --- */
+        [data-theme="dark"] .color-legend,
+        [data-theme="dark"] .timetable-summary,
+        [data-theme="dark"] .changes-summary-bar {
+            background: linear-gradient(135deg, #181F1A, #121A14);
+            border: 1px solid rgba(74, 139, 111, 0.10);
+        }
+
+        [data-theme="dark"] .color-legend .legend-item,
+        [data-theme="dark"] .timetable-summary .summary-card {
+            background: #1A241C;
+            border: 1px solid rgba(74, 139, 111, 0.10);
+            color: #D4E8DC;
+        }
+
+        [data-theme="dark"] .color-legend .legend-name {
+            color: #D4E8DC;
+        }
+
+        [data-theme="dark"] .timetable-summary .summary-card .label {
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .timetable-summary .summary-card .value {
+            color: #F0F4F1;
+        }
+
+        /* --- Changes Summary Items (dark) --- */
+        [data-theme="dark"] .changes-summary-bar .summary-item.added {
+            background: rgba(16, 185, 129, 0.15);
+            color: #6ee7b7;
+        }
+
+        [data-theme="dark"] .changes-summary-bar .summary-item.deleted {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+        }
+
+        [data-theme="dark"] .changes-summary-bar .summary-item.modified {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+        }
+
+        /* --- Tab Navigation --- */
+        [data-theme="dark"] .timetable-tabs {
+            background: #151D17;
+            border-color: rgba(74, 139, 111, 0.12);
+        }
+
+        [data-theme="dark"] .tab-btn {
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .tab-btn:hover {
+            background: rgba(45, 95, 74, 0.15);
+            color: #7BC4A0;
+        }
+
+        [data-theme="dark"] .tab-btn.active {
+            background: linear-gradient(135deg, #1B3D30, #2D5F4A);
+            color: #D4E8DC;
+            box-shadow: 0 4px 15px rgba(45, 95, 74, 0.35);
+        }
+
+        /* --- Dropzone --- */
+        [data-theme="dark"] .dropzone {
+            border-color: rgba(74, 139, 111, 0.15);
+        }
+
+        [data-theme="dark"] .dropzone:hover,
+        [data-theme="dark"] .dropzone.dragover {
+            border-color: #4A8B6F;
+            background: rgba(74, 139, 111, 0.10);
+        }
+
+        /* --- Conflict Badge --- */
+        [data-theme="dark"] .conflict-badge {
+            border-color: rgba(74, 139, 111, 0.15);
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .conflict-badge.no-conflicts {
+            color: #34d399;
+            border-color: rgba(52, 211, 153, 0.4);
+        }
+
+        /* --- Page Title & Text --- */
+        [data-theme="dark"] .page-title h1 {
+            color: #F0F4F1;
+        }
+
+        [data-theme="dark"] .empty-state {
+            color: #4A5B50;
+        }
+
+        /* --- Btn Secondary in dark --- */
+        [data-theme="dark"] .btn-secondary {
+            background: #1A241C;
+            color: #D4E8DC;
+            border-color: rgba(74, 139, 111, 0.15);
+        }
+
+        [data-theme="dark"] .btn-secondary:hover {
+            border-color: #4A8B6F;
+            color: #7BC4A0;
+            background: rgba(45, 95, 74, 0.12);
         }
 
         /* Theme Toggle Button */
@@ -94,8 +545,12 @@
         }
 
         [data-theme="dark"] .theme-toggle {
-            border-color: rgba(255, 255, 255, 0.2);
+            border-color: rgba(74, 139, 111, 0.2);
             color: #fbbf24;
+        }
+
+        [data-theme="dark"] .theme-toggle:hover {
+            border-color: #fbbf24;
         }
 
         /* ==================== Quick Navigation Panel ==================== */
@@ -936,10 +1391,11 @@
         .timetable-wrapper {
             background: var(--color-surface, #FFFEFB);
             backdrop-filter: blur(10px);
-            border-radius: 16px;
+            border-radius: 18px;
             border: 1px solid var(--color-accent, #E8ECE9);
             overflow: hidden;
-            box-shadow: var(--shadow-card);
+            box-shadow: 0 2px 12px rgba(31, 45, 36, 0.06), 0 8px 24px rgba(31, 45, 36, 0.03);
+            transition: box-shadow 0.3s ease;
         }
 
         .timetable-header {
@@ -1012,9 +1468,10 @@
             color: white;
             font-weight: 600;
             font-size: 0.85rem;
-            padding: 10px 6px;
+            padding: 12px 6px;
             white-space: nowrap;
             letter-spacing: 0.3px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
         }
 
         .timetable th:first-child {
@@ -1035,14 +1492,20 @@
         .timetable td {
             background: var(--color-surface, #FFFEFB);
             min-height: 45px;
-            height: 50px;
+            height: 52px;
             max-width: 140px;
             word-wrap: break-word;
             overflow-wrap: break-word;
+            transition: background 0.2s ease;
+        }
+
+        /* Alternating row tint for light mode */
+        .timetable tbody tr:nth-child(even) td {
+            background: var(--color-surface-alt, #F6F5F2);
         }
 
         .timetable tr:hover td {
-            background: rgba(45, 95, 74, 0.03);
+            background: rgba(45, 95, 74, 0.05) !important;
         }
 
         .timetable .period-cell {
@@ -1052,6 +1515,36 @@
             font-size: 0.82rem;
             white-space: nowrap;
             width: 60px;
+        }
+
+        /* Day cell (horizontal layout - days as rows) */
+        .timetable .day-cell {
+            background: linear-gradient(135deg, var(--color-primary, #2D5F4A), var(--color-primary-light, #4A8B6F));
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            min-width: 90px;
+            width: 100px;
+            text-align: center;
+            white-space: nowrap;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+            position: sticky;
+            right: 0;
+            z-index: 1;
+        }
+
+        /* Total hours header */
+        .timetable .total-header {
+            min-width: 80px;
+            background: linear-gradient(135deg, #1B3D30, #2D5F4A);
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        /* Merged cell for consecutive hours */
+        .timetable td.merged-cell {
+            position: relative;
         }
 
         .timetable .separator-row td {
@@ -1066,11 +1559,16 @@
         }
 
         .activity-cell {
-            background: linear-gradient(135deg, rgba(45, 95, 74, 0.06), rgba(74, 139, 111, 0.06));
-            border-radius: 6px;
+            background: linear-gradient(135deg, rgba(45, 95, 74, 0.07), rgba(74, 139, 111, 0.04));
+            border-radius: 8px;
             padding: 5px 6px;
-            margin: 1px;
+            margin: 2px;
             border-right: 3px solid var(--color-primary-light, #4A8B6F);
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .activity-cell:hover {
+            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.12);
         }
 
         .activity-cell .subject {
@@ -1516,6 +2014,11 @@
             text-align: center;
             border-right: 3px solid #10b981;
             min-width: 0;
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .activity-group:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
         .activity-group:first-child {
@@ -2394,19 +2897,7 @@
                     </div>
                     <div class="table-responsive">
                         <table class="timetable" id="timetable">
-                            <thead>
-                                <tr>
-                                    <th>الحصة</th>
-                                    <th>الاثنين</th>
-                                    <th>الثلاثاء</th>
-                                    <th>الأربعاء</th>
-                                    <th>الخميس</th>
-                                    <th>الجمعة</th>
-                                    <th>السبت</th>
-                                </tr>
-                            </thead>
-                            <tbody id="timetable-body">
-                            </tbody>
+                            <!-- Built dynamically by renderTeacherTimetable -->
                         </table>
                     </div>
                 </div>
@@ -2957,7 +3448,7 @@
         function initMultiSelect() {
             // Add click handler for multi-select (Ctrl+Click)
             document.addEventListener('click', (e) => {
-                const cell = e.target.closest('.timetable td:not(.period-cell)');
+                const cell = e.target.closest('.timetable td:not(.day-cell)');
                 if (!cell || !editMode) return;
 
                 if (e.ctrlKey || e.metaKey) {
@@ -3058,7 +3549,7 @@
         // ==================== Double-Click Quick Edit ====================
         function initDoubleClickEdit() {
             document.addEventListener('dblclick', (e) => {
-                const cell = e.target.closest('.timetable td:not(.period-cell)');
+                const cell = e.target.closest('.timetable td:not(.day-cell)');
                 if (!cell || !editMode) return;
 
                 // Trigger the existing cell click handler
@@ -3077,6 +3568,20 @@
             // Page specific undo/redo buttons in header (timetable only)
             document.getElementById('header-undo-btn')?.addEventListener('click', performUndo);
             document.getElementById('header-redo-btn')?.addEventListener('click', performRedo);
+
+            // Re-render timetable on theme change so subject colors adapt
+            const themeObserver = new MutationObserver((mutations) => {
+                mutations.forEach((m) => {
+                    if (m.attributeName === 'data-theme') {
+                        const teacherSelect = document.getElementById('teacher-select');
+                        if (teacherSelect?.value) {
+                            renderTeacherTimetable(teacherSelect.value,
+                                document.getElementById('subject-filter')?.value || '');
+                        }
+                    }
+                });
+            });
+            themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
             console.log('Timetable local UX initialized');
         }
@@ -3715,28 +4220,29 @@
 
         // ==================== COLOR CODING SYSTEM ====================
 
-        // Generate a color palette for dynamic coloring (20 distinct colors)
+        // Theme-aware color palette — 20 vibrant, distinct hues
+        // Each entry has 'light' and 'dark' variants for proper theme support
         const colorPalette = [
-            { bg: '#dbeafe', border: '#2563eb', text: '#1e40af' },  // Blue
-            { bg: '#fce7f3', border: '#db2777', text: '#9d174d' },  // Pink
-            { bg: '#dcfce7', border: '#16a34a', text: '#166534' },  // Green
-            { bg: '#fef3c7', border: '#d97706', text: '#92400e' },  // Amber
-            { bg: '#e0e7ff', border: '#4f46e5', text: '#4338ca' },  // Indigo
-            { bg: '#fee2e2', border: '#dc2626', text: '#991b1b' },  // Red
-            { bg: '#ccfbf1', border: '#0d9488', text: '#115e59' },  // Teal
-            { bg: '#f3e8ff', border: '#9333ea', text: '#7c3aed' },  // Purple
-            { bg: '#cffafe', border: '#0891b2', text: '#155e75' },  // Cyan
-            { bg: '#fef9c3', border: '#ca8a04', text: '#854d0e' },  // Yellow
-            { bg: '#ffe4e6', border: '#e11d48', text: '#be123c' },  // Rose
-            { bg: '#d1fae5', border: '#059669', text: '#047857' },  // Emerald
-            { bg: '#c7d2fe', border: '#6366f1', text: '#4338ca' },  // Violet
-            { bg: '#fae8ff', border: '#c026d3', text: '#86198f' },  // Fuchsia
-            { bg: '#ecfccb', border: '#65a30d', text: '#3f6212' },  // Lime
-            { bg: '#fed7aa', border: '#ea580c', text: '#9a3412' },  // Orange
-            { bg: '#bae6fd', border: '#0284c7', text: '#075985' },  // Sky
-            { bg: '#fda4af', border: '#f43f5e', text: '#9f1239' },  // Light Rose
-            { bg: '#a5f3fc', border: '#06b6d4', text: '#0e7490' },  // Light Cyan
-            { bg: '#bbf7d0', border: '#22c55e', text: '#15803d' },  // Light Green
+            { light: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }, dark: { bg: 'rgba(59,130,246,0.15)', border: '#60a5fa', text: '#93c5fd' } },    // Blue
+            { light: { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' }, dark: { bg: 'rgba(236,72,153,0.15)', border: '#f472b6', text: '#f9a8d4' } },    // Pink
+            { light: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' }, dark: { bg: 'rgba(245,158,11,0.15)', border: '#fbbf24', text: '#fde68a' } },     // Amber
+            { light: { bg: '#e0e7ff', border: '#6366f1', text: '#4338ca' }, dark: { bg: 'rgba(99,102,241,0.15)', border: '#818cf8', text: '#a5b4fc' } },     // Indigo
+            { light: { bg: '#ccfbf1', border: '#14b8a6', text: '#115e59' }, dark: { bg: 'rgba(20,184,166,0.15)', border: '#2dd4bf', text: '#5eead4' } },     // Teal
+            { light: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' }, dark: { bg: 'rgba(239,68,68,0.15)', border: '#f87171', text: '#fca5a5' } },      // Red
+            { light: { bg: '#f3e8ff', border: '#a855f7', text: '#7c3aed' }, dark: { bg: 'rgba(168,85,247,0.15)', border: '#c084fc', text: '#d8b4fe' } },     // Purple
+            { light: { bg: '#cffafe', border: '#06b6d4', text: '#155e75' }, dark: { bg: 'rgba(6,182,212,0.15)', border: '#22d3ee', text: '#67e8f9' } },      // Cyan
+            { light: { bg: '#dcfce7', border: '#22c55e', text: '#166534' }, dark: { bg: 'rgba(34,197,94,0.15)', border: '#4ade80', text: '#86efac' } },      // Green
+            { light: { bg: '#fef9c3', border: '#eab308', text: '#854d0e' }, dark: { bg: 'rgba(234,179,8,0.15)', border: '#facc15', text: '#fef08a' } },      // Yellow
+            { light: { bg: '#ffe4e6', border: '#f43f5e', text: '#be123c' }, dark: { bg: 'rgba(244,63,94,0.15)', border: '#fb7185', text: '#fda4af' } },      // Rose
+            { light: { bg: '#d1fae5', border: '#10b981', text: '#047857' }, dark: { bg: 'rgba(16,185,129,0.15)', border: '#34d399', text: '#6ee7b7' } },     // Emerald
+            { light: { bg: '#c7d2fe', border: '#8b5cf6', text: '#5b21b6' }, dark: { bg: 'rgba(139,92,246,0.15)', border: '#a78bfa', text: '#c4b5fd' } },     // Violet
+            { light: { bg: '#fae8ff', border: '#d946ef', text: '#86198f' }, dark: { bg: 'rgba(217,70,239,0.15)', border: '#e879f9', text: '#f0abfc' } },     // Fuchsia
+            { light: { bg: '#ecfccb', border: '#84cc16', text: '#3f6212' }, dark: { bg: 'rgba(132,204,22,0.15)', border: '#a3e635', text: '#bef264' } },     // Lime
+            { light: { bg: '#fed7aa', border: '#f97316', text: '#9a3412' }, dark: { bg: 'rgba(249,115,22,0.15)', border: '#fb923c', text: '#fdba74' } },     // Orange
+            { light: { bg: '#bae6fd', border: '#0ea5e9', text: '#075985' }, dark: { bg: 'rgba(14,165,233,0.15)', border: '#38bdf8', text: '#7dd3fc' } },     // Sky
+            { light: { bg: '#fda4af', border: '#fb7185', text: '#9f1239' }, dark: { bg: 'rgba(251,113,133,0.12)', border: '#fda4af', text: '#fecdd3' } },    // Light Rose
+            { light: { bg: '#a5f3fc', border: '#22d3ee', text: '#0e7490' }, dark: { bg: 'rgba(34,211,238,0.12)', border: '#67e8f9', text: '#a5f3fc' } },    // Light Cyan
+            { light: { bg: '#bbf7d0', border: '#4ade80', text: '#15803d' }, dark: { bg: 'rgba(74,222,128,0.12)', border: '#86efac', text: '#bbf7d0' } },    // Light Green
         ];
 
         // Map to store class/subject -> color assignment
@@ -3745,16 +4251,23 @@
             subjects: new Map()
         };
 
-        // Get or assign color for a class/subject
+        // Detect current theme
+        function isDarkTheme() {
+            return document.documentElement.getAttribute('data-theme') === 'dark';
+        }
+
+        // Get or assign color for a class/subject (theme-aware)
         function getColorFor(type, name) {
             if (!name) return null;
 
             const map = colorMaps[type];
             if (!map.has(name)) {
                 const colorIndex = map.size % colorPalette.length;
-                map.set(name, colorPalette[colorIndex]);
+                map.set(name, colorIndex);
             }
-            return map.get(name);
+            const colorIndex = map.get(name);
+            const palette = colorPalette[colorIndex];
+            return isDarkTheme() ? palette.dark : palette.light;
         }
 
         // Reset color maps (call when switching views)
@@ -3787,8 +4300,7 @@
 
         function renderTeacherTimetable(teacherName, subjectFilter = '') {
             const wrapper = document.getElementById('timetable-wrapper');
-            const tbody = document.getElementById('timetable-body');
-            // Check if timetable data exists
+            const table = document.getElementById('timetable');
             const teacherTimetable = fetData.timetables[teacherName];
 
             if (!teacherTimetable || Object.keys(teacherTimetable).length === 0) {
@@ -3796,83 +4308,131 @@
                 return;
             }
 
-            // Reset color maps for fresh coloring
             resetColorMaps();
 
-            // Helper to check if activity matches filter
             const matchesFilter = (activity) => {
                 if (!subjectFilter) return true;
                 return activity && activity.subject === subjectFilter;
             };
 
-            // Collect unique classes for this teacher
             const teacherClasses = new Set();
-            const classDays = {};  // Track which days each class is assigned
+            const teacherSubjects = new Set();
 
-            // Render table
-            tbody.innerHTML = '';
+            // Build hour slots: morning H1-H4 then afternoon H1-H4
+            const allSlots = [];
+            periods.forEach(p => allSlots.push({ key: p, period: 'morning' }));
+            periods.forEach(p => allSlots.push({ key: p, period: 'afternoon' }));
+            const separatorAfter = periods.length;
 
-            // Helper to render a cell with color
-            const renderCell = (activity) => {
-                if (activity && activity.subject && matchesFilter(activity)) {
-                    const color = getColorFor('classes', activity.students);
-                    teacherClasses.add(activity.students);
-
-                    // Track days for summary
-                    if (!classDays[activity.students]) classDays[activity.students] = [];
-
-                    const style = color ? `style="background: ${color.bg}; border-right: 6px solid ${color.border}; box-shadow: inset 0 0 0 1px ${color.border}20;"` : '';
-                    return `
-                        <td ${style}>
-                            <div class="activity-cell">
-                                <div class="subject">${activity.subject.replace(/_/g, ' ')}</div>
-                                <div class="class" ${color ? `style="color: ${color.text}; font-weight: 700;"` : ''}>${activity.students.replace(/_/g, ' ')}</div>
-                                ${activity.room ? `<div class="room">${activity.room}</div>` : ''}
-                            </div>
-                        </td>
-                    `;
-                }
-                return `<td class="empty-cell">-</td>`;
-            };
-
-            // Morning periods
-            periods.forEach(period => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td class="period-cell">${period} ص</td>`;
-
-                arabicDays.forEach(day => {
-                    const activity = teacherTimetable[day]?.morning?.[period];
-                    row.innerHTML += renderCell(activity);
-                });
-                tbody.appendChild(row);
-            });
-
-            // Separator row
-            const sepRow = document.createElement('tr');
-            sepRow.className = 'separator-row';
-            sepRow.innerHTML = `<td colspan="7"><span>استراحة</span></td>`;
-            tbody.appendChild(sepRow);
-
-            // Afternoon periods
-            periods.forEach(period => {
-                const row = document.createElement('tr');
-                row.innerHTML = `<td class="period-cell">${period} م</td>`;
-
-                arabicDays.forEach(day => {
-                    const activity = teacherTimetable[day]?.afternoon?.[period];
-                    row.innerHTML += renderCell(activity);
-                });
-                tbody.appendChild(row);
-            });
+            // Time labels for each slot
+            const morningTimeLabels = ['08:30-09:30', '09:30-10:30', '10:30-11:30', '11:30-12:30'];
+            const afternoonTimeLabels = ['14:30-15:30', '15:30-16:30', '16:30-17:30', '17:30-18:30'];
+            function getSlotLabel(slot) {
+                const labels = slot.period === 'morning' ? morningTimeLabels : afternoonTimeLabels;
+                const idx = periods.indexOf(slot.key);
+                return labels[idx] || slot.key;
+            }
 
             // Count total hours
             let totalHours = 0;
             arabicDays.forEach(day => {
                 periods.forEach(period => {
-                    if (teacherTimetable[day]?.morning?.[period]?.subject) totalHours++;
-                    if (teacherTimetable[day]?.afternoon?.[period]?.subject) totalHours++;
+                    const m = teacherTimetable[day]?.morning?.[period];
+                    const a = teacherTimetable[day]?.afternoon?.[period];
+                    if (m?.subject && matchesFilter(m)) totalHours++;
+                    if (a?.subject && matchesFilter(a)) totalHours++;
                 });
             });
+
+            // === Build table HTML ===
+            let html = '<thead><tr>';
+
+            // Total hours header (first column)
+            html += `<th class="total-header">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                    <span style="font-size:1.1rem;">${totalHours} h</span>
+                </div>
+            </th>`;
+
+            // Time slot headers
+            allSlots.forEach((slot, i) => {
+                if (i === separatorAfter) {
+                    html += '<th style="width:4px; padding:0; background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1));"></th>';
+                }
+                html += `<th>${getSlotLabel(slot)}</th>`;
+            });
+
+            html += '</tr></thead><tbody>';
+
+            // Day rows
+            arabicDays.forEach(day => {
+                // Build cells for this day
+                const dayCells = allSlots.map((slot) => {
+                    const activity = teacherTimetable[day]?.[slot.period]?.[slot.key];
+                    const filtered = (activity?.subject && matchesFilter(activity)) ? activity : null;
+                    return {
+                        period: slot.period,
+                        hourKey: slot.key,
+                        activity: filtered,
+                        skip: false,
+                        colspan: 1
+                    };
+                });
+
+                // Merge consecutive same-subject+same-students cells within same period
+                for (let i = 0; i < dayCells.length - 1; i++) {
+                    if (i === separatorAfter - 1) continue; // don't merge across separator
+                    const curr = dayCells[i];
+                    const next = dayCells[i + 1];
+                    if (curr.activity && next.activity && !curr.skip &&
+                        curr.activity.subject === next.activity.subject &&
+                        curr.activity.students === next.activity.students &&
+                        curr.period === next.period) {
+                        curr.colspan += next.colspan;
+                        next.skip = true;
+                    }
+                }
+
+                // Build row
+                html += `<tr><td class="day-cell">${day}</td>`;
+
+                dayCells.forEach((cell, i) => {
+                    // Insert separator column
+                    if (i === separatorAfter) {
+                        html += '<td style="width:4px; padding:0; background: linear-gradient(180deg, rgba(45,95,74,0.08), transparent); border: none;"></td>';
+                    }
+                    if (cell.skip) return;
+
+                    const colspanAttr = cell.colspan > 1 ? ` colspan="${cell.colspan}" class="merged-cell"` : '';
+
+                    if (cell.activity) {
+                        const color = getColorFor('classes', cell.activity.students);
+                        if (cell.activity.students) teacherClasses.add(cell.activity.students);
+                        teacherSubjects.add(cell.activity.subject);
+
+                        const cellStyle = color
+                            ? `style="background: ${color.bg}; border-right: 4px solid ${color.border};"`
+                            : '';
+                        const classNameStyle = color
+                            ? `style="color: ${color.text}; font-weight: 700;"`
+                            : '';
+
+                        html += `<td${colspanAttr} ${cellStyle}>
+                            <div class="activity-cell" style="border-right: none; background: none;">
+                                <div class="class" ${classNameStyle}>${cell.activity.students ? cell.activity.students.replace(/_/g, ' ') : ''}</div>
+                                ${cell.activity.room ? `<div class="room">${cell.activity.room}</div>` : ''}
+                            </div>
+                        </td>`;
+                    } else {
+                        html += `<td${colspanAttr}><span class="empty-cell">—</span></td>`;
+                    }
+                });
+
+                html += '</tr>';
+            });
+
+            html += '</tbody>';
+            table.innerHTML = html;
 
             // Update UI
             const teacher = fetData.teachers.find(t => t.name === teacherName);
@@ -3890,19 +4450,27 @@
                 wrapper.after(legendContainer);
             }
 
-            // Generate legend
+            // Generate legend (by class)
             legendContainer.innerHTML = '';
             if (teacherClasses.size > 0) {
                 legendContainer.innerHTML = generateColorLegend('classes', Array.from(teacherClasses).sort());
 
-                // Add summary
+                // Add assigned classes list
+                const classesList = Array.from(teacherClasses).sort().map(c => c.replace(/_/g, ' ')).join(' + ');
                 legendContainer.innerHTML += `
                     <div class="timetable-summary">
-                        <div class="summary-title"><i class="fas fa-chart-pie"></i> ملخص الجدول:</div>
+                        <div class="summary-title"><i class="fas fa-users"></i> لائحة الأقسام المسندة للأستاذ(ة):</div>
+                        <div style="padding: 8px 15px; font-weight: 600; color: var(--color-text-main, #1F2D24); font-size: 0.95rem;">
+                            ${classesList}
+                        </div>
                         <div class="summary-grid">
                             <div class="summary-card">
                                 <span class="label">الأقسام</span>
                                 <span class="value">${teacherClasses.size} قسم</span>
+                            </div>
+                            <div class="summary-card">
+                                <span class="label">المواد</span>
+                                <span class="value">${teacherSubjects.size} مادة</span>
                             </div>
                             <div class="summary-card">
                                 <span class="label">مجموع الحصص</span>

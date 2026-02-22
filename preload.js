@@ -194,7 +194,9 @@ contextBridge.exposeInMainWorld('api', {
         listDevices: () => ipcRenderer.invoke('licensing:listDevices'),
         deactivateCurrentDevice: () => ipcRenderer.invoke('licensing:deactivateCurrentDevice'),
         adminRevokeDevice: (payload) => ipcRenderer.invoke('licensing:adminRevokeDevice', payload),
-        refreshValidation: () => ipcRenderer.invoke('licensing:refreshValidation')
+        refreshValidation: () => ipcRenderer.invoke('licensing:refreshValidation'),
+        getTrialStatus: () => ipcRenderer.invoke('licensing:getTrialStatus'),
+        setTrialDuration: (payload) => ipcRenderer.invoke('licensing:setTrialDuration', payload)
     },
 
     ownerTelemetry: {
@@ -212,7 +214,8 @@ contextBridge.exposeInMainWorld('api', {
         printToPDF: (options = {}) => ipcRenderer.invoke('system:printToPDF', options),
         printHTML: (payload = {}) => ipcRenderer.invoke('system:printHTML', payload),
         backupDb: () => ipcRenderer.invoke('system:backupDb'),
-        restoreDb: (payload) => ipcRenderer.invoke('system:restoreDb', payload)
+        restoreDb: (payload) => ipcRenderer.invoke('system:restoreDb', payload),
+        quit: () => ipcRenderer.invoke('app:quit')
     },
 
     // Auto-updater

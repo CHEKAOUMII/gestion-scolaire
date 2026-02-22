@@ -109,6 +109,23 @@ function injectSidebar() {
 
     sidebar.dataset.injected = 'true';
 
+    // Re-apply role-based navigation restrictions after sidebar injection.
+    // This handles the timing gap: utils.js may run before sidebar.js,
+    // so the navigation restrictions need to be re-applied once the sidebar exists.
+    // We use both immediate and delayed calls because the auth check in utils.js is async.
+    function _reapplyRoleUi() {
+        if (typeof getCurrentAppRole !== 'function') return;
+        const currentRole = getCurrentAppRole();
+        if (typeof applyNavigationRestrictions === 'function') {
+            applyNavigationRestrictions(currentRole);
+        }
+        if (typeof ensureAdminAuthButton === 'function') {
+            ensureAdminAuthButton(currentRole);
+        }
+    }
+    _reapplyRoleUi();
+    setTimeout(_reapplyRoleUi, 250);
+
     // Mark current page as active
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     document.querySelectorAll('.sidebar-nav a').forEach(link => {
@@ -143,9 +160,28 @@ function injectSidebar() {
     if (menuToggle) {
         menuToggle.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
+            const isCollapsed = sidebar.classList.contains('collapsed');
             const mainContent = document.querySelector('.main-content');
             if (mainContent) {
-                mainContent.style.marginRight = sidebar.classList.contains('collapsed') ? '80px' : '280px';
+                mainContent.style.marginRight = isCollapsed ? '80px' : '280px';
+            }
+            // When collapsing: clear inline submenu display so CSS !important hides them
+            // When expanding: restore the active page's parent submenu
+            if (isCollapsed) {
+                sidebar.querySelectorAll('.sub-menu').forEach(sm => {
+                    sm.style.display = '';
+                });
+            } else {
+                // Re-open the submenu of the currently active page
+                const activeLink = sidebar.querySelector('.nav-link.active, .sub-menu a.active');
+                if (activeLink) {
+                    const parent = activeLink.closest('.expandable');
+                    if (parent) {
+                        parent.classList.add('open');
+                        const subMenu = parent.querySelector('.sub-menu');
+                        if (subMenu) subMenu.style.display = 'block';
+                    }
+                }
             }
         });
     }

@@ -15,11 +15,13 @@ const BLOCKED_REDIRECT_NEXT_KEY = 'gsl_blocked_redirect_next';
 
 let _activationModalEl = null;
 let _limitedNoticeClosedForPage = false;
+let _refreshToken = 0;  // stale-request guard for refreshLimitedModeNotice
 
 function _roleLabel(role) {
     if (role === 'guest') return 'Limited';
     if (role === 'limited') return 'Limited';
     if (role === 'licensed') return 'User';
+    if (role === 'trial') return 'Trial';
     const normalized = _normalizeRole(role);
     if (normalized === 'admin') return 'Admin';
     if (normalized === 'viewer') return 'Viewer';
@@ -30,6 +32,7 @@ function _roleTone(role) {
     if (role === 'guest') return { bg: '#eef2f7', fg: '#3f4b5f', border: '#d3dce8' };
     if (role === 'limited') return { bg: '#eef2f7', fg: '#3f4b5f', border: '#d3dce8' };
     if (role === 'licensed') return { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' };
+    if (role === 'trial') return { bg: '#e8f0fe', fg: '#1a56db', border: '#b4c9f0' };
     const normalized = _normalizeRole(role);
     if (normalized === 'admin') return { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' };
     if (normalized === 'viewer') return { bg: '#eef2f7', fg: '#3f4b5f', border: '#d3dce8' };
@@ -114,6 +117,10 @@ function setCurrentAppRole(role) {
         document.documentElement.dataset.currentAppRole = 'licensed';
         return;
     }
+    if (normalized === 'trial') {
+        document.documentElement.dataset.currentAppRole = 'trial';
+        return;
+    }
     document.documentElement.dataset.currentAppRole = 'limited';
 }
 
@@ -121,6 +128,7 @@ function getCurrentAppRole() {
     const value = document.documentElement.dataset.currentAppRole;
     if (value === 'admin') return 'admin';
     if (value === 'licensed') return 'licensed';
+    if (value === 'trial') return 'trial';
     return 'limited';
 }
 
@@ -158,7 +166,8 @@ function _isSidebarLinkBlocked(href, role) {
     const normalizedHref = _normalizeHref(href);
     if (!normalizedHref || normalizedHref === '#') return false;
 
-    if (String(role || '').toLowerCase() === 'licensed') {
+    const mode = String(role || '').toLowerCase();
+    if (mode === 'licensed' || mode === 'trial') {
         return ADMIN_ONLY_PAGES.has(normalizedHref);
     }
 
@@ -176,7 +185,7 @@ function applyNavigationRestrictions(role) {
                 event.preventDefault();
                 event.stopPropagation();
                 const message =
-                    mode === 'licensed'
+                    (mode === 'licensed' || mode === 'trial')
                         ? 'هذه الصفحة مخصصة للمشرف (Admin)'
                         : 'الوصول في الوضع المحدود متاح فقط لصفحتي اللوائح والاستيراد';
                 showToast(message, 'warning');
@@ -215,13 +224,17 @@ function applySessionToUI(session, roleOverride = null) {
     const safe = session && typeof session === 'object' ? session : {};
     const effectiveRole = roleOverride || _deriveAppRoleFromSession(session);
     const isAdmin = _isAdminRole(effectiveRole);
-    const isLicensed = String(effectiveRole || '').toLowerCase() === 'licensed';
+    const mode = String(effectiveRole || '').toLowerCase();
+    const isLicensed = mode === 'licensed';
+    const isTrial = mode === 'trial';
     const displayName = isAdmin
         ? String(safe.name || safe.email || 'المشرف').trim() || 'المشرف'
         : isLicensed
             ? 'مستخدم مرخص'
-            : 'مستخدم محدود';
-    const role = isAdmin ? _normalizeRole(safe.role || 'admin') : isLicensed ? 'licensed' : 'limited';
+            : isTrial
+                ? 'فترة تجريبية'
+                : 'مستخدم محدود';
+    const role = isAdmin ? _normalizeRole(safe.role || 'admin') : isLicensed ? 'licensed' : isTrial ? 'trial' : 'limited';
     const tone = _roleTone(role);
 
     document.querySelectorAll('[id="user-email"]').forEach((node) => {
@@ -262,7 +275,7 @@ function enforcePageRoleOrRedirect(role) {
 
     const mode = String(role || '').toLowerCase();
 
-    if (mode === 'licensed') {
+    if (mode === 'licensed' || mode === 'trial') {
         if (ADMIN_ONLY_PAGES.has(currentPage)) {
             try {
                 sessionStorage.setItem(BLOCKED_REDIRECT_NOTICE_KEY, currentPage);
@@ -304,18 +317,39 @@ function _dismissLimitedNotice() {
     _removeLimitedNotice();
 }
 
-function _ensureActivationModal() {
-    if (_activationModalEl && document.body.contains(_activationModalEl)) return _activationModalEl;
+function _ensureActivationModal(forced = false) {
+    // If forced mode changed, recreate the modal
+    if (_activationModalEl && document.body.contains(_activationModalEl)) {
+        const wasForced = _activationModalEl.dataset.forced === '1';
+        if (wasForced === forced) return _activationModalEl;
+        _activationModalEl.remove();
+        _activationModalEl = null;
+    }
 
     const modal = document.createElement('div');
     modal.id = 'activation-modal-overlay';
+    modal.dataset.forced = forced ? '1' : '0';
     modal.style.cssText =
         'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.55);z-index:10060;padding:16px;';
+
+    const forcedNotice = forced
+        ? `<div style="padding:10px 16px;background:#fef2f2;border-bottom:1px solid #fecaca;color:#991b1b;font-size:13px;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> انتهت الفترة التجريبية. يجب تفعيل البرنامج للمتابعة أو سيتم إغلاق التطبيق.</div>`
+        : '';
+
+    const closeButtonHtml = forced
+        ? `<button type="button" id="activation-close-btn" style="border:none;background:transparent;font-size:18px;cursor:pointer;color:#dc2626;" title="إغلاق التطبيق"><i class="fas fa-power-off"></i></button>`
+        : `<button type="button" id="activation-close-btn" style="border:none;background:transparent;font-size:18px;cursor:pointer;color:#6b7280;"><i class="fas fa-times"></i></button>`;
+
+    const cancelButtonHtml = forced
+        ? `<button type="button" id="activation-cancel-btn" class="btn btn-danger"><i class="fas fa-power-off"></i> إغلاق التطبيق</button>`
+        : `<button type="button" id="activation-cancel-btn" class="btn btn-secondary">إغلاق</button>`;
+
     modal.innerHTML = `
         <div style="width:min(680px,95vw);background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,.2);overflow:hidden;">
+            ${forcedNotice}
             <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #e5e7eb;">
                 <h3 style="margin:0;font-size:18px;color:#111827;"><i class="fas fa-key"></i> تفعيل البرنامج</h3>
-                <button type="button" id="activation-close-btn" style="border:none;background:transparent;font-size:18px;cursor:pointer;color:#6b7280;"><i class="fas fa-times"></i></button>
+                ${closeButtonHtml}
             </div>
             <div style="padding:16px;display:grid;gap:10px;">
                 <p style="margin:0;color:#4b5563;font-size:13px;">أرسل رمز الجهاز التالي لمسؤول التراخيص للحصول على السيريال الخاص بهذا الجهاز.</p>
@@ -325,7 +359,7 @@ function _ensureActivationModal() {
                 </div>
                 <input id="activation-serial-input" type="text" placeholder="ألصق السيريال هنا" style="direction:ltr;padding:10px;border:1px solid #d1d5db;border-radius:8px;">
                 <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
-                    <button type="button" id="activation-cancel-btn" class="btn btn-secondary">إغلاق</button>
+                    ${cancelButtonHtml}
                     <button type="button" id="activation-submit-btn" class="btn btn-success"><i class="fas fa-check"></i> تفعيل</button>
                 </div>
             </div>
@@ -335,14 +369,21 @@ function _ensureActivationModal() {
     document.body.appendChild(modal);
     _activationModalEl = modal;
 
-    const close = () => {
-        modal.style.display = 'none';
-    };
+    const closeAction = forced
+        ? () => { if (window.api?.system?.quit) window.api.system.quit(); }
+        : () => { modal.style.display = 'none'; };
 
-    modal.querySelector('#activation-close-btn')?.addEventListener('click', close);
-    modal.querySelector('#activation-cancel-btn')?.addEventListener('click', close);
+    modal.querySelector('#activation-close-btn')?.addEventListener('click', closeAction);
+    modal.querySelector('#activation-cancel-btn')?.addEventListener('click', closeAction);
     modal.addEventListener('click', (event) => {
-        if (event.target === modal) close();
+        if (event.target === modal) {
+            if (forced) {
+                // In forced mode, clicking backdrop also quits
+                closeAction();
+            } else {
+                modal.style.display = 'none';
+            }
+        }
     });
 
     modal.querySelector('#activation-copy-btn')?.addEventListener('click', async () => {
@@ -381,8 +422,9 @@ function _ensureActivationModal() {
 
         if (serialInput) serialInput.value = '';
         showToast('تم تفعيل البرنامج بنجاح', 'success');
-        close();
-        refreshLimitedModeNotice(getCurrentAppRole());
+        modal.style.display = 'none';
+        // Reload the page to apply licensed mode properly
+        window.location.reload();
     });
 
     return modal;
@@ -394,7 +436,24 @@ async function openActivationModal() {
         return;
     }
 
-    const modal = _ensureActivationModal();
+    const modal = _ensureActivationModal(false);
+    modal.style.display = 'flex';
+
+    const reqRes = await window.api.licensing.getActivationRequest();
+    const codeInput = modal.querySelector('#activation-device-code');
+    if (codeInput) {
+        codeInput.value = reqRes?.success ? reqRes.deviceCode || '' : '';
+    }
+}
+
+async function openForcedActivationModal() {
+    if (!window.api?.licensing?.getActivationRequest || !window.api?.licensing?.activatePublic) {
+        // Can't show modal, must quit
+        if (window.api?.system?.quit) window.api.system.quit();
+        return;
+    }
+
+    const modal = _ensureActivationModal(true);
     modal.style.display = 'flex';
 
     const reqRes = await window.api.licensing.getActivationRequest();
@@ -411,6 +470,57 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
         _removeLimitedNotice();
         return;
     }
+
+    // Trial mode: show trial info banner
+    if (mode === 'trial') {
+        _removeLimitedNotice();
+        const mainContent = document.querySelector('main.main-content');
+        if (!mainContent) return;
+
+        const daysRemaining = activationStatus?.trialDaysRemaining ?? 0;
+        const existing = document.getElementById('limited-mode-banner');
+        const urgency = daysRemaining <= 7 ? 'border:1px solid #fecaca;background:#fef2f2;color:#991b1b;' :
+            daysRemaining <= 30 ? 'border:1px dashed #f59e0b;background:#fff8e8;color:#7a4b0e;' :
+                'border:1px solid #b4c9f0;background:#e8f0fe;color:#1a56db;';
+        const icon = daysRemaining <= 7 ? 'fa-exclamation-triangle' : 'fa-clock';
+
+        const html = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <i class="fas ${icon}"></i>
+                    <span>الفترة التجريبية: متبقي <strong>${daysRemaining}</strong> يوم${daysRemaining <= 7 ? ' — يرجى تفعيل البرنامج قريباً' : ''}</span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button type="button" id="limited-activate-btn" class="btn btn-warning" style="padding:6px 10px;font-size:12px;"><i class="fas fa-key"></i> تفعيل البرنامج</button>
+                    <button type="button" id="limited-close-btn" class="btn btn-secondary" style="padding:6px 10px;font-size:12px;">إغلاق</button>
+                </div>
+            </div>
+        `;
+
+        if (existing) {
+            existing.style.cssText = `margin:14px 20px 0 20px;padding:10px 12px;${urgency}border-radius:10px;font-weight:600;font-size:13px;`;
+            existing.innerHTML = html;
+        } else {
+            const banner = document.createElement('div');
+            banner.id = 'limited-mode-banner';
+            banner.style.cssText = `margin:14px 20px 0 20px;padding:10px 12px;${urgency}border-radius:10px;font-weight:600;font-size:13px;`;
+            banner.innerHTML = html;
+            const header = mainContent.querySelector(':scope > .header');
+            if (header) {
+                header.insertAdjacentElement('afterend', banner);
+            } else {
+                mainContent.insertAdjacentElement('afterbegin', banner);
+            }
+        }
+
+        document.getElementById('limited-close-btn')?.addEventListener('click', _dismissLimitedNotice);
+        document.getElementById('limited-activate-btn')?.addEventListener('click', () => {
+            void openActivationModal();
+        });
+        return;
+    }
+
+    // Limited mode (original behavior)
     if (_limitedNoticeClosedForPage) {
         _removeLimitedNotice();
         return;
@@ -463,16 +573,46 @@ function refreshLimitedModeNotice(role) {
         _removeLimitedNotice();
         return;
     }
+    // Trial mode: don't short-circuit, continue to fetch status for days remaining
 
     if (!window.api?.licensing?.getPublicStatus) {
         ensureLimitedModeNotice(role, { activated: false });
         return;
     }
 
+    const token = ++_refreshToken;
+
     window.api.licensing
         .getPublicStatus()
         .then((res) => {
-            const isActivated = !!(res?.success && res.activated);
+            // Stale-request guard: ignore if a newer request was issued
+            if (token !== _refreshToken) return;
+            // Never downgrade an admin role from a licensing callback
+            if (_isAdminRole(getCurrentAppRole())) return;
+
+            if (!res?.success) {
+                ensureLimitedModeNotice('limited', { activated: false });
+                return;
+            }
+
+            // Trial active
+            if (res.status === 'trial') {
+                if (getCurrentAppRole() !== 'trial') {
+                    const session = isAuthSessionActive() ? getAuthSessionData() : null;
+                    applyRoleUi('trial', session);
+                } else {
+                    ensureLimitedModeNotice('trial', res);
+                }
+                return;
+            }
+
+            // Trial expired — show forced activation
+            if (res.status === 'trial_expired') {
+                void openForcedActivationModal();
+                return;
+            }
+
+            const isActivated = !!(res.activated);
             if (isActivated) {
                 if (getCurrentAppRole() !== 'licensed') {
                     const session = isAuthSessionActive() ? getAuthSessionData() : null;
@@ -492,6 +632,11 @@ function refreshLimitedModeNotice(role) {
             ensureLimitedModeNotice('limited', res || { activated: false });
         })
         .catch(() => {
+            // Stale-request guard
+            if (token !== _refreshToken) return;
+            // Never downgrade admin
+            if (_isAdminRole(getCurrentAppRole())) return;
+
             if (getCurrentAppRole() !== 'limited') {
                 const session = isAuthSessionActive() ? getAuthSessionData() : null;
                 applyRoleUi('limited', session);
@@ -564,7 +709,9 @@ function ensureAdminAuthButton(role) {
         btn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>خروج المشرف</span>';
         btn.title = 'خروج المشرف';
     } else {
-        if (activateBtn) activateBtn.style.display = String(role || '').toLowerCase() === 'limited' ? '' : 'none';
+        const roleMode = String(role || '').toLowerCase();
+        // Show activate button only in limited mode (not trial or licensed)
+        if (activateBtn) activateBtn.style.display = roleMode === 'limited' ? '' : 'none';
         btn.innerHTML = '<i class="fas fa-user-shield"></i><span>دخول المشرف</span>';
         btn.title = 'دخول المشرف';
     }
@@ -585,6 +732,12 @@ async function resolvePublicAccessMode() {
     if (!window.api?.licensing?.getPublicStatus) return 'limited';
     try {
         const res = await window.api.licensing.getPublicStatus();
+        if (res?.success && res.status === 'trial') return 'trial';
+        if (res?.success && res.status === 'trial_expired') {
+            // Trial expired: show forced activation modal
+            void openForcedActivationModal();
+            return 'limited';
+        }
         if (res?.success && res.activated) return 'licensed';
     } catch (_err) {
         // ignore and fallback to limited mode
@@ -595,7 +748,8 @@ async function resolvePublicAccessMode() {
 function applyRoleUi(role, session) {
     setCurrentAppRole(role);
 
-    if (_isAdminRole(role) || String(role || '').toLowerCase() === 'licensed') {
+    const roleMode = String(role || '').toLowerCase();
+    if (_isAdminRole(role) || roleMode === 'licensed' || roleMode === 'trial') {
         try {
             sessionStorage.removeItem(BLOCKED_REDIRECT_NEXT_KEY);
         } catch (_err) {
@@ -965,7 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSidebar();
 
     const session = isAuthSessionActive() ? getAuthSessionData() : null;
-    const role = getCurrentAppRole();
+    const role = _deriveAppRoleFromSession(session);
     applyRoleUi(role, session);
 });
 

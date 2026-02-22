@@ -296,9 +296,12 @@
             background: #f5f8fa;
         }
 
+        .gs-sheet table tbody tr:hover {
+            background: #e8f4ec;
+        }
+
         .gs-sheet table td.gs-grade-cell {
             min-width: 60px;
-            background: #fefefe;
             border-left: 1px solid #e5e7eb;
             border-right: 1px solid #e5e7eb;
         }
@@ -336,6 +339,43 @@
             border-top: 1px solid #999;
             width: 80%;
             margin: 0 auto;
+        }
+
+        /* ─── Dark Theme for Grade Sheet ─── */
+        [data-theme="dark"] .gs-sheet {
+            background: var(--color-surface, #1A241C) !important;
+            color: var(--color-text-main, #E8ECE9) !important;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="dark"] .gs-sheet .gs-sheet-title {
+            color: var(--color-primary-light, #6BBF8A) !important;
+        }
+
+        [data-theme="dark"] .gs-sheet .gs-sheet-subtitle {
+            color: var(--color-text-muted, #8FA89A) !important;
+        }
+
+        [data-theme="dark"] .gs-sheet .gs-sheet-meta {
+            color: var(--color-text-main, #E8ECE9) !important;
+            border-color: var(--color-primary, #2D5F4A) !important;
+        }
+
+        [data-theme="dark"] .gs-sheet .gs-footer {
+            color: var(--color-text-muted, #8FA89A) !important;
+            border-color: var(--ux-border, #2A3A2E) !important;
+        }
+
+        [data-theme="dark"] .gs-sheet .gs-signature-box p {
+            color: var(--color-text-main, #E8ECE9) !important;
+        }
+
+        [data-theme="dark"] .gs-sheet .gs-signature-box .gs-sig-line {
+            border-color: var(--color-text-muted, #8FA89A) !important;
+        }
+
+        [data-theme="dark"] .gs-sheet table tbody tr:hover {
+            background: rgba(107, 191, 138, 0.15) !important;
         }
 
         /* ─── Count Badge ─── */

@@ -1,3 +1,4 @@
+const { app } = require('electron');
 const {
     activateLicense,
     adminRevokeDevice,
@@ -10,6 +11,7 @@ const {
     listLicenseDevices,
     refreshLicenseValidation
 } = require('../licensing/service');
+const { getTrialStatus, setTrialDuration } = require('../licensing/trialService');
 const { requireRole } = require('./auth');
 
 function authErrorResponse(err) {
@@ -22,6 +24,11 @@ function authErrorResponse(err) {
 }
 
 function registerLicensingIpc(ipcMain) {
+    // App quit (used when trial expired and user closes activation modal)
+    ipcMain.handle('app:quit', () => {
+        app.quit();
+    });
+
     // Public activation channels (available before login)
     ipcMain.handle('licensing:getActivationRequest', async () => {
         try {
@@ -34,6 +41,15 @@ function registerLicensingIpc(ipcMain) {
     ipcMain.handle('licensing:getPublicStatus', async () => {
         try {
             return getPublicActivationStatus();
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // Public trial status (available before login)
+    ipcMain.handle('licensing:getTrialStatus', async () => {
+        try {
+            return { success: true, ...getTrialStatus() };
         } catch (err) {
             return { success: false, error: err.message };
         }
@@ -115,6 +131,16 @@ function registerLicensingIpc(ipcMain) {
         try {
             requireRole(event, ['admin']);
             return refreshLicenseValidation();
+        } catch (err) {
+            return authErrorResponse(err);
+        }
+    });
+
+    // Admin: set trial duration
+    ipcMain.handle('licensing:setTrialDuration', async (event, payload) => {
+        try {
+            requireRole(event, ['admin']);
+            return setTrialDuration(payload?.duration);
         } catch (err) {
             return authErrorResponse(err);
         }

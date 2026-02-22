@@ -215,6 +215,10 @@ function createTables() {
     ensureLicensingSchema(db);
     ensureOwnerSyncSchema(db);
 
+    // Initialize trial start date on first DB creation
+    const { ensureTrialStartDate } = require('../licensing/trialService');
+    ensureTrialStartDate(db);
+
     // Set default school year
     db.prepare(`INSERT OR IGNORE INTO settings(key, value) VALUES('currentSchoolYear', '2025/2026')`).run();
     const adminPassword = generateRandomPassword();

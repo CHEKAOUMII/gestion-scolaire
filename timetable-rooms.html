@@ -784,7 +784,7 @@
           </select>
           <span id="room-count-badge" style="font-size: 0.85rem; color: #64748b; font-weight: 500;"></span>
           <button type="button" class="btn btn-success" id="print-preview-btn"
-            style="display:none; margin-right: auto;"><i class="fas fa-print"></i> طباعة الجدول</button>
+            style="display:none; margin-right: auto;"><i class="fas fa-eye"></i> معاينة الطباعة</button>
         </form>
       </div>
 
@@ -859,7 +859,9 @@
       });
 
       document.getElementById('print-preview-btn').addEventListener('click', () => {
-        window.print();
+        const roomName = document.getElementById('room-select')?.value || '';
+        const title = roomName ? `جدول القاعة - ${roomName}` : 'جدول القاعات';
+        electronPrint({ mode: 'preview', title, pageSize: 'A4', landscape: true });
       });
     });
 

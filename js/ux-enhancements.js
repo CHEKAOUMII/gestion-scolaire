@@ -334,59 +334,70 @@ function openPrintPreview(options = {}) {
         return;
     }
 
-    const clone = sourceEl.cloneNode(true);
+    // Force light theme BEFORE cloning so canvas images & colors are captured in light mode
+    _forceLightThemeForPrint();
 
-    // When contentSelector is provided, the caller already prepared the content.
-    // Only do auto-cleanup when cloning raw page content.
-    if (!options.contentSelector) {
-        // Strip UI controls from clone
-        clone.querySelectorAll('.header, .search-section, .search-form, .filter-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, .btn-print, .btn-export, .pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state').forEach(el => el.remove());
-        // Force solid white backgrounds on glass/card elements (override CSS variables)
-        clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details').forEach(el => {
-            el.style.background = '#fff';
-            el.style.boxShadow = 'none';
-            el.style.backdropFilter = 'none';
-            el.style.webkitBackdropFilter = 'none';
-            el.style.animation = 'none';
-        });
-        // Remove IDs to avoid duplicates
-        clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    // Give charts ~300ms to repaint in light mode before snapshot
+    setTimeout(() => {
+        const clone = sourceEl.cloneNode(true);
 
-        // Replace canvases with images
-        const sourceCanvases = sourceEl.querySelectorAll('canvas');
-        const cloneCanvases = clone.querySelectorAll('canvas');
-        cloneCanvases.forEach((cc, i) => {
-            const sc = sourceCanvases[i];
-            if (!sc) { cc.remove(); return; }
-            try {
-                const img = document.createElement('img');
-                img.src = sc.toDataURL('image/png', 1);
-                img.alt = 'رسم بياني';
-                img.style.cssText = 'width:100%;height:auto;max-height:200px;object-fit:contain;display:block;border-radius:6px;';
-                cc.replaceWith(img);
-            } catch { cc.remove(); }
-        });
-    }
+        // When contentSelector is provided, the caller already prepared the content.
+        // Only do auto-cleanup when cloning raw page content.
+        if (!options.contentSelector) {
+            // Strip UI controls from clone
+            clone.querySelectorAll('.header, .search-section, .search-form, .filter-section, .filters-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, #export-btn, .btn-print, .btn-export, .pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state, .table-toolbar, .page-title-row').forEach(el => el.remove());
+            // Force solid white backgrounds on glass/card elements (override CSS variables)
+            clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details').forEach(el => {
+                el.style.background = '#fff';
+                el.style.boxShadow = 'none';
+                el.style.backdropFilter = 'none';
+                el.style.webkitBackdropFilter = 'none';
+                el.style.animation = 'none';
+            });
+            // Remove IDs to avoid duplicates
+            clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
 
-    // Build print header
-    const printTitle = options.title || document.querySelector('.page-title h1')?.textContent || document.title || 'طباعة';
-    const schoolName = localStorage.getItem('schoolName') || '';
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
-    const headerHTML = `<div class="ux-pp-print-header">
+            // Replace canvases with images
+            const sourceCanvases = sourceEl.querySelectorAll('canvas');
+            const cloneCanvases = clone.querySelectorAll('canvas');
+            cloneCanvases.forEach((cc, i) => {
+                const sc = sourceCanvases[i];
+                if (!sc) { cc.remove(); return; }
+                try {
+                    const img = document.createElement('img');
+                    img.src = sc.toDataURL('image/png', 1);
+                    img.alt = 'رسم بياني';
+                    img.style.cssText = 'width:100%;height:auto;max-height:200px;object-fit:contain;display:block;border-radius:6px;';
+                    cc.replaceWith(img);
+                } catch { cc.remove(); }
+            });
+        }
+
+        // Restore original theme now that clone + canvas snapshots are done
+        _restoreThemeAfterPrint();
+
+        // Build print header
+        const printTitle = options.title || document.querySelector('.page-title h1')?.textContent || document.title || 'طباعة';
+        const schoolName = localStorage.getItem('schoolName') || '';
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
+        const headerHTML = `<div class="ux-pp-print-header">
         ${schoolName ? `<div class="ux-pp-school-name">${schoolName}</div>` : ''}
         <div class="ux-pp-doc-title">${printTitle}</div>
         <div class="ux-pp-doc-date">${dateStr}</div>
     </div>`;
 
-    const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
-    sheet.innerHTML = headerHTML;
-    sheet.appendChild(clone);
-    _printPreviewModal.classList.add('active');
-    _printPreviewModal.style.display = 'flex';
-    document.body.classList.add('ux-preview-open');
+        const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
+        // Force sheet to use light theme for the preview
+        sheet.setAttribute('data-theme', 'light');
+        sheet.innerHTML = headerHTML;
+        sheet.appendChild(clone);
+        _printPreviewModal.classList.add('active');
+        _printPreviewModal.style.display = 'flex';
+        document.body.classList.add('ux-preview-open');
 
-    _updateOrientationUI();
+        _updateOrientationUI();
+    }, 300); // end setTimeout — wait for charts to repaint
 }
 
 function closePrintPreviewGlobal() {
@@ -425,10 +436,11 @@ function _enablePrintMode(capturedHTML) {
     }
     root.innerHTML = capturedHTML;
     document.body.classList.add('ux-printing-active');
+    document.body.classList.toggle('ux-print-landscape', _printPreviewLandscape);
 }
 
 function _disablePrintMode() {
-    document.body.classList.remove('ux-printing-active');
+    document.body.classList.remove('ux-printing-active', 'ux-print-landscape');
     const root = document.getElementById('ux-print-root');
     if (root) root.innerHTML = '';
     _restoreThemeAfterPrint();
@@ -446,7 +458,7 @@ async function _executePrintFromPreview() {
                 printBackground: true,
                 pageSize: _printPreviewOptions.pageSize || 'A4',
                 landscape: _printPreviewLandscape,
-                margins: { marginType: 'default' }
+                margins: { marginType: 'none' }
             });
         } else {
             window.print();
@@ -469,7 +481,7 @@ async function _exportPdfFromPreview() {
                 printBackground: true,
                 pageSize: _printPreviewOptions.pageSize || 'A4',
                 landscape: _printPreviewLandscape,
-                margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+                margins: { top: 2, bottom: 2, left: 0, right: 0 }
             });
             if (result?.success && typeof showToast === 'function') {
                 showToast('تم تصدير الملف بنجاح', 'success');
@@ -525,7 +537,18 @@ function _ensureUpdateBanner() {
             const btn = _updateBanner.querySelector('.ux-update-download');
             btn.disabled = true;
             btn.textContent = 'جاري التحميل...';
-            await window.api.updater.downloadUpdate();
+            try {
+                const result = await window.api.updater.downloadUpdate();
+                if (result && !result.success) {
+                    btn.textContent = 'إعادة المحاولة';
+                    btn.disabled = false;
+                    console.error('[updater-ui] Download failed:', result.error);
+                }
+            } catch (err) {
+                btn.textContent = 'إعادة المحاولة';
+                btn.disabled = false;
+                console.error('[updater-ui] Download error:', err);
+            }
         }
     });
 

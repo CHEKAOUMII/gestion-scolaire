@@ -48,7 +48,8 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "icon.ico"
+      "icon": "icon.ico",
+      "artifactName": "${name}-setup-${version}.${ext}"
     }
   }
 }

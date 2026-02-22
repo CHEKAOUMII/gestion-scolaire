@@ -76,6 +76,63 @@ body {
     display: none;
 }
 
+/* Hide submenus when sidebar is collapsed */
+.sidebar.collapsed .sub-menu {
+    display: none !important;
+}
+
+/* Center nav-link icons when collapsed */
+.sidebar.collapsed .nav-link {
+    justify-content: center;
+    padding: 12px;
+    gap: 0;
+}
+
+.sidebar.collapsed .nav-link:hover,
+.sidebar.collapsed .nav-link.active {
+    transform: none;
+}
+
+/* Center and hide school-info text when collapsed */
+.sidebar.collapsed .school-info {
+    justify-content: center;
+    padding: 15px 10px;
+}
+
+.sidebar.collapsed .school-info .school-details,
+.sidebar.collapsed .school-info h3,
+.sidebar.collapsed .school-info p {
+    display: none;
+}
+
+/* Center sidebar-header in collapsed mode */
+.sidebar.collapsed .sidebar-header {
+    padding: 20px 10px;
+}
+
+.sidebar.collapsed .logo {
+    margin-bottom: 0;
+}
+
+/* Center time widget text in collapsed mode */
+.sidebar.collapsed .time-widget {
+    padding: 12px 5px;
+    margin: 15px 8px;
+}
+
+.sidebar.collapsed .time-widget .time {
+    font-size: 18px;
+}
+
+.sidebar.collapsed .time-widget .date {
+    font-size: 10px;
+}
+
+/* Reduce li margins in collapsed mode */
+.sidebar.collapsed .sidebar-nav li {
+    margin: 5px 8px;
+}
+
 .sidebar-header {
     padding: 30px 20px;
     text-align: center;

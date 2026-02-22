@@ -430,6 +430,28 @@ async function viewStudent(index) {
     const color = getAvatarColor(name);
     const genderLabel = isMale(student.gender) ? 'ذكر' : isFemale(student.gender) ? 'أنثى' : '-';
 
+    // Fetch absence hours for this student
+    let justifiedHours = 0;
+    let unjustifiedHours = 0;
+    try {
+        const allAbsences = (await window.api.absences.getAll(year)) || [];
+        const studentCode = student.massar_code || '';
+        const studentAbsences = allAbsences.filter((a) => {
+            const code = String(a.student_code || '').trim();
+            return code && code === studentCode;
+        });
+        studentAbsences.forEach((a) => {
+            const h = Number(a.hours) || 0;
+            if (a.absence_type === 'justified') {
+                justifiedHours += h;
+            } else if (a.absence_type === 'unjustified') {
+                unjustifiedHours += h;
+            }
+        });
+    } catch (_err) {
+        console.warn('Could not load absence data:', _err);
+    }
+
     const body = document.getElementById('modal-body');
     body.innerHTML = `
         <div class="sl-modal-avatar" style="background:${color}">${initial}</div>
@@ -453,6 +475,14 @@ async function viewStudent(index) {
             <div class="sl-modal-info-item">
                 <div class="sl-modal-info-label"><i class="fas fa-calendar"></i> تاريخ الازدياد</div>
                 <div class="sl-modal-info-value">${escapeHtml(student.birth_date || '-')}</div>
+            </div>
+            <div class="sl-modal-info-item">
+                <div class="sl-modal-info-label"><i class="fas fa-clock" style="color:#2ECC71"></i> ساعات الغياب المبررة</div>
+                <div class="sl-modal-info-value" style="color:#2ECC71;font-weight:700">${justifiedHours} <small style="font-weight:400;opacity:0.7">ساعة</small></div>
+            </div>
+            <div class="sl-modal-info-item">
+                <div class="sl-modal-info-label"><i class="fas fa-clock" style="color:#E85D5D"></i> ساعات الغياب غير المبررة</div>
+                <div class="sl-modal-info-value" style="color:#E85D5D;font-weight:700">${unjustifiedHours} <small style="font-weight:400;opacity:0.7">ساعة</small></div>
             </div>
         </div>
 
