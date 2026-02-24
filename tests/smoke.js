@@ -130,6 +130,7 @@ function runNoCdnSmoke() {
     const skipDirs = new Set([
         'node_modules',
         'vendor',
+        'testsprite_tests',
         'timetables',
         '.git',
         'dist',
