@@ -1,22 +1,21 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوائح التلاميذ | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <title>لوائح التلاميذ | الثانوية التأهيلية ابن سينا</title>
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js" defer></script>
     <script src="js/sidebar.js" defer></script>
+    <script src="js/cc-rules.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
     <style>
-        /* ─── Search Section Enhancement ─── */
+        /* --- Search Section Enhancement --- */
         .sl-search-section {
             background: var(--glass-bg);
             backdrop-filter: blur(12px);
@@ -95,7 +94,7 @@
             box-shadow: 0 0 0 3px var(--color-primary-mist);
         }
 
-        /* ─── Results Section ─── */
+        /* --- Results Section --- */
         .sl-results-section {
             background: var(--glass-bg);
             backdrop-filter: blur(12px);
@@ -154,7 +153,7 @@
             flex-wrap: wrap;
         }
 
-        /* ─── Table ─── */
+        /* --- Table --- */
         .sl-table-wrapper {
             overflow-x: auto;
             border-radius: var(--radius-sm);
@@ -228,7 +227,7 @@
             border-bottom: none;
         }
 
-        /* ─── Avatar ─── */
+        /* --- Avatar --- */
         .sl-avatar {
             width: 36px;
             height: 36px;
@@ -255,7 +254,7 @@
             color: var(--color-text-main);
         }
 
-        /* ─── Gender Badge ─── */
+        /* --- Gender Badge --- */
         .sl-gender-badge {
             display: inline-flex;
             align-items: center;
@@ -282,7 +281,7 @@
             font-size: 11px;
         }
 
-        /* ─── Class Badge ─── */
+        /* --- Class Badge --- */
         .sl-class-badge {
             display: inline-flex;
             align-items: center;
@@ -295,7 +294,7 @@
             border: 1px solid rgba(45, 95, 74, 0.15);
         }
 
-        /* ─── Empty State ─── */
+        /* --- Empty State --- */
         .sl-empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -345,7 +344,7 @@
             }
         }
 
-        /* ─── Loading State ─── */
+        /* --- Loading State --- */
         .sl-loading-state {
             text-align: center;
             padding: 50px 20px;
@@ -364,7 +363,7 @@
             font-weight: 500;
         }
 
-        /* ─── Error State ─── */
+        /* --- Error State --- */
         .sl-error-state {
             text-align: center;
             padding: 50px 20px;
@@ -383,7 +382,7 @@
             font-weight: 500;
         }
 
-        /* ─── Pagination ─── */
+        /* --- Pagination --- */
         .sl-pagination {
             display: flex;
             align-items: center;
@@ -435,7 +434,7 @@
             font-weight: 500;
         }
 
-        /* ─── Detail KPIs inside modal ─── */
+        /* --- Detail KPIs inside modal --- */
         .sl-detail-kpis {
             display: flex;
             gap: 10px;
@@ -466,7 +465,7 @@
             margin-top: 2px;
         }
 
-        /* ─── Subject blocks ─── */
+        /* --- Subject blocks --- */
         .sl-subject-block {
             background: var(--color-surface-alt);
             border-radius: var(--radius-sm);
@@ -513,7 +512,7 @@
             padding: 0 16px 14px;
         }
 
-        /* ─── Grade chips ─── */
+        /* --- Grade chips --- */
         .sl-grades-chips {
             display: flex;
             flex-wrap: wrap;
@@ -563,7 +562,7 @@
             transition: width 0.4s ease;
         }
 
-        /* ─── Grades section header ─── */
+        /* --- Grades section header --- */
         .sl-grades-section-title {
             font-size: 15px;
             font-weight: 700;
@@ -578,7 +577,7 @@
             color: var(--color-primary);
         }
 
-        /* ─── Grades loading & empty ─── */
+        /* --- Grades loading & empty --- */
         .sl-grades-loading {
             text-align: center;
             padding: 20px;
@@ -599,7 +598,7 @@
             display: block;
         }
 
-        /* ─── Action Button in Table ─── */
+        /* --- Action Button in Table --- */
         .sl-action-btn {
             width: 34px;
             height: 34px;
@@ -623,7 +622,7 @@
             box-shadow: 0 3px 10px rgba(45, 95, 74, 0.25);
         }
 
-        /* ─── Student Modal ─── */
+        /* --- Student Modal --- */
         .sl-modal-overlay {
             position: fixed;
             inset: 0;
@@ -752,7 +751,7 @@
 
         /* Print Preview now uses shared ux-pp-modal system */
 
-        /* ─── Responsive ─── */
+        /* --- Responsive --- */
         @media (max-width: 768px) {
             .sl-search-grid {
                 grid-template-columns: 1fr 1fr;
@@ -786,7 +785,7 @@
             }
         }
 
-        /* ─── Print Styles ─── */
+        /* --- Print Styles --- */
         @media print {
 
             .sl-search-section,
@@ -830,7 +829,7 @@
                 <h2 class="page-title"><i class="fas fa-users" aria-hidden="true"></i> لوائح التلاميذ</h2>
             </div>
             <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر" aria-label="تبديل المظهر"><i
+                <button class="theme-toggle" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة"><i
                         class="fas fa-moon" aria-hidden="true"></i></button>
                 <label class="sr-only" for="school-year">السنة الدراسية</label>
                 <select id="school-year" name="school-year" aria-label="السنة الدراسية">
@@ -843,11 +842,11 @@
             <!-- Search Section -->
             <div class="sl-search-section">
                 <div class="sl-search-header">
-                    <i class="fas fa-filter"></i> البحث والتصفية
+                    <i class="fas fa-filter"></i> تصفية التلاميذ
                 </div>
                 <form id="search-form" class="sl-search-grid" role="search" aria-label="نموذج البحث عن التلاميذ">
-                    <label class="sr-only" for="search-name">الاسم</label>
-                    <input id="search-name" name="search-name" type="text" placeholder="🔍 بحث بالاسم..."
+                    <label class="sr-only" for="search-name">البحث</label>
+                    <input id="search-name" name="search-name" type="text" placeholder="ابحث باسم التلميذ..."
                         autocomplete="name">
                     <label class="sr-only" for="search-class">القسم</label>
                     <select id="search-class" name="search-class" aria-label="القسم">
@@ -855,9 +854,9 @@
                     </select>
                     <label class="sr-only" for="search-gender">الجنس</label>
                     <select id="search-gender" name="search-gender" aria-label="الجنس">
-                        <option value="">كل الجنسين</option>
-                        <option value="M">ذكور</option>
-                        <option value="F">إناث</option>
+                        <option value="">كل الأجناس</option>
+                        <option value="M">ذكر</option>
+                        <option value="F">أنثى</option>
                     </select>
                     <label class="sr-only" for="search-code">رمز مسار</label>
                     <input id="search-code" name="search-code" type="text" placeholder="رمز مسار" autocomplete="off">
@@ -871,7 +870,7 @@
                 <div class="sl-results-header">
                     <h3 class="sl-results-title">
                         <i class="fas fa-table-list"></i>
-                        قائمة التلاميذ
+                        لائحة التلاميذ
                         <span id="count-badge" class="sl-count-badge" aria-live="polite">0</span>
                     </h3>
                     <div class="sl-results-actions">
@@ -884,7 +883,7 @@
 
                 <div class="sl-table-wrapper">
                     <table class="sl-table" id="students-table">
-                        <caption class="sr-only">جدول لوائح التلاميذ حسب معايير البحث</caption>
+                        <caption class="sr-only">جدول لوائح التلاميذ مرتب حسب القسم والاسم</caption>
                         <thead>
                             <tr>
                                 <th data-sort="index"># <i class="fas fa-sort sort-icon"></i></th>
@@ -893,7 +892,7 @@
                                 <th data-sort="class_name">القسم <i class="fas fa-sort sort-icon"></i></th>
                                 <th data-sort="gender">الجنس <i class="fas fa-sort sort-icon"></i></th>
                                 <th data-sort="birth_date">تاريخ الازدياد <i class="fas fa-sort sort-icon"></i></th>
-                                <th>الإجراء</th>
+                                <th>الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody id="students-tbody">
@@ -901,7 +900,7 @@
                                 <td colspan="7">
                                     <div class="sl-loading-state">
                                         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                                        <span>جاري تحميل البيانات...</span>
+                                        <span>جاري تحميل التلاميذ...</span>
                                     </div>
                                 </td>
                             </tr>
@@ -920,7 +919,7 @@
         <div class="sl-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"
             style="max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
             <div class="sl-modal-header">
-                <h3 id="modal-title"><i class="fas fa-user-graduate"></i> ملف التلميذ(ة)</h3>
+                <h3 id="modal-title"><i class="fas fa-user-graduate"></i> بطاقة التلميذ(ة)</h3>
                 <button type="button" class="sl-modal-close" id="modal-close" aria-label="إغلاق"><i
                         class="fas fa-times"></i></button>
             </div>

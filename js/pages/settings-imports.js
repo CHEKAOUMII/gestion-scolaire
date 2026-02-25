@@ -61,6 +61,7 @@ const HEADER_ALIASES = {
     fullName: ['fullname', 'studentname', 'nomcomplet', 'الاسمالكامل', 'الاسموالنسب'],
     gender: ['gender', 'sex', 'genre', 'النوع', 'الجنس'],
     birthDate: ['birthdate', 'dateofbirth', 'datedenaissance', 'تاريخالازدياد', 'تاريخالميلاد'],
+    birthPlace: ['birthplace', 'placeofbirth', 'lieudenaissance', 'مكانالازدياد', 'مكانالميلاد', 'مسقطالرأس'],
     section: ['section', 'class', 'classe', 'group', 'القسم', 'الفصل'],
     teacherName: [
         'teacher',
@@ -729,6 +730,7 @@ function mapHeaderPositions(headers) {
         fullName: findHeaderIndex(headers, HEADER_ALIASES.fullName),
         gender: findHeaderIndex(headers, HEADER_ALIASES.gender),
         birthDate: findHeaderIndex(headers, HEADER_ALIASES.birthDate),
+        birthPlace: findHeaderIndex(headers, HEADER_ALIASES.birthPlace),
         section: findHeaderIndex(headers, HEADER_ALIASES.section),
         teacherName: findHeaderIndex(headers, HEADER_ALIASES.teacherName),
         level: findHeaderIndex(headers, HEADER_ALIASES.level),
@@ -1046,6 +1048,7 @@ async function importStudents(workbook, schoolYear) {
                 full_name: fullName || code,
                 family_name: h.familyName !== -1 ? String(row[h.familyName] ?? '').trim() : '',
                 birth_date: h.birthDate !== -1 ? excelDateToIso(row[h.birthDate]) : '',
+                birth_place: h.birthPlace !== -1 ? String(row[h.birthPlace] ?? '').trim() : '',
                 gender: h.gender !== -1 ? String(row[h.gender] ?? '').trim() : '',
                 section: h.section !== -1 ? String(row[h.section] ?? '').trim() : sheetName,
                 school_year: schoolYear,
@@ -1745,8 +1748,8 @@ async function loadLogs() {
     if (!tb) return;
     tb.innerHTML = rows.length
         ? rows
-              .map(
-                  (r, i) => `
+            .map(
+                (r, i) => `
                 <tr>
                     <td class="log-index">${escapeHtml(r.id || i + 1)}</td>
                     <td class="log-action"><bdi dir="ltr">${escapeHtml(r.action || '-')}</bdi></td>
@@ -1757,7 +1760,7 @@ async function loadLogs() {
                     </td>
                 </tr>
             `
-              )
-              .join('')
+            )
+            .join('')
         : '<tr><td colspan="4" style="padding: 30px; text-align: center; color: #888;"><i class="fas fa-inbox" style="font-size: 32px; display: block; margin-bottom: 10px;"></i>لا توجد عمليات بعد</td></tr>';
 }

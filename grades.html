@@ -5,15 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>النتائج والإحصائيات | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
     <script src="js/sidebar.js"></script>
+    <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
     <style>
         .kpi-grid {
@@ -730,13 +729,14 @@
                 const studentLabel = (g) => String(g.full_name || g.student_code || g.student_id || 'غير محدد');
 
                 // Calculate subject and student averages in one pass
-                const bySubject = {};
+                // Group by BASE subject so exams + activities are merged
+                const byBaseSubject = {};
                 const studentsAgg = new Map();
                 filtered.forEach(g => {
-                    const subject = g.subject || 'غير محدد';
+                    const base = normalizeSubjectName(g.subject) || 'غير محدد';
 
-                    if (!bySubject[subject]) bySubject[subject] = [];
-                    bySubject[subject].push(g.grade);
+                    if (!byBaseSubject[base]) byBaseSubject[base] = [];
+                    byBaseSubject[base].push(g);
 
                     const id = studentIdentity(g);
                     let studentAgg = studentsAgg.get(id);
@@ -748,19 +748,25 @@
                         studentsAgg.set(id, studentAgg);
                     }
 
-                    const subjectAgg = studentAgg.bySubject.get(subject) || { sum: 0, count: 0 };
-                    subjectAgg.sum += g.grade;
-                    subjectAgg.count += 1;
-                    studentAgg.bySubject.set(subject, subjectAgg);
+                    const arr = studentAgg.bySubject.get(base) || [];
+                    arr.push(g);
+                    studentAgg.bySubject.set(base, arr);
                 });
 
-                const subjectAverages = Object.values(bySubject).map(arr => avg(arr));
+                const subjectAverages = Object.entries(byBaseSubject).map(([base, grds]) => computeSubjectAverage(base, grds));
                 const overallSubjectAvg = avg(subjectAverages);
 
                 const studentData = Array.from(studentsAgg.entries()).map(([id, studentAgg]) => {
-                    const studentSubjectAvgs = Array.from(studentAgg.bySubject.values(), stats => stats.sum / stats.count);
-                    const generalAvg = avg(studentSubjectAvgs);
                     const firstRecord = studentAgg.firstRecord || {};
+                    const studentSubjectAvgs = Array.from(studentAgg.bySubject.entries(), ([base, grds]) => ({
+                        subject: base, avg: computeSubjectAverage(base, grds)
+                    }));
+                    const branch = typeof detectBranch === 'function'
+                        ? detectBranch(firstRecord.section || firstRecord.class_name || '')
+                        : null;
+                    const generalAvg = typeof computeWeightedGeneralAverage === 'function'
+                        ? computeWeightedGeneralAverage(studentSubjectAvgs, branch)
+                        : avg(studentSubjectAvgs.map(s => s.avg));
 
                     return {
                         id,
@@ -854,7 +860,7 @@
             document.getElementById('detail-code').textContent = first.student_code || '-';
             document.getElementById('detail-section').textContent = first.section || '-';
 
-            // Group by subject
+            // Group by base subject (merging exams + activities)
             const bySubject = {};
             studentGrades.forEach(g => {
                 const subj = normalizeSubjectName(g.subject) || 'غير محدد';
@@ -862,14 +868,16 @@
                 bySubject[subj].push(g);
             });
 
-            // KPIs
+            // KPIs — use weighted averages per subject
             const subjects = Object.keys(bySubject);
-            const subjectAvgs = subjects.map(s => {
-                const vals = bySubject[s].map(g => g.grade);
-                return vals.reduce((a, b) => a + b, 0) / vals.length;
-            });
-            const generalAvg = subjectAvgs.length ? subjectAvgs.reduce((a, b) => a + b, 0) / subjectAvgs.length : 0;
             const totalGrades = studentGrades.length;
+            const subjectAvgs = subjects.map(s => ({ subject: s, avg: computeSubjectAverage(s, bySubject[s]) }));
+            const branch = typeof detectBranch === 'function'
+                ? detectBranch(first.section || first.class_name || '')
+                : null;
+            const generalAvg = typeof computeWeightedGeneralAverage === 'function'
+                ? computeWeightedGeneralAverage(subjectAvgs, branch)
+                : (subjectAvgs.length ? subjectAvgs.reduce((a, s) => a + s.avg, 0) / subjectAvgs.length : 0);
             const maxGrade = Math.max(...studentGrades.map(g => g.grade));
             const minGrade = Math.min(...studentGrades.map(g => g.grade));
 
@@ -900,17 +908,21 @@
             const sortedSubjects = subjects.sort((a, b) => a.localeCompare(b, 'ar'));
             document.getElementById('detail-subjects').innerHTML = sortedSubjects.map(subj => {
                 const grades = bySubject[subj];
-                const vals = grades.map(g => g.grade);
-                const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+                const avg = computeSubjectAverage(subj, grades);
                 const color = gradeColor(avg);
 
-                const chipsHtml = grades.map((g, idx) => {
+                let examIdx = 0;
+                const chipsHtml = grades.map((g) => {
                     const gc = gradeColor(g.grade);
                     const pct = Math.min((g.grade / 20) * 100, 100);
                     const semLabel = g.semester ? `الدورة ${g.semester}` : '';
+                    const isActv = ccIsActivity(g.subject);
+                    const chipLabel = isActv
+                        ? `أنشطة مندمجة${semLabel ? ' — ' + semLabel : ''}`
+                        : `فرض ${++examIdx}${semLabel ? ' — ' + semLabel : ''}`;
                     return `
                         <div class="grade-chip">
-                            <span class="chip-label">فرض ${idx + 1}${semLabel ? ' — ' + semLabel : ''}</span>
+                            <span class="chip-label">${chipLabel}</span>
                             <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
                             <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
                         </div>

@@ -5,17 +5,17 @@
 
 /* ==================== Dark Mode Variables ==================== */
 :root {
-    --ux-bg-primary: #ffffff;
-    --ux-bg-secondary: #f8f9fa;
-    --ux-bg-glass: rgba(255, 255, 255, 0.85);
-    --ux-text-primary: #1a1a2e;
-    --ux-text-secondary: #64748b;
-    --ux-text-muted: #94a3b8;
-    --ux-border: rgba(0, 0, 0, 0.1);
-    --ux-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-    --ux-shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.15);
+    --ux-bg-primary: #FFFEFB;
+    --ux-bg-secondary: #F1EDE8;
+    --ux-bg-glass: rgba(255, 254, 249, 0.85);
+    --ux-text-primary: #1F2D24;
+    --ux-text-secondary: #6B7B72;
+    --ux-text-muted: #9CA8A0;
+    --ux-border: rgba(31, 45, 36, 0.1);
+    --ux-shadow: 0 4px 20px rgba(31, 45, 36, 0.08);
+    --ux-shadow-hover: 0 8px 30px rgba(31, 45, 36, 0.15);
     --ux-accent: #2D5F4A;
-    --ux-accent-light: #4fb3bf;
+    --ux-accent-light: #4A8B6F;
     --ux-transition: all 0.3s ease;
 }
 
@@ -2590,4 +2590,102 @@ body.ux-printing-active #ux-print-root .room-timetable-wrapper {
     h4 {
         color: #162730 !important;
     }
+
+    /* ==================== Print CSS Overrides for Multi-Page Printing ==================== */
+    /* ألغِ قيود الارتفاع والاقتطاع عن جميع حاويات المعاينة */
+    body.ux-preview-open {
+        overflow: visible !important;
+    }
+
+    .ux-pp-modal,
+    .ux-pp-dialog,
+    .ux-pp-page,
+    .ux-pp-sheet {
+        position: static !important;
+        height: auto !important;
+        min-height: none !important;
+        max-height: none !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* إخفاء عناصر واجهة المعاينة (الرأس والأزرار) أثناء الطباعة الفعلية */
+    .ux-pp-header,
+    .ux-pp-actions,
+    .ux-pp-close,
+    .ux-pp-overlay {
+        display: none !important;
+    }
+
+    /* السماح للجدول داخل الورقة بالتمدد دون قيود */
+    .ux-pp-sheet .timetable-wrapper,
+    .ux-pp-sheet .table-responsive {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        page-break-inside: auto;
+    }
+}
+
+/* ==================== Quick Nav — Link Reset ==================== */
+a.quick-nav-item {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* ==================== Skeleton Loaders ==================== */
+@keyframes skeletonPulse {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.skeleton-pulse {
+    background: linear-gradient(
+        90deg,
+        var(--color-surface-alt, #F1EDE8) 25%,
+        var(--color-surface, #FFFEFB) 37%,
+        var(--color-surface-alt, #F1EDE8) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeletonPulse 1.8s ease infinite;
+    border-radius: var(--radius-sm, 10px);
+}
+
+.skeleton-card {
+    pointer-events: none;
+}
+
+.skeleton-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+.skeleton-text-lg {
+    height: 28px;
+    width: 60%;
+    margin-bottom: 10px;
+}
+
+.skeleton-text-sm {
+    height: 16px;
+    width: 40%;
+}
+
+[data-theme="dark"] .skeleton-pulse {
+    background: linear-gradient(
+        90deg,
+        var(--color-surface-alt, #222E25) 25%,
+        var(--color-surface, #1A241C) 37%,
+        var(--color-surface-alt, #222E25) 63%
+    );
+    background-size: 400% 100%;
 }

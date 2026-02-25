@@ -1,22 +1,21 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تحليل النتائج | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js" defer></script>
     <script src="js/sidebar.js" defer></script>
+    <script src="js/cc-rules.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
     <style>
-        /* ─── Analysis Header ─── */
+        /* --- Analysis Header --- */
         .analysis-header {
             display: flex;
             align-items: center;
@@ -34,14 +33,14 @@
             gap: 10px;
         }
 
-        /* ─── Filters ─── */
+        /* --- Filters --- */
         .analysis-filters-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 12px;
         }
 
-        /* ─── KPI Cards ─── */
+        /* --- KPI Cards --- */
         .analysis-kpis {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -180,7 +179,7 @@
             font-weight: 500;
         }
 
-        /* ─── Grid Layouts ─── */
+        /* --- Grid Layouts --- */
         .analysis-grid-two {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -195,7 +194,7 @@
             margin-bottom: 16px;
         }
 
-        /* ─── Panels (Glassmorphism) ─── */
+        /* --- Panels (Glassmorphism) --- */
         .analysis-panel {
             background: var(--glass-bg);
             backdrop-filter: blur(10px);
@@ -229,7 +228,7 @@
             color: var(--color-primary-light);
         }
 
-        /* ─── Progress Bars ─── */
+        /* --- Progress Bars --- */
         .analysis-progress-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -327,7 +326,7 @@
             justify-content: space-between;
         }
 
-        /* ─── Zero Students List ─── */
+        /* --- Zero Students List --- */
         .analysis-zero-list {
             display: flex;
             flex-direction: column;
@@ -373,7 +372,7 @@
             font-weight: 700;
         }
 
-        /* ─── Summary Table ─── */
+        /* --- Summary Table --- */
         .analysis-summary-table {
             width: 100%;
             border-collapse: separate;
@@ -426,7 +425,7 @@
             color: #fff;
         }
 
-        /* ─── Charts ─── */
+        /* --- Charts --- */
         .analysis-detail-chart {
             min-height: 280px;
             max-height: 320px;
@@ -448,7 +447,7 @@
             font-weight: 600;
         }
 
-        /* ─── Collapsible Blocks ─── */
+        /* --- Collapsible Blocks --- */
         .analysis-block {
             background: var(--color-surface);
             border: 1px solid var(--color-accent);
@@ -521,7 +520,7 @@
             padding: 18px;
         }
 
-        /* ─── Empty State ─── */
+        /* --- Empty State --- */
         .analysis-empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -539,7 +538,7 @@
             font-weight: 500;
         }
 
-        /* ─── Responsive ─── */
+        /* --- Responsive --- */
         @media (max-width: 1100px) {
             .analysis-grid-two {
                 grid-template-columns: 1fr;
@@ -690,7 +689,7 @@
                 const classSelect = document.getElementById('class-select');
                 const typeSelect = document.getElementById('analysis-type');
 
-                // Cascading: Level → Class → Subject
+                // Cascading: Level ? Class ? Subject
                 if (levelSelect) {
                     levelSelect.addEventListener('change', () => {
                         renderClassOptions(levelSelect.value);
@@ -797,11 +796,11 @@
         }
 
         function studentIdentity(record) {
-            return String(record.student_id || record.student_code || record.full_name || 'غير محدد');
+            return String(record.student_id || record.student_code || record.full_name || 'غير معرف');
         }
 
         function studentLabel(record) {
-            return String(record.full_name || record.student_code || record.student_id || 'غير محدد');
+            return String(record.full_name || record.student_code || record.student_id || 'غير معرف');
         }
 
         function tooltipLabelWithPercent(context, total) {
@@ -818,12 +817,12 @@
 
             const compact = s.replace(/[\s_]/g, '').toUpperCase();
             if (compact.startsWith('TCS')) return 'الجذع المشترك';
-            if (compact.startsWith('1BACSEF')) return 'الأولى باكالوريا العلوم التجريبية – خيار فرنسية';
-            if (compact.startsWith('1BACSMF')) return 'الأولى باكالوريا العلوم الرياضية – خيار فرنسية';
+            if (compact.startsWith('1BACSEF')) return 'الأولى باكالوريا العلوم التجريبية – خيار فرنسي';
+            if (compact.startsWith('1BACSMF')) return 'الأولى باكالوريا العلوم الرياضية – خيار فرنسي';
             if (compact.startsWith('1BACSH')) return 'الأولى باكالوريا العلوم الإنسانية';
             if (compact.startsWith('1BACSEG')) return 'الأولى باكالوريا العلوم الاقتصادية والتدبير';
             if (compact.startsWith('1BAC')) return 'الأولى باكالوريا';
-            if (compact.startsWith('2BACSPF')) return 'الثانية باكالوريا العلوم الفيزيائية – خيار فرنسية';
+            if (compact.startsWith('2BACSPF')) return 'الثانية باكالوريا العلوم الفيزيائية – خيار فرنسي';
             if (compact.startsWith('2BACSE')) return 'الثانية باكالوريا علوم الحياة والأرض';
             if (compact.startsWith('2BACSH')) return 'الثانية باكالوريا العلوم الإنسانية';
             if (compact.startsWith('2BAC')) return 'الثانية باكالوريا';
@@ -917,22 +916,32 @@
             teacherSubjectSelect.style.display = isTeacherMode ? '' : 'none';
         }
 
-        // Calculate general average per student (average of all subject averages)
-        function calculateStudentGeneralAverage(grades, studentId) {
+        function calculateStudentGeneralAverage(grades, studentId, section) {
             const studentGrades = grades.filter(g => studentIdentity(g) === studentId);
             const bySubject = {};
             studentGrades.forEach(g => {
-                const subject = normalizeSubjectName(g.subject);
+                const subject = typeof ccBaseSubject === 'function'
+                    ? ccBaseSubject(normalizeSubjectName(g.subject))
+                    : normalizeSubjectName(g.subject);
                 if (!bySubject[subject]) bySubject[subject] = [];
-                bySubject[subject].push(g.grade);
+                bySubject[subject].push(g);
             });
-            const subjectAverages = Object.values(bySubject).map(arr => avg(arr));
-            return avg(subjectAverages);
+            const subjectAverages = Object.entries(bySubject).map(([subj, grds]) => {
+                const a = typeof computeSubjectAverage === 'function'
+                    ? computeSubjectAverage(subj, grds)
+                    : avg(grds.map(g => g.grade));
+                return { subject: subj, avg: a };
+            });
+            const sectionName = section || (studentGrades[0] && studentGrades[0].section) || '';
+            const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
+            return typeof computeWeightedGeneralAverage === 'function'
+                ? computeWeightedGeneralAverage(subjectAverages, branch)
+                : avg(subjectAverages.map(s => s.avg));
         }
 
         function normalizeSubjectName(subject) {
             const clean = String(subject || '')
-                .replace(/\s*\(\s*فرض\s*\d+\s*\)\s*$/i, '')
+                .replace(/\s*\(\s*نشط\s*\d+\s*\)\s*$/i, '')
                 .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
                 .trim();
             return clean || 'غير محدد';
@@ -1147,13 +1156,27 @@
 
                 const subjectAverages = Array.from(subjectStats.entries(), ([subject, stats]) => ({
                     subject,
-                    avg: stats.sum / stats.count
+                    avg: typeof computeSubjectAverage === 'function'
+                        ? computeSubjectAverage(subject, filtered.filter(g => normalizeSubjectName(g.subject) === subject))
+                        : (stats.count ? stats.sum / stats.count : 0)
                 }));
                 const overallSubjectAvg = avg(subjectAverages.map(s => s.avg));
 
-                const studentGeneralAverages = Array.from(studentStats.values(), bySubject => {
-                    const studentSubjectAvgs = Array.from(bySubject.values(), stats => stats.sum / stats.count);
-                    return avg(studentSubjectAvgs);
+                const studentGeneralAverages = Array.from(studentStats.entries(), ([_id, bySubject]) => {
+                    const studentSubjectAvgs = Array.from(bySubject.entries(), ([subj, stats]) => {
+                        if (typeof computeSubjectAverage === 'function') {
+                            const studentSubjGrades = filtered.filter(g =>
+                                studentIdentity(g) === _id && normalizeSubjectName(g.subject) === subj
+                            );
+                            return { subject: subj, avg: computeSubjectAverage(subj, studentSubjGrades) };
+                        }
+                        return { subject: subj, avg: stats.sum / stats.count };
+                    });
+                    const sectionName = className || (filtered.find(g => studentIdentity(g) === _id) || {}).section || '';
+                    const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
+                    return typeof computeWeightedGeneralAverage === 'function'
+                        ? computeWeightedGeneralAverage(studentSubjectAvgs, branch)
+                        : avg(studentSubjectAvgs.map(s => s.avg));
                 });
                 const generalAvg = avg(studentGeneralAverages);
 
@@ -1175,7 +1198,7 @@
                         <div class="analysis-kpi-icon" style="background: var(--gradient-primary);"><i class="fas fa-users"></i></div>
                         <div class="analysis-kpi-label">عدد التلاميذ</div>
                         <div class="analysis-kpi-value">${studentCount}</div>
-                        <div class="analysis-kpi-sub">${sectionsCount} قسم · ${subjectStats.size} مادة</div>
+                        <div class="analysis-kpi-sub">${sectionsCount} قسم – ${subjectStats.size} مادة</div>
                     </div>
                     <div class="analysis-kpi-card">
                         <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--color-success), #38ef7d);"><i class="fas fa-calculator"></i></div>
@@ -1187,19 +1210,19 @@
                         <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--color-warning), #ffd200);"><i class="fas fa-chart-area"></i></div>
                         <div class="analysis-kpi-label">الانحراف المعياري</div>
                         <div class="analysis-kpi-value">${stdDevGrade.toFixed(2)}</div>
-                        <div class="analysis-kpi-sub">أدنى: ${minGrade.toFixed(1)} · أعلى: ${maxGrade.toFixed(1)}</div>
+                        <div class="analysis-kpi-sub">أدنى: ${minGrade.toFixed(1)} – أعلى: ${maxGrade.toFixed(1)}</div>
                     </div>
                     <div class="analysis-kpi-card">
                         <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, #a770ef, #cf8bf3);"><i class="fas fa-trophy"></i></div>
                         <div class="analysis-kpi-label">نسبة النجاح</div>
                         <div class="analysis-kpi-value">${passRate.toFixed(1)}%</div>
-                        <div class="analysis-kpi-sub">${passCount} ناجح من ${filtered.length} نقطة</div>
+                        <div class="analysis-kpi-sub">${passCount} نجاح من ${filtered.length} نقطة</div>
                     </div>
                     <div class="analysis-kpi-card">
                         <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--color-danger), #ff9a76);"><i class="fas fa-star"></i></div>
                         <div class="analysis-kpi-label">نسبة التفوق</div>
                         <div class="analysis-kpi-value">${percentage(excellenceCount, filtered.length).toFixed(1)}%</div>
-                        <div class="analysis-kpi-sub">${excellenceCount} بنقطة ≥ 16</div>
+                        <div class="analysis-kpi-sub">${excellenceCount} نقطة >= 16</div>
                     </div>
                     <div class="analysis-kpi-card">
                         <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--info), #89bfe8);"><i class="fas fa-exclamation-triangle"></i></div>
@@ -1216,17 +1239,17 @@
                     <div class="analysis-progress-item">
                         <div class="analysis-progress-title"><i class="fas fa-arrow-trend-up"></i> نقط 12 فأكثر (جيد وأعلى)</div>
                         <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(improved, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-success), #38ef7d);">${percentage(improved, filtered.length).toFixed(0)}%</div></div>
-                        <div class="analysis-progress-meta"><span>${percentage(improved, filtered.length).toFixed(1)}%</span><span>${improved} نقطة</span></div>
+                        <div class="analysis-progress-meta"><span>${percentage(improved, filtered.length).toFixed(1)}%</span><span>${improved} ????</span></div>
                     </div>
                     <div class="analysis-progress-item">
                         <div class="analysis-progress-title"><i class="fas fa-minus"></i> نقط 10 - 12 (مقبول)</div>
                         <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(stable, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-warning), #ffd200);">${percentage(stable, filtered.length).toFixed(0)}%</div></div>
-                        <div class="analysis-progress-meta"><span>${percentage(stable, filtered.length).toFixed(1)}%</span><span>${stable} نقطة</span></div>
+                        <div class="analysis-progress-meta"><span>${percentage(stable, filtered.length).toFixed(1)}%</span><span>${stable} ????</span></div>
                     </div>
                     <div class="analysis-progress-item">
-                        <div class="analysis-progress-title"><i class="fas fa-arrow-trend-down"></i> نقط أقل من 10 (ضعيف)</div>
+                        <div class="analysis-progress-title"><i class="fas fa-arrow-trend-down"></i> ??? ??? ?? 10 (????)</div>
                         <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(declined, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-danger), #ff9a76);">${percentage(declined, filtered.length).toFixed(0)}%</div></div>
-                        <div class="analysis-progress-meta"><span>${percentage(declined, filtered.length).toFixed(1)}%</span><span>${declined} نقطة</span></div>
+                        <div class="analysis-progress-meta"><span>${percentage(declined, filtered.length).toFixed(1)}%</span><span>${declined} ????</span></div>
                     </div>
                 `;
 
@@ -1262,7 +1285,7 @@
                     if (!zeroByStudent[key]) {
                         zeroByStudent[key] = {
                             label: studentLabel(g),
-                            section: g.section || 'غير محدد',
+                            section: g.section || '??? ????',
                             count: 0
                         };
                     }
@@ -1275,7 +1298,7 @@
                     ? topZeroStudents.map((s, i) => `
                         <div class="analysis-zero-item">
                             <div><strong>${i + 1}. ${s.label}</strong><div style="font-size:12px; color:#6b7280;">${s.section}</div></div>
-                            <span class="analysis-zero-badge">${s.count} صفر</span>
+                            <span class="analysis-zero-badge">${s.count} ???</span>
                         </div>
                     `).join('')
                     : '<p>لا يوجد تلاميذ حاصلون على 0 ضمن الفلاتر الحالية.</p>';
@@ -1283,7 +1306,7 @@
                 const zeroBySection = {};
                 filtered.forEach(g => {
                     if (g.grade !== 0) return;
-                    const section = g.section || 'غير محدد';
+                    const section = g.section || '??? ????';
                     zeroBySection[section] = (zeroBySection[section] || 0) + 1;
                 });
                 const zeroSectionLabels = Object.keys(zeroBySection).sort((a, b) => zeroBySection[b] - zeroBySection[a]).slice(0, 8);
@@ -1414,7 +1437,7 @@
                 } else if (type === 'comparison') {
                     const bySection = {};
                     filtered.forEach(g => {
-                        const s = g.section || 'غير محدد';
+                        const s = g.section || '??? ????';
                         if (!bySection[s]) bySection[s] = [];
                         bySection[s].push(g.grade);
                     });

@@ -1981,6 +1981,77 @@ body {
     padding: 20px;
 }
 
+/* ===== Utility Classes ===== */
+.hidden {
+    display: none !important;
+}
+
+.skeleton-chart {
+    height: 300px;
+    border-radius: var(--radius-md);
+}
+
+/* Backup Modal Active State (toggled by dashboard-init.js) */
+#backup-modal.active {
+    display: flex;
+}
+
+/* ===== Responsive Breakpoints ===== */
+@media (max-width: 1200px) {
+    .movement-stats {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .movement-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .movement-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .header {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .header-left,
+    .header-right {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .search-box {
+        width: 100%;
+    }
+
+    .search-box input:focus {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .movement-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Print Styles */
 @media print {
     @page {

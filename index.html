@@ -1,15 +1,14 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2D5F4A">
     <title>برنامج التدبير المدرسي | الثانوية التأهيلية ابن سينا</title>
     <meta name="description" content="نظام التدبير المدرسي المتكامل لإدارة شؤون التلاميذ">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
@@ -26,138 +25,193 @@
     <main class="main-content">
         <header class="header">
             <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <div class="search-box"><input type="text" placeholder="بحث..."><i class="fas fa-search"></i></div>
+                <button class="menu-toggle" id="menu-toggle" aria-label="فتح/إغلاق القائمة">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
+                </button>
+                <div class="search-box" role="search">
+                    <input type="text" id="header-search" placeholder="ابحث عن صفحة..." aria-label="بحث">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                </div>
             </div>
             <div class="header-right">
                 <!-- Theme Toggle -->
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
-                    <i class="fas fa-moon"></i>
+                <button class="theme-toggle" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة">
+                    <i class="fas fa-moon" aria-hidden="true"></i>
                 </button>
                 <!-- Keyboard Shortcuts -->
-                <button class="theme-toggle" id="shortcuts-btn" title="اختصارات لوحة المفاتيح (?)">
-                    <i class="fas fa-keyboard"></i>
+                <button class="theme-toggle" id="shortcuts-btn" title="اختصارات لوحة المفاتيح (?)"
+                    aria-label="اختصارات لوحة المفاتيح">
+                    <i class="fas fa-keyboard" aria-hidden="true"></i>
                 </button>
-                <select id="school-year">
+                <!-- Backup Button -->
+                <button class="theme-toggle" id="backup-btn" title="إدارة النسخة الاحتياطية"
+                    aria-label="إدارة النسخة الاحتياطية">
+                    <i class="fas fa-database" aria-hidden="true"></i>
+                </button>
+                <select id="school-year" aria-label="اختيار الموسم">
                     <option value="2025/2026" selected>2025/2026</option>
                 </select>
-                <button class="notification-btn"><i class="fas fa-bell"></i><span class="badge">3</span></button>
+                <button class="notification-btn" aria-label="الإشعارات">
+                    <i class="fas fa-bell" aria-hidden="true"></i>
+                    <span class="badge" id="notification-badge" style="display:none;">0</span>
+                </button>
                 <div class="user-info" id="user-info">
                     <span id="user-email">المستخدم</span>
                 </div>
             </div>
         </header>
-        <section class="stats-section" id="stats-section"></section>
-        <section class="owner-sync-section" id="owner-sync-section" style="display:none;"></section>
-        <section class="charts-section" id="charts-section"></section>
+
+        <h1 class="sr-only">لوحة التحكم — الثانوية التأهيلية ابن سينا</h1>
+
+        <!-- Stats Section with Skeleton -->
+        <section class="stats-section" id="stats-section">
+            <div class="stats-grid skeleton-grid">
+                <div class="stat-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-icon"></div>
+                    <div class="skeleton-pulse skeleton-text-lg"></div>
+                    <div class="skeleton-pulse skeleton-text-sm"></div>
+                </div>
+                <div class="stat-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-icon"></div>
+                    <div class="skeleton-pulse skeleton-text-lg"></div>
+                    <div class="skeleton-pulse skeleton-text-sm"></div>
+                </div>
+                <div class="stat-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-icon"></div>
+                    <div class="skeleton-pulse skeleton-text-lg"></div>
+                    <div class="skeleton-pulse skeleton-text-sm"></div>
+                </div>
+                <div class="stat-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-icon"></div>
+                    <div class="skeleton-pulse skeleton-text-lg"></div>
+                    <div class="skeleton-pulse skeleton-text-sm"></div>
+                </div>
+                <div class="stat-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-icon"></div>
+                    <div class="skeleton-pulse skeleton-text-lg"></div>
+                    <div class="skeleton-pulse skeleton-text-sm"></div>
+                </div>
+                <div class="stat-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-icon"></div>
+                    <div class="skeleton-pulse skeleton-text-lg"></div>
+                    <div class="skeleton-pulse skeleton-text-sm"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="owner-sync-section hidden" id="owner-sync-section"></section>
+
+        <!-- Charts Section with Skeleton -->
+        <section class="charts-section" id="charts-section">
+            <div class="charts-grid skeleton-grid">
+                <div class="chart-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-chart"></div>
+                </div>
+                <div class="chart-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-chart"></div>
+                </div>
+                <div class="chart-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-chart"></div>
+                </div>
+                <div class="chart-card skeleton-card">
+                    <div class="skeleton-pulse skeleton-chart"></div>
+                </div>
+            </div>
+        </section>
+
         <section class="movement-section" id="movement-section"></section>
-        <section class="table-section" id="table-section"></section>
     </main>
 
-
-    <!-- Quick Navigation Panel -->
-    <div class="quick-nav-panel" id="quick-nav-panel">
-        <div class="quick-nav-header">
-            <h3><i class="fas fa-compass"></i> التنقل السريع</h3>
-            <button class="quick-nav-close" id="quick-nav-close">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="quick-nav-search">
-            <input type="text" id="quick-nav-search-input" placeholder="بحث...">
-        </div>
-        <div class="quick-nav-list" id="quick-nav-pages-list">
-            <div class="quick-nav-item" onclick="location.href='index.html'">
-                <i class="fas fa-chart-pie"></i>
-                <span>لوحة التحكم</span>
+    <!-- Backup Modal -->
+    <div class="shortcuts-modal" id="backup-modal" role="dialog" aria-labelledby="backup-modal-title" aria-modal="true">
+        <div class="shortcuts-content">
+            <div class="modal-header">
+                <h3 id="backup-modal-title"><i class="fas fa-database" aria-hidden="true"></i> إدارة النسخة الاحتياطية
+                </h3>
+                <button class="close-modal" id="backup-close" aria-label="إغلاق">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
             </div>
-            <div class="quick-nav-item" onclick="location.href='grades.html'">
-                <i class="fas fa-star"></i>
-                <span>النتائج والإحصائيات</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='analytics.html'">
-                <i class="fas fa-chart-bar"></i>
-                <span>تحليل النتائج</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='timetable.html'">
-                <i class="fas fa-table"></i>
-                <span>جداول الحصص</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='absence-weekly.html'">
-                <i class="fas fa-calendar-week"></i>
-                <span>ورقة الغياب الأسبوعية</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='absence-students.html'">
-                <i class="fas fa-user-times"></i>
-                <span>غياب التلاميذ</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='absence-analytics.html'">
-                <i class="fas fa-chart-line"></i>
-                <span>تحليل الغياب</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='teachers-list.html'">
-                <i class="fas fa-chalkboard-teacher"></i>
-                <span>قائمة الأساتذة</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='exams-schedule.html'">
-                <i class="fas fa-file-signature"></i>
-                <span>برمجة الامتحانات</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='reports-certificates.html'">
-                <i class="fas fa-certificate"></i>
-                <span>الشواهد المدرسية</span>
-            </div>
-            <div class="quick-nav-item" onclick="location.href='settings-imports.html'">
-                <i class="fas fa-cog"></i>
-                <span>استيراد البيانات</span>
+            <div class="modal-body" style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+                <p style="color:var(--color-text-muted);font-size:14px;">يمكنك إنشاء نسخة احتياطية من قاعدة البيانات أو
+                    استعادة نسخة سابقة.</p>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <button class="btn-apply" id="create-backup-btn" style="flex:1;min-width:160px;">
+                        <i class="fas fa-download" aria-hidden="true"></i> إنشاء نسخة احتياطية
+                    </button>
+                    <button class="btn-apply" id="restore-backup-btn"
+                        style="flex:1;min-width:160px;background:var(--color-warning);">
+                        <i class="fas fa-upload" aria-hidden="true"></i> استعادة نسخة
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+    <input type="file" id="backup-file-input" accept=".json,.bak" style="display:none;" aria-hidden="true">
+
+
+    <!-- Quick Navigation Panel (populated dynamically from sidebar links) -->
+    <nav class="quick-nav-panel" id="quick-nav-panel" aria-label="التنقل السريع">
+        <div class="quick-nav-header">
+            <h3><i class="fas fa-compass" aria-hidden="true"></i> التنقل السريع</h3>
+            <button class="quick-nav-close" id="quick-nav-close" aria-label="إغلاق لوحة التنقل">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="quick-nav-search">
+            <input type="text" id="quick-nav-search-input" placeholder="بحث..." aria-label="بحث في الصفحات">
+        </div>
+        <div class="quick-nav-list" id="quick-nav-pages-list">
+            <!-- Populated dynamically by ux-enhancements.js from sidebar links -->
+        </div>
+    </nav>
 
     <!-- Quick Nav Toggle Button -->
-    <button class="quick-nav-toggle" id="quick-nav-toggle" title="التنقل السريع (Ctrl+K)">
-        <i class="fas fa-compass"></i>
+    <button class="quick-nav-toggle" id="quick-nav-toggle" title="التنقل السريع (Ctrl+K)" aria-label="التنقل السريع">
+        <i class="fas fa-compass" aria-hidden="true"></i>
     </button>
 
     <!-- Keyboard Shortcuts Modal -->
-    <div class="shortcuts-modal" id="shortcuts-modal">
+    <div class="shortcuts-modal" id="shortcuts-modal" role="dialog" aria-labelledby="shortcuts-modal-title"
+        aria-modal="true">
         <div class="shortcuts-content">
             <div class="modal-header">
-                <h3><i class="fas fa-keyboard"></i> اختصارات لوحة المفاتيح</h3>
-                <button class="close-modal" onclick="closeShortcutsModal()">
-                    <i class="fas fa-times"></i>
+                <h3 id="shortcuts-modal-title"><i class="fas fa-keyboard" aria-hidden="true"></i> اختصارات لوحة المفاتيح
+                </h3>
+                <button class="close-modal" id="shortcuts-close" aria-label="إغلاق">
+                    <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
             </div>
             <div class="modal-body">
                 <div class="shortcuts-grid">
                     <div class="shortcut-item">
-                        <span>طباعة</span>
+                        <span>لوحة التحكم</span>
                         <div class="shortcut-keys">
                             <span class="shortcut-key">Ctrl</span>
                             <span class="shortcut-key">P</span>
                         </div>
                     </div>
                     <div class="shortcut-item">
-                        <span>البحث</span>
+                        <span>النتائج والإحصائيات</span>
                         <div class="shortcut-keys">
                             <span class="shortcut-key">/</span>
                         </div>
                     </div>
                     <div class="shortcut-item">
-                        <span>التنقل السريع</span>
+                        <span>تحليل النتائج</span>
                         <div class="shortcut-keys">
                             <span class="shortcut-key">Ctrl</span>
                             <span class="shortcut-key">K</span>
                         </div>
                     </div>
                     <div class="shortcut-item">
-                        <span>إظهار الاختصارات</span>
+                        <span>جداول الحصص</span>
                         <div class="shortcut-keys">
                             <span class="shortcut-key">?</span>
                         </div>
                     </div>
                     <div class="shortcut-item">
-                        <span>إغلاق النوافذ</span>
+                        <span>ورقة الغياب الأسبوعية</span>
                         <div class="shortcut-keys">
                             <span class="shortcut-key">Esc</span>
                         </div>

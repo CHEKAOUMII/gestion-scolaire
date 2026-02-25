@@ -12,10 +12,61 @@ const GUEST_ALLOWED_PAGES = new Set(['index.html', 'students-list.html', 'settin
 const GUEST_ALLOWED_LINKS = new Set(['students-list.html', 'settings-imports.html']);
 const BLOCKED_REDIRECT_NOTICE_KEY = 'gsl_blocked_redirect_notice';
 const BLOCKED_REDIRECT_NEXT_KEY = 'gsl_blocked_redirect_next';
+const PAGE_VISIBILITY_BLOCKED_NOTICE_KEY = 'gsl_page_visibility_blocked_notice';
+
+const PAGE_VISIBILITY_CATALOG = Object.freeze([
+    { page: 'index.html', title: 'لوحة التحكم', group: 'عام', completed: true },
+    { page: 'students-list.html', title: 'لوائح التلاميذ', group: 'التلاميذ', completed: true },
+    { page: 'students-register.html', title: 'التسجيل والحركة العامة', group: 'التلاميذ', completed: true },
+    { page: 'students-files.html', title: 'ترتيب الملفات', group: 'التلاميذ', completed: true },
+    { page: 'students-movement.html', title: 'حركية التلاميذ', group: 'التلاميذ', completed: true },
+    { page: 'teachers-list.html', title: 'قائمة الأساتذة', group: 'الأساتذة', completed: true },
+    { page: 'teachers-schedule.html', title: 'حصص الأساتذة', group: 'الأساتذة', completed: true },
+    { page: 'teachers-absence.html', title: 'غياب الأساتذة', group: 'الأساتذة', completed: true },
+    { page: 'teachers-performance.html', title: 'مؤشرات الأداء', group: 'الأساتذة', completed: true },
+    { page: 'timetable.html', title: 'جداول الحصص', group: 'الاستعمال الزمني', completed: true },
+    { page: 'timetable-students.html', title: 'جدول حصص التلاميذ', group: 'الاستعمال الزمني', completed: true },
+    { page: 'timetable-rooms.html', title: 'جدول القاعات', group: 'الاستعمال الزمني', completed: true },
+    { page: 'timetable-teachers.html', title: 'جدول حصص الأساتذة', group: 'الاستعمال الزمني', completed: true },
+    { page: 'grades.html', title: 'النتائج والإحصائيات', group: 'التقويم والنتائج', completed: true },
+    { page: 'analytics.html', title: 'تحليل النتائج', group: 'التقويم والنتائج', completed: true },
+    { page: 'grades-sheets.html', title: 'أوراق التنقيط', group: 'التقويم والنتائج', completed: true },
+    { page: 'studentzero.html', title: 'التلاميذ الحاصلون على صفر', group: 'التقويم والنتائج', completed: true },
+    { page: 'student-support.html', title: 'الدعم التربوي', group: 'التقويم والنتائج', completed: true },
+    { page: 'absence-weekly.html', title: 'ورقة الغياب الأسبوعية', group: 'الغياب والمتابعة', completed: true },
+    { page: 'absence-students.html', title: 'غياب التلاميذ', group: 'الغياب والمتابعة', completed: true },
+    { page: 'absence-correspondence.html', title: 'مراسلة الأولياء', group: 'الغياب والمتابعة', completed: true },
+    { page: 'absence-analytics.html', title: 'إحصائيات الغياب', group: 'الغياب والمتابعة', completed: true },
+    { page: 'exams-schedule.html', title: 'برمجة الامتحانات', group: 'مركز الامتحانات', completed: true },
+    { page: 'exams-proctors.html', title: 'توزيع الحراسة', group: 'مركز الامتحانات', completed: true },
+    { page: 'exams-rooms.html', title: 'قاعات الامتحان', group: 'مركز الامتحانات', completed: true },
+    { page: 'exams-tests.html', title: 'تدبير الفروض', group: 'مركز الامتحانات', completed: true },
+    { page: 'reports-certificates.html', title: 'الشواهد المدرسية', group: 'التقارير والوثائق', completed: true },
+    { page: 'reports-forms.html', title: 'الاستمارات الإدارية', group: 'التقارير والوثائق', completed: true },
+    { page: 'reports-semester.html', title: 'تقارير الفصل', group: 'التقارير والوثائق', completed: true },
+    { page: 'settings-school.html', title: 'معلومات المؤسسة', group: 'الإعدادات', completed: true },
+    { page: 'settings-imports.html', title: 'استيراد البيانات', group: 'الإعدادات', completed: true },
+    { page: 'settings-users.html', title: 'المستخدمون', group: 'الإعدادات', completed: true },
+    { page: 'settings-license.html', title: 'الترخيص والأجهزة', group: 'الإعدادات', completed: true },
+    { page: 'settings-logs.html', title: 'سجل النشاطات', group: 'الإعدادات', completed: true },
+    { page: 'student-profile-prototype.html', title: 'ملف التلميذ (جديد)', group: 'التصاميم الجديدة', completed: false },
+    { page: 'communication-center-prototype.html', title: 'مركز التواصل (جديد)', group: 'التصاميم الجديدة', completed: false }
+]);
+
+const PAGE_DEFAULT_VISIBILITY = Object.freeze(
+    PAGE_VISIBILITY_CATALOG.reduce((acc, entry) => {
+        acc[entry.page] = entry.completed !== false;
+        return acc;
+    }, {})
+);
+
+const MANAGED_PAGE_SET = new Set(Object.keys(PAGE_DEFAULT_VISIBILITY));
 
 let _activationModalEl = null;
 let _limitedNoticeClosedForPage = false;
 let _refreshToken = 0;  // stale-request guard for refreshLimitedModeNotice
+let _pageVisibilityState = null;
+let _pageVisibilityLoadPromise = null;
 
 function _roleLabel(role) {
     if (role === 'guest') return 'Limited';
@@ -98,6 +149,235 @@ function _normalizeHref(href) {
     return value.split('#')[0].split('?')[0];
 }
 
+function _normalizePageKey(value) {
+    const normalizedHref = _normalizeHref(value).replace(/\\/g, '/');
+    if (!normalizedHref || normalizedHref === '#') return '';
+    const fileName = normalizedHref.split('/').pop() || '';
+    if (!/^[a-zA-Z0-9._-]+\.html$/.test(fileName)) return '';
+    return fileName;
+}
+
+function _getDefaultPageVisibilityMap() {
+    return { ...PAGE_DEFAULT_VISIBILITY };
+}
+
+function _isManagedPage(pageName) {
+    return MANAGED_PAGE_SET.has(pageName);
+}
+
+function _isPageVisibleByAdminConfig(pageName) {
+    if (!_isManagedPage(pageName)) return true;
+    if (!_pageVisibilityState || typeof _pageVisibilityState !== 'object') {
+        return PAGE_DEFAULT_VISIBILITY[pageName] !== false;
+    }
+    const storedValue = _pageVisibilityState[pageName];
+    if (typeof storedValue === 'boolean') return storedValue;
+    return PAGE_DEFAULT_VISIBILITY[pageName] !== false;
+}
+
+function _isPageHiddenByAdminToggle(pageName, role) {
+    if (_isAdminRole(role)) return false;
+    const normalizedPage = _normalizePageKey(pageName);
+    if (!normalizedPage) return false;
+    return !_isPageVisibleByAdminConfig(normalizedPage);
+}
+
+function _canRoleOpenPage(pageName, role) {
+    const normalizedPage = _normalizePageKey(pageName);
+    if (!normalizedPage) return false;
+    if (_isAdminRole(role)) return true;
+    if (_isPageHiddenByAdminToggle(normalizedPage, role)) return false;
+    if (ADMIN_ONLY_PAGES.has(normalizedPage)) return false;
+
+    const mode = String(role || '').toLowerCase();
+    if (mode === 'licensed' || mode === 'trial') return true;
+    return GUEST_ALLOWED_PAGES.has(normalizedPage);
+}
+
+function _pickSafeRedirectPage(role, blockedPage = '') {
+    const blocked = _normalizePageKey(blockedPage);
+    const candidates = ['index.html', 'students-list.html', 'settings-imports.html', 'login.html'];
+    for (const page of candidates) {
+        if (page === blocked) continue;
+        if (page === 'login.html') return page;
+        if (_canRoleOpenPage(page, role)) return page;
+    }
+    return 'login.html';
+}
+
+function _extractLinkedPageFromElement(node) {
+    if (!node || typeof node.getAttribute !== 'function') return '';
+    const dataPage = _normalizePageKey(node.getAttribute('data-page-link'));
+    if (dataPage) return dataPage;
+
+    const href = _normalizePageKey(node.getAttribute('href'));
+    if (href) return href;
+
+    const onClick = String(node.getAttribute('onclick') || '');
+    if (!onClick) return '';
+    const match = onClick.match(/location\.href\s*=\s*['\"]([^'\"]+)['\"]/i);
+    if (!match) return '';
+    return _normalizePageKey(match[1]);
+}
+
+function _setPageLinkElementHidden(node, hidden) {
+    if (!node) return;
+    const container = node.closest('.quick-nav-item, li') || node;
+    if (hidden) {
+        container.style.display = 'none';
+        container.setAttribute('aria-hidden', 'true');
+        container.dataset.pageVisibilityHidden = '1';
+        return;
+    }
+    container.style.display = '';
+    container.removeAttribute('aria-hidden');
+    delete container.dataset.pageVisibilityHidden;
+}
+
+function applyPageVisibilityToDocument(role) {
+    const isAdmin = _isAdminRole(role);
+    document.querySelectorAll('a[href], [onclick*="location.href"], [data-page-link]').forEach((node) => {
+        const linkedPage = _extractLinkedPageFromElement(node);
+        if (!linkedPage) return;
+        const shouldHide = !isAdmin && (ADMIN_ONLY_PAGES.has(linkedPage) || _isPageHiddenByAdminToggle(linkedPage, role));
+        _setPageLinkElementHidden(node, shouldHide);
+    });
+}
+
+function getPageVisibilityCatalog() {
+    return PAGE_VISIBILITY_CATALOG.map((entry) => {
+        const page = _normalizePageKey(entry.page);
+        return {
+            page,
+            title: entry.title,
+            group: entry.group,
+            completed: entry.completed !== false,
+            isAdminOnly: ADMIN_ONLY_PAGES.has(page),
+            visible: _isPageVisibleByAdminConfig(page)
+        };
+    });
+}
+
+function getPageVisibilityMapSnapshot() {
+    return {
+        ..._getDefaultPageVisibilityMap(),
+        ...(_pageVisibilityState || {})
+    };
+}
+
+async function loadPageVisibilityState(forceRefresh = false) {
+    if (!forceRefresh && _pageVisibilityState) {
+        return _pageVisibilityState;
+    }
+    if (!forceRefresh && _pageVisibilityLoadPromise) {
+        return _pageVisibilityLoadPromise;
+    }
+
+    const defaults = _getDefaultPageVisibilityMap();
+    const mergeVisibilityMap = (sourceMap) => {
+        const merged = { ...defaults };
+        if (!sourceMap || typeof sourceMap !== 'object') return merged;
+        for (const [page, isVisible] of Object.entries(sourceMap)) {
+            const key = _normalizePageKey(page);
+            if (!key || !_isManagedPage(key)) continue;
+            merged[key] = isVisible === true;
+        }
+        return merged;
+    };
+
+    const run = async () => {
+        if (window.api?.pageVisibility?.getMap) {
+            try {
+                const response = await window.api.pageVisibility.getMap();
+                if (response?.success && response.map && typeof response.map === 'object') {
+                    _pageVisibilityState = mergeVisibilityMap(response.map);
+                    return _pageVisibilityState;
+                }
+            } catch (_err) {
+                // fallback to settings-based storage
+            }
+        }
+
+        if (window.api?.settings?.get) {
+            try {
+                const raw = await window.api.settings.get('pageVisibilityMap');
+                if (raw) {
+                    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    _pageVisibilityState = mergeVisibilityMap(parsed);
+                    return _pageVisibilityState;
+                }
+            } catch (_err) {
+                // ignore parse/storage errors and fallback to defaults
+            }
+        }
+
+        _pageVisibilityState = defaults;
+        return _pageVisibilityState;
+    };
+
+    _pageVisibilityLoadPromise = run().finally(() => {
+        _pageVisibilityLoadPromise = null;
+    });
+
+    return _pageVisibilityLoadPromise;
+}
+
+async function setPageVisibilityForAdmin(page, isVisible) {
+    const pageKey = _normalizePageKey(page);
+    if (!pageKey || !_isManagedPage(pageKey)) {
+        return { success: false, error: 'اسم الصفحة غير صالح' };
+    }
+    if (window.api?.pageVisibility?.setVisibility) {
+        try {
+            const response = await window.api.pageVisibility.setVisibility({
+                pageKey,
+                isVisible: isVisible === true
+            });
+
+            if (response?.success) {
+                if (!_pageVisibilityState) {
+                    _pageVisibilityState = _getDefaultPageVisibilityMap();
+                }
+                _pageVisibilityState[pageKey] = isVisible === true;
+                return response;
+            }
+
+            if (response?.code === 'UNAUTHENTICATED' || response?.code === 'FORBIDDEN') {
+                return response;
+            }
+        } catch (_err) {
+            // fallback to settings-based storage
+        }
+    }
+
+    if (!window.api?.settings?.set) {
+        return { success: false, error: 'تعذر حفظ حالة ظهور الصفحة' };
+    }
+
+    await loadPageVisibilityState();
+    const nextMap = {
+        ..._getDefaultPageVisibilityMap(),
+        ...(_pageVisibilityState || {})
+    };
+    nextMap[pageKey] = isVisible === true;
+
+    const saveRes = await window.api.settings.set('pageVisibilityMap', JSON.stringify(nextMap));
+    if (!saveRes?.success) {
+        return {
+            success: false,
+            code: saveRes?.code || 'SAVE_FAILED',
+            error: saveRes?.error || 'تعذر حفظ حالة ظهور الصفحة'
+        };
+    }
+
+    _pageVisibilityState = nextMap;
+    return {
+        success: true,
+        pageKey,
+        isVisible: isVisible === true
+    };
+}
+
 function _isAdminRole(role) {
     return String(role || '').toLowerCase() === 'admin';
 }
@@ -163,8 +443,12 @@ function clearAuthSession() {
 
 function _isSidebarLinkBlocked(href, role) {
     if (_isAdminRole(role)) return false;
-    const normalizedHref = _normalizeHref(href);
+    const normalizedHref = _normalizePageKey(href);
     if (!normalizedHref || normalizedHref === '#') return false;
+
+    if (_isPageHiddenByAdminToggle(normalizedHref, role)) {
+        return true;
+    }
 
     const mode = String(role || '').toLowerCase();
     if (mode === 'licensed' || mode === 'trial') {
@@ -184,6 +468,11 @@ function applyNavigationRestrictions(role) {
                 if (!_isSidebarLinkBlocked(link.getAttribute('href'), mode)) return;
                 event.preventDefault();
                 event.stopPropagation();
+                const href = _normalizePageKey(link.getAttribute('href'));
+                if (_isPageHiddenByAdminToggle(href, mode)) {
+                    showToast('هذه الصفحة غير متاحة حالياً', 'warning');
+                    return;
+                }
                 const message =
                     (mode === 'licensed' || mode === 'trial')
                         ? 'هذه الصفحة مخصصة للمشرف (Admin)'
@@ -193,16 +482,17 @@ function applyNavigationRestrictions(role) {
             link.dataset.limitedGuardBound = '1';
         }
 
-        const href = _normalizeHref(link.getAttribute('href'));
+        const href = _normalizePageKey(link.getAttribute('href'));
         const isAdminOnlyPage = ADMIN_ONLY_PAGES.has(href);
+        const isHiddenByAdmin = _isPageHiddenByAdminToggle(href, role);
         const blocked = _isSidebarLinkBlocked(link.getAttribute('href'), role);
         const listItem = link.closest('li');
 
-        // Completely hide admin-only pages for non-admin users
-        if (isAdminOnlyPage && !isAdmin) {
+        // Completely hide admin-only and manually hidden pages for non-admin users
+        if (!isAdmin && (isAdminOnlyPage || isHiddenByAdmin)) {
             if (listItem) listItem.style.display = 'none';
             return;
-        } else if (isAdminOnlyPage && isAdmin) {
+        } else if (isAdminOnlyPage || isHiddenByAdmin) {
             if (listItem) listItem.style.display = '';
         }
 
@@ -263,15 +553,26 @@ function redirectToLoginPage() {
     window.location.replace(`login.html?next=${next}`);
 }
 
-function redirectToIndexPage() {
-    window.location.replace('index.html');
+function redirectToSafePage(role, blockedPage = '') {
+    const target = _pickSafeRedirectPage(role, blockedPage);
+    window.location.replace(target);
 }
 
 function enforcePageRoleOrRedirect(role) {
-    const currentPage = _getCurrentPageName();
+    const currentPage = _normalizePageKey(_getCurrentPageName());
     const isAdmin = _isAdminRole(role);
 
     if (isAdmin) return true;
+
+    if (_isPageHiddenByAdminToggle(currentPage, role)) {
+        try {
+            sessionStorage.setItem(PAGE_VISIBILITY_BLOCKED_NOTICE_KEY, '1');
+        } catch (_err) {
+            // ignore
+        }
+        redirectToSafePage(role, currentPage);
+        return false;
+    }
 
     const mode = String(role || '').toLowerCase();
 
@@ -282,7 +583,7 @@ function enforcePageRoleOrRedirect(role) {
             } catch (_err) {
                 // ignore
             }
-            redirectToIndexPage();
+            redirectToSafePage(role, currentPage);
             return false;
         }
         return true;
@@ -295,12 +596,12 @@ function enforcePageRoleOrRedirect(role) {
         } catch (_err) {
             // ignore
         }
-        redirectToIndexPage();
+        redirectToSafePage(role, currentPage);
         return false;
     }
 
     if (ADMIN_ONLY_PAGES.has(currentPage)) {
-        redirectToIndexPage();
+        redirectToSafePage(role, currentPage);
         return false;
     }
 
@@ -719,6 +1020,13 @@ function ensureAdminAuthButton(role) {
 
 function showPendingBlockedPageToast() {
     try {
+        const blockedByVisibility = sessionStorage.getItem(PAGE_VISIBILITY_BLOCKED_NOTICE_KEY);
+        if (blockedByVisibility) {
+            sessionStorage.removeItem(PAGE_VISIBILITY_BLOCKED_NOTICE_KEY);
+            showToast('هذه الصفحة غير متاحة حالياً', 'warning');
+            return;
+        }
+
         const blockedPage = sessionStorage.getItem(BLOCKED_REDIRECT_NOTICE_KEY);
         if (!blockedPage) return;
         sessionStorage.removeItem(BLOCKED_REDIRECT_NOTICE_KEY);
@@ -759,6 +1067,7 @@ function applyRoleUi(role, session) {
 
     applySessionToUI(session, role);
     applyNavigationRestrictions(role);
+    applyPageVisibilityToDocument(role);
     ensureAdminAuthButton(role);
     refreshLimitedModeNotice(role);
     showPendingBlockedPageToast();
@@ -766,6 +1075,7 @@ function applyRoleUi(role, session) {
     setTimeout(() => {
         const currentRole = getCurrentAppRole();
         applyNavigationRestrictions(currentRole);
+        applyPageVisibilityToDocument(currentRole);
         ensureAdminAuthButton(currentRole);
         refreshLimitedModeNotice(currentRole);
     }, 120);
@@ -799,6 +1109,8 @@ function applyRoleUi(role, session) {
         mode = await resolvePublicAccessMode();
     }
 
+    await loadPageVisibilityState();
+
     if (!enforcePageRoleOrRedirect(mode)) {
         return;
     }
@@ -819,6 +1131,18 @@ window.AuthSession = {
     get: getAuthSessionData,
     set: setAuthSession,
     clear: clearAuthSession
+};
+
+window.PageVisibility = {
+    getCatalog: getPageVisibilityCatalog,
+    getMap: getPageVisibilityMapSnapshot,
+    loadState: loadPageVisibilityState,
+    setVisibility: setPageVisibilityForAdmin,
+    applyForCurrentRole: () => {
+        const role = getCurrentAppRole();
+        applyNavigationRestrictions(role);
+        applyPageVisibilityToDocument(role);
+    }
 };
 
 // ===== XSS Protection =====

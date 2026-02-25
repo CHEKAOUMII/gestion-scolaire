@@ -137,6 +137,58 @@ function registerSystemIpc(ipcMain) {
         }
     });
 
+    // ── Admin password reset (no auth required — recovery mechanism) ──
+    ipcMain.handle('users:resetAdminPassword', async () => {
+        try {
+            const db = getDb();
+            const admin = db.prepare("SELECT id FROM users WHERE id = 1 AND lower(email) = 'admin@school.local'").get();
+            if (!admin) {
+                return { success: false, error: 'لم يتم العثور على حساب المشرف الافتراضي' };
+            }
+            const newPassword = generateRandomPassword();
+            db.prepare(
+                'UPDATE users SET password_hash = ?, disabled = 0, must_change_password = 1 WHERE id = 1'
+            ).run(hashPassword(newPassword));
+            console.log('[RESET] Admin password has been reset to: ' + newPassword);
+            return { success: true, temporaryPassword: newPassword };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── Save current page visibility as defaults for future installations ──
+    ipcMain.handle('system:savePageVisibilityDefaults', async (event) => {
+        try {
+            requireRole(event, ['admin']);
+            const db = getDb();
+            const path = require('path');
+            const fs = require('fs');
+
+            // Get all pages that are explicitly hidden
+            const rows = db.prepare(
+                'SELECT page_key FROM page_visibility WHERE is_visible = 0'
+            ).all();
+            const hiddenPages = rows.map(r => r.page_key).filter(Boolean).sort();
+
+            const defaults = {
+                version: 1,
+                description: 'Default page visibility settings. Hidden pages here will be hidden for all new installations.',
+                updatedAt: new Date().toISOString(),
+                hiddenPages
+            };
+
+            const defaultsPath = path.join(__dirname, '..', '..', 'page-visibility-defaults.json');
+            fs.writeFileSync(defaultsPath, JSON.stringify(defaults, null, 2) + '\n', 'utf-8');
+
+            return { success: true, hiddenCount: hiddenPages.length };
+        } catch (err) {
+            if (err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN') {
+                return authErrorResponse(err);
+            }
+            return { success: false, error: err.message };
+        }
+    });
+
     ipcMain.handle('system:printCurrentWindow', async (event, options = {}) => {
         try {
             const webContents = event.sender;

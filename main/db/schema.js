@@ -12,6 +12,7 @@ function createTables() {
             full_name TEXT NOT NULL,
             family_name TEXT,
             birth_date TEXT,
+            birth_place TEXT,
             gender TEXT,
             section TEXT,
             school_year TEXT,
@@ -214,6 +215,7 @@ function createTables() {
 
     ensureLicensingSchema(db);
     ensureOwnerSyncSchema(db);
+    ensurePageVisibilitySchema(db);
 
     // Initialize trial start date on first DB creation
     const { ensureTrialStartDate } = require('../licensing/trialService');
@@ -382,6 +384,47 @@ function ensureOwnerSyncSchema(existingDb) {
     ).run();
 }
 
+function ensurePageVisibilitySchema(existingDb) {
+    const db = existingDb || getDb();
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS page_visibility(
+            page_key TEXT PRIMARY KEY,
+            is_visible INTEGER NOT NULL DEFAULT 1,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_page_visibility_visible
+        ON page_visibility(is_visible);
+    `);
+
+    // Read default hidden pages from the bundled config file
+    const path = require('path');
+    const fs = require('fs');
+    let hiddenPages = ['student-profile-prototype.html', 'communication-center-prototype.html'];
+    try {
+        const defaultsPath = path.join(__dirname, '..', '..', 'page-visibility-defaults.json');
+        if (fs.existsSync(defaultsPath)) {
+            const parsed = JSON.parse(fs.readFileSync(defaultsPath, 'utf-8'));
+            if (Array.isArray(parsed.hiddenPages) && parsed.hiddenPages.length > 0) {
+                hiddenPages = parsed.hiddenPages.filter(p => typeof p === 'string' && p.endsWith('.html'));
+            }
+        }
+    } catch (_err) {
+        // fallback to hardcoded defaults above
+    }
+
+    // Seed hidden pages with INSERT OR IGNORE (only on first creation)
+    const stmt = db.prepare(
+        'INSERT OR IGNORE INTO page_visibility(page_key, is_visible) VALUES(?, 0)'
+    );
+    for (const page of hiddenPages) {
+        stmt.run(page);
+    }
+}
+
 function ensureColumn(table, column, definition) {
     const db = getDb();
     const columns = db.pragma(`table_info(${table})`);
@@ -391,4 +434,10 @@ function ensureColumn(table, column, definition) {
     }
 }
 
-module.exports = { createTables, ensureColumn, ensureLicensingSchema, ensureOwnerSyncSchema };
+module.exports = {
+    createTables,
+    ensureColumn,
+    ensureLicensingSchema,
+    ensureOwnerSyncSchema,
+    ensurePageVisibilitySchema
+};

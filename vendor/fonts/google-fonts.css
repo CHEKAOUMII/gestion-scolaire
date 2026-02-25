@@ -1,0 +1,99 @@
+/* Local Google Fonts — offline support for Electron app */
+
+/* IBM Plex Sans Arabic */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(IBMPlexSansArabic-300.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(IBMPlexSansArabic-400.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(IBMPlexSansArabic-500.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(IBMPlexSansArabic-600.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(IBMPlexSansArabic-700.ttf) format('truetype');
+}
+
+/* Noto Kufi Arabic */
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(NotoKufiArabic-300.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(NotoKufiArabic-400.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(NotoKufiArabic-500.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(NotoKufiArabic-600.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(NotoKufiArabic-700.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(NotoKufiArabic-800.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Kufi Arabic';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url(NotoKufiArabic-900.ttf) format('truetype');
+}

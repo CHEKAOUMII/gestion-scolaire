@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -6,10 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="توليد أوراق التنقيط للأقسام والمواد الدراسية">
     <title>أوراق التنقيط | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
@@ -17,7 +15,7 @@
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
     <style>
-        /* ─── Page-Specific: Grades Sheets ─── */
+        /* --- Page-Specific: Grades Sheets --- */
         .gs-form-section {
             background: var(--glass-bg);
             backdrop-filter: var(--glass-blur);
@@ -108,7 +106,7 @@
             justify-content: center;
         }
 
-        /* ─── Preview Section ─── */
+        /* --- Preview Section --- */
         .gs-preview-section {
             background: var(--glass-bg);
             backdrop-filter: var(--glass-blur);
@@ -149,7 +147,7 @@
             min-height: 200px;
         }
 
-        /* ─── Empty State ─── */
+        /* --- Empty State --- */
         .gs-empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -199,7 +197,7 @@
             }
         }
 
-        /* ─── Loading State ─── */
+        /* --- Loading State --- */
         .gs-loading-state {
             text-align: center;
             padding: 50px 20px;
@@ -218,7 +216,7 @@
             font-weight: 500;
         }
 
-        /* ─── A4 Sheet Preview ─── */
+        /* --- A4 Sheet Preview --- */
         .gs-sheet-wrapper {
             display: flex;
             justify-content: center;
@@ -341,7 +339,7 @@
             margin: 0 auto;
         }
 
-        /* ─── Dark Theme for Grade Sheet ─── */
+        /* --- Dark Theme for Grade Sheet --- */
         [data-theme="dark"] .gs-sheet {
             background: var(--color-surface, #1A241C) !important;
             color: var(--color-text-main, #E8ECE9) !important;
@@ -378,7 +376,7 @@
             background: rgba(107, 191, 138, 0.15) !important;
         }
 
-        /* ─── Count Badge ─── */
+        /* --- Count Badge --- */
         .gs-count-badge {
             display: inline-flex;
             align-items: center;
@@ -395,7 +393,7 @@
             box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
         }
 
-        /* ─── Print Styles ─── */
+        /* --- Print Styles --- */
         @media print {
 
             .gs-form-section,
@@ -423,7 +421,7 @@
             }
         }
 
-        /* ─── Responsive ─── */
+        /* --- Responsive --- */
         @media (max-width: 768px) {
             .gs-form-grid {
                 grid-template-columns: 1fr 1fr;

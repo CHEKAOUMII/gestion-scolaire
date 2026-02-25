@@ -1,0 +1,671 @@
+[
+  {
+    "id": "TC001",
+    "title": "Search students by name and open profile modal from results",
+    "description": "Verifies that searching by a student name returns results and a student profile modal (grades/KPIs) opens from a selected row.",
+    "category": "Student Search & Profile",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Ahmed\" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Search\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Students results table/list\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the first student row in the results list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Student profile\" modal is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Grades\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Absences\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"KPIs\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Search students by code and open profile modal",
+    "description": "Verifies that searching by student code returns results and the correct profile modal opens from a matching row.",
+    "category": "Student Search & Profile",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"CNE12345\" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Press Enter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Students results table/list\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the first student row in the results list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Student profile\" modal is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Grades\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Non-matching search shows No results and stays on Students page",
+    "description": "Verifies that a search with no matches shows a 'No results' message without leaving the Students page.",
+    "category": "Student Search & Profile",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"ZZZ_NON_MATCH_999\" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Search\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No results\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Students search\" field is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Press Enter in search field triggers search",
+    "description": "Verifies that pressing Enter in the student search field performs the search and displays results.",
+    "category": "Student Search & Profile",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Mohamed\" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Press Enter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Students results table/list\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Pagination shows 25 results per page when many matches exist",
+    "description": "Verifies that search results are paginated and the page size is 25 items per page when more than 25 matches exist.",
+    "category": "Student Search & Profile",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"a\" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Search\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Pagination controls\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"25\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Navigate to next page of results using pagination controls",
+    "description": "Verifies that the user can move to the next page of search results and the list updates accordingly.",
+    "category": "Student Search & Profile",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"a\" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Search\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Pagination controls\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Next\" page button in pagination"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Page 2\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Close student profile modal and return to results list",
+    "description": "Verifies that closing the student profile modal returns the user to the search results list without losing visibility of the list.",
+    "category": "Student Search & Profile",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Ahmed\" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Search\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Students results table/list\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the first student row in the results list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Student profile\" modal is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Close\" button on the student profile modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Students results table/list\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Search field handles leading/trailing spaces in query",
+    "description": "Verifies that a search query with leading and trailing spaces still returns results (input trimming behavior).",
+    "category": "Student Search & Profile",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Students\" to open the Students page"
+      },
+      {
+        "type": "action",
+        "description": "Type \"  Ahmed  \" into the student search field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Search\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Students results table/list\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Timetable page loads and shows view controls without importing",
+    "description": "Verifies that the timetable page is accessible after login and presents the expected view controls even before any import.",
+    "category": "Timetable (FET XML Import & Views)",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Timetable\" navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Import FET XML\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Timetable view selector\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Create backup successfully and see confirmation",
+    "description": "Verifies a user can create a backup from the dashboard Settings/Backup section and receives a visible success confirmation.",
+    "category": "Backup & Restore",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" (or the settings icon/menu) from the main dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Backup\" (or \"Backup & Restore\") section/tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Create Backup\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Backup created\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Backup creation shows expected content labels (localStorage + SQLite snapshot)",
+    "description": "Verifies the UI indicates the backup includes both localStorage data and a SQLite snapshot when a backup is generated.",
+    "category": "Backup & Restore",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Settings\" (or the settings icon/menu) from the main dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Backup\" (or \"Backup & Restore\") section/tab"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Create Backup\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"localStorage\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"SQLite\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Activate app with a valid serial and unlock full access",
+    "description": "Verifies that entering a valid license serial activates successfully and removes limited-mode restrictions in the UI.",
+    "category": "License Activation & Limited Mode",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"License\" or \"Activation\" in the main dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Activation\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"VALID-SERIAL-KEY\" into the serial key input field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Activate\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Activation successful\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Timetable\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/timetable.html\""
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "After successful activation, restricted navigation is available from the dashboard",
+    "description": "Verifies that once activated, the user can access previously restricted areas via normal navigation.",
+    "category": "License Activation & Limited Mode",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login.html"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_USER}}\" into the username/email field"
+      },
+      {
+        "type": "action",
+        "description": "Type \"{{LOGIN_PASSWORD}}\" into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Login\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify URL contains \"/index.html\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"License\" or \"Activation\" in the main dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Type \"VALID-SERIAL-KEY\" into the serial key input field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Activate\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Activation successful\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Timetable\" in the main navigation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Timetable\" page header is visible"
+      }
+    ]
+  }
+]

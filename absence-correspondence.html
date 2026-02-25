@@ -1,14 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مراسلة الأولياء | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
@@ -81,15 +79,16 @@
             if (!student) {
                 showToast('لم يتم العثور على التلميذ', 'error');
                 return;
+                return;
             }
 
             document.getElementById('preview').innerHTML =
                 '<div style="border: 2px solid var(--primary); padding: 40px; border-radius: 12px; text-align: right; background: white; max-width: 700px; margin: 0 auto;">' +
                 '<h2 style="text-align: center; margin-bottom: 30px;">' + (typeLabels[type] || 'مراسلة') + '</h2>' +
                 '<p>التاريخ: ' + date + '</p>' +
-                '<p>إلى ولي أمر التلميذ(ة): ' + (student.full_name || '-') + '</p>' +
+                '<p>نحيط علم ولي أمر التلميذ(ة): ' + (student.full_name || '-') + '</p>' +
                 '<p>القسم: ' + (student.class_name || student.section || '-') + '</p>' +
-                '<p>رقم مسار: ' + (student.massar_code || student.code || '-') + '</p>' +
+                '<p>رمز مسار: ' + (student.massar_code || student.code || '-') + '</p>' +
                 '<p style="margin-top: 20px;">نحيطكم علماً بأن ابنكم/ابنتكم قد تجاوز عدد ساعات الغياب المسموح بها...</p>' +
                 '<button class="btn btn-primary" onclick="openPrintPreview({title:\'مراسلة الغياب\',pageSize:\'A4\'})" style="margin-top: 30px;"><i class="fas fa-eye"></i> معاينة الطباعة</button>' +
                 '</div>';

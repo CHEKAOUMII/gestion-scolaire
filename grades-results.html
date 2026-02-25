@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="بيان النتائج الدراسية للتلاميذ">
+    <title>بيان النتائج | برنامج التدبير المدرسي</title>
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/cc-rules.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+    <style>
+        /* ─── Page-Specific: Results Statement ─── */
+        .gr-form-section {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--glass-shadow);
+            padding: 22px 24px;
+            margin-bottom: 20px;
+            animation: fadeInUp 0.4s ease-out both;
+        }
+
+        .gr-form-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            font-family: var(--font-display);
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+
+        .gr-form-header i {
+            font-size: 17px;
+            color: var(--color-primary-light);
+        }
+
+        .gr-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+
+        .gr-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .gr-form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-text-muted);
+            font-family: var(--font-display);
+        }
+
+        .gr-form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            font-family: var(--font-main);
+            font-size: 14px;
+            font-weight: 500;
+            transition: var(--transition-fast);
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236B7B72' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 01.753 1.659l-4.796 5.48a1 1 0 01-1.506 0z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: left 12px center;
+            padding-left: 32px;
+        }
+
+        .gr-form-group select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.12);
+        }
+
+        .gr-form-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .gr-form-actions .btn {
+            white-space: nowrap;
+            width: 100%;
+            min-height: 46px;
+            margin: 0;
+            justify-content: center;
+        }
+
+        /* ─── Preview Section ─── */
+        .gr-preview-section {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--glass-shadow);
+            overflow: hidden;
+            animation: fadeInUp 0.4s ease-out 0.05s both;
+        }
+
+        .gr-preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 22px;
+            border-bottom: 1px solid var(--color-accent);
+        }
+
+        .gr-preview-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-display);
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--color-text-main);
+            margin: 0;
+        }
+
+        .gr-preview-title i {
+            font-size: 17px;
+            color: var(--color-primary-light);
+        }
+
+        .gr-preview-body {
+            padding: 24px;
+            min-height: 200px;
+        }
+
+        /* ─── Navigation between students ─── */
+        .gr-student-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px 0;
+            margin-bottom: 16px;
+        }
+
+        .gr-student-nav .btn {
+            min-width: 42px;
+            min-height: 42px;
+            padding: 0 14px;
+        }
+
+        .gr-student-counter {
+            font-family: var(--font-display);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-text-main);
+        }
+
+        /* ─── Empty State ─── */
+        .gr-empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .gr-empty-icon {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--color-primary-mist);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            animation: grPulse 2.5s ease-in-out infinite;
+        }
+
+        .gr-empty-icon i {
+            font-size: 42px;
+            color: var(--color-primary-light);
+        }
+
+        .gr-empty-state h4 {
+            color: var(--color-text-main);
+            font-family: var(--font-display);
+            font-size: 18px;
+            margin: 0 0 8px;
+        }
+
+        .gr-empty-state p {
+            color: var(--color-text-light);
+            font-size: 14px;
+            margin: 0;
+        }
+
+        @keyframes grPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 0.85;
+            }
+        }
+
+        /* ─── Count Badge ─── */
+        .gr-count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
+            height: 28px;
+            padding: 0 10px;
+            border-radius: var(--radius-full);
+            background: var(--gradient-primary);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            font-family: var(--font-display);
+            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+        }
+
+        /* ─── A4 Result Sheet ─── */
+        .gr-sheet-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .gr-sheet {
+            box-sizing: border-box;
+            width: min(210mm, 100%);
+            min-height: 297mm;
+            background: #fff;
+            color: #111;
+            border-radius: 8px;
+            padding: 10mm 12mm;
+            box-shadow: 0 14px 36px rgba(15, 26, 34, 0.13);
+            font-size: 12px;
+            font-family: "Noto Kufi Arabic", sans-serif;
+            page-break-after: always;
+        }
+
+        /* ─── Sheet Header ─── */
+        .gr-header-block {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+
+        .gr-header-right {
+            text-align: right;
+        }
+
+        .gr-header-center {
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .gr-header-left {
+            text-align: left;
+            direction: rtl;
+        }
+
+        .gr-header-block .gr-doc-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #1B3D30;
+            text-align: center;
+            margin: 6px 0 4px;
+        }
+
+        .gr-header-block .gr-doc-year {
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        /* ─── Student Meta ─── */
+        .gr-student-meta {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #2D5F4A;
+        }
+
+        .gr-student-meta span {
+            font-weight: 600;
+        }
+
+        /* ─── Grades Table ─── */
+        .gr-sheet table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1.5px solid #333;
+            margin-bottom: 12px;
+        }
+
+        .gr-sheet table th {
+            background: #f0f4f8;
+            color: #111;
+            padding: 6px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        .gr-sheet table td {
+            padding: 5px 8px;
+            font-size: 11px;
+            color: #111;
+            border: 1px solid #999;
+            text-align: center;
+        }
+
+        .gr-sheet table td:first-child {
+            text-align: right;
+            font-weight: 600;
+        }
+
+        /* ─── Footer Summary ─── */
+        .gr-summary-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .gr-summary-box {
+            border: 1.5px solid #333;
+            font-size: 11px;
+        }
+
+        .gr-summary-box table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .gr-summary-box table td {
+            padding: 4px 8px;
+            border: 1px solid #999;
+            font-size: 11px;
+        }
+
+        .gr-summary-box table td:first-child {
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .gr-summary-box table td:last-child {
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* ─── Committee Decision ─── */
+        .gr-decision-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .gr-decision-box {
+            border: 1.5px solid #333;
+            padding: 8px 10px;
+            font-size: 11px;
+        }
+
+        .gr-decision-box h5 {
+            margin: 0 0 6px;
+            font-size: 12px;
+            text-align: center;
+            border-bottom: 1px solid #999;
+            padding-bottom: 4px;
+        }
+
+        .gr-decision-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 16px;
+        }
+
+        .gr-decision-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .gr-decision-item .gr-checkbox {
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid #333;
+            display: inline-block;
+        }
+
+        /* ─── Observations & Signature ─── */
+        .gr-observations {
+            border: 1.5px solid #333;
+            padding: 8px 10px;
+            min-height: 50px;
+            margin-bottom: 12px;
+            font-size: 11px;
+        }
+
+        .gr-observations h5 {
+            margin: 0 0 4px;
+            font-size: 11px;
+        }
+
+        .gr-signature {
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 8px;
+        }
+
+        /* ─── Dark Theme ─── */
+        [data-theme="dark"] .gr-sheet {
+            background: var(--color-surface, #1A241C) !important;
+            color: var(--color-text-main, #E8ECE9) !important;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="dark"] .gr-sheet table th {
+            background: var(--ux-bg, #222E25) !important;
+            color: var(--color-text-main, #E8ECE9) !important;
+        }
+
+        [data-theme="dark"] .gr-sheet table td,
+        [data-theme="dark"] .gr-sheet table th,
+        [data-theme="dark"] .gr-summary-box,
+        [data-theme="dark"] .gr-summary-box table td,
+        [data-theme="dark"] .gr-decision-box,
+        [data-theme="dark"] .gr-observations,
+        [data-theme="dark"] .gr-decision-item .gr-checkbox {
+            border-color: var(--ux-border, #3A4A3E) !important;
+        }
+
+        [data-theme="dark"] .gr-doc-title {
+            color: var(--color-primary-light, #6BBF8A) !important;
+        }
+
+        [data-theme="dark"] .gr-student-meta {
+            color: var(--color-text-main) !important;
+            border-color: var(--color-primary) !important;
+        }
+
+        /* ─── Print ─── */
+        @media print {
+
+            .gr-form-section,
+            .header,
+            .sidebar,
+            .gr-preview-header,
+            .gr-student-nav,
+            .quick-nav-toggle,
+            .toast-container {
+                display: none !important;
+            }
+
+            .gr-preview-section {
+                border: none !important;
+                box-shadow: none !important;
+                backdrop-filter: none !important;
+            }
+
+            .gr-sheet {
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                page-break-after: always;
+                padding: 5mm !important;
+                width: 100% !important;
+                min-height: auto !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .gr-form-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .gr-preview-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .gr-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .gr-form-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-file-invoice"></i> بيان النتائج</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+                <select id="school-year">
+                    <option value="2025/2026" selected>2025/2026</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <!-- Filter Section -->
+            <div class="gr-form-section">
+                <div class="gr-form-header">
+                    <i class="fas fa-filter"></i> تصفية وتوليد بيان النتائج
+                </div>
+                <form id="gr-form" class="gr-form-grid">
+                    <div class="gr-form-group">
+                        <label for="level-select">المستوى</label>
+                        <select id="level-select">
+                            <option value="">اختر المستوى</option>
+                        </select>
+                    </div>
+                    <div class="gr-form-group">
+                        <label for="class-select">القسم</label>
+                        <select id="class-select" disabled>
+                            <option value="">اختر القسم</option>
+                        </select>
+                    </div>
+                    <div class="gr-form-group">
+                        <label for="semester-select">الدورة</label>
+                        <select id="semester-select">
+                            <option value="1">الدورة الأولى</option>
+                            <option value="2">الدورة الثانية</option>
+                        </select>
+                    </div>
+                    <div class="gr-form-group">
+                        <label for="student-select">التلميذ</label>
+                        <select id="student-select" disabled>
+                            <option value="">الكل</option>
+                        </select>
+                    </div>
+                    <div class="gr-form-actions">
+                        <button class="btn btn-primary" type="button" id="generate-btn"><i
+                                class="fas fa-file-invoice"></i> توليد</button>
+                        <button class="btn btn-success ux-print-preview-btn" type="button" id="print-btn" disabled><i
+                                class="fas fa-eye"></i> معاينة</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Preview Section -->
+            <div class="gr-preview-section">
+                <div class="gr-preview-header">
+                    <h3 class="gr-preview-title">
+                        <i class="fas fa-scroll"></i>
+                        بيان النتائج الدراسية
+                        <span id="gr-count-badge" class="gr-count-badge" style="display:none;">0</span>
+                    </h3>
+                </div>
+
+                <div class="gr-preview-body" id="gr-preview-body">
+                    <div class="gr-empty-state" id="gr-empty-state">
+                        <div class="gr-empty-icon">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <h4>لا يوجد بيان نتائج</h4>
+                        <p>اختر المستوى والقسم ثم اضغط "توليد" لإنشاء بيانات النتائج</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        (function () {
+            'use strict';
+
+            // ─── Globals ───
+            let allGrades = [];
+            let allStudents = [];
+            let allAbsences = [];
+            let generatedData = null;
+
+            const schoolYear = () => {
+                const el = document.getElementById('school-year');
+                return el ? el.value : '2025/2026';
+            };
+
+            // ─── Helpers ───
+            function normalizeSubjectName(subject) {
+                return String(subject || '')
+                    .replace(/\s*\(\s*فرض\s*[\d٠-٩]+\s*\)\s*$/i, '')
+                    .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
+                    .trim();
+            }
+
+            function gradeComment(avg) {
+                if (avg >= 16) return 'ممتاز';
+                if (avg >= 14) return 'حسن جداً';
+                if (avg >= 12) return 'حسن';
+                if (avg >= 10) return 'متوسط';
+                if (avg >= 8) return 'دون المتوسط';
+                return 'ضعيف';
+            }
+
+            // ─── Data Loading ───
+            async function loadAllData() {
+                const year = schoolYear();
+                try {
+                    [allStudents, allGrades, allAbsences] = await Promise.all([
+                        window.api?.students?.getAll?.(year) || [],
+                        window.api?.grades?.getAll?.(year) || [],
+                        window.api?.absences?.getAll?.(year) || []
+                    ]);
+                } catch (e) {
+                    console.error('Failed to load data', e);
+                    allStudents = []; allGrades = []; allAbsences = [];
+                }
+            }
+
+            // ─── Populate Filters ───
+            function populateFilters() {
+                const levelSelect = document.getElementById('level-select');
+                const classSelect = document.getElementById('class-select');
+
+                // Extract unique levels from students
+                const levels = new Map();
+                allStudents.forEach(s => {
+                    const section = String(s.section || '').trim();
+                    if (!section) return;
+                    // Extract level from section: "2BACSH-5" → "2BACSH", "TCSF-1" → "TCSF"
+                    const level = section.replace(/[-_]?\d+$/, '').trim();
+                    if (!levels.has(level)) levels.set(level, []);
+                    if (!levels.get(level).includes(section)) levels.get(level).push(section);
+                });
+
+                levelSelect.innerHTML = '<option value="">اختر المستوى</option>';
+                [...levels.keys()].sort().forEach(level => {
+                    const opt = document.createElement('option');
+                    opt.value = level;
+                    opt.textContent = level;
+                    levelSelect.appendChild(opt);
+                });
+
+                const studentSelect = document.getElementById('student-select');
+
+                const populateStudentList = () => {
+                    const cls = classSelect.value;
+                    studentSelect.innerHTML = '<option value="">الكل</option>';
+                    studentSelect.disabled = !cls;
+                    if (!cls) return;
+                    allStudents
+                        .filter(s => String(s.section || '').trim() === cls)
+                        .sort((a, b) => String(a.full_name || '').localeCompare(b.full_name || '', 'ar'))
+                        .forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = String(s.code || '').trim();
+                            opt.textContent = `${s.full_name || s.code} (${s.code})`;
+                            studentSelect.appendChild(opt);
+                        });
+                };
+
+                levelSelect.onchange = () => {
+                    const selectedLevel = levelSelect.value;
+                    classSelect.innerHTML = '<option value="">اختر القسم</option>';
+                    classSelect.disabled = !selectedLevel;
+                    studentSelect.innerHTML = '<option value="">الكل</option>';
+                    studentSelect.disabled = true;
+                    if (!selectedLevel) return;
+                    const classes = levels.get(selectedLevel) || [];
+                    classes.sort().forEach(cls => {
+                        const opt = document.createElement('option');
+                        opt.value = cls;
+                        opt.textContent = cls;
+                        classSelect.appendChild(opt);
+                    });
+                };
+
+                classSelect.onchange = populateStudentList;
+            }
+
+            // ─── Generate Results ───
+            function generateResults() {
+                const className = document.getElementById('class-select').value;
+                const semester = parseInt(document.getElementById('semester-select').value, 10);
+                if (!className) {
+                    if (typeof showToast === 'function') showToast('يرجى اختيار القسم', 'warning');
+                    return;
+                }
+
+                // Filter grades for this class and semester
+                const classGrades = allGrades.filter(g =>
+                    String(g.section || '').trim() === className &&
+                    parseInt(g.semester, 10) === semester
+                );
+
+                if (!classGrades.length) {
+                    if (typeof showToast === 'function') showToast('لا توجد نقط لهذا القسم في هذه الدورة', 'warning');
+                    return;
+                }
+
+                // Get students in this class
+                const selectedStudentCode = document.getElementById('student-select').value;
+                let classStudents = allStudents.filter(s =>
+                    String(s.section || '').trim() === className
+                ).sort((a, b) => String(a.full_name || '').localeCompare(b.full_name || '', 'ar'));
+
+                // If a specific student is selected, filter to only that student
+                if (selectedStudentCode) {
+                    classStudents = classStudents.filter(s =>
+                        String(s.code || '').trim() === selectedStudentCode
+                    );
+                }
+
+                const branch = typeof detectBranch === 'function' ? detectBranch(className) : null;
+                console.log('[بيان النتائج] className:', className, '→ branch:', branch);
+                if (branch && typeof CC_BRANCH_COEFFICIENTS !== 'undefined') {
+                    console.log('[بيان النتائج] coefficient table keys:', Object.keys(CC_BRANCH_COEFFICIENTS[branch] || {}));
+                }
+
+                // Compute subject-level data for all students
+                // First: get all subjects in this class
+                const allSubjects = new Set();
+                classGrades.forEach(g => {
+                    const base = normalizeSubjectName(g.subject);
+                    if (base) allSubjects.add(base);
+                });
+                const subjectList = [...allSubjects];
+
+                // Compute each student's subject averages
+                const studentResults = [];
+                classStudents.forEach(student => {
+                    const studentGrades = classGrades.filter(g =>
+                        String(g.student_code || '').trim() === String(student.code || '').trim()
+                    );
+                    if (!studentGrades.length) return;
+
+                    const bySubject = {};
+                    studentGrades.forEach(g => {
+                        const base = normalizeSubjectName(g.subject);
+                        if (!base) return;
+                        if (!bySubject[base]) bySubject[base] = [];
+                        bySubject[base].push(g);
+                    });
+
+                    const subjectData = [];
+                    Object.entries(bySubject).forEach(([subj, grades]) => {
+                        const avg = typeof computeSubjectAverage === 'function'
+                            ? computeSubjectAverage(subj, grades)
+                            : grades.reduce((s, g) => s + (Number(g.grade) || 0), 0) / grades.length;
+                        const coeff = typeof getSubjectCoefficient === 'function'
+                            ? getSubjectCoefficient(subj, branch)
+                            : 1;
+                        console.log('[coeff]', subj, '→', coeff, '(branch:', branch, ')');
+                        subjectData.push({
+                            subject: subj,
+                            avg: parseFloat(avg.toFixed(2)),
+                            coeff,
+                            nxm: parseFloat((avg * coeff).toFixed(2))
+                        });
+                    });
+
+                    // General average
+                    const subjectAvgs = subjectData.map(s => ({ subject: s.subject, avg: s.avg }));
+                    const generalAvg = typeof computeWeightedGeneralAverage === 'function'
+                        ? computeWeightedGeneralAverage(subjectAvgs, branch)
+                        : (subjectAvgs.length ? subjectAvgs.reduce((a, s) => a + s.avg, 0) / subjectAvgs.length : 0);
+
+                    const sumNxM = subjectData.reduce((s, d) => s + d.nxm, 0);
+
+                    // Absences
+                    const studentAbsences = allAbsences.filter(a =>
+                        String(a.student_code || '').trim() === String(student.code || '').trim()
+                    );
+                    const justifiedHours = studentAbsences.filter(a => a.absence_type === 'justified')
+                        .reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                    const unjustifiedHours = studentAbsences.filter(a => a.absence_type !== 'justified')
+                        .reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                    const justifiedDays = studentAbsences.filter(a => a.absence_type === 'justified')
+                        .reduce((s, a) => s + (Number(a.days) || 0), 0);
+                    const unjustifiedDays = studentAbsences.filter(a => a.absence_type !== 'justified')
+                        .reduce((s, a) => s + (Number(a.days) || 0), 0);
+
+                    studentResults.push({
+                        student,
+                        subjectData,
+                        generalAvg: parseFloat(generalAvg.toFixed(2)),
+                        sumNxM: parseFloat(sumNxM.toFixed(2)),
+                        justifiedHours, unjustifiedHours,
+                        justifiedDays, unjustifiedDays
+                    });
+                });
+
+                // Compute rankings per subject
+                subjectList.forEach(subj => {
+                    const studentsWithSubj = studentResults.filter(sr =>
+                        sr.subjectData.some(sd => sd.subject === subj)
+                    );
+                    studentsWithSubj.sort((a, b) => {
+                        const aAvg = a.subjectData.find(sd => sd.subject === subj)?.avg || 0;
+                        const bAvg = b.subjectData.find(sd => sd.subject === subj)?.avg || 0;
+                        return bAvg - aAvg;
+                    });
+                    studentsWithSubj.forEach((sr, idx) => {
+                        const sd = sr.subjectData.find(s => s.subject === subj);
+                        if (sd) sd.rank = idx + 1;
+                    });
+                });
+
+                // Overall ranking
+                const sorted = [...studentResults].sort((a, b) => b.generalAvg - a.generalAvg);
+                sorted.forEach((sr, idx) => { sr.overallRank = idx + 1; });
+
+                // Class average
+                const classAvg = studentResults.length
+                    ? studentResults.reduce((s, r) => s + r.generalAvg, 0) / studentResults.length
+                    : 0;
+
+                generatedData = {
+                    className,
+                    semester,
+                    branch,
+                    studentResults,
+                    classAvg: parseFloat(classAvg.toFixed(2)),
+                    totalStudents: classStudents.length
+                };
+
+                renderResults();
+            }
+
+            // ─── Render ───
+            function renderResults() {
+                if (!generatedData || !generatedData.studentResults.length) return;
+
+                const body = document.getElementById('gr-preview-body');
+                const badge = document.getElementById('gr-count-badge');
+                const printBtn = document.getElementById('print-btn');
+                const emptyState = document.getElementById('gr-empty-state');
+
+                if (emptyState) emptyState.style.display = 'none';
+                badge.style.display = 'inline-flex';
+                badge.textContent = generatedData.studentResults.length;
+                printBtn.disabled = false;
+
+                const { className, semester, studentResults, classAvg, totalStudents } = generatedData;
+                const semesterLabel = semester === 1 ? 'الدورة الأولى' : 'الدورة الثانية';
+                const year = schoolYear();
+
+                let html = '<div class="gr-sheet-wrapper">';
+
+                studentResults.forEach(sr => {
+                    const { student, subjectData, generalAvg, sumNxM, overallRank,
+                        justifiedHours, unjustifiedHours, justifiedDays, unjustifiedDays } = sr;
+
+                    html += `
+                <div class="gr-sheet">
+                    <!-- Header -->
+                    <div class="gr-header-block">
+                        <div class="gr-header-right">
+                            <div>الأكاديمية الجهوية للتربية و التكوين</div>
+                            <div>المديرية الإقليمية:</div>
+                            <div>مؤسسة: الثانوية التأهيلية ابن سينا</div>
+                        </div>
+                        <div class="gr-header-center">
+                            <div class="gr-doc-title">بيان النتائج الدراسية ${semesterLabel === 'الدورة الأولى' ? 'للدورة الأولى' : 'للدورة الثانية'}</div>
+                            <div class="gr-doc-year">السنة الدراسية: ${year}</div>
+                        </div>
+                        <div class="gr-header-left">
+                            <div>المملكة المغربية</div>
+                            <div>وزارة التربية الوطنية</div>
+                            <div>والتعليم الأولي والرياضة</div>
+                        </div>
+                    </div>
+
+                    <div class="gr-student-meta">
+                        <span>المستوى: ${className.replace(/[-_]?\d+$/, '')}</span>
+                        <span>القسم: ${className}</span>
+                        <span>عدد التلاميذ: ${totalStudents}</span>
+                    </div>
+                    <div class="gr-student-meta">
+                        <span>إسم ورقم التلميذ: ${student.full_name || ''} ${student.code || ''}</span>
+                    </div>
+
+                    <!-- Grades Table -->
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>المواد</th>
+                                <th>نقط المراقبة المستمرة</th>
+                                <th>المعامل</th>
+                                <th>ن × م</th>
+                                <th>الترتيب</th>
+                                <th>ملاحظات الأساتذة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${subjectData.map(sd => `
+                            <tr>
+                                <td>${sd.subject}</td>
+                                <td>${sd.avg.toFixed(2).replace('.', ',')}</td>
+                                <td>${sd.coeff}</td>
+                                <td>${sd.nxm.toFixed(2).replace('.', ',')}</td>
+                                <td>${sd.rank || ''}</td>
+                                <td>${gradeComment(sd.avg)}</td>
+                            </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <!-- Summary -->
+                    <div class="gr-summary-row">
+                        <div class="gr-summary-box">
+                            <table>
+                                <tr><td>مجموع ن × م</td><td>${sumNxM.toFixed(2).replace('.', ',')}</td></tr>
+                                <tr><td>معدل الدورة</td><td>${generalAvg.toFixed(2).replace('.', ',')}</td></tr>
+                                <tr><td>معدل القسم</td><td>${classAvg.toFixed(2).replace('.', ',')}</td></tr>
+                            </table>
+                        </div>
+                        <div class="gr-summary-box">
+                            <table>
+                                <tr><td>الغياب</td><td>الأيام</td><td>الساعات</td></tr>
+                                <tr><td>مبرر</td><td>${justifiedDays}</td><td>${justifiedHours}</td></tr>
+                                <tr><td>غير مبرر</td><td>${unjustifiedDays}</td><td>${unjustifiedHours}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Committee Decision -->
+                    <div class="gr-decision-row">
+                        <div class="gr-decision-box">
+                            <h5>قرار اللجنة</h5>
+                            <div class="gr-decision-grid">
+                                <div class="gr-decision-item"><span class="gr-checkbox"></span> لوحة الشرف</div>
+                                <div class="gr-decision-item"><span class="gr-checkbox"></span> إنذار</div>
+                                <div class="gr-decision-item"><span class="gr-checkbox"></span> تشجيع</div>
+                                <div class="gr-decision-item"><span class="gr-checkbox"></span> توبيخ</div>
+                                <div class="gr-decision-item"><span class="gr-checkbox"></span> تنويه</div>
+                            </div>
+                        </div>
+                        <div class="gr-observations">
+                            <h5>الملاحظات العامة</h5>
+                        </div>
+                    </div>
+
+                    <div class="gr-signature">توقيع المدير(ة):</div>
+                </div>`;
+                });
+
+                html += '</div>';
+                body.innerHTML = html;
+
+                if (typeof showToast === 'function') {
+                    showToast(`تم توليد بيان النتائج لـ ${studentResults.length} تلميذ`, 'success');
+                }
+            }
+
+            // ─── Init ───
+            async function init() {
+                await loadAllData();
+                populateFilters();
+
+                document.getElementById('generate-btn').addEventListener('click', generateResults);
+
+                // Print Preview
+                document.getElementById('print-btn').addEventListener('click', () => {
+                    if (!generatedData || !generatedData.studentResults.length) {
+                        if (typeof showToast === 'function') showToast('قم بتوليد البيان أولاً', 'warning');
+                        return;
+                    }
+                    if (typeof openPrintPreview === 'function') {
+                        openPrintPreview({
+                            title: 'بيان النتائج',
+                            pageSize: 'A4',
+                            contentSelector: '.gr-sheet-wrapper'
+                        });
+                    } else {
+                        window.print();
+                    }
+                });
+
+                // School year change
+                const yearEl = document.getElementById('school-year');
+                if (yearEl) yearEl.addEventListener('change', async () => {
+                    await loadAllData();
+                    populateFilters();
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+</body>
+
+</html>

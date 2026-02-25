@@ -1,0 +1,19 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8787",
+  "loginUser": "admin@school.local",
+  "loginPassword": "Admin@123",
+  "executionArgs": {
+    "projectName": "project 6.1",
+    "projectPath": "d:\\project 6.1",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user-2-4GV36EbqlvuvE3uwVEG_U9t4Y4KUnOoBAFI_rKhKI5trg_4x8tOpjDkj0LeKpWBJGlNZQkuYBOjTyHTkm2s1MetRBvL4hxMVQeKnckrXr5RztBogX5eUlndpb6Naw2dx4"
+    }
+  },
+  "serverPort": 55323,
+  "proxy": "http://635e387e-a84f-4648-9a42-ac83e171fdba:sguevKcVQzzz5QeHt02WOeuGC7LxmqbZ@tun.testsprite.com:8080"
+}

@@ -530,21 +530,28 @@ async function viewStudent(index) {
             return;
         }
 
-        // Group by subject
+        // Group by base subject (merging exams + activities)
         const bySubject = {};
         studentGrades.forEach((g) => {
-            const subj = normalizeSubjectName(g.subject) || 'غير محدد';
+            const subj = (typeof ccBaseSubject === 'function' ? ccBaseSubject(normalizeSubjectName(g.subject)) : normalizeSubjectName(g.subject)) || 'غير محدد';
             if (!bySubject[subj]) bySubject[subj] = [];
             bySubject[subj].push(g);
         });
 
-        // Calculate KPIs
+        // Calculate KPIs using weighted averages
         const subjects = Object.keys(bySubject);
-        const subjectAvgs = subjects.map((s) => {
-            const vals = bySubject[s].map((g) => g.grade);
-            return vals.reduce((a, b) => a + b, 0) / vals.length;
+        const subjectAvgsArr = subjects.map((s) => {
+            const avg = typeof computeSubjectAverage === 'function'
+                ? computeSubjectAverage(s, bySubject[s])
+                : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
+            return { subject: s, avg };
         });
-        const generalAvg = subjectAvgs.length ? subjectAvgs.reduce((a, b) => a + b, 0) / subjectAvgs.length : 0;
+        const branch = typeof detectBranch === 'function'
+            ? detectBranch(student.section || student.class_name || '')
+            : null;
+        const generalAvg = typeof computeWeightedGeneralAverage === 'function'
+            ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
+            : (subjectAvgsArr.length ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length : 0);
         const totalGrades = studentGrades.length;
         const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
         const minGrade = Math.min(...studentGrades.map((g) => g.grade));
@@ -580,18 +587,24 @@ async function viewStudent(index) {
         subjectsContainer.innerHTML = sortedSubjects
             .map((subj) => {
                 const grades = bySubject[subj];
-                const vals = grades.map((g) => g.grade);
-                const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+                const avg = typeof computeSubjectAverage === 'function'
+                    ? computeSubjectAverage(subj, grades)
+                    : grades.reduce((a, g) => a + g.grade, 0) / grades.length;
                 const clr = gradeColor(avg);
 
+                let examIdx = 0;
                 const chipsHtml = grades
-                    .map((g, idx) => {
+                    .map((g) => {
                         const gc = gradeColor(g.grade);
                         const pct = Math.min((g.grade / 20) * 100, 100);
                         const semLabel = g.semester ? `الدورة ${g.semester}` : '';
+                        const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
+                        const chipLabel = isActv
+                            ? `أنشطة مندمجة${semLabel ? ' — ' + semLabel : ''}`
+                            : `فرض ${++examIdx}${semLabel ? ' — ' + semLabel : ''}`;
                         return `
                     <div class="sl-grade-chip">
-                        <span class="chip-label">فرض ${idx + 1}${semLabel ? ' — ' + semLabel : ''}</span>
+                        <span class="chip-label">${chipLabel}</span>
                         <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
                         <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
                     </div>

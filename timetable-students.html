@@ -1,14 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>جدول حصص التلاميذ | برنامج التدبير المدرسي</title>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="css/design-system.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="ux-enhancements.css">
@@ -670,23 +668,23 @@
       <div class="class-stats-grid" id="class-stats-grid">
         <div class="class-stat-card hours">
           <div class="stat-icon"><i class="fas fa-clock"></i></div>
-          <div class="stat-value" id="stat-hours">—</div>
+          <div class="stat-value" id="stat-hours">�</div>
           <div class="stat-label">حصة أسبوعية</div>
         </div>
         <div class="class-stat-card teachers">
           <div class="stat-icon"><i class="fas fa-chalkboard-teacher"></i></div>
-          <div class="stat-value" id="stat-teachers">—</div>
+          <div class="stat-value" id="stat-teachers">�</div>
           <div class="stat-label">أستاذ (ة)</div>
         </div>
         <div class="class-stat-card subjects">
           <div class="stat-icon"><i class="fas fa-book"></i></div>
-          <div class="stat-value" id="stat-subjects">—</div>
+          <div class="stat-value" id="stat-subjects">�</div>
           <div class="stat-label">مادة دراسية</div>
         </div>
         <div class="class-stat-card rooms">
           <div class="stat-icon"><i class="fas fa-door-open"></i></div>
-          <div class="stat-value" id="stat-rooms">—</div>
-          <div class="stat-label">قاعة</div>
+          <div class="stat-value" id="stat-rooms">�</div>
+          <div class="stat-label">????</div>
         </div>
       </div>
 
@@ -849,7 +847,7 @@
 
         if (classNames.length > 0) {
           document.getElementById('class-count-badge').innerHTML =
-            `<i class="fas fa-info-circle"></i> ${classNames.length} قسم متاح`;
+            `<i class="fas fa-info-circle"></i> ${classNames.length} ??? ????`;
           showToast(`تم تحميل ${classNames.length} قسم من البيانات المحفوظة`, 'success');
         } else {
           showNoClassesState();
@@ -888,7 +886,7 @@
       return defaultHourLabels[hourKey] || hourKey;
     }
 
-    // Theme-aware color palette — 20 vibrant, distinct hues
+    // Theme-aware color palette � 20 vibrant, distinct hues
     const subjectPalette = [
       { light: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }, dark: { bg: 'rgba(59,130,246,0.15)', border: '#60a5fa', text: '#93c5fd' } },
       { light: { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' }, dark: { bg: 'rgba(236,72,153,0.15)', border: '#f472b6', text: '#f9a8d4' } },
@@ -1080,7 +1078,7 @@
               </td>`;
             }
           } else {
-            html += `<td${colspanAttr}><span class="empty-cell">—</span></td>`;
+            html += `<td${colspanAttr}><span class="empty-cell">�</span></td>`;
           }
         });
 

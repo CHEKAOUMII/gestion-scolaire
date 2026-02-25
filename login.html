@@ -5,10 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تسجيل الدخول | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/ux-enhancements.js"></script>
     <link rel="stylesheet" href="css/design-system.css">
@@ -234,6 +232,54 @@
             margin-left: 5px;
             color: var(--color-primary);
         }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .forgot-password a {
+            color: var(--color-primary);
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: var(--transition-fast);
+        }
+
+        .forgot-password a:hover {
+            text-decoration: underline;
+            color: var(--color-primary-dark);
+        }
+
+        .success-message {
+            background: #C6F6D5;
+            color: #276749;
+            padding: 14px 15px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 20px;
+            font-size: 13px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            line-height: 1.6;
+        }
+
+        .success-message.show {
+            display: flex;
+        }
+
+        .success-message .temp-password {
+            background: rgba(0, 0, 0, 0.08);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            font-family: monospace;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-align: center;
+            direction: ltr;
+            user-select: all;
+        }
     </style>
 </head>
 
@@ -246,6 +292,12 @@
                 </div>
                 <h1>برنامج التدبير المدرسي</h1>
                 <p>تسجيل دخول المشرف فقط</p>
+            </div>
+
+            <div class="success-message" id="success-message">
+                <div><i class="fas fa-check-circle"></i> <span id="success-text"></span></div>
+                <div class="temp-password" id="temp-password"></div>
+                <div style="font-size:12px;color:#2F855A;">انسخ كلمة المرور أعلاه واستخدمها لتسجيل الدخول</div>
             </div>
 
             <div class="error-message" id="error-message">
@@ -274,6 +326,10 @@
                     <div class="spinner"></div>
                     <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
                 </button>
+
+                <div class="forgot-password">
+                    <a id="forgot-password-link"><i class="fas fa-key"></i> نسيت كلمة المرور؟</a>
+                </div>
             </form>
 
             <div class="login-footer">
@@ -292,6 +348,39 @@
         const btnLogin = document.getElementById('btn-login');
         const errorMessage = document.getElementById('error-message');
         const errorText = document.getElementById('error-text');
+        const successMessage = document.getElementById('success-message');
+        const successText = document.getElementById('success-text');
+        const tempPasswordEl = document.getElementById('temp-password');
+        const forgotLink = document.getElementById('forgot-password-link');
+
+        forgotLink.addEventListener('click', async () => {
+            if (!window.api?.users?.resetAdminPassword) {
+                errorText.textContent = 'هذه الميزة غير متاحة في هذا الإصدار';
+                errorMessage.classList.add('show');
+                return;
+            }
+            if (!confirm('هل تريد إعادة تعيين كلمة مرور المشرف؟\nسيتم إنشاء كلمة مرور مؤقتة جديدة.')) return;
+
+            successMessage.classList.remove('show');
+            errorMessage.classList.remove('show');
+
+            try {
+                const res = await window.api.users.resetAdminPassword();
+                if (res?.success && res.temporaryPassword) {
+                    document.getElementById('email').value = 'admin@school.local';
+                    document.getElementById('password').value = '';
+                    successText.textContent = 'تم إعادة تعيين كلمة المرور بنجاح. كلمة المرور المؤقتة:';
+                    tempPasswordEl.textContent = res.temporaryPassword;
+                    successMessage.classList.add('show');
+                } else {
+                    errorText.textContent = res?.error || 'فشل إعادة تعيين كلمة المرور';
+                    errorMessage.classList.add('show');
+                }
+            } catch (err) {
+                errorText.textContent = 'حدث خطأ أثناء إعادة تعيين كلمة المرور';
+                errorMessage.classList.add('show');
+            }
+        });
 
         function getSafeNextPage() {
             const params = new URLSearchParams(window.location.search);

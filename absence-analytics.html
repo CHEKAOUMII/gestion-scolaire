@@ -1,14 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>تحليل الغياب | برنامج التدبير المدرسي</title>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="css/design-system.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="ux-enhancements.css">
@@ -939,7 +937,7 @@
       color: var(--color-text-muted, #64748b);
     }
 
-    /* Section Compare Chart — height controlled by JS */
+    /* Section Compare Chart � height controlled by JS */
 
     /* Stats Mini Grid */
     .stats-mini-grid {
@@ -1205,9 +1203,9 @@
       max-height: 260px;
     }
 
-    /* ═════════════════════════════════════════
+    /* -----------------------------------------
        DARK MODE OVERRIDES
-       ═════════════════════════════════════════ */
+       ----------------------------------------- */
     [data-theme="dark"] .filters-section {
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
@@ -1520,9 +1518,9 @@
           <div class="kpi-header">
             <div class="kpi-icon"><i class="fas fa-chart-line"></i></div>
           </div>
-          <div class="kpi-title">متوسط الغياب غ.م لكل طالب</div>
+          <div class="kpi-title">معدل الغياب س.غ لكل تلميذ</div>
           <div class="kpi-value" id="k2">0</div>
-          <div class="kpi-subtitle">ساعة / طالب</div>
+          <div class="kpi-subtitle">مبرر / إجمالي</div>
         </div>
         <div class="kpi-card purple">
           <div class="kpi-header">
@@ -1552,7 +1550,7 @@
           <div class="kpi-header">
             <div class="kpi-icon"><i class="fas fa-user-shield"></i></div>
           </div>
-          <div class="kpi-title">طلاب بدون غياب</div>
+          <div class="kpi-title">تلاميذ بدون غياب</div>
           <div class="kpi-value" id="k6">0</div>
           <div class="kpi-subtitle" id="k6s">من إجمالي الطلاب</div>
         </div>
@@ -1670,11 +1668,10 @@
                 <tr>
                   <th>المستوى</th>
                   <th>عدد الطلاب</th>
-                  <th>متوسط غ.م</th>
-                  <th>أدنى</th>
+                  <th>ساعات س.غ</th>
+                  <th>مبرر</th>
                   <th>أعلى</th>
-                  <th>خطر</th>
-                  <th>تحذير</th>
+                  <th>أدنى</th>
                 </tr>
               </thead>
               <tbody id="level-tbody"></tbody>
@@ -1708,12 +1705,12 @@
                   <th class="sortable" data-sort="justified">مبرر <i class="fas fa-sort sort-icon"></i></th>
                   <th class="sortable" data-sort="unjustified">غير مبرر <i class="fas fa-sort sort-icon"></i></th>
                   <th class="sortable" data-sort="totalHours">الإجمالي <i class="fas fa-sort sort-icon"></i></th>
-                  <th class="sortable" data-sort="ratio">النسبة غ.م% <i class="fas fa-sort sort-icon"></i></th>
-                  <th>أ1</th>
-                  <th>أ2</th>
-                  <th>أ3</th>
-                  <th>أ4</th>
-                  <th>أ5</th>
+                  <th class="sortable" data-sort="ratio">النسبة س.غ% <i class="fas fa-sort sort-icon"></i></th>
+                  <th>ع1</th>
+                  <th>ع2</th>
+                  <th>ع3</th>
+                  <th>ع4</th>
+                  <th>ع5</th>
                 </tr>
               </thead>
               <tbody id="ct"></tbody>
@@ -1806,7 +1803,7 @@
 
     function formatNumber(value) {
       const n = Number(value) || 0;
-      // Use fixed decimal for consistency — avoids mixed Arabic-Indic / Western digits
+      // Use fixed decimal for consistency � avoids mixed Arabic-Indic / Western digits
       return n % 1 === 0 ? String(n) : n.toFixed(1);
     }
 
@@ -1901,7 +1898,7 @@
         render();
       };
 
-      // Level → Section cascade
+      // Level ? Section cascade
       levelSelect.onchange = () => {
         const selectedLevel = levelSelect.value;
         const sectionEl = getEl('c');
@@ -2051,20 +2048,20 @@
       }
     }
 
-    /** Extract the level prefix from a section name, e.g. "2BAC SMA 1" → "2BAC" */
+    /** Extract the level prefix from a section name, e.g. "2BAC SMA 1" ? "2BAC" */
     function extractLevel(sectionName) {
       const s = String(sectionName || '').trim();
       // Common patterns: "جذع مشترك ...", "أولى باك ...", "ثانية باك ...", "1BAC...", "2BAC...", "TC..."
       const patterns = [
         { regex: /^جذع\s*مشترك/i, label: 'جذع مشترك' },
+        { regex: /^????\s*???/i, label: '???? ???' },
         { regex: /^أولى\s*باك/i, label: 'أولى باك' },
-        { regex: /^ثانية\s*باك/i, label: 'ثانية باك' },
         { regex: /^1\s*BAC/i, label: '1BAC' },
         { regex: /^2\s*BAC/i, label: '2BAC' },
         { regex: /^TC/i, label: 'TC' },
         { regex: /^TCS/i, label: 'TCS' },
-        { regex: /^1ère\s*année/i, label: '1ère année BAC' },
-        { regex: /^2ème\s*année/i, label: '2ème année BAC' },
+        { regex: /^1�re\s*ann�e/i, label: '1�re ann�e BAC' },
+        { regex: /^2�me\s*ann�e/i, label: '2�me ann�e BAC' },
       ];
       for (const p of patterns) {
         if (p.regex.test(s)) return p.label;
@@ -2108,8 +2105,8 @@
     function normalizeType(value) {
       const t = String(value || '').trim().toLowerCase();
       if (!t) return 'unjustified';
-      if (t.includes('unjust') || t.includes('غير') || t === '0' || t === 'false') return 'unjustified';
-      if (t.includes('justifi') || t.includes('مبرر') || t === '1' || t === 'true') return 'justified';
+      if (t.includes('unjust') || t.includes('???') || t === '0' || t === 'false') return 'unjustified';
+      if (t.includes('justifi') || t.includes('????') || t === '1' || t === 'true') return 'justified';
       return 'unjustified';
     }
 
@@ -2147,7 +2144,7 @@
       const raw = String(record.month || '').trim();
       const rawLower = raw.toLowerCase();
 
-      if (rawLower === 'سنوي' || rawLower === 'annuel' || rawLower === 'annual') {
+      if (rawLower === '????' || rawLower === 'annuel' || rawLower === 'annual') {
         const d = parseDate(record.absence_date);
         if (d) return d.getMonth() + 1;
         return 0;
@@ -2388,7 +2385,7 @@
     function getInitials(name) {
       const parts = (name || '').split(' ').filter(Boolean);
       if (parts.length >= 2) return parts[0][0] + parts[1][0];
-      return parts[0] ? parts[0].slice(0, 2) : '؟';
+      return parts[0] ? parts[0].slice(0, 2) : '?';
     }
 
     function renderDashboard() {
@@ -2584,7 +2581,7 @@
       };
     }
 
-    // pickStudent removed — dead code
+    // pickStudent removed � dead code
 
     /* ===== Section Compare Chart ===== */
     function renderSectionCompare() {
@@ -2897,7 +2894,7 @@
 
       if (!topSections.length) return;
 
-      // School year months only (Sep–Jun), skip Jul & Aug
+      // School year months only (Sep�Jun), skip Jul & Aug
       const schoolMonths = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
       const colors = ['#0891b2', '#8b5cf6', '#ef4444', '#f59e0b', '#10b981'];
 
@@ -2943,7 +2940,7 @@
             beginAtZero: true,
             grid: { color: tc.grid },
             ticks: { color: tc.text },
-            title: { display: true, text: 'ساعات غ.م', font: { size: 11 }, color: tc.text }
+            title: { display: true, text: '\u0633\u0627\u0639\u0627\u062a \u0633.\u063a', font: { size: 11 }, color: tc.text }
           },
           x: { grid: { display: false }, ticks: { color: tc.text } }
         }
@@ -3078,13 +3075,13 @@
     }
 
     function focusStudent(code) {
-      // Student detail removed — navigate to correspondence instead
+      // Student detail removed � navigate to correspondence instead
       goToCorrespondence(code);
     }
 
     function exportCsv() {
       const d = appState.derived;
-      let csv = 'الاسم,القسم,رمز مسار,مبرر,غير مبرر,الإجمالي,النسبة غ.م\n';
+      let csv = 'الاسم,القسم,رمز مسار,مبرر,غير مبرر,الإجمالي,النسبة س.غ\n';
       csv += d.rows.map(s =>
         [escapeCsv(s.name), escapeCsv(s.section || ''), escapeCsv(s.code),
         s.justified, s.unjustified, s.totalHours, formatNumber(s.ratio)

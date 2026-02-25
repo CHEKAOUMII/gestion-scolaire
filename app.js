@@ -84,7 +84,7 @@ async function initDatabase(schoolYear = null) {
                 firstName: s.full_name,
                 gender: s.gender,
                 birthDate: s.birth_date,
-                birthPlace: '', // Add if needed
+                birthPlace: s.birth_place || '',
                 section: s.section,
                 schoolYear: s.school_year
             }));
@@ -409,17 +409,19 @@ function calculateAgeStats() {
 }
 
 // Render Stats Cards
-function renderStatsCards() {
-    const stats = calculateStats();
+function renderStatsCards(stats) {
+    if (!stats) stats = calculateStats();
     const sectionsInfo = stats.sectionsList.length <= 3 ? stats.sectionsList.join(', ') : stats.sectionsList.slice(0, 2).join(', ') + '...';
     const levelsInfo = stats.levelsList.length <= 2 ? stats.levelsList.join(', ') : stats.levelsList[0] + '...';
+    const femalesPct = stats.total > 0 ? ((stats.females / stats.total) * 100).toFixed(1) : 0;
+    const malesPct = stats.total > 0 ? ((stats.males / stats.total) * 100).toFixed(1) : 0;
     const html = `
         <div class="stats-grid">
-            <div class="stat-card total"><div class="stat-icon"><i class="fas fa-users"></i></div><div class="stat-content"><h3>عدد التلاميذ</h3><p class="stat-number">${stats.total}</p></div><div class="stat-footer"><span class="trend up"><i class="fas fa-arrow-up"></i> +5%</span></div></div>
-            <div class="stat-card females"><div class="stat-icon"><i class="fas fa-female"></i></div><div class="stat-content"><h3>عدد الإناث</h3><p class="stat-number">${stats.females}</p></div><div class="stat-footer"><span class="percentage">${stats.total > 0 ? ((stats.females / stats.total) * 100).toFixed(1) : 0}%</span></div></div>
-            <div class="stat-card males"><div class="stat-icon"><i class="fas fa-male"></i></div><div class="stat-content"><h3>عدد الذكور</h3><p class="stat-number">${stats.males}</p></div><div class="stat-footer"><span class="percentage">${stats.total > 0 ? ((stats.males / stats.total) * 100).toFixed(1) : 0}%</span></div></div>
-            <div class="stat-card sections"><div class="stat-icon"><i class="fas fa-chalkboard"></i></div><div class="stat-content"><h3>عدد الأقسام</h3><p class="stat-number">${stats.sections}</p></div><div class="stat-footer"><span>${sectionsInfo}</span></div></div>
-            <div class="stat-card levels"><div class="stat-icon"><i class="fas fa-layer-group"></i></div><div class="stat-content"><h3>عدد المستويات</h3><p class="stat-number">${stats.levels}</p></div><div class="stat-footer"><span>${levelsInfo}</span></div></div>
+            <div class="stat-card total"><div class="stat-icon"><i class="fas fa-users"></i></div><div class="stat-content"><h3>عدد التلاميذ</h3><p class="stat-number">${stats.total}</p></div><div class="stat-footer"><span class="percentage">${stats.sections} أقسام</span></div></div>
+            <div class="stat-card females"><div class="stat-icon"><i class="fas fa-female"></i></div><div class="stat-content"><h3>عدد الإناث</h3><p class="stat-number">${stats.females}</p></div><div class="stat-footer"><span class="percentage">${femalesPct}%</span></div></div>
+            <div class="stat-card males"><div class="stat-icon"><i class="fas fa-male"></i></div><div class="stat-content"><h3>عدد الذكور</h3><p class="stat-number">${stats.males}</p></div><div class="stat-footer"><span class="percentage">${malesPct}%</span></div></div>
+            <div class="stat-card sections"><div class="stat-icon"><i class="fas fa-chalkboard"></i></div><div class="stat-content"><h3>عدد الأقسام</h3><p class="stat-number">${stats.sections}</p></div><div class="stat-footer"><span>${escapeHtml(sectionsInfo)}</span></div></div>
+            <div class="stat-card levels"><div class="stat-icon"><i class="fas fa-layer-group"></i></div><div class="stat-content"><h3>عدد المستويات</h3><p class="stat-number">${stats.levels}</p></div><div class="stat-footer"><span>${escapeHtml(levelsInfo)}</span></div></div>
             <div class="stat-card average"><div class="stat-icon"><i class="fas fa-calculator"></i></div><div class="stat-content"><h3>معدل القسم</h3><p class="stat-number">${stats.avgPerSection}</p></div><div class="stat-footer"><span>تلميذ/قسم</span></div></div>
         </div>`;
     document.getElementById('stats-section').innerHTML = html;
@@ -453,7 +455,7 @@ async function renderOwnerSyncSection(force = false) {
     if (!section) return;
 
     if (!isAdminRoleOnDashboard()) {
-        section.style.display = 'none';
+        section.classList.add('hidden');
         section.innerHTML = '';
         return;
     }
@@ -481,7 +483,7 @@ async function renderOwnerSyncSection(force = false) {
         const summary = overviewRes.summary || {};
         const devices = Array.isArray(devicesRes?.devices) ? devicesRes.devices : [];
 
-        section.style.display = 'block';
+        section.classList.remove('hidden');
         section.innerHTML = `
             <div class="students-results" style="margin-bottom: 20px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
@@ -552,7 +554,7 @@ function destroyChartInstances() {
     });
 }
 
-async function renderCharts(filterSection = 'all') {
+async function renderCharts(filterSection = 'all', stats) {
     try {
         await ensureChartLoaded();
     } catch (error) {
@@ -568,8 +570,8 @@ async function renderCharts(filterSection = 'all') {
 
     destroyChartInstances();
 
-    const stats = calculateStats();
-    const sectionsOptions = stats.sectionsList.map(s => `<option value="${s}" ${filterSection === s ? 'selected' : ''}>${s}</option>`).join('');
+    if (!stats) stats = calculateStats();
+    const sectionsOptions = stats.sectionsList.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
     const html = `<div class="charts-grid">
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب السن</h3><div class="chart-controls"><select id="age-section-filter"><option value="all" ${filterSection === 'all' ? 'selected' : ''}>جميع الأقسام</option>${sectionsOptions}</select><button><i class="fas fa-print"></i> طباعة</button></div></div><div class="chart-body"><canvas id="ageChart"></canvas></div></div>
@@ -643,18 +645,19 @@ async function renderCharts(filterSection = 'all') {
     chartInstances.place = new Chart(document.getElementById('placeChart'), {
         type: 'bar',
         data: { labels: topPlaces.map(p => p[0]), datasets: [{ label: 'العدد', data: topPlaces.map(p => p[1]), backgroundColor: '#1B3D30', borderRadius: 6 }] },
-        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } }
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { reverse: true, position: 'top' }, y: { position: 'right' } }, plugins: { legend: { display: false } } }
     });
 
-    // Add section filter event listener
-    document.getElementById('age-section-filter').addEventListener('change', (e) => {
-        renderCharts(e.target.value);
-    });
+    // Add section filter event listener (remove old listener first to avoid leak)
+    const filterEl = document.getElementById('age-section-filter');
+    if (filterEl) {
+        filterEl.onchange = (e) => { renderCharts(e.target.value); };
+    }
 }
 
 // Render Movement Section
-function renderMovement() {
-    const stats = calculateStats();
+function renderMovement(stats) {
+    if (!stats) stats = calculateStats();
     document.getElementById('movement-section').innerHTML = `
         <div class="movement-header"><h3><i class="fas fa-exchange-alt"></i> حركية التلاميذ</h3><div class="movement-filters"><select><option>جميع الأقسام</option></select><select><option>الوضعية الحالية</option></select><button class="btn-apply"><i class="fas fa-check"></i> تحيين</button></div></div>
         <div class="movement-stats">
@@ -698,7 +701,7 @@ function renderStudentsTable(searchName = '', searchFamily = '', filterSection =
     const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
 
     const stats = calculateStats();
-    const sectionsOptions = stats.sectionsList.map(s => `<option value="${s}" ${filterSection === s ? 'selected' : ''}>${s}</option>`).join('');
+    const sectionsOptions = stats.sectionsList.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
     const rows = paginatedStudents.map(s => `<tr><td>${escapeHtml(s.section)}</td><td>${escapeHtml(s.id)}</td><td>${escapeHtml(s.code)}</td><td>${escapeHtml(s.familyName)}</td><td>${escapeHtml(s.firstName)}</td><td class="${s.gender === 'ذكر' ? 'gender-male' : 'gender-female'}">${escapeHtml(s.gender)}</td><td>${escapeHtml(s.birthDate)}</td><td>${escapeHtml(s.birthPlace)}</td><td></td></tr>`).join('');
 
@@ -852,10 +855,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 function refreshDashboard() {
-    renderStatsCards();
-    renderCharts();
-    renderMovement();
-    renderStudentsTable();
+    const stats = calculateStats();
+    renderStatsCards(stats);
+    renderCharts('all', stats);
+    renderMovement(stats);
     void renderOwnerSyncSection();
 }
 
@@ -868,7 +871,6 @@ function goToHome() {
     document.getElementById('stats-section').style.display = 'block';
     document.getElementById('charts-section').style.display = 'block';
     document.getElementById('movement-section').style.display = 'block';
-    document.getElementById('table-section').style.display = 'block';
     showToast('تم تحديث لوحة التحكم', 'success');
 }
 

@@ -1,0 +1,34 @@
+version: "2"
+type: frontend
+tech_stack:
+  - Vanilla JS
+  - HTML
+  - CSS
+  - Electron
+  - better-sqlite3
+routes:
+  - path: /login.html
+    file: login.html
+    auth_required: false
+    description: User login page
+  - path: /index.html
+    file: index.html
+    auth_required: true
+    description: Main dashboard
+  - path: /timetable.html
+    file: timetable.html
+    auth_required: true
+    description: Timetable management
+features:
+  - name: User Login
+    description: Login with credentials
+    files:
+      - login.html
+    entry_route: /login.html
+    user_interactions:
+      - Fill username input field
+      - Fill password input field
+      - Click Login button to submit
+    api_calls: []
+    auth_required: false
+known_limitations: []

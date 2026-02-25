@@ -114,6 +114,24 @@ function initQuickNav() {
     const panel = document.getElementById('quick-nav-panel');
     const close = document.getElementById('quick-nav-close');
     const searchInput = document.getElementById('quick-nav-search-input');
+    const pagesList = document.getElementById('quick-nav-pages-list');
+
+    // Dynamically populate quick-nav from sidebar links (single source of truth)
+    if (pagesList && !pagesList.children.length) {
+        const sidebarLinks = document.querySelectorAll('.sidebar .nav-item a');
+        sidebarLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            if (!href || href === '#') return;
+            const icon = link.querySelector('i');
+            const text = link.querySelector('span')?.textContent?.trim() || link.textContent.trim();
+            if (!text) return;
+            const navItem = document.createElement('a');
+            navItem.href = href;
+            navItem.className = 'quick-nav-item';
+            navItem.innerHTML = `<i class="${icon ? icon.className : 'fas fa-link'}" aria-hidden="true"></i><span>${text}</span>`;
+            pagesList.appendChild(navItem);
+        });
+    }
 
     panel?.setAttribute('aria-hidden', panel.classList.contains('open') ? 'false' : 'true');
     toggle?.setAttribute('aria-expanded', panel.classList.contains('open') ? 'true' : 'false');
@@ -137,7 +155,6 @@ function initQuickNav() {
             document.querySelectorAll('.quick-nav-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
 
-            // Toggle lists based on tab
             const targetList = tab.dataset.navTab;
             document.querySelectorAll('.quick-nav-list').forEach(list => {
                 list.style.display = 'none';
@@ -174,6 +191,10 @@ function filterQuickNavItems(query) {
     const items = document.querySelectorAll('.quick-nav-item');
     const lowerQuery = query.toLowerCase();
     items.forEach(item => {
+        if (item.dataset.pageVisibilityHidden === '1') {
+            item.style.display = 'none';
+            return;
+        }
         const text = item.textContent.toLowerCase();
         item.style.display = text.includes(lowerQuery) ? 'flex' : 'none';
     });

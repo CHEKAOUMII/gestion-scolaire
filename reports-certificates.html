@@ -1,20 +1,104 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الشواهد المدرسية | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
+    <style>
+        /* --- Certificate Preview Card --- */
+        .cert-preview-card {
+            background: var(--card-bg, #fff);
+            border: 2px solid var(--primary, #2D5F4A);
+            border-radius: 14px;
+            max-width: 680px;
+            margin: 0 auto;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(45, 95, 74, 0.1);
+        }
+
+        .cert-preview-header {
+            background: linear-gradient(135deg, var(--primary, #2D5F4A), #4A8B6F);
+            color: #fff;
+            padding: 16px 24px;
+            text-align: center;
+        }
+
+        .cert-preview-header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .cert-preview-header .cert-school-name {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin-top: 4px;
+        }
+
+        .cert-preview-body {
+            padding: 24px 28px;
+            direction: rtl;
+            text-align: right;
+            font-family: "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif;
+        }
+
+        .cert-preview-body .cert-field {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            padding: 10px 0;
+            border-bottom: 1px dashed var(--border-color, #e5e7eb);
+            font-size: 0.95rem;
+            color: var(--text-primary, #1F2D24);
+        }
+
+        .cert-preview-body .cert-field:last-child {
+            border-bottom: none;
+        }
+
+        .cert-preview-body .cert-field strong {
+            color: var(--primary, #2D5F4A);
+            white-space: nowrap;
+            min-width: 120px;
+        }
+
+        .cert-preview-actions {
+            padding: 16px 28px 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .cert-preview-actions .btn {
+            min-width: 140px;
+        }
+
+        .cert-preview-actions .btn i {
+            margin-left: 6px;
+        }
+
+        /* --- 2-copy indicator --- */
+        .cert-copies-note {
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-secondary, #6B7B72);
+            margin-top: 8px;
+        }
+
+        .cert-copies-note i {
+            margin-left: 4px;
+        }
+    </style>
 </head>
 
 <body>
@@ -59,6 +143,21 @@
     </main>
 
     <script>
+        const CERT_TYPE_LABELS = {
+            'attendance': 'شهادة التمدرس',
+            'enrollment': 'شهادة التسجيل',
+            'withdrawal': 'شهادة المغادرة'
+        };
+
+        const CERT_TYPE_BODY_TEXT = {
+            'attendance': 'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه يتابع/تتابع دراسته(ها) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
+            'enrollment': 'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه مسجل(ة) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
+            'withdrawal': 'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه قد غادر(ت) المؤسسة بانتظام خلال هذا الموسم.'
+        };
+
+        let _currentStudent = null;
+        let _currentType = '';
+
         document.getElementById('form').addEventListener('submit', async e => {
             e.preventDefault();
             const code = document.getElementById('student-code').value.trim();
@@ -72,25 +171,288 @@
                 return;
             }
 
-            const typeLabels = {
-                'attendance': 'شهادة التمدرس',
-                'enrollment': 'شهادة التسجيل',
-                'withdrawal': 'شهادة المغادرة'
-            };
+            _currentStudent = student;
+            _currentType = type;
+
+            const schoolName = localStorage.getItem('schoolName') || 'المؤسسة التعليمية';
+            const dateStr = new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
+            const typeLabel = CERT_TYPE_LABELS[type];
 
             document.getElementById('preview').innerHTML = `
-                <div style="border: 2px solid var(--primary); padding: 30px; border-radius: 12px; text-align: center; max-width: 600px; margin: 0 auto; background: white;">
-                    <h2 style="margin-bottom: 20px; color: var(--primary);">${typeLabels[type]}</h2>
-                    <p style="margin: 15px 0;"><strong>الاسم الكامل:</strong> ${student.full_name || '-'}</p>
-                    <p style="margin: 15px 0;"><strong>رقم مسار:</strong> ${student.massar_code || '-'}</p>
-                    <p style="margin: 15px 0;"><strong>القسم:</strong> ${student.class_name || '-'}</p>
-                    <p style="margin: 15px 0;"><strong>السنة الدراسية:</strong> 2025/2026</p>
-                    <p style="margin: 15px 0;"><strong>تاريخ الإصدار:</strong> ${new Date().toLocaleDateString('ar-MA')}</p>
-                    <button class="btn btn-primary" onclick="openPrintPreview({title:'شهادة',pageSize:'A4'})" style="margin-top: 20px;"><i class="fas fa-eye"></i> معاينة الطباعة</button>
+                <div class="cert-preview-card">
+                    <div class="cert-preview-header">
+                        <div class="cert-school-name">${schoolName}</div>
+                        <h2>${typeLabel}</h2>
+                    </div>
+                    <div class="cert-preview-body">
+                        <div class="cert-field"><strong>الاسم الكامل:</strong> <span>${student.full_name || '-'}</span></div>
+                        <div class="cert-field"><strong>رمز مسار:</strong> <span>${student.massar_code || '-'}</span></div>
+                        <div class="cert-field"><strong>القسم:</strong> <span>${student.class_name || '-'}</span></div>
+                        <div class="cert-field"><strong>السنة الدراسية:</strong> <span>2025/2026</span></div>
+                        <div class="cert-field"><strong>تاريخ الإصدار:</strong> <span>${dateStr}</span></div>
+                    </div>
+                    <div class="cert-preview-actions">
+                        <button class="btn btn-success" onclick="exportCertPDF()"><i class="fas fa-file-pdf"></i> تصدير PDF</button>
+                        <button class="btn btn-primary" onclick="printCert()"><i class="fas fa-print"></i> طباعة</button>
+                        <button class="btn btn-secondary" onclick="previewCert()"><i class="fas fa-eye"></i> معاينة</button>
+                    </div>
+                    <div class="cert-copies-note"><i class="fas fa-info-circle"></i> سيتم طباعة نسختين في كل صفحة A4</div>
                 </div>
             `;
             showToast('تم توليد الشهادة', 'success');
         });
+
+        /**
+         * Builds the full HTML for a single certificate copy � a formal Arabic document.
+         */
+        function buildCertificateHTML(student, type) {
+            const schoolName = localStorage.getItem('schoolName') || 'المؤسسة التعليمية';
+            const dateStr = new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
+            const typeLabel = CERT_TYPE_LABELS[type];
+            const bodyText = CERT_TYPE_BODY_TEXT[type];
+            const year = '2025/2026';
+
+            return `
+            <div style="
+                direction: rtl;
+                text-align: right;
+                font-family: 'Noto Kufi Arabic', 'IBM Plex Sans Arabic', sans-serif;
+                padding: 18mm 15mm 12mm 15mm;
+                box-sizing: border-box;
+                height: 148.5mm;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                page-break-inside: avoid;
+            ">
+                <!-- Top Section: Header -->
+                <div>
+                    <!-- Ministry / Academy line -->
+                    <div style="text-align: center; margin-bottom: 6px;">
+                        <div style="font-size: 11px; color: #555; font-weight: 600;">المملكة المغربية</div>
+                        <div style="font-size: 10px; color: #777; margin-top: 2px;">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
+                    </div>
+
+                    <!-- School name -->
+                    <div style="text-align: center; margin-bottom: 10px;">
+                        <div style="font-size: 14px; font-weight: 700; color: #2D5F4A;">${schoolName}</div>
+                    </div>
+
+                    <!-- Certificate title -->
+                    <div style="
+                        text-align: center;
+                        margin: 10px auto 14px;
+                        padding: 8px 30px;
+                        border: 2px solid #2D5F4A;
+                        border-radius: 8px;
+                        display: inline-block;
+                        width: auto;
+                    ">
+                        <div style="font-size: 18px; font-weight: 800; color: #2D5F4A; text-align: center;">${typeLabel}</div>
+                    </div>
+
+                    <!-- Student info table -->
+                    <table style="
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 10px;
+                        font-size: 12px;
+                    ">
+                        <tr>
+                            <td style="padding: 6px 10px; font-weight: 700; color: #333; width: 140px; border-bottom: 1px solid #e5e7eb;">الاسم الكامل</td>
+                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.full_name || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">رمز مسار</td>
+                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.massar_code || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">القسم</td>
+                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.class_name || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">السنة الدراسية</td>
+                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${year}</td>
+                        </tr>
+                    </table>
+
+                    <!-- Certificate body text -->
+                    <div style="
+                        margin-top: 14px;
+                        padding: 10px 12px;
+                        background: #f8faf9;
+                        border-right: 3px solid #2D5F4A;
+                        border-radius: 0 6px 6px 0;
+                        font-size: 12px;
+                        line-height: 1.8;
+                        color: #222;
+                    ">${bodyText}</div>
+
+                    <!-- Issue info -->
+                    <div style="
+                        margin-top: 10px;
+                        font-size: 11px;
+                        color: #555;
+                    ">سلمت هذه الشهادة للمعني(ة) بالأمر ليس الاستعمال فيما يقتضيه.</div>
+                </div>
+
+                <!-- Bottom Section: Date + Signature -->
+                <div style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-end;
+                    margin-top: 12px;
+                    padding-top: 8px;
+                ">
+                    <div style="text-align: center; min-width: 160px;">
+                        <div style="font-size: 10px; color: #555; margin-bottom: 4px;">التاريخ</div>
+                        <div style="font-size: 11px; font-weight: 600; color: #222;">${dateStr}</div>
+                    </div>
+                    <div style="text-align: center; min-width: 180px;">
+                        <div style="font-size: 10px; color: #555; margin-bottom: 24px;">إمضاء المدير(ة) وختم المؤسسة</div></div>
+                        <div style="border-top: 1px solid #ccc; padding-top: 4px; font-size: 10px; color: #999;">................................</div>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Builds the full printable page: 2 copies separated by a dashed cut line.
+         */
+        function buildTwoCopyPage(student, type) {
+            const copy = buildCertificateHTML(student, type);
+            return `
+            <div class="print-area" style="
+                width: 210mm;
+                min-height: 297mm;
+                margin: 0 auto;
+                background: #fff;
+                box-sizing: border-box;
+                font-family: 'Noto Kufi Arabic', 'IBM Plex Sans Arabic', sans-serif;
+                direction: rtl;
+            ">
+                <!-- Copy 1 -->
+                ${copy}
+
+                <!-- Cut line -->
+                <div style="
+                    border-top: 1.5px dashed #aaa;
+                    margin: 0 10mm;
+                    position: relative;
+                ">
+                    <span style="
+                        position: absolute;
+                        top: -8px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: #fff;
+                        padding: 0 10px;
+                        font-size: 8px;
+                        color: #bbb;
+                        font-family: 'Noto Kufi Arabic', sans-serif;
+                    ">✂ خط القص</span>
+                </div>
+
+                <!-- Copy 2 -->
+                ${copy}
+            </div>`;
+        }
+
+        /**
+         * Inline CSS for the print document.
+         */
+        function getCertPrintStyles() {
+            return `
+                @page {
+                    size: A4 portrait;
+                    margin: 0;
+                }
+                html, body {
+                    margin: 0;
+                    padding: 0;
+                    width: 210mm;
+                    background: #fff;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                * {
+                    box-sizing: border-box;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+            `;
+        }
+
+        /** Export as PDF via hidden BrowserWindow */
+        async function exportCertPDF() {
+            if (!_currentStudent) return;
+            const htmlContent = buildTwoCopyPage(_currentStudent, _currentType);
+            const typeLabel = CERT_TYPE_LABELS[_currentType];
+
+            if (window.api?.system?.printHTML) {
+                showToast('جاري تصدير PDF...', 'info');
+                const result = await window.api.system.printHTML({
+                    htmlContent,
+                    inlineStyles: getCertPrintStyles(),
+                    title: typeLabel,
+                    pageSize: 'A4',
+                    landscape: false,
+                    mode: 'pdf',
+                    defaultFileName: `${typeLabel}_${_currentStudent.massar_code || ''}`
+                });
+                if (result?.success) {
+                    showToast('تم تصدير الشهادة بنجاح', 'success');
+                } else if (result?.error !== 'Cancelled by user') {
+                    showToast('خطأ في تصدير الشهادة: ' + (result?.error || ''), 'error');
+                }
+            } else {
+                // Fallback: use the global print preview
+                openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
+            }
+        }
+
+        /** Print via system print dialog */
+        async function printCert() {
+            if (!_currentStudent) return;
+            const htmlContent = buildTwoCopyPage(_currentStudent, _currentType);
+            const typeLabel = CERT_TYPE_LABELS[_currentType];
+
+            if (window.api?.system?.printHTML) {
+                const result = await window.api.system.printHTML({
+                    htmlContent,
+                    inlineStyles: getCertPrintStyles(),
+                    title: typeLabel,
+                    pageSize: 'A4',
+                    landscape: false,
+                    mode: 'print'
+                });
+                if (result?.success) {
+                    showToast('تمت الطباعة بنجاح', 'success');
+                }
+            } else {
+                openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
+            }
+        }
+
+        /** Show preview in a hidden BrowserWindow */
+        async function previewCert() {
+            if (!_currentStudent) return;
+            const htmlContent = buildTwoCopyPage(_currentStudent, _currentType);
+            const typeLabel = CERT_TYPE_LABELS[_currentType];
+
+            if (window.api?.system?.printHTML) {
+                await window.api.system.printHTML({
+                    htmlContent,
+                    inlineStyles: getCertPrintStyles(),
+                    title: typeLabel,
+                    pageSize: 'A4',
+                    landscape: false,
+                    mode: 'preview'
+                });
+            } else {
+                openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
+            }
+        }
     </script>
 </body>
 

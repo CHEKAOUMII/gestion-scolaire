@@ -9,43 +9,48 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
 
 :root {
-    /* ─── Color Palette ─── */
+    /* ─── Color Palette  (Eye-Friendly "Verdant Calm") ─── */
     --color-primary: #2D5F4A;
     /* Pine Green */
     --color-primary-dark: #1B3D30;
-    /* Deep Pine */
+    /* Deep Forest */
     --color-primary-light: #4A8B6F;
     /* Soft Pine */
     --color-primary-mist: rgba(45, 95, 74, 0.08);
     /* Faintest Pine tint */
 
-    --color-secondary: #FAF8F5;
-    /* Light Cream — page bg */
+    --color-secondary: #FAF8F4;
+    /* Warm Cream — page bg (warmer, less blue) */
     --color-surface: #FFFEFB;
     /* Soft Ivory — cards */
-    --color-surface-alt: #F6F5F2;
-    /* Warm off-white — alt rows */
+    --color-surface-alt: #F1EDE8;
+    /* Parchment — alt rows (warmer than old #F6F5F2) */
 
     --color-text-main: #1F2D24;
     /* Charcoal Green */
     --color-text-muted: #6B7B72;
     /* Warm Slate */
     --color-text-light: #9CA8A0;
-    /* Soft mist text */
+    /* Silver Sage */
 
-    --color-accent: #E8ECE9;
-    /* Sage Fog — borders */
-    --color-silver: #C8CED3;
-    /* Silver Mist */
+    --color-accent: #E2DDD6;
+    /* Sand Mist — borders (warmer than old #E8ECE9) */
+    --color-silver: #C5C0B8;
+    /* Warm Silver (warmer than old #C8CED3) */
 
     --color-success: #2ECC71;
-    --color-warning: #F0AD4E;
-    --color-danger: #E85D5D;
-    --info: #5B9BD5;
+    --color-warning: #D4A85C;
+    /* Warm Honey (gentler than old #F0AD4E) */
+    --color-danger: #C75D5D;
+    /* Muted Rose (less saturated than old #E85D5D) */
+    --info: #5B8FA8;
+    /* Dusty Teal (desaturated, less blue-light) */
 
     /* ─── Glassmorphism ─── */
-    --glass-bg: rgba(255, 254, 251, 0.72);
-    --glass-border: rgba(200, 206, 211, 0.4);
+    --glass-bg: rgba(255, 254, 249, 0.72);
+    /* Slightly warmer glass tint */
+    --glass-border: rgba(194, 190, 182, 0.4);
+    /* Warm border tint */
     --glass-shadow: 0 8px 32px rgba(31, 45, 36, 0.06);
     --glass-blur: blur(16px);
 
@@ -88,8 +93,8 @@
 
     /* ─── Gradients ─── */
     --gradient-primary: linear-gradient(135deg, #2D5F4A 0%, #4A8B6F 100%);
-    --gradient-surface: linear-gradient(180deg, #FFFEFB 0%, #F6F5F2 100%);
-    --gradient-glass: linear-gradient(135deg, rgba(255, 254, 251, 0.8) 0%, rgba(246, 245, 242, 0.6) 100%);
+    --gradient-surface: linear-gradient(180deg, #FFFEFB 0%, #F1EDE8 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(255, 254, 249, 0.8) 0%, rgba(241, 237, 232, 0.6) 100%);
 }
 
 /* ─── Smooth Theme Transition ─── */
@@ -103,19 +108,24 @@ html[data-theme="dark"] {
 
 /* ─── Dark Mode ─── */
 [data-theme="dark"] {
-    /* Core surfaces */
+    /* Core surfaces — Deep Moss (not pure black, warm-green bias) */
     --color-secondary: #121A14;
     --color-surface: #1A241C;
     --color-surface-alt: #222E25;
 
-    /* Text */
-    --color-text-main: #E8ECE9;
+    /* Text — Mist White (softer than #FFFFFF) */
+    --color-text-main: #E2E8E4;
     --color-text-muted: #9CA8A0;
     --color-text-light: #6B7B72;
 
     /* Borders & accent */
     --color-accent: #2A3A2E;
     --color-silver: #3A4A3E;
+
+    /* Warning / Danger — warm in dark mode */
+    --color-warning: #D4A85C;
+    --color-danger: #C75D5D;
+    --info: #5B8FA8;
 
     /* Primary tints for dark */
     --color-primary-mist: rgba(74, 139, 111, 0.12);

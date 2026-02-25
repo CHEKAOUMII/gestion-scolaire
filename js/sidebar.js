@@ -54,9 +54,9 @@ function injectSidebar() {
                         <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
                         <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
                         <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
+                        <li><a href="grades-results.html"><i class="fas fa-file-invoice"></i> بيان النتائج</a></li>
                         <li><a href="studentzero.html"><i class="fas fa-exclamation-circle"></i> التلاميذ الحاصلون على صفر</a></li>
                         <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> الدعم التربوي</a></li>
-                        <li><a href="teachers-performance.html"><i class="fas fa-ranking-star"></i> مؤشرات أداء الأساتذة</a></li>
                     </ul>
                 </li>
                 <li class="expandable">
@@ -118,6 +118,9 @@ function injectSidebar() {
         const currentRole = getCurrentAppRole();
         if (typeof applyNavigationRestrictions === 'function') {
             applyNavigationRestrictions(currentRole);
+        }
+        if (typeof applyPageVisibilityToDocument === 'function') {
+            applyPageVisibilityToDocument(currentRole);
         }
         if (typeof ensureAdminAuthButton === 'function') {
             ensureAdminAuthButton(currentRole);

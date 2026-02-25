@@ -1,14 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>المستخدمون | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
@@ -64,15 +62,91 @@
                     <tbody id="tbody"></tbody>
                 </table>
             </div>
+
+            <div class="students-results" style="margin-top: 18px;">
+                <div
+                    style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                    <h3 style="margin:0;"><i class="fas fa-eye-slash"></i> الصفحات في قائمة التنقل</h3>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span id="page-visibility-pending" style="font-size:12px;color:#6b7280;">لا تعديلات معلقة</span>
+                        <button id="save-page-visibility" class="btn btn-success" type="button" disabled>
+                            <i class="fas fa-save"></i> حفظ التعديلات
+                        </button>
+                        <button id="save-page-visibility-defaults" class="btn btn-warning" type="button"
+                            title="حفظ الإعدادات الحالية كإعداد افتراضي لجميع الأجهزة عند التثبيت">
+                            <i class="fas fa-download"></i> حفظ كإعداد افتراضي للتطبيق
+                        </button>
+                        <button id="refresh-page-visibility" class="btn btn-secondary" type="button">تحديث
+                            القائمة</button>
+                    </div>
+                </div>
+                <p style="margin:0 0 12px 0;color:var(--text-muted,#6b7280);font-size:13px;">
+                    تحكم بالصفحات التي تظهر في قائمة التنقل لكل المستخدمين. غير الأدمن لن يروا هذه الصفحات المخفية.
+                </p>
+                <table class="students-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الصفحة</th>
+                            <th>المجموعة</th>
+                            <th>الحالة</th>
+                            <th>الإنجاز الحالي</th>
+                            <th>تغيير الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="page-visibility-tbody"></tbody>
+                </table>
+            </div>
         </div>
     </main>
 
     <script>
         let rows = [];
+        let pageRows = [];
+        let pageVisibilityMap = {};
+        let pageVisibilityDraftMap = {};
+        let pageVisibilityDirty = new Set();
+        let pageVisibilitySaving = false;
 
         document.addEventListener('DOMContentLoaded', async () => {
             await loadRows();
+            await loadPageVisibilityRows();
             document.getElementById('form').addEventListener('submit', addUser);
+
+            document.getElementById('save-page-visibility')?.addEventListener('click', async () => {
+                await savePageVisibilityChanges();
+            });
+
+            document.getElementById('refresh-page-visibility')?.addEventListener('click', async () => {
+                if (pageVisibilityDirty.size > 0) {
+                    const proceed = window.confirm('هناك تعديلات غير محفوظة. هل تريد التحديث وفقدان التغييرات؟');
+                    if (!proceed) return;
+                }
+                await loadPageVisibilityRows(true);
+                showToast('تم تحديث كل البيانات', 'info');
+            });
+
+            document.getElementById('save-page-visibility-defaults')?.addEventListener('click', async () => {
+                if (pageVisibilityDirty.size > 0) {
+                    showToast('يرجى حفظ التعديلات المعلقة أولاً قبل تعيين الإعداد الافتراضي', 'warning');
+                    return;
+                }
+                if (!window.api?.system?.savePageVisibilityDefaults) {
+                    showToast('هذه الميزة غير متاحة في هذا الإصدار', 'error');
+                    return;
+                }
+                if (!confirm('هل تريد حفظ إعدادات الظهور الحالية كإعداد افتراضي؟\nستُطبَّق هذه الإعدادات تلقائياً عند تثبيت التطبيق على أي جهاز جديد.')) return;
+                try {
+                    const res = await window.api.system.savePageVisibilityDefaults();
+                    if (res?.success) {
+                        showToast(`تم حفظ الإعداد الافتراضي بنجاح (${res.hiddenCount} صفحة مخفية). سيُطبَّق عند إعادة بناء التطبيق.`, 'success', 5000);
+                    } else {
+                        showToast(res?.error || 'فشل حفظ الإعداد الافتراضي', 'error');
+                    }
+                } catch (err) {
+                    showToast('حدث خطأ أثناء حفظ الإعداد الافتراضي', 'error');
+                }
+            });
         });
 
         async function loadRows() {
@@ -120,7 +194,7 @@
                 return;
             }
             if (res?.usedGeneratedPassword && res.temporaryPassword) {
-                showToast(`تمت الإضافة. كلمة المرور المؤقتة: ${res.temporaryPassword} — شاركها بشكل آمن مع المستخدم`, 'warning', 8000);
+                showToast(`تمت الإضافة. كلمة المرور المؤقتة: ${res.temporaryPassword} – يرجى تغييرها عند أول استخدام`, 'warning', 8000);
             } else {
                 showToast('تمت الإضافة', 'success');
             }
@@ -145,6 +219,214 @@
             }
             await loadRows();
         }
+
+        function _safeText(value) {
+            if (typeof escapeHtml === 'function') {
+                return escapeHtml(String(value || ''));
+            }
+            return String(value || '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function _statusBadge(visible) {
+            if (visible) {
+                return '<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#e7f7ed;color:#0f6a35;font-weight:700;font-size:12px;"><i class="fas fa-eye"></i> مرئي</span>';
+            }
+            return '<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#fef2f2;color:#991b1b;font-weight:700;font-size:12px;"><i class="fas fa-eye-slash"></i> مخفي</span>';
+        }
+
+        function _completionBadge(completed) {
+            if (completed) {
+                return '<span style="color:#0f6a35;font-weight:700;">مكتمل</span>';
+            }
+            return '<span style="color:#b45309;font-weight:700;">غير مكتمل</span>';
+        }
+
+        function _pendingBadge(isDirty) {
+            if (!isDirty) return '';
+            return '<div style="margin-top:6px;font-size:11px;color:#92400e;font-weight:700;">تعديلات معلقة</div>';
+        }
+
+        function updatePageVisibilitySaveUi() {
+            const saveBtn = document.getElementById('save-page-visibility');
+            const pendingLabel = document.getElementById('page-visibility-pending');
+            if (!saveBtn || !pendingLabel) return;
+
+            const pendingCount = pageVisibilityDirty.size;
+
+            if (pageVisibilitySaving) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+                pendingLabel.textContent = 'جاري حفظ التعديلات...';
+                pendingLabel.style.color = '#1d4ed8';
+                return;
+            }
+
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> حفظ التعديلات';
+            saveBtn.disabled = pendingCount === 0;
+
+            if (pendingCount > 0) {
+                pendingLabel.textContent = `تعديلات غير محفوظة: ${pendingCount}`;
+                pendingLabel.style.color = '#b45309';
+                return;
+            }
+
+            pendingLabel.textContent = 'لا تعديلات معلقة';
+            pendingLabel.style.color = '#0f766e';
+        }
+
+        function renderPageVisibilityRows() {
+            const tbody = document.getElementById('page-visibility-tbody');
+            if (!tbody) return;
+
+            if (!pageRows.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = pageRows.map((entry, index) => {
+                const visible = pageVisibilityDraftMap[entry.page] !== false;
+                const savedVisible = pageVisibilityMap[entry.page] !== false;
+                const isDirty = visible !== savedVisible;
+                const rowStyle = isDirty
+                    ? ' style="background:rgba(245,158,11,.12);"'
+                    : (!visible ? ' style="background:rgba(239,68,68,.06);"' : '');
+                const safeTitle = _safeText(entry.title || entry.page);
+                const safeGroup = _safeText(entry.group || '-');
+
+                return `
+                    <tr${rowStyle}>
+                        <td>${index + 1}</td>
+                        <td style="font-weight:600;">${safeTitle}<div style="font-size:12px;color:#6b7280;margin-top:2px;direction:ltr;">${entry.page}</div></td>
+                        <td>${safeGroup}</td>
+                        <td>${_statusBadge(visible)}${_pendingBadge(isDirty)}</td>
+                        <td>${_completionBadge(entry.completed)}</td>
+                        <td>
+                            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+                                <input type="checkbox" ${visible ? 'checked' : ''} onchange="stagePageVisibilityChange('${entry.page}', this.checked)" ${pageVisibilitySaving ? 'disabled' : ''}>
+                                <span>${visible ? 'مرئي' : 'مخفي'}</span>
+                            </label>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadPageVisibilityRows(forceRefresh = false) {
+            const tbody = document.getElementById('page-visibility-tbody');
+            if (!tbody) return;
+
+            if (!window.PageVisibility?.getCatalog || !window.PageVisibility?.loadState) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center;">نظام إخفاء الصفحات غيرمتاح</td></tr>';
+                pageRows = [];
+                pageVisibilityMap = {};
+                pageVisibilityDraftMap = {};
+                pageVisibilityDirty = new Set();
+                updatePageVisibilitySaveUi();
+                return;
+            }
+
+            await window.PageVisibility.loadState(forceRefresh === true);
+            pageRows = window.PageVisibility
+                .getCatalog()
+                .filter((entry) => entry?.page && entry.page !== 'login.html')
+                .sort((a, b) => {
+                    if (a.group === b.group) return String(a.title || '').localeCompare(String(b.title || ''), 'ar');
+                    return String(a.group || '').localeCompare(String(b.group || ''), 'ar');
+                });
+
+            pageVisibilityMap = window.PageVisibility.getMap ? window.PageVisibility.getMap() : {};
+            pageVisibilityDraftMap = { ...pageVisibilityMap };
+            pageVisibilityDirty = new Set();
+            renderPageVisibilityRows();
+            updatePageVisibilitySaveUi();
+        }
+
+        function stagePageVisibilityChange(page, isVisible) {
+            pageVisibilityDraftMap[page] = !!isVisible;
+            const savedVisible = pageVisibilityMap[page] !== false;
+            if ((!!isVisible) === savedVisible) {
+                pageVisibilityDirty.delete(page);
+            } else {
+                pageVisibilityDirty.add(page);
+            }
+            renderPageVisibilityRows();
+            updatePageVisibilitySaveUi();
+        }
+
+        async function savePageVisibilityChanges() {
+            if (!window.PageVisibility?.setVisibility) {
+                showToast('خطأ الوصول الى نظام الحالة', 'error');
+                return;
+            }
+
+            if (pageVisibilityDirty.size === 0) {
+                showToast('لا توجد تعديلات لحفظها', 'info');
+                return;
+            }
+
+            const changedPages = Array.from(pageVisibilityDirty);
+            pageVisibilitySaving = true;
+            updatePageVisibilitySaveUi();
+            renderPageVisibilityRows();
+
+            let savedCount = 0;
+            let failedCount = 0;
+            const failedItems = [];
+
+            for (const page of changedPages) {
+                const desiredVisible = pageVisibilityDraftMap[page] !== false;
+                try {
+                    const res = await window.PageVisibility.setVisibility(page, desiredVisible);
+                    if (res?.success) {
+                        pageVisibilityMap[page] = desiredVisible;
+                        pageVisibilityDirty.delete(page);
+                        savedCount += 1;
+                    } else {
+                        failedCount += 1;
+                        const pageMeta = pageRows.find((entry) => entry.page === page);
+                        failedItems.push({
+                            page,
+                            pageName: pageMeta?.title || page,
+                            error: res?.error || 'خطأ غير معروف'
+                        });
+                    }
+                } catch (_err) {
+                    failedCount += 1;
+                    const pageMeta = pageRows.find((entry) => entry.page === page);
+                    failedItems.push({
+                        page,
+                        pageName: pageMeta?.title || page,
+                        error: _err?.message || 'خطأ اتصال بالنظام'
+                    });
+                }
+            }
+
+            pageVisibilitySaving = false;
+            renderPageVisibilityRows();
+            updatePageVisibilitySaveUi();
+
+            if (savedCount > 0) {
+                showToast(`تم حفظ ${savedCount} تعديلات بنجاح`, 'success');
+                if (typeof window.PageVisibility.applyForCurrentRole === 'function') {
+                    window.PageVisibility.applyForCurrentRole();
+                }
+            }
+
+            if (failedCount > 0) {
+                const firstFailure = failedItems[0];
+                const hint = firstFailure
+                    ? ` � ${firstFailure.pageName}: ${firstFailure.error}`
+                    : '';
+                showToast(`فشل حفظ ${failedCount} تعديلات${hint}`, 'error', 7000);
+            }
+        }
+
+        window.stagePageVisibilityChange = stagePageVisibilityChange;
     </script>
 </body>
 

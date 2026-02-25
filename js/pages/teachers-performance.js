@@ -7,6 +7,7 @@ const CHART_JS_CDN = 'vendor/chart.min.js';
 
 let chartLoaderPromise = null;
 let allGradesCache = [];
+let allAbsencesCache = [];
 let sectionToLevel = {};
 let teacherRowsCache = [];
 let selectedTeacherName = '';
@@ -114,17 +115,28 @@ function bindEvents() {
 }
 
 /* ─── Data Loading ─── */
-function getCurrentYear() {
-    const stored = typeof window.api?.settings?.get === 'function' ? null : null;
+async function getCurrentYear() {
+    try {
+        if (typeof window.api?.settings?.get === 'function') {
+            const stored = await window.api.settings.get('schoolYear');
+            if (stored) return stored;
+        }
+    } catch (_) { /* fallback to default */ }
     return DEFAULT_YEAR;
 }
 
 async function loadInitialData() {
-    const year = getCurrentYear();
-    const [gradesRaw, levelsMappingRaw] = await Promise.all([
+    const year = await getCurrentYear();
+    const [gradesRaw, levelsMappingRaw, absencesRaw] = await Promise.all([
         window.api.grades.getAll(year),
-        window.api.settings.get('levelsMapping')
+        window.api.settings.get('levelsMapping'),
+        window.api.absences?.getAll?.(year).catch(() => []) ?? Promise.resolve([])
     ]);
+    allAbsencesCache = (absencesRaw || []).map((a) => ({
+        ...a,
+        _hours: Number(a.hours) || 0,
+        _section: String(a.section || '').trim()
+    }));
 
     try {
         sectionToLevel = levelsMappingRaw ? JSON.parse(levelsMappingRaw) : {};
@@ -340,6 +352,8 @@ function sanitizeTeacherName(value) {
         .trim();
     if (!raw) return '';
     if (/^\d+([.,]\d+)?$/.test(raw)) return '';
+    // Reject section/class names (e.g. 2BACSH-1, TCS-3, 1BACSEF-2)
+    if (/^(TCS|[12]BAC[A-Z]*)\s*[-_]?\s*\d*$/i.test(raw.replace(/\s+/g, ''))) return '';
     const normalized = normalizeLoose(raw);
     if (!normalized) return '';
     const invalidExact = new Set(
@@ -435,6 +449,22 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function csvEscape(value) {
+    const str = String(value ?? '');
+    return '"' + str.replace(/"/g, '""') + '"';
+}
+
+/* ─── Loading Overlay ─── */
+function showLoading() {
+    const el = document.getElementById('tp-loading-overlay');
+    if (el) el.classList.add('active');
+}
+
+function hideLoading() {
+    const el = document.getElementById('tp-loading-overlay');
+    if (el) el.classList.remove('active');
 }
 
 /* ─── Teacher Rating ─── */
@@ -664,50 +694,118 @@ function getBestSubject(grades) {
     return escapeHtml(bestSub);
 }
 
-/* ─── Quality Alert ─── */
-function renderQualityAlert(baseFiltered) {
-    const container = document.getElementById('tp-quality-alert');
-    if (!container) return;
+/* ─── Absence by Teacher Chart ─── */
+function renderAbsenceByTeacherChart(rows) {
+    const canvas = document.getElementById('tp-absence-by-teacher-chart');
+    const meta = document.getElementById('tp-absence-meta');
+    if (!canvas || !meta || !window.Chart) return;
+    destroyChart('absenceByTeacher');
 
-    if (!baseFiltered.length) {
-        container.className = 'tp-alert';
-        container.textContent = 'لا توجد معطيات ضمن الفلاتر الحالية.';
+    if (!rows.length || !allAbsencesCache.length) {
+        meta.textContent = 'لا توجد بيانات غياب أو أساتذة للعرض.';
         return;
     }
 
-    const invalidRows = baseFiltered.filter((g) => !g._teacher);
-    const totalSections = new Set(baseFiltered.map((g) => g.section).filter(Boolean)).size;
-    const coveredSections = new Set(
-        baseFiltered
-            .filter((g) => g._teacher)
-            .map((g) => g.section)
-            .filter(Boolean)
-    ).size;
-
-    if (!invalidRows.length) {
-        container.className = 'tp-alert tp-alert-ok';
-        container.innerHTML = `<strong>جيد:</strong> كل السجلات تحتوي على أسماء أساتذة صالحة. التغطية: <strong>${coveredSections}/${totalSections}</strong> قسم.`;
-        return;
-    }
-
-    const bySection = {};
-    invalidRows.forEach((row) => {
-        const s = String(row.section || 'غير محدد');
-        bySection[s] = (bySection[s] || 0) + 1;
+    // Build teacher → sections map from grades data
+    const teacherSections = new Map();
+    rows.forEach((row) => {
+        row.sections.forEach((sec) => {
+            if (!teacherSections.has(row.teacher)) teacherSections.set(row.teacher, new Set());
+            teacherSections.get(row.teacher).add(sec);
+        });
     });
-    const topSections = Object.entries(bySection)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([s, c]) => `${s} (${c})`)
-        .join('، ');
 
-    container.className = 'tp-alert';
-    container.innerHTML = `
-        <strong>تنبيه جودة:</strong> ${invalidRows.length} سجل بدون اسم أستاذ صالح
-        (${percentage(invalidRows.length, baseFiltered.length).toFixed(1)}%).
-        التغطية: <strong>${coveredSections}/${totalSections}</strong> قسم.<br>
-        الأقسام الأكثر تأثرا: ${topSections || 'غير محدد'}.
-    `;
+    // Compute total absence hours per teacher's sections
+    const teacherAbsence = [];
+    teacherSections.forEach((sections, teacher) => {
+        let totalHours = 0;
+        allAbsencesCache.forEach((a) => {
+            if (a._section && sections.has(a._section)) totalHours += a._hours;
+        });
+        teacherAbsence.push({ teacher, totalHours });
+    });
+
+    if (!teacherAbsence.length) {
+        meta.textContent = 'لا توجد بيانات غياب مرتبطة بالأساتذة.';
+        return;
+    }
+
+    // Sort and pick top 5 most + top 5 least
+    const sorted = [...teacherAbsence].sort((a, b) => b.totalHours - a.totalHours);
+    const top5Most = sorted.slice(0, 5);
+    const top5Least = sorted.filter((t) => t.totalHours >= 0).slice(-5).reverse();
+
+    // Merge: most first, then separator, then least (avoid duplicates)
+    const leastNames = new Set(top5Least.map((t) => t.teacher));
+    const mostFiltered = top5Most.filter((t) => !leastNames.has(t.teacher));
+    const combined = [...mostFiltered, ...top5Least];
+
+    // If all are the same (e.g. < 10 teachers), just show sorted
+    const finalList = combined.length > 0 ? combined : sorted.slice(0, 10);
+
+    const labels = finalList.map((t) => t.teacher);
+    const data = finalList.map((t) => t.totalHours);
+    const colors = finalList.map((t) => {
+        const isMost = top5Most.some((m) => m.teacher === t.teacher);
+        return isMost ? 'rgba(231, 76, 60, 0.80)' : 'rgba(47, 179, 109, 0.80)';
+    });
+
+    charts.absenceByTeacher = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'ساعات الغياب',
+                data,
+                backgroundColor: colors,
+                borderRadius: 6,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 700, easing: 'easeOutQuart' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    rtl: true,
+                    textDirection: 'rtl',
+                    callbacks: {
+                        label: (ctx) => `${Number(ctx.raw).toFixed(0)} ساعة غياب`,
+                        afterBody: (items) => {
+                            const t = finalList[items[0]?.dataIndex];
+                            if (!t) return '';
+                            const isMost = top5Most.some((m) => m.teacher === t.teacher);
+                            return [isMost ? '🔴 من الأكثر غياباً' : '🟢 من الأقل غياباً'];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    position: 'top',
+                    reverse: true,
+                    min: 0,
+                    ticks: { callback: (v) => `${v}h` },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                },
+                y: {
+                    position: 'right',
+                    grid: { display: false },
+                    ticks: {
+                        crossAlign: 'far',
+                        font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' },
+                        textDirection: 'rtl'
+                    }
+                }
+            }
+        }
+    });
+
+    const totalAbsAllTeachers = teacherAbsence.reduce((s, t) => s + t.totalHours, 0);
+    meta.textContent = `${teacherAbsence.length} أستاذ · ${totalAbsAllTeachers.toFixed(0)} ساعة غياب إجمالية. 🔴 الأكثر  🟢 الأقل`;
 }
 
 /* ─── Chart.js Loading ─── */
@@ -735,6 +833,20 @@ async function ensureChartJsLoaded() {
     return chartLoaderPromise;
 }
 
+function showChartFallback(canvasId, message) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const wrap = canvas.closest('.tp-chart-wrap');
+    if (!wrap) return;
+    canvas.style.display = 'none';
+    const existing = wrap.querySelector('.tp-chart-fallback');
+    if (existing) existing.remove();
+    const fallback = document.createElement('div');
+    fallback.className = 'tp-chart-fallback';
+    fallback.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${escapeHtml(message)}`;
+    wrap.appendChild(fallback);
+}
+
 function destroyChart(key) {
     if (charts[key]) charts[key].destroy();
     charts[key] = null;
@@ -751,15 +863,22 @@ function renderComparisonChart(rows) {
         return;
     }
 
-    const topRows = [...rows].sort((a, b) => b.passRate - a.passRate || b.avg - a.avg).slice(0, 20);
-    const labels = topRows.map((r) => r.teacher);
-    const data = topRows.map((r) => Number(r.passRate.toFixed(1)));
-    const colors = topRows.map((r) => {
+    const sorted = [...rows].sort((a, b) => b.passRate - a.passRate || b.avg - a.avg);
+    const top5Best = sorted.slice(0, 5);
+    const top5Worst = sorted.slice(-5).reverse();
+
+    // Remove duplicates (if < 10 teachers)
+    const worstNames = new Set(top5Worst.map((r) => r.teacher));
+    const bestFiltered = top5Best.filter((r) => !worstNames.has(r.teacher));
+    const combined = [...bestFiltered, ...top5Worst];
+    const finalList = combined.length > 0 ? combined : sorted.slice(0, 10);
+
+    const labels = finalList.map((r) => r.teacher);
+    const data = finalList.map((r) => Number(r.passRate.toFixed(1)));
+    const colors = finalList.map((r) => {
         if (r.teacher === selectedTeacherName) return 'rgba(29, 110, 82, 0.95)';
-        if (r.passRate >= 85) return 'rgba(47, 179, 109, 0.85)';
-        if (r.passRate >= 70) return 'rgba(60, 149, 208, 0.85)';
-        if (r.passRate >= 50) return 'rgba(240, 194, 14, 0.85)';
-        return 'rgba(231, 76, 60, 0.85)';
+        const isBest = top5Best.some((b) => b.teacher === r.teacher);
+        return isBest ? 'rgba(47, 179, 109, 0.85)' : 'rgba(231, 76, 60, 0.85)';
     });
 
     charts.comparison = new Chart(canvas.getContext('2d'), {
@@ -778,16 +897,20 @@ function renderComparisonChart(rows) {
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    rtl: true,
+                    textDirection: 'rtl',
                     callbacks: {
                         label: (ctx) => `نسبة النجاح: ${Number(ctx.raw).toFixed(1)}%`,
                         afterBody: (items) => {
                             const idx = items[0]?.dataIndex ?? -1;
-                            const r = topRows[idx];
+                            const r = finalList[idx];
                             if (!r) return '';
+                            const isBest = top5Best.some((b) => b.teacher === r.teacher);
                             return [
                                 `متوسط النقاط: ${r.avg.toFixed(2)}`,
                                 `التلاميذ: ${r.studentCount}`,
-                                `التصنيف: ${r.rating.stars} ${r.rating.label}`
+                                `التصنيف: ${r.rating.stars} ${r.rating.label}`,
+                                isBest ? '🟢 من الأفضل' : '🔴 من الأضعف'
                             ];
                         }
                     }
@@ -795,18 +918,28 @@ function renderComparisonChart(rows) {
             },
             scales: {
                 x: {
+                    position: 'top',
+                    reverse: true,
                     min: 0,
                     max: 100,
-                    ticks: { stepSize: 10, callback: (v) => `${v}%` },
+                    ticks: { stepSize: 20, callback: (v) => `${v}%` },
                     grid: { color: 'rgba(0,0,0,0.05)' }
                 },
-                y: { grid: { display: false } }
+                y: {
+                    position: 'right',
+                    grid: { display: false },
+                    ticks: {
+                        crossAlign: 'far',
+                        font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' },
+                        textDirection: 'rtl'
+                    }
+                }
             }
         }
     });
 
     const globalPassRate = avg(rows.map((r) => r.passRate));
-    meta.textContent = `${rows.length} أستاذ. الأعلى: ${topRows[0].teacher} (${topRows[0].passRate.toFixed(1)}%). متوسط النجاح: ${globalPassRate.toFixed(1)}%.`;
+    meta.textContent = `${rows.length} أستاذ. 🟢 الأفضل: ${top5Best[0].teacher} (${top5Best[0].passRate.toFixed(1)}%) · 🔴 الأضعف: ${sorted[sorted.length - 1].teacher} (${sorted[sorted.length - 1].passRate.toFixed(1)}%) · متوسط: ${globalPassRate.toFixed(1)}%`;
 }
 
 /* ─── Teacher Table ─── */
@@ -1195,24 +1328,25 @@ function exportReport() {
     getSortedRows(teacherRowsCache).forEach((row) => {
         csvRows.push(
             [
-                `"${row.teacher}"`,
-                `"${rowSubjectLabel(row, currentSubjectFilter)}"`,
+                csvEscape(row.teacher),
+                csvEscape(rowSubjectLabel(row, currentSubjectFilter)),
                 row.sectionsCount,
                 row.studentCount,
                 row.avg.toFixed(2),
                 row.passRate.toFixed(1) + '%',
-                `"${row.rating.label}"`,
+                csvEscape(row.rating.label),
                 row.semesterDiff !== null ? row.semesterDiff.toFixed(2) : '-',
-                `"${formatDateTime(row.lastImportedMs)}"`
+                csvEscape(formatDateTime(row.lastImportedMs))
             ].join(',')
         );
     });
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.download = `teachers-performance-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
-    URL.revokeObjectURL(link.href);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     showToast('تم تصدير التقرير بنجاح', 'success');
 }
 
@@ -1224,9 +1358,17 @@ async function runAnalysis() {
         analyzeBtn.disabled = true;
         analyzeBtn.setAttribute('aria-busy', 'true');
     }
+    showLoading();
 
     try {
-        await ensureChartJsLoaded();
+        let chartLoadFailed = false;
+        try {
+            await ensureChartJsLoaded();
+        } catch (chartErr) {
+            console.warn('Chart.js failed to load:', chartErr);
+            chartLoadFailed = true;
+        }
+
         const baseFiltered = getBaseFilteredGrades();
         currentSubjectFilter = document.getElementById('tp-subject-filter')?.value || '';
         const rows = buildTeacherRows(baseFiltered).sort(
@@ -1239,16 +1381,29 @@ async function runAnalysis() {
 
         renderStateLine(baseFiltered, rows);
         renderKpis(baseFiltered, rows);
-        renderQualityAlert(baseFiltered);
-        renderComparisonChart(rows);
+        if (chartLoadFailed) {
+            const chartMsg = 'تعذر تحميل مكتبة الرسوم البيانية';
+            showChartFallback('tp-teacher-compare-chart', chartMsg);
+            showChartFallback('tp-absence-by-teacher-chart', chartMsg);
+            showChartFallback('tp-section-chart', chartMsg);
+            showChartFallback('tp-distribution-chart', chartMsg);
+            showChartFallback('tp-trend-chart', chartMsg);
+            showChartFallback('tp-semester-compare-chart', chartMsg);
+            showChartFallback('tp-radar-chart', chartMsg);
+        } else {
+            renderComparisonChart(rows);
+            renderAbsenceByTeacherChart(rows);
+            renderTeacherCard(baseFiltered, rows);
+            renderSemesterCompareChart(rows);
+            renderRadarChart(rows);
+        }
+
         renderTeacherTable(rows, currentSubjectFilter);
-        renderTeacherCard(baseFiltered, rows);
-        renderSemesterCompareChart(rows);
-        renderRadarChart(rows);
     } catch (error) {
         console.error('Teacher performance analysis error:', error);
         showToast('تعذر تنفيذ التحليل', 'error');
     } finally {
+        hideLoading();
         if (analyzeBtn) {
             analyzeBtn.disabled = false;
             analyzeBtn.removeAttribute('aria-busy');

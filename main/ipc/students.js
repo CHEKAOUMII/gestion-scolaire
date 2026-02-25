@@ -31,13 +31,13 @@ function registerStudentsIpc(ipcMain) {
             SELECT *
             FROM students
             WHERE school_year = ?
-            AND(? = '' OR full_name LIKE ?)
-            AND(? = '' OR section LIKE ?)
+            AND(? = '' OR full_name LIKE ? OR family_name LIKE ? OR code LIKE ?)
+            AND(? = '' OR section = ?)
             AND(? = '' OR code LIKE ?)
             ORDER BY section, full_name
         `
             )
-            .all(year, nameQ, `%${nameQ}%`, classQ, `%${classQ}%`, codeQ, `%${codeQ}%`);
+            .all(year, nameQ, `%${nameQ}%`, `%${nameQ}%`, `%${nameQ}%`, classQ, classQ, codeQ, `%${codeQ}%`);
         return rows.map((r) => ({
             ...r,
             massar_code: r.code,
@@ -53,14 +53,15 @@ function registerStudentsIpc(ipcMain) {
             const db = getDb();
             db.prepare(
                 `
-                INSERT INTO students(code, full_name, family_name, birth_date, gender, section, school_year, status, registration_type)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO students(code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
             ).run(
                 student.code,
                 student.full_name,
                 student.family_name,
                 student.birth_date,
+                student.birth_place || '',
                 student.gender,
                 student.section,
                 student.school_year,
@@ -78,8 +79,8 @@ function registerStudentsIpc(ipcMain) {
         try {
             const db = getDb();
             const insert = db.prepare(`
-                INSERT OR REPLACE INTO students (code, full_name, family_name, birth_date, gender, section, school_year, status, registration_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO students (code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             const insertMany = db.transaction((items) => {
                 for (const student of items) {
@@ -88,6 +89,7 @@ function registerStudentsIpc(ipcMain) {
                         student.full_name,
                         student.family_name,
                         student.birth_date,
+                        student.birth_place || '',
                         student.gender,
                         student.section,
                         student.school_year,
@@ -117,6 +119,7 @@ function registerStudentsIpc(ipcMain) {
                 'full_name',
                 'family_name',
                 'birth_date',
+                'birth_place',
                 'gender',
                 'section',
                 'school_year',

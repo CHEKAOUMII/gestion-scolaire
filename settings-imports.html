@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -7,9 +7,8 @@
     <meta name="description" content="صفحة استيراد بيانات التلاميذ والنقط والغياب والجداول الزمنية">
     <meta name="theme-color" content="#0f172a">
     <title>استيراد البيانات | برنامج التدبير المدرسي</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
@@ -32,7 +31,7 @@
         <div style="text-align: center; padding: 40px;">
             <i class="fas fa-exclamation-triangle"
                 style="font-size: 3rem; color: #f59e0b; margin-bottom: 1rem; display: block;"></i>
-            <h2>⚠️ يرجى تفعيل JavaScript لاستخدام صفحة الاستيراد</h2>
+            <h2>يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
         </div>
     </noscript>
 </head>
@@ -109,7 +108,7 @@
                         <div class="stat-card-icon"><i class="fas fa-calendar-alt"></i></div>
                         <div class="stat-card-value" id="stat-timetable-status"><i class="fas fa-spinner fa-spin"></i>
                         </div>
-                        <div class="stat-card-label">الجدول الزمني</div>
+                        <div class="stat-card-label">نقطة</div>
                     </div>
                 </div>
                 <div class="data-actions">
@@ -144,17 +143,17 @@
                     <button class="btn btn-primary" data-action="grades" type="button">
                         <i class="fas fa-star"></i>
                         <span>استيراد النقط</span>
-                        <small class="import-format-hint">.xlsx .xls .csv — متعدد الملفات</small>
+                        <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
                     </button>
                     <button class="btn btn-primary" data-action="absences" type="button">
                         <i class="fas fa-user-clock"></i>
                         <span>استيراد الغياب</span>
-                        <small class="import-format-hint">.xlsx .xls .csv — متعدد الملفات</small>
+                        <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
                     </button>
                     <button class="btn btn-primary" data-action="fet" type="button">
                         <i class="fas fa-calendar-alt"></i>
                         <span>استيراد FET (XML)</span>
-                        <small class="import-format-hint">.xml — ملف _teachers.xml</small>
+                        <small class="import-format-hint">.xml – ملف _teachers.xml</small>
                     </button>
                 </div>
 
@@ -188,7 +187,8 @@
             <div class="students-results">
                 <h3><i class="fas fa-shield-alt"></i> النسخ الاحتياطي</h3>
                 <div style="padding: 2rem; text-align: center;">
-                    <p style="margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 0.95rem;">حماية بياناتك من الضياع — إنشاء نسخة احتياطية أو استعادة نسخة سابقة</p>
+                    <p style="margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 0.95rem;">تصدير البيانات
+                        الحالية – استعادة نسخة احتياطية في حالة فقدان البيانات</p>
                     <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
                         <button class="btn btn-primary" id="create-backup-btn" type="button" style="gap: 10px;">
                             <i class="fas fa-download"></i> إنشاء نسخة احتياطية

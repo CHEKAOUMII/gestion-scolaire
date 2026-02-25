@@ -38,6 +38,12 @@ contextBridge.exposeInMainWorld('api', {
         set: (key, value) => ipcRenderer.invoke('settings:set', key, value)
     },
 
+    // Page visibility
+    pageVisibility: {
+        getMap: () => ipcRenderer.invoke('pageVisibility:getMap'),
+        setVisibility: (payload) => ipcRenderer.invoke('pageVisibility:setVisibility', payload)
+    },
+
     // Statistics
     stats: {
         get: (schoolYear) => ipcRenderer.invoke('stats:get', schoolYear)
@@ -179,7 +185,8 @@ contextBridge.exposeInMainWorld('api', {
         getAll: () => ipcRenderer.invoke('users:getAll'),
         add: (payload) => ipcRenderer.invoke('users:add', payload),
         updateRole: (id, role) => ipcRenderer.invoke('users:updateRole', id, role),
-        disable: (id, disabled) => ipcRenderer.invoke('users:disable', id, disabled)
+        disable: (id, disabled) => ipcRenderer.invoke('users:disable', id, disabled),
+        resetAdminPassword: () => ipcRenderer.invoke('users:resetAdminPassword')
     },
 
     // Licensing
@@ -215,6 +222,7 @@ contextBridge.exposeInMainWorld('api', {
         printHTML: (payload = {}) => ipcRenderer.invoke('system:printHTML', payload),
         backupDb: () => ipcRenderer.invoke('system:backupDb'),
         restoreDb: (payload) => ipcRenderer.invoke('system:restoreDb', payload),
+        savePageVisibilityDefaults: () => ipcRenderer.invoke('system:savePageVisibilityDefaults'),
         quit: () => ipcRenderer.invoke('app:quit')
     },
 

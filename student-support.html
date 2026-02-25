@@ -1,19 +1,18 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الدعم التربوي | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
     <script src="js/sidebar.js"></script>
+    <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
     <style>
         .print-header {
@@ -472,7 +471,6 @@
         }
 
         .ux-pp-sheet .level-filter-tabs,
-        .ux-pp-sheet #export-excel-btn,
         .ux-pp-sheet .table-quick-search {
             display: none !important;
         }
@@ -500,8 +498,12 @@
         }
 
         @media print {
-            body {
+
+            body,
+            html {
                 background: #fff !important;
+                height: auto !important;
+                overflow: visible !important;
             }
 
             .sidebar,
@@ -514,14 +516,23 @@
                 display: none !important;
             }
 
-            .main-content {
+            .main-content,
+            .grades-container,
+            .students-results,
+            .table-responsive {
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                position: static !important;
+                page-break-inside: auto;
                 margin: 0 !important;
                 padding: 0 !important;
                 width: 100% !important;
             }
 
-            .grades-container {
-                padding: 0 !important;
+            .students-table tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
             }
 
             .print-header {
@@ -627,7 +638,6 @@
             }
 
             .level-filter-tabs,
-            #export-excel-btn,
             .pagination,
             .table-quick-search {
                 display: none !important;
@@ -739,8 +749,6 @@
             <div class="students-results">
                 <div class="results-action-bar">
                     <h3 style="margin:0;">التلاميذ المحتاجين للدعم</h3>
-                    <button class="btn btn-success" id="export-excel-btn" style="display:none;"><i
-                            class="fas fa-file-excel"></i> تصدير Excel</button>
                 </div>
                 <div class="level-filter-tabs" id="level-tabs" style="display:none;">
                     <button class="level-tab active" data-level="all"><i class="fas fa-list"></i> الكل <span
@@ -844,7 +852,7 @@
             });
 
             document.getElementById('search-btn').addEventListener('click', search);
-            document.getElementById('export-excel-btn').addEventListener('click', exportExcel);
+
 
             // Level filter tabs
             document.querySelectorAll('.level-tab').forEach(tab => {
@@ -1168,9 +1176,10 @@
             const medium = filtered.filter(g => g.grade >= 5 && g.grade < 8).length;
             const near = filtered.filter(g => g.grade >= 8).length;
 
-            // Total students for percentage
+            // Count unique struggling students for percentage
+            const uniqueStudents = new Set(filtered.map(g => g.massar_code || g.student_code || '')).size;
             const totalStudents = allStudentsCache.length || allGradesCache.length;
-            const percent = totalStudents > 0 ? ((total / totalStudents) * 100).toFixed(1) : '0';
+            const percent = totalStudents > 0 ? ((uniqueStudents / totalStudents) * 100).toFixed(1) : '0';
 
             // Most struggling subject
             const subjectCount = {};
@@ -1192,7 +1201,7 @@
             document.getElementById('count-medium').textContent = medium;
             document.getElementById('count-near').textContent = near;
             document.getElementById('level-tabs').style.display = total > 0 ? '' : 'none';
-            document.getElementById('export-excel-btn').style.display = total > 0 ? '' : 'none';
+
             document.getElementById('table-quick-search').classList.toggle('visible', total > 0);
             document.getElementById('quick-search-input').value = '';
             quickSearchTerm = '';
@@ -1381,17 +1390,54 @@
             const subject = document.getElementById('subject-select').value;
             const threshold = parseFloat(document.getElementById('threshold').value) || 10;
 
-            let filtered = allGradesCache.filter(g => (g.grade || 0) < threshold);
+            // Step 1: Filter by class/level/subject (before threshold)
+            let relevantGrades = allGradesCache.slice();
 
             if (className) {
-                filtered = filtered.filter(g => (g.section || '') === className);
+                relevantGrades = relevantGrades.filter(g => (g.section || '') === className);
             } else if (level) {
-                filtered = filtered.filter(g => getLevelFromSection(g.section) === level);
+                relevantGrades = relevantGrades.filter(g => getLevelFromSection(g.section) === level);
             }
 
             if (subject) {
-                filtered = filtered.filter(g => normalizeSubjectName(g.subject) === subject);
+                relevantGrades = relevantGrades.filter(g => normalizeSubjectName(g.subject) === subject);
             }
+
+            // Step 2: Group by (student code + base subject) to get subject average
+            const grouped = {};
+            relevantGrades.forEach(g => {
+                const code = g.massar_code || g.student_code || '';
+                const baseSubj = typeof ccBaseSubject === 'function'
+                    ? ccBaseSubject(normalizeSubjectName(g.subject))
+                    : normalizeSubjectName(g.subject);
+                if (!code || !baseSubj) return;
+                const key = code + '|||' + baseSubj;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        massar_code: g.massar_code,
+                        student_code: g.student_code,
+                        student_name: g.student_name || g.full_name,
+                        full_name: g.full_name || g.student_name,
+                        section: g.section,
+                        class_name: g.class_name,
+                        subject: baseSubj,
+                        _rawGrades: [g]
+                    };
+                } else {
+                    grouped[key]._rawGrades.push(g);
+                }
+            });
+
+            // Step 3: Compute weighted subject average and filter by threshold
+            let filtered = Object.values(grouped)
+                .map(entry => {
+                    const avg = typeof computeSubjectAverage === 'function'
+                        ? computeSubjectAverage(entry.subject, entry._rawGrades)
+                        : entry._rawGrades.reduce((a, g) => a + (g.grade || 0), 0) / entry._rawGrades.length;
+                    const { _rawGrades, ...rest } = entry;
+                    return { ...rest, grade: parseFloat(avg.toFixed(2)) };
+                })
+                .filter(entry => entry.grade < threshold);
 
             filtered.sort((a, b) => (a.grade || 0) - (b.grade || 0));
             lastFiltered = filtered;
@@ -1407,50 +1453,27 @@
             renderCharts(filtered);
         }
 
-        // ─── Excel (CSV) export ───
-        function exportExcel() {
-            if (!lastFiltered.length) {
-                if (typeof showToast === 'function') showToast('لا توجد بيانات للتصدير', 'warning');
-                return;
-            }
 
-            const BOM = '\uFEFF';
-            const headers = ['#', 'رمز مسار', 'الاسم الكامل', 'القسم', 'المادة', 'النقطة', 'الحالة'];
-            const rows = lastFiltered.map((g, i) => [
-                i + 1,
-                g.massar_code || g.student_code || '',
-                g.student_name || g.full_name || '',
-                g.section || g.class_name || '',
-                normalizeSubjectName(g.subject) || '',
-                g.grade,
-                getSupportLabel(getSupportLevel(g.grade)).text
-            ]);
-
-            const csvContent = BOM + [headers, ...rows]
-                .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-                .join('\n');
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `الدعم_التربوي_${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
-
-            if (typeof showToast === 'function') showToast('تم تصدير الملف بنجاح', 'success');
-        }
 
         // ─── Print preview ───
         function exportPdf() {
-            const display = activeLevel === 'all'
-                ? lastFiltered
+            let display = activeLevel === 'all'
+                ? lastFiltered.slice()
                 : lastFiltered.filter(g => getSupportLevel(g.grade) === activeLevel);
 
             if (!display.length) {
                 if (typeof showToast === 'function') showToast('لا توجد بيانات للتصدير. قم بالبحث أولاً', 'warning');
                 return;
             }
+
+            // Sort by class name (section), then by grade within each class
+            display.sort((a, b) => {
+                const secA = (a.section || a.class_name || '').toLowerCase();
+                const secB = (b.section || b.class_name || '').toLowerCase();
+                const secCmp = secA.localeCompare(secB, 'ar');
+                if (secCmp !== 0) return secCmp;
+                return (a.grade || 0) - (b.grade || 0);
+            });
 
             // Temporarily render ALL rows for print
             const tbody = document.getElementById('tbody');
@@ -1490,8 +1513,9 @@
 
             openPrintPreview({ title: 'الدعم التربوي', pageSize: 'A4', landscape: false });
 
-            // Restore paginated view after preview clones the DOM
-            setTimeout(() => renderTable(lastFiltered), 200);
+            // openPrintPreview clones content after ~300ms (charts/theme capture).
+            // Keep full rows a bit longer so preview captures every page.
+            setTimeout(() => renderTable(lastFiltered), 700);
         }
     </script>
 </body>

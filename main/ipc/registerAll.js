@@ -8,6 +8,7 @@ const { registerSystemIpc } = require('./system');
 const { registerLicensingIpc } = require('./licensing');
 const { registerOwnerTelemetryIpc } = require('./ownerTelemetry');
 const { registerUpdaterIpc } = require('./updater');
+const { registerPageVisibilityIpc } = require('./pageVisibility');
 
 function registerAllIpcHandlers(ipcMain) {
     registerAuthIpc(ipcMain);
@@ -20,6 +21,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerLicensingIpc(ipcMain);
     registerOwnerTelemetryIpc(ipcMain);
     registerUpdaterIpc(ipcMain);
+    registerPageVisibilityIpc(ipcMain);
 }
 
 module.exports = { registerAllIpcHandlers };

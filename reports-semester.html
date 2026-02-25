@@ -1,23 +1,22 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تقارير الفصل | برنامج التدبير المدرسي</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
     <script src="js/sidebar.js"></script>
+    <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
     <script src="vendor/qrcode.min.js"></script>
     <style>
-        /* ─── Report Header ─── */
+        /* --- Report Header --- */
         .report-header {
             display: flex;
             align-items: center;
@@ -35,7 +34,7 @@
             gap: 10px;
         }
 
-        /* ─── Filters ─── */
+        /* --- Filters --- */
         .report-filters-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -53,7 +52,7 @@
             font-size: 14px;
         }
 
-        /* ─── KPI Cards ─── */
+        /* --- KPI Cards --- */
         .report-kpis {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -191,7 +190,7 @@
             font-weight: 500;
         }
 
-        /* ─── Grid Layouts ─── */
+        /* --- Grid Layouts --- */
         .report-grid-two {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -206,7 +205,7 @@
             margin-bottom: 16px;
         }
 
-        /* ─── Panels (Glassmorphism) ─── */
+        /* --- Panels (Glassmorphism) --- */
         .report-panel {
             background: var(--glass-bg);
             backdrop-filter: blur(10px);
@@ -245,7 +244,7 @@
             height: 260px !important;
         }
 
-        /* ─── Progress Bars ─── */
+        /* --- Progress Bars --- */
         .report-progress-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -343,7 +342,7 @@
             justify-content: space-between;
         }
 
-        /* ─── Summary Table ─── */
+        /* --- Summary Table --- */
         .report-summary-table {
             width: 100%;
             border-collapse: separate;
@@ -396,7 +395,7 @@
             color: #fff;
         }
 
-        /* ─── Collapsible Blocks ─── */
+        /* --- Collapsible Blocks --- */
         .report-block {
             background: var(--color-surface);
             border: 1px solid var(--color-accent);
@@ -473,7 +472,7 @@
             padding: 18px;
         }
 
-        /* ─── Empty State ─── */
+        /* --- Empty State --- */
         .report-empty-state {
             text-align: center;
             padding: 50px 20px;
@@ -492,7 +491,7 @@
             font-weight: 500;
         }
 
-        /* ─── Responsive ─── */
+        /* --- Responsive --- */
         @media (max-width: 1100px) {
 
             .report-grid-two,
@@ -517,7 +516,7 @@
         }
 
 
-        /* ─── Compact sizing for shared print preview ─── */
+        /* --- Compact sizing for shared print preview --- */
         .ux-pp-sheet .main-content {
             flex: none !important;
             margin: 0 !important;
@@ -923,7 +922,7 @@
             print-color-adjust: exact !important;
         }
 
-        /* ─── Print Styles ─── */
+        /* --- Print Styles --- */
         @media print {
             @page {
                 size: A4 portrait;
@@ -944,7 +943,7 @@
 
 
 
-            /* KPI grid — compact */
+            /* KPI grid � compact */
             .report-kpis {
                 display: grid !important;
                 grid-template-columns: repeat(4, 1fr) !important;
@@ -991,7 +990,7 @@
                 print-color-adjust: exact !important;
             }
 
-            /* Grids — compact */
+            /* Grids � compact */
             .report-grid-two {
                 display: grid !important;
                 grid-template-columns: repeat(2, 1fr) !important;
@@ -1006,7 +1005,7 @@
                 margin-bottom: 2px !important;
             }
 
-            /* Panels — compact */
+            /* Panels � compact */
             .report-panel {
                 box-shadow: none !important;
                 backdrop-filter: none !important;
@@ -1031,7 +1030,7 @@
                 font-size: 12px !important;
             }
 
-            /* Chart images — constrained */
+            /* Chart images � constrained */
             .report-canvas,
             .report-canvas-preview-image {
                 max-height: 160px !important;
@@ -1039,7 +1038,7 @@
                 object-fit: contain;
             }
 
-            /* Blocks — compact */
+            /* Blocks � compact */
             details.report-block {
                 box-shadow: none !important;
                 margin-bottom: 2px !important;
@@ -1059,7 +1058,7 @@
                 padding: 4px !important;
             }
 
-            /* Table — compact */
+            /* Table � compact */
             .report-summary-table th,
             .report-summary-table td {
                 padding: 5px 8px !important;
@@ -1072,7 +1071,7 @@
                 font-size: 9px !important;
             }
 
-            /* Progress bars — compact */
+            /* Progress bars � compact */
             .report-progress-item {
                 padding: 7px 10px !important;
                 background: #fff !important;
@@ -1111,7 +1110,7 @@
                 font-size: 9px !important;
             }
 
-            /* Security bar — compact */
+            /* Security bar � compact */
             .report-print-security-bar {
                 padding: 6px 10px !important;
                 margin-bottom: 8px !important;
@@ -1293,7 +1292,7 @@
             { key: 'weak', label: 'ضعيف', min: 0, max: 10, color: '#E74C3C' }
         ];
 
-        // ─── Utility functions ───
+        // --- Utility functions ---
         function asNumber(v) { const n = Number(v); return Number.isFinite(n) ? n : NaN; }
         function avg(vals) { return vals.length ? vals.reduce((s, x) => s + x, 0) / vals.length : 0; }
         function median(vals) {
@@ -1486,7 +1485,7 @@
                     <span><b>القسم:</b> ${escapeHtml(lastReportContext?.className || 'كل الأقسام')}</span>
                 </div>
                 <div class="report-print-verify">
-                    <img class="report-print-qr" src="${buildQrDataUrl(qrPayload)}" alt="QR تحقق">
+                    <img class="report-print-qr" src="${buildQrDataUrl(qrPayload)}" alt="QR كود">
                     <div class="report-print-code">
                         <span><b>بصمة التحقق:</b></span>
                         <span class="mono">${escapeHtml(shortFingerprint)}</span>
@@ -1631,14 +1630,14 @@
             try {
                 if (window.api?.system?.printHTML) {
                     // Use hidden-window approach: sends HTML to a background BrowserWindow
-                    // for PDF export — never takes over the main page.
+                    // for PDF export � never takes over the main page.
                     const htmlContent = prepared.printableNode.outerHTML;
                     const inlineStyles = _extractReportInlineStyles();
                     const semLabel = lastReportContext?.semesterLabel || 'تقرير';
                     const result = await window.api.system.printHTML({
                         htmlContent,
                         inlineStyles,
-                        title: `تقرير الفصل — ${semLabel}`,
+                        title: `تقرير الفصل – ${semLabel}`,
                         pageSize: 'A4',
                         landscape: false,
                         mode: 'pdf',
@@ -1661,7 +1660,7 @@
             }
         }
 
-        // ─── Chart.js loader ───
+        // --- Chart.js loader ---
         function ensureChartJs() {
             if (window.Chart) return Promise.resolve(window.Chart);
             if (chartLoaderPromise) return chartLoaderPromise;
@@ -1688,8 +1687,8 @@
             return chartInstances[id];
         }
 
-        // ─── Extract level from section name ───
-        // e.g. "1ASCG1" → "1ASC", "2ASCG3" → "2ASC", "TCSG1" → "TCS"
+        // --- Extract level from section name ---
+        // e.g. "1ASCG1" ? "1ASC", "2ASCG3" ? "2ASC", "TCSG1" ? "TCS"
         function extractLevel(section) {
             const s = String(section || '').trim();
             // Match patterns like: 1ASCG1, 2ASCG2, TCSG1, 1BACSEG1, 2BACPCG2
@@ -1703,7 +1702,7 @@
         // Store all classes for level filtering
         let allClasses = [];
 
-        // ─── DOM Ready ───
+        // --- DOM Ready ---
         document.addEventListener('DOMContentLoaded', async () => {
 
 
@@ -1732,7 +1731,7 @@
                     classSelect.appendChild(opt);
                 });
 
-                // Level → filter classes
+                // Level ? filter classes
                 levelSelect.addEventListener('change', () => {
                     const selectedLevel = levelSelect.value;
                     classSelect.innerHTML = '<option value="">كل الأقسام</option>';
@@ -1759,7 +1758,7 @@
             }
         });
 
-        // ─── Helpers for subject name normalization ───
+        // --- Helpers for subject name normalization ---
         function baseSubject(subj) {
             return String(subj || '')
                 .replace(/\s*\(فرض\s*\d+\)\s*$/, '')
@@ -1774,16 +1773,16 @@
             return String(subj || '').includes('الأنشطة المندمجة');
         }
 
-        // ─── Form submit ───
+        // --- Form submit ---
         document.getElementById('form').addEventListener('submit', async e => {
             e.preventDefault();
             await generateReport();
         });
 
-        // ─── Export PDF button → opens shared print preview ───
+        // --- Export PDF button ? opens shared print preview ---
         document.getElementById('export-pdf-btn').addEventListener('click', () => {
             const semLabel = lastReportContext?.semesterLabel || 'تقرير الفصل';
-            openPrintPreview({ title: `تقرير الفصل — ${semLabel}`, pageSize: 'A4', landscape: false });
+            openPrintPreview({ title: `تقرير الفصل – ${semLabel}`, pageSize: 'A4', landscape: false });
         });
 
         async function generateReport() {
@@ -1834,7 +1833,7 @@
 
                 destroyCharts();
 
-                // ─── KPIs ───
+                // --- KPIs ---
                 const totalStudents = students.length;
                 const average = avg(gradeValues);
                 const med = median(gradeValues);
@@ -1844,6 +1843,8 @@
                 const passCount = gradeValues.filter(v => v >= 10).length;
                 const passRate = pct(passCount, gradeValues.length);
                 const totalAbsHours = absences.reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                const justifiedAbsHours = absences.filter(a => a.absence_type === 'justified').reduce((s, a) => s + (Number(a.hours) || 0), 0);
+                const unjustifiedAbsHours = absences.filter(a => a.absence_type !== 'justified').reduce((s, a) => s + (Number(a.hours) || 0), 0);
 
                 const kpiHTML = `
                     <div class="report-kpi-card">
@@ -1880,13 +1881,20 @@
                     </div>
                     <div class="report-kpi-card">
                         <div class="report-kpi-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);"><i class="fas fa-book"></i></div>
-                        <div class="report-kpi-label">عدد النقط</div>
+                        <div class="report-kpi-label">أدنى نقطة</div>
                         <div class="report-kpi-value">${gradeValues.length}</div>
                     </div>
                     <div class="report-kpi-card">
                         <div class="report-kpi-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);"><i class="fas fa-clock"></i></div>
-                        <div class="report-kpi-label">ساعات الغياب</div>
-                        <div class="report-kpi-value">${totalAbsHours}</div>
+                        <div class="report-kpi-label">غياب غير مبرر</div>
+                        <div class="report-kpi-value">${unjustifiedAbsHours}</div>
+                        <div class="report-kpi-sub">ساعة</div>
+                    </div>
+                    <div class="report-kpi-card">
+                        <div class="report-kpi-icon" style="background: linear-gradient(135deg, #D4A85C, #e8c97a);"><i class="fas fa-clipboard-check"></i></div>
+                        <div class="report-kpi-label">غياب مبرر</div>
+                        <div class="report-kpi-value">${justifiedAbsHours}</div>
+                        <div class="report-kpi-sub">ساعة</div>
                     </div>
                 `;
 
@@ -1899,7 +1907,7 @@
                 document.getElementById('table-block').style.display = '';
                 document.getElementById('export-pdf-btn').style.display = '';
 
-                // ─── Bar Chart: Grade Bands ───
+                // --- Bar Chart: Grade Bands ---
                 const bandCounts = countBands(gradeValues);
                 makeChart('grades-bar-chart', {
                     type: 'bar',
@@ -1924,7 +1932,7 @@
                     }
                 });
 
-                // ─── Donut Chart: Band Percentages ───
+                // --- Donut Chart: Band Percentages ---
                 makeChart('grades-donut-chart', {
                     type: 'doughnut',
                     data: {
@@ -1953,7 +1961,7 @@
                     }
                 });
 
-                // ─── Sections Comparison Chart ───
+                // --- Sections Comparison Chart ---
                 const sections = [...new Set(grades.map(g => String(g.section || '').trim()).filter(Boolean))];
                 const sectionAvgs = sections.map(sec => {
                     const vals = grades.filter(g => String(g.section || '').trim() === sec)
@@ -1987,7 +1995,7 @@
                     }
                 });
 
-                // ─── Performance Indicators (Progress Bars) ───
+                // --- Performance Indicators (Progress Bars) ---
                 const passRatePct = passRate;
                 const goodPlusPct = pct(bandCounts.excellent + bandCounts.veryGood + bandCounts.good, gradeValues.length);
                 const weakPct = pct(bandCounts.weak, gradeValues.length);
@@ -2001,7 +2009,7 @@
                         <div class="report-progress-meta"><span>${passCount} ناجح</span><span>${gradeValues.length - passCount} راسب</span></div>
                     </div>
                     <div class="report-progress-item">
-                        <div class="report-progress-title"><i class="fas fa-star"></i> نسبة التقديرات الجيدة (≥ 12)</div>
+                        <div class="report-progress-title"><i class="fas fa-star"></i> نسبة المستحسنين فأعلى (≥ 12)</div>
                         <div class="report-progress-track">
                             <div class="report-progress-value" style="width: ${goodPlusPct}%; background: linear-gradient(90deg, var(--color-warning), #ffd200);">${goodPlusPct.toFixed(1)}%</div>
                         </div>
@@ -2015,7 +2023,7 @@
                     </div>
                 `;
 
-                // ─── Absence Chart ───
+                // --- Absence Chart ---
                 const absenceBySec = {};
                 const absStudentMap = new Map();
                 students.forEach(s => {
@@ -2056,11 +2064,11 @@
                     }
                 });
 
-                // ─────────────────────────────────────────────
-                // ─── Performance: Improvement / Decline ───
-                // ─────────────────────────────────────────────
+                // ---------------------------------------------
+                // --- Performance: Improvement / Decline ---
+                // ---------------------------------------------
                 // Use ALL grades (both semesters) for evolution tracking
-                // Strip "(فرض X)" suffix to group tests of same base subject together
+                // Strip "(??? X)" suffix to group tests of same base subject together
 
                 // Filter to relevant students (by class if selected)
                 const relevantStudentCodes = new Set(students.map(s => String(s.code || '').trim()).filter(Boolean));
@@ -2163,7 +2171,7 @@
                     </div>
                 ` : '<p style="text-align:center; color:var(--color-text-muted);">لا توجد بيانات كافية (يلزم أكثر من فرض واحد لكل مادة أو بيانات الدورتين)</p>';
 
-                // ─── Trend Chart (average per test order) ───
+                // --- Trend Chart (average per test order) ---
                 const orderKeys = Object.keys(avgsByOrder).map(Number).sort((a, b) => a - b);
                 const trendLabels = orderKeys.map(k => `الفرض ${k}`);
                 const trendData = orderKeys.map(k => avg(avgsByOrder[k]));
@@ -2205,7 +2213,7 @@
                     });
                 }
 
-                // ─── Support Analysis Charts (students < 10) ───
+                // --- Support Analysis Charts (students < 10) ---
                 const supportGrades = grades.filter(g => {
                     const v = asNumber(g.grade);
                     return !isNaN(v) && v < 10;
@@ -2314,8 +2322,8 @@
                     });
                 }
 
-                // ─── Detail Table ───
-                const tableSections = sections.length ? sections : ['—'];
+                // --- Detail Table ---
+                const tableSections = sections.length ? sections : ['�'];
                 let tableHTML = `
                     <table class="report-summary-table">
                         <thead><tr>
@@ -2324,18 +2332,18 @@
                             <th>المعدل</th>
                             <th>نسبة النجاح</th>
                             <th>ممتاز</th>
+                            <th>??? ???</th>
+                            <th>???</th>
                             <th>حسن جدا</th>
-                            <th>حسن</th>
-                            <th>مقبول</th>
-                            <th>ضعيف</th>
+                            <th>????</th>
                         </tr></thead><tbody>
                 `;
 
                 tableSections.forEach(sec => {
-                    const secGrades = sec === '—' ? gradeValues :
+                    const secGrades = sec === '�' ? gradeValues :
                         grades.filter(g => String(g.section || '').trim() === sec)
                             .map(g => asNumber(g.grade)).filter(v => !isNaN(v));
-                    const secStudents = sec === '—' ? students :
+                    const secStudents = sec === '�' ? students :
                         students.filter(s => String(s.section || '').trim() === sec);
                     const secAvg = avg(secGrades);
                     const secPass = pct(secGrades.filter(v => v >= 10).length, secGrades.length);

@@ -1,5 +1,5 @@
 const { getDb } = require('./context');
-const { ensureColumn, ensureLicensingSchema, ensureOwnerSyncSchema } = require('./schema');
+const { ensureColumn, ensureLicensingSchema, ensureOwnerSyncSchema, ensurePageVisibilitySchema } = require('./schema');
 const { generateRandomPassword, hashPassword } = require('../auth/password');
 
 const MIGRATIONS = [
@@ -77,6 +77,14 @@ const MIGRATIONS = [
                 `
             ).run();
         }
+    },
+    {
+        version: '2026-02-012-page-visibility-controls',
+        up: () => ensurePageVisibilitySchema()
+    },
+    {
+        version: '2026-02-013-students-birth-place',
+        up: () => ensureColumn('students', 'birth_place', 'TEXT')
     }
 ];
 
