@@ -1078,9 +1078,15 @@ async function printChart(chartId, title) {
     const canvas = document.getElementById(chartId);
     if (!canvas) return;
 
+    let schoolName = '';
+    try {
+        const id = await window.api.reports.getIdentity();
+        schoolName = id?.school_name || '';
+    } catch (_) { /* identity unavailable */ }
+
     const htmlContent = `
         <div class="print-header">
-            <div class="school-name">الثانوية التأهيلية ابن سينا</div>
+            <div class="school-name">${schoolName}</div>
             <div class="doc-title">${title}</div>
             <div class="doc-date">${new Date().toLocaleDateString('ar-MA')}</div>
         </div>
