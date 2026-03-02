@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="ux-enhancements.css">
   <script src="js/utils.js" defer></script>
+    <script src="js/notifications.js"></script>
   <script src="js/sidebar.js" defer></script>
   <script src="js/ux-enhancements.js" defer></script>
   <style>
@@ -91,7 +92,7 @@
     .filter-group input:focus {
       border-color: var(--primary);
       outline: none;
-      box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.08);
+      box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.08);
     }
 
     .btn-filter {
@@ -113,7 +114,7 @@
 
     .btn-filter:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(45, 95, 74, 0.2);
+      box-shadow: 0 6px 20px rgba(59, 106, 197, 0.2);
     }
 
     /* KPI Cards */
@@ -806,7 +807,7 @@
     .search-box input:focus {
       border-color: var(--primary);
       outline: none;
-      box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.08);
+      box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.08);
     }
 
     .search-box i {
@@ -1428,7 +1429,7 @@
 
     /* Loading Overlay */
     [data-theme="dark"] .loading-overlay {
-      background: rgba(18, 26, 20, 0.85);
+      background: rgba(18, 18, 18, 0.85);
     }
   </style>
 </head>
@@ -2054,7 +2055,7 @@
       // Common patterns: "جذع مشترك ...", "أولى باك ...", "ثانية باك ...", "1BAC...", "2BAC...", "TC..."
       const patterns = [
         { regex: /^جذع\s*مشترك/i, label: 'جذع مشترك' },
-        { regex: /^????\s*???/i, label: '???? ???' },
+        { regex: /^ثانية\s*باك/i, label: 'ثانية باك' },
         { regex: /^أولى\s*باك/i, label: 'أولى باك' },
         { regex: /^1\s*BAC/i, label: '1BAC' },
         { regex: /^2\s*BAC/i, label: '2BAC' },

@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
 </head>
@@ -40,9 +41,9 @@
                     <select id="class-select">
                         <option value="">كل الأقسام</option>
                     </select>
-                    <input id="massar-code" placeholder="??? ????">
+                    <input id="massar-code" placeholder="رمز مسار">
                     <button class="btn btn-primary" type="button" id="search-btn"><i class="fas fa-search"></i>
-                        ???</button>
+                        بحث</button>
                 </form>
             </div>
 
@@ -52,13 +53,13 @@
                     <table class="students-table">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>??? ????</th>
+                                <th>الرقم الترتيبي</th>
                                 <th>رمز مسار</th>
-                                <th>الاسم الكامل</th>
+                                <th>الاسم والنسب</th>
                                 <th>القسم</th>
                                 <th>ساعات مبررة</th>
                                 <th>ساعات غير مبررة</th>
+                                <th>مجموع ساعات الغياب</th>
                             </tr>
                         </thead>
                         <tbody id="tbody"></tbody>

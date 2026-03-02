@@ -85,6 +85,62 @@ const MIGRATIONS = [
     {
         version: '2026-02-013-students-birth-place',
         up: () => ensureColumn('students', 'birth_place', 'TEXT')
+    },
+    {
+        version: '2026-03-14-school-identity',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS school_identity (
+                    key         TEXT PRIMARY KEY,
+                    value       TEXT NOT NULL DEFAULT '',
+                    updated_at  INTEGER DEFAULT (strftime('%s','now') * 1000)
+                )
+            `);
+            const seed = db.prepare(
+                'INSERT OR IGNORE INTO school_identity (key, value) VALUES (?, ?)'
+            );
+            const defaults = [
+                ['country', 'المملكة المغربية'],
+                ['ministry', 'وزارة التربية الوطنية والتعليم الأولي والرياضة'],
+                ['academy', ''],
+                ['directorate', ''],
+                ['school_name', ''],
+                ['school_code', ''],
+                ['director_name', ''],
+                ['director_title', 'مدير(ة) المؤسسة'],
+                ['city', ''],
+                ['logo_base64', ''],
+                ['seal_base64', ''],
+                ['signature_base64', ''],
+                ['footer_text', 'سلمت هذه الوثيقة للمعني(ة) بالأمر قصد الاستعمال فيما يقتضيه.']
+            ];
+            const txn = db.transaction(() => {
+                for (const [k, v] of defaults) seed.run(k, v);
+            });
+            txn();
+        }
+    },
+    {
+        version: '2026-03-015-notifications-table',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id          TEXT PRIMARY KEY,
+                    type        TEXT NOT NULL,
+                    severity    TEXT NOT NULL,
+                    title       TEXT,
+                    body        TEXT,
+                    icon        TEXT,
+                    read        INTEGER DEFAULT 0,
+                    created_at  INTEGER NOT NULL,
+                    meta        TEXT
+                )
+            `);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read)`);
+        }
     }
 ];
 

@@ -13,34 +13,6 @@ function authErrorResponse(err) {
 }
 
 function registerSystemIpc(ipcMain) {
-    // IPC Handlers - Reports
-    ipcMain.handle('reports:generateCertificate', async (event, payload) => {
-        const db = getDb();
-        const student = db.prepare('SELECT * FROM students WHERE id = ?').get(payload.student_id) || null;
-        return {
-            success: true,
-            reportType: payload.type || 'school_certificate',
-            generatedAt: new Date().toISOString(),
-            student
-        };
-    });
-
-    ipcMain.handle('reports:generateSemesterSummary', async (event, payload) => {
-        const db = getDb();
-        const year = payload.school_year || '2025/2026';
-        const grades = db
-            .prepare('SELECT COUNT(*) as total, AVG(grade) as avg_grade FROM grades WHERE school_year = ?')
-            .get(year);
-        const students = db.prepare('SELECT COUNT(*) as total_students FROM students WHERE school_year = ?').get(year);
-
-        return {
-            success: true,
-            generatedAt: new Date().toISOString(),
-            school_year: year,
-            summary: { ...grades, ...students }
-        };
-    });
-
     // IPC Handlers - System logs
     ipcMain.handle('systemLogs:getAll', async (event, limit = 200) => {
         const db = getDb();
@@ -263,7 +235,8 @@ function registerSystemIpc(ipcMain) {
                 landscape: !!payload.landscape,
                 mode: payload.mode || 'pdf',
                 defaultFileName: payload.defaultFileName || undefined,
-                parentWindow
+                parentWindow,
+                skipAutoLetterhead: !!payload.skipAutoLetterhead
             });
         } catch (err) {
             return { success: false, error: err.message };

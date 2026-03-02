@@ -1,138 +1,1386 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>برمجة الامتحانات | برنامج التدبير المدرسي</title>
+    <title>تدبير مركز الامتحان | برنامج التدبير المدرسي</title>
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
+    <style>
+        /* ═══ Exam Tabs ═══ */
+        .exam-tabs-wrapper {
+            margin-bottom: 24px;
+        }
+
+        .exam-tabs-header {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-card);
+            padding: 10px;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .exam-tabs-header::-webkit-scrollbar {
+            display: none;
+        }
+
+        .exam-tab-btn {
+            flex: 1;
+            min-width: 130px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 18px 12px 14px;
+            border: 2px solid transparent;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            font-family: var(--font-main);
+        }
+
+        .exam-tab-btn:hover {
+            background: var(--color-primary-mist);
+            border-color: var(--color-primary-light);
+            transform: translateY(-2px);
+        }
+
+        .exam-tab-btn.active {
+            background: var(--gradient-primary);
+            border-color: var(--color-primary);
+            box-shadow: 0 4px 16px rgba(59, 106, 197, .25);
+            transform: translateY(-2px);
+        }
+
+        .exam-tab-btn .tab-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            background: var(--color-surface-alt);
+            color: var(--color-primary);
+            transition: var(--transition-normal);
+            box-shadow: var(--shadow-card);
+        }
+
+        .exam-tab-btn.active .tab-icon {
+            background: rgba(255, 255, 255, .2);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+        }
+
+        .exam-tab-btn .tab-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-text-main);
+            white-space: nowrap;
+            transition: var(--transition-normal);
+        }
+
+        .exam-tab-btn.active .tab-label {
+            color: #fff;
+        }
+
+        .exam-tab-btn .tab-count {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--color-primary);
+            transition: var(--transition-normal);
+        }
+
+        .exam-tab-btn.active .tab-count {
+            color: rgba(255, 255, 255, .9);
+        }
+
+        .exam-tab-panel {
+            display: none;
+            animation: fadeInUp .35s ease-out;
+        }
+
+        .exam-tab-panel.active {
+            display: block;
+        }
+
+        .tab-placeholder {
+            background: var(--color-surface);
+            border: 2px dashed var(--color-accent);
+            border-radius: var(--radius-md);
+            padding: 60px 30px;
+            text-align: center;
+            color: var(--color-text-muted);
+        }
+
+        .tab-placeholder i {
+            font-size: 52px;
+            color: var(--color-silver);
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .tab-placeholder h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--color-text-main);
+            margin-bottom: 8px;
+        }
+
+        .tab-placeholder p {
+            font-size: 14px;
+        }
+
+        /* ═══ Shared Card ═══ */
+        .exam-settings-card {
+            background: var(--color-surface);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-card);
+            border: 1px solid var(--color-accent);
+            overflow: hidden;
+        }
+
+        .exam-settings-title {
+            background: linear-gradient(to left, var(--color-primary-mist), transparent);
+            border-bottom: 1px solid var(--color-accent);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--color-text-main);
+        }
+
+        .exam-settings-title i {
+            color: var(--color-primary);
+            font-size: 18px;
+        }
+
+        .exam-settings-body {
+            padding: 24px;
+        }
+
+        /* ═══ Shared Form ═══ */
+        .form-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .form-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            min-width: 280px;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--color-text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-label .label-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: var(--color-primary-mist);
+            color: var(--color-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .form-input-group {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .form-input,
+        .form-select {
+            padding: 10px 16px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-xs);
+            font-family: var(--font-main);
+            font-size: 14px;
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            transition: var(--transition-fast);
+            min-height: 42px;
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(59, 106, 197, .12);
+        }
+
+        .form-input.input-lg {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .form-input.input-number {
+            width: 80px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--color-primary);
+        }
+
+        .form-select {
+            cursor: pointer;
+            min-width: 160px;
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        .form-row-number {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--gradient-primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .form-separator {
+            height: 1px;
+            background: var(--color-accent);
+            margin: 12px 0;
+        }
+
+        .month-label {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            font-weight: 500;
+        }
+
+        .month-display {
+            padding: 10px 20px;
+            background: var(--color-surface-alt);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-xs);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-primary);
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            padding: 20px 24px;
+            border-top: 1px solid var(--color-accent);
+            background: var(--color-surface-alt);
+        }
+
+        .btn-save-lg {
+            padding: 12px 40px;
+            background: var(--gradient-primary);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 14px rgba(59, 106, 197, .3);
+        }
+
+        .btn-save-lg:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 106, 197, .4);
+        }
+
+        .btn-exit-lg {
+            padding: 12px 40px;
+            background: var(--color-surface);
+            color: var(--color-danger);
+            border: 2px solid var(--color-danger);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-exit-lg:hover {
+            background: var(--color-danger);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        /* ═══ Branches / Levels ═══ */
+        .level-banner {
+            background: var(--gradient-primary);
+            color: #fff;
+            text-align: center;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: .3px;
+        }
+
+        .level-selector-section {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--color-accent);
+        }
+
+        .radio-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-text-main);
+            padding: 8px 16px;
+            border-radius: var(--radius-xs);
+            transition: var(--transition-fast);
+            border: 1px solid transparent;
+        }
+
+        .radio-option:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .radio-option input[type="radio"] {
+            accent-color: var(--color-primary);
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .level-select-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--color-text-main);
+            cursor: pointer;
+            padding: 6px 14px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-xs);
+            transition: var(--transition-fast);
+            background: var(--color-surface);
+        }
+
+        .checkbox-option:hover {
+            border-color: var(--color-primary);
+            background: var(--color-primary-mist);
+        }
+
+        .checkbox-option input[type="checkbox"] {
+            accent-color: var(--color-primary);
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .level-content-layout {
+            display: flex;
+            gap: 20px;
+            padding: 20px 24px;
+            flex-wrap: wrap;
+        }
+
+        .subjects-area {
+            flex: 1;
+            min-width: 400px;
+        }
+
+        .subjects-table-title {
+            background: linear-gradient(135deg, rgba(59, 106, 197, .08), rgba(91, 132, 214, .06));
+            padding: 12px 16px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--color-primary);
+            border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+            border: 1px solid var(--color-accent);
+            border-bottom: none;
+        }
+
+        .subjects-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid var(--color-accent);
+        }
+
+        .subjects-table th {
+            background: var(--color-surface-alt);
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--color-text-main);
+            border: 1px solid var(--color-accent);
+            text-align: center;
+        }
+
+        .subjects-table td {
+            padding: 9px 12px;
+            font-size: 13px;
+            color: var(--color-text-main);
+            border: 1px solid var(--color-accent);
+            text-align: center;
+        }
+
+        .subjects-table tbody tr:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .subjects-table tbody tr.selected {
+            background: rgba(59, 106, 197, .12);
+            font-weight: 600;
+        }
+
+        .subjects-table td.subject-name {
+            text-align: right;
+            padding-right: 16px;
+        }
+
+        .type-badge {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .type-badge.national {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+
+        .type-badge.regional {
+            background: #E3F2FD;
+            color: #1565C0;
+        }
+
+        .stats-sidebar {
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .stat-box {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            text-align: center;
+            transition: var(--transition-normal);
+        }
+
+        .stat-box:hover {
+            box-shadow: var(--shadow-hover);
+            border-color: var(--color-primary-light);
+        }
+
+        .stat-box-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--color-primary);
+            margin-bottom: 8px;
+        }
+
+        .stat-box-value {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--color-text-main);
+            line-height: 1;
+        }
+
+        .stat-box-controls {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .stat-box-controls button {
+            width: 30px;
+            height: 30px;
+            border: 1px solid var(--color-primary);
+            border-radius: 6px;
+            background: var(--color-surface);
+            color: var(--color-primary);
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition-fast);
+        }
+
+        .stat-box-controls button:hover {
+            background: var(--color-primary);
+            color: #fff;
+        }
+
+        .subject-actions {
+            display: flex;
+            gap: 12px;
+            padding: 16px 24px;
+            border-top: 1px solid var(--color-accent);
+            background: var(--color-surface-alt);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-add-subject {
+            padding: 10px 24px;
+            background: var(--color-primary);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-add-subject:hover {
+            background: var(--color-primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .btn-del-subject {
+            padding: 10px 24px;
+            background: var(--color-surface);
+            color: var(--color-danger);
+            border: 1px solid var(--color-danger);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-del-subject:hover {
+            background: var(--color-danger);
+            color: #fff;
+        }
+
+        .added-levels-section {
+            padding: 20px 24px;
+            border-top: 1px solid var(--color-accent);
+        }
+
+        .added-levels-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--color-text-main);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .added-levels-grid {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .level-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--color-primary-mist);
+            border: 1px solid var(--color-primary-light);
+            border-radius: var(--radius-full);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-primary);
+            transition: var(--transition-fast);
+        }
+
+        .level-chip .remove-level {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--color-danger);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition-fast);
+        }
+
+        .level-chip .remove-level:hover {
+            transform: scale(1.15);
+        }
+
+        .no-levels-msg {
+            color: var(--color-text-muted);
+            font-size: 13px;
+            font-style: italic;
+        }
+
+        /* ═══ Rooms Panel ═══ */
+        .rooms-table-wrapper {
+            padding: 20px 24px;
+            overflow-x: auto;
+        }
+
+        .rooms-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid var(--color-accent);
+            min-width: 800px;
+        }
+
+        .rooms-table th {
+            background: var(--color-surface-alt);
+            padding: 10px 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--color-text-main);
+            border: 1px solid var(--color-accent);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .rooms-table td {
+            padding: 6px 6px;
+            font-size: 13px;
+            color: var(--color-text-main);
+            border: 1px solid var(--color-accent);
+            text-align: center;
+        }
+
+        .rooms-table tbody tr:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .rooms-table td.level-cell {
+            text-align: right;
+            padding-right: 12px;
+            font-weight: 600;
+            color: var(--color-primary);
+            white-space: nowrap;
+        }
+
+        .rooms-table input {
+            width: 100%;
+            border: 1px solid var(--color-accent);
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-family: var(--font-main);
+            font-size: 13px;
+            text-align: center;
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            transition: var(--transition-fast);
+        }
+
+        .rooms-table input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 2px rgba(59, 106, 197, .12);
+        }
+
+        .rooms-table input[type="number"] {
+            width: 70px;
+        }
+
+        .rooms-table .room-num {
+            font-weight: 700;
+            color: var(--color-primary);
+            font-size: 15px;
+        }
+
+        /* Level group header row */
+        .rooms-table .level-group-header td {
+            background: linear-gradient(to left, var(--color-primary-mist), transparent);
+            font-weight: 700;
+            color: var(--color-primary);
+            font-size: 14px;
+            padding: 8px 16px;
+            text-align: right;
+        }
+
+        .btn-clear-lg {
+            padding: 12px 40px;
+            background: var(--color-surface);
+            color: var(--color-warning);
+            border: 2px solid var(--color-warning);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-clear-lg:hover {
+            background: var(--color-warning);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+
+        .btn-undo-lg {
+            padding: 12px 40px;
+            background: var(--color-surface);
+            color: var(--color-text-muted);
+            border: 2px solid var(--color-silver);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-weight: 700;
+            font-size: 16px;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-undo-lg:hover {
+            border-color: var(--color-text-main);
+            color: var(--color-text-main);
+            transform: translateY(-2px);
+        }
+    </style>
 </head>
 
 <body>
     <div class="toast-container" id="toast-container"></div>
-
     <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content">
         <header class="header">
             <div class="header-left">
                 <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-calendar-check"></i> برمجة الامتحانات</h2>
+                <h2 class="page-title"><i class="fas fa-calendar-check"></i> تدبير مركز الامتحان - مسك البيانات</h2>
             </div>
             <div class="header-right">
                 <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
             </div>
         </header>
 
-        <div class="grades-container">
-            <div class="search-section">
-                <form id="form" class="search-form"
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
-                    <input type="hidden" id="id">
-                    <input id="title" placeholder="عنوان الامتحان" required>
-                    <input id="section" placeholder="القسم">
-                    <input id="subject" placeholder="المادة">
-                    <input type="date" id="date">
-                    <input type="time" id="time">
-                    <button class="btn btn-success" type="submit">???</button>
+        <!-- ═══ Tab Navigation ═══ -->
+        <div class="exam-tabs-wrapper">
+            <div class="exam-tabs-header">
+                <button class="exam-tab-btn active" data-tab="add-exam" title="إضافة امتحان">
+                    <span class="tab-icon"><i class="fas fa-plus-circle"></i></span>
+                    <span class="tab-label">إضافة امتحان</span>
+                </button>
+                <button class="exam-tab-btn" data-tab="branches" title="الشعب و المستويات">
+                    <span class="tab-icon"><i class="fas fa-clipboard-list"></i></span>
+                    <span class="tab-label">الشعب و المستويات</span>
+                    <span class="tab-count" id="count-branches">0</span>
+                </button>
+                <button class="exam-tab-btn" data-tab="rooms" title="قاعات الامتحان">
+                    <span class="tab-icon"><i class="fas fa-school"></i></span>
+                    <span class="tab-label">قاعات الامتحان</span>
+                    <span class="tab-count" id="count-rooms">0</span>
+                </button>
+                <button class="exam-tab-btn" data-tab="supervisors" title="المراقبين">
+                    <span class="tab-icon"><i class="fas fa-user-tie"></i></span>
+                    <span class="tab-label">المراقبين</span>
+                    <span class="tab-count" id="count-supervisors">0</span>
+                </button>
+                <button class="exam-tab-btn" data-tab="candidates" title="المترشحين">
+                    <span class="tab-icon"><i class="fas fa-user-graduate"></i></span>
+                    <span class="tab-label">المترشحين</span>
+                    <span class="tab-count" id="count-candidates">0</span>
+                </button>
+                <button class="exam-tab-btn" data-tab="team" title="فريق التقليد">
+                    <span class="tab-icon"><i class="fas fa-users"></i></span>
+                    <span class="tab-label">فريق التقليد</span>
+                    <span class="tab-count" id="count-team">0</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══ Panel 1: إضافة امتحان ═══ -->
+        <div class="exam-tab-panel active" id="panel-add-exam">
+            <div class="exam-settings-card">
+                <div class="exam-settings-title"><i class="fas fa-cog"></i> معطيات عامة عن الامتحان</div>
+                <form id="exam-form">
+                    <div class="exam-settings-body">
+                        <div class="form-row">
+                            <div class="form-row-number">1</div>
+                            <div class="form-label">اسم الامتحان</div>
+                            <div class="form-input-group">
+                                <input type="text" class="form-input input-lg" id="exam-name"
+                                    value="امتحانات نيل شهادة الباكالوريا - 2025" placeholder="أدخل اسم الامتحان">
+                                <select class="form-select" id="exam-suggestions">
+                                    <option value="">مقترحات</option>
+                                    <option value="امتحانات نيل شهادة الباكالوريا - 2025">امتحانات نيل شهادة الباكالوريا
+                                        - 2025</option>
+                                    <option value="الامتحان الجهوي الموحد - 2025">الامتحان الجهوي الموحد - 2025</option>
+                                    <option value="الامتحان المحلي الموحد - 2025">الامتحان المحلي الموحد - 2025</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-calendar-alt"></i></span>
+                                دورة</div>
+                            <div class="form-input-group">
+                                <span class="month-label">شهر</span>
+                                <select class="form-select" id="exam-month">
+                                    <option value="1">يناير</option>
+                                    <option value="2">فبراير</option>
+                                    <option value="3">مارس</option>
+                                    <option value="4">أبريل</option>
+                                    <option value="5" selected>ماي</option>
+                                    <option value="6">يونيو</option>
+                                    <option value="7">يوليوز</option>
+                                    <option value="8">غشت</option>
+                                    <option value="9">شتنبر</option>
+                                    <option value="10">أكتوبر</option>
+                                    <option value="11">نونبر</option>
+                                    <option value="12">دجنبر</option>
+                                </select>
+                                <span class="month-label">سنة</span>
+                                <select class="form-select" id="exam-year" style="min-width:100px;">
+                                    <option value="2024">2024</option>
+                                    <option value="2025" selected>2025</option>
+                                    <option value="2026">2026</option>
+                                    <option value="2027">2027</option>
+                                </select>
+                                <span class="month-label">Mois</span>
+                                <div class="month-display" id="exam-month-fr">Mai</div>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-layer-group"></i></span>
+                                نوع الدورة</div>
+                            <div class="form-input-group">
+                                <select class="form-select" id="exam-session-type">
+                                    <option value="الدورة العادية" selected>الدورة العادية</option>
+                                    <option value="الدورة الاستدراكية">الدورة الاستدراكية</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-file-alt"></i></span>
+                                امتحان / مباراة</div>
+                            <div class="form-input-group">
+                                <select class="form-select" id="exam-type">
+                                    <option value="Examen" selected>Examen</option>
+                                    <option value="Concours">Concours</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-clock"></i></span> المدة
+                                الزمنية للحضور قبل الإجراء : مراقبين</div>
+                            <div class="form-input-group">
+                                <select class="form-select" id="supervisor-arrival-time">
+                                    <option value="15">15 دقيقة</option>
+                                    <option value="20">20 دقيقة</option>
+                                    <option value="30" selected>30 دقيقة</option>
+                                    <option value="45">45 دقيقة</option>
+                                    <option value="60">60 دقيقة</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-clock"></i></span> المدة
+                                الزمنية للحضور قبل الإجراء : مترشحين</div>
+                            <div class="form-input-group">
+                                <select class="form-select" id="candidate-arrival-time">
+                                    <option value="15">15 دقيقة</option>
+                                    <option value="20">20 دقيقة</option>
+                                    <option value="30" selected>30 دقيقة</option>
+                                    <option value="45">45 دقيقة</option>
+                                    <option value="60">60 دقيقة</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-tag"></i></span> مصطلح
+                                الاستدعاء مراقبة / حراسة</div>
+                            <div class="form-input-group">
+                                <select class="form-select" id="supervision-term">
+                                    <option value="المراقبة" selected>المراقبة</option>
+                                    <option value="الحراسة">الحراسة</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-user-shield"></i></span>
+                                عدد المراقبين في كل قاعة</div>
+                            <div class="form-input-group">
+                                <input type="number" class="form-input input-number" id="supervisors-per-room" value="2"
+                                    min="1" max="10">
+                                <span class="form-hint">قابل للتعديل خلال مراحل توزيع المراقبة</span>
+                            </div>
+                        </div>
+                        <div class="form-separator"></div>
+                        <div class="form-row">
+                            <div class="form-label"><span class="label-icon"><i class="fas fa-users-cog"></i></span>
+                                العدد الأقصى من الاحتياط في كل الحصص</div>
+                            <div class="form-input-group">
+                                <input type="number" class="form-input input-number" id="max-reserves" value="4" min="0"
+                                    max="20">
+                                <span class="form-hint">قابل للتعديل خلال مراحل توزيع المراقبة</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-save-lg"><i class="fas fa-save"></i> حفظ</button>
+                        <button type="button" class="btn-exit-lg" id="btn-exit"><i class="fas fa-sign-out-alt"></i>
+                            خروج</button>
+                    </div>
                 </form>
             </div>
+        </div>
 
-            <div class="students-results">
-                <table class="students-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>العنوان</th>
-                            <th>القسم</th>
-                            <th>المادة</th>
-                            <th>التاريخ</th>
-                            <th>الوقت</th>
-                            <th>الإجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody"></tbody>
-                </table>
+        <!-- ═══ Panel 2: الشعب و المستويات ═══ -->
+        <div class="exam-tab-panel" id="panel-branches">
+            <div class="exam-settings-card">
+                <div class="exam-settings-title"><i class="fas fa-layer-group"></i> إضافة مستوى | Ajouter un niveau Exam
+                </div>
+                <div class="level-banner" id="level-banner">امتحانات نيل شهادة الباكالوريا - 2025 &nbsp;|&nbsp; دورة ماي
+                    2025</div>
+                <div class="level-selector-section">
+                    <div class="radio-row">
+                        <label class="radio-option"><input type="radio" name="level-mode" value="list" checked> اختيار
+                            مستوى من اللائحة</label>
+                        <label class="radio-option"><input type="radio" name="level-mode" value="custom"> كتابة اسم
+                            المستوى من اختيار المستعمل</label>
+                    </div>
+                    <div class="level-select-row">
+                        <select class="form-select" id="level-select" style="min-width:280px;font-size:15px;">
+                            <option value="">-- اختر مستوى --</option>
+                            <option value="2باك آداب">2باك آداب</option>
+                            <option value="2باك علوم فيزيائية">2باك علوم فيزيائية</option>
+                            <option value="2باك علوم رياضية أ">2باك علوم رياضية أ</option>
+                            <option value="2باك علوم رياضية ب">2باك علوم رياضية ب</option>
+                            <option value="2باك علوم الحياة والأرض">2باك علوم الحياة والأرض</option>
+                            <option value="2باك علوم اقتصادية">2باك علوم اقتصادية</option>
+                            <option value="2باك علوم إنسانية">2باك علوم إنسانية</option>
+                            <option value="2باك علوم شرعية">2باك علوم شرعية</option>
+                            <option value="1باك علوم تجريبية">1باك علوم تجريبية</option>
+                            <option value="1باك علوم رياضية">1باك علوم رياضية</option>
+                            <option value="1باك آداب وعلوم إنسانية">1باك آداب وعلوم إنسانية</option>
+                        </select>
+                        <input type="text" class="form-input" id="level-custom-input" placeholder="اكتب اسم المستوى"
+                            style="display:none;min-width:280px;font-size:15px;">
+                        <div class="checkbox-group">
+                            <label class="checkbox-option"><input type="checkbox" id="chk-official" checked>
+                                رسميون</label>
+                            <label class="checkbox-option"><input type="checkbox" id="chk-free" checked> أحرار</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="level-content-layout">
+                    <div class="subjects-area">
+                        <div class="subjects-table-title"><i class="fas fa-book"></i> مواد الامتحان حسب المستوى</div>
+                        <table class="subjects-table" id="subjects-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:50px">#</th>
+                                    <th>اسم المادة</th>
+                                    <th style="width:120px">ترتيبها الزمني</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subjects-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="stats-sidebar">
+                        <div class="stat-box">
+                            <div class="stat-box-label">عدد قاعات الامتحان</div>
+                            <div class="stat-box-value" id="rooms-count-display">5</div>
+                            <div class="stat-box-controls">
+                                <button type="button" onclick="adjustRooms(1)" title="زيادة"><i
+                                        class="fas fa-arrow-up"></i></button>
+                                <button type="button" onclick="adjustRooms(-1)" title="نقصان"><i
+                                        class="fas fa-arrow-down"></i></button>
+                            </div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-box-label">عدد مواد الامتحان</div>
+                            <div class="stat-box-value" id="subjects-count-display">7</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="subject-actions">
+                    <button type="button" class="btn-add-subject" id="btn-add-subject"><i class="fas fa-plus"></i> إضافة
+                        مادة</button>
+                    <button type="button" class="btn-del-subject" id="btn-del-subject"><i class="fas fa-times"></i> حذف
+                        مادة</button>
+                    <button type="button" class="btn-save-lg" id="btn-save-level"><i class="fas fa-save"></i>
+                        حفظ</button>
+                    <button type="button" class="btn-exit-lg" id="btn-exit-level"><i class="fas fa-sign-out-alt"></i>
+                        خروج</button>
+                </div>
+                <div class="added-levels-section">
+                    <div class="added-levels-title"><i class="fas fa-list-ul" style="color:var(--color-primary)"></i>
+                        المستويات المضافة</div>
+                    <div class="added-levels-grid" id="added-levels-grid"><span class="no-levels-msg">لم يتم إضافة أي
+                            مستوى بعد</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- Panel 3: قاعات الامتحان — تهيئ قاعات الامتحان        -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="exam-tab-panel" id="panel-rooms">
+            <div class="exam-settings-card">
+                <div class="exam-settings-title"><i class="fas fa-school"></i> تهيئ قاعات الامتحان</div>
+                <div class="level-banner" id="rooms-banner">تهيئ قاعات الامتحان &nbsp;&nbsp;|&nbsp;&nbsp; دورة ماي 2025
+                </div>
+
+                <div class="rooms-table-wrapper">
+                    <table class="rooms-table" id="rooms-config-table">
+                        <thead>
+                            <tr>
+                                <th style="width:200px">المستوى / الشعبة</th>
+                                <th style="width:90px">قاعة الامتحان</th>
+                                <th>الاسم الحقيقي للقاعة</th>
+                                <th style="width:100px">الجناح</th>
+                                <th style="width:120px">رقم الامتحان الأول</th>
+                                <th style="width:120px">رقم الامتحان الأخير</th>
+                                <th style="width:110px">عدد المترشحين</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rooms-config-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-save-lg" id="btn-save-rooms"><i class="fas fa-save"></i>
+                        حفظ</button>
+                    <button type="button" class="btn-clear-lg" id="btn-clear-rooms"><i class="fas fa-eraser"></i>
+                        تفريغ</button>
+                    <button type="button" class="btn-undo-lg" id="btn-undo-rooms"><i class="fas fa-undo"></i>
+                        تراجع</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel 4: المراقبين -->
+        <div class="exam-tab-panel" id="panel-supervisors">
+            <div class="tab-placeholder"><i class="fas fa-user-tie"></i>
+                <h3>المراقبين</h3>
+                <p>إدارة المراقبين وتوزيعهم على قاعات الامتحان</p>
+            </div>
+        </div>
+        <!-- Panel 5: المترشحين -->
+        <div class="exam-tab-panel" id="panel-candidates">
+            <div class="tab-placeholder"><i class="fas fa-user-graduate"></i>
+                <h3>المترشحين</h3>
+                <p>إدارة لائحة المترشحين للامتحان</p>
+            </div>
+        </div>
+        <!-- Panel 6: فريق التقليد -->
+        <div class="exam-tab-panel" id="panel-team">
+            <div class="tab-placeholder"><i class="fas fa-users"></i>
+                <h3>فريق التقليد</h3>
+                <p>إدارة فريق التقليد والمهام المسندة</p>
             </div>
         </div>
     </main>
 
     <script>
         const year = '2025/2026';
-        let rows = [];
+        const frenchMonths = { '1': 'Janvier', '2': 'Février', '3': 'Mars', '4': 'Avril', '5': 'Mai', '6': 'Juin', '7': 'Juillet', '8': 'Août', '9': 'Septembre', '10': 'Octobre', '11': 'Novembre', '12': 'Décembre' };
+        const arabicMonths = { '1': 'يناير', '2': 'فبراير', '3': 'مارس', '4': 'أبريل', '5': 'ماي', '6': 'يونيو', '7': 'يوليوز', '8': 'غشت', '9': 'شتنبر', '10': 'أكتوبر', '11': 'نونبر', '12': 'دجنبر' };
+
+        const levelSubjects = {
+            '2باك آداب': [
+                { name: 'اللغة الفرنسية', type: 'جهوي' }, { name: 'التربية الإسلامية', type: 'جهوي' }, { name: 'الرياضيات', type: 'جهوي' },
+                { name: 'اللغة العربية', type: 'وطني' }, { name: 'اللغة الأجنبية 2', type: 'وطني' }, { name: 'التاريخ و جغرافيا', type: 'وطني' }, { name: 'الفلسفة', type: 'وطني' },
+            ],
+            '2باك علوم فيزيائية': [
+                { name: 'اللغة العربية', type: 'جهوي' }, { name: 'اللغة الفرنسية', type: 'جهوي' }, { name: 'التربية الإسلامية', type: 'جهوي' },
+                { name: 'الرياضيات', type: 'وطني' }, { name: 'الفيزياء والكيمياء', type: 'وطني' }, { name: 'علوم الحياة والأرض', type: 'وطني' }, { name: 'الفلسفة', type: 'وطني' },
+            ],
+            '2باك علوم رياضية أ': [
+                { name: 'اللغة العربية', type: 'جهوي' }, { name: 'اللغة الفرنسية', type: 'جهوي' }, { name: 'التربية الإسلامية', type: 'جهوي' },
+                { name: 'الرياضيات', type: 'وطني' }, { name: 'الفيزياء والكيمياء', type: 'وطني' }, { name: 'علوم الحياة والأرض', type: 'وطني' }, { name: 'الفلسفة', type: 'وطني' },
+            ],
+        };
+
+        let currentSubjects = [...(levelSubjects['2باك آداب'] || [])];
+        let addedLevels = [];
+        let roomsCount = 5;
+        let selectedSubjectRow = null;
+        let roomsBackup = null;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            await loadRows();
-            document.getElementById('form').addEventListener('submit', save);
+            initTabs();
+            initExamForm();
+            initBranchesPanel();
+            initRoomsPanel();
         });
 
-        async function loadRows() {
-            rows = await window.api.exams.getAll(year) || [];
-            document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${r.title || '-'}</td>
-                    <td>${r.section || '-'}</td>
-                    <td>${r.subject || '-'}</td>
-                    <td>${r.exam_date || '-'}</td>
-                    <td>${r.exam_time || '-'}</td>
-                    <td>
-                        <button class="btn btn-secondary" onclick="editRow(${r.id})"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-secondary" onclick="delRow(${r.id})"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('') : '<tr><td colspan="7" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
+        /* ═══ Tab Switching ═══ */
+        function initTabs() {
+            document.querySelectorAll('.exam-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.exam-tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.exam-tab-panel').forEach(p => p.classList.remove('active'));
+                    btn.classList.add('active');
+                    const panel = document.getElementById('panel-' + btn.dataset.tab);
+                    if (panel) panel.classList.add('active');
+                    // Refresh rooms table when switching to rooms tab
+                    if (btn.dataset.tab === 'rooms') renderRoomsTable();
+                });
+            });
         }
 
-        async function save(e) {
-            e.preventDefault();
-            const payload = {
-                id: document.getElementById('id').value ? Number(document.getElementById('id').value) : undefined,
-                title: document.getElementById('title').value.trim(),
-                section: document.getElementById('section').value.trim(),
-                subject: document.getElementById('subject').value.trim(),
-                exam_date: document.getElementById('date').value,
-                exam_time: document.getElementById('time').value,
-                school_year: year
-            };
-            const res = await window.api.exams.save(payload);
-            if (!res || res.success === false) {
-                showToast('فشل الحفظ', 'error');
+        /* ═══ Exam Form (Tab 1) ═══ */
+        function initExamForm() {
+            const monthSelect = document.getElementById('exam-month');
+            const monthFr = document.getElementById('exam-month-fr');
+            const suggestionsSelect = document.getElementById('exam-suggestions');
+            const examName = document.getElementById('exam-name');
+
+            monthSelect.addEventListener('change', () => { monthFr.textContent = frenchMonths[monthSelect.value] || ''; });
+            suggestionsSelect.addEventListener('change', () => { if (suggestionsSelect.value) examName.value = suggestionsSelect.value; });
+
+            document.getElementById('exam-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const payload = {
+                    exam_name: examName.value.trim(), exam_month: monthSelect.value,
+                    exam_year: document.getElementById('exam-year').value,
+                    session_type: document.getElementById('exam-session-type').value,
+                    exam_type: document.getElementById('exam-type').value,
+                    supervisor_arrival_time: document.getElementById('supervisor-arrival-time').value,
+                    candidate_arrival_time: document.getElementById('candidate-arrival-time').value,
+                    supervision_term: document.getElementById('supervision-term').value,
+                    supervisors_per_room: Number(document.getElementById('supervisors-per-room').value),
+                    max_reserves: Number(document.getElementById('max-reserves').value),
+                    school_year: year
+                };
+                try {
+                    const res = await window.api.exams.save(payload);
+                    if (!res || res.success === false) { showToast('فشل الحفظ', 'error'); return; }
+                    showToast('تم حفظ معطيات الامتحان بنجاح', 'success');
+                    document.getElementById('level-banner').textContent = `${examName.value.trim()}  |  دورة ${arabicMonths[monthSelect.value]} ${document.getElementById('exam-year').value}`;
+                    document.getElementById('rooms-banner').textContent = `تهيئ قاعات الامتحان  |  دورة ${arabicMonths[monthSelect.value]} ${document.getElementById('exam-year').value}`;
+                } catch (err) { showToast('فشل الحفظ: ' + (err.message || ''), 'error'); }
+            });
+            document.getElementById('btn-exit').addEventListener('click', () => { window.location.href = 'index.html'; });
+        }
+
+        /* ═══ Branches Panel (Tab 2) ═══ */
+        function initBranchesPanel() {
+            const levelSelect = document.getElementById('level-select');
+            const customInput = document.getElementById('level-custom-input');
+            document.querySelectorAll('input[name="level-mode"]').forEach(r => {
+                r.addEventListener('change', () => {
+                    levelSelect.style.display = r.value === 'list' ? '' : 'none';
+                    customInput.style.display = r.value === 'custom' ? '' : 'none';
+                });
+            });
+            levelSelect.addEventListener('change', () => {
+                currentSubjects = levelSubjects[levelSelect.value] ? [...levelSubjects[levelSelect.value]] : [];
+                renderSubjects();
+            });
+            document.getElementById('subjects-tbody').addEventListener('click', (e) => {
+                const row = e.target.closest('tr'); if (!row) return;
+                document.querySelectorAll('#subjects-tbody tr').forEach(r => r.classList.remove('selected'));
+                row.classList.add('selected');
+                selectedSubjectRow = Array.from(row.parentElement.children).indexOf(row);
+            });
+            document.getElementById('btn-add-subject').addEventListener('click', () => {
+                const name = prompt('أدخل اسم المادة:'); if (!name || !name.trim()) return;
+                const type = prompt('نوع المادة (وطني / جهوي):', 'وطني');
+                currentSubjects.push({ name: name.trim(), type: (type || 'وطني').trim() });
+                renderSubjects();
+            });
+            document.getElementById('btn-del-subject').addEventListener('click', () => {
+                if (selectedSubjectRow === null || selectedSubjectRow < 0 || selectedSubjectRow >= currentSubjects.length) { showToast('يرجى اختيار مادة أولاً', 'warning'); return; }
+                if (!confirm(`حذف المادة "${currentSubjects[selectedSubjectRow].name}"؟`)) return;
+                currentSubjects.splice(selectedSubjectRow, 1); selectedSubjectRow = null; renderSubjects();
+            });
+            document.getElementById('btn-save-level').addEventListener('click', () => {
+                const mode = document.querySelector('input[name="level-mode"]:checked').value;
+                let levelName = mode === 'list' ? levelSelect.value : customInput.value.trim();
+                if (!levelName) { showToast('يرجى اختيار أو كتابة اسم المستوى', 'warning'); return; }
+                const isOfficial = document.getElementById('chk-official').checked;
+                const isFree = document.getElementById('chk-free').checked;
+                let suffix = '';
+                if (isOfficial && isFree) suffix = ' - رسميون وأحرار';
+                else if (isOfficial) suffix = ' - رسميون';
+                else if (isFree) suffix = ' - أحرار';
+                const fullName = levelName + suffix;
+                if (addedLevels.find(l => l.name === fullName)) { showToast('هذا المستوى مضاف مسبقاً', 'warning'); return; }
+                addedLevels.push({ name: fullName, subjects: [...currentSubjects], rooms: roomsCount });
+                renderAddedLevels();
+                document.getElementById('count-branches').textContent = addedLevels.length;
+                showToast(`تمت إضافة المستوى: ${fullName}`, 'success');
+            });
+            document.getElementById('btn-exit-level').addEventListener('click', () => { document.querySelector('[data-tab="add-exam"]').click(); });
+            renderSubjects();
+        }
+
+        function renderSubjects() {
+            const tbody = document.getElementById('subjects-tbody');
+            tbody.innerHTML = currentSubjects.length ? currentSubjects.map((s, i) => `
+                <tr><td>${i + 1}</td><td class="subject-name">${s.name}</td>
+                <td><span class="type-badge ${s.type === 'وطني' ? 'national' : 'regional'}">${s.type}</span></td></tr>
+            `).join('') : '<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--color-text-muted)">لا توجد مواد</td></tr>';
+            document.getElementById('subjects-count-display').textContent = currentSubjects.length;
+            selectedSubjectRow = null;
+        }
+        function adjustRooms(d) { roomsCount = Math.max(1, roomsCount + d); document.getElementById('rooms-count-display').textContent = roomsCount; }
+        function renderAddedLevels() {
+            const g = document.getElementById('added-levels-grid');
+            g.innerHTML = addedLevels.length ? addedLevels.map((l, i) => `
+                <div class="level-chip"><span>${l.name}</span>
+                <span style="font-size:11px;color:var(--color-text-muted)">(${l.subjects.length} مادة، ${l.rooms} قاعة)</span>
+                <button class="remove-level" onclick="removeLevel(${i})" title="حذف"><i class="fas fa-times"></i></button></div>
+            `).join('') : '<span class="no-levels-msg">لم يتم إضافة أي مستوى بعد</span>';
+        }
+        function removeLevel(i) {
+            if (!confirm(`حذف المستوى "${addedLevels[i].name}"؟`)) return;
+            addedLevels.splice(i, 1); renderAddedLevels();
+            document.getElementById('count-branches').textContent = addedLevels.length;
+        }
+
+        /* ═══ Rooms Panel (Tab 3) ═══ */
+        function initRoomsPanel() {
+            document.getElementById('btn-save-rooms').addEventListener('click', () => {
+                showToast('تم حفظ تهيئة القاعات بنجاح', 'success');
+            });
+            document.getElementById('btn-clear-rooms').addEventListener('click', () => {
+                if (!confirm('هل تريد تفريغ جميع البيانات؟')) return;
+                roomsBackup = document.getElementById('rooms-config-tbody').innerHTML;
+                document.querySelectorAll('#rooms-config-tbody input').forEach(inp => { inp.value = ''; });
+                showToast('تم تفريغ البيانات', 'warning');
+            });
+            document.getElementById('btn-undo-rooms').addEventListener('click', () => {
+                if (roomsBackup) {
+                    document.getElementById('rooms-config-tbody').innerHTML = roomsBackup;
+                    roomsBackup = null;
+                    showToast('تم التراجع', 'success');
+                } else {
+                    showToast('لا يوجد إجراء للتراجع عنه', 'warning');
+                }
+            });
+            renderRoomsTable();
+        }
+
+        function renderRoomsTable() {
+            const tbody = document.getElementById('rooms-config-tbody');
+            if (!addedLevels.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:30px;text-align:center;color:var(--color-text-muted);font-size:14px;"><i class="fas fa-info-circle" style="margin-left:8px;"></i>يرجى إضافة المستويات أولاً من تبويب "الشعب و المستويات"</td></tr>';
+                document.getElementById('count-rooms').textContent = '0';
                 return;
             }
-            showToast('تم الحفظ', 'success');
-            e.target.reset();
-            document.getElementById('id').value = '';
-            await loadRows();
-        }
 
-        function editRow(id) {
-            const r = rows.find(x => x.id === id);
-            if (!r) return;
-            document.getElementById('id').value = r.id;
-            document.getElementById('title').value = r.title || '';
-            document.getElementById('section').value = r.section || '';
-            document.getElementById('subject').value = r.subject || '';
-            document.getElementById('date').value = r.exam_date || '';
-            document.getElementById('time').value = r.exam_time || '';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        async function delRow(id) {
-            if (!confirm('حذف الامتحان؟')) return;
-            const res = await window.api.exams.delete(id);
-            if (!res || res.success === false) {
-                showToast('فشل الحذف', 'error');
-                return;
-            }
-            await loadRows();
+            let html = '';
+            let totalRooms = 0;
+            addedLevels.forEach(level => {
+                for (let r = 1; r <= level.rooms; r++) {
+                    totalRooms++;
+                    html += `
+                    <tr>
+                        <td class="level-cell">${level.name}</td>
+                        <td class="room-num">${r}</td>
+                        <td><input type="text" placeholder="اسم القاعة"></td>
+                        <td><input type="text" placeholder="الجناح"></td>
+                        <td><input type="number" placeholder="الأول" min="1"></td>
+                        <td><input type="number" placeholder="الأخير" min="1"></td>
+                        <td><input type="number" placeholder="العدد" min="0"></td>
+                    </tr>`;
+                }
+            });
+            tbody.innerHTML = html;
+            document.getElementById('count-rooms').textContent = totalRooms;
         }
     </script>
 </body>

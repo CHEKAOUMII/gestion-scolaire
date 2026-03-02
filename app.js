@@ -554,6 +554,84 @@ function destroyChartInstances() {
     });
 }
 
+// Birth place normalization — module-level so it's allocated once, not per renderCharts() call
+const BIRTH_PLACE_MAPPING = {
+    "الكرعاني": "الكرعاني", "الكرعاني آسفي": "الكرعاني", "الكرعاني أسفي": "الكرعاني", "الكرعاني اسفي": "الكرعاني", "\u200Fالكرعاني آسفي": "الكرعاني", "دوار المخاطرة جماعة الكرعاني": "الكرعاني", "جماعة الكرعاني": "الكرعاني",
+    "اسفي": "اسفي", "آسفي": "اسفي", "أسفي": "اسفي", "\u200Fآسفي": "اسفي",
+    "جمعة سحيم اسفي": "جمعة سحيم", "جمعة سحيم آسفي": "جمعة سحيم", "\u200Fجمعة سحيم آسفي": "جمعة سحيم", "الحي الاداري بلدية جمعة سحيم باشوية  جمعة سحيم إقليم أسفي": "جمعة سحيم", "جمعة اسحيم": "جمعة سحيم", "الحي الاداري جمعة اسحيم": "جمعة سحيم", "الحي الإداري": "جمعة سحيم", "الحي الاداري بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "جمعة سحيم": "جمعة سحيم", "ٍجمعة سحيم": "جمعة سحيم", "الحي الإداري جمعة سحيم": "جمعة سحيم", "الحي الاداري جمعة سحيم": "جمعة سحيم", "جمعة اسحيم آسفي": "جمعة سحيم", "بلدية جمعة سحيم": "جمعة سحيم", "بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "جماعة جمعة سحيم باشوية  جمعة سحيم إقليم أسفي": "جمعة سحيم", "جماعة جمعة سحيم باشوية جمعة سحيم اقليم اسفي": "جمعة سحيم", "الحي الاداري بلدية جمعة سحيم": "جمعة سحيم", "حي غراب جمعة سحيم": "جمعة سحيم", "شارع محمد الخامس بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "شارع محمد الخامس  بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "شارع اليوسفية جمعة اسحيم": "جمعة سحيم", "دوار لعباد جمعة سحيم": "جمعة سحيم", "حي الدعيجات جمعة اسحيم": "جمعة سحيم", "جمعة سحيم اقليم اسفي": "جمعة سحيم", "جمعة سحيم إقليم أسفي": "جمعة سحيم", "جمعة اسيم": "جمعة سحيم", "دوار الحميدات بلدية جمعة سحيم باشوية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار الحميدات بلدية جمعة سحيم باشوية  جمعة سحيم إقليم أسفي": "جمعة سحيم", "دوار الخربة بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار الخربة  بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "دوار اولاد ميمون بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار أولاد ميمون بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "دوار اولاد التومي بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار أولاد التومي بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم",
+    "دار سي عيسي": "دار سي عيسي", "دار السي عيسى": "دار سي عيسي", "دار سي عيسى": "دار سي عيسي", "ج سيدي عيسى": "دار سي عيسي", "جماعة دار السي عيسي": "دار سي عيسي", "جماعة دار السي عيسى": "دار سي عيسي",
+    "المصابيح اسفي": "المصابيح", "المصابيح آسفي": "المصابيح", "\u200Fالمصابيح آسفي": "المصابيح", "\u200Fلمصابيح": "المصابيح", "جماعة لمصابيح آسفي": "المصابيح", "جماعة لمصابيح اسفي": "المصابيح", "سيدي عيسى": "المصابيح", "سيدي عيسى آسفي": "المصابيح", "دوار اولاد بوجمعة جماعة لمصابيح دائرة عبدة اسفي": "المصابيح", "جماعة لمصابيح": "المصابيح", "جماعة المصابيح آسفي": "المصابيح", "بلمصابيح": "المصابيح", "دوار لمصابيح ج لمصابيح عبدة": "المصابيح", "دوار الطلوح جماعة المصابيح اسفي": "المصابيح",
+    "الدار البيضاء": "الدار البيضاء", "البيضاء": "الدار البيضاء", "الدارالبيضاء": "الدار البيضاء",
+    "الرباط": "الرباط",
+    "لحضر": "لحضر", "جماعة لحضر": "لحضر", "جماعة لحضر اقليم اسفي": "لحضر", "جماعة لحضر اقليم آسفي": "لحضر",
+    "جماعة شهدة": "جماعة شهدة", "جماعة شهدة دائرة عبدة إقليم أسفي": "جماعة شهدة", "جماعة شهدة دائرة عبدة اقليم أسفي": "جماعة شهدة", "شهدة": "جماعة شهدة", "دوار الجديان جماعة شهدة أسفي": "جماعة شهدة", "جماعة شهدة اسفي": "جماعة شهدة", "دوار أولاد ميمون جماعة شهدة": "جماعة شهدة", "دوار الجديان جماعة شهدة اسفي": "جماعة شهدة", "دوار اولاد ميمون جماعة شهدة": "جماعة شهدة",
+    "اليوسفية": "اليوسفية", "بوكدرة": "بوكدرة", "لعميرات": "لعميرات", "مراكش": "مراكش",
+    "دوار اولاد بوعنان": "دوار اولاد بوعنان", "دوار أولاد بوعنان": "دوار اولاد بوعنان",
+    "حي لحرش": "حي لحرش", "انزا اكادير": "انزا اكادير", "اولادد اعبيد": "اولادد اعبيد",
+    "اولاد السي عبد السلام": "اولاد السي عبد السلام", "اولاد يحي": "اولاد يحي",
+    "بوشان": "بوشان", "ج المراسلة": "ج المراسلة", "تارودانت": "تارودانت",
+    "تجزية الاخلاص": "تجزية الاخلاص", "تجزئة الاخلاص": "تجزية الاخلاص",
+    "ج الكرعاني": "الكرعاني", "ج لبخاتي": "ج لبخاتي",
+    "الجماعة الحضرية لاسفي": "اسفي", "SAFI": "اسفي",
+    "دوار اولاد مبارك": "دوار اولاد مبارك", "حي الرزازقة": "حي الرزازقة",
+    "دوار اولاد فارقو": "دوار اولاد فارقو", "دوار أولاد فارقو": "دوار اولاد فارقو",
+    "دوار اولاد عيسي": "دوار اولاد عيسي", "دوار أولاد عيسى": "دوار اولاد عيسي",
+    "حي الدعيجات": "حي الدعيجات", "جماعة سيدي التيجي": "جماعة سيدي التيجي",
+    "حي زمران": "حي زمران", "حي العبيد": "حي العبيد",
+    "دوار اولاد امبارك الشيظمب البخاتي اسفي": "دوار اولاد امبارك الشيظمب البخاتي اسفي", "دوار اولاد امبارك الشيظمب البخاتي  اسفي": "دوار اولاد امبارك الشيظمب البخاتي اسفي",
+    "دوار اولاد بن عليوة جماعة مول البركي اسفي": "دوار اولاد بن عليوة جماعة مول البركي اسفي", "دوار أولاد بن عليوة جماعة مول البركي أسفي": "دوار اولاد بن عليوة جماعة مول البركي اسفي",
+    "SELMOUN": "SELMOUN",
+    "دوار اولاد التومي قيادة العامر اسفي": "دوار اولاد التومي قيادة العامر اسفي", "دوار اولاد التومي قيادة  العامر اسفي": "دوار اولاد التومي قيادة العامر اسفي",
+    "دوار اولاد الجيلالي": "دوار اولاد الجيلالي",
+    "دوار اولاد الحاج عيسي": "دوار اولاد الحاج عيسي", "دوار اولاد الحاج عيسى": "دوار اولاد الحاج عيسي",
+    "دوار اولاد زكري الكرعاني": "الكرعاني",
+    "دوار اولاد عزوز العامر اسفي": "دوار اولاد عزوز العامر اسفي",
+    "دوار اولاد عمران": "دوار اولاد عمران", "دوار أولاد عمران": "دوار اولاد عمران",
+    "قصر اعريب": "قصر اعريب",
+    "جماعة سيدي عيسي": "جماعة سيدي عيسي", "جماعة سيدي عيسى": "جماعة سيدي عيسي",
+    "دوار الدعابجة": "دوار الدعابجة",
+    "دوار الزيادنة اقليم اسفي": "دوار الزيادنة اقليم اسفي", "دوار الزيادنة اقليم آسفي": "دوار الزيادنة اقليم اسفي",
+    "دوار البيضان": "دوار البيضان", "دوار الجديات": "دوار الجديات",
+    "دوار الحامات": "دوار الحامات", "دوار دار عزيزي": "دوار دار عزيزي",
+    "دوار الكطاطمة": "دوار الكطاطمة", "سيدي بنور": "سيدي بنور",
+    "الزوانة": "الزوانة", "وزان": "وزان", "دوار السعادنة": "دوار السعادنة",
+    "دوار الصبيبرات": "دوار الصبيبرات", "النواصر": "النواصر",
+    "مركز ايت عميرة": "مركز ايت عميرة", "مركز أيت عميرة": "مركز ايت عميرة",
+    "ولاد علي": "ولاد علي", "دوار لحميدات": "دوار لحميدات", "لحميدات": "لحميدات",
+    "دوار اولاد مبارك الشيظمي": "دوار اولاد مبارك الشيظمي",
+    "دوار المخاطرة": "دوار المخاطرة", "لعواكل": "لعواكل",
+    "لبخاتي اسفي": "لبخاتي اسفي", "لبخاتي آسفي": "لبخاتي اسفي",
+    "دوار المساعدية جماعة الكرعاني": "الكرعاني", "القليعة": "القليعة",
+    "دوار المعاطلة": "دوار المعاطلة",
+    "دوار المعاطلة جماعة مول البركي اسفي": "دوار المعاطلة جماعة مول البركي اسفي", "دوار المعاطلة جماعة مول البركي آسفي": "دوار المعاطلة جماعة مول البركي اسفي",
+    "دوار ولاد داوود": "دوار ولاد داوود"
+};
+
+function resolvePlace(raw) {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed || trimmed === '-') return '-';
+    if (BIRTH_PLACE_MAPPING[trimmed]) return BIRTH_PLACE_MAPPING[trimmed];
+    // Try removing invisible Unicode chars (BOM, RLM, LRM, ZWJ, ZWNJ)
+    const cleaned = trimmed.replace(/[\u200F\u200E\u200B\u200C\u200D\uFEFF]/g, '').trim();
+    if (BIRTH_PLACE_MAPPING[cleaned]) return BIRTH_PLACE_MAPPING[cleaned];
+    return trimmed;
+}
+
+function getChartThemeColors() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const styles = getComputedStyle(document.documentElement);
+    const get = (v) => styles.getPropertyValue(v).trim();
+    return {
+        textColor: get('--color-text-main'),
+        mutedColor: get('--color-text-muted'),
+        gridColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+        primary: get('--color-primary'),
+        primaryLight: get('--color-primary-light'),
+        primaryDark: get('--color-primary-dark'),
+        accent: '#9B64AB',
+    };
+}
+
 async function renderCharts(filterSection = 'all', stats) {
     try {
         await ensureChartLoaded();
@@ -597,24 +675,25 @@ async function renderCharts(filterSection = 'all', stats) {
     });
 
     const ages = Object.keys(ageStats).sort((a, b) => a - b);
+    const tc = getChartThemeColors();
     chartInstances.age = new Chart(document.getElementById('ageChart'), {
         type: 'bar',
         data: {
             labels: ages.map(a => a + ' سنة'),
             datasets: [
-                { label: 'عدد التلاميذ', data: ages.map(a => ageStats[a].total), backgroundColor: '#2D5F4A', borderRadius: 6 },
-                { label: 'الإناث', data: ages.map(a => ageStats[a].females), backgroundColor: '#4A8B6F', borderRadius: 6 },
-                { label: 'الذكور', data: ages.map(a => ageStats[a].males), backgroundColor: '#C8A882', borderRadius: 6 }
+                { label: 'عدد التلاميذ', data: ages.map(a => ageStats[a].total), backgroundColor: tc.primary, borderRadius: 6 },
+                { label: 'الإناث', data: ages.map(a => ageStats[a].females), backgroundColor: tc.primaryLight, borderRadius: 6 },
+                { label: 'الذكور', data: ages.map(a => ageStats[a].males), backgroundColor: tc.accent, borderRadius: 6 }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }, scales: { x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }, y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } } } }
     });
 
     // Gender Chart
     chartInstances.gender = new Chart(document.getElementById('genderChart'), {
         type: 'doughnut',
-        data: { labels: ['الإناث', 'الذكور'], datasets: [{ data: [stats.females, stats.males], backgroundColor: ['#4A8B6F', '#C8A882'], borderWidth: 0, hoverOffset: 8 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        data: { labels: ['الإناث', 'الذكور'], datasets: [{ data: [stats.females, stats.males], backgroundColor: [tc.primaryLight, tc.accent], borderWidth: 0, hoverOffset: 8 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } } }
     });
 
     // Levels Chart - Show stats per section
@@ -630,22 +709,62 @@ async function renderCharts(filterSection = 'all', stats) {
         data: {
             labels: sectionNames,
             datasets: [
-                { label: 'المجموع', data: sectionNames.map(s => sectionStats[s].total), backgroundColor: '#2D5F4A', borderRadius: 6 },
-                { label: 'إناث', data: sectionNames.map(s => sectionStats[s].females), backgroundColor: '#4A8B6F', borderRadius: 6 },
-                { label: 'ذكور', data: sectionNames.map(s => sectionStats[s].males), backgroundColor: '#C8A882', borderRadius: 6 }
+                { label: 'المجموع', data: sectionNames.map(s => sectionStats[s].total), backgroundColor: tc.primary, borderRadius: 6 },
+                { label: 'إناث', data: sectionNames.map(s => sectionStats[s].females), backgroundColor: tc.primaryLight, borderRadius: 6 },
+                { label: 'ذكور', data: sectionNames.map(s => sectionStats[s].males), backgroundColor: tc.accent, borderRadius: 6 }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }, scales: { x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }, y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } } } }
     });
 
     // Birth Place Chart
     const places = {};
-    studentsData.forEach(s => { const p = s.birthPlace || '-'; places[p] = (places[p] || 0) + 1; });
-    const topPlaces = Object.entries(places).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    studentsData.forEach(s => {
+        const raw = (s.birthPlace || '').trim() || '-';
+        const key = resolvePlace(raw);
+        places[key] = (places[key] || 0) + 1;
+    });
+    const topPlaces = Object.entries(places).sort((a, b) => b[1] - a[1]).slice(0, 10);
     chartInstances.place = new Chart(document.getElementById('placeChart'), {
         type: 'bar',
-        data: { labels: topPlaces.map(p => p[0]), datasets: [{ label: 'العدد', data: topPlaces.map(p => p[1]), backgroundColor: '#1B3D30', borderRadius: 6 }] },
-        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { reverse: true, position: 'top' }, y: { position: 'right' } }, plugins: { legend: { display: false } } }
+        data: {
+            labels: topPlaces.map(p => p[0]),
+            datasets: [{
+                label: 'العدد',
+                data: topPlaces.map(p => p[1]),
+                backgroundColor: tc.primaryDark,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            animation: { duration: 700, easing: 'easeOutQuart' },
+            plugins: {
+                legend: { display: false },
+                tooltip: { rtl: true, textDirection: 'rtl' }
+            },
+            scales: {
+                x: {
+                    reverse: true,
+                    position: 'top',
+                    min: 0,
+                    grid: { color: tc.gridColor },
+                    ticks: { color: tc.textColor }
+                },
+                y: {
+                    position: 'right',
+                    grid: { display: false },
+                    ticks: {
+                        color: tc.textColor,
+                        crossAlign: 'far',
+                        font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' },
+                        textDirection: 'rtl'
+                    }
+                }
+            }
+        }
     });
 
     // Add section filter event listener (remove old listener first to avoid leak)
@@ -849,6 +968,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize extra buttons (notifications, home, print, export)
     initExtraButtons();
+
+    // Re-render charts when theme changes so colors adapt
+    const themeObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+            if (m.attributeName === 'data-theme') {
+                const filterEl = document.getElementById('age-section-filter');
+                const currentFilter = filterEl ? filterEl.value : 'all';
+                renderCharts(currentFilter);
+                break;
+            }
+        }
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 });
 
 
@@ -874,57 +1006,11 @@ function goToHome() {
     showToast('تم تحديث لوحة التحكم', 'success');
 }
 
-// زر الإشعارات
+// زر الإشعارات — delegates to the unified Notification Engine panel (js/notifications.js)
 function showNotifications() {
-    // إنشاء قائمة الإشعارات
-    const existingDropdown = document.querySelector('.notifications-dropdown');
-    if (existingDropdown) {
-        existingDropdown.remove();
-        return;
+    if (typeof window.showNotificationsPanel === 'function') {
+        window.showNotificationsPanel();
     }
-
-    const dropdown = document.createElement('div');
-    dropdown.className = 'notifications-dropdown';
-    dropdown.innerHTML = `
-        <div class="notifications-header">
-            <h4><i class="fas fa-bell"></i> الإشعارات</h4>
-            <button class="mark-all-read"><i class="fas fa-check-double"></i> تحديد الكل كمقروء</button>
-        </div>
-        <div class="notifications-list">
-            <div class="notification-item unread">
-                <div class="notification-icon"><i class="fas fa-user-plus"></i></div>
-                <div class="notification-content">
-                    <p>تم تسجيل تلميذ جديد</p>
-                    <span class="notification-time">منذ 5 دقائق</span>
-                </div>
-            </div>
-            <div class="notification-item unread">
-                <div class="notification-icon"><i class="fas fa-file-import"></i></div>
-                <div class="notification-content">
-                    <p>تم استيراد لائحة جديدة</p>
-                    <span class="notification-time">منذ ساعة</span>
-                </div>
-            </div>
-            <div class="notification-item unread">
-                <div class="notification-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                <div class="notification-content">
-                    <p>يوجد 3 تلاميذ بدون معلومات كاملة</p>
-                    <span class="notification-time">منذ يومين</span>
-                </div>
-            </div>
-        </div>
-    `;
-    document.querySelector('.header-right').appendChild(dropdown);
-
-    // إغلاق عند النقر خارج القائمة
-    setTimeout(() => {
-        document.addEventListener('click', function closeDropdown(e) {
-            if (!e.target.closest('.notification-btn') && !e.target.closest('.notifications-dropdown')) {
-                dropdown.remove();
-                document.removeEventListener('click', closeDropdown);
-            }
-        });
-    }, 100);
 }
 
 // زر طباعة الجدول
@@ -1070,30 +1156,4 @@ function initExtraButtons() {
             exportToExcel();
         }
     });
-}
-
-function showToast(message, type = 'success') {
-    // إزالة أي toast موجود
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-
-    // إنشاء toast جديد
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-
-    const icon = document.createElement('i');
-    icon.className = `fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}`;
-
-    const span = document.createElement('span');
-    span.textContent = message;
-
-    toast.appendChild(icon);
-    toast.appendChild(span);
-    document.body.appendChild(toast);
-
-    setTimeout(() => toast.classList.add('show'), 100);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
 }

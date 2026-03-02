@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
@@ -72,7 +73,7 @@
         }
 
         #tbody tr:hover {
-            background: var(--color-primary-mist, rgba(45, 95, 74, 0.08)) !important;
+            background: var(--color-primary-mist, rgba(59, 106, 197, 0.08)) !important;
         }
 
         /* ===== Student Detail Modal ===== */
@@ -116,7 +117,7 @@
 
         /* Modal Header */
         .detail-hero {
-            background: var(--gradient-primary, linear-gradient(135deg, #2D5F4A, #4A8B6F));
+            background: var(--gradient-primary, linear-gradient(135deg, #3B6AC5, #5B84D6));
             color: white;
             padding: 28px 30px 22px;
             position: relative;
@@ -187,13 +188,13 @@
             padding: 14px 12px;
             text-align: center;
             box-shadow: var(--shadow-card, 0 1px 3px rgba(0, 0, 0, 0.04));
-            border: 1px solid var(--color-accent, #E8ECE9);
+            border: 1px solid var(--color-accent, #E8E8E8);
         }
 
         .detail-kpi .kpi-val {
             font-size: 22px;
             font-weight: 800;
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
         }
 
         .detail-kpi .kpi-lbl {
@@ -212,7 +213,7 @@
         .detail-body h3 {
             font-size: 15px;
             font-weight: 700;
-            color: var(--color-text-main, #1F2D24);
+            color: var(--color-text-main, #111111);
             margin-bottom: 16px;
             display: flex;
             align-items: center;
@@ -220,7 +221,7 @@
         }
 
         .detail-body h3 i {
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
         }
 
         /* Subject cards */
@@ -229,12 +230,12 @@
             border-radius: var(--radius-sm, 10px);
             margin-bottom: 14px;
             overflow: hidden;
-            border: 1px solid var(--color-accent, #E8ECE9);
+            border: 1px solid var(--color-accent, #E8E8E8);
             transition: 0.2s;
         }
 
         .subject-block:hover {
-            border-color: var(--color-primary-light, #4A8B6F);
+            border-color: var(--color-primary-light, #5B84D6);
         }
 
         .subject-block-header {
@@ -248,14 +249,14 @@
         .subject-block-header .subj-name {
             font-weight: 700;
             font-size: 14px;
-            color: var(--color-text-main, #1F2D24);
+            color: var(--color-text-main, #111111);
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
         .subject-block-header .subj-name i {
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
             font-size: 16px;
         }
 
@@ -284,7 +285,7 @@
             align-items: center;
             gap: 4px;
             background: var(--color-surface, #FFFEFB);
-            border: 1px solid var(--color-accent, #E8ECE9);
+            border: 1px solid var(--color-accent, #E8E8E8);
             border-radius: var(--radius-xs, 6px);
             padding: 10px 16px;
             min-width: 80px;
@@ -310,7 +311,7 @@
         .grade-chip .chip-bar {
             width: 100%;
             height: 4px;
-            background: var(--color-accent, #E8ECE9);
+            background: var(--color-accent, #E8E8E8);
             border-radius: 2px;
             overflow: hidden;
         }
@@ -330,8 +331,8 @@
             border-radius: 20px;
             font-size: 11px;
             font-weight: 600;
-            background: var(--color-primary-mist, rgba(45, 95, 74, 0.08));
-            color: var(--color-primary, #2D5F4A);
+            background: var(--color-primary-mist, rgba(59, 106, 197, 0.08));
+            color: var(--color-primary, #3B6AC5);
         }
 
         /* Empty state */
@@ -404,7 +405,7 @@
             <div class="students-results">
                 <h3><i class="fas fa-chart-bar"></i> ملخص الإحصائيات</h3>
                 <div class="kpi-grid">
-                    <div class="kpi-card" style="background: linear-gradient(135deg, #2D5F4A, #4A8B6F);">
+                    <div class="kpi-card" style="background: linear-gradient(135deg, #3B6AC5, #5B84D6);">
                         <div class="kpi-value" id="total-students">0</div>
                         <div class="kpi-label">عدد التلاميذ</div>
                     </div>

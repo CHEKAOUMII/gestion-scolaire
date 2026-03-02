@@ -359,14 +359,20 @@ function openPrintPreview(options = {}) {
     _forceLightThemeForPrint();
 
     // Give charts ~300ms to repaint in light mode before snapshot
-    setTimeout(() => {
+    setTimeout(async () => {
         const clone = sourceEl.cloneNode(true);
 
         // When contentSelector is provided, the caller already prepared the content.
         // Only do auto-cleanup when cloning raw page content.
         if (!options.contentSelector) {
             // Strip UI controls from clone
-            clone.querySelectorAll('.header, .search-section, .search-form, .filter-section, .filters-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, #export-btn, .btn-print, .btn-export, .pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state, .table-toolbar, .page-title-row').forEach(el => el.remove());
+            clone.querySelectorAll('.header, .print-header, .search-section, .sl-search-section, .search-form, .filter-section, .filters-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .loading-overlay, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, #export-btn, .btn-print, .btn-export, .pagination, .sl-pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state, .table-toolbar, .page-title-row, .sl-results-header, .sl-results-actions, .sl-action-btn').forEach(el => el.remove());
+            // Hide last column (actions) in any table inside the clone
+            clone.querySelectorAll('th:last-child, td:last-child').forEach(el => {
+                if (el.querySelector('.sl-action-btn') || el.textContent.trim() === '' || el.textContent.includes('الإجراءات')) {
+                    el.style.display = 'none';
+                }
+            });
             // Force solid white backgrounds on glass/card elements (override CSS variables)
             clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details').forEach(el => {
                 el.style.background = '#fff';
@@ -397,16 +403,55 @@ function openPrintPreview(options = {}) {
         // Restore original theme now that clone + canvas snapshots are done
         _restoreThemeAfterPrint();
 
-        // Build print header
-        const printTitle = options.title || document.querySelector('.page-title h1')?.textContent || document.title || 'طباعة';
-        const schoolName = localStorage.getItem('schoolName') || '';
-        const now = new Date();
-        const dateStr = now.toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
-        const headerHTML = `<div class="ux-pp-print-header">
-        ${schoolName ? `<div class="ux-pp-school-name">${schoolName}</div>` : ''}
-        <div class="ux-pp-doc-title">${printTitle}</div>
-        <div class="ux-pp-doc-date">${dateStr}</div>
-    </div>`;
+        // Build letterhead header (only when cloning raw page content, not custom contentSelector)
+        let headerHTML = '';
+        if (!options.contentSelector) {
+            try {
+                const id = await window.api.reports.getIdentity();
+                if (id && (id.school_name || id.ministry)) {
+                    const _esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const logo = id.logo_base64
+                        ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+                        : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>';
+                    const printTitle = options.title || document.querySelector('.page-title h1')?.textContent || document.title || '';
+                    headerHTML = `
+                    <div class="ux-pp-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px; margin-bottom: 14px;">
+                        <table style="width: 100%; border-collapse: collapse;" role="presentation">
+                            <tr>
+                                <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
+                                    <div style="font-size: 11px; font-weight: 700; color: #222;">${_esc(id.country)}</div>
+                                    <div style="font-size: 9.5px; color: #555; margin-top: 2px;">${_esc(id.ministry)}</div>
+                                    ${id.academy ? `<div style="font-size: 9px; color: #666; margin-top: 2px;">${_esc(id.academy)}</div>` : ''}
+                                    ${id.directorate ? `<div style="font-size: 9px; color: #666; margin-top: 1px;">${_esc(id.directorate)}</div>` : ''}
+                                </td>
+                                <td style="width: 10%; text-align: center; vertical-align: middle;">${logo}</td>
+                                <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
+                                    <div style="font-size: 13px; font-weight: 800; color: #3B6AC5;">${_esc(id.school_name)}</div>
+                                    ${id.school_code ? `<div style="font-size: 9px; color: #888; margin-top: 2px;">رمز المؤسسة: ${_esc(id.school_code)}</div>` : ''}
+                                    ${id.commune ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">الجماعة: ${_esc(id.commune)}</div>` : ''}
+                                    ${(document.getElementById('school-year')?.value || id.school_year) ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${_esc(document.getElementById('school-year')?.value || id.school_year)}</div>` : ''}
+                                </td>
+                            </tr>
+                        </table>
+                        ${printTitle ? `
+                        <div style="text-align: center; margin-top: 12px;">
+                            <div style="display: inline-block; padding: 7px 30px; border: 2px solid #3B6AC5; border-radius: 8px;">
+                                <div style="font-size: 17px; font-weight: 800; color: #3B6AC5;">${_esc(printTitle)}</div>
+                            </div>
+                        </div>` : ''}
+                    </div>`;
+                }
+            } catch (_) {
+                // Identity not available — fall back to simple header
+                const printTitle = options.title || document.title || 'طباعة';
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
+                headerHTML = `<div class="ux-pp-print-header">
+                    <div class="ux-pp-doc-title">${printTitle}</div>
+                    <div class="ux-pp-doc-date">${dateStr}</div>
+                </div>`;
+            }
+        }
 
         const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
         // Force sheet to use light theme for the preview

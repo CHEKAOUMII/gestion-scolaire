@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
@@ -1977,7 +1978,7 @@
                             label: 'المعدل',
                             data: sectionAvgs,
                             backgroundColor: sections.map((_, i) => {
-                                const palette = ['#2D5F4A', '#3C95D0', '#E67F22', '#a770ef', '#E74C3C', '#11998e', '#667eea'];
+                                const palette = ['#3B6AC5', '#3C95D0', '#E67F22', '#a770ef', '#E74C3C', '#11998e', '#667eea'];
                                 return palette[i % palette.length] + 'BB';
                             }),
                             borderRadius: 8,
@@ -2184,13 +2185,13 @@
                             datasets: [{
                                 label: 'المعدل العام',
                                 data: trendData,
-                                borderColor: '#2D5F4A',
-                                backgroundColor: 'rgba(45, 95, 74, 0.1)',
+                                borderColor: '#3B6AC5',
+                                backgroundColor: 'rgba(59, 106, 197, 0.1)',
                                 fill: true,
                                 tension: 0.4,
                                 pointRadius: 6,
                                 pointBackgroundColor: '#fff',
-                                pointBorderColor: '#2D5F4A',
+                                pointBorderColor: '#3B6AC5',
                                 pointBorderWidth: 3,
                                 borderWidth: 3
                             }]

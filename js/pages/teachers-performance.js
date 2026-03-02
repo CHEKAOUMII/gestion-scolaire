@@ -18,8 +18,8 @@ let currentSubjectFilter = '';
 
 const gradeBands = [
     { label: 'ممتاز (16-20)', min: 16, max: 20, color: 'rgba(47, 179, 109, 0.85)' },
-    { label: 'جيد (14-16)', min: 14, max: 15.99, color: 'rgba(60, 149, 208, 0.85)' },
-    { label: 'حسن (12-14)', min: 12, max: 13.99, color: 'rgba(100, 180, 246, 0.85)' },
+    { label: 'جيد (14-16)', min: 14, max: 15.99, color: 'rgba(105, 103, 190, 0.85)' },
+    { label: 'حسن (12-14)', min: 12, max: 13.99, color: 'rgba(134, 101, 181, 0.85)' },
     { label: 'مقبول (10-12)', min: 10, max: 11.99, color: 'rgba(240, 194, 14, 0.85)' },
     { label: 'غير كافٍ (0-10)', min: 0, max: 9.99, color: 'rgba(231, 76, 60, 0.85)' }
 ];
@@ -715,14 +715,18 @@ function renderAbsenceByTeacherChart(rows) {
         });
     });
 
-    // Compute total absence hours per teacher's sections
+    // Compute total & average absence hours per teacher's sections
     const teacherAbsence = [];
     teacherSections.forEach((sections, teacher) => {
         let totalHours = 0;
         allAbsencesCache.forEach((a) => {
             if (a._section && sections.has(a._section)) totalHours += a._hours;
         });
-        teacherAbsence.push({ teacher, totalHours });
+        // Student count from rows data
+        const rowData = rows.find((r) => r.teacher === teacher);
+        const studentCount = rowData ? rowData.studentCount : 0;
+        const avgHours = studentCount > 0 ? totalHours / studentCount : 0;
+        teacherAbsence.push({ teacher, totalHours, studentCount, avgHours });
     });
 
     if (!teacherAbsence.length) {
@@ -730,12 +734,12 @@ function renderAbsenceByTeacherChart(rows) {
         return;
     }
 
-    // Sort and pick top 5 most + top 5 least
-    const sorted = [...teacherAbsence].sort((a, b) => b.totalHours - a.totalHours);
+    // Sort by average and pick top 5 most + top 5 least
+    const sorted = [...teacherAbsence].sort((a, b) => b.avgHours - a.avgHours);
     const top5Most = sorted.slice(0, 5);
-    const top5Least = sorted.filter((t) => t.totalHours >= 0).slice(-5).reverse();
+    const top5Least = sorted.filter((t) => t.avgHours >= 0).slice(-5).reverse();
 
-    // Merge: most first, then separator, then least (avoid duplicates)
+    // Merge: most first, then least (avoid duplicates)
     const leastNames = new Set(top5Least.map((t) => t.teacher));
     const mostFiltered = top5Most.filter((t) => !leastNames.has(t.teacher));
     const combined = [...mostFiltered, ...top5Least];
@@ -744,7 +748,7 @@ function renderAbsenceByTeacherChart(rows) {
     const finalList = combined.length > 0 ? combined : sorted.slice(0, 10);
 
     const labels = finalList.map((t) => t.teacher);
-    const data = finalList.map((t) => t.totalHours);
+    const data = finalList.map((t) => t.avgHours);
     const colors = finalList.map((t) => {
         const isMost = top5Most.some((m) => m.teacher === t.teacher);
         return isMost ? 'rgba(231, 76, 60, 0.80)' : 'rgba(47, 179, 109, 0.80)';
@@ -755,7 +759,7 @@ function renderAbsenceByTeacherChart(rows) {
         data: {
             labels,
             datasets: [{
-                label: 'ساعات الغياب',
+                label: 'متوسط ساعات الغياب / تلميذ',
                 data,
                 backgroundColor: colors,
                 borderRadius: 6,
@@ -773,12 +777,15 @@ function renderAbsenceByTeacherChart(rows) {
                     rtl: true,
                     textDirection: 'rtl',
                     callbacks: {
-                        label: (ctx) => `${Number(ctx.raw).toFixed(0)} ساعة غياب`,
+                        label: (ctx) => `متوسط: ${Number(ctx.raw).toFixed(2)} ساعة / تلميذ`,
                         afterBody: (items) => {
                             const t = finalList[items[0]?.dataIndex];
                             if (!t) return '';
                             const isMost = top5Most.some((m) => m.teacher === t.teacher);
-                            return [isMost ? '🔴 من الأكثر غياباً' : '🟢 من الأقل غياباً'];
+                            return [
+                                `الإجمالي: ${t.totalHours.toFixed(0)} ساعة  |  ${t.studentCount} تلميذ`,
+                                isMost ? '🔴 من الأكثر غياباً' : '🟢 من الأقل غياباً'
+                            ];
                         }
                     }
                 }
@@ -805,7 +812,8 @@ function renderAbsenceByTeacherChart(rows) {
     });
 
     const totalAbsAllTeachers = teacherAbsence.reduce((s, t) => s + t.totalHours, 0);
-    meta.textContent = `${teacherAbsence.length} أستاذ · ${totalAbsAllTeachers.toFixed(0)} ساعة غياب إجمالية. 🔴 الأكثر  🟢 الأقل`;
+    const globalAvgAbs = teacherAbsence.length ? teacherAbsence.reduce((s, t) => s + t.avgHours, 0) / teacherAbsence.length : 0;
+    meta.textContent = `${teacherAbsence.length} أستاذ · متوسط الغياب: ${globalAvgAbs.toFixed(2)} ساعة/تلميذ · الإجمالي: ${totalAbsAllTeachers.toFixed(0)} ساعة. 🔴 الأكثر  🟢 الأقل`;
 }
 
 /* ─── Chart.js Loading ─── */
@@ -876,7 +884,7 @@ function renderComparisonChart(rows) {
     const labels = finalList.map((r) => r.teacher);
     const data = finalList.map((r) => Number(r.passRate.toFixed(1)));
     const colors = finalList.map((r) => {
-        if (r.teacher === selectedTeacherName) return 'rgba(29, 110, 82, 0.95)';
+        if (r.teacher === selectedTeacherName) return 'rgba(59, 106, 197, 0.95)';
         const isBest = top5Best.some((b) => b.teacher === r.teacher);
         return isBest ? 'rgba(47, 179, 109, 0.85)' : 'rgba(231, 76, 60, 0.85)';
     });
@@ -1060,7 +1068,7 @@ function renderTeacherSectionChart(teacherGrades) {
                 {
                     label: 'متوسط القسم',
                     data: labels.length ? values : [0],
-                    backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                    backgroundColor: 'rgba(105, 103, 190, 0.75)',
                     borderRadius: 6,
                     borderSkipped: false
                 }
@@ -1154,9 +1162,9 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
                 {
                     label: 'متوسط الفرض',
                     data: values,
-                    borderColor: 'rgba(22, 163, 74, 0.95)',
-                    backgroundColor: 'rgba(22, 163, 74, 0.2)',
-                    pointBackgroundColor: 'rgba(22, 163, 74, 1)',
+                    borderColor: 'rgba(155, 100, 171, 0.95)',
+                    backgroundColor: 'rgba(155, 100, 171, 0.2)',
+                    pointBackgroundColor: 'rgba(155, 100, 171, 1)',
                     pointRadius: 4,
                     pointHoverRadius: 5,
                     tension: 0.35,
@@ -1204,14 +1212,14 @@ function renderSemesterCompareChart(rows) {
                 {
                     label: 'الدورة 1',
                     data: top.map((r) => Number(r.sem1Avg.toFixed(2))),
-                    backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                    backgroundColor: 'rgba(59, 106, 197, 0.75)',
                     borderRadius: 4,
                     borderSkipped: false
                 },
                 {
                     label: 'الدورة 2',
                     data: top.map((r) => Number(r.sem2Avg.toFixed(2))),
-                    backgroundColor: 'rgba(22, 163, 74, 0.75)',
+                    backgroundColor: 'rgba(155, 100, 171, 0.75)',
                     borderRadius: 4,
                     borderSkipped: false
                 }
@@ -1266,9 +1274,9 @@ function renderRadarChart(rows) {
                         Math.min(100, row.sectionsCount * 20),
                         semProgress
                     ],
-                    backgroundColor: 'rgba(45, 95, 74, 0.2)',
-                    borderColor: 'rgba(45, 95, 74, 0.8)',
-                    pointBackgroundColor: 'rgba(45, 95, 74, 1)',
+                    backgroundColor: 'rgba(105, 103, 190, 0.2)',
+                    borderColor: 'rgba(105, 103, 190, 0.8)',
+                    pointBackgroundColor: 'rgba(105, 103, 190, 1)',
                     pointRadius: 4,
                     borderWidth: 2
                 }

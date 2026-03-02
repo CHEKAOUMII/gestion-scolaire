@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="ux-enhancements.css">
   <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
   <script src="js/sidebar.js"></script>
   <script src="js/ux-enhancements.js"></script>
   <style>
@@ -161,7 +162,7 @@
 
     /* Header row (time slots) */
     .class-timetable thead th {
-      background: linear-gradient(135deg, #2D5F4A, #26a69a);
+      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
       color: white;
       padding: 14px 8px;
       font-weight: 600;
@@ -183,14 +184,14 @@
     }
 
     .class-timetable thead th.total-header {
-      background: linear-gradient(135deg, #1B3D30, #2D5F4A);
+      background: linear-gradient(135deg, #2F5499, #3B6AC5);
       font-size: 0.95rem;
       font-weight: 700;
     }
 
     /* Day column (right side, vertical) */
     .class-timetable tbody td.day-cell {
-      background: linear-gradient(135deg, #2D5F4A, #1B3D30);
+      background: linear-gradient(135deg, #3B6AC5, #2F5499);
       color: white;
       font-weight: 700;
       font-size: 1rem;
@@ -213,11 +214,11 @@
     }
 
     .class-timetable tbody tr:hover td:not(.day-cell) {
-      background: rgba(45, 95, 74, 0.04);
+      background: rgba(59, 106, 197, 0.04);
     }
 
     .class-timetable .period-separator td {
-      background: linear-gradient(90deg, transparent, rgba(45, 95, 74, 0.15), transparent) !important;
+      background: linear-gradient(90deg, transparent, rgba(59, 106, 197, 0.15), transparent) !important;
       height: 6px;
       padding: 0;
       border: none;
@@ -347,9 +348,9 @@
     }
 
     .filter-select:focus {
-      border-color: #2D5F4A;
+      border-color: #3B6AC5;
       outline: none;
-      box-shadow: 0 0 0 4px rgba(45, 95, 74, 0.1);
+      box-shadow: 0 0 0 4px rgba(59, 106, 197, 0.1);
     }
 
     .filter-select:disabled {
@@ -363,10 +364,10 @@
       align-items: center;
       gap: 16px;
       padding: 16px 20px;
-      background: linear-gradient(135deg, rgba(45, 95, 74, 0.06), rgba(38, 166, 154, 0.04));
+      background: linear-gradient(135deg, rgba(59, 106, 197, 0.06), rgba(38, 166, 154, 0.04));
       border-radius: 12px;
       margin-bottom: 16px;
-      border: 1px solid rgba(45, 95, 74, 0.1);
+      border: 1px solid rgba(59, 106, 197, 0.1);
       animation: fadeInUp 0.3s ease;
     }
 
@@ -374,7 +375,7 @@
       width: 52px;
       height: 52px;
       border-radius: 14px;
-      background: linear-gradient(135deg, #2D5F4A, #26a69a);
+      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -385,7 +386,7 @@
     .class-info-bar .class-details h4 {
       margin: 0 0 4px;
       font-size: 1.15rem;
-      color: var(--color-text-main, #1F2D24);
+      color: var(--color-text-main, #111111);
     }
 
     .class-info-bar .class-details span {
@@ -395,7 +396,7 @@
 
     .class-info-bar .total-hours-badge {
       margin-right: auto;
-      background: linear-gradient(135deg, #2D5F4A, #26a69a);
+      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
       color: white;
       padding: 8px 20px;
       border-radius: 25px;

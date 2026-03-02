@@ -1,14 +1,14 @@
 ﻿:root {
-    /* Mapped Variables from Design System */
+    /* ─── Legacy Aliases (map old names → canonical tokens) ─── */
     --primary: var(--color-primary);
     --primary-dark: var(--color-primary-dark);
     --primary-light: var(--color-primary-light);
     --secondary: var(--color-text-main);
 
     --accent: var(--color-accent);
-    --success: var(--color-success);
-    --danger: var(--color-danger);
-    --warning: var(--color-warning);
+    --success: var(--color-success-bg);
+    --danger: var(--color-danger-bg);
+    --warning: var(--color-warning-bg);
 
     --bg-dark: var(--color-secondary);
     --bg-card: var(--color-surface);
@@ -17,14 +17,6 @@
     --border-color: var(--color-accent);
 
     --shadow: var(--shadow-card);
-
-    --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
-    --gradient-secondary: var(--gradient-surface);
-
-    --female-color: #5B9BD5;
-    --male-color: #E8A838;
-    --total-color: #7C6BBF;
-
     --radius: var(--radius-md);
     --transition: var(--transition-normal);
 }
@@ -39,9 +31,9 @@ body {
     font-family: var(--font-main);
     background-color: var(--color-secondary);
     background-image:
-        radial-gradient(at 0% 0%, rgba(45, 95, 74, 0.06) 0px, transparent 50%),
-        radial-gradient(at 100% 80%, rgba(45, 95, 74, 0.04) 0px, transparent 50%),
-        radial-gradient(at 50% 50%, rgba(200, 206, 211, 0.08) 0px, transparent 70%);
+        radial-gradient(at 0% 0%, rgba(74, 123, 247, 0.04) 0px, transparent 50%),
+        radial-gradient(at 100% 80%, rgba(74, 123, 247, 0.03) 0px, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(200, 206, 211, 0.05) 0px, transparent 70%);
     background-attachment: fixed;
     min-height: 100vh;
     display: flex;
@@ -383,7 +375,7 @@ body {
 .search-box input:focus {
     border-color: var(--color-primary);
     background: var(--color-surface);
-    box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.15), var(--shadow-card);
+    box-shadow: 0 0 0 3px rgba(74, 123, 247, 0.15), var(--shadow-card);
     outline: none;
     width: 420px;
 }
@@ -1124,7 +1116,7 @@ body {
 
 .pagination button.nav-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(45, 95, 74, 0.2);
+    box-shadow: 0 5px 15px rgba(74, 123, 247, 0.2);
 }
 
 .pagination button:disabled {
@@ -1247,11 +1239,11 @@ body {
 }
 
 .notification-item:hover {
-    background: rgba(45, 95, 74, 0.05);
+    background: rgba(74, 123, 247, 0.05);
 }
 
 .notification-item.unread {
-    background: rgba(45, 95, 74, 0.06);
+    background: rgba(74, 123, 247, 0.06);
     border-right: 3px solid var(--primary);
 }
 
@@ -1289,7 +1281,7 @@ body {
     align-items: center;
     gap: 10px;
     padding: 5px 10px;
-    background: rgba(45, 95, 74, 0.08);
+    background: rgba(74, 123, 247, 0.08);
     border-radius: 25px;
 }
 
@@ -1477,7 +1469,7 @@ body {
 .search-form button:focus-visible,
 .menu-toggle:focus-visible,
 .theme-toggle:focus-visible {
-    outline: 3px solid rgba(45, 95, 74, 0.35);
+    outline: 3px solid rgba(74, 123, 247, 0.35);
     outline-offset: 2px;
 }
 
@@ -1579,12 +1571,12 @@ body {
 
 .student-card:hover {
     border-color: var(--primary);
-    background: rgba(45, 95, 74, 0.05);
+    background: rgba(74, 123, 247, 0.05);
 }
 
 .student-card.selected {
     border-color: var(--primary);
-    background: rgba(45, 95, 74, 0.08);
+    background: rgba(74, 123, 247, 0.08);
 }
 
 .student-avatar {
@@ -1791,7 +1783,7 @@ body {
 .import-dropzone:hover,
 .import-dropzone.dragover {
     border-color: var(--primary);
-    background: rgba(45, 95, 74, 0.05);
+    background: rgba(74, 123, 247, 0.05);
 }
 
 .import-dropzone i {
@@ -1814,6 +1806,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    width: max-content;
+    max-width: min(420px, 90vw);
 }
 
 .toast {
@@ -1853,7 +1847,7 @@ body {
 }
 
 .toast.info {
-    background: linear-gradient(135deg, #2196f3, #03a9f4);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
 }
 
 /* Import Log */
@@ -1940,7 +1934,7 @@ body {
 
 .pagination button.nav-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(45, 95, 74, 0.2);
+    box-shadow: 0 5px 15px rgba(74, 123, 247, 0.2);
 }
 
 .pagination button:disabled {
@@ -1973,7 +1967,7 @@ body {
 
 .backup-btn:hover {
     transform: scale(1.1);
-    box-shadow: 0 4px 15px rgba(45, 95, 74, 0.3);
+    box-shadow: 0 4px 15px rgba(74, 123, 247, 0.3);
 }
 
 /* Grades Container */
@@ -2252,4 +2246,277 @@ body {
 .theme-toggle:hover {
     border-color: var(--primary);
     color: var(--primary);
+}
+
+/* ===== Bottom Section: Student Table + Chat ===== */
+.bottom-section {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 25px;
+}
+
+.soft-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+}
+
+/* Student Table Card */
+.table-card {
+    flex: 1;
+    min-width: 0;
+}
+
+.table-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-accent);
+    background: linear-gradient(to left, var(--color-primary-mist), transparent);
+}
+
+.table-card-header h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-main);
+}
+
+.view-all-link {
+    font-size: 13px;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.view-all-link:hover {
+    color: var(--color-primary-dark);
+}
+
+.table-card-content {
+    padding: 0;
+}
+
+.table-card-content .data-table {
+    margin: 0;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.status-present {
+    background: rgba(0, 77, 26, 0.1);
+    color: var(--color-success);
+}
+
+.status-absent {
+    background: rgba(128, 66, 0, 0.1);
+    color: var(--color-danger);
+}
+
+.status-late {
+    background: rgba(128, 66, 0, 0.1);
+    color: var(--color-warning);
+}
+
+[data-theme="dark"] .status-present {
+    background: rgba(182, 255, 206, 0.12);
+}
+
+[data-theme="dark"] .status-absent {
+    background: rgba(255, 92, 51, 0.12);
+}
+
+[data-theme="dark"] .status-late {
+    background: rgba(255, 132, 0, 0.12);
+}
+
+.student-name {
+    font-weight: 600;
+}
+
+.student-grade {
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+/* Chat Card */
+.chat-card {
+    width: 360px;
+    min-width: 360px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-accent);
+}
+
+.chat-card-header h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-main);
+}
+
+.chat-more-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.chat-more-btn:hover {
+    background: var(--color-surface-alt);
+    color: var(--color-text-main);
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 320px;
+}
+
+.chat-msg {
+    display: flex;
+}
+
+.chat-msg-sender {
+    justify-content: flex-end;
+}
+
+.chat-msg-receiver {
+    justify-content: flex-start;
+}
+
+.chat-bubble {
+    max-width: 80%;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.chat-bubble p {
+    margin: 0;
+}
+
+.chat-bubble-sender {
+    background: var(--color-primary);
+    color: #FFFFFF;
+    border-radius: 12px 0 12px 12px;
+}
+
+.chat-bubble-receiver {
+    background: var(--color-surface-alt);
+    color: var(--color-text-main);
+    border-radius: 0 12px 12px 12px;
+}
+
+.chat-time {
+    display: block;
+    font-size: 10px;
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+.chat-bubble-receiver .chat-time {
+    color: var(--color-text-muted);
+}
+
+.chat-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-accent);
+}
+
+.chat-input-bar input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid var(--color-accent);
+    border-radius: 9999px;
+    background: var(--color-surface-alt);
+    color: var(--color-text-main);
+    font-family: inherit;
+    font-size: 13px;
+    transition: var(--transition);
+}
+
+.chat-input-bar input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.chat-input-bar input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-mist);
+}
+
+.chat-send-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: var(--color-primary);
+    color: #FFFFFF;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.chat-send-btn:hover {
+    background: var(--color-primary-dark);
+    transform: scale(1.05);
+}
+
+/* Bottom Section Responsive */
+@media (max-width: 1200px) {
+    .chat-card {
+        width: 300px;
+        min-width: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    .bottom-section {
+        flex-direction: column;
+    }
+
+    .chat-card {
+        width: 100%;
+        min-width: unset;
+    }
+
+    .chat-messages {
+        max-height: 250px;
+    }
 }

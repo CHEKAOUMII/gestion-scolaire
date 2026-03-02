@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js" defer></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/cc-rules.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
@@ -607,6 +608,10 @@
                     </select>
                     <button class="btn btn-primary" type="button" id="analyze-btn"><i class="fas fa-chart-line"></i>
                         تحليل</button>
+                    <button class="btn btn-secondary" type="button"
+                        onclick="openPrintPreview({ title: 'تحليل النتائج', pageSize: 'A4' })"
+                        style="margin-right: 6px;"><i class="fas fa-print"></i>
+                        معاينة الطباعة</button>
                 </form>
             </div>
 
@@ -1095,12 +1100,22 @@
                 const type = document.getElementById('analysis-type').value;
 
                 const allGrades = allGradesCache.length ? allGradesCache : await window.api.grades.getAll(year) || [];
-                const grades = allGrades
-                    .map(g => ({ ...g, grade: asNumber(g.grade) }))
-                    .filter(g => Number.isFinite(g.grade));
+
+                // Yield to UI before heavy work
+                await new Promise(r => requestAnimationFrame(r));
+
+                // Avoid spreading 45K objects — just parse grade inline
+                const grades = [];
+                for (let i = 0; i < allGrades.length; i++) {
+                    const g = allGrades[i];
+                    const v = Number(g.grade);
+                    if (Number.isFinite(v)) {
+                        grades.push({ _src: g, grade: v, section: g.section || '', subject: g.subject, student_id: g.student_id, student_code: g.student_code, full_name: g.full_name, teacher_name: g.teacher_name });
+                    }
+                }
 
                 let filtered = grades;
-                if (className) filtered = filtered.filter(g => (g.section || '') === className);
+                if (className) filtered = filtered.filter(g => g.section === className);
                 if (levelName) filtered = filtered.filter(g => getLevelFromSection(g.section) === levelName);
                 if (type === 'teachers') {
                     if (teacherSubjectName) filtered = filtered.filter(g => normalizeSubjectName(g.subject) === teacherSubjectName);
@@ -1120,59 +1135,84 @@
 
                 await ensureChartJsLoaded();
 
-                const passCount = filtered.filter(g => g.grade >= 10).length;
-                const passRate = filtered.length ? (passCount / filtered.length) * 100 : 0;
-                const globalAvg = avg(filtered.map(g => g.grade));
-                const excellenceCount = filtered.filter(g => g.grade >= 16).length;
-                const zeroCount = filtered.filter(g => g.grade === 0).length;
-                const sectionsCount = new Set(filtered.map(g => g.section || 'غير محدد')).size;
-                const studentCount = new Set(filtered.map(studentIdentity)).size;
-                const minGrade = Math.min(...filtered.map(g => g.grade));
-                const maxGrade = Math.max(...filtered.map(g => g.grade));
+                // ─── Single-pass stats computation ───
+                let passCount = 0, excellenceCount = 0, zeroCount = 0;
+                let minGrade = Infinity, maxGrade = -Infinity, gradeSum = 0;
+                const studentIdSet = new Set();
+                const sectionSet = new Set();
 
-                // Calculate subject and student averages in one pass
-                const subjectStats = new Map();
-                const studentStats = new Map();
-                filtered.forEach(g => {
-                    const subject = normalizeSubjectName(g.subject);
+                // Pre-group grades by subject and by student for O(1) lookup later
+                const gradesBySubject = new Map();   // subject → grade[]
+                const gradesByStudentSubject = new Map(); // studentId → Map<subject, {sum, count, grades}>
 
-                    const subjectAgg = subjectStats.get(subject) || { sum: 0, count: 0 };
-                    subjectAgg.sum += g.grade;
-                    subjectAgg.count += 1;
-                    subjectStats.set(subject, subjectAgg);
+                // Distribution counters (single pass instead of 5× filter)
+                const bandCounts = new Array(gradeBands.length).fill(0);
 
-                    const id = studentIdentity(g);
-                    let studentAgg = studentStats.get(id);
-                    if (!studentAgg) {
-                        studentAgg = new Map();
-                        studentStats.set(id, studentAgg);
+                for (let i = 0; i < filtered.length; i++) {
+                    const g = filtered[i];
+                    const v = g.grade;
+
+                    // Basic stats
+                    gradeSum += v;
+                    if (v >= 10) passCount++;
+                    if (v >= 16) excellenceCount++;
+                    if (v === 0) zeroCount++;
+                    if (v < minGrade) minGrade = v;
+                    if (v > maxGrade) maxGrade = v;
+
+                    const sid = studentIdentity(g);
+                    studentIdSet.add(sid);
+                    sectionSet.add(g.section || 'غير محدد');
+
+                    const subj = normalizeSubjectName(g.subject);
+
+                    // Group by subject
+                    let subjArr = gradesBySubject.get(subj);
+                    if (!subjArr) { subjArr = []; gradesBySubject.set(subj, subjArr); }
+                    subjArr.push(g);
+
+                    // Group by student → subject (aggregated)
+                    let studentMap = gradesByStudentSubject.get(sid);
+                    if (!studentMap) { studentMap = new Map(); gradesByStudentSubject.set(sid, studentMap); }
+                    let sa = studentMap.get(subj);
+                    if (!sa) { sa = { sum: 0, count: 0, grades: [] }; studentMap.set(subj, sa); }
+                    sa.sum += v;
+                    sa.count += 1;
+                    sa.grades.push(g);
+
+                    // Distribution bands (single pass)
+                    for (let b = 0; b < gradeBands.length; b++) {
+                        const band = gradeBands[b];
+                        if (v >= band.min && v < band.max + (band.max === 20 ? 0.001 : 0)) {
+                            bandCounts[b]++;
+                            break;
+                        }
                     }
+                }
 
-                    const studentSubjectAgg = studentAgg.get(subject) || { sum: 0, count: 0 };
-                    studentSubjectAgg.sum += g.grade;
-                    studentSubjectAgg.count += 1;
-                    studentAgg.set(subject, studentSubjectAgg);
-                });
+                const passRate = filtered.length ? (passCount / filtered.length) * 100 : 0;
+                const globalAvg = filtered.length ? gradeSum / filtered.length : 0;
+                const sectionsCount = sectionSet.size;
+                const studentCount = studentIdSet.size;
 
-                const subjectAverages = Array.from(subjectStats.entries(), ([subject, stats]) => ({
+                // Subject averages — use pre-grouped map (O(1) per subject)
+                const subjectAverages = Array.from(gradesBySubject.entries(), ([subject, subjGrades]) => ({
                     subject,
                     avg: typeof computeSubjectAverage === 'function'
-                        ? computeSubjectAverage(subject, filtered.filter(g => normalizeSubjectName(g.subject) === subject))
-                        : (stats.count ? stats.sum / stats.count : 0)
+                        ? computeSubjectAverage(subject, subjGrades)
+                        : (subjGrades.length ? subjGrades.reduce((s, g) => s + g.grade, 0) / subjGrades.length : 0)
                 }));
                 const overallSubjectAvg = avg(subjectAverages.map(s => s.avg));
 
-                const studentGeneralAverages = Array.from(studentStats.entries(), ([_id, bySubject]) => {
-                    const studentSubjectAvgs = Array.from(bySubject.entries(), ([subj, stats]) => {
+                // Student general averages — use pre-grouped map (O(1) lookups)
+                const studentGeneralAverages = Array.from(gradesByStudentSubject.entries(), ([_id, bySubject]) => {
+                    const studentSubjectAvgs = Array.from(bySubject.entries(), ([subj, sa]) => {
                         if (typeof computeSubjectAverage === 'function') {
-                            const studentSubjGrades = filtered.filter(g =>
-                                studentIdentity(g) === _id && normalizeSubjectName(g.subject) === subj
-                            );
-                            return { subject: subj, avg: computeSubjectAverage(subj, studentSubjGrades) };
+                            return { subject: subj, avg: computeSubjectAverage(subj, sa.grades) };
                         }
-                        return { subject: subj, avg: stats.sum / stats.count };
+                        return { subject: subj, avg: sa.sum / sa.count };
                     });
-                    const sectionName = className || (filtered.find(g => studentIdentity(g) === _id) || {}).section || '';
+                    const sectionName = className || (bySubject.values().next().value?.grades[0]?.section) || '';
                     const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
                     return typeof computeWeightedGeneralAverage === 'function'
                         ? computeWeightedGeneralAverage(studentSubjectAvgs, branch)
@@ -1180,14 +1220,11 @@
                 });
                 const generalAvg = avg(studentGeneralAverages);
 
-                const distribution = gradeBands.map(band => {
-                    const count = filtered.filter(g => g.grade >= band.min && g.grade < band.max + (band.max === 20 ? 0.001 : 0)).length;
-                    return {
-                        ...band,
-                        count,
-                        ratio: percentage(count, filtered.length)
-                    };
-                });
+                const distribution = gradeBands.map((band, i) => ({
+                    ...band,
+                    count: bandCounts[i],
+                    ratio: percentage(bandCounts[i], filtered.length)
+                }));
 
                 const gradeValues = filtered.map(g => g.grade);
                 const medianGrade = median(gradeValues);
@@ -1198,7 +1235,7 @@
                         <div class="analysis-kpi-icon" style="background: var(--gradient-primary);"><i class="fas fa-users"></i></div>
                         <div class="analysis-kpi-label">عدد التلاميذ</div>
                         <div class="analysis-kpi-value">${studentCount}</div>
-                        <div class="analysis-kpi-sub">${sectionsCount} قسم – ${subjectStats.size} مادة</div>
+                        <div class="analysis-kpi-sub">${sectionsCount} قسم – ${gradesBySubject.size} مادة</div>
                     </div>
                     <div class="analysis-kpi-card">
                         <div class="analysis-kpi-icon" style="background: linear-gradient(135deg, var(--color-success), #38ef7d);"><i class="fas fa-calculator"></i></div>
@@ -1239,17 +1276,17 @@
                     <div class="analysis-progress-item">
                         <div class="analysis-progress-title"><i class="fas fa-arrow-trend-up"></i> نقط 12 فأكثر (جيد وأعلى)</div>
                         <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(improved, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-success), #38ef7d);">${percentage(improved, filtered.length).toFixed(0)}%</div></div>
-                        <div class="analysis-progress-meta"><span>${percentage(improved, filtered.length).toFixed(1)}%</span><span>${improved} ????</span></div>
+                        <div class="analysis-progress-meta"><span>${percentage(improved, filtered.length).toFixed(1)}%</span><span>${improved} نقطة</span></div>
                     </div>
                     <div class="analysis-progress-item">
                         <div class="analysis-progress-title"><i class="fas fa-minus"></i> نقط 10 - 12 (مقبول)</div>
                         <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(stable, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-warning), #ffd200);">${percentage(stable, filtered.length).toFixed(0)}%</div></div>
-                        <div class="analysis-progress-meta"><span>${percentage(stable, filtered.length).toFixed(1)}%</span><span>${stable} ????</span></div>
+                        <div class="analysis-progress-meta"><span>${percentage(stable, filtered.length).toFixed(1)}%</span><span>${stable} نقطة</span></div>
                     </div>
                     <div class="analysis-progress-item">
-                        <div class="analysis-progress-title"><i class="fas fa-arrow-trend-down"></i> ??? ??? ?? 10 (????)</div>
+                        <div class="analysis-progress-title"><i class="fas fa-arrow-trend-down"></i> نقط أقل من 10 (ضعيف)</div>
                         <div class="analysis-progress-track"><div class="analysis-progress-value" style="width:${percentage(declined, filtered.length).toFixed(1)}%; background:linear-gradient(90deg, var(--color-danger), #ff9a76);">${percentage(declined, filtered.length).toFixed(0)}%</div></div>
-                        <div class="analysis-progress-meta"><span>${percentage(declined, filtered.length).toFixed(1)}%</span><span>${declined} ????</span></div>
+                        <div class="analysis-progress-meta"><span>${percentage(declined, filtered.length).toFixed(1)}%</span><span>${declined} نقطة</span></div>
                     </div>
                 `;
 
@@ -1285,7 +1322,7 @@
                     if (!zeroByStudent[key]) {
                         zeroByStudent[key] = {
                             label: studentLabel(g),
-                            section: g.section || '??? ????',
+                            section: g.section || 'غير محدد',
                             count: 0
                         };
                     }
@@ -1298,7 +1335,7 @@
                     ? topZeroStudents.map((s, i) => `
                         <div class="analysis-zero-item">
                             <div><strong>${i + 1}. ${s.label}</strong><div style="font-size:12px; color:#6b7280;">${s.section}</div></div>
-                            <span class="analysis-zero-badge">${s.count} ???</span>
+                            <span class="analysis-zero-badge">${s.count} صفر</span>
                         </div>
                     `).join('')
                     : '<p>لا يوجد تلاميذ حاصلون على 0 ضمن الفلاتر الحالية.</p>';
@@ -1306,7 +1343,7 @@
                 const zeroBySection = {};
                 filtered.forEach(g => {
                     if (g.grade !== 0) return;
-                    const section = g.section || '??? ????';
+                    const section = g.section || 'غير محدد';
                     zeroBySection[section] = (zeroBySection[section] || 0) + 1;
                 });
                 const zeroSectionLabels = Object.keys(zeroBySection).sort((a, b) => zeroBySection[b] - zeroBySection[a]).slice(0, 8);
@@ -1417,7 +1454,7 @@
                         type: 'bar',
                         data: {
                             labels: ranges,
-                            datasets: [{ label: 'عدد النقط', data: counts, backgroundColor: 'rgba(45, 95, 74, 0.7)', borderRadius: 6, borderSkipped: false }]
+                            datasets: [{ label: 'عدد النقط', data: counts, backgroundColor: 'rgba(59, 106, 197, 0.7)', borderRadius: 6, borderSkipped: false }]
                         },
                         options: {
                             responsive: true,
@@ -1437,7 +1474,7 @@
                 } else if (type === 'comparison') {
                     const bySection = {};
                     filtered.forEach(g => {
-                        const s = g.section || '??? ????';
+                        const s = g.section || 'غير محدد';
                         if (!bySection[s]) bySection[s] = [];
                         bySection[s].push(g.grade);
                     });
@@ -1449,7 +1486,7 @@
                         type: 'bar',
                         data: {
                             labels,
-                            datasets: [{ label: 'معدل القسم', data, backgroundColor: 'rgba(74, 139, 111, 0.7)', borderRadius: 6, borderSkipped: false }]
+                            datasets: [{ label: 'معدل القسم', data, backgroundColor: 'rgba(91, 132, 214, 0.7)', borderRadius: 6, borderSkipped: false }]
                         },
                         options: {
                             responsive: true,

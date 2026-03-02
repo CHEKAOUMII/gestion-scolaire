@@ -11,8 +11,131 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
+    <style>
+        .identity-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .identity-form .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary, #555);
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--color-primary, #3B6AC5);
+            margin: 0 0 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--color-primary, #3B6AC5);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title i {
+            font-size: 16px;
+        }
+
+        .identity-section {
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 18px;
+        }
+
+        /* Logo upload area */
+        .logo-upload-area {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo-preview {
+            width: 80px;
+            height: 80px;
+            border: 2px dashed var(--border-color, #ccc);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            overflow: hidden;
+            flex-shrink: 0;
+            background: var(--bg-secondary, #f8f9fa);
+            transition: border-color 0.2s;
+        }
+
+        .logo-preview:hover {
+            border-color: var(--color-primary, #3B6AC5);
+        }
+
+        .logo-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .logo-preview .placeholder-icon {
+            font-size: 28px;
+            color: var(--text-muted, #aaa);
+        }
+
+        .logo-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .logo-actions button {
+            font-size: 12px;
+            padding: 5px 12px;
+        }
+
+        /* Letterhead preview */
+        .letterhead-preview-container {
+            background: #fff;
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-top: 12px;
+            direction: rtl;
+        }
+
+        .letterhead-preview-container .doc-letterhead {
+            border-bottom: 2.5px solid #3B6AC5;
+            padding-bottom: 10px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+    </style>
 </head>
 
 <body>
@@ -32,49 +155,243 @@
         </header>
 
         <div class="grades-container">
-            <div class="search-section">
-                <form id="form" class="search-form"
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
-                    <input id="school-name" placeholder="اسم المؤسسة">
-                    <input id="school-code" placeholder="رمز المؤسسة">
-                    <input id="school-city" placeholder="المدينة">
-                    <textarea id="school-address" placeholder="العنوان"
-                        style="grid-column: 1/-1; min-height: 90px;"></textarea>
-                    <button class="btn btn-success" type="submit">???</button>
-                </form>
+
+            <!-- Section 1: Ministry hierarchy (right column of letterhead) -->
+            <div class="identity-section">
+                <div class="section-title"><i class="fas fa-landmark"></i> الجهة الوصية</div>
+                <div class="identity-form">
+                    <div class="form-group">
+                        <label>الدولة</label>
+                        <input id="id-country" placeholder="المملكة المغربية">
+                    </div>
+                    <div class="form-group">
+                        <label>الوزارة</label>
+                        <input id="id-ministry" placeholder="وزارة التربية الوطنية والتعليم الأولي والرياضة">
+                    </div>
+                    <div class="form-group">
+                        <label>الأكاديمية الجهوية</label>
+                        <input id="id-academy" placeholder="الأكاديمية الجهوية للتربية والتكوين">
+                    </div>
+                    <div class="form-group">
+                        <label>المديرية الإقليمية</label>
+                        <input id="id-directorate" placeholder="المديرية الإقليمية">
+                    </div>
+                </div>
             </div>
+
+            <!-- Section 2: School identity (left column of letterhead) -->
+            <div class="identity-section">
+                <div class="section-title"><i class="fas fa-building"></i> معلومات المؤسسة</div>
+                <div class="identity-form">
+                    <div class="form-group">
+                        <label>اسم المؤسسة</label>
+                        <input id="id-school-name" placeholder="اسم المؤسسة التعليمية">
+                    </div>
+                    <div class="form-group">
+                        <label>رمز المؤسسة</label>
+                        <input id="id-school-code" placeholder="رمز المؤسسة">
+                    </div>
+                    <div class="form-group">
+                        <label>المدينة</label>
+                        <input id="id-city" placeholder="المدينة">
+                    </div>
+                    <div class="form-group">
+                        <label>الجماعة</label>
+                        <input id="id-commune" placeholder="الجماعة الترابية">
+                    </div>
+                    <div class="form-group">
+                        <label>الموسم الدراسي</label>
+                        <input id="id-school-year" placeholder="2025/2026">
+                    </div>
+                    <div class="form-group">
+                        <label>اسم المدير(ة)</label>
+                        <input id="id-director-name" placeholder="الاسم الكامل للمدير(ة)">
+                    </div>
+                    <div class="form-group">
+                        <label>صفة المدير(ة)</label>
+                        <input id="id-director-title" placeholder="مدير(ة) المؤسسة">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>نص التذييل (أسفل الوثائق)</label>
+                        <textarea id="id-footer-text" placeholder="سلمت هذه الوثيقة للمعني(ة) بالأمر..."
+                            style="min-height: 60px;"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Logo (center column of letterhead) -->
+            <div class="identity-section">
+                <div class="section-title"><i class="fas fa-image"></i> شعار المؤسسة</div>
+                <div class="logo-upload-area">
+                    <div class="logo-preview" id="logo-preview" title="اضغط لاختيار شعار">
+                        <i class="fas fa-camera placeholder-icon" id="logo-placeholder"></i>
+                        <img id="logo-img" style="display:none;" alt="شعار المؤسسة">
+                    </div>
+                    <div class="logo-actions">
+                        <button class="btn btn-primary btn-sm" type="button" id="btn-upload-logo">
+                            <i class="fas fa-upload"></i> اختيار صورة
+                        </button>
+                        <button class="btn btn-outline btn-sm" type="button" id="btn-remove-logo" style="display:none;">
+                            <i class="fas fa-trash"></i> حذف الشعار
+                        </button>
+                        <span style="font-size: 11px; color: var(--text-muted, #999);">PNG أو JPG — حد أقصى 200
+                            كيلوبايت</span>
+                    </div>
+                </div>
+                <input type="file" id="logo-file-input" accept="image/png,image/jpeg" style="display:none;">
+            </div>
+
+            <!-- Save + Preview -->
+            <div class="form-actions">
+                <button class="btn btn-success" id="btn-save"><i class="fas fa-save"></i> حفظ جميع المعلومات</button>
+                <button class="btn btn-primary" id="btn-preview"><i class="fas fa-eye"></i> معاينة رأس الوثيقة</button>
+            </div>
+
+            <!-- Live letterhead preview -->
+            <div class="identity-section" id="preview-section" style="display:none; margin-top: 18px;">
+                <div class="section-title"><i class="fas fa-print"></i> معاينة رأس الوثيقة كما سيظهر عند الطباعة</div>
+                <div class="letterhead-preview-container" id="letterhead-preview"></div>
+            </div>
+
         </div>
     </main>
 
     <script>
-        document.addEventListener('DOMContentLoaded', load);
+        // Field map: identity key → DOM id
+        const FIELDS = {
+            country: 'id-country',
+            ministry: 'id-ministry',
+            academy: 'id-academy',
+            directorate: 'id-directorate',
+            school_name: 'id-school-name',
+            school_code: 'id-school-code',
+            city: 'id-city',
+            commune: 'id-commune',
+            school_year: 'id-school-year',
+            director_name: 'id-director-name',
+            director_title: 'id-director-title',
+            footer_text: 'id-footer-text'
+        };
 
-        async function load() {
-            const val = await window.api.settings.get('school_info');
-            if (!val) return;
+        let currentLogoBase64 = '';
+
+        // ── Load identity ──
+        document.addEventListener('DOMContentLoaded', async () => {
             try {
-                const d = JSON.parse(val);
-                document.getElementById('school-name').value = d.name || '';
-                document.getElementById('school-code').value = d.code || '';
-                document.getElementById('school-city').value = d.city || '';
-                document.getElementById('school-address').value = d.address || '';
-            } catch { }
-        }
+                const identity = await window.api.reports.getIdentity();
+                for (const [key, domId] of Object.entries(FIELDS)) {
+                    const el = document.getElementById(domId);
+                    if (el && identity[key]) el.value = identity[key];
+                }
+                if (identity.logo_base64) {
+                    currentLogoBase64 = identity.logo_base64;
+                    showLogoPreview(currentLogoBase64);
+                }
+            } catch (_) { }
+        });
 
-        document.getElementById('form').addEventListener('submit', async e => {
-            e.preventDefault();
-            const payload = {
-                name: document.getElementById('school-name').value.trim(),
-                code: document.getElementById('school-code').value.trim(),
-                city: document.getElementById('school-city').value.trim(),
-                address: document.getElementById('school-address').value.trim()
-            };
-            const res = await window.api.settings.set('school_info', JSON.stringify(payload));
-            if (!res || res.success === false) {
-                showToast('فشل الحفظ', 'error');
+        // ── Save identity ──
+        document.getElementById('btn-save').addEventListener('click', async () => {
+            const updates = {};
+            for (const [key, domId] of Object.entries(FIELDS)) {
+                updates[key] = document.getElementById(domId).value.trim();
+            }
+            updates.logo_base64 = currentLogoBase64;
+
+            try {
+                await window.api.reports.updateIdentity(updates);
+
+                // Also sync back to legacy school_info setting for backward compat
+                const legacyPayload = {
+                    name: updates.school_name,
+                    code: updates.school_code,
+                    city: updates.city,
+                    address: ''
+                };
+                await window.api.settings.set('school_info', JSON.stringify(legacyPayload));
+
+                showToast('تم حفظ معلومات المؤسسة بنجاح', 'success');
+            } catch (err) {
+                showToast('فشل الحفظ: ' + (err.message || err), 'error');
+            }
+        });
+
+        // ── Logo upload ──
+        const fileInput = document.getElementById('logo-file-input');
+        document.getElementById('btn-upload-logo').addEventListener('click', () => fileInput.click());
+        document.getElementById('logo-preview').addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > 200 * 1024) {
+                showToast('حجم الصورة يتجاوز 200 كيلوبايت', 'error');
                 return;
             }
-            showToast('تم حفظ معلومات المؤسسة', 'success');
+            const reader = new FileReader();
+            reader.onload = () => {
+                // Extract base64 without the data URI prefix
+                const base64 = reader.result.split(',')[1];
+                currentLogoBase64 = base64;
+                showLogoPreview(base64);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        document.getElementById('btn-remove-logo').addEventListener('click', () => {
+            currentLogoBase64 = '';
+            document.getElementById('logo-img').style.display = 'none';
+            document.getElementById('logo-placeholder').style.display = '';
+            document.getElementById('btn-remove-logo').style.display = 'none';
+        });
+
+        function showLogoPreview(base64) {
+            const img = document.getElementById('logo-img');
+            img.src = 'data:image/png;base64,' + base64;
+            img.style.display = 'block';
+            document.getElementById('logo-placeholder').style.display = 'none';
+            document.getElementById('btn-remove-logo').style.display = '';
+        }
+
+        // ── Preview letterhead ──
+        document.getElementById('btn-preview').addEventListener('click', () => {
+            const get = (id) => document.getElementById(id).value.trim();
+            const esc = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+            const country = get('id-country');
+            const ministry = get('id-ministry');
+            const academy = get('id-academy');
+            const directorate = get('id-directorate');
+            const schoolName = get('id-school-name');
+            const schoolCode = get('id-school-code');
+            const logo = currentLogoBase64;
+
+            const html = `
+            <div class="doc-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px;">
+                <table style="width: 100%; border-collapse: collapse;" role="presentation">
+                    <tr>
+                        <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
+                            <div style="font-size: 13px; font-weight: 700; color: #222;">${esc(country)}</div>
+                            <div style="font-size: 11px; color: #555; margin-top: 2px;">${esc(ministry)}</div>
+                            ${academy ? `<div style="font-size: 10px; color: #666; margin-top: 2px;">${esc(academy)}</div>` : ''}
+                            ${directorate ? `<div style="font-size: 10px; color: #666; margin-top: 1px;">${esc(directorate)}</div>` : ''}
+                        </td>
+                        <td style="width: 10%; text-align: center; vertical-align: middle;">
+                            ${logo
+                    ? `<img src="data:image/png;base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+                    : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
+                }
+                        </td>
+                        <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
+                            <div style="font-size: 14px; font-weight: 800; color: #3B6AC5;">${esc(schoolName)}</div>
+                            ${schoolCode ? `<div style="font-size: 10px; color: #888; margin-top: 2px;">رمز المؤسسة: ${esc(schoolCode)}</div>` : ''}
+                        </td>
+                    </tr>
+                </table>
+            </div>`;
+
+            document.getElementById('letterhead-preview').innerHTML = html;
+            document.getElementById('preview-section').style.display = '';
         });
     </script>
 </body>

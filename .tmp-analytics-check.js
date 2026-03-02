@@ -732,7 +732,7 @@
                         type: 'bar',
                         data: {
                             labels: ranges,
-                            datasets: [{ label: 'عدد النقط', data: counts, backgroundColor: 'rgba(45, 95, 74, 0.7)', borderRadius: 6, borderSkipped: false }]
+                            datasets: [{ label: 'عدد النقط', data: counts, backgroundColor: 'rgba(59, 106, 197, 0.7)', borderRadius: 6, borderSkipped: false }]
                         },
                         options: {
                             responsive: true,
@@ -764,7 +764,7 @@
                         type: 'bar',
                         data: {
                             labels,
-                            datasets: [{ label: 'معدل القسم', data, backgroundColor: 'rgba(74, 139, 111, 0.7)', borderRadius: 6, borderSkipped: false }]
+                            datasets: [{ label: 'معدل القسم', data, backgroundColor: 'rgba(91, 132, 214, 0.7)', borderRadius: 6, borderSkipped: false }]
                         },
                         options: {
                             responsive: true,

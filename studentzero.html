@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
     <style>
@@ -88,6 +89,85 @@
             .sz-search-form {
                 grid-template-columns: 1fr;
             }
+        }
+
+        /* Print preview overrides */
+        .ux-pp-sheet .sz-kpis {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .ux-pp-sheet .sz-kpi-card {
+            padding: 8px 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+
+        .ux-pp-sheet .sz-kpi-label {
+            font-size: 10px;
+            margin-bottom: 4px;
+            color: #555;
+        }
+
+        .ux-pp-sheet .sz-kpi-value {
+            font-size: 18px;
+            color: #3B6AC5;
+        }
+
+        .ux-pp-sheet .students-table {
+            width: 100%;
+            table-layout: fixed;
+            font-size: 11px;
+        }
+
+        .ux-pp-sheet .students-table th,
+        .ux-pp-sheet .students-table td {
+            padding: 5px 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ux-pp-sheet .students-table th:nth-child(1),
+        .ux-pp-sheet .students-table td:nth-child(1) {
+            width: 30px;
+        }
+
+        .ux-pp-sheet .students-table th:nth-child(2),
+        .ux-pp-sheet .students-table td:nth-child(2) {
+            width: 90px;
+        }
+
+        .ux-pp-sheet .students-table th:nth-child(4),
+        .ux-pp-sheet .students-table td:nth-child(4) {
+            width: 75px;
+        }
+
+        .ux-pp-sheet .students-table th:nth-child(6),
+        .ux-pp-sheet .students-table td:nth-child(6) {
+            width: 50px;
+        }
+
+        .ux-pp-sheet .students-table th:nth-child(7),
+        .ux-pp-sheet .students-table td:nth-child(7) {
+            width: 65px;
+        }
+
+        .ux-pp-sheet .sz-results-head {
+            margin-bottom: 8px;
+        }
+
+        .ux-pp-sheet .sz-results-head h3 {
+            font-size: 13px;
+        }
+
+        .ux-pp-sheet .sz-results-meta {
+            font-size: 10px;
+        }
+
+        .ux-pp-sheet .table-responsive {
+            overflow: visible;
         }
     </style>
 </head>
@@ -451,7 +531,7 @@
             const pageSize = getPageSize();
 
             try {
-                renderMessageRow('جاري تحميل المعطيات...', 'fa-spinner fa-spin', '#2D5F4A');
+                renderMessageRow('جاري تحميل المعطيات...', 'fa-spinner fa-spin', '#3B6AC5');
 
                 const result = await fetchZeroStudents({
                     ...filters,
@@ -493,6 +573,7 @@
             try {
                 showToast('جاري تحضير معاينة الطباعة...', 'info');
 
+                // Fetch ALL rows first so printable table is complete
                 const filters = getFilters();
                 const result = await fetchZeroStudents({
                     ...filters,
@@ -511,77 +592,40 @@
                     return;
                 }
 
-                const bodyRows = rows.map((row, idx) => {
-                    const reason = row.zero_reason || (Number(row.absence_count || 0) > 0 ? 'غياب' : 'تعثر دراسي');
-                    return `
-                        <tr>
-                            <td>${idx + 1}</td>
-                            <td>${escapeHtml(row.student_code || row.massar_code || '-')}</td>
-                            <td>${escapeHtml(row.student_name || row.full_name || '-')}</td>
-                            <td>${escapeHtml(row.class_name || row.section || '-')}</td>
-                            <td>${escapeHtml(row.subject || '-')}</td>
-                            <td>${escapeHtml(semesterLabel(row.semester))}</td>
-                            <td>${escapeHtml(reason)}</td>
-                        </tr>
-                    `;
-                }).join('');
+                // Temporarily fill the page table with all rows for the preview snapshot
+                const savedTbody = $('tbody').innerHTML;
+                const savedPagination = $('pagination').innerHTML;
+                const savedPaginationDisplay = $('pagination').style.display;
+                const savedMeta = $('results-meta').textContent;
+
+                renderRows(rows, { page: 1, pageSize: rows.length });
+                $('pagination').style.display = 'none';
 
                 const filtersText = [
-                    filters.className ? `القسم: ${escapeHtml(filters.className)}` : 'كل الأقسام',
-                    filters.semester ? `الدورة: ${escapeHtml(semesterLabel(filters.semester))}` : 'كل الدورات',
-                    filters.searchTerm ? `بحث: ${escapeHtml(filters.searchTerm)}` : 'بدون بحث'
+                    filters.className ? `القسم: ${filters.className}` : 'كل الأقسام',
+                    filters.semester ? `الدورة: ${semesterLabel(filters.semester)}` : 'كل الدورات'
                 ].join(' | ');
+                $('results-meta').textContent = `السنة الدراسية: ${year} | عدد السجلات: ${rows.length} | ${filtersText}`;
 
-                const printSource = document.createElement('div');
-                printSource.id = 'sz-print-source';
-                printSource.style.position = 'absolute';
-                printSource.style.left = '-99999px';
-                printSource.style.top = '0';
-                printSource.style.width = '210mm';
-                printSource.innerHTML = `
-                    <section class="students-results">
-                        <div class="sz-results-head">
-                            <h3><i class="fas fa-list"></i> قائمة التلاميذ الحاصلين على صفر</h3>
-                            <div class="sz-results-meta">السنة الدراسية: ${escapeHtml(year)} | عدد السجلات: ${rows.length} | ${filtersText} | تاريخ المعاينة: ${escapeHtml(formatNow())}</div>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="students-table">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>رمز مسار</th>
-                                        <th>الاسم الكامل</th>
-                                        <th>القسم</th>
-                                        <th>المادة</th>
-                                        <th>الدورة</th>
-                                        <th>السبب</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${bodyRows}</tbody>
-                            </table>
-                        </div>
-                    </section>
-                `;
+                const previewFn =
+                    (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
+                    (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
 
-                document.body.appendChild(printSource);
-                try {
-                    const previewFn =
-                        (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
-                        (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
-
-                    if (previewFn) {
-                        previewFn({
-                            title: 'التلاميذ الحاصلون على صفر',
-                            pageSize: 'A4',
-                            contentSelector: '#sz-print-source .students-results',
-                            defaultFileName: `تلاميذ_الصفر_${year.replace('/', '-')}`
-                        });
-                    } else {
-                        window.print();
-                    }
-                } finally {
-                    printSource.remove();
+                if (previewFn) {
+                    previewFn({
+                        title: 'التلاميذ الحاصلون على صفر',
+                        pageSize: 'A4',
+                        defaultFileName: `تلاميذ_الصفر_${year.replace('/', '-')}`
+                    });
+                } else {
+                    window.print();
                 }
+
+                // Restore original table state
+                $('tbody').innerHTML = savedTbody;
+                $('pagination').innerHTML = savedPagination;
+                $('pagination').style.display = savedPaginationDisplay;
+                $('results-meta').textContent = savedMeta;
 
                 showToast(`تم تجهيز المعاينة (${rows.length} سجل)`, 'success');
             } catch (err) {

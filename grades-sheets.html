@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
     <style>
@@ -88,7 +89,7 @@
         .gs-form-group select:focus {
             outline: none;
             border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.12);
+            box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.12);
         }
 
         .gs-form-actions {
@@ -240,7 +241,7 @@
             text-align: center;
             font-size: 22px;
             font-weight: 800;
-            color: #1B3D30;
+            color: #2F5499;
             margin-bottom: 4px;
         }
 
@@ -260,7 +261,7 @@
             color: #333;
             margin-bottom: 16px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #2D5F4A;
+            border-bottom: 2px solid #3B6AC5;
         }
 
         .gs-sheet-meta span {
@@ -341,8 +342,8 @@
 
         /* --- Dark Theme for Grade Sheet --- */
         [data-theme="dark"] .gs-sheet {
-            background: var(--color-surface, #1A241C) !important;
-            color: var(--color-text-main, #E8ECE9) !important;
+            background: var(--color-surface, #1A1A1A) !important;
+            color: var(--color-text-main, #E8E8E8) !important;
             box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
         }
 
@@ -355,17 +356,17 @@
         }
 
         [data-theme="dark"] .gs-sheet .gs-sheet-meta {
-            color: var(--color-text-main, #E8ECE9) !important;
-            border-color: var(--color-primary, #2D5F4A) !important;
+            color: var(--color-text-main, #E8E8E8) !important;
+            border-color: var(--color-primary, #3B6AC5) !important;
         }
 
         [data-theme="dark"] .gs-sheet .gs-footer {
             color: var(--color-text-muted, #8FA89A) !important;
-            border-color: var(--ux-border, #2A3A2E) !important;
+            border-color: var(--ux-border, #2E2E2E) !important;
         }
 
         [data-theme="dark"] .gs-sheet .gs-signature-box p {
-            color: var(--color-text-main, #E8ECE9) !important;
+            color: var(--color-text-main, #E8E8E8) !important;
         }
 
         [data-theme="dark"] .gs-sheet .gs-signature-box .gs-sig-line {
@@ -390,7 +391,7 @@
             font-size: 13px;
             font-weight: 700;
             font-family: var(--font-display);
-            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+            box-shadow: 0 2px 8px rgba(59, 106, 197, 0.25);
         }
 
         /* --- Print Styles --- */

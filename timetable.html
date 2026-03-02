@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js" defer></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
     <style>
@@ -31,30 +32,30 @@
         [data-theme="dark"] .color-legend,
         [data-theme="dark"] .timetable-summary,
         [data-theme="dark"] .multi-select-toolbar {
-            background: var(--color-surface, #1A241C);
-            border-color: rgba(74, 139, 111, 0.15);
-            color: var(--color-text-main, #E8ECE9);
+            background: var(--color-surface, #1A1A1A);
+            border-color: rgba(91, 132, 214, 0.15);
+            color: var(--color-text-main, #E8E8E8);
         }
 
         /* --- Stat Cards in dark --- */
         [data-theme="dark"] .stat-card:nth-child(1) {
-            background: linear-gradient(135deg, rgba(45, 95, 74, 0.10) 0%, var(--color-surface, #1A241C) 100%);
+            background: linear-gradient(135deg, rgba(59, 106, 197, 0.10) 0%, var(--color-surface, #1A1A1A) 100%);
         }
 
         [data-theme="dark"] .stat-card:nth-child(2) {
-            background: linear-gradient(135deg, rgba(38, 166, 154, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+            background: linear-gradient(135deg, rgba(38, 166, 154, 0.08) 0%, var(--color-surface, #1A1A1A) 100%);
         }
 
         [data-theme="dark"] .stat-card:nth-child(3) {
-            background: linear-gradient(135deg, rgba(196, 164, 106, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+            background: linear-gradient(135deg, rgba(196, 164, 106, 0.08) 0%, var(--color-surface, #1A1A1A) 100%);
         }
 
         [data-theme="dark"] .stat-card:nth-child(4) {
-            background: linear-gradient(135deg, rgba(46, 204, 113, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+            background: linear-gradient(135deg, rgba(46, 204, 113, 0.08) 0%, var(--color-surface, #1A1A1A) 100%);
         }
 
         [data-theme="dark"] .stat-card:nth-child(5) {
-            background: linear-gradient(135deg, rgba(107, 123, 114, 0.08) 0%, var(--color-surface, #1A241C) 100%);
+            background: linear-gradient(135deg, rgba(107, 123, 114, 0.08) 0%, var(--color-surface, #1A1A1A) 100%);
         }
 
         [data-theme="dark"] .stat-info h3,
@@ -70,71 +71,71 @@
         /* --- Timetable Wrapper --- */
         [data-theme="dark"] .timetable-wrapper {
             background: #151D17;
-            border: 1px solid rgba(74, 139, 111, 0.12);
+            border: 1px solid rgba(91, 132, 214, 0.12);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
         /* --- Timetable Header --- */
         [data-theme="dark"] .timetable th {
-            background: linear-gradient(135deg, #1B3D30 0%, #264D3C 100%);
+            background: linear-gradient(135deg, #2F5499 0%, #3B5EB0 100%);
             color: #D4E8DC;
-            border-color: rgba(74, 139, 111, 0.2);
+            border-color: rgba(91, 132, 214, 0.2);
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
 
         /* --- Table Cells --- */
         [data-theme="dark"] .timetable td {
-            background: #1A241C;
-            border-color: rgba(74, 139, 111, 0.10);
-            color: var(--color-text-main, #E8ECE9);
+            background: #1A1A1A;
+            border-color: rgba(91, 132, 214, 0.10);
+            color: var(--color-text-main, #E8E8E8);
             transition: background 0.2s ease;
         }
 
         /* Alternating row tint for readability */
-        [data-theme="dark"] .timetable tbody tr:nth-child(even) td {
+        [data-theme="dark"] .timetable tbody tr:nth-child(even) td:not(.day-cell) {
             background: #1E2A20;
         }
 
         [data-theme="dark"] .timetable tr:hover td {
-            background: rgba(45, 95, 74, 0.18) !important;
+            box-shadow: inset 0 0 0 1000px rgba(59, 106, 197, 0.18);
         }
 
         /* --- Period Cells (row labels) --- */
         [data-theme="dark"] .timetable .period-cell {
-            background: rgba(45, 95, 74, 0.20);
+            background: rgba(59, 106, 197, 0.20);
             color: #7BC4A0;
             font-weight: 700;
         }
 
         [data-theme="dark"] .timetable .day-cell {
-            background: linear-gradient(135deg, #1B3D30, #264D3C);
+            background: linear-gradient(135deg, #2F5499, #3B5EB0);
             color: #D4E8DC;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
 
         [data-theme="dark"] .timetable .total-header {
-            background: linear-gradient(135deg, #121A14, #1B3D30);
+            background: linear-gradient(135deg, #1E2B4A, #2F5499);
         }
 
         [data-theme="dark"] .timetable th.period-header {
-            background: rgba(45, 95, 74, 0.30);
+            background: rgba(59, 106, 197, 0.30);
             color: #A8D5BA;
         }
 
         /* --- Separator Row --- */
         [data-theme="dark"] .timetable .separator-row td {
-            background: linear-gradient(90deg, transparent, rgba(74, 139, 111, 0.5), transparent);
+            background: linear-gradient(90deg, transparent, rgba(91, 132, 214, 0.5), transparent);
         }
 
         /* --- Timetable Header Bar --- */
         [data-theme="dark"] .timetable-header {
-            background: linear-gradient(to left, rgba(45, 95, 74, 0.12), transparent);
-            border-color: rgba(74, 139, 111, 0.12);
+            background: linear-gradient(to left, rgba(59, 106, 197, 0.12), transparent);
+            border-color: rgba(91, 132, 214, 0.12);
         }
 
         [data-theme="dark"] .timetable-header-info {
-            background: linear-gradient(135deg, rgba(45, 95, 74, 0.08), transparent);
-            border-color: rgba(74, 139, 111, 0.12);
+            background: linear-gradient(135deg, rgba(59, 106, 197, 0.08), transparent);
+            border-color: rgba(91, 132, 214, 0.12);
         }
 
         [data-theme="dark"] .timetable-header-info h3 {
@@ -168,13 +169,13 @@
         }
 
         [data-theme="dark"] .activity-group:first-child {
-            background: linear-gradient(135deg, rgba(45, 95, 74, 0.20), rgba(45, 95, 74, 0.08));
-            border-right-color: #4A8B6F;
+            background: linear-gradient(135deg, rgba(59, 106, 197, 0.20), rgba(59, 106, 197, 0.08));
+            border-right-color: #5B84D6;
         }
 
         [data-theme="dark"] .group-header {
             color: #A8D5BA;
-            background: rgba(45, 95, 74, 0.30);
+            background: rgba(59, 106, 197, 0.30);
             border-radius: 4px;
         }
 
@@ -194,22 +195,22 @@
         /* --- Quick Navigation Panel --- */
         [data-theme="dark"] .quick-nav-panel {
             background: #151D17;
-            border-color: rgba(74, 139, 111, 0.12);
+            border-color: rgba(91, 132, 214, 0.12);
             box-shadow: -5px 0 25px rgba(0, 0, 0, 0.4);
         }
 
         [data-theme="dark"] .quick-nav-search {
-            border-color: rgba(74, 139, 111, 0.12);
+            border-color: rgba(91, 132, 214, 0.12);
         }
 
         [data-theme="dark"] .quick-nav-search input {
-            background: #121A14;
-            border-color: rgba(74, 139, 111, 0.15);
-            color: #E8ECE9;
+            background: #1E2B4A;
+            border-color: rgba(91, 132, 214, 0.15);
+            color: #E8E8E8;
         }
 
         [data-theme="dark"] .quick-nav-tabs {
-            border-color: rgba(74, 139, 111, 0.12);
+            border-color: rgba(91, 132, 214, 0.12);
         }
 
         [data-theme="dark"] .quick-nav-tab {
@@ -217,18 +218,18 @@
         }
 
         [data-theme="dark"] .quick-nav-tab:hover {
-            background: rgba(45, 95, 74, 0.15);
+            background: rgba(59, 106, 197, 0.15);
             color: #7BC4A0;
         }
 
         [data-theme="dark"] .quick-nav-tab.active {
             color: #7BC4A0;
-            border-bottom-color: #4A8B6F;
-            background: rgba(45, 95, 74, 0.15);
+            border-bottom-color: #5B84D6;
+            background: rgba(59, 106, 197, 0.15);
         }
 
         [data-theme="dark"] .quick-nav-item:hover {
-            background: rgba(45, 95, 74, 0.15);
+            background: rgba(59, 106, 197, 0.15);
         }
 
         [data-theme="dark"] .quick-nav-item span {
@@ -236,15 +237,15 @@
         }
 
         [data-theme="dark"] .quick-nav-count {
-            background: rgba(45, 95, 74, 0.25);
+            background: rgba(59, 106, 197, 0.25);
             color: #7BC4A0;
         }
 
         /* --- Unified Search --- */
         [data-theme="dark"] .unified-search input {
-            background: #121A14;
-            border-color: rgba(74, 139, 111, 0.15);
-            color: #E8ECE9;
+            background: #1E2B4A;
+            border-color: rgba(91, 132, 214, 0.15);
+            color: #E8E8E8;
         }
 
         [data-theme="dark"] .unified-search input::placeholder {
@@ -252,18 +253,18 @@
         }
 
         [data-theme="dark"] .unified-search .search-shortcut {
-            background: rgba(74, 139, 111, 0.12);
+            background: rgba(91, 132, 214, 0.12);
             color: #8FA898;
         }
 
         [data-theme="dark"] .search-results-dropdown {
             background: #151D17;
-            border-color: rgba(74, 139, 111, 0.15);
+            border-color: rgba(91, 132, 214, 0.15);
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
         }
 
         [data-theme="dark"] .search-result-group {
-            border-color: rgba(74, 139, 111, 0.08);
+            border-color: rgba(91, 132, 214, 0.08);
         }
 
         [data-theme="dark"] .search-result-group-title {
@@ -271,7 +272,7 @@
         }
 
         [data-theme="dark"] .search-result-item:hover {
-            background: rgba(45, 95, 74, 0.15);
+            background: rgba(59, 106, 197, 0.15);
         }
 
         [data-theme="dark"] .search-result-item span {
@@ -280,7 +281,7 @@
 
         /* --- Shortcuts Modal --- */
         [data-theme="dark"] .shortcut-item {
-            background: #121A14;
+            background: #1E2B4A;
             color: #D4E8DC;
         }
 
@@ -288,30 +289,30 @@
             background: linear-gradient(135deg, #243028, #2E4034);
             color: #A8D5BA;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(74, 139, 111, 0.2);
+            border: 1px solid rgba(91, 132, 214, 0.2);
         }
 
         /* --- Undo/Redo --- */
         [data-theme="dark"] .undo-redo-group {
-            background: rgba(74, 139, 111, 0.06);
+            background: rgba(91, 132, 214, 0.06);
         }
 
         [data-theme="dark"] .undo-redo-btn {
-            background: #1A241C;
-            border-color: rgba(74, 139, 111, 0.15);
+            background: #1A1A1A;
+            border-color: rgba(91, 132, 214, 0.15);
             color: #8FA898;
         }
 
         [data-theme="dark"] .undo-redo-btn:hover:not(:disabled) {
-            background: #2D5F4A;
-            border-color: #4A8B6F;
+            background: #3B6AC5;
+            border-color: #5B84D6;
             color: white;
         }
 
         /* --- Multi-Select Toolbar --- */
         [data-theme="dark"] .multi-select-toolbar {
             background: #151D17;
-            border: 1px solid rgba(74, 139, 111, 0.15);
+            border: 1px solid rgba(91, 132, 214, 0.15);
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
         }
 
@@ -321,19 +322,19 @@
 
         /* --- Filter Section --- */
         [data-theme="dark"] .filter-group select {
-            background: #121A14;
-            border-color: rgba(74, 139, 111, 0.15);
-            color: #E8ECE9;
+            background: #1E2B4A;
+            border-color: rgba(91, 132, 214, 0.15);
+            color: #E8E8E8;
         }
 
         [data-theme="dark"] .filter-group select option {
-            background: #1A241C;
-            color: #E8ECE9;
+            background: #1A1A1A;
+            color: #E8E8E8;
         }
 
         /* --- Edit Controls --- */
         [data-theme="dark"] .edit-controls {
-            background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), #1A241C);
+            background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), #1A1A1A);
             border-color: rgba(251, 191, 36, 0.25);
         }
 
@@ -344,25 +345,25 @@
         /* --- Modals (Edit & Changelog) --- */
         [data-theme="dark"] .modal-content,
         [data-theme="dark"] .changelog-content {
-            background: #1A241C;
+            background: #1A1A1A;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
-            border: 1px solid rgba(74, 139, 111, 0.12);
+            border: 1px solid rgba(91, 132, 214, 0.12);
         }
 
         [data-theme="dark"] .modal-header {
-            border-color: rgba(74, 139, 111, 0.12);
+            border-color: rgba(91, 132, 214, 0.12);
         }
 
         [data-theme="dark"] .form-group select,
         [data-theme="dark"] .form-group input {
-            background: #121A14;
-            border-color: rgba(74, 139, 111, 0.15);
-            color: #E8ECE9;
+            background: #1E2B4A;
+            border-color: rgba(91, 132, 214, 0.15);
+            color: #E8E8E8;
         }
 
         [data-theme="dark"] .form-group select option {
-            background: #1A241C;
-            color: #E8ECE9;
+            background: #1A1A1A;
+            color: #E8E8E8;
         }
 
         [data-theme="dark"] .form-group label {
@@ -384,17 +385,17 @@
 
         /* --- Changelog Table --- */
         [data-theme="dark"] .changelog-table th {
-            background: rgba(45, 95, 74, 0.25);
+            background: rgba(59, 106, 197, 0.25);
             color: #D4E8DC;
         }
 
         [data-theme="dark"] .changelog-table td {
             color: #D4E8DC;
-            border-color: rgba(74, 139, 111, 0.08);
+            border-color: rgba(91, 132, 214, 0.08);
         }
 
         [data-theme="dark"] .changelog-table tr:hover {
-            background: rgba(45, 95, 74, 0.12);
+            background: rgba(59, 106, 197, 0.12);
         }
 
         [data-theme="dark"] .change-type.add {
@@ -416,14 +417,14 @@
         [data-theme="dark"] .color-legend,
         [data-theme="dark"] .timetable-summary,
         [data-theme="dark"] .changes-summary-bar {
-            background: linear-gradient(135deg, #181F1A, #121A14);
-            border: 1px solid rgba(74, 139, 111, 0.10);
+            background: linear-gradient(135deg, #1E2540, #1E2B4A);
+            border: 1px solid rgba(91, 132, 214, 0.10);
         }
 
         [data-theme="dark"] .color-legend .legend-item,
         [data-theme="dark"] .timetable-summary .summary-card {
-            background: #1A241C;
-            border: 1px solid rgba(74, 139, 111, 0.10);
+            background: #1A1A1A;
+            border: 1px solid rgba(91, 132, 214, 0.10);
             color: #D4E8DC;
         }
 
@@ -458,7 +459,7 @@
         /* --- Tab Navigation --- */
         [data-theme="dark"] .timetable-tabs {
             background: #151D17;
-            border-color: rgba(74, 139, 111, 0.12);
+            border-color: rgba(91, 132, 214, 0.12);
         }
 
         [data-theme="dark"] .tab-btn {
@@ -466,30 +467,30 @@
         }
 
         [data-theme="dark"] .tab-btn:hover {
-            background: rgba(45, 95, 74, 0.15);
+            background: rgba(59, 106, 197, 0.15);
             color: #7BC4A0;
         }
 
         [data-theme="dark"] .tab-btn.active {
-            background: linear-gradient(135deg, #1B3D30, #2D5F4A);
+            background: linear-gradient(135deg, #2F5499, #3B6AC5);
             color: #D4E8DC;
-            box-shadow: 0 4px 15px rgba(45, 95, 74, 0.35);
+            box-shadow: 0 4px 15px rgba(59, 106, 197, 0.35);
         }
 
         /* --- Dropzone --- */
         [data-theme="dark"] .dropzone {
-            border-color: rgba(74, 139, 111, 0.15);
+            border-color: rgba(91, 132, 214, 0.15);
         }
 
         [data-theme="dark"] .dropzone:hover,
         [data-theme="dark"] .dropzone.dragover {
-            border-color: #4A8B6F;
-            background: rgba(74, 139, 111, 0.10);
+            border-color: #5B84D6;
+            background: rgba(91, 132, 214, 0.10);
         }
 
         /* --- Conflict Badge --- */
         [data-theme="dark"] .conflict-badge {
-            border-color: rgba(74, 139, 111, 0.15);
+            border-color: rgba(91, 132, 214, 0.15);
             color: #8FA898;
         }
 
@@ -509,15 +510,15 @@
 
         /* --- Btn Secondary in dark --- */
         [data-theme="dark"] .btn-secondary {
-            background: #1A241C;
+            background: #1A1A1A;
             color: #D4E8DC;
-            border-color: rgba(74, 139, 111, 0.15);
+            border-color: rgba(91, 132, 214, 0.15);
         }
 
         [data-theme="dark"] .btn-secondary:hover {
-            border-color: #4A8B6F;
+            border-color: #5B84D6;
             color: #7BC4A0;
-            background: rgba(45, 95, 74, 0.12);
+            background: rgba(59, 106, 197, 0.12);
         }
 
         /* Theme Toggle Button */
@@ -543,7 +544,7 @@
         }
 
         [data-theme="dark"] .theme-toggle {
-            border-color: rgba(74, 139, 111, 0.2);
+            border-color: rgba(91, 132, 214, 0.2);
             color: #fbbf24;
         }
 
@@ -575,7 +576,7 @@
 
         .quick-nav-header {
             padding: 20px;
-            background: linear-gradient(135deg, var(--primary, #2D5F4A), var(--secondary, #26a69a));
+            background: linear-gradient(135deg, var(--primary, #3B6AC5), var(--secondary, #5B84D6));
             color: white;
             display: flex;
             justify-content: space-between;
@@ -624,7 +625,7 @@
         .quick-nav-search input:focus {
             border-color: var(--primary);
             outline: none;
-            box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.08);
+            box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.08);
         }
 
         .quick-nav-tabs {
@@ -650,14 +651,14 @@
         }
 
         .quick-nav-tab:hover {
-            background: rgba(45, 95, 74, 0.05);
+            background: rgba(59, 106, 197, 0.05);
             color: var(--primary);
         }
 
         .quick-nav-tab.active {
             color: var(--primary);
             border-bottom: 2px solid var(--primary);
-            background: rgba(45, 95, 74, 0.05);
+            background: rgba(59, 106, 197, 0.05);
         }
 
         .quick-nav-list {
@@ -678,12 +679,12 @@
         }
 
         .quick-nav-item:hover {
-            background: rgba(45, 95, 74, 0.08);
+            background: rgba(59, 106, 197, 0.08);
             transform: translateX(5px);
         }
 
         .quick-nav-item.selected {
-            background: linear-gradient(135deg, var(--primary, #2D5F4A), var(--secondary, #26a69a));
+            background: linear-gradient(135deg, var(--primary, #3B6AC5), var(--secondary, #5B84D6));
             color: white;
         }
 
@@ -701,7 +702,7 @@
         }
 
         .quick-nav-count {
-            background: rgba(45, 95, 74, 0.1);
+            background: rgba(59, 106, 197, 0.1);
             color: var(--primary);
             padding: 2px 8px;
             border-radius: 12px;
@@ -717,12 +718,12 @@
             width: 56px;
             height: 56px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary, #2D5F4A), var(--secondary, #26a69a));
+            background: linear-gradient(135deg, var(--primary, #3B6AC5), var(--secondary, #5B84D6));
             border: none;
             color: white;
             font-size: 1.4rem;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(45, 95, 74, 0.3);
+            box-shadow: 0 4px 20px rgba(59, 106, 197, 0.3);
             z-index: 998;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
@@ -732,7 +733,7 @@
 
         .quick-nav-toggle:hover {
             transform: scale(1.1);
-            box-shadow: 0 6px 25px rgba(45, 95, 74, 0.4);
+            box-shadow: 0 6px 25px rgba(59, 106, 197, 0.4);
         }
 
         .quick-nav-toggle.active {
@@ -760,7 +761,7 @@
         .unified-search input:focus {
             border-color: var(--primary);
             outline: none;
-            box-shadow: 0 0 0 4px rgba(45, 95, 74, 0.08);
+            box-shadow: 0 0 0 4px rgba(59, 106, 197, 0.08);
         }
 
         .unified-search .search-icon {
@@ -844,7 +845,7 @@
         }
 
         .search-result-item:hover {
-            background: rgba(45, 95, 74, 0.06);
+            background: rgba(59, 106, 197, 0.06);
         }
 
         .search-result-item i {
@@ -1390,31 +1391,31 @@
             background: var(--color-surface, #FFFEFB);
             backdrop-filter: blur(10px);
             border-radius: 18px;
-            border: 1px solid var(--color-accent, #E8ECE9);
+            border: 1px solid var(--color-accent, #E8E8E8);
             overflow: hidden;
-            box-shadow: 0 2px 12px rgba(31, 45, 36, 0.06), 0 8px 24px rgba(31, 45, 36, 0.03);
+            box-shadow: 0 2px 12px rgba(17, 17, 17, 0.06), 0 8px 24px rgba(17, 17, 17, 0.03);
             transition: box-shadow 0.3s ease;
         }
 
         .timetable-header {
             padding: 12px 18px;
-            border-bottom: 1px solid var(--color-accent, #E8ECE9);
+            border-bottom: 1px solid var(--color-accent, #E8E8E8);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(to left, var(--color-primary-mist, rgba(45, 95, 74, 0.08)), transparent);
+            background: linear-gradient(to left, var(--color-primary-mist, rgba(59, 106, 197, 0.08)), transparent);
         }
 
         .timetable-header-info {
             padding: 14px 20px;
-            border-bottom: 1px solid var(--color-accent, #E8ECE9);
-            background: linear-gradient(135deg, rgba(45, 95, 74, 0.03), transparent);
+            border-bottom: 1px solid var(--color-accent, #E8E8E8);
+            background: linear-gradient(135deg, rgba(59, 106, 197, 0.03), transparent);
         }
 
         .timetable-header-info h3 {
             font-size: 1rem;
             font-weight: 700;
-            color: var(--color-text-main, #1F2D24);
+            color: var(--color-text-main, #111111);
             margin: 0;
             display: flex;
             align-items: center;
@@ -1422,12 +1423,12 @@
         }
 
         .timetable-header-info h3 i {
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
         }
 
         .timetable-title {
             font-size: 1.1rem;
-            color: var(--color-text-main, #1F2D24);
+            color: var(--color-text-main, #111111);
             display: flex;
             align-items: center;
             gap: 10px;
@@ -1457,12 +1458,12 @@
         .timetable td {
             padding: 8px 6px;
             text-align: center;
-            border: 1px solid var(--color-accent, #E8ECE9);
+            border: 1px solid var(--color-accent, #E8E8E8);
             vertical-align: middle;
         }
 
         .timetable th {
-            background: linear-gradient(135deg, var(--color-primary, #2D5F4A), var(--color-primary-light, #4A8B6F));
+            background: linear-gradient(135deg, var(--color-primary, #3B6AC5), var(--color-primary-light, #5B84D6));
             color: white;
             font-weight: 600;
             font-size: 0.85rem;
@@ -1483,8 +1484,8 @@
 
         .timetable th.period-header {
             width: 60px;
-            background: rgba(45, 95, 74, 0.12);
-            color: var(--color-text-main, #1F2D24);
+            background: rgba(59, 106, 197, 0.12);
+            color: var(--color-text-main, #111111);
         }
 
         .timetable td {
@@ -1498,18 +1499,18 @@
         }
 
         /* Alternating row tint for light mode */
-        .timetable tbody tr:nth-child(even) td {
+        .timetable tbody tr:nth-child(even) td:not(.day-cell) {
             background: var(--color-surface-alt, #F6F5F2);
         }
 
         .timetable tr:hover td {
-            background: rgba(45, 95, 74, 0.05) !important;
+            box-shadow: inset 0 0 0 1000px rgba(59, 106, 197, 0.05);
         }
 
         .timetable .period-cell {
-            background: rgba(45, 95, 74, 0.06);
+            background: rgba(59, 106, 197, 0.06);
             font-weight: 700;
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
             font-size: 0.82rem;
             white-space: nowrap;
             width: 60px;
@@ -1517,8 +1518,8 @@
 
         /* Day cell (horizontal layout - days as rows) */
         .timetable .day-cell {
-            background: linear-gradient(135deg, var(--color-primary, #2D5F4A), var(--color-primary-light, #4A8B6F));
-            color: white;
+            background: linear-gradient(135deg, var(--color-primary, #3B6AC5), var(--color-primary-light, #5B84D6)) !important;
+            color: white !important;
             font-weight: 700;
             font-size: 1rem;
             min-width: 90px;
@@ -1535,7 +1536,7 @@
         /* Total hours header */
         .timetable .total-header {
             min-width: 80px;
-            background: linear-gradient(135deg, #1B3D30, #2D5F4A);
+            background: linear-gradient(135deg, #2F5499, #3B6AC5);
             font-size: 1.1rem;
             font-weight: 700;
         }
@@ -1546,7 +1547,7 @@
         }
 
         .timetable .separator-row td {
-            background: linear-gradient(90deg, transparent, var(--color-primary, #2D5F4A), transparent);
+            background: linear-gradient(90deg, transparent, var(--color-primary, #3B6AC5), transparent);
             height: 3px;
             padding: 0;
             border: none;
@@ -1557,21 +1558,21 @@
         }
 
         .activity-cell {
-            background: linear-gradient(135deg, rgba(45, 95, 74, 0.07), rgba(74, 139, 111, 0.04));
+            background: linear-gradient(135deg, rgba(59, 106, 197, 0.07), rgba(91, 132, 214, 0.04));
             border-radius: 8px;
             padding: 5px 6px;
             margin: 2px;
-            border-right: 3px solid var(--color-primary-light, #4A8B6F);
+            border-right: 3px solid var(--color-primary-light, #5B84D6);
             transition: background 0.2s ease, box-shadow 0.2s ease;
         }
 
         .activity-cell:hover {
-            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.12);
+            box-shadow: 0 2px 8px rgba(59, 106, 197, 0.12);
         }
 
         .activity-cell .subject {
             font-weight: 700;
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
             font-size: 0.78rem;
             margin-bottom: 2px;
             line-height: 1.3;
@@ -1582,7 +1583,7 @@
 
         .activity-cell .class {
             font-size: 0.75rem;
-            color: var(--color-text-main, #1F2D24);
+            color: var(--color-text-main, #111111);
             font-weight: 600;
             white-space: nowrap;
             overflow: hidden;
@@ -1728,24 +1729,82 @@
 
 
         /* Toast */
+        :root {
+            --toast-right-offset: 24px;
+            --toast-bottom-offset: 24px;
+        }
+
+        .toast-container {
+            position: fixed !important;
+            right: var(--toast-right-offset) !important;
+            left: auto !important;
+            bottom: var(--toast-bottom-offset) !important;
+            top: auto !important;
+            transform: none !important;
+            z-index: 10050;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast-container .toast {
+            position: relative !important;
+            right: auto !important;
+            left: auto !important;
+            top: auto !important;
+            bottom: auto !important;
+            transform: none !important;
+            pointer-events: auto;
+        }
+
+        #toast.toast,
         .toast {
             position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(100px);
-            padding: 15px 25px;
-            border-radius: 10px;
+            right: var(--toast-right-offset);
+            left: auto;
+            bottom: var(--toast-bottom-offset);
+            top: auto;
+            transform: translateY(120%);
+            animation: none !important;
+            opacity: 0;
+            padding: 13px 16px;
+            border-radius: 12px;
             color: white;
-            font-weight: 500;
-            z-index: 10000;
-            transition: transform 0.3s ease;
+            font-weight: 600;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            z-index: 10050;
+            transition: transform 0.25s ease, opacity 0.25s ease;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 10px;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+            max-width: min(92vw, 430px);
+            min-width: 250px;
+            direction: rtl;
+            text-align: right;
+            word-break: break-word;
         }
 
         .toast.show {
-            transform: translateX(-50%) translateY(0);
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast i {
+            margin-top: 2px;
+            flex-shrink: 0;
+            font-size: 1rem;
+        }
+
+        .toast .toast-text,
+        .toast span {
+            flex: 1;
+            min-width: 0;
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
 
         .toast.success {
@@ -1758,6 +1817,25 @@
 
         .toast.info {
             background: linear-gradient(135deg, #6366f1, #4f46e5);
+        }
+
+        @media (max-width: 768px) {
+            .toast-container {
+                right: 12px !important;
+                left: 12px !important;
+                bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+                align-items: stretch;
+            }
+
+            #toast.toast,
+            .toast {
+                right: 12px;
+                left: 12px;
+                bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+                min-width: 0;
+                max-width: none;
+                width: auto;
+            }
         }
 
         .empty-state {
@@ -1785,7 +1863,7 @@
             backdrop-filter: blur(10px);
             border-radius: 14px;
             padding: 16px 18px;
-            border: 1px solid var(--color-accent, #E8ECE9);
+            border: 1px solid var(--color-accent, #E8E8E8);
             display: flex;
             align-items: center;
             gap: 14px;
@@ -1806,15 +1884,15 @@
 
         /* Teachers card - Pine Green */
         .stat-card:nth-child(1) {
-            background: linear-gradient(135deg, rgba(45, 95, 74, 0.04) 0%, var(--color-surface, #FFFEFB) 100%);
+            background: linear-gradient(135deg, rgba(59, 106, 197, 0.04) 0%, var(--color-surface, #FFFEFB) 100%);
         }
 
         .stat-card:nth-child(1)::before {
-            background: linear-gradient(180deg, #2D5F4A, #4A8B6F);
+            background: linear-gradient(180deg, #3B6AC5, #5B84D6);
         }
 
         .stat-card:nth-child(1)>i {
-            background: linear-gradient(135deg, #2D5F4A, #4A8B6F);
+            background: linear-gradient(135deg, #3B6AC5, #5B84D6);
             color: white;
             width: 44px;
             height: 44px;
@@ -1824,7 +1902,7 @@
             justify-content: center;
             font-size: 1.1rem;
             flex-shrink: 0;
-            box-shadow: 0 4px 12px rgba(45, 95, 74, 0.25);
+            box-shadow: 0 4px 12px rgba(59, 106, 197, 0.25);
         }
 
         /* Subjects card - Teal */
@@ -1833,11 +1911,11 @@
         }
 
         .stat-card:nth-child(2)::before {
-            background: linear-gradient(180deg, #26a69a, #4DB6AC);
+            background: linear-gradient(180deg, #5B84D6, #4DB6AC);
         }
 
         .stat-card:nth-child(2)>i {
-            background: linear-gradient(135deg, #26a69a, #4DB6AC);
+            background: linear-gradient(135deg, #5B84D6, #4DB6AC);
             color: white;
             width: 44px;
             height: 44px;
@@ -1927,13 +2005,13 @@
         .stat-info h3 {
             font-size: 1.3rem;
             margin: 0;
-            color: var(--color-text-main, #1F2D24);
+            color: var(--color-text-main, #111111);
         }
 
         .stat-info .stat-value {
             font-size: 1.4rem;
             font-weight: 800;
-            color: var(--color-text-main, #1F2D24);
+            color: var(--color-text-main, #111111);
             line-height: 1.2;
         }
 
@@ -1979,14 +2057,14 @@
         }
 
         .tab-btn:hover {
-            background: rgba(45, 95, 74, 0.08);
-            color: var(--color-primary, #2D5F4A);
+            background: rgba(59, 106, 197, 0.08);
+            color: var(--color-primary, #3B6AC5);
         }
 
         .tab-btn.active {
-            background: linear-gradient(135deg, var(--color-primary, #2D5F4A), var(--color-primary-light, #4A8B6F));
+            background: linear-gradient(135deg, var(--color-primary, #3B6AC5), var(--color-primary-light, #5B84D6));
             color: white;
-            box-shadow: 0 4px 15px rgba(45, 95, 74, 0.3);
+            box-shadow: 0 4px 15px rgba(59, 106, 197, 0.3);
         }
 
         .tab-content {
@@ -2452,11 +2530,34 @@
         }
 
         .drag-over {
-            background: rgba(99, 102, 241, 0.3) !important;
-            border: 3px solid var(--primary) !important;
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
-            transform: scale(1.05);
-            transition: all 0.2s;
+            background: rgba(34, 197, 94, 0.25) !important;
+            border: 4px solid #16a34a !important;
+            box-shadow: 0 0 24px rgba(34, 197, 94, 0.5), inset 0 0 8px rgba(34, 197, 94, 0.15);
+            transform: scale(1.03);
+            transition: all 0.15s;
+        }
+
+        /* Second (and beyond) cells highlighted during a multi-period drag */
+        .drag-over-ext {
+            background: rgba(34, 197, 94, 0.15) !important;
+            border: 4px dashed #16a34a !important;
+            box-shadow: 0 0 16px rgba(34, 197, 94, 0.4), inset 0 0 6px rgba(34, 197, 94, 0.1);
+            transition: all 0.15s;
+        }
+
+        /* Source cell while being dragged */
+        .drag-source {
+            opacity: 0.6 !important;
+            outline: 4px dashed #f59e0b !important;
+            outline-offset: -4px;
+            background: repeating-linear-gradient(45deg,
+                    rgba(245, 158, 11, 0.1),
+                    rgba(245, 158, 11, 0.1) 10px,
+                    rgba(245, 158, 11, 0.25) 10px,
+                    rgba(245, 158, 11, 0.25) 20px) !important;
+            box-shadow: inset 0 0 10px rgba(245, 158, 11, 0.3) !important;
+            border-color: transparent !important;
+            position: relative;
         }
 
         .drop-invalid {
@@ -2968,6 +3069,9 @@
             <div class="edit-modal-footer">
                 <button class="btn btn-secondary" onclick="closeEditModal()">
                     <i class="fas fa-times"></i> إلغاء
+                </button>
+                <button class="btn btn-warning" id="move-slot-btn" onclick="startMoveMode()" style="display:none;">
+                    <i class="fas fa-arrows-alt"></i> نقل الحصة
                 </button>
                 <button class="btn btn-primary" onclick="confirmSlotEdit()">
                     <i class="fas fa-check"></i> تأكيد
@@ -4387,6 +4491,7 @@
                         curr.activity.students === next.activity.students &&
                         curr.period === next.period) {
                         curr.colspan += next.colspan;
+                        curr.hourKeyEnd = next.hourKey; // track last merged period key
                         next.skip = true;
                     }
                 }
@@ -4401,7 +4506,14 @@
                     }
                     if (cell.skip) return;
 
-                    const colspanAttr = cell.colspan > 1 ? ` colspan="${cell.colspan}" class="merged-cell"` : '';
+                    // Build data attributes for reliable click identification
+                    const dataStart = cell.hourKey;
+                    const dataEnd = cell.hourKeyEnd || cell.hourKey;
+                    const dataPeriodEnd = dataEnd !== dataStart ? ` data-period-end="${dataEnd}"` : '';
+                    const dataAttrs = `data-day="${day}" data-period="${dataStart}" data-period-type="${cell.period}"${dataPeriodEnd}`;
+
+                    const colspanPart = cell.colspan > 1 ? ` colspan="${cell.colspan}"` : '';
+                    const mergedClass = cell.colspan > 1 ? ' merged-cell' : '';
 
                     if (cell.activity) {
                         const color = getColorFor('classes', cell.activity.students);
@@ -4412,17 +4524,27 @@
                             ? `style="background: ${color.bg}; border-right: 4px solid ${color.border};"`
                             : '';
                         const classNameStyle = color
-                            ? `style="color: ${color.text}; font-weight: 700;"`
+                            ? `style="color: ${color.text}; font-weight: 700; font-size: 0.72rem;"`
                             : '';
+                        const roomStyle = color
+                            ? `style="color: ${color.border}; font-weight: 700; font-size: 0.7rem; letter-spacing: 0.3px;"`
+                            : '';
+                        const subjectDisplay = cell.activity.subject ? cell.activity.subject.replace(/_/g, ' ') : '';
+                        const classDisplay = cell.activity.students ? cell.activity.students.replace(/_/g, ' ') : '';
 
-                        html += `<td${colspanAttr} ${cellStyle}>
+                        const subjectStyle = color
+                            ? `style="font-size:0.78rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
+                            : `style="font-size:0.78rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
+
+                        html += `<td class="${mergedClass}"${colspanPart} ${dataAttrs} ${cellStyle}>
                             <div class="activity-cell" style="border-right: none; background: none;">
-                                <div class="class" ${classNameStyle}>${cell.activity.students ? cell.activity.students.replace(/_/g, ' ') : ''}</div>
-                                ${cell.activity.room ? `<div class="room">${cell.activity.room}</div>` : ''}
+                                <div class="subject" ${subjectStyle}>${subjectDisplay}</div>
+                                ${classDisplay ? `<div class="class" ${classNameStyle}>${classDisplay}</div>` : ''}
+                                ${cell.activity.room ? `<div class="room" ${roomStyle}>${cell.activity.room}</div>` : ''}
                             </div>
                         </td>`;
                     } else {
-                        html += `<td${colspanAttr}><span class="empty-cell">—</span></td>`;
+                        html += `<td class="${mergedClass}"${colspanPart} ${dataAttrs}><span class="empty-cell">—</span></td>`;
                     }
                 });
 
@@ -4458,7 +4580,7 @@
                 legendContainer.innerHTML += `
                     <div class="timetable-summary">
                         <div class="summary-title"><i class="fas fa-users"></i> لائحة الأقسام المسندة للأستاذ(ة):</div>
-                        <div style="padding: 8px 15px; font-weight: 600; color: var(--color-text-main, #1F2D24); font-size: 0.95rem;">
+                        <div style="padding: 8px 15px; font-weight: 600; color: var(--color-text-main, #111111); font-size: 0.95rem;">
                             ${classesList}
                         </div>
                         <div class="summary-grid">
@@ -4484,13 +4606,62 @@
         // Legacy function kept as stub for compatibility
         function renderStudentTimetable(className) { return; }
 
+        function updateToastOffsets() {
+            const root = document.documentElement;
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+            if (isMobile) {
+                root.style.setProperty('--toast-right-offset', '12px');
+                root.style.setProperty('--toast-bottom-offset', '12px');
+                return;
+            }
+
+            let rightOffset = 24;
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar) {
+                const rect = sidebar.getBoundingClientRect();
+                const isOnScreen = rect.width > 0 && rect.left < window.innerWidth && rect.right > 0;
+                const sticksToRight = Math.abs(rect.right - window.innerWidth) <= 2;
+
+                if (isOnScreen && sticksToRight) {
+                    const visibleSidebarWidth = Math.max(0, Math.min(window.innerWidth, rect.right) - Math.max(0, rect.left));
+                    if (visibleSidebarWidth > 0 && visibleSidebarWidth < window.innerWidth * 0.6) {
+                        rightOffset = visibleSidebarWidth + 24;
+                    }
+                }
+            }
+
+            root.style.setProperty('--toast-right-offset', `${Math.round(rightOffset)}px`);
+            root.style.setProperty('--toast-bottom-offset', '24px');
+        }
+
+        let toastHideTimer = null;
         function showToast(message, type = 'info') {
             const toast = document.getElementById('toast');
+            if (!toast) return;
+
+            updateToastOffsets();
+
+            // Ensure toast is a direct child of body so position:fixed works correctly
+            // (backdrop-filter on ancestors creates a new containing block)
+            if (toast.parentElement !== document.body) {
+                document.body.appendChild(toast);
+            }
+
+            const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle';
             toast.className = 'toast ' + type;
-            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i> ${message}`;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 4000);
+            toast.innerHTML = `<i class="fas fa-${icon}"></i><span class="toast-text"></span>`;
+
+            const toastText = toast.querySelector('.toast-text');
+            if (toastText) {
+                toastText.textContent = String(message || '');
+            }
+
+            requestAnimationFrame(() => toast.classList.add('show'));
+            clearTimeout(toastHideTimer);
+            toastHideTimer = setTimeout(() => toast.classList.remove('show'), 4200);
         }
+        const timetableShowToast = showToast;
         // ==================== EDIT MODE SYSTEM ====================
 
         // Edit mode state
@@ -4501,7 +4672,8 @@
             changeHistory: [],
             currentEditSlot: null,
             originalTimetable: null,
-            diffModeActive: false
+            diffModeActive: false,
+            moveMode: { active: false }
         };
 
         // Initialize edit mode controls when teacher is selected
@@ -4521,6 +4693,11 @@
 
         // Toggle edit mode
         document.addEventListener('DOMContentLoaded', () => {
+            // Timetable has its own #toast element; keep local function but
+            // do NOT override window.showToast so the unified notification
+            // engine (js/notifications.js) continues to work for IPC-driven toasts.
+            updateToastOffsets();
+            window.addEventListener('resize', updateToastOffsets);
             document.getElementById('edit-mode-btn')?.addEventListener('click', toggleEditMode);
             document.getElementById('save-changes-btn')?.addEventListener('click', saveAllChanges);
             document.getElementById('cancel-changes-btn')?.addEventListener('click', cancelEditMode);
@@ -4629,26 +4806,36 @@
             if (!editMode.active) return;
 
             const cell = e.currentTarget;
-            const row = cell.parentElement;
-            const cellIndex = Array.from(row.children).indexOf(cell);
 
-            // Skip period header column (index 0)
-            if (cellIndex === 0) return;
+            // Read identification from data attributes stamped during render
+            const day = cell.dataset.day;
+            const period = cell.dataset.period;
+            const periodType = cell.dataset.periodType;
+            const periodEnd = cell.dataset.periodEnd || period;
 
-            // Clean period text - extract ص/م to determine periodType
-            const periodRaw = row.children[0].textContent.trim();
-            const period = periodRaw.replace(/\s*[صم]\s*$/g, '').trim();
-            const dayIndex = cellIndex - 1;
-            const day = arabicDays[dayIndex];
-            // Determine periodType based on ص (morning) or م (afternoon) suffix
-            const periodType = periodRaw.includes('ص') ? 'morning' : 'afternoon';
+            if (!day || !period || !periodType) return;
 
-            openEditModal(day, period, periodType, cell);
+            // === MOVE MODE: destination pick ===
+            if (editMode.moveMode && editMode.moveMode.active) {
+                // Only allow clicking a green (available) slot
+                if (cell.classList.contains('slot-available')) {
+                    performMoveToDestination(day, period, periodType);
+                } else if (cell.classList.contains('slot-occupied')) {
+                    showToast('هذا المكان غير متاح', 'error');
+                } else {
+                    // Clicking the source or elsewhere cancels
+                    cancelMoveMode();
+                }
+                return;
+            }
+
+            openEditModal(day, period, periodType, cell, periodEnd);
         }
 
         // Open edit modal
-        function openEditModal(day, period, periodType, cell) {
-            editMode.currentEditSlot = { day, period, periodType, cell };
+        function openEditModal(day, period, periodType, cell, periodEnd) {
+            periodEnd = periodEnd || period;
+            editMode.currentEditSlot = { day, period, periodEnd, periodType, cell };
 
             const modal = document.getElementById('edit-modal');
             const slotInfo = document.getElementById('edit-slot-info');
@@ -4657,7 +4844,9 @@
             const roomInput = document.getElementById('edit-room');
             const deleteCheckbox = document.getElementById('delete-slot');
 
-            slotInfo.value = `${day} - ${period} ${periodType === 'morning' ? 'صباحاً' : 'مساءً'}`;
+            const isMerged = periodEnd !== period;
+            const periodLabel = isMerged ? `${period}–${periodEnd}` : period;
+            slotInfo.value = `${day} - ${periodLabel} ${periodType === 'morning' ? 'صباحاً' : 'مساءً'}`;
 
             // Populate subjects
             subjectSelect.innerHTML = '<option value="">-- اختر المادة --</option>';
@@ -4687,29 +4876,301 @@
                 roomInput.value = '';
             }
 
+            // Show "نقل الحصة" button only when slot has content
+            const moveBtn = document.getElementById('move-slot-btn');
+            if (moveBtn) moveBtn.style.display = currentActivity ? 'flex' : 'none';
+
             deleteCheckbox.checked = false;
             document.getElementById('validation-message').style.display = 'none';
 
-            // Add listener to class select to highlight available slots
-            classSelect.addEventListener('change', function () {
+            // Replace listener to avoid duplicates
+            const newClassSelect = classSelect.cloneNode(true);
+            classSelect.parentNode.replaceChild(newClassSelect, classSelect);
+            newClassSelect.value = currentActivity?.students || '';
+            newClassSelect.addEventListener('change', function () {
                 highlightAvailableSlots(this.value);
             });
 
             modal.classList.add('active');
 
             // If there's already a class selected, highlight immediately
-            if (classSelect.value) {
-                highlightAvailableSlots(classSelect.value);
+            if (newClassSelect.value) {
+                highlightAvailableSlots(newClassSelect.value);
             }
         }
 
         function closeEditModal() {
             document.getElementById('edit-modal').classList.remove('active');
-            // Clear all highlighting
-            clearSlotHighlighting();
+            // Clear all highlighting (unless in move mode — keep destination hints visible)
+            if (!editMode.moveMode?.active) {
+                clearSlotHighlighting();
+            }
         }
 
-        // Build class timetable from all teachers
+        // ============================================================
+        // MOVE MODE — two-step: pick source → pick destination
+        // ============================================================
+        function startMoveMode() {
+            const slot = editMode.currentEditSlot;
+            if (!slot) return;
+
+            // Close modal WITHOUT clearing highlights
+            document.getElementById('edit-modal').classList.remove('active');
+
+            // Store move context
+            editMode.moveMode = {
+                active: true,
+                sourceDay: slot.day,
+                sourcePeriod: slot.period,
+                sourcePeriodEnd: slot.periodEnd || slot.period,
+                sourcePeriodType: slot.periodType,
+                sourceData: getSlotData(editMode.currentTeacher, slot.day, slot.period, slot.periodType)
+            };
+
+            // Show cancel bar
+            let cancelBar = document.getElementById('move-mode-bar');
+            if (!cancelBar) {
+                cancelBar = document.createElement('div');
+                cancelBar.id = 'move-mode-bar';
+                cancelBar.style.cssText = [
+                    'position:fixed', 'bottom:24px', 'left:50%', 'transform:translateX(-50%)',
+                    'background:#1a5c3a', 'color:#fff', 'padding:12px 24px', 'border-radius:12px',
+                    'display:flex', 'align-items:center', 'gap:12px', 'z-index:9999',
+                    'box-shadow:0 4px 20px rgba(0,0,0,0.3)', 'font-size:0.95rem'
+                ].join(';');
+                cancelBar.innerHTML = `
+                    <i class="fas fa-arrows-alt" style="font-size:1.1rem;"></i>
+                    <span>انقر على خلية خضراء لنقل الحصة إليها</span>
+                    <button onclick="cancelMoveMode()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:0.9rem;">
+                        <i class="fas fa-times"></i> إلغاء
+                    </button>`;
+                document.body.appendChild(cancelBar);
+            }
+            cancelBar.style.display = 'flex';
+
+            // Highlight available destination slots for this class
+            if (editMode.moveMode.sourceData?.students) {
+                highlightAvailableSlots(editMode.moveMode.sourceData.students);
+            }
+
+            showToast('انقر على المكان الجديد أو اضغط إلغاء للتراجع', 'info');
+        }
+
+        function cancelMoveMode() {
+            if (editMode.moveMode) editMode.moveMode.active = false;
+            const bar = document.getElementById('move-mode-bar');
+            if (bar) bar.style.display = 'none';
+            clearSlotHighlighting();
+            showToast('تم إلغاء وضع النقل', 'info');
+        }
+
+        function performMoveToDestination(destDay, destPeriod, destPeriodType) {
+            const mv = editMode.moveMode;
+            if (!mv || !mv.sourceData) return;
+
+            // Determine all COVERED periods in the SOURCE
+            const srcPeriods = buildPeriodRange(mv.sourcePeriod, mv.sourcePeriodEnd);
+            const numPeriods = srcPeriods.length;          // 1 or 2
+
+            // Build destination period list: start at destPeriod, need exactly numPeriods consecutive slots
+            const destStartIdx = periods.indexOf(destPeriod);
+            if (destStartIdx === -1) return;
+
+            const destPeriods = [];
+            for (let i = 0; i < numPeriods; i++) {
+                const pk = periods[destStartIdx + i];
+                if (!pk) break; // ran out of periods (e.g. H4 + 1 doesn't exist)
+                destPeriods.push(pk);
+            }
+
+            // Strict check: destination must have exactly the same number of periods as source
+            if (destPeriods.length !== numPeriods) {
+                showToast(`لا يمكن النقل: تحتاج ${numPeriods} خانات متتالية ولا توجد خانات كافية`, 'error');
+                return;
+            }
+
+            // Validate destination has enough consecutive free slots
+            const teacher = editMode.currentTeacher;
+            for (const dp of destPeriods) {
+                const existing = getSlotData(teacher, destDay, dp, destPeriodType);
+                // Allow overwriting if it's a source period being vacated
+                const isSource = mv.sourceDay === destDay && srcPeriods.includes(dp) && destPeriodType === mv.sourcePeriodType;
+                if (existing && !isSource) {
+                    showToast(`الوجهة غير متاحة كاملاً (${dp} مشغول)`, 'error');
+                    return;
+                }
+            }
+
+            // Ensure data structure
+            if (!fetData.timetables[teacher][destDay]) {
+                fetData.timetables[teacher][destDay] = { morning: {}, afternoon: {} };
+            }
+
+            const groupId = Date.now() + '_' + Math.random().toString(36).slice(2);
+
+            // 1. Clear source periods
+            srcPeriods.forEach(sp => {
+                const oldData = getSlotData(teacher, mv.sourceDay, sp, mv.sourcePeriodType);
+                editMode.pendingChanges.push({
+                    teacher, day: mv.sourceDay, period: sp, periodType: mv.sourcePeriodType,
+                    oldData, newData: null,
+                    timestamp: new Date().toISOString(), type: 'delete', groupId, cell: null
+                });
+                delete fetData.timetables[teacher][mv.sourceDay][mv.sourcePeriodType][sp];
+            });
+
+            // 2. Fill destination periods with source data
+            destPeriods.forEach((dp, idx) => {
+                const oldData = getSlotData(teacher, destDay, dp, destPeriodType);
+                const newData = { ...mv.sourceData };
+                editMode.pendingChanges.push({
+                    teacher, day: destDay, period: dp, periodType: destPeriodType,
+                    oldData, newData,
+                    timestamp: new Date().toISOString(), type: oldData ? 'edit' : 'add', groupId, cell: null
+                });
+                fetData.timetables[teacher][destDay][destPeriodType][dp] = newData;
+            });
+
+            // Re-render live
+            const subjectFilter = document.getElementById('subject-filter')?.value || '';
+            renderTeacherTimetable(teacher, subjectFilter);
+            if (editMode.active) {
+                addCellClickHandlers();
+                document.getElementById('timetable-wrapper').classList.add('edit-mode-active');
+            }
+
+            updateUndoButton();
+
+            // Exit move mode
+            editMode.moveMode = { active: false };
+            const bar = document.getElementById('move-mode-bar');
+            if (bar) bar.style.display = 'none';
+            clearSlotHighlighting();
+
+            const srcLabel = mv.sourcePeriodEnd !== mv.sourcePeriod ? `${mv.sourcePeriod}–${mv.sourcePeriodEnd}` : mv.sourcePeriod;
+            const destLabel = destPeriods.length > 1 ? `${destPeriods[0]}–${destPeriods[destPeriods.length - 1]}` : destPeriods[0];
+            showToast(`تم نقل الحصة من ${srcLabel} إلى ${destLabel} بنجاح`, 'success');
+        }
+
+        // ============================================================
+        // DRAG & DROP HANDLERS — full implementation for merged cells
+        // ============================================================
+        let _dragSource = null; // { day, period, periodEnd, periodType, numPeriods }
+
+        function handleDragStart(e) {
+            if (!editMode.active) { e.preventDefault(); return; }
+            const cell = e.currentTarget;
+            const day = cell.dataset.day;
+            const period = cell.dataset.period;
+            const periodEnd = cell.dataset.periodEnd || period;
+            const periodType = cell.dataset.periodType;
+            if (!day || !period || !periodType) { e.preventDefault(); return; }
+
+            const srcData = getSlotData(editMode.currentTeacher, day, period, periodType);
+            if (!srcData) { e.preventDefault(); return; } // don't drag empty cells
+
+            const srcPeriods = buildPeriodRange(period, periodEnd);
+            _dragSource = { day, period, periodEnd, periodType, numPeriods: srcPeriods.length, srcData };
+
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', JSON.stringify(_dragSource));
+
+            // Hack: Wait for browser to take the drag ghost IMAGE of the native DOM, THEN apply the dimming CSS!
+            setTimeout(() => {
+                cell.classList.add('drag-source');
+            }, 0);
+
+            // Highlight available slots for this class so user sees valid destinations
+            if (srcData.students) {
+                highlightAvailableSlots(srcData.students);
+            }
+        }
+
+        function handleDragEnd(e) {
+            document.querySelectorAll('#timetable tbody td').forEach(c => {
+                c.classList.remove('drag-over', 'drag-over-ext', 'drag-source');
+            });
+            clearSlotHighlighting();
+            _dragSource = null;
+        }
+
+        function _getDragOverCells(targetCell) {
+            // Returns the DOM cells that will be covered by this drop.
+            // Uses data attributes for lookup — immune to merged-cell DOM index shifts.
+            if (!_dragSource) return [targetCell];
+            const n = _dragSource.numPeriods;
+            const day = targetCell.dataset.day;
+            const pType = targetCell.dataset.periodType;
+            const startPeriod = targetCell.dataset.period;
+            if (!day || !pType || !startPeriod) return [targetCell];
+
+            // Build the period key range starting at startPeriod, length n
+            const startIdx = periods.indexOf(startPeriod);
+            if (startIdx === -1) return [targetCell];
+
+            const result = [];
+            for (let i = 0; i < n; i++) {
+                const pk = periods[startIdx + i];
+                if (!pk) break;
+                // Each period key must be in the same periodType
+                const c = document.querySelector(
+                    `#timetable tbody td[data-day="${day}"][data-period="${pk}"][data-period-type="${pType}"]`
+                );
+                if (!c) break;
+                result.push(c);
+            }
+            return result.length > 0 ? result : [targetCell];
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            if (!_dragSource) return;
+            e.dataTransfer.dropEffect = 'move';
+
+            // Clear previous highlight
+            document.querySelectorAll('#timetable tbody td.drag-over, #timetable tbody td.drag-over-ext')
+                .forEach(c => c.classList.remove('drag-over', 'drag-over-ext'));
+
+            const cells = _getDragOverCells(e.currentTarget);
+            cells.forEach((c, i) => c.classList.add(i === 0 ? 'drag-over' : 'drag-over-ext'));
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            document.querySelectorAll('#timetable tbody td').forEach(c =>
+                c.classList.remove('drag-over', 'drag-over-ext', 'drag-source')
+            );
+
+            if (!_dragSource) return;
+
+            const destCell = e.currentTarget;
+            const destDay = destCell.dataset.day;
+            const destPeriod = destCell.dataset.period;
+            const destPeriodType = destCell.dataset.periodType;
+
+            if (!destDay || !destPeriod || !destPeriodType) return;
+
+            // Activate move mode context then perform the move
+            editMode.moveMode = {
+                active: false, // we call performMoveToDestination directly
+                sourceDay: _dragSource.day,
+                sourcePeriod: _dragSource.period,
+                sourcePeriodEnd: _dragSource.periodEnd,
+                sourcePeriodType: _dragSource.periodType,
+                sourceData: _dragSource.srcData
+            };
+
+            performMoveToDestination(destDay, destPeriod, destPeriodType);
+            _dragSource = null;
+        }
+
+        function handleDragLeave(e) {
+            // Only remove highlight if truly leaving (not entering a child)
+            if (!e.relatedTarget || !e.currentTarget.contains(e.relatedTarget)) {
+                e.currentTarget.classList.remove('drag-over', 'drag-over-ext');
+            }
+        }
+
         function buildClassTimetable(className) {
             const classTimetable = {};
 
@@ -4820,6 +5281,10 @@
             console.log('Class Timetable:', classTimetable);
             console.log('Current slot:', currentDay, currentPeriod, currentPeriodType);
 
+            // Layout: days as rows, time-slots as columns
+            // col 0 = day name | col 1-4 = morning H1-H4 | col 5 = separator | col 6-9 = afternoon H1-H4
+            const separatorCol = periods.length + 1; // = 5
+
             // Go through all cells in the timetable
             const rows = document.querySelectorAll('#timetable tbody tr');
 
@@ -4827,21 +5292,30 @@
                 // Skip separator row
                 if (row.classList.contains('separator-row')) return;
 
-                // Clean period text - extract ص/م to determine periodType
-                const periodRaw = row.children[0].textContent.trim();
-                const period = periodRaw.replace(/\s*[صم]\s*$/g, '').trim();
-                // Determine periodType based on ص (morning) or م (afternoon) suffix
-                const periodType = periodRaw.includes('ص') ? 'morning' : 'afternoon';
+                // Read the day from the day-name cell (col 0)
+                const day = row.children[0].textContent.trim();
 
                 for (let i = 1; i < row.children.length; i++) {
                     const cell = row.children[i];
-                    const dayIndex = i - 1;
-                    const day = arabicDays[dayIndex];
+
+                    // Skip separator column
+                    if (i === separatorCol) continue;
+
+                    // Determine period key and type from column index
+                    let period, periodType;
+                    if (i <= periods.length) {
+                        period = periods[i - 1];
+                        periodType = 'morning';
+                    } else {
+                        period = periods[i - separatorCol - 1];
+                        periodType = 'afternoon';
+                    }
+                    if (!period) continue;
 
                     // Remove previous highlighting
                     cell.classList.remove('slot-available', 'slot-occupied', 'slot-current', 'slot-gap-warning');
 
-                    // Check if this is the current slot being edited (must match day, period AND periodType)
+                    // Check if this is the current slot being edited
                     if (day === currentDay && period === currentPeriod && periodType === currentPeriodType) {
                         cell.classList.add('slot-current');
                         console.log(`Current slot: ${day} ${period} ${periodType} - Yellow`);
@@ -4852,7 +5326,6 @@
                     const classHasActivity = classTimetable[day]?.[periodType]?.[period];
 
                     // Check if TEACHER has activity at this time
-                    // BUT exclude the current dragged slot (it's being moved away)
                     let teacherHasActivity = null;
                     if (!(day === currentDay && period === currentPeriod && periodType === currentPeriodType)) {
                         teacherHasActivity = getSlotData(editMode.currentTeacher, day, period, periodType);
@@ -4862,26 +5335,25 @@
                         // Class is occupied
                         cell.classList.add('slot-occupied');
                         cell.title = `مشغول: ${classHasActivity.subject} مع ${classHasActivity.teacher}`;
-                        console.log(`Class occupied: ${day} ${period} - Red`);
+                        console.log(`Class occupied: ${day} ${period} ${periodType} - Red`);
                     } else if (teacherHasActivity) {
                         // Class is free but teacher is occupied
                         cell.classList.add('slot-occupied');
                         cell.title = `الأستاذ مشغول: ${teacherHasActivity.subject} مع ${teacherHasActivity.students}`;
-                        console.log(`Teacher occupied: ${day} ${period} - Red`);
+                        console.log(`Teacher occupied: ${day} ${period} ${periodType} - Red`);
                     } else {
                         // Check if placing here would create a gap
                         const createsGap = wouldCreateGap(classTimetable, day, period, currentDay, currentPeriod);
 
                         if (createsGap) {
-                            // Would create a gap - mark as occupied/unavailable
                             cell.classList.add('slot-occupied');
                             cell.title = 'غير متاح: سيتسبب في فراغ (ساعات غير متتالية)';
-                            console.log(`Would create gap: ${day} ${period} - Red`);
+                            console.log(`Would create gap: ${day} ${period} ${periodType} - Red`);
                         } else {
                             // Both class AND teacher are available, no gap
                             cell.classList.add('slot-available');
                             cell.title = 'متاح للحصة (القسم والأستاذ متاحان)';
-                            console.log(`Both available: ${day} ${period} - Green`);
+                            console.log(`Both available: ${day} ${period} ${periodType} - Green`);
                         }
                     }
                 }
@@ -4896,7 +5368,7 @@
             });
         }
 
-        // Confirm slot edit
+        // Confirm slot edit — applies changes LIVE to fetData then re-renders
         function confirmSlotEdit() {
             const subject = document.getElementById('edit-subject').value;
             const className = document.getElementById('edit-class').value;
@@ -4907,40 +5379,68 @@
 
             // Validate (including room conflict check)
             const validation = validateChange(day, period, subject, className, deleteSlot, room, periodType);
-
             if (!validation.valid) {
                 showValidationMessage(validation.messages);
                 return;
             }
-
-            // Show warnings if any but allow continue
             if (validation.messages.length > 0) {
                 showValidationMessage(validation.messages);
             }
 
-            // Create change object
-            const change = {
-                teacher: editMode.currentTeacher,
-                day,
-                period,
-                periodType: periodType || (['H1', 'H2'].includes(period) ? 'morning' : 'afternoon'),
-                oldData: getSlotData(editMode.currentTeacher, day, period),
-                newData: deleteSlot ? null : { subject, students: className, room },
-                timestamp: new Date().toISOString(),
-                type: deleteSlot ? 'delete' : (getSlotData(editMode.currentTeacher, day, period) ? 'edit' : 'add')
-            };
+            // Determine covered periods (merged cell may span 2)
+            const periodStart = period;
+            const periodEnd = editMode.currentEditSlot.periodEnd || period;
+            const coveredPeriods = buildPeriodRange(periodStart, periodEnd);
 
-            // Add to pending changes
-            editMode.pendingChanges.push(change);
+            // Group ID so undo can pop the whole merged group together
+            const groupId = Date.now() + '_' + Math.random().toString(36).slice(2);
 
-            // Mark cell as modified
-            cell.classList.add('cell-modified');
+            // Ensure timetable structure exists
+            if (!fetData.timetables[editMode.currentTeacher]) {
+                fetData.timetables[editMode.currentTeacher] = {};
+            }
+            if (!fetData.timetables[editMode.currentTeacher][day]) {
+                fetData.timetables[editMode.currentTeacher][day] = { morning: {}, afternoon: {} };
+            }
 
-            // Update undo button
+            coveredPeriods.forEach((p, idx) => {
+                const oldData = getSlotData(editMode.currentTeacher, day, p, periodType);
+                const newData = deleteSlot ? null : { subject, students: className, room };
+
+                // Record for undo
+                editMode.pendingChanges.push({
+                    teacher: editMode.currentTeacher,
+                    day, period: p, periodType,
+                    oldData,
+                    newData,
+                    timestamp: new Date().toISOString(),
+                    type: deleteSlot ? 'delete' : (oldData ? 'edit' : 'add'),
+                    groupId,
+                    cell: idx === 0 ? cell : null
+                });
+
+                // *** APPLY IMMEDIATELY to fetData ***
+                if (deleteSlot || newData === null) {
+                    delete fetData.timetables[editMode.currentTeacher][day][periodType][p];
+                } else {
+                    fetData.timetables[editMode.currentTeacher][day][periodType][p] = newData;
+                }
+            });
+
+            // Re-render the timetable so changes appear live
+            const subjectFilter = document.getElementById('subject-filter')?.value || '';
+            renderTeacherTimetable(editMode.currentTeacher, subjectFilter);
+
+            // Re-attach edit handlers (renderTeacherTimetable rebuilds the DOM)
+            if (editMode.active) {
+                addCellClickHandlers();
+                document.getElementById('timetable-wrapper').classList.add('edit-mode-active');
+            }
+
             updateUndoButton();
-
             closeEditModal();
-            showToast('تم تسجيل التغيير بنجاح', 'success');
+            const periodLabel = periodEnd !== periodStart ? `${periodStart}–${periodEnd}` : periodStart;
+            showToast(`تم تسجيل التغيير بنجاح (${periodLabel})`, 'success');
         }
 
         function getSlotData(teacher, day, period, periodType = null) {
@@ -5129,19 +5629,51 @@
             }
         }
 
+        // Helper: return all period keys between periodStart and periodEnd (inclusive)
+        function buildPeriodRange(periodStart, periodEnd) {
+            const startIdx = periods.indexOf(periodStart);
+            const endIdx = periods.indexOf(periodEnd);
+            if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return [periodStart];
+            return periods.slice(startIdx, endIdx + 1);
+        }
+
         function undoLastChange() {
             if (editMode.pendingChanges.length === 0) return;
 
-            const lastChange = editMode.pendingChanges.pop();
+            // Pop the last group (all changes sharing the same groupId)
+            const last = editMode.pendingChanges[editMode.pendingChanges.length - 1];
+            const gid = last.groupId;
 
-            // Remove modified class from cell
-            const cells = document.querySelectorAll('#timetable tbody td.cell-modified');
-            // Find the cell for this change - simplified, you'd need more specific targeting
-            if (cells.length > 0) {
-                cells[cells.length - 1].classList.remove('cell-modified');
+            const removed = [];
+            while (editMode.pendingChanges.length > 0) {
+                const top = editMode.pendingChanges[editMode.pendingChanges.length - 1];
+                if (gid && top.groupId === gid) {
+                    removed.push(editMode.pendingChanges.pop());
+                } else {
+                    break;
+                }
+            }
+
+            // Revert each change in fetData
+            removed.forEach(ch => {
+                if (!fetData.timetables[ch.teacher]?.[ch.day]) return;
+                if (ch.oldData) {
+                    fetData.timetables[ch.teacher][ch.day][ch.periodType][ch.period] = ch.oldData;
+                } else {
+                    delete fetData.timetables[ch.teacher][ch.day][ch.periodType][ch.period];
+                }
+            });
+
+            // Re-render so the reversion is visible immediately
+            const subjectFilter = document.getElementById('subject-filter')?.value || '';
+            renderTeacherTimetable(editMode.currentTeacher, subjectFilter);
+            if (editMode.active) {
+                addCellClickHandlers();
+                document.getElementById('timetable-wrapper').classList.add('edit-mode-active');
             }
 
             updateUndoButton();
+            updateUndoRedoButtons();
             showToast('تم التراجع عن آخر تغيير', 'info');
         }
 
@@ -5312,59 +5844,29 @@
             });
         }
 
-        // Save all changes
+        // Save all changes — data already applied live; just persist to storage and exit
         function saveAllChanges() {
             if (editMode.pendingChanges.length === 0) {
                 showToast('لا توجد تغييرات معلقة', 'info');
                 return;
             }
 
-            // Apply changes to fetData
+            // Move pending changes to permanent history
+            const savedAt = new Date().toISOString();
             editMode.pendingChanges.forEach(change => {
-                const { teacher, day, period, periodType, newData } = change;
-
-                if (!fetData.timetables[teacher]) {
-                    fetData.timetables[teacher] = {};
-                }
-                if (!fetData.timetables[teacher][day]) {
-                    fetData.timetables[teacher][day] = { morning: {}, afternoon: {} };
-                }
-
-                if (newData === null) {
-                    // Delete
-                    delete fetData.timetables[teacher][day][periodType][period];
-                } else {
-                    // Add or edit
-                    fetData.timetables[teacher][day][periodType][period] = newData;
-                }
-
-                // Add to change history
-                editMode.changeHistory.push({
-                    ...change,
-                    savedAt: new Date().toISOString()
-                });
+                editMode.changeHistory.push({ ...change, savedAt });
             });
+            const savedCount = editMode.pendingChanges.length;
 
-            // Save to localStorage
+            // Persist to localStorage
             saveDataToStorage();
-
-            // Re-render timetable
-            renderTeacherTimetable(editMode.currentTeacher);
 
             // Clear pending changes
             editMode.pendingChanges = [];
             updateUndoButton();
 
-            // Remove all modified markers
-            document.querySelectorAll('.cell-modified').forEach(cell => {
-                cell.classList.remove('cell-modified');
-            });
-
-            // Clear slot highlighting
-            clearSlotHighlighting();
-
             exitEditMode();
-            showToast(`تم حفظ ${editMode.changeHistory.length} تغيير بنجاح`, 'success');
+            showToast(`تم حفظ ${savedCount} تغيير بنجاح`, 'success');
         }
 
         // Change log
@@ -5535,262 +6037,6 @@
             });
         }
 
-        // ==================== DRAG AND DROP SYSTEM ====================
-
-        let draggedData = null;
-
-        function handleDragStart(e) {
-            if (!editMode.active) return;
-
-            const cell = e.currentTarget;
-            const row = cell.parentElement;
-            const cellIndex = Array.from(row.children).indexOf(cell);
-
-            // Skip period header
-            if (cellIndex === 0) {
-                e.preventDefault();
-                return;
-            }
-
-            // Clean period text - extract ص/م to determine periodType
-            const periodRaw = row.children[0].textContent.trim();
-            const period = periodRaw.replace(/\s*[صم]\s*$/g, '').trim();
-            const dayIndex = cellIndex - 1;
-            const day = arabicDays[dayIndex];
-            // Determine periodType based on ص (morning) or م (afternoon) suffix
-            const periodType = periodRaw.includes('ص') ? 'morning' : 'afternoon';
-
-            // Get current slot data
-            let slotData = getSlotData(editMode.currentTeacher, day, period);
-
-            // If getSlotData returns null but cell has content, try to parse from HTML
-            if (!slotData && cell.textContent.trim() !== '') {
-                console.log('Slot data is null but cell has content, parsing from HTML...');
-
-                // Try to extract data from cell content
-                const cellText = cell.textContent.trim();
-                const lines = cellText.split('\n').map(l => l.trim()).filter(l => l);
-
-                if (lines.length >= 2) {
-                    slotData = {
-                        subject: lines[0],
-                        students: lines[1],
-                        room: lines[2] || ''
-                    };
-                    console.log('Parsed slot data from HTML:', slotData);
-                }
-            }
-
-            console.log('=== DRAG START DEBUG ===');
-            console.log('Day:', day, 'Period:', period);
-            console.log('Slot Data:', slotData);
-            console.log('Teacher:', editMode.currentTeacher);
-            console.log('Cell content:', cell.textContent.trim());
-
-            draggedData = {
-                day,
-                period,
-                periodType,
-                cell,
-                slotData: slotData || null
-            };
-
-            // Set currentEditSlot temporarily for highlighting to work
-            editMode.currentEditSlot = {
-                day,
-                period,
-                periodType,
-                cell
-            };
-
-            cell.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', cell.innerHTML);
-
-            // Highlight available slots based on the class being dragged
-            if (slotData && slotData.students) {
-                console.log('Highlighting for class:', slotData.students);
-                highlightAvailableSlots(slotData.students);
-                showToast(`سحب ${slotData.subject} (${slotData.students}) إلى خانة أخرى`, 'info');
-            } else if (slotData && slotData.class) {
-                // Fallback if the property is named 'class' instead
-                console.log('Highlighting for class (fallback):', slotData.class);
-                highlightAvailableSlots(slotData.class);
-                showToast(`سحب ${slotData.subject} (${slotData.class}) إلى خانة أخرى`, 'info');
-            } else {
-                console.log('No class data found in slot, skipping highlight');
-                showToast('سحب الحصة إلى خانة أخرى', 'info');
-            }
-        }
-
-        function handleDragEnd(e) {
-            const cell = e.currentTarget;
-            cell.classList.remove('dragging');
-
-            // Remove all drag-over classes
-            document.querySelectorAll('.drag-over, .drop-invalid, .drop-preview').forEach(el => {
-                el.classList.remove('drag-over', 'drop-invalid', 'drop-preview');
-            });
-
-            // Clear availability highlighting
-            clearSlotHighlighting();
-
-            // Clear temporary currentEditSlot
-            editMode.currentEditSlot = null;
-        }
-
-        function handleDragOver(e) {
-            if (!editMode.active || !draggedData) return;
-
-            e.preventDefault(); // Allow drop
-
-            const cell = e.currentTarget;
-            const row = cell.parentElement;
-            const cellIndex = Array.from(row.children).indexOf(cell);
-
-            // Skip period header
-            if (cellIndex === 0) return;
-
-            // Clean period text - extract ص/م to determine periodType
-            const periodRaw = row.children[0].textContent.trim();
-            const period = periodRaw.replace(/\s*[صم]\s*$/g, '').trim();
-            const dayIndex = cellIndex - 1;
-            const day = arabicDays[dayIndex];
-            const periodType = periodRaw.includes('ص') ? 'morning' : 'afternoon';
-
-            // Don't drop on the same cell
-            if (draggedData.cell === cell) {
-                cell.classList.add('drop-invalid');
-                e.dataTransfer.dropEffect = 'none';
-                return;
-            }
-
-            // Check if drop is valid (basic validation)
-            const targetHasActivity = getSlotData(editMode.currentTeacher, day, period);
-
-            cell.classList.remove('drop-invalid', 'drag-over');
-            cell.classList.add('drag-over', 'drop-preview');
-            e.dataTransfer.dropEffect = 'move';
-        }
-
-        function handleDragLeave(e) {
-            const cell = e.currentTarget;
-            cell.classList.remove('drag-over', 'drop-invalid', 'drop-preview');
-        }
-
-        function handleDrop(e) {
-            if (!editMode.active || !draggedData) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            const targetCell = e.currentTarget;
-            const row = targetCell.parentElement;
-            const cellIndex = Array.from(row.children).indexOf(targetCell);
-
-            // Skip period header
-            if (cellIndex === 0) return;
-
-            // Clean period text - extract ص/م to determine periodType
-            const periodRaw = row.children[0].textContent.trim();
-            const targetPeriod = periodRaw.replace(/\s*[صم]\s*$/g, '').trim();
-            const dayIndex = cellIndex - 1;
-            const targetDay = arabicDays[dayIndex];
-            // Determine periodType based on ص (morning) or م (afternoon) suffix
-            const targetPeriodType = periodRaw.includes('ص') ? 'morning' : 'afternoon';
-
-            // Don't drop on the same cell
-            if (draggedData.cell === targetCell) {
-                targetCell.classList.remove('drag-over', 'drop-invalid', 'drop-preview');
-                return;
-            }
-
-            // Get target slot data
-            const targetSlotData = getSlotData(editMode.currentTeacher, targetDay, targetPeriod);
-
-            // Validate the move if there's data to move
-            if (draggedData.slotData) {
-                const validation = validateChange(
-                    targetDay,
-                    targetPeriod,
-                    draggedData.slotData.subject,
-                    draggedData.slotData.students,
-                    false
-                );
-
-                if (!validation.valid) {
-                    showToast('لا يمكن النقل: ' + validation.messages[0].message, 'error');
-                    targetCell.classList.remove('drag-over', 'drop-invalid', 'drop-preview');
-                    return;
-                }
-            }
-
-            // Create changes for the move
-            const changes = [];
-
-            // 1. Remove from source (if there was data)
-            if (draggedData.slotData) {
-                changes.push({
-                    teacher: editMode.currentTeacher,
-                    day: draggedData.day,
-                    period: draggedData.period,
-                    periodType: draggedData.periodType,
-                    oldData: draggedData.slotData,
-                    newData: targetSlotData || null, // Swap
-                    timestamp: new Date().toISOString(),
-                    type: targetSlotData ? 'edit' : 'delete'
-                });
-            }
-
-            // 2. Add to target
-            if (draggedData.slotData || targetSlotData) {
-                changes.push({
-                    teacher: editMode.currentTeacher,
-                    day: targetDay,
-                    period: targetPeriod,
-                    periodType: targetPeriodType,
-                    oldData: targetSlotData,
-                    newData: draggedData.slotData,
-                    timestamp: new Date().toISOString(),
-                    type: draggedData.slotData ? (targetSlotData ? 'edit' : 'add') : 'delete'
-                });
-            }
-
-            // Add to pending changes
-            changes.forEach(change => editMode.pendingChanges.push(change));
-
-            // Mark cells as modified
-            draggedData.cell.classList.add('cell-modified');
-            targetCell.classList.add('cell-modified');
-
-            // Update visually (swap content)
-            const tempContent = draggedData.cell.innerHTML;
-            draggedData.cell.innerHTML = targetCell.innerHTML;
-            targetCell.innerHTML = tempContent;
-
-            // Re-add drag handles
-            addDragHandlesToCell(draggedData.cell);
-            addDragHandlesToCell(targetCell);
-
-            updateUndoButton();
-            targetCell.classList.remove('drag-over', 'drop-invalid', 'drop-preview');
-
-            showToast('تم نقل الحصة بنجاح - احفظ التغييرات لتطبيقها', 'success');
-
-            draggedData = null;
-        }
-
-        function addDragHandlesToCell(cell) {
-            // Remove existing handle
-            const existingHandle = cell.querySelector('.drag-handle');
-            if (existingHandle) existingHandle.remove();
-
-            // Add new handle
-            const handle = document.createElement('i');
-            handle.className = 'fas fa-grip-vertical drag-handle';
-            handle.title = 'اسحب للنقل';
-            cell.appendChild(handle);
-        }
     </script>
 
 </body>

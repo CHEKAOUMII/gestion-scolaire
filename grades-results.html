@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
@@ -89,7 +90,7 @@
         .gr-form-group select:focus {
             outline: none;
             border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px rgba(45, 95, 74, 0.12);
+            box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.12);
         }
 
         .gr-form-actions {
@@ -235,7 +236,7 @@
             font-size: 13px;
             font-weight: 700;
             font-family: var(--font-display);
-            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+            box-shadow: 0 2px 8px rgba(59, 106, 197, 0.25);
         }
 
         /* ─── A4 Result Sheet ─── */
@@ -287,7 +288,7 @@
         .gr-header-block .gr-doc-title {
             font-size: 16px;
             font-weight: 800;
-            color: #1B3D30;
+            color: #2F5499;
             text-align: center;
             margin: 6px 0 4px;
         }
@@ -308,7 +309,7 @@
             color: #333;
             margin-bottom: 12px;
             padding-bottom: 8px;
-            border-bottom: 2px solid #2D5F4A;
+            border-bottom: 2px solid #3B6AC5;
         }
 
         .gr-student-meta span {
@@ -444,14 +445,14 @@
 
         /* ─── Dark Theme ─── */
         [data-theme="dark"] .gr-sheet {
-            background: var(--color-surface, #1A241C) !important;
-            color: var(--color-text-main, #E8ECE9) !important;
+            background: var(--color-surface, #1A1A1A) !important;
+            color: var(--color-text-main, #E8E8E8) !important;
             box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
         }
 
         [data-theme="dark"] .gr-sheet table th {
-            background: var(--ux-bg, #222E25) !important;
-            color: var(--color-text-main, #E8ECE9) !important;
+            background: var(--ux-bg, #222222) !important;
+            color: var(--color-text-main, #E8E8E8) !important;
         }
 
         [data-theme="dark"] .gr-sheet table td,
@@ -461,7 +462,7 @@
         [data-theme="dark"] .gr-decision-box,
         [data-theme="dark"] .gr-observations,
         [data-theme="dark"] .gr-decision-item .gr-checkbox {
-            border-color: var(--ux-border, #3A4A3E) !important;
+            border-color: var(--ux-border, #3A3B38) !important;
         }
 
         [data-theme="dark"] .gr-doc-title {

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#2D5F4A">
+    <meta name="theme-color" content="#3B6AC5">
     <title>برنامج التدبير المدرسي | الثانوية التأهيلية ابن سينا</title>
     <meta name="description" content="نظام التدبير المدرسي المتكامل لإدارة شؤون التلاميذ">
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js" defer></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/backup.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
@@ -119,6 +120,8 @@
             </div>
         </section>
 
+
+
         <section class="movement-section" id="movement-section"></section>
     </main>
 
@@ -149,27 +152,6 @@
     </div>
     <input type="file" id="backup-file-input" accept=".json,.bak" style="display:none;" aria-hidden="true">
 
-
-    <!-- Quick Navigation Panel (populated dynamically from sidebar links) -->
-    <nav class="quick-nav-panel" id="quick-nav-panel" aria-label="التنقل السريع">
-        <div class="quick-nav-header">
-            <h3><i class="fas fa-compass" aria-hidden="true"></i> التنقل السريع</h3>
-            <button class="quick-nav-close" id="quick-nav-close" aria-label="إغلاق لوحة التنقل">
-                <i class="fas fa-times" aria-hidden="true"></i>
-            </button>
-        </div>
-        <div class="quick-nav-search">
-            <input type="text" id="quick-nav-search-input" placeholder="بحث..." aria-label="بحث في الصفحات">
-        </div>
-        <div class="quick-nav-list" id="quick-nav-pages-list">
-            <!-- Populated dynamically by ux-enhancements.js from sidebar links -->
-        </div>
-    </nav>
-
-    <!-- Quick Nav Toggle Button -->
-    <button class="quick-nav-toggle" id="quick-nav-toggle" title="التنقل السريع (Ctrl+K)" aria-label="التنقل السريع">
-        <i class="fas fa-compass" aria-hidden="true"></i>
-    </button>
 
     <!-- Keyboard Shortcuts Modal -->
     <div class="shortcuts-modal" id="shortcuts-modal" role="dialog" aria-labelledby="shortcuts-modal-title"
@@ -221,6 +203,7 @@
         </div>
     </div>
 
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
     <script src="app.js" defer></script>
     <script src="js/pages/dashboard-init.js" defer></script>
 </body>

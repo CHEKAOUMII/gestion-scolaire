@@ -1,4 +1,4 @@
-const { BrowserWindow, dialog, shell } = require('electron');
+﻿const { BrowserWindow, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,7 +26,8 @@ async function printHTML(opts = {}) {
         landscape = false,
         mode = 'pdf',
         defaultFileName,
-        parentWindow
+        parentWindow,
+        skipAutoLetterhead = false
     } = opts;
 
     // Read actual app CSS files from disk
@@ -46,8 +47,24 @@ async function printHTML(opts = {}) {
         }
     }
 
+    // Auto-inject letterhead unless opt-out
+    let finalBodyHTML = htmlContent;
+    if (!skipAutoLetterhead) {
+        try {
+            const { renderLetterhead } = require('./reports/letterhead');
+            const { getDb } = require('./db/context');
+            const db = getDb();
+            const yearRow = db.prepare("SELECT value FROM settings WHERE key = 'currentSchoolYear'").get();
+            const schoolYear = yearRow?.value || '';
+            const letterheadHTML = renderLetterhead({ schoolYear });
+            finalBodyHTML = letterheadHTML + finalBodyHTML;
+        } catch (err) {
+            console.error('[print-window] letterhead injection failed:', err);
+        }
+    }
+
     // Build the full HTML document with real app CSS
-    const fullHTML = buildPrintDocument(htmlContent, title, appCSS, inlineStyles);
+    const fullHTML = buildPrintDocument(finalBodyHTML, title, appCSS, inlineStyles);
 
     // Write HTML to a temp file to avoid data-URL size limits (base64 chart images
     // can push the payload well past Chromium's practical data-URL cap).
@@ -226,17 +243,30 @@ body {
     text-align: center;
     margin-bottom: 16px;
     padding-bottom: 10px;
-    border-bottom: 2px solid var(--color-primary, #2D5F4A);
+    border-bottom: 2px solid var(--color-primary, #3B6AC5);
 }
 .print-header .school-name,
 .print-header h1 {
     font-size: 20px;
     font-weight: 700;
-    color: var(--color-primary, #2D5F4A);
+    color: var(--color-primary, #3B6AC5);
 }
 .print-header .doc-title { font-size: 15px; color: #333; margin-top: 4px; }
 .print-header .doc-date  { font-size: 11px; color: #777; margin-top: 2px; }
 .print-header p { margin: 4px 0; font-size: 13px; color: #666; }
+
+/* Grade sheet — flatten the A4 "page-within-page" when printed via printHTML */
+.gs-sheet-wrapper { display: block !important; }
+.gs-sheet {
+    width: 100% !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+}
+.gs-sheet-title { display: none !important; }
+.gs-letterhead { display: none !important; }
 
 /* Table print adjustments */
 table { page-break-inside: auto; border-collapse: collapse !important; width: 100% !important; }
@@ -260,7 +290,7 @@ tr { page-break-inside: avoid; page-break-after: auto; }
     width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important;
 }
 .timetable th, .room-timetable th, .room-timetable-wrapper th, .class-timetable-wrapper th {
-    background: linear-gradient(135deg, #2D5F4A, #4A8B6F) !important;
+    background: linear-gradient(135deg, #3B6AC5, #5B84D6) !important;
     color: #fff !important; padding: 4px 3px !important; font-size: 8px !important; font-weight: 600 !important;
     -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
 }
@@ -327,7 +357,7 @@ tr { page-break-inside: avoid; page-break-after: auto; }
     width: 100%; height: 3px;
     border-radius: 6px 6px 0 0;
 }
-.report-kpi-card:nth-child(1)::before { background: linear-gradient(135deg, #2D5F4A, #4A8B6F); }
+.report-kpi-card:nth-child(1)::before { background: linear-gradient(135deg, #3B6AC5, #5B84D6); }
 .report-kpi-card:nth-child(2)::before { background: linear-gradient(90deg, #2ECC71, #38ef7d); }
 .report-kpi-card:nth-child(3)::before { background: linear-gradient(90deg, #F0AD4E, #ffd200); }
 .report-kpi-card:nth-child(4)::before { background: linear-gradient(90deg, #a770ef, #cf8bf3); }
@@ -344,7 +374,7 @@ tr { page-break-inside: avoid; page-break-after: auto; }
     print-color-adjust: exact !important;
 }
 .report-kpi-label { font-size: 9px; color: #6B7B72; font-weight: 600; margin-bottom: 2px; }
-.report-kpi-value { font-size: 16px; font-weight: 800; color: #1F2D24; line-height: 1.1; margin-bottom: 1px; }
+.report-kpi-value { font-size: 16px; font-weight: 800; color: #111111; line-height: 1.1; margin-bottom: 1px; }
 .report-kpi-sub { font-size: 8px; color: #9CA8A0; }
 
 /* Grid layouts — compact */
@@ -375,16 +405,16 @@ tr { page-break-inside: avoid; page-break-after: auto; }
 }
 .report-panel h4 {
     margin: 0 0 8px !important;
-    color: #2D5F4A !important;
+    color: #3B6AC5 !important;
     font-size: 11px !important;
     font-weight: 700 !important;
     display: flex !important;
     align-items: center !important;
     gap: 5px !important;
     padding-bottom: 6px !important;
-    border-bottom: 1.5px solid #E8ECE9 !important;
+    border-bottom: 1.5px solid #E8E8E8 !important;
 }
-.report-panel h4 i { font-size: 12px; color: #4A8B6F; }
+.report-panel h4 i { font-size: 12px; color: #5B84D6; }
 
 /* Canvas / chart images — constrained height */
 .report-canvas,
@@ -434,14 +464,14 @@ details.report-block > .report-block-body {
 }
 .report-progress-item {
     background: #f8faf9 !important;
-    border: 1px solid #E8ECE9 !important;
+    border: 1px solid #E8E8E8 !important;
     border-radius: 6px !important;
     padding: 7px 10px !important;
     break-inside: avoid;
     page-break-inside: avoid;
 }
 .report-progress-title {
-    font-size: 10px; color: #1F2D24; font-weight: 700;
+    font-size: 10px; color: #111111; font-weight: 700;
     margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
 }
 .report-progress-title i { font-size: 11px; }
@@ -479,7 +509,7 @@ details.report-block > .report-block-body {
     font-size: 10px !important;
 }
 .report-summary-table th {
-    background: linear-gradient(135deg, #2D5F4A, #4A8B6F) !important;
+    background: linear-gradient(135deg, #3B6AC5, #5B84D6) !important;
     color: #fff !important;
     font-weight: 700 !important;
     font-size: 10px !important;
@@ -487,8 +517,8 @@ details.report-block > .report-block-body {
     print-color-adjust: exact !important;
 }
 .report-summary-table td {
-    color: #1F2D24 !important;
-    border-bottom: 1px solid #E8ECE9 !important;
+    color: #111111 !important;
+    border-bottom: 1px solid #E8E8E8 !important;
 }
 .report-summary-table tbody tr:nth-child(even) {
     background: #f8faf9 !important;

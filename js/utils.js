@@ -62,8 +62,16 @@ const PAGE_DEFAULT_VISIBILITY = Object.freeze(
 
 const MANAGED_PAGE_SET = new Set(Object.keys(PAGE_DEFAULT_VISIBILITY));
 
+const TRIAL_BANNER_DISMISSED_KEY = 'trial_banner_dismissed';
+const TRIAL_BANNER_SHOWN_ON_OPEN_KEY = 'trial_banner_shown_on_open';
+
 let _activationModalEl = null;
 let _limitedNoticeClosedForPage = false;
+try {
+    _limitedNoticeClosedForPage = sessionStorage.getItem(TRIAL_BANNER_DISMISSED_KEY) === '1';
+} catch (_err) {
+    _limitedNoticeClosedForPage = false;
+}
 let _refreshToken = 0;  // stale-request guard for refreshLimitedModeNotice
 let _pageVisibilityState = null;
 let _pageVisibilityLoadPromise = null;
@@ -613,8 +621,29 @@ function _removeLimitedNotice() {
     if (banner) banner.remove();
 }
 
+function _isLimitedNoticeShownThisAppOpen() {
+    try {
+        return sessionStorage.getItem(TRIAL_BANNER_SHOWN_ON_OPEN_KEY) === '1';
+    } catch (_err) {
+        return false;
+    }
+}
+
+function _markLimitedNoticeShownThisAppOpen() {
+    try {
+        sessionStorage.setItem(TRIAL_BANNER_SHOWN_ON_OPEN_KEY, '1');
+    } catch (_err) {
+        // ignore storage write errors
+    }
+}
+
 function _dismissLimitedNotice() {
     _limitedNoticeClosedForPage = true;
+    try {
+        sessionStorage.setItem(TRIAL_BANNER_DISMISSED_KEY, '1');
+    } catch (_err) {
+        // ignore storage write errors
+    }
     _removeLimitedNotice();
 }
 
@@ -772,14 +801,24 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
         return;
     }
 
+    const existingBanner = document.getElementById('limited-mode-banner');
+
+    if (_limitedNoticeClosedForPage) {
+        _removeLimitedNotice();
+        return;
+    }
+
+    if (!existingBanner && _isLimitedNoticeShownThisAppOpen()) {
+        return;
+    }
+
     // Trial mode: show trial info banner
     if (mode === 'trial') {
-        _removeLimitedNotice();
         const mainContent = document.querySelector('main.main-content');
         if (!mainContent) return;
 
         const daysRemaining = activationStatus?.trialDaysRemaining ?? 0;
-        const existing = document.getElementById('limited-mode-banner');
+        const existing = existingBanner;
         const urgency = daysRemaining <= 7 ? 'border:1px solid #fecaca;background:#fef2f2;color:#991b1b;' :
             daysRemaining <= 30 ? 'border:1px dashed #f59e0b;background:#fff8e8;color:#7a4b0e;' :
                 'border:1px solid #b4c9f0;background:#e8f0fe;color:#1a56db;';
@@ -814,6 +853,8 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
             }
         }
 
+        _markLimitedNoticeShownThisAppOpen();
+
         document.getElementById('limited-close-btn')?.addEventListener('click', _dismissLimitedNotice);
         document.getElementById('limited-activate-btn')?.addEventListener('click', () => {
             void openActivationModal();
@@ -822,16 +863,11 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
     }
 
     // Limited mode (original behavior)
-    if (_limitedNoticeClosedForPage) {
-        _removeLimitedNotice();
-        return;
-    }
-
     const mainContent = document.querySelector('main.main-content');
     if (!mainContent) return;
 
     const isActivated = !!activationStatus?.activated;
-    const existing = document.getElementById('limited-mode-banner');
+    const existing = existingBanner;
     const html = `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -861,6 +897,8 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
             mainContent.insertAdjacentElement('afterbegin', banner);
         }
     }
+
+    _markLimitedNoticeShownThisAppOpen();
 
     document.getElementById('limited-close-btn')?.addEventListener('click', _dismissLimitedNotice);
     document.getElementById('limited-activate-btn')?.addEventListener('click', () => {
@@ -1161,12 +1199,18 @@ function escapeHtml(text) {
 // ===== Toast Messages =====
 /**
  * عرض رسالة Toast
- * @param {string} message - نص الرسالة
- * @param {string} type - نوع الرسالة: 'success' | 'error' | 'warning' | 'info'
- * @param {number} duration - مدة الظهور بالمللي ثانية (افتراضي: 3000)
+ * Delegates to the unified Notification Engine (js/notifications.js).
+ * Kept as a thin wrapper so pages that load utils.js before notifications.js
+ * still get a working showToast until the full script loads.
  */
 function showToast(message, type = 'success', duration = 3000) {
-    // إنشاء container إذا لم يكن موجوداً
+    // If the unified SDK has loaded it will have set window.showToast.
+    // Avoid infinite recursion: only delegate when window.showToast !== this function.
+    if (window.showToast && window.showToast !== showToast) {
+        return window.showToast(message, type, duration);
+    }
+
+    // Inline fallback (identical to js/notifications.js renderToast)
     let container = document.getElementById('toast-container');
     if (!container) {
         container = document.createElement('div');
@@ -1175,7 +1219,6 @@ function showToast(message, type = 'success', duration = 3000) {
         document.body.appendChild(container);
     }
 
-    // إنشاء Toast جديد مع حماية XSS
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
 
@@ -1189,13 +1232,12 @@ function showToast(message, type = 'success', duration = 3000) {
     icon.className = `fas ${iconClass[type] || iconClass.info}`;
 
     const span = document.createElement('span');
-    span.textContent = message; // آمن من XSS
+    span.textContent = message;
 
     toast.appendChild(icon);
     toast.appendChild(span);
     container.appendChild(toast);
 
-    // إزالة Toast بعد المدة المحددة
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(-20px)';

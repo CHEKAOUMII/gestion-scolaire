@@ -127,6 +127,36 @@
         }
     }
 
+    // ─── Build inline letterhead HTML from identity ───
+    function buildLetterheadHTML(id, year) {
+        if (!id || (!id.school_name && !id.ministry)) return '';
+        const e = escapeHtml;
+        const logo = id.logo_base64
+            ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+            : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>';
+
+        return `
+        <div class="gs-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px; margin-bottom: 14px;">
+            <table style="width: 100%; border-collapse: collapse;" role="presentation">
+                <tr>
+                    <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
+                        <div style="font-size: 11px; font-weight: 700; color: #222;">${e(id.country || '')}</div>
+                        <div style="font-size: 9.5px; color: #555; margin-top: 2px;">${e(id.ministry || '')}</div>
+                        ${id.academy ? `<div style="font-size: 9px; color: #666; margin-top: 2px;">${e(id.academy)}</div>` : ''}
+                        ${id.directorate ? `<div style="font-size: 9px; color: #666; margin-top: 1px;">${e(id.directorate)}</div>` : ''}
+                    </td>
+                    <td style="width: 10%; text-align: center; vertical-align: middle;">${logo}</td>
+                    <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
+                        <div style="font-size: 13px; font-weight: 800; color: #3B6AC5;">${e(id.school_name || '')}</div>
+                        ${id.school_code ? `<div style="font-size: 9px; color: #888; margin-top: 2px;">رمز المؤسسة: ${e(id.school_code)}</div>` : ''}
+                        ${id.commune ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">الجماعة: ${e(id.commune)}</div>` : ''}
+                        ${year ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${e(year)}</div>` : (id.school_year ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${e(id.school_year)}</div>` : '')}
+                    </td>
+                </tr>
+            </table>
+        </div>`;
+    }
+
     // ─── Generate ───
     async function generate() {
         const className = classSelect()?.value;
@@ -143,7 +173,11 @@
         updateButtons(false);
 
         try {
-            const students = (await window.api.students.search('', className, '', year)) || [];
+            // Fetch students + identity in parallel
+            const [students, identity] = await Promise.all([
+                window.api.students.search('', className, '', year).then((r) => r || []),
+                window.api.reports.getIdentity().catch(() => ({}))
+            ]);
             currentStudents = students;
 
             if (students.length === 0) {
@@ -160,6 +194,8 @@
                 month: '2-digit',
                 day: '2-digit'
             }).format(now);
+
+            const letterheadHTML = buildLetterheadHTML(identity, year);
 
             const tableRows = students
                 .map(
@@ -182,6 +218,7 @@
             body.innerHTML = `
                 <div class="gs-sheet-wrapper">
                     <div class="gs-sheet" id="gs-sheet-content">
+                        ${letterheadHTML}
                         <div class="gs-sheet-title">ورقة التنقيط</div>
                         <div class="gs-sheet-subtitle">${escapeHtml(className)} — ${escapeHtml(subject)}</div>
                         <div class="gs-sheet-meta">
@@ -253,117 +290,83 @@
         }
     }
 
-    // ─── Print Preview (shared UX system) ───
+    // ─── Collect page-specific styles for the print window ───
+    function getPageStyles() {
+        const styles = [];
+        document.querySelectorAll('style').forEach((s) => {
+            styles.push(s.textContent);
+        });
+        return styles.join('\n');
+    }
+
+    // ─── Print Preview (via shared UX preview — includes Print + PDF buttons) ───
     function openPreview() {
         if (!isGenerated || !currentStudents.length) {
             if (typeof showToast === 'function') showToast('قم بتوليد ورقة التنقيط أولاً', 'warning');
             return;
         }
+        const sheetEl = document.getElementById('gs-sheet-content');
+        if (!sheetEl) return;
+
+        // Use the shared print preview system which has Print + PDF export
         openPrintPreview({
+            contentSelector: '#gs-sheet-content',
             title: 'ورقة التنقيط',
-            pageSize: 'A4',
-            contentSelector: '#gs-sheet-content'
+            pageSize: 'A4'
         });
     }
 
-    // ─── Export PDF ───
+    // ─── Export PDF (via printHTML — auto-injects letterhead) ───
     async function exportPdf() {
         if (!isGenerated || !currentStudents.length) {
             if (typeof showToast === 'function') showToast('قم بتوليد ورقة التنقيط أولاً', 'warning');
             return;
         }
-
-        // Use the shared UX print system
         const sheetEl = document.getElementById('gs-sheet-content');
         if (!sheetEl) return;
 
-        // Capture the sheet HTML
-        const capturedHTML = sheetEl.outerHTML;
-
-        // Enable print mode (shared from ux-enhancements)
-        let root = document.getElementById('ux-print-root');
-        if (!root) {
-            root = document.createElement('div');
-            root.id = 'ux-print-root';
-            document.body.appendChild(root);
-        }
-        root.innerHTML = capturedHTML;
-        if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
-        document.body.classList.add('ux-printing-active');
-
-        await new Promise((r) => setTimeout(r, 300));
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
         try {
-            if (window.api?.system?.printToPDF) {
-                const result = await window.api.system.printToPDF({
-                    printBackground: true,
-                    pageSize: 'A4',
-                    landscape: false,
-                    margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
-                });
-                if (result?.success) {
-                    if (typeof showToast === 'function') showToast('تم تصدير ورقة التنقيط بنجاح', 'success');
-                } else if (result?.error !== 'Cancelled by user') {
-                    if (typeof showToast === 'function') showToast('تعذر التصدير: ' + (result?.error || ''), 'error');
-                }
-            } else {
-                if (typeof showToast === 'function') showToast('تصدير PDF غير متاح', 'warning');
+            const result = await window.api.system.printHTML({
+                htmlContent: sheetEl.outerHTML,
+                inlineStyles: getPageStyles(),
+                title: 'ورقة التنقيط',
+                pageSize: 'A4',
+                mode: 'pdf',
+                defaultFileName: 'ورقة_التنقيط'
+            });
+            if (result?.success) {
+                if (typeof showToast === 'function') showToast('تم تصدير ورقة التنقيط بنجاح', 'success');
+            } else if (result?.error !== 'Cancelled by user') {
+                if (typeof showToast === 'function') showToast('تعذر التصدير: ' + (result?.error || ''), 'error');
             }
         } catch (err) {
             console.warn('PDF export error:', err);
             if (typeof showToast === 'function') showToast('تعذر تصدير الملف', 'error');
-        } finally {
-            document.body.classList.remove('ux-printing-active');
-            if (root) root.innerHTML = '';
-            if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
         }
     }
 
-    // ─── Direct Print ───
+    // ─── Direct Print (via printHTML — auto-injects letterhead) ───
     async function directPrint() {
         if (!isGenerated || !currentStudents.length) {
             if (typeof showToast === 'function') showToast('قم بتوليد ورقة التنقيط أولاً', 'warning');
             return;
         }
-
         const sheetEl = document.getElementById('gs-sheet-content');
         if (!sheetEl) return;
 
-        const capturedHTML = sheetEl.outerHTML;
-
-        let root = document.getElementById('ux-print-root');
-        if (!root) {
-            root = document.createElement('div');
-            root.id = 'ux-print-root';
-            document.body.appendChild(root);
-        }
-        root.innerHTML = capturedHTML;
-        if (typeof _forceLightThemeForPrint === 'function') _forceLightThemeForPrint();
-        document.body.classList.add('ux-printing-active');
-
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
         try {
-            if (window.api?.system?.printCurrentWindow) {
-                const result = await window.api.system.printCurrentWindow({
-                    printBackground: true,
-                    pageSize: 'A4',
-                    landscape: false,
-                    margins: { marginType: 'default' }
-                });
-                if (result?.success) {
-                    if (typeof showToast === 'function') showToast('تم إرسال ورقة التنقيط للطباعة', 'success');
-                }
-            } else {
-                window.print();
+            const result = await window.api.system.printHTML({
+                htmlContent: sheetEl.outerHTML,
+                inlineStyles: getPageStyles(),
+                title: 'ورقة التنقيط',
+                pageSize: 'A4',
+                mode: 'print'
+            });
+            if (result?.success) {
+                if (typeof showToast === 'function') showToast('تم إرسال ورقة التنقيط للطباعة', 'success');
             }
         } catch (err) {
             console.warn('Print error:', err);
-        } finally {
-            document.body.classList.remove('ux-printing-active');
-            if (root) root.innerHTML = '';
-            if (typeof _restoreThemeAfterPrint === 'function') _restoreThemeAfterPrint();
         }
     }
 

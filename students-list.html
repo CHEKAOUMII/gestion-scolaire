@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js" defer></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/cc-rules.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
@@ -144,7 +145,7 @@
             font-size: 13px;
             font-weight: 700;
             font-family: var(--font-display);
-            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+            box-shadow: 0 2px 8px rgba(59, 106, 197, 0.25);
         }
 
         .sl-results-actions {
@@ -185,7 +186,7 @@
         }
 
         .sl-table th:hover {
-            background: linear-gradient(135deg, #1B3D30 0%, #2D5F4A 100%);
+            background: linear-gradient(135deg, #2F5499 0%, #3B6AC5 100%);
         }
 
         .sl-table th .sort-icon {
@@ -291,7 +292,7 @@
             font-weight: 600;
             background: var(--color-primary-mist);
             color: var(--color-primary);
-            border: 1px solid rgba(45, 95, 74, 0.15);
+            border: 1px solid rgba(59, 106, 197, 0.15);
         }
 
         /* --- Empty State --- */
@@ -419,7 +420,7 @@
             background: var(--gradient-primary);
             color: #fff;
             border-color: transparent;
-            box-shadow: 0 2px 8px rgba(45, 95, 74, 0.25);
+            box-shadow: 0 2px 8px rgba(59, 106, 197, 0.25);
         }
 
         .sl-pagination button:disabled {
@@ -619,7 +620,7 @@
             color: #fff;
             border-color: var(--color-primary);
             transform: translateY(-1px);
-            box-shadow: 0 3px 10px rgba(45, 95, 74, 0.25);
+            box-shadow: 0 3px 10px rgba(59, 106, 197, 0.25);
         }
 
         /* --- Student Modal --- */
@@ -656,7 +657,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 18px 22px;
-            background: linear-gradient(135deg, var(--color-primary-soft, var(--color-primary-mist)), rgba(74, 139, 111, 0.08));
+            background: linear-gradient(135deg, var(--color-primary-soft, var(--color-primary-mist)), rgba(91, 132, 214, 0.08));
             border-bottom: 1px solid var(--color-accent);
         }
 
@@ -812,6 +813,22 @@
             }
         }
 
+        /* Print preview sheet overrides */
+        .ux-pp-sheet .sl-results-section,
+        .ux-pp-sheet .sl-table-wrapper,
+        .ux-pp-sheet .grades-container {
+            border: none !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            padding: 0 !important;
+            background: transparent !important;
+        }
+
+        .ux-pp-sheet .sidebar {
+            display: none !important;
+        }
+
         /* Forced print mode now handled by shared ux-enhancements system */
     </style>
 </head>
@@ -862,6 +879,9 @@
                     <input id="search-code" name="search-code" type="text" placeholder="رمز مسار" autocomplete="off">
                     <button class="btn btn-primary" type="submit"><i class="fas fa-search" aria-hidden="true"></i>
                         بحث</button>
+                    <button class="btn btn-primary ux-print-preview-btn" type="button" id="print-preview-btn" disabled>
+                        <i class="fas fa-eye" aria-hidden="true"></i> معاينة الطباعة
+                    </button>
                 </form>
             </div>
 
@@ -873,12 +893,6 @@
                         لائحة التلاميذ
                         <span id="count-badge" class="sl-count-badge" aria-live="polite">0</span>
                     </h3>
-                    <div class="sl-results-actions">
-                        <button class="btn btn-primary ux-print-preview-btn" type="button" id="print-preview-btn"
-                            disabled>
-                            <i class="fas fa-eye" aria-hidden="true"></i> معاينة الطباعة
-                        </button>
-                    </div>
                 </div>
 
                 <div class="sl-table-wrapper">

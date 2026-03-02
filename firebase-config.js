@@ -63,26 +63,4 @@ async function logout() {
     window.location.replace('login.html');
 }
 
-function showToast(message, type = 'success') {
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-
-    const icon = document.createElement('i');
-    icon.className = `fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}`;
-
-    const span = document.createElement('span');
-    span.textContent = message;
-
-    toast.appendChild(icon);
-    toast.appendChild(span);
-    document.body.appendChild(toast);
-
-    setTimeout(() => toast.classList.add('show'), 100);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
+// showToast is now provided by js/notifications.js (Unified Notification Engine)

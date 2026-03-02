@@ -1,4 +1,4 @@
-const year = '2025/2026';
+﻿const year = '2025/2026';
 let students = [];
 let filteredStudents = [];
 let currentPage = 1;
@@ -8,7 +8,7 @@ let sortDirection = 'asc';
 
 // Avatar color palette
 const avatarColors = [
-    '#2D5F4A',
+    '#3B6AC5',
     '#3C95D0',
     '#E67F22',
     '#9B59B6',
@@ -649,64 +649,40 @@ function openSlPrintPreview() {
     }
 
     const classFilter = document.getElementById('search-class').value || 'كل الأقسام';
-    const now = new Date();
-    const dateStr = new Intl.DateTimeFormat('ar-MA', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    }).format(now);
 
-    let tableRows = filteredStudents
+    // Save current table state
+    const tbody = document.getElementById('students-tbody');
+    const savedTbody = tbody.innerHTML;
+    const paginationEl = document.getElementById('pagination');
+    const savedPagination = paginationEl.innerHTML;
+    const savedPaginationDisplay = paginationEl.style.display;
+
+    // Render ALL students (not just current page) into the table
+    tbody.innerHTML = filteredStudents
         .map(
             (s, i) => `
         <tr>
             <td style="text-align:center">${i + 1}</td>
-            <td>${escapeHtml(s.massar_code || '-')}</td>
+            <td><code style="font-size:13px;color:var(--color-text-muted)">${escapeHtml(s.massar_code || '-')}</code></td>
             <td>${escapeHtml(s.full_name || '-')}</td>
-            <td>${escapeHtml(s.class_name || '-')}</td>
+            <td><span class="sl-class-badge">${escapeHtml(s.class_name || '-')}</span></td>
             <td>${isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-'}</td>
             <td>${escapeHtml(s.birth_date || '-')}</td>
+            <td></td>
         </tr>
     `
         )
         .join('');
 
-    // Build temporary print source element
-    let printSource = document.getElementById('sl-print-source');
-    if (printSource) printSource.remove();
-    printSource = document.createElement('div');
-    printSource.id = 'sl-print-source';
-    printSource.style.cssText = 'position:absolute;left:-99999px;top:0;width:210mm;';
-    printSource.innerHTML = `
-        <section class="students-results">
-            <div style="text-align:center;margin-bottom:16px;">
-                <div style="font-size:20px;font-weight:800;color:#1B3D30;margin-bottom:6px;">لائحة التلاميذ</div>
-                <div style="font-size:13px;color:#6B7B72;">${escapeHtml(classFilter)} — السنة الدراسية ${year} — العدد: ${filteredStudents.length}</div>
-            </div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid #d6dde3;">
-                <thead>
-                    <tr>
-                        <th style="text-align:center">#</th>
-                        <th>رمز مسار</th>
-                        <th>الاسم الكامل</th>
-                        <th>القسم</th>
-                        <th>الجنس</th>
-                        <th>تاريخ الازدياد</th>
-                    </tr>
-                </thead>
-                <tbody>${tableRows}</tbody>
-            </table>
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:#6B7B72;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:8px;">
-                <span>تاريخ الطباعة: ${dateStr}</span>
-                <span>برنامج التدبير المدرسي — ${year}</span>
-            </div>
-        </section>
-    `;
-    document.body.appendChild(printSource);
+    // Hide pagination for print
+    paginationEl.style.display = 'none';
 
-    // Use the shared print preview system
+    // Update count badge text for print
+    const feedbackEl = document.getElementById('students-feedback');
+    const savedFeedback = feedbackEl ? feedbackEl.textContent : '';
+    if (feedbackEl) feedbackEl.textContent = `${classFilter} — السنة الدراسية ${year} — العدد: ${filteredStudents.length}`;
+
+    // Use the shared print preview system (without contentSelector → letterhead auto-injected)
     try {
         const previewFn =
             (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
@@ -716,15 +692,16 @@ function openSlPrintPreview() {
             previewFn({
                 title: 'لائحة التلاميذ',
                 pageSize: 'A4',
-                contentSelector: '#sl-print-source .students-results',
                 defaultFileName: `لائحة_التلاميذ_${year.replace('/', '-')}`
             });
         } else {
             window.print();
         }
     } finally {
-        setTimeout(() => {
-            if (printSource) printSource.remove();
-        }, 500);
+        // Restore original table state
+        tbody.innerHTML = savedTbody;
+        paginationEl.innerHTML = savedPagination;
+        paginationEl.style.display = savedPaginationDisplay;
+        if (feedbackEl) feedbackEl.textContent = savedFeedback;
     }
 }

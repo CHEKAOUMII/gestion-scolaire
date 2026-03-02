@@ -1,0 +1,284 @@
+/*
+ * ╔══════════════════════════════════════════════════════════════╗
+ * ║  Pencil Design Theme — Dark / White                         ║
+ * ║  Tokens extracted from: pencil-welcome-desktop.pen          ║
+ * ║  Light mode : neutral warm white  (#F2F3F0 / #FFFFFF)       ║
+ * ║  Dark mode  : true dark           (#111111 / #1A1A1A)       ║
+ * ║  Primary    : blue                #4A7BF7                   ║
+ * ╚══════════════════════════════════════════════════════════════╝
+ */
+
+/* ─────────────────────────────────────────
+   LIGHT MODE  (Pencil "Mode: Light")
+   Overrides the existing green-tinted palette
+   with the Pencil neutral-white palette.
+───────────────────────────────────────── */
+:root {
+    /* ── Core surfaces ── */
+    --color-secondary: #F2F3F0;
+    /* page background   (--background)      */
+    --color-surface: #FFFFFF;
+    /* card background   (--card)            */
+    --color-surface-alt: #E7E8E5;
+    /* secondary surface (--secondary)       */
+
+    /* ── Text ── */
+    --color-text-main: #111111;
+    /* primary text      (--foreground)      */
+    --color-text-muted: #666666;
+    /* muted text        (--muted-foreground)*/
+    --color-text-light: #999999;
+    /* light text                            */
+
+    /* ── Brand / Primary ── */
+    --color-primary: #3B6AC5;
+    /* primary accent    (--primary)         */
+    --color-primary-dark: #2F5499;
+    /* darker blue                           */
+    --color-primary-light: #5B84D6;
+    /* lighter blue                          */
+    --color-primary-mist: rgba(59, 106, 197, 0.08);
+
+    /* ── Borders ── */
+    --color-accent: #CBCCC9;
+    /* border color      (--border / --input)*/
+    --color-silver: #B0B1AE;
+
+    /* ── Sidebar ── */
+    --glass-bg: #E7E8E5;
+    /* sidebar fill      (--sidebar)         */
+    --glass-border: #CBCCC9;
+    /* sidebar border    (--sidebar-border)  */
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    --glass-blur: blur(0px);
+    /* sidebar is solid, not frosted         */
+
+    /* ── Semantic colours ── */
+    --color-success: #004D1A;
+    --color-warning: #804200;
+    --color-danger: #8C1C00;
+
+    /* ── Shadows (lighter, neutral) ── */
+    --shadow-soft:
+        6px 6px 16px rgba(203, 204, 201, 0.45),
+        -6px -6px 16px rgba(255, 255, 255, 0.8);
+    --shadow-card:
+        0 1px 3px rgba(17, 17, 17, 0.04),
+        0 4px 12px rgba(17, 17, 17, 0.03);
+    --shadow-hover:
+        0 8px 24px rgba(17, 17, 17, 0.08),
+        0 2px 6px rgba(17, 17, 17, 0.04);
+    --shadow-elevated:
+        0 12px 40px rgba(17, 17, 17, 0.10),
+        0 4px 12px rgba(17, 17, 17, 0.05);
+
+    /* ── Gradients ── */
+    --gradient-primary: linear-gradient(135deg, #3B6AC5 0%, #5B84D6 100%);
+    --gradient-surface: linear-gradient(180deg, #FFFFFF 0%, #F2F3F0 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(242, 243, 240, 0.7) 100%);
+
+    /* ── Radius (matches Pencil --radius-m = 16, --radius-pill = 999) ── */
+    --radius-sm: 8px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+    --radius-full: 9999px;
+}
+
+/* ─────────────────────────────────────────
+   DARK MODE  (Pencil "Mode: Dark")
+   Triggered by  data-theme="dark"  on <html>
+   (set automatically by ux-enhancements.js)
+───────────────────────────────────────── */
+[data-theme="dark"] {
+    /* ── Core surfaces ── */
+    --color-secondary: #111111;
+    /* page background   (--background Dark) */
+    --color-surface: #1A1A1A;
+    /* card background   (--card Dark)       */
+    --color-surface-alt: #2E2E2E;
+    /* secondary surface (--secondary Dark)  */
+
+    /* ── Text ── */
+    --color-text-main: #FFFFFF;
+    /* primary text      (--foreground Dark) */
+    --color-text-muted: #B8B9B6;
+    /* muted text        (--muted-fg Dark)   */
+    --color-text-light: #6B6C69;
+
+    /* ── Brand stays blue in both modes ── */
+    --color-primary: #3B6AC5;
+    --color-primary-dark: #2F5499;
+    --color-primary-light: #5B84D6;
+    --color-primary-mist: rgba(59, 106, 197, 0.12);
+
+    /* ── Borders ── */
+    --color-accent: #2E2E2E;
+    /* border            (--border Dark)     */
+    --color-silver: #3A3B38;
+
+    /* ── Sidebar ── */
+    --glass-bg: #18181b;
+    /* sidebar fill      (--sidebar Dark)    */
+    --glass-border: rgba(255, 255, 255, 0.10);
+    /* (--sidebar-border Dark) */
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --glass-blur: blur(0px);
+
+    /* ── Semantic colours (dark-mode warm tones) ── */
+    --color-success: #B6FFCE;
+    --color-warning: #FF8400;
+    --color-danger: #FF5C33;
+
+    /* ── Shadows (deeper in dark) ── */
+    --shadow-soft: none;
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.40);
+    --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.50);
+    --shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+    /* ── Gradients ── */
+    --gradient-primary: linear-gradient(135deg, #3B6AC5 0%, #5B84D6 100%);
+    --gradient-surface: linear-gradient(180deg, #1A1A1A 0%, #111111 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(26, 26, 26, 0.85) 0%, rgba(17, 17, 17, 0.70) 100%);
+}
+
+/* ─────────────────────────────────────────
+   COMPONENT OVERRIDES
+   Patch components that hardcode colours
+   instead of using CSS variables.
+───────────────────────────────────────── */
+
+/* Sidebar — solid fill, no frosted glass */
+.sidebar {
+    background: var(--glass-bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-left: 1px solid var(--glass-border);
+}
+
+/* Stat cards */
+.stat-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-main);
+}
+
+/* Header bar */
+.header {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-accent);
+    color: var(--color-text-main);
+}
+
+/* Theme-toggle button icon colour */
+#theme-toggle,
+#shortcuts-btn,
+#backup-btn {
+    color: var(--color-text-main);
+}
+
+/* Primary button */
+.btn-apply,
+.btn-primary {
+    background: var(--color-primary);
+    color: #FFFFFF;
+    border: none;
+}
+
+.btn-apply:hover,
+.btn-primary:hover {
+    background: var(--color-primary-dark);
+}
+
+/* Search box */
+.search-box input {
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-main);
+}
+
+.search-box input::placeholder {
+    color: var(--color-text-muted);
+}
+
+/* Tables */
+.data-table th {
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-accent);
+}
+
+.data-table td {
+    border-bottom: 1px solid var(--color-accent);
+    color: var(--color-text-main);
+}
+
+.data-table tr:hover td {
+    background: var(--color-surface-alt);
+}
+
+/* Charts section background */
+.chart-card,
+.charts-section .chart-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-accent);
+}
+
+/* Modals */
+.shortcuts-modal .shortcuts-content,
+.shortcuts-modal .modal-body {
+    background: var(--color-surface);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-accent);
+}
+
+.shortcuts-modal .modal-header {
+    border-bottom: 1px solid var(--color-accent);
+}
+
+/* Skeleton loaders */
+.skeleton-pulse {
+    background: linear-gradient(90deg,
+            var(--color-surface-alt) 25%,
+            var(--color-accent) 50%,
+            var(--color-surface-alt) 75%);
+    background-size: 200% 100%;
+}
+
+/* Nav links */
+.nav-link {
+    color: var(--color-text-muted);
+}
+
+.nav-link.active,
+.nav-link:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-mist);
+}
+
+/* Time widget inside sidebar */
+.time-widget {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--glass-border);
+    color: var(--color-text-main);
+}
+
+[data-theme="dark"] .time-widget {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* School-year select */
+#school-year {
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-main);
+}
+
+/* Notification badge */
+.notification-btn {
+    color: var(--color-text-main);
+}
+
+/* User info chip */
+.user-info {
+    color: var(--color-text-muted);
+}

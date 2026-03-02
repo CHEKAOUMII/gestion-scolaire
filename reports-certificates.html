@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,22 +11,23 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
     <style>
         /* --- Certificate Preview Card --- */
         .cert-preview-card {
             background: var(--card-bg, #fff);
-            border: 2px solid var(--primary, #2D5F4A);
+            border: 2px solid var(--primary, #3B6AC5);
             border-radius: 14px;
             max-width: 680px;
             margin: 0 auto;
             overflow: hidden;
-            box-shadow: 0 4px 20px rgba(45, 95, 74, 0.1);
+            box-shadow: 0 4px 20px rgba(59, 106, 197, 0.1);
         }
 
         .cert-preview-header {
-            background: linear-gradient(135deg, var(--primary, #2D5F4A), #4A8B6F);
+            background: linear-gradient(135deg, var(--primary, #3B6AC5), #5B84D6);
             color: #fff;
             padding: 16px 24px;
             text-align: center;
@@ -58,7 +59,7 @@
             padding: 10px 0;
             border-bottom: 1px dashed var(--border-color, #e5e7eb);
             font-size: 0.95rem;
-            color: var(--text-primary, #1F2D24);
+            color: var(--text-primary, #111111);
         }
 
         .cert-preview-body .cert-field:last-child {
@@ -66,7 +67,7 @@
         }
 
         .cert-preview-body .cert-field strong {
-            color: var(--primary, #2D5F4A);
+            color: var(--primary, #3B6AC5);
             white-space: nowrap;
             min-width: 120px;
         }
@@ -203,230 +204,86 @@
         });
 
         /**
-         * Builds the full HTML for a single certificate copy � a formal Arabic document.
+         * Builds only the certificate body content (student table + body text).
+         * Letterhead, footer, seal, signature, and security bar are handled
+         * by the unified report engine on the main-process side.
          */
-        function buildCertificateHTML(student, type) {
-            const schoolName = localStorage.getItem('schoolName') || 'المؤسسة التعليمية';
-            const dateStr = new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
-            const typeLabel = CERT_TYPE_LABELS[type];
+        function buildCertificateBody(student, type) {
             const bodyText = CERT_TYPE_BODY_TEXT[type];
             const year = '2025/2026';
 
             return `
-            <div style="
-                direction: rtl;
-                text-align: right;
-                font-family: 'Noto Kufi Arabic', 'IBM Plex Sans Arabic', sans-serif;
-                padding: 18mm 15mm 12mm 15mm;
-                box-sizing: border-box;
-                height: 148.5mm;
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
-                page-break-inside: avoid;
-            ">
-                <!-- Top Section: Header -->
-                <div>
-                    <!-- Ministry / Academy line -->
-                    <div style="text-align: center; margin-bottom: 6px;">
-                        <div style="font-size: 11px; color: #555; font-weight: 600;">المملكة المغربية</div>
-                        <div style="font-size: 10px; color: #777; margin-top: 2px;">وزارة التربية الوطنية والتعليم الأولي والرياضة</div>
-                    </div>
-
-                    <!-- School name -->
-                    <div style="text-align: center; margin-bottom: 10px;">
-                        <div style="font-size: 14px; font-weight: 700; color: #2D5F4A;">${schoolName}</div>
-                    </div>
-
-                    <!-- Certificate title -->
-                    <div style="
-                        text-align: center;
-                        margin: 10px auto 14px;
-                        padding: 8px 30px;
-                        border: 2px solid #2D5F4A;
-                        border-radius: 8px;
-                        display: inline-block;
-                        width: auto;
-                    ">
-                        <div style="font-size: 18px; font-weight: 800; color: #2D5F4A; text-align: center;">${typeLabel}</div>
-                    </div>
-
-                    <!-- Student info table -->
-                    <table style="
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin-top: 10px;
-                        font-size: 12px;
-                    ">
-                        <tr>
-                            <td style="padding: 6px 10px; font-weight: 700; color: #333; width: 140px; border-bottom: 1px solid #e5e7eb;">الاسم الكامل</td>
-                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.full_name || '-'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">رمز مسار</td>
-                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.massar_code || '-'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">القسم</td>
-                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.class_name || '-'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">السنة الدراسية</td>
-                            <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${year}</td>
-                        </tr>
-                    </table>
-
-                    <!-- Certificate body text -->
-                    <div style="
-                        margin-top: 14px;
-                        padding: 10px 12px;
-                        background: #f8faf9;
-                        border-right: 3px solid #2D5F4A;
-                        border-radius: 0 6px 6px 0;
-                        font-size: 12px;
-                        line-height: 1.8;
-                        color: #222;
-                    ">${bodyText}</div>
-
-                    <!-- Issue info -->
-                    <div style="
-                        margin-top: 10px;
-                        font-size: 11px;
-                        color: #555;
-                    ">سلمت هذه الشهادة للمعني(ة) بالأمر ليس الاستعمال فيما يقتضيه.</div>
-                </div>
-
-                <!-- Bottom Section: Date + Signature -->
-                <div style="
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-end;
-                    margin-top: 12px;
-                    padding-top: 8px;
+                <!-- Student info table -->
+                <table style="
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 6px;
+                    font-size: 12px;
                 ">
-                    <div style="text-align: center; min-width: 160px;">
-                        <div style="font-size: 10px; color: #555; margin-bottom: 4px;">التاريخ</div>
-                        <div style="font-size: 11px; font-weight: 600; color: #222;">${dateStr}</div>
-                    </div>
-                    <div style="text-align: center; min-width: 180px;">
-                        <div style="font-size: 10px; color: #555; margin-bottom: 24px;">إمضاء المدير(ة) وختم المؤسسة</div></div>
-                        <div style="border-top: 1px solid #ccc; padding-top: 4px; font-size: 10px; color: #999;">................................</div>
-                    </div>
-                </div>
-            </div>`;
+                    <tr>
+                        <td style="padding: 6px 10px; font-weight: 700; color: #333; width: 140px; border-bottom: 1px solid #e5e7eb;">الاسم الكامل</td>
+                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.full_name || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">رمز مسار</td>
+                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.massar_code || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">القسم</td>
+                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.class_name || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">السنة الدراسية</td>
+                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${year}</td>
+                    </tr>
+                </table>
+
+                <!-- Certificate body text -->
+                <div style="
+                    margin-top: 14px;
+                    padding: 10px 12px;
+                    background: #f8faf9;
+                    border-right: 3px solid #3B6AC5;
+                    border-radius: 0 6px 6px 0;
+                    font-size: 12px;
+                    line-height: 1.8;
+                    color: #222;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                ">${bodyText}</div>`;
         }
 
         /**
-         * Builds the full printable page: 2 copies separated by a dashed cut line.
+         * Dispatches a certificate to the unified report engine.
+         * The engine handles: letterhead, footer (seal + signature), 2-copy layout, security bar.
          */
-        function buildTwoCopyPage(student, type) {
-            const copy = buildCertificateHTML(student, type);
-            return `
-            <div class="print-area" style="
-                width: 210mm;
-                min-height: 297mm;
-                margin: 0 auto;
-                background: #fff;
-                box-sizing: border-box;
-                font-family: 'Noto Kufi Arabic', 'IBM Plex Sans Arabic', sans-serif;
-                direction: rtl;
-            ">
-                <!-- Copy 1 -->
-                ${copy}
-
-                <!-- Cut line -->
-                <div style="
-                    border-top: 1.5px dashed #aaa;
-                    margin: 0 10mm;
-                    position: relative;
-                ">
-                    <span style="
-                        position: absolute;
-                        top: -8px;
-                        left: 50%;
-                        transform: translateX(-50%);
-                        background: #fff;
-                        padding: 0 10px;
-                        font-size: 8px;
-                        color: #bbb;
-                        font-family: 'Noto Kufi Arabic', sans-serif;
-                    ">✂ خط القص</span>
-                </div>
-
-                <!-- Copy 2 -->
-                ${copy}
-            </div>`;
-        }
-
-        /**
-         * Inline CSS for the print document.
-         */
-        function getCertPrintStyles() {
-            return `
-                @page {
-                    size: A4 portrait;
-                    margin: 0;
-                }
-                html, body {
-                    margin: 0;
-                    padding: 0;
-                    width: 210mm;
-                    background: #fff;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                }
-                * {
-                    box-sizing: border-box;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                }
-            `;
-        }
-
-        /** Export as PDF via hidden BrowserWindow */
-        async function exportCertPDF() {
+        async function dispatchCert(mode) {
             if (!_currentStudent) return;
-            const htmlContent = buildTwoCopyPage(_currentStudent, _currentType);
+            const bodyHTML = buildCertificateBody(_currentStudent, _currentType);
             const typeLabel = CERT_TYPE_LABELS[_currentType];
 
-            if (window.api?.system?.printHTML) {
-                showToast('جاري تصدير PDF...', 'info');
-                const result = await window.api.system.printHTML({
-                    htmlContent,
-                    inlineStyles: getCertPrintStyles(),
-                    title: typeLabel,
-                    pageSize: 'A4',
-                    landscape: false,
-                    mode: 'pdf',
-                    defaultFileName: `${typeLabel}_${_currentStudent.massar_code || ''}`
+            if (window.api?.reports?.printDocument) {
+                if (mode === 'pdf') showToast('جاري تصدير PDF...', 'info');
+                const result = await window.api.reports.printDocument({
+                    documentType: 'certificate',
+                    documentTitle: typeLabel,
+                    bodyHTML,
+                    data: { studentName: _currentStudent.full_name || '' },
+                    options: {
+                        mode,
+                        copies: 2,
+                        bodyHeight: '148.5mm',
+                        showSeal: true,
+                        showSignature: true,
+                        showSecurity: true,
+                        defaultFileName: `${typeLabel}_${_currentStudent.massar_code || ''}`
+                    }
                 });
-                if (result?.success) {
+                if (mode === 'pdf' && result?.success) {
                     showToast('تم تصدير الشهادة بنجاح', 'success');
-                } else if (result?.error !== 'Cancelled by user') {
-                    showToast('خطأ في تصدير الشهادة: ' + (result?.error || ''), 'error');
-                }
-            } else {
-                // Fallback: use the global print preview
-                openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
-            }
-        }
-
-        /** Print via system print dialog */
-        async function printCert() {
-            if (!_currentStudent) return;
-            const htmlContent = buildTwoCopyPage(_currentStudent, _currentType);
-            const typeLabel = CERT_TYPE_LABELS[_currentType];
-
-            if (window.api?.system?.printHTML) {
-                const result = await window.api.system.printHTML({
-                    htmlContent,
-                    inlineStyles: getCertPrintStyles(),
-                    title: typeLabel,
-                    pageSize: 'A4',
-                    landscape: false,
-                    mode: 'print'
-                });
-                if (result?.success) {
+                } else if (mode === 'pdf' && result?.error && result.error !== 'Cancelled by user') {
+                    showToast('خطأ في تصدير الشهادة: ' + result.error, 'error');
+                } else if (mode === 'print' && result?.success) {
                     showToast('تمت الطباعة بنجاح', 'success');
                 }
             } else {
@@ -434,25 +291,9 @@
             }
         }
 
-        /** Show preview in a hidden BrowserWindow */
-        async function previewCert() {
-            if (!_currentStudent) return;
-            const htmlContent = buildTwoCopyPage(_currentStudent, _currentType);
-            const typeLabel = CERT_TYPE_LABELS[_currentType];
-
-            if (window.api?.system?.printHTML) {
-                await window.api.system.printHTML({
-                    htmlContent,
-                    inlineStyles: getCertPrintStyles(),
-                    title: typeLabel,
-                    pageSize: 'A4',
-                    landscape: false,
-                    mode: 'preview'
-                });
-            } else {
-                openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
-            }
-        }
+        function exportCertPDF() { dispatchCert('pdf'); }
+        function printCert()     { dispatchCert('print'); }
+        function previewCert()   { dispatchCert('preview'); }
     </script>
 </body>
 

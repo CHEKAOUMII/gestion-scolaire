@@ -161,8 +161,12 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('tests:delete', id)
     },
 
-    // Reports
+    // Reports — unified document engine
     reports: {
+        printDocument: (payload) => ipcRenderer.invoke('reports:printDocument', payload),
+        getIdentity: () => ipcRenderer.invoke('reports:getIdentity'),
+        updateIdentity: (updates) => ipcRenderer.invoke('reports:updateIdentity', updates),
+        // Legacy compat (wraps into unified engine on the main side)
         generateCertificate: (payload) => ipcRenderer.invoke('reports:generateCertificate', payload),
         generateSemesterSummary: (payload) => ipcRenderer.invoke('reports:generateSemesterSummary', payload)
     },
@@ -224,6 +228,26 @@ contextBridge.exposeInMainWorld('api', {
         restoreDb: (payload) => ipcRenderer.invoke('system:restoreDb', payload),
         savePageVisibilityDefaults: () => ipcRenderer.invoke('system:savePageVisibilityDefaults'),
         quit: () => ipcRenderer.invoke('app:quit')
+    },
+
+    // Notifications
+    notifications: {
+        send: (event) => ipcRenderer.invoke('notifications:send', event),
+        getRecent: (limit) => ipcRenderer.invoke('notifications:getRecent', limit),
+        markRead: (id) => ipcRenderer.invoke('notifications:markRead', id),
+        markAllRead: () => ipcRenderer.invoke('notifications:markAllRead'),
+        unreadCount: () => ipcRenderer.invoke('notifications:unreadCount'),
+        deleteOld: (days) => ipcRenderer.invoke('notifications:deleteOld', days),
+        onToast: (callback) => {
+            const handler = (_event, data) => callback(data);
+            ipcRenderer.on('notification:toast', handler);
+            return () => ipcRenderer.removeListener('notification:toast', handler);
+        },
+        onCenterUpdate: (callback) => {
+            const handler = (_event, data) => callback(data);
+            ipcRenderer.on('notification:center:update', handler);
+            return () => ipcRenderer.removeListener('notification:center:update', handler);
+        }
     },
 
     // Auto-updater

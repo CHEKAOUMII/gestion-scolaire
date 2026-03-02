@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
     <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
@@ -36,7 +37,7 @@
             gap: 15px;
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
             transition: var(--transition);
-            border: 1px solid var(--glass-border, #e8ece9);
+            border: 1px solid var(--glass-border, #E8E8E8);
         }
 
         .stat-card:hover {
@@ -69,7 +70,7 @@
         }
 
         .stat-icon.subject {
-            background: linear-gradient(135deg, #2D5F4A, #4ade80);
+            background: linear-gradient(135deg, #3B6AC5, #4ade80);
         }
 
         .stat-info h4 {
@@ -119,7 +120,7 @@
         }
 
         .level-tab.active[data-level="all"] {
-            background: var(--color-primary, #2D5F4A);
+            background: var(--color-primary, #3B6AC5);
         }
 
         .level-tab.active[data-level="critical"] {
@@ -153,7 +154,7 @@
             padding: 25px;
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
             margin-bottom: 20px;
-            border: 1px solid var(--glass-border, #e8ece9);
+            border: 1px solid var(--glass-border, #E8E8E8);
             display: none;
         }
 
@@ -231,7 +232,7 @@
 
         .table-quick-search input:focus {
             outline: none;
-            border-color: var(--color-primary, #2D5F4A);
+            border-color: var(--color-primary, #3B6AC5);
         }
 
         .table-quick-search .search-count {
@@ -249,7 +250,7 @@
         }
 
         .students-table th.sortable:hover {
-            background: rgba(45, 95, 74, 0.12);
+            background: rgba(59, 106, 197, 0.12);
         }
 
         .students-table th.sortable .sort-icon {
@@ -261,20 +262,20 @@
         .students-table th.sortable.sort-asc .sort-icon,
         .students-table th.sortable.sort-desc .sort-icon {
             opacity: 1;
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
         }
 
         /* ─── Student name clickable ─── */
         .student-name-link {
             cursor: pointer;
-            color: var(--color-primary, #2D5F4A);
+            color: var(--color-primary, #3B6AC5);
             text-decoration: underline;
             text-decoration-style: dotted;
             text-underline-offset: 3px;
         }
 
         .student-name-link:hover {
-            color: var(--color-primary-dark, #1B3D30);
+            color: var(--color-primary-dark, #2F5499);
             text-decoration-style: solid;
         }
 
@@ -322,7 +323,7 @@
             align-items: center;
             justify-content: space-between;
             padding: 18px 22px;
-            border-bottom: 1px solid var(--color-accent, #e8ece9);
+            border-bottom: 1px solid var(--color-accent, #E8E8E8);
             background: linear-gradient(135deg, var(--color-primary-soft, #eef4f0), var(--color-secondary-soft, #f4f8f5));
             border-radius: 16px 16px 0 0;
         }
@@ -333,7 +334,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            color: var(--color-primary-dark, #1B3D30);
+            color: var(--color-primary-dark, #2F5499);
         }
 
         .student-modal-header .close-btn {
@@ -1302,7 +1303,7 @@
                     datasets: [{
                         label: 'عدد المتعثرين',
                         data: sortedSections.map(s => s[1]),
-                        backgroundColor: 'rgba(45, 95, 74, 0.7)',
+                        backgroundColor: 'rgba(59, 106, 197, 0.7)',
                         borderRadius: 6,
                         borderSkipped: false
                     }]
