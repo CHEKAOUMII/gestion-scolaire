@@ -165,10 +165,7 @@ contextBridge.exposeInMainWorld('api', {
     reports: {
         printDocument: (payload) => ipcRenderer.invoke('reports:printDocument', payload),
         getIdentity: () => ipcRenderer.invoke('reports:getIdentity'),
-        updateIdentity: (updates) => ipcRenderer.invoke('reports:updateIdentity', updates),
-        // Legacy compat (wraps into unified engine on the main side)
-        generateCertificate: (payload) => ipcRenderer.invoke('reports:generateCertificate', payload),
-        generateSemesterSummary: (payload) => ipcRenderer.invoke('reports:generateSemesterSummary', payload)
+        updateIdentity: (updates) => ipcRenderer.invoke('reports:updateIdentity', updates)
     },
 
     // Logs
