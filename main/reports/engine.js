@@ -41,62 +41,67 @@ async function printDocument(payload) {
         defaultFileName
     } = options;
 
-    // 1. Generate document reference
-    const documentRef = generateDocumentRef(documentType);
+    try {
+        // 1. Generate document reference
+        const documentRef = generateDocumentRef(documentType);
 
-    // 2. Render locked letterhead
-    const letterheadHTML = showLetterhead
-        ? renderLetterhead({
-            documentTitle,
-            documentRef: showSecurity ? documentRef : ''
-        })
-        : '';
+        // 2. Render locked letterhead
+        const letterheadHTML = showLetterhead
+            ? renderLetterhead({
+                documentTitle,
+                documentRef: showSecurity ? documentRef : ''
+            })
+            : '';
 
-    // 3. Render locked footer
-    const footerHTML = showFooter
-        ? renderFooter({ showSeal, showSignature })
-        : '';
+        // 3. Render locked footer
+        const footerHTML = showFooter
+            ? renderFooter({ showSeal, showSignature })
+            : '';
 
-    // 4. Generate security bar (optional)
-    let securityHTML = '';
-    if (showSecurity) {
-        const secBar = generateSecurityBar({
-            documentType,
-            documentRef,
-            studentName: data.studentName || '',
-            issuedAt: new Date().toISOString().slice(0, 10)
+        // 4. Generate security bar (optional)
+        let securityHTML = '';
+        if (showSecurity) {
+            const secBar = generateSecurityBar({
+                documentType,
+                documentRef,
+                studentName: data.studentName || '',
+                issuedAt: new Date().toISOString().slice(0, 10)
+            });
+            securityHTML = secBar.html;
+        }
+
+        // 5. Watermark (optional)
+        const identity = getIdentity();
+        const watermarkHTML = showWatermark
+            ? renderWatermark(identity.school_name || '')
+            : '';
+
+        // 6. Assemble complete document
+        const fullBodyHTML = assembleDocumentBody(
+            { letterheadHTML, bodyHTML, footerHTML, securityHTML, watermarkHTML },
+            { pageSize, landscape, bodyHeight, copies }
+        );
+
+        // 7. Get base CSS
+        const inlineStyles = getBaseDocumentStyles({ landscape });
+
+        // 8. Send to existing print engine (skip auto-letterhead — we render our own)
+        const result = await printHTML({
+            htmlContent: fullBodyHTML,
+            inlineStyles,
+            title: documentTitle || 'وثيقة رسمية',
+            pageSize,
+            landscape,
+            mode,
+            defaultFileName: defaultFileName || `${documentTitle || documentType}_${documentRef}`,
+            skipAutoLetterhead: true
         });
-        securityHTML = secBar.html;
+
+        return { ...result, ref: documentRef };
+    } catch (err) {
+        console.error('[ReportEngine] printDocument failed:', err);
+        return { success: false, error: err.message || 'فشل إنشاء الوثيقة' };
     }
-
-    // 5. Watermark (optional)
-    const identity = getIdentity();
-    const watermarkHTML = showWatermark
-        ? renderWatermark(identity.school_name || '')
-        : '';
-
-    // 6. Assemble complete document
-    const fullBodyHTML = assembleDocumentBody(
-        { letterheadHTML, bodyHTML, footerHTML, securityHTML, watermarkHTML },
-        { pageSize, landscape, bodyHeight, copies }
-    );
-
-    // 7. Get base CSS
-    const inlineStyles = getBaseDocumentStyles({ landscape });
-
-    // 8. Send to existing print engine (skip auto-letterhead — we render our own)
-    const result = await printHTML({
-        htmlContent: fullBodyHTML,
-        inlineStyles,
-        title: documentTitle || 'وثيقة رسمية',
-        pageSize,
-        landscape,
-        mode,
-        defaultFileName: defaultFileName || `${documentTitle || documentType}_${documentRef}`,
-        skipAutoLetterhead: true
-    });
-
-    return { ...result, ref: documentRef };
 }
 
 module.exports = { printDocument };
