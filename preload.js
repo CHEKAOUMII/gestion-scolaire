@@ -166,7 +166,8 @@ contextBridge.exposeInMainWorld('api', {
         printDocument: (payload) => ipcRenderer.invoke('reports:printDocument', payload),
         getIdentity: () => ipcRenderer.invoke('reports:getIdentity'),
         updateIdentity: (updates) => ipcRenderer.invoke('reports:updateIdentity', updates),
-        renderLetterhead: (overrides) => ipcRenderer.invoke('reports:renderLetterhead', overrides)
+        renderLetterhead: (overrides) => ipcRenderer.invoke('reports:renderLetterhead', overrides),
+        generateAdminForm: (payload) => ipcRenderer.invoke('reports:generateAdminForm', payload)
     },
 
     // Logs
