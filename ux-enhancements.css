@@ -2699,3 +2699,76 @@ a.quick-nav-item {
             var(--color-surface-alt, #222222) 63%);
     background-size: 400% 100%;
 }
+
+/* ─────────────────────────────────────────
+   Trial / Limited-mode banner  (#limited-mode-banner)
+   & Activation modal  (#activation-modal-overlay)
+   — Dark-mode overrides for hardcoded inline styles
+───────────────────────────────────────── */
+[data-theme="dark"] #limited-mode-banner {
+    background: rgba(59, 106, 197, 0.12) !important;
+    color: #93b4f5 !important;
+    border-color: rgba(59, 106, 197, 0.30) !important;
+}
+
+[data-theme="dark"] #limited-mode-banner .btn-warning {
+    background: rgba(255, 132, 0, 0.18) !important;
+    color: #FF8400 !important;
+    border: 1px solid rgba(255, 132, 0, 0.35) !important;
+}
+
+[data-theme="dark"] #limited-mode-banner .btn-secondary {
+    background: var(--color-surface-alt) !important;
+    color: var(--color-text-muted) !important;
+    border: 1px solid var(--color-accent) !important;
+}
+
+/* Activation modal */
+[data-theme="dark"] #activation-modal-overlay {
+    background: rgba(0, 0, 0, 0.65) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay > div {
+    background: var(--color-surface) !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay > div > div[style*="border-bottom"] {
+    border-bottom-color: var(--color-accent) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay > div > div[style*="background:#fef2f2"] {
+    background: rgba(255, 92, 51, 0.12) !important;
+    border-bottom-color: rgba(255, 92, 51, 0.25) !important;
+    color: #FF5C33 !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay h3 {
+    color: var(--color-text-main) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay p {
+    color: var(--color-text-muted) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay input {
+    background: var(--color-surface-alt) !important;
+    border-color: var(--color-accent) !important;
+    color: var(--color-text-main) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay #activation-close-btn {
+    color: var(--color-text-muted) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay .btn-secondary {
+    background: var(--color-surface-alt) !important;
+    color: var(--color-text-muted) !important;
+    border: 1px solid var(--color-accent) !important;
+}
+
+[data-theme="dark"] #activation-modal-overlay .btn-success {
+    background: rgba(182, 255, 206, 0.15) !important;
+    color: #B6FFCE !important;
+    border: 1px solid rgba(182, 255, 206, 0.30) !important;
+}

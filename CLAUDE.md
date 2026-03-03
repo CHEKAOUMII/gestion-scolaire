@@ -35,12 +35,15 @@ All renderer→main communication goes through `window.api`, which is the sole I
 
 ### Key Layers
 
-- **`main/db/`** — `better-sqlite3` database: `context.js` (singleton `getDb()`), `schema.js` (DDL), `migrations.js` (11 versioned migrations), `init.js` (bootstrap)
-- **`main/ipc/`** — One module per domain (`students`, `absences`, `staff`, `exams`, `schoolOps`, `auth`, `licensing`, `system`, `ownerTelemetry`). All registered via `registerAll.js`
+- **`main/db/`** — `better-sqlite3` database: `context.js` (singleton `getDb()`), `schema.js` (DDL), `migrations.js` (15 versioned migrations), `init.js` (bootstrap)
+- **`main/ipc/`** — One module per domain (`students`, `absences`, `staff`, `exams`, `schoolOps`, `auth`, `licensing`, `system`, `ownerTelemetry`, `updater`, `pageVisibility`, `notifications`, `reports`). All registered via `registerAll.js`
 - **`main/licensing/`** — Offline key generation/verification (`offlineKey.js`), hardware device fingerprinting (`deviceFingerprint.js`), plan-tier service (`service.js`), background owner sync (`ownerSync.js`)
+- **`main/reports/`** — Report engine: `engine.js` (PDF pipeline), `letterhead.js`, `footer.js`, `identity.js`, `security.js`; `channels/` (IPC handlers), `templates/` (body templates for admin forms, certificates, etc.)
+- **`main/notifications/`** — Notification system: `dispatcher.js`, `router.js`, `delivery.js`, `store.js`, `schema.js`, `templates.js`; `channels/` (IPC handlers)
+- **`main/print-window.js`** — Shared print preview window helper
 - **`preload.js`** — Defines the entire IPC contract; the single source of truth for what renderer pages can call
 - **`app.js`** — Dashboard renderer: stats, sidebar nav, Chart.js, XLSX import/export, school-year switching
-- **`js/pages/*.js`** — One page-specific module per HTML page
+- **`js/pages/*.js`** — One page-specific module per HTML page (dashboard-init, grades-sheets, reports-forms, settings-imports, students-list, teachers-performance)
 - **`js/ux-enhancements.js`** — Shared renderer utilities: sidebar behavior, toast notifications, keyboard shortcut modal
 - **`js/backup.js`** — Backup/restore UI (serializes localStorage + SQLite snapshot to a single JSON file)
 

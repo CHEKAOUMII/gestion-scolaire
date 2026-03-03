@@ -34,7 +34,7 @@
         .form-group label {
             font-size: 13px;
             font-weight: 600;
-            color: var(--text-secondary, #555);
+            color: var(--color-text-muted, #555);
         }
 
         .form-group input,
@@ -60,8 +60,8 @@
         }
 
         .identity-section {
-            background: var(--card-bg, #fff);
-            border: 1px solid var(--border-color, #e2e8f0);
+            background: var(--color-surface, #fff);
+            border: 1px solid var(--color-accent, #e2e8f0);
             border-radius: 10px;
             padding: 18px;
             margin-bottom: 18px;
@@ -77,7 +77,7 @@
         .logo-preview {
             width: 80px;
             height: 80px;
-            border: 2px dashed var(--border-color, #ccc);
+            border: 2px dashed var(--color-accent, #ccc);
             border-radius: 10px;
             display: flex;
             align-items: center;
@@ -85,7 +85,7 @@
             cursor: pointer;
             overflow: hidden;
             flex-shrink: 0;
-            background: var(--bg-secondary, #f8f9fa);
+            background: var(--color-surface-alt, #f8f9fa);
             transition: border-color 0.2s;
         }
 
@@ -101,7 +101,7 @@
 
         .logo-preview .placeholder-icon {
             font-size: 28px;
-            color: var(--text-muted, #aaa);
+            color: var(--color-text-light, #aaa);
         }
 
         .logo-actions {
@@ -117,8 +117,8 @@
 
         /* Letterhead preview */
         .letterhead-preview-container {
-            background: #fff;
-            border: 1px solid var(--border-color, #e2e8f0);
+            background: var(--color-surface, #fff);
+            border: 1px solid var(--color-accent, #e2e8f0);
             border-radius: 10px;
             padding: 20px 24px;
             margin-top: 12px;
@@ -134,6 +134,17 @@
             display: flex;
             gap: 10px;
             margin-top: 18px;
+        }
+
+        .assets-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .assets-row .identity-section {
+            margin-bottom: 0;
         }
     </style>
 </head>
@@ -219,6 +230,8 @@
                 </div>
             </div>
 
+            <!-- Sections 3-5: Logo, Seal, Signature (side by side) -->
+            <div class="assets-row">
             <!-- Section 3: Logo (center column of letterhead) -->
             <div class="identity-section">
                 <div class="section-title"><i class="fas fa-image"></i> شعار المؤسسة</div>
@@ -234,11 +247,58 @@
                         <button class="btn btn-outline btn-sm" type="button" id="btn-remove-logo" style="display:none;">
                             <i class="fas fa-trash"></i> حذف الشعار
                         </button>
-                        <span style="font-size: 11px; color: var(--text-muted, #999);">PNG أو JPG — حد أقصى 200
+                        <span style="font-size: 11px; color: var(--color-text-light, #999);">PNG أو JPG — حد أقصى 200
                             كيلوبايت</span>
                     </div>
                 </div>
                 <input type="file" id="logo-file-input" accept="image/png,image/jpeg" style="display:none;">
+            </div>
+
+            <!-- Section 4: Official Seal -->
+            <div class="identity-section">
+                <div class="section-title"><i class="fas fa-stamp"></i> ختم المؤسسة</div>
+                <div class="logo-upload-area">
+                    <div class="logo-preview" id="seal-preview" title="اضغط لاختيار ختم">
+                        <i class="fas fa-stamp placeholder-icon" id="seal-placeholder"></i>
+                        <img id="seal-img" style="display:none;" alt="ختم المؤسسة">
+                    </div>
+                    <div class="logo-actions">
+                        <button class="btn btn-primary btn-sm" type="button" id="btn-upload-seal">
+                            <i class="fas fa-upload"></i> اختيار صورة
+                        </button>
+                        <button class="btn btn-outline btn-sm" type="button" id="btn-remove-seal" style="display:none;">
+                            <i class="fas fa-trash"></i> حذف الختم
+                        </button>
+                        <span style="font-size: 11px; color: var(--color-text-light, #999);">PNG أو JPG — حد أقصى 200
+                            كيلوبايت</span>
+                    </div>
+                </div>
+                <input type="file" id="seal-file-input" accept="image/png,image/jpeg" style="display:none;">
+            </div>
+
+            <!-- Section 5: Director Signature -->
+            <div class="identity-section">
+                <div class="section-title"><i class="fas fa-signature"></i> توقيع المدير(ة)</div>
+                <div class="logo-upload-area">
+                    <div class="logo-preview" id="signature-preview" title="اضغط لاختيار توقيع"
+                        style="width:120px;height:60px;">
+                        <i class="fas fa-pen-nib placeholder-icon" id="signature-placeholder"></i>
+                        <img id="signature-img" style="display:none;" alt="توقيع المدير(ة)">
+                    </div>
+                    <div class="logo-actions">
+                        <button class="btn btn-primary btn-sm" type="button" id="btn-upload-signature">
+                            <i class="fas fa-upload"></i> اختيار صورة
+                        </button>
+                        <button class="btn btn-outline btn-sm" type="button" id="btn-remove-signature"
+                            style="display:none;">
+                            <i class="fas fa-trash"></i> حذف التوقيع
+                        </button>
+                        <span style="font-size: 11px; color: var(--color-text-light, #999);">PNG أو JPG — حد أقصى 200
+                            كيلوبايت — يُفضّل صورة بخلفية شفافة</span>
+                    </div>
+                </div>
+                <input type="file" id="signature-file-input" accept="image/png,image/jpeg" style="display:none;">
+            </div>
             </div>
 
             <!-- Save + Preview -->
@@ -274,6 +334,8 @@
         };
 
         let currentLogoBase64 = '';
+        let currentSealBase64 = '';
+        let currentSignatureBase64 = '';
 
         // ── Load identity ──
         document.addEventListener('DOMContentLoaded', async () => {
@@ -287,6 +349,14 @@
                     currentLogoBase64 = identity.logo_base64;
                     showLogoPreview(currentLogoBase64);
                 }
+                if (identity.seal_base64) {
+                    currentSealBase64 = identity.seal_base64;
+                    showAssetPreview('seal', currentSealBase64);
+                }
+                if (identity.signature_base64) {
+                    currentSignatureBase64 = identity.signature_base64;
+                    showAssetPreview('signature', currentSignatureBase64);
+                }
             } catch (_) { }
         });
 
@@ -297,6 +367,8 @@
                 updates[key] = document.getElementById(domId).value.trim();
             }
             updates.logo_base64 = currentLogoBase64;
+            updates.seal_base64 = currentSealBase64;
+            updates.signature_base64 = currentSignatureBase64;
 
             try {
                 await window.api.reports.updateIdentity(updates);
@@ -352,6 +424,50 @@
             document.getElementById('logo-placeholder').style.display = 'none';
             document.getElementById('btn-remove-logo').style.display = '';
         }
+
+        // ── Generic asset preview helper (seal, signature) ──
+        function showAssetPreview(type, base64) {
+            const img = document.getElementById(type + '-img');
+            img.src = 'data:image/png;base64,' + base64;
+            img.style.display = 'block';
+            document.getElementById(type + '-placeholder').style.display = 'none';
+            document.getElementById('btn-remove-' + type).style.display = '';
+        }
+
+        function setupAssetUpload(type, stateGetter, stateSetter) {
+            const fileInput = document.getElementById(type + '-file-input');
+            document.getElementById('btn-upload-' + type).addEventListener('click', () => fileInput.click());
+            document.getElementById(type + '-preview').addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.size > 200 * 1024) {
+                    showToast('حجم الصورة يتجاوز 200 كيلوبايت', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    stateSetter(base64);
+                    showAssetPreview(type, base64);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            document.getElementById('btn-remove-' + type).addEventListener('click', () => {
+                stateSetter('');
+                document.getElementById(type + '-img').style.display = 'none';
+                document.getElementById(type + '-placeholder').style.display = '';
+                document.getElementById('btn-remove-' + type).style.display = 'none';
+            });
+        }
+
+        // ── Seal upload ──
+        setupAssetUpload('seal', () => currentSealBase64, (v) => { currentSealBase64 = v; });
+
+        // ── Signature upload ──
+        setupAssetUpload('signature', () => currentSignatureBase64, (v) => { currentSignatureBase64 = v; });
 
         // ── Preview letterhead ──
         document.getElementById('btn-preview').addEventListener('click', () => {
