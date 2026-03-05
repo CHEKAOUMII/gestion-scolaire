@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="ux-enhancements.css">
   <script src="js/utils.js" defer></script>
-    <script src="js/notifications.js"></script>
+  <script src="js/notifications.js"></script>
   <script src="js/sidebar.js" defer></script>
   <script src="js/ux-enhancements.js" defer></script>
   <style>
@@ -2049,27 +2049,17 @@
       }
     }
 
-    /** Extract the level prefix from a section name, e.g. "2BAC SMA 1" ? "2BAC" */
+    /** Extract the Arabic level name from a section name using the centralized dictionary in utils.js */
     function extractLevel(sectionName) {
-      const s = String(sectionName || '').trim();
-      // Common patterns: "جذع مشترك ...", "أولى باك ...", "ثانية باك ...", "1BAC...", "2BAC...", "TC..."
-      const patterns = [
-        { regex: /^جذع\s*مشترك/i, label: 'جذع مشترك' },
-        { regex: /^ثانية\s*باك/i, label: 'ثانية باك' },
-        { regex: /^أولى\s*باك/i, label: 'أولى باك' },
-        { regex: /^1\s*BAC/i, label: '1BAC' },
-        { regex: /^2\s*BAC/i, label: '2BAC' },
-        { regex: /^TC/i, label: 'TC' },
-        { regex: /^TCS/i, label: 'TCS' },
-        { regex: /^1�re\s*ann�e/i, label: '1�re ann�e BAC' },
-        { regex: /^2�me\s*ann�e/i, label: '2�me ann�e BAC' },
-      ];
-      for (const p of patterns) {
-        if (p.regex.test(s)) return p.label;
+      if (!sectionName) return null;
+      // Delegate to the shared getLevelNameFromSection() from js/utils.js
+      // which returns proper Arabic names like 'الأولى باكالوريا علوم رياضية'
+      if (typeof getLevelNameFromSection === 'function') {
+        const name = getLevelNameFromSection(sectionName);
+        return name || null;
       }
-      // Fallback: use first word as level
-      const firstWord = s.split(/[\s\-_]+/)[0];
-      return firstWord || null;
+      // Fallback if utils.js not loaded yet
+      return String(sectionName || '').split(/[\s\-_]+/)[0] || null;
     }
 
     function initFilters() {

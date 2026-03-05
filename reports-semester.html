@@ -1689,15 +1689,9 @@
         }
 
         // --- Extract level from section name ---
-        // e.g. "1ASCG1" ? "1ASC", "2ASCG3" ? "2ASC", "TCSG1" ? "TCS"
+        // Uses shared extractLevelFromSection() from utils.js
         function extractLevel(section) {
-            const s = String(section || '').trim();
-            // Match patterns like: 1ASCG1, 2ASCG2, TCSG1, 1BACSEG1, 2BACPCG2
-            const m = s.match(/^(\d*(?:TCS|TSC|TCSF|ASC|ASCI|ASCG|BACSE|BACPC|BACSM|BACSH|BACSVT|BACSMA|BACSP|BACL|BAC)[A-Z]*)\s*/i);
-            if (m) return m[1].replace(/G?\d*$/, '').toUpperCase();
-            // Fallback: take first chars before last digit group
-            const f = s.match(/^(.+?)\d*$/);
-            return f ? f[1].toUpperCase() : s.toUpperCase();
+            return extractLevelFromSection(section);
         }
 
         // Store all classes for level filtering

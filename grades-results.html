@@ -625,6 +625,9 @@
                 return el ? el.value : '2025/2026';
             };
 
+            // ─── Level Normalization ───
+            // Uses shared getLevelFromSection() from utils.js (returns {code, name, order})
+
             // ─── Helpers ───
             function normalizeSubjectName(subject) {
                 return String(subject || '')
@@ -662,24 +665,28 @@
                 const levelSelect = document.getElementById('level-select');
                 const classSelect = document.getElementById('class-select');
 
-                // Extract unique levels from students
-                const levels = new Map();
+                // Extract unique levels from students using getLevelFromSection
+                const levels = new Map(); // code → { name, order, sections[] }
                 allStudents.forEach(s => {
                     const section = String(s.section || '').trim();
                     if (!section) return;
-                    // Extract level from section: "2BACSH-5" → "2BACSH", "TCSF-1" → "TCSF"
-                    const level = section.replace(/[-_]?\d+$/, '').trim();
-                    if (!levels.has(level)) levels.set(level, []);
-                    if (!levels.get(level).includes(section)) levels.get(level).push(section);
+                    const levelInfo = getLevelFromSection(section);
+                    if (!levels.has(levelInfo.code)) {
+                        levels.set(levelInfo.code, { name: levelInfo.name, order: levelInfo.order, sections: [] });
+                    }
+                    const entry = levels.get(levelInfo.code);
+                    if (!entry.sections.includes(section)) entry.sections.push(section);
                 });
 
                 levelSelect.innerHTML = '<option value="">اختر المستوى</option>';
-                [...levels.keys()].sort().forEach(level => {
-                    const opt = document.createElement('option');
-                    opt.value = level;
-                    opt.textContent = level;
-                    levelSelect.appendChild(opt);
-                });
+                [...levels.entries()]
+                    .sort((a, b) => a[1].order - b[1].order)
+                    .forEach(([code, info]) => {
+                        const opt = document.createElement('option');
+                        opt.value = code;
+                        opt.textContent = info.name;
+                        levelSelect.appendChild(opt);
+                    });
 
                 const studentSelect = document.getElementById('student-select');
 
@@ -706,7 +713,8 @@
                     studentSelect.innerHTML = '<option value="">الكل</option>';
                     studentSelect.disabled = true;
                     if (!selectedLevel) return;
-                    const classes = levels.get(selectedLevel) || [];
+                    const entry = levels.get(selectedLevel);
+                    const classes = entry ? entry.sections : [];
                     classes.sort().forEach(cls => {
                         const opt = document.createElement('option');
                         opt.value = cls;
@@ -912,7 +920,7 @@
                     </div>
 
                     <div class="gr-student-meta">
-                        <span>المستوى: ${className.replace(/[-_]?\d+$/, '')}</span>
+                        <span>المستوى: ${getLevelFromSection(className).name}</span>
                         <span>القسم: ${className}</span>
                         <span>عدد التلاميذ: ${totalStudents}</span>
                     </div>

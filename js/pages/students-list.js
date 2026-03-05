@@ -498,6 +498,17 @@ async function viewStudent(index) {
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
 
+    // Show "View Full Profile" button if massar_code exists
+    const fullProfileBtn = document.getElementById('modal-full-profile-btn');
+    if (fullProfileBtn) {
+        if (student.massar_code) {
+            fullProfileBtn.href = `student-profile-prototype.html?code=${encodeURIComponent(student.massar_code)}`;
+            fullProfileBtn.style.display = 'inline-flex';
+        } else {
+            fullProfileBtn.style.display = 'none';
+        }
+    }
+
     // Fetch and render grades
     try {
         const allGrades = (await window.api.grades.getAll(year)) || [];
@@ -592,25 +603,56 @@ async function viewStudent(index) {
                     : grades.reduce((a, g) => a + g.grade, 0) / grades.length;
                 const clr = gradeColor(avg);
 
-                let examIdx = 0;
-                const chipsHtml = grades
-                    .map((g) => {
+                // Group grades by semester and sort (semester 1 first, then 2)
+                const bySemester = {};
+                grades.forEach((g) => {
+                    const sem = g.semester || 0;
+                    if (!bySemester[sem]) bySemester[sem] = [];
+                    bySemester[sem].push(g);
+                });
+                const semesterKeys = Object.keys(bySemester).sort((a, b) => Number(a) - Number(b));
+                const semesterNames = { '1': 'الدورة الأولى', '2': 'الدورة الثانية', '0': 'غير محددة' };
+                const hasMutipleSemesters = semesterKeys.length > 1 || (semesterKeys.length === 1 && semesterKeys[0] !== '0');
+
+                let bodyHtml = '';
+                if (hasMutipleSemesters) {
+                    // Grid layout: each semester is a column
+                    const cols = semesterKeys.map((sem) => {
+                        const semName = semesterNames[sem] || `الدورة ${sem}`;
+                        let examIdx = 0;
+                        const chips = bySemester[sem].map((g) => {
+                            const gc = gradeColor(g.grade);
+                            const pct = Math.min((g.grade / 20) * 100, 100);
+                            const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
+                            const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
+                            return `<div class="sl-grade-chip">
+                                <span class="chip-label">${chipLabel}</span>
+                                <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
+                                <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                            </div>`;
+                        }).join('');
+                        return `<div class="sl-semester-col">
+                            <div class="sl-semester-header"><span>${semName}</span></div>
+                            <div class="sl-grades-chips">${chips}</div>
+                        </div>`;
+                    }).join('');
+                    bodyHtml = `<div class="sl-semesters-grid">${cols}</div>`;
+                } else {
+                    // Single semester or no semester — flat layout
+                    let examIdx = 0;
+                    const chips = grades.map((g) => {
                         const gc = gradeColor(g.grade);
                         const pct = Math.min((g.grade / 20) * 100, 100);
-                        const semLabel = g.semester ? `الدورة ${g.semester}` : '';
                         const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
-                        const chipLabel = isActv
-                            ? `أنشطة مندمجة${semLabel ? ' — ' + semLabel : ''}`
-                            : `فرض ${++examIdx}${semLabel ? ' — ' + semLabel : ''}`;
-                        return `
-                    <div class="sl-grade-chip">
-                        <span class="chip-label">${chipLabel}</span>
-                        <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
-                        <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
-                    </div>
-                `;
-                    })
-                    .join('');
+                        const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
+                        return `<div class="sl-grade-chip">
+                            <span class="chip-label">${chipLabel}</span>
+                            <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
+                            <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                        </div>`;
+                    }).join('');
+                    bodyHtml = `<div class="sl-grades-chips">${chips}</div>`;
+                }
 
                 return `
                 <div class="sl-subject-block">
@@ -618,9 +660,7 @@ async function viewStudent(index) {
                         <span class="subj-name"><i class="fas fa-book"></i> ${escapeHtml(subj)}</span>
                         <span class="subj-avg" style="background:${clr}">${avg.toFixed(2)}</span>
                     </div>
-                    <div class="sl-subject-block-body">
-                        <div class="sl-grades-chips">${chipsHtml}</div>
-                    </div>
+                    <div class="sl-subject-block-body">${bodyHtml}</div>
                 </div>
             `;
             })

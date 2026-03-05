@@ -2,20 +2,11 @@ const { getDb } = require('../db/context');
 const { printHTML } = require('../print-window');
 const { requireRole } = require('./auth');
 const { hashPassword, generateRandomPassword } = require('../auth/password');
-
-function authErrorResponse(err) {
-    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
-    return {
-        success: false,
-        code: isAuthError ? err.code : 'INTERNAL_ERROR',
-        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
-    };
-}
+const { authErrorResponse, handleWrite, handleRead } = require('./ipc-helpers');
 
 function registerSystemIpc(ipcMain) {
     // IPC Handlers - System logs
-    ipcMain.handle('systemLogs:getAll', async (event, limit = 200) => {
-        const db = getDb();
+    handleRead(ipcMain, 'systemLogs:getAll', (db, limit) => {
         return db
             .prepare(
                 `
@@ -24,10 +15,10 @@ function registerSystemIpc(ipcMain) {
             LIMIT ?
         `
             )
-            .all(limit);
+            .all(limit || 200);
     });
 
-    ipcMain.handle('systemLogs:add', async (event, payload) => {
+    ipcMain.handle('systemLogs:add', async (_event, payload) => {
         try {
             const db = getDb();
             db.prepare(
@@ -43,16 +34,10 @@ function registerSystemIpc(ipcMain) {
     });
 
     // IPC Handlers - Users
-    ipcMain.handle('users:getAll', async (event) => {
-        try {
-            requireRole(event, ['admin']);
-            const db = getDb();
-            return db
-                .prepare('SELECT id, name, email, role, disabled, created_at FROM users ORDER BY created_at DESC')
-                .all();
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+    handleWrite(ipcMain, 'users:getAll', ['admin'], (db) => {
+        return db
+            .prepare('SELECT id, name, email, role, disabled, created_at FROM users ORDER BY created_at DESC')
+            .all();
     });
 
     ipcMain.handle('users:add', async (event, payload) => {

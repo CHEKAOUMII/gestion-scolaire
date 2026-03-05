@@ -36,6 +36,9 @@
         return div.innerHTML;
     }
 
+    // ─── Level Normalization ───
+    // Uses shared getLevelFromSection() from utils.js (returns {code, name, order})
+
     function setFeedback(msg) {
         const el = feedback();
         if (el) el.textContent = msg;
@@ -87,19 +90,40 @@
     }
 
     // ─── Load Filters ───
+    let classLevelMap = new Map(); // code → { name, order, sections[] }
+
     async function loadFilters() {
         try {
             const year = getYear();
             const classes = (await window.api.classes.getAll(year)) || [];
-            const cs = classSelect();
-            // Keep the first placeholder
-            while (cs.options.length > 1) cs.remove(1);
+
+            // Build level → sections map
+            classLevelMap = new Map();
             classes.forEach((c) => {
-                const opt = document.createElement('option');
-                opt.value = c.name;
-                opt.textContent = c.name;
-                cs.appendChild(opt);
+                const levelInfo = getLevelFromSection(c.name);
+                if (!classLevelMap.has(levelInfo.code)) {
+                    classLevelMap.set(levelInfo.code, { name: levelInfo.name, order: levelInfo.order, sections: [] });
+                }
+                const entry = classLevelMap.get(levelInfo.code);
+                if (!entry.sections.includes(c.name)) entry.sections.push(c.name);
             });
+
+            // Populate level dropdown
+            const ls = $('level-select');
+            if (ls) {
+                while (ls.options.length > 1) ls.remove(1);
+                [...classLevelMap.entries()]
+                    .sort((a, b) => a[1].order - b[1].order)
+                    .forEach(([code, info]) => {
+                        const opt = document.createElement('option');
+                        opt.value = code;
+                        opt.textContent = info.name;
+                        ls.appendChild(opt);
+                    });
+            }
+
+            // Populate class dropdown from level selection (or all if no level select)
+            updateClassDropdown();
 
             const subjects = (await window.api.subjects.getAll()) || [];
             const ss = subjectSelect();
@@ -124,6 +148,35 @@
         } catch (err) {
             console.warn('Failed to load filters:', err);
             if (typeof showToast === 'function') showToast('تعذر تحميل البيانات', 'error');
+        }
+    }
+
+    function updateClassDropdown() {
+        const cs = classSelect();
+        const ls = $('level-select');
+        while (cs.options.length > 1) cs.remove(1);
+
+        const selectedLevel = ls?.value || '';
+        if (selectedLevel && classLevelMap.has(selectedLevel)) {
+            const entry = classLevelMap.get(selectedLevel);
+            entry.sections.sort().forEach((name) => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                cs.appendChild(opt);
+            });
+        } else if (!selectedLevel) {
+            // Show all classes grouped by level
+            [...classLevelMap.entries()]
+                .sort((a, b) => a[1].order - b[1].order)
+                .forEach(([, info]) => {
+                    info.sections.sort().forEach((name) => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        cs.appendChild(opt);
+                    });
+                });
         }
     }
 
@@ -220,7 +273,7 @@
                     <div class="gs-sheet" id="gs-sheet-content">
                         ${letterheadHTML}
                         <div class="gs-sheet-title">ورقة التنقيط</div>
-                        <div class="gs-sheet-subtitle">${escapeHtml(className)} — ${escapeHtml(subject)}</div>
+                        <div class="gs-sheet-subtitle">${escapeHtml(getLevelFromSection(className).name)} — ${escapeHtml(className)} — ${escapeHtml(subject)}</div>
                         <div class="gs-sheet-meta">
                             <span><i class="fas fa-calendar-alt"></i> الدورة: ${semesterLabel}</span>
                             <span><i class="fas fa-graduation-cap"></i> السنة الدراسية: ${year}</span>
@@ -376,6 +429,17 @@
 
         // Generate
         generateBtn()?.addEventListener('click', generate);
+
+        // Level filter chains to class dropdown
+        $('level-select')?.addEventListener('change', () => {
+            updateClassDropdown();
+            showEmpty();
+            updateButtons(false);
+            isGenerated = false;
+            currentStudents = [];
+            const badge = countBadge();
+            if (badge) badge.style.display = 'none';
+        });
 
         // Print Preview (shared UX system)
         printPreviewBtn()?.addEventListener('click', openPreview);

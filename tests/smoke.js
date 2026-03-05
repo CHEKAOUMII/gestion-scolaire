@@ -17,7 +17,11 @@ function collectInvokeChannels(preloadSource) {
 }
 
 function collectHandleChannels(ipcSources) {
-    return unique([...ipcSources.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((m) => m[1]));
+    // Match both direct ipcMain.handle('channel') and helper patterns:
+    // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'), handleWriteNoAuth(ipcMain, 'channel')
+    const directMatches = [...ipcSources.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((m) => m[1]);
+    const helperMatches = [...ipcSources.matchAll(/(?:handleRead|handleWrite|handleWriteNoAuth)\(ipcMain,\s*'([^']+)'/g)].map((m) => m[1]);
+    return unique([...directMatches, ...helperMatches]);
 }
 
 function runContractSmoke() {

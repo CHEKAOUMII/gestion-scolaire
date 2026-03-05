@@ -28,6 +28,7 @@ function injectSidebar() {
                         <li><a href="students-register.html"><i class="fas fa-user-plus"></i> التسجيل والحركة العامة</a></li>
                         <li><a href="students-files.html"><i class="fas fa-folder-open"></i> ترتيب الملفات</a></li>
                         <li><a href="students-movement.html"><i class="fas fa-exchange-alt"></i> حركية التلاميذ</a></li>
+                        <li><a href="student-profile-prototype.html"><i class="fas fa-user-circle"></i> ملف التلميذ</a></li>
                     </ul>
                 </li>
                 <li class="expandable">
@@ -99,7 +100,6 @@ function injectSidebar() {
                 <li class="expandable">
                     <a href="#" class="nav-link"><i class="fas fa-paint-brush"></i><span>التصاميم الجديدة</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
-                        <li><a href="student-profile-prototype.html"><i class="fas fa-user-circle"></i> ملف التلميذ (جديد)</a></li>
                         <li><a href="communication-center-prototype.html"><i class="fas fa-comments"></i> مركز التواصل (جديد)</a></li>
                     </ul>
                 </li>

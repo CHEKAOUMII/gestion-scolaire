@@ -1,4 +1,6 @@
 const { app } = require('electron');
+const { authErrorResponse } = require('./ipc-helpers');
+const { requireRole } = require('./auth');
 const {
     activateLicense,
     adminRevokeDevice,
@@ -12,16 +14,6 @@ const {
     refreshLicenseValidation
 } = require('../licensing/service');
 const { getTrialStatus, setTrialDuration } = require('../licensing/trialService');
-const { requireRole } = require('./auth');
-
-function authErrorResponse(err) {
-    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
-    return {
-        success: false,
-        code: isAuthError ? err.code : 'INTERNAL_ERROR',
-        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
-    };
-}
 
 function registerLicensingIpc(ipcMain) {
     // App quit (used when trial expired and user closes activation modal)

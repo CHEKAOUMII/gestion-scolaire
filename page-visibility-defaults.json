@@ -1,7 +1,7 @@
 {
   "version": 1,
   "description": "Default page visibility settings. Hidden pages here will be hidden for all new installations.",
-  "updatedAt": "2026-03-01T22:37:55.334Z",
+  "updatedAt": "2026-03-05T00:11:24.867Z",
   "hiddenPages": [
     "absence-correspondence.html",
     "absence-weekly.html",
@@ -12,7 +12,6 @@
     "exams-tests.html",
     "reports-certificates.html",
     "reports-forms.html",
-    "student-profile-prototype.html",
     "students-files.html",
     "students-movement.html",
     "students-register.html",

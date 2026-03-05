@@ -335,6 +335,43 @@
             color: var(--color-primary, #3B6AC5);
         }
 
+        /* Semesters side-by-side grid */
+        .semesters-grid {
+            display: flex;
+            gap: 12px;
+        }
+
+        .semester-col {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .semester-header {
+            text-align: center;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .semester-header::before,
+        .semester-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--color-accent, #E8E8E8);
+        }
+
+        .semester-header span {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--color-primary, #3B6AC5);
+            white-space: nowrap;
+            padding: 2px 10px;
+            background: var(--color-primary-mist, rgba(59, 106, 197, 0.08));
+            border-radius: 9999px;
+        }
+
         /* Empty state */
         .detail-empty {
             text-align: center;
@@ -521,24 +558,12 @@
             }
         });
 
-        function getLevelFromSection(section) {
+        // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
+        function _getLocalLevelName(section) {
             const s = String(section || '').trim();
             if (!s) return '';
             if (sectionToLevel[s]) return sectionToLevel[s];
-
-            const compact = s.replace(/[\s_]/g, '').toUpperCase();
-            if (compact.startsWith('TCS')) return 'الجذع المشترك';
-            if (compact.startsWith('1BACSEF')) return 'الأولى باكالوريا علوم تجريبية';
-            if (compact.startsWith('1BACSMF')) return 'الأولى باكالوريا علوم رياضية';
-            if (compact.startsWith('1BACSH')) return 'الأولى باكالوريا علوم إنسانية';
-            if (compact.startsWith('1BAC')) return 'الأولى باكالوريا';
-            if (compact.startsWith('2BACSPF')) return 'الثانية باكالوريا علوم فيزيائية';
-            if (compact.startsWith('2BACSE')) return 'الثانية باكالوريا علوم الحياة والأرض';
-            if (compact.startsWith('2BACSH')) return 'الثانية باكالوريا علوم إنسانية';
-            if (compact.startsWith('2BAC')) return 'الثانية باكالوريا';
-
-            if (s.includes('-')) return s.split('-')[0].trim();
-            return s;
+            return getLevelNameFromSection(s);
         }
 
         function renderClassOptions(selectedLevel = '') {
@@ -546,7 +571,7 @@
             classSelect.innerHTML = '<option value="">كل الأقسام</option>';
 
             const list = selectedLevel
-                ? allSections.filter(section => getLevelFromSection(section) === selectedLevel)
+                ? allSections.filter(section => _getLocalLevelName(section) === selectedLevel)
                 : allSections.slice();
 
             list.sort((a, b) => String(a).localeCompare(String(b), 'ar'))
@@ -569,7 +594,7 @@
             if (selectedClass) {
                 filteredGrades = filteredGrades.filter(g => (g.section || '') === selectedClass);
             } else if (selectedLevel) {
-                filteredGrades = filteredGrades.filter(g => getLevelFromSection(g.section) === selectedLevel);
+                filteredGrades = filteredGrades.filter(g => _getLocalLevelName(g.section) === selectedLevel);
             }
             // If neither is selected, use all grades (no filtering)
 
@@ -632,7 +657,7 @@
             allSections = Array.from(sections);
 
             sections.forEach(section => {
-                const level = getLevelFromSection(section);
+                const level = _getLocalLevelName(section);
                 if (level) levels.add(level);
             });
 
@@ -711,7 +736,7 @@
                 // Apply filters
                 let filtered = grades;
                 if (className) filtered = filtered.filter(g => (g.section || '') === className);
-                if (levelName) filtered = filtered.filter(g => getLevelFromSection(g.section) === levelName);
+                if (levelName) filtered = filtered.filter(g => _getLocalLevelName(g.section) === levelName);
                 if (subjectName) filtered = filtered.filter(g => normalizeSubjectName(g.subject) === subjectName);
                 if (semester) filtered = filtered.filter(g => String(g.semester || '') === semester);
 
@@ -912,23 +937,54 @@
                 const avg = computeSubjectAverage(subj, grades);
                 const color = gradeColor(avg);
 
-                let examIdx = 0;
-                const chipsHtml = grades.map((g) => {
-                    const gc = gradeColor(g.grade);
-                    const pct = Math.min((g.grade / 20) * 100, 100);
-                    const semLabel = g.semester ? `الدورة ${g.semester}` : '';
-                    const isActv = ccIsActivity(g.subject);
-                    const chipLabel = isActv
-                        ? `أنشطة مندمجة${semLabel ? ' — ' + semLabel : ''}`
-                        : `فرض ${++examIdx}${semLabel ? ' — ' + semLabel : ''}`;
-                    return `
-                        <div class="grade-chip">
+                // Group by semester
+                const bySemester = {};
+                grades.forEach(g => {
+                    const sem = g.semester || 0;
+                    if (!bySemester[sem]) bySemester[sem] = [];
+                    bySemester[sem].push(g);
+                });
+                const semesterKeys = Object.keys(bySemester).sort((a, b) => Number(a) - Number(b));
+                const semesterNames = { '1': 'الدورة الأولى', '2': 'الدورة الثانية', '0': 'غير محددة' };
+                const hasMultipleSemesters = semesterKeys.length > 1 || (semesterKeys.length === 1 && semesterKeys[0] !== '0');
+
+                let bodyHtml = '';
+                if (hasMultipleSemesters) {
+                    const cols = semesterKeys.map(sem => {
+                        const semName = semesterNames[sem] || `الدورة ${sem}`;
+                        let examIdx = 0;
+                        const chips = bySemester[sem].map(g => {
+                            const gc = gradeColor(g.grade);
+                            const pct = Math.min((g.grade / 20) * 100, 100);
+                            const isActv = ccIsActivity(g.subject);
+                            const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
+                            return `<div class="grade-chip">
+                                <span class="chip-label">${chipLabel}</span>
+                                <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
+                                <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                            </div>`;
+                        }).join('');
+                        return `<div class="semester-col">
+                            <div class="semester-header"><span>${semName}</span></div>
+                            <div class="grades-chips">${chips}</div>
+                        </div>`;
+                    }).join('');
+                    bodyHtml = `<div class="semesters-grid">${cols}</div>`;
+                } else {
+                    let examIdx = 0;
+                    const chips = grades.map(g => {
+                        const gc = gradeColor(g.grade);
+                        const pct = Math.min((g.grade / 20) * 100, 100);
+                        const isActv = ccIsActivity(g.subject);
+                        const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
+                        return `<div class="grade-chip">
                             <span class="chip-label">${chipLabel}</span>
                             <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
                             <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
-                        </div>
-                    `;
-                }).join('');
+                        </div>`;
+                    }).join('');
+                    bodyHtml = `<div class="grades-chips">${chips}</div>`;
+                }
 
                 return `
                     <div class="subject-block">
@@ -936,9 +992,7 @@
                             <span class="subj-name"><i class="fas fa-book"></i> ${subj}</span>
                             <span class="subj-avg" style="background:${color}">${avg.toFixed(2)}</span>
                         </div>
-                        <div class="subject-block-body">
-                            <div class="grades-chips">${chipsHtml}</div>
-                        </div>
+                        <div class="subject-block-body">${bodyHtml}</div>
                     </div>
                 `;
             }).join('');

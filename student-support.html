@@ -689,10 +689,15 @@
                         <option value="">كل المواد</option>
                     </select>
                     <input type="number" id="threshold" placeholder="الحد الأقصى للنقطة" value="10" min="0" max="20">
-                    <button class="btn btn-primary" type="button" id="search-btn"
-                        style="width:100%;padding:12px 20px;font-size:14px;border-radius:10px;margin:0;justify-content:center;"><i
-                            class="fas fa-search"></i>
-                        بحث</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary" type="button" id="search-btn"
+                            style="flex:1;padding:12px 20px;font-size:14px;border-radius:10px;margin:0;justify-content:center;"><i
+                                class="fas fa-search"></i>
+                            بحث</button>
+                        <button class="btn btn-success ux-print-preview-btn" type="button" id="print-btn"
+                            style="padding:12px 16px;font-size:14px;border-radius:10px;margin:0;white-space:nowrap;"><i
+                                class="fas fa-eye"></i> معاينة الطباعة</button>
+                    </div>
                 </form>
             </div>
 
@@ -820,23 +825,7 @@
         let quickSearchTerm = '';
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Inject preview button into header-right (after setupUnifiedHeader rebuilds it)
-            setTimeout(() => {
-                const headerRight = document.querySelector('.header .header-right');
-                if (headerRight) {
-                    const themeToggle = headerRight.querySelector('.theme-toggle');
-                    const printBtn = document.createElement('button');
-                    printBtn.className = 'btn btn-success ux-print-preview-btn';
-                    printBtn.id = 'print-btn';
-                    printBtn.innerHTML = '<i class="fas fa-eye"></i> معاينة الطباعة';
-                    if (themeToggle) {
-                        headerRight.insertBefore(printBtn, themeToggle);
-                    } else {
-                        headerRight.appendChild(printBtn);
-                    }
-                    printBtn.addEventListener('click', exportPdf);
-                }
-            }, 150);
+            document.getElementById('print-btn').addEventListener('click', exportPdf);
 
             await loadFilters();
 
@@ -948,24 +937,12 @@
         }
 
         // ─── Existing helpers ───
-        function getLevelFromSection(section) {
+        // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
+        function _getLocalLevelName(section) {
             const s = String(section || '').trim();
             if (!s) return '';
             if (sectionToLevel[s]) return sectionToLevel[s];
-
-            const compact = s.replace(/[\s_]/g, '').toUpperCase();
-            if (compact.startsWith('TCS')) return 'الجذع المشترك';
-            if (compact.startsWith('1BACSEF')) return 'الأولى باكالوريا علوم تجريبية';
-            if (compact.startsWith('1BACSMF')) return 'الأولى باكالوريا علوم رياضية';
-            if (compact.startsWith('1BACSH')) return 'الأولى باكالوريا علوم إنسانية';
-            if (compact.startsWith('1BAC')) return 'الأولى باكالوريا';
-            if (compact.startsWith('2BACSPF')) return 'الثانية باكالوريا علوم فيزيائية';
-            if (compact.startsWith('2BACSE')) return 'الثانية باكالوريا علوم الحياة والأرض';
-            if (compact.startsWith('2BACSH')) return 'الثانية باكالوريا علوم إنسانية';
-            if (compact.startsWith('2BAC')) return 'الثانية باكالوريا';
-
-            if (s.includes('-')) return s.split('-')[0].trim();
-            return s;
+            return getLevelNameFromSection(s);
         }
 
         function normalizeSubjectName(subject) {
@@ -980,7 +957,7 @@
             classSelect.innerHTML = '<option value="">كل الأقسام</option>';
 
             const list = selectedLevel
-                ? allSections.filter(section => getLevelFromSection(section) === selectedLevel)
+                ? allSections.filter(section => _getLocalLevelName(section) === selectedLevel)
                 : allSections.slice();
 
             list.sort((a, b) => String(a).localeCompare(String(b), 'ar'))
@@ -1000,7 +977,7 @@
             if (selectedClass) {
                 filteredGrades = filteredGrades.filter(g => (g.section || '') === selectedClass);
             } else if (selectedLevel) {
-                filteredGrades = filteredGrades.filter(g => getLevelFromSection(g.section) === selectedLevel);
+                filteredGrades = filteredGrades.filter(g => _getLocalLevelName(g.section) === selectedLevel);
             }
 
             const subjects = new Set();
@@ -1041,7 +1018,7 @@
             allSections = Array.from(sections);
 
             sections.forEach(section => {
-                const level = getLevelFromSection(section);
+                const level = _getLocalLevelName(section);
                 if (level) levels.add(level);
             });
 
@@ -1397,7 +1374,7 @@
             if (className) {
                 relevantGrades = relevantGrades.filter(g => (g.section || '') === className);
             } else if (level) {
-                relevantGrades = relevantGrades.filter(g => getLevelFromSection(g.section) === level);
+                relevantGrades = relevantGrades.filter(g => _getLocalLevelName(g.section) === level);
             }
 
             if (subject) {

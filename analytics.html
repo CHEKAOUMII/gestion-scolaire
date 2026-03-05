@@ -815,26 +815,13 @@
             return `${label}: ${value} (${pct.toFixed(1)}%)`;
         }
 
-        function getLevelFromSection(section) {
+        // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
+        // Named _getLocalLevelName to avoid collision with global getLevelFromSection (object‐returning)
+        function _getLocalLevelName(section) {
             const s = String(section || '').trim();
             if (!s) return '';
             if (sectionToLevel[s]) return sectionToLevel[s];
-
-            const compact = s.replace(/[\s_]/g, '').toUpperCase();
-            if (compact.startsWith('TCS')) return 'الجذع المشترك';
-            if (compact.startsWith('1BACSEF')) return 'الأولى باكالوريا العلوم التجريبية – خيار فرنسي';
-            if (compact.startsWith('1BACSMF')) return 'الأولى باكالوريا العلوم الرياضية – خيار فرنسي';
-            if (compact.startsWith('1BACSH')) return 'الأولى باكالوريا العلوم الإنسانية';
-            if (compact.startsWith('1BACSEG')) return 'الأولى باكالوريا العلوم الاقتصادية والتدبير';
-            if (compact.startsWith('1BAC')) return 'الأولى باكالوريا';
-            if (compact.startsWith('2BACSPF')) return 'الثانية باكالوريا العلوم الفيزيائية – خيار فرنسي';
-            if (compact.startsWith('2BACSE')) return 'الثانية باكالوريا علوم الحياة والأرض';
-            if (compact.startsWith('2BACSH')) return 'الثانية باكالوريا العلوم الإنسانية';
-            if (compact.startsWith('2BAC')) return 'الثانية باكالوريا';
-
-            if (s.includes('-')) return s.split('-')[0].trim();
-            if (s.includes(' ')) return s.split(' ')[0].trim();
-            return s;
+            return getLevelNameFromSection(s);
         }
 
         function renderClassOptions(selectedLevel = '') {
@@ -843,7 +830,7 @@
             classSelect.innerHTML = '<option value="">كل الأقسام</option>';
 
             const list = selectedLevel
-                ? allSections.filter(section => getLevelFromSection(section) === selectedLevel)
+                ? allSections.filter(section => _getLocalLevelName(section) === selectedLevel)
                 : allSections.slice();
 
             list
@@ -861,7 +848,7 @@
             if (selectedClass) {
                 filteredGrades = filteredGrades.filter(g => (g.section || '') === selectedClass);
             } else if (selectedLevel) {
-                filteredGrades = filteredGrades.filter(g => getLevelFromSection(g.section) === selectedLevel);
+                filteredGrades = filteredGrades.filter(g => _getLocalLevelName(g.section) === selectedLevel);
             }
 
             const subjects = new Set();
@@ -1063,7 +1050,7 @@
             grades.forEach(g => { if (g.section) sections.add(g.section); });
             allSections = Array.from(sections);
             sections.forEach(section => {
-                const level = getLevelFromSection(section);
+                const level = _getLocalLevelName(section);
                 if (level) levels.add(level);
             });
 
@@ -1116,7 +1103,7 @@
 
                 let filtered = grades;
                 if (className) filtered = filtered.filter(g => g.section === className);
-                if (levelName) filtered = filtered.filter(g => getLevelFromSection(g.section) === levelName);
+                if (levelName) filtered = filtered.filter(g => _getLocalLevelName(g.section) === levelName);
                 if (type === 'teachers') {
                     if (teacherSubjectName) filtered = filtered.filter(g => normalizeSubjectName(g.subject) === teacherSubjectName);
                 } else if (subjectName) {

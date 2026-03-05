@@ -29,7 +29,9 @@ contextBridge.exposeInMainWorld('api', {
         getZeroStudents: (filters) => ipcRenderer.invoke('grades:getZeroStudents', filters),
         save: (grade) => ipcRenderer.invoke('grades:save', grade),
         saveBulk: (grades) => ipcRenderer.invoke('grades:saveBulk', grades),
-        deleteByYear: (schoolYear) => ipcRenderer.invoke('grades:deleteByYear', schoolYear)
+        deleteByYear: (schoolYear) => ipcRenderer.invoke('grades:deleteByYear', schoolYear),
+        deleteBySemester: (schoolYear, semester) =>
+            ipcRenderer.invoke('grades:deleteBySemester', schoolYear, semester)
     },
 
     // Settings

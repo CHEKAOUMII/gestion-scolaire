@@ -1,3 +1,4 @@
+const { authErrorResponse } = require('./ipc-helpers');
 const { requireRole } = require('./auth');
 const {
     getOwnerSyncConfig,
@@ -8,17 +9,8 @@ const {
     testOwnerSyncConnection
 } = require('../licensing/ownerSync');
 
-function authErrorResponse(err) {
-    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
-    return {
-        success: false,
-        code: isAuthError ? err.code : 'INTERNAL_ERROR',
-        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
-    };
-}
-
 function registerOwnerTelemetryIpc(ipcMain) {
-    ipcMain.handle('ownerTelemetry:getConfig', async (_event) => {
+    ipcMain.handle('ownerTelemetry:getConfig', async () => {
         try {
             return getOwnerSyncConfig();
         } catch (err) {

@@ -1,21 +1,9 @@
-const { getDb } = require('../db/context');
-const { requireRole } = require('./auth');
-
-function authErrorResponse(err) {
-    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
-    return {
-        success: false,
-        code: isAuthError ? err.code : 'INTERNAL_ERROR',
-        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
-    };
-}
+const { handleRead, handleWrite, handleWriteNoAuth, normalizeYear } = require('./ipc-helpers');
 
 function registerAbsencesIpc(ipcMain) {
     // ── Read handlers (no auth required — app starts without login) ──
 
-    ipcMain.handle('absences:getAll', async (event, schoolYear) => {
-        const db = getDb();
-        const year = schoolYear || '2025/2026';
+    handleRead(ipcMain, 'absences:getAll', (db, schoolYear) => {
         return db
             .prepare(
                 `
@@ -29,17 +17,14 @@ function registerAbsencesIpc(ipcMain) {
             ORDER BY a.absence_date DESC
         `
             )
-            .all(year);
+            .all(normalizeYear(schoolYear));
     });
 
-    ipcMain.handle('absences:getByStudent', async (event, studentId) => {
-        const db = getDb();
+    handleRead(ipcMain, 'absences:getByStudent', (db, studentId) => {
         return db.prepare('SELECT * FROM absences WHERE student_id = ? ORDER BY absence_date DESC').all(studentId);
     });
 
-    ipcMain.handle('absences:getBySection', async (event, section, schoolYear) => {
-        const db = getDb();
-        const year = schoolYear || '2025/2026';
+    handleRead(ipcMain, 'absences:getBySection', (db, section, schoolYear) => {
         return db
             .prepare(
                 `
@@ -50,110 +35,92 @@ function registerAbsencesIpc(ipcMain) {
             ORDER BY s.full_name
         `
             )
-            .all(section, year);
+            .all(section, normalizeYear(schoolYear));
     });
 
     // ── Write handlers (require admin or staff role) ──
 
-    ipcMain.handle('absences:save', async (event, absence) => {
-        try {
-            requireRole(event, ['admin', 'staff']);
-            const db = getDb();
-            db.prepare(
-                `
+    handleWrite(ipcMain, 'absences:save', ['admin', 'staff'], (db, _event, absence) => {
+        db.prepare(
+            `
                 INSERT INTO absences(student_id, student_code, absence_date, month, absence_type, hours, days, reason, school_year)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
-            ).run(
-                absence.student_id,
-                absence.student_code,
-                absence.absence_date,
-                absence.month,
-                absence.absence_type,
-                absence.hours,
-                absence.days,
-                absence.reason,
-                absence.school_year
-            );
-            return { success: true };
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+        ).run(
+            absence.student_id,
+            absence.student_code,
+            absence.absence_date,
+            absence.month,
+            absence.absence_type,
+            absence.hours,
+            absence.days,
+            absence.reason,
+            absence.school_year
+        );
+        return { success: true };
     });
 
     // No auth: bulk-import is used by settings-imports page before login
-    ipcMain.handle('absences:saveBulk', async (event, absences) => {
-        try {
-            const db = getDb();
-            const check = db.prepare(`
+    handleWriteNoAuth(ipcMain, 'absences:saveBulk', (db, absences) => {
+        const check = db.prepare(`
                 SELECT id FROM absences 
                 WHERE student_code = ? AND month = ? AND school_year = ? AND absence_type = ?
             `);
-            const update = db.prepare(`
+        const update = db.prepare(`
                 UPDATE absences SET hours = ?, days = ?
                 WHERE student_code = ? AND month = ? AND school_year = ? AND absence_type = ?
             `);
-            const insert = db.prepare(`
+        const insert = db.prepare(`
                 INSERT INTO absences(student_id, student_code, absence_date, month, absence_type, hours, days, reason, school_year)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
-            const upsertMany = db.transaction((items) => {
-                for (const absence of items) {
-                    const exists = check.get(
+        const upsertMany = db.transaction((items) => {
+            for (const absence of items) {
+                const exists = check.get(
+                    absence.student_code,
+                    absence.month,
+                    absence.school_year,
+                    absence.absence_type
+                );
+
+                if (exists) {
+                    update.run(
+                        absence.hours,
+                        absence.days,
                         absence.student_code,
                         absence.month,
                         absence.school_year,
                         absence.absence_type
                     );
-
-                    if (exists) {
-                        update.run(
-                            absence.hours,
-                            absence.days,
-                            absence.student_code,
-                            absence.month,
-                            absence.school_year,
-                            absence.absence_type
-                        );
-                    } else {
-                        insert.run(
-                            absence.student_id,
-                            absence.student_code,
-                            absence.absence_date,
-                            absence.month,
-                            absence.absence_type,
-                            absence.hours,
-                            absence.days,
-                            absence.reason,
-                            absence.school_year
-                        );
-                    }
+                } else {
+                    insert.run(
+                        absence.student_id,
+                        absence.student_code,
+                        absence.absence_date,
+                        absence.month,
+                        absence.absence_type,
+                        absence.hours,
+                        absence.days,
+                        absence.reason,
+                        absence.school_year
+                    );
                 }
-            });
-            upsertMany(absences);
-            return { success: true, count: absences.length };
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+            }
+        });
+        upsertMany(absences);
+        return { success: true, count: absences.length };
     });
 
-    ipcMain.handle('absences:delete', async (event, id) => {
-        try {
-            requireRole(event, ['admin', 'staff']);
-            const db = getDb();
-            db.prepare('DELETE FROM absences WHERE id = ?').run(id);
-            return { success: true };
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+    handleWrite(ipcMain, 'absences:delete', ['admin', 'staff'], (db, _event, id) => {
+        db.prepare('DELETE FROM absences WHERE id = ?').run(id);
+        return { success: true };
     });
 
     // ── Read stats (no auth required) ──
 
-    ipcMain.handle('absences:getStats', async (event, schoolYear) => {
-        const db = getDb();
-        const year = schoolYear || '2025/2026';
+    handleRead(ipcMain, 'absences:getStats', (db, schoolYear) => {
+        const year = normalizeYear(schoolYear);
 
         const { total: totalHours } = db
             .prepare('SELECT COALESCE(SUM(hours), 0) as total FROM absences WHERE school_year = ?')
@@ -198,9 +165,7 @@ function registerAbsencesIpc(ipcMain) {
         return { totalHours, bySection, byMonth, topAbsentees };
     });
 
-    ipcMain.handle('absences:getSummaryByStudent', async (event, schoolYear) => {
-        const db = getDb();
-        const year = schoolYear || '2025/2026';
+    handleRead(ipcMain, 'absences:getSummaryByStudent', (db, schoolYear) => {
         return db
             .prepare(
                 `
@@ -215,12 +180,11 @@ function registerAbsencesIpc(ipcMain) {
             ORDER BY total_hours DESC
         `
             )
-            .all(year);
+            .all(normalizeYear(schoolYear));
     });
 
-    ipcMain.handle('absence:getByClass', async (event, className = '', schoolYear) => {
-        const db = getDb();
-        const year = schoolYear || '2025/2026';
+    handleRead(ipcMain, 'absence:getByClass', (db, className, schoolYear) => {
+        const year = normalizeYear(schoolYear);
         const section = String(className || '').trim();
         return db
             .prepare(
@@ -243,9 +207,7 @@ function registerAbsencesIpc(ipcMain) {
 
     // ── Correspondence (read = open, write = admin/staff) ──
 
-    ipcMain.handle('correspondence:getAll', async (event, schoolYear) => {
-        const db = getDb();
-        const year = schoolYear || '2025/2026';
+    handleRead(ipcMain, 'correspondence:getAll', (db, schoolYear) => {
         return db
             .prepare(
                 `
@@ -256,60 +218,41 @@ function registerAbsencesIpc(ipcMain) {
             ORDER BY c.letter_date DESC
         `
             )
-            .all(year);
+            .all(normalizeYear(schoolYear));
     });
 
-    ipcMain.handle('correspondence:save', async (event, letter) => {
-        try {
-            requireRole(event, ['admin', 'staff']);
-            const db = getDb();
-            const info = db
-                .prepare(
-                    `
+    handleWrite(ipcMain, 'correspondence:save', ['admin', 'staff'], (db, _event, letter) => {
+        const info = db
+            .prepare(
+                `
                 INSERT INTO correspondence(student_id, student_code, letter_type, letter_date, total_hours, school_year)
                 VALUES(?, ?, ?, ?, ?, ?)
             `
-                )
-                .run(
-                    letter.student_id,
-                    letter.student_code,
-                    letter.letter_type,
-                    letter.letter_date,
-                    letter.total_hours,
-                    letter.school_year
-                );
-            return { success: true, id: info.lastInsertRowid };
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+            )
+            .run(
+                letter.student_id,
+                letter.student_code,
+                letter.letter_type,
+                letter.letter_date,
+                letter.total_hours,
+                letter.school_year
+            );
+        return { success: true, id: info.lastInsertRowid };
     });
 
-    ipcMain.handle('correspondence:getByStudent', async (event, studentId) => {
-        const db = getDb();
+    handleRead(ipcMain, 'correspondence:getByStudent', (db, studentId) => {
         return db.prepare('SELECT * FROM correspondence WHERE student_id = ? ORDER BY letter_date DESC').all(studentId);
     });
 
-    ipcMain.handle('correspondence:markPrinted', async (event, id) => {
-        try {
-            requireRole(event, ['admin', 'staff']);
-            const db = getDb();
-            db.prepare('UPDATE correspondence SET printed = 1 WHERE id = ?').run(id);
-            return { success: true };
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+    handleWrite(ipcMain, 'correspondence:markPrinted', ['admin', 'staff'], (db, _event, id) => {
+        db.prepare('UPDATE correspondence SET printed = 1 WHERE id = ?').run(id);
+        return { success: true };
     });
 
     // No auth: used by settings-imports page to clear data before re-import
-    ipcMain.handle('absences:deleteByYear', async (event, schoolYear) => {
-        try {
-            const db = getDb();
-            const year = schoolYear || '2025/2026';
-            db.prepare('DELETE FROM absences WHERE school_year = ?').run(year);
-            return { success: true };
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+    handleWriteNoAuth(ipcMain, 'absences:deleteByYear', (db, schoolYear) => {
+        db.prepare('DELETE FROM absences WHERE school_year = ?').run(normalizeYear(schoolYear));
+        return { success: true };
     });
 }
 

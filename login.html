@@ -232,11 +232,47 @@
             margin-left: 5px;
             color: var(--color-primary);
         }
+
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            margin-bottom: 16px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-sm);
+            color: var(--color-text-main);
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            text-decoration: none;
+            transition: var(--transition-fast);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .btn-back:hover {
+            background: var(--color-primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 106, 197, 0.3);
+        }
+
+        .btn-back i {
+            font-size: 14px;
+        }
     </style>
 </head>
 
 <body>
     <div class="login-container">
+        <a href="index.html" class="btn-back">
+            <i class="fas fa-arrow-right"></i>
+            رجوع
+        </a>
         <div class="login-card">
             <div class="login-header">
                 <div class="login-logo">

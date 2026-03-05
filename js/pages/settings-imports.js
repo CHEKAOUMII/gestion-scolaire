@@ -185,6 +185,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        // Semester selector change -> refresh stats
+        document.getElementById('semester-select')?.addEventListener('change', () => loadDataStats());
+
         // Delete buttons
         document.getElementById('btn-clear-students')?.addEventListener('click', () => clearData('students'));
         document.getElementById('btn-clear-grades')?.addEventListener('click', () => clearData('grades'));
@@ -310,16 +313,19 @@ function showImportConfirm(action, files) {
 
         const label = ACTION_LABELS[action] || action;
         const safeFiles = Array.isArray(files) ? files : [];
+        const semesterLabel = action === 'grades'
+            ? `<br><span style="color:var(--primary);font-weight:600;">📌 سيتم تحديد الدورة تلقائياً من الملف</span>`
+            : '';
         if (safeFiles.length === 1) {
             const fileName = escapeConfirmText(safeFiles[0]?.name || 'الملف المحدد');
-            message.innerHTML = `هل تريد استيراد ${label} من الملف:<br><strong>${fileName}</strong>؟`;
+            message.innerHTML = `هل تريد استيراد ${label} من الملف:<br><strong>${fileName}</strong>؟${semesterLabel}`;
         } else {
             const preview = safeFiles
                 .slice(0, 4)
                 .map((f) => escapeConfirmText(f.name))
                 .join('، ');
             const more = safeFiles.length > 4 ? ` ... (+${safeFiles.length - 4})` : '';
-            message.innerHTML = `هل تريد استيراد ${label} بشكل جماعي من <strong>${safeFiles.length}</strong> ملفات؟<br>${preview}${more}`;
+            message.innerHTML = `هل تريد استيراد ${label} بشكل جماعي من <strong>${safeFiles.length}</strong> ملفات؟<br>${preview}${more}${semesterLabel}`;
         }
         overlay.classList.add('active');
         overlay.setAttribute('aria-hidden', 'false');
@@ -672,6 +678,10 @@ function getCurrentSchoolYear() {
     return document.getElementById('school-year')?.value || '2025/2026';
 }
 
+function getSelectedSemester() {
+    return parseInt(document.getElementById('semester-select')?.value, 10) || 1;
+}
+
 function getImportLogsTbody() {
     return document.getElementById('import-logs-tbody') || document.getElementById('tbody');
 }
@@ -708,13 +718,123 @@ function inferSubjectFromFileName(fileName) {
     return rawSubject;
 }
 
+// ─── Level Normalization ────────────────────────────────────────────────────
+// LEVEL_CODE_TO_AR and _LEVEL_KEYS_DESC are provided globally by js/utils.js
+
+const LEVEL_AR_PATTERNS = [
+    [/جذع.*مشترك.*آداب|الآداب.*و.*العلوم.*الإنسانية/i, 'الجذع المشترك للآداب والعلوم الإنسانية'],
+    [/جذع.*مشترك.*علمي.*فرنسية/i, 'الجذع المشترك العلمي خيار فرنسية'],
+    [/جذع.*مشترك.*علمي.*عربية/i, 'الجذع المشترك العلمي خيار عربية'],
+    [/جذع.*مشترك.*علمي/i, 'الجذع المشترك العلمي'],
+    [/جذع.*مشترك.*تكنولوجي/i, 'الجذع المشترك التكنولوجي'],
+    [/جذع.*مشترك/i, 'الجذع المشترك'],
+    [/أولى.*رياضي.*فرنسية/i, 'الأولى باكالوريا علوم رياضية خيار فرنسية'],
+    [/أولى.*رياضي.*عربية/i, 'الأولى باكالوريا علوم رياضية خيار عربية'],
+    [/أولى.*رياضي/i, 'الأولى باكالوريا علوم رياضية'],
+    [/أولى.*تجريب.*فرنسية/i, 'الأولى باكالوريا علوم تجريبية خيار فرنسية'],
+    [/أولى.*تجريب.*عربية/i, 'الأولى باكالوريا علوم تجريبية خيار عربية'],
+    [/أولى.*تجريب/i, 'الأولى باكالوريا علوم تجريبية'],
+    [/أولى.*آداب|أولى.*إنسان|أولى.*انسان/i, 'الأولى باكالوريا آداب وعلوم إنسانية'],
+    [/أولى.*اقتصاد|أولى.*تدبير/i, 'الأولى باكالوريا علوم الاقتصاد والتدبير'],
+    [/أولى.*باك/i, 'الأولى باكالوريا'],
+    [/ثانية.*رياضي.*[اأ]\b/i, 'الثانية باكالوريا علوم رياضية أ'],
+    [/ثانية.*رياضي.*ب\b/i, 'الثانية باكالوريا علوم رياضية ب'],
+    [/ثانية.*رياضي/i, 'الثانية باكالوريا علوم رياضية'],
+    [/ثانية.*حياة|ثانية.*الحياة|ثانية.*أرض/i, 'الثانية باكالوريا علوم الحياة والأرض'],
+    [/ثانية.*فيزيائ/i, 'الثانية باكالوريا علوم فيزيائية'],
+    [/ثانية.*إنسان|ثانية.*انسان/i, 'الثانية باكالوريا آداب وعلوم إنسانية'],
+    [/ثانية.*آداب/i, 'الثانية باكالوريا آداب'],
+    [/ثانية.*اقتصاد/i, 'الثانية باكالوريا علوم الاقتصاد والتدبير'],
+    [/ثانية.*تدبير|ثانية.*محاسب/i, 'الثانية باكالوريا علوم التدبير المحاسباتي'],
+    [/ثانية.*شرع/i, 'الثانية باكالوريا علوم شرعية'],
+    [/ثانية.*أصيل|ثانية.*اصيل/i, 'الثانية باكالوريا تعليم أصيل'],
+    [/ثانية.*باك/i, 'الثانية باكالوريا']
+];
+
+function normalizeLevelName(rawLevel) {
+    const text = String(rawLevel || '').trim();
+    if (!text) return '';
+    // 1. Section code match: "TCSF-1" → strip digits → "TCSF" → Arabic
+    const upper = text.toUpperCase().replace(/[-_\s]?\d+$/, '').trim();
+    for (const code of _LEVEL_KEYS_DESC) {
+        if (upper === code || upper.startsWith(code)) return LEVEL_CODE_TO_AR[code].name;
+    }
+    // 2. Arabic pattern matching (handles partial/variant Arabic names)
+    for (const [re, name] of LEVEL_AR_PATTERNS) {
+        if (re.test(text)) return name;
+    }
+    // 3. Generic fallback
+    if (/^TC/i.test(upper) || /جذع/i.test(text)) return 'الجذع المشترك';
+    if (/^1BAC/i.test(upper) || /أولى/i.test(text)) return 'الأولى باكالوريا';
+    if (/^2BAC/i.test(upper) || /ثانية/i.test(text)) return 'الثانية باكالوريا';
+    return text;
+}
+
 function deriveLevelFromSection(sectionValue) {
     const section = String(sectionValue || '').trim();
     if (!section) return '';
-    const cleaned = section.replace(/[-_\s]?\d+$/, '').trim();
-    if (cleaned) return cleaned;
-    const firstToken = section.split(/\s+/).filter(Boolean)[0];
-    return firstToken || section;
+    return normalizeLevelName(section);
+}
+
+// ─── Subject Normalization (French → Arabic) ─────────────────────────────────
+const SUBJECT_FR_TO_AR = {
+    'MATHEMATIQUES': 'الرياضيات', 'MATH': 'الرياضيات', 'MATHS': 'الرياضيات',
+    'SCIENCES MATHEMATIQUES': 'الرياضيات',
+    'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
+    'PHYSIQUE ET CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE': 'الفيزياء والكيمياء',
+    'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
+    'SVT': 'علوم الحياة والأرض', 'SCIENCES NATURELLES': 'علوم الحياة والأرض',
+    'PHILOSOPHIE': 'الفلسفة', 'PHILO': 'الفلسفة',
+    'LANGUE ARABE': 'اللغة العربية', 'ARABE': 'اللغة العربية',
+    'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAIS': 'اللغة الفرنسية',
+    'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAISE': 'اللغة الفرنسية',
+    'LANGUE ANGLAISE': 'اللغة الإنجليزية', 'ANGLAIS': 'اللغة الإنجليزية',
+    'ANGLAISE': 'اللغة الإنجليزية', 'ENGLISH': 'اللغة الإنجليزية',
+    'ESPAGNOL': 'اللغة الإسبانية', 'LANGUE ESPAGNOLE': 'اللغة الإسبانية',
+    'ALLEMAND': 'اللغة الألمانية', 'ITALIEN': 'اللغة الإيطالية',
+    'EDUCATION ISLAMIQUE': 'التربية الإسلامية', 'INSTRUCTION ISLAMIQUE': 'التربية الإسلامية',
+    'ISLAMIQUE': 'التربية الإسلامية',
+    'EDUCATION PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
+    'EDUCATION PHYSIQUE': 'التربية البدنية', 'EPS': 'التربية البدنية', 'SPORT': 'التربية البدنية',
+    'HISTOIRE ET GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'HISTOIRE-GEOGRAPHIE': 'التاريخ والجغرافيا', 'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'HISTOIRE': 'التاريخ والجغرافيا', 'GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'INFORMATIQUE': 'المعلوميات',
+    'ECONOMIE GENERALE': 'الاقتصاد والتدبير', 'ECONOMIE ET ORGANISATION': 'الاقتصاد والتدبير',
+    'ECONOMIE': 'الاقتصاد والتدبير', 'SCIENCES ECONOMIQUES': 'الاقتصاد والتدبير',
+    'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
+    'COMPTABILITE': 'المحاسبة والرياضيات المالية',
+    'DROIT': 'القانون', 'TRADUCTION': 'الترجمة',
+    "SCIENCES DE L'INGENIEUR": 'علوم المهندس', 'SCIENCES INGENIEURS': 'علوم المهندس',
+    'SI': 'علوم المهندس',
+    'ARTS APPLIQUES': 'الفنون التطبيقية', 'DESSIN': 'الفنون التطبيقية',
+    // Abbreviated forms (Massar exports)
+    'SC DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
+    'SC VIE TERRE': 'علوم الحياة والأرض', 'SC NAT': 'علوم الحياة والأرض',
+    'SC PHYSIQUE': 'الفيزياء والكيمياء', 'SC PHYS': 'الفيزياء والكيمياء',
+    'SC MATH': 'الرياضيات', 'SC MATHS': 'الرياضيات',
+    'ED ISLAMIQUE': 'التربية الإسلامية', 'INSTR ISLAMIQUE': 'التربية الإسلامية',
+    'ED PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
+    'ED PHYSIQUE': 'التربية البدنية',
+    'HIST GEO': 'التاريخ والجغرافيا', 'HIST GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'HIST ET GEO': 'التاريخ والجغرافيا',
+    'L ARABE': 'اللغة العربية', 'L FRANCAISE': 'اللغة الفرنسية',
+    'L ANGLAISE': 'اللغة الإنجليزية', 'L ESPAGNOLE': 'اللغة الإسبانية',
+    "SC DE L INGENIEUR": 'علوم المهندس'
+};
+const SUBJECT_FR_KEYS_DESC = Object.keys(SUBJECT_FR_TO_AR).sort((a, b) => b.length - a.length);
+
+function normalizeSubjectName(rawSubject) {
+    const text = String(rawSubject || '').trim();
+    if (!text || !/[a-zA-Z]/.test(text)) return text;
+    const upper = text.toUpperCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[_.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (SUBJECT_FR_TO_AR[upper]) return SUBJECT_FR_TO_AR[upper];
+    for (const key of SUBJECT_FR_KEYS_DESC) {
+        if (key.length > 3 && (upper.includes(key) || key.includes(upper))) return SUBJECT_FR_TO_AR[key];
+    }
+    return text;
 }
 
 function getSheetRows(workbook, sheetName) {
@@ -849,7 +969,10 @@ async function loadDataStats() {
 
     try {
         const grades = (await window.api?.grades?.getAll?.(schoolYear)) || [];
-        setValue('stat-grades-count', grades.length.toLocaleString('ar-MA'));
+        const semester = getSelectedSemester();
+        const semesterGrades = grades.filter((g) => parseInt(g.semester, 10) === semester);
+        const semLabel = semester === 1 ? 'د1' : 'د2';
+        setValue('stat-grades-count', `${semesterGrades.length.toLocaleString('ar-MA')} (${semLabel})`);
     } catch {
         setValue('stat-grades-count', '-');
     }
@@ -873,9 +996,11 @@ async function loadDataStats() {
 
 async function clearData(type) {
     const schoolYear = getCurrentSchoolYear();
+    const semester = getSelectedSemester();
+    const semesterName = semester === 1 ? 'الدورة الأولى' : 'الدورة الثانية';
     const labels = {
         students: 'بيانات التلاميذ',
-        grades: 'النقط',
+        grades: `نقط ${semesterName}`,
         absences: 'سجلات الغياب',
         timetable: 'بيانات الجدول الزمني'
     };
@@ -892,8 +1017,10 @@ async function clearData(type) {
             const res = await window.api.students.deleteByYear(schoolYear);
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف بيانات التلاميذ');
         } else if (type === 'grades') {
-            if (!window.api?.grades?.deleteByYear) throw new Error('ميزة حذف النقط غير متاحة في هذا الإصدار');
-            const res = await window.api.grades.deleteByYear(schoolYear);
+            if (!window.api?.grades?.deleteBySemester) {
+                throw new Error('ميزة حذف النقط حسب الدورة غير متاحة في هذا الإصدار');
+            }
+            const res = await window.api.grades.deleteBySemester(schoolYear, semester);
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف النقط');
         } else if (type === 'absences') {
             const res = await window.api.absences.deleteByYear(schoolYear);
@@ -925,6 +1052,7 @@ async function handleImport(action, files) {
         const importedStudentsCodes = new Set();
         let succeededFiles = 0;
         let failedFiles = 0;
+        let detectedSemester = null;
         const failedReasons = [];
         if (action === 'absences') {
             updateImportProgress(7, 'تجهيز استيراد الغياب: حذف السجلات القديمة لنفس السنة...');
@@ -954,6 +1082,7 @@ async function handleImport(action, files) {
                         totalGradesImported += gradeResult.gradesCount;
                         gradeResult.studentCodes.forEach((code) => importedStudentsCodes.add(code));
                         totalImported = totalGradesImported;
+                        if (gradeResult.semester) detectedSemester = gradeResult.semester;
                     } else if (action === 'absences') {
                         totalImported += await importAbsences(workbook, year);
                     }
@@ -977,7 +1106,14 @@ async function handleImport(action, files) {
         const unit =
             action === 'students' ? 'تلميذ' : action === 'grades' ? 'نقطة' : action === 'fet' ? 'أستاذ' : 'سجل غياب';
         const fileWord = fileList.length === 1 ? 'ملف' : 'ملفات';
-        const gradesStudentsSummary = action === 'grades' ? ` (${importedStudentsCodes.size} تلميذ)` : '';
+        const semesterName =
+            action === 'grades' && detectedSemester
+                ? detectedSemester === 2
+                    ? 'الدورة الثانية'
+                    : 'الدورة الأولى'
+                : '';
+        const gradesStudentsSummary =
+            action === 'grades' ? ` (${importedStudentsCodes.size} تلميذ — ${semesterName})` : '';
         const batchStatus = fileList.length > 1 ? ` (نجاح: ${succeededFiles} | فشل: ${failedFiles})` : '';
         const logDetails = `استيراد ${totalImported} ${unit}${gradesStudentsSummary} من ${fileList.length} ${fileWord}${batchStatus}`;
         await safeLogImport(action, logDetails);
@@ -991,13 +1127,13 @@ async function handleImport(action, files) {
         updateImportProgress(
             100,
             action === 'grades'
-                ? `اكتمل الاستيراد: ${totalImported} ${unit} (${importedStudentsCodes.size} تلميذ)`
+                ? `اكتمل الاستيراد: ${totalImported} ${unit} (${importedStudentsCodes.size} تلميذ — ${semesterName})`
                 : `اكتمل الاستيراد: ${totalImported} ${unit}`
         );
         hideImportProgress(900);
         const finalMessage =
             action === 'grades'
-                ? `تم استيراد ${totalImported} ${unit} تخص ${importedStudentsCodes.size} تلميذ من ${fileList.length} ${fileWord}`
+                ? `تم استيراد ${totalImported} ${unit} تخص ${importedStudentsCodes.size} تلميذ (${semesterName}) من ${fileList.length} ${fileWord}`
                 : `تم استيراد ${totalImported} ${unit} من ${fileList.length} ${fileWord}`;
         if (failedFiles > 0) {
             showToast(`${finalMessage} مع تعذر ${failedFiles} ملف`, 'warning');
@@ -1110,14 +1246,33 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
         const levelColumnIndex = headerMap.level;
         debugGradesImport('sheet:header-detected', { sheetName, headerIndex, codeIndex, rows: rows.length });
 
+        const isSeparatorCell = (val) => {
+            const v = String(val ?? '').trim();
+            return !v || v === ':' || v === '：' || v === '-' || v === '—';
+        };
+
         const findMetaValue = (labels) => {
             for (let i = 0; i < maxScan; i++) {
                 const row = rows[i] || [];
                 for (let c = 0; c < row.length; c++) {
-                    const cell = normalizeKey(row[c]);
-                    if (labels.some((label) => cell.includes(normalizeKey(label)))) {
-                        const next = String(row[c + 1] ?? '').trim();
-                        if (next) return next;
+                    const cellRaw = String(row[c] ?? '').trim();
+                    const cell = normalizeKey(cellRaw);
+                    if (!labels.some((label) => cell.includes(normalizeKey(label)))) continue;
+                    // Inline pattern: "label : value" in the same cell
+                    const inlineMatch = cellRaw.match(/[:：]\s*(.+)$/);
+                    if (inlineMatch && inlineMatch[1].trim()) {
+                        return inlineMatch[1].trim();
+                    }
+                    // Search next cells to the right (skip separators)
+                    for (let offset = 1; offset <= 4; offset++) {
+                        const candidate = String(row[c + offset] ?? '').trim();
+                        if (isSeparatorCell(candidate)) continue;
+                        if (candidate) return candidate;
+                    }
+                    // Cells below
+                    for (let ri = 1; ri <= 2; ri++) {
+                        const below = String((rows[i + ri] || [])[c] ?? '').trim();
+                        if (!isSeparatorCell(below) && below) return below;
                     }
                 }
             }
@@ -1143,21 +1298,49 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
             for (let i = 0; i < maxScan; i++) {
                 const row = rows[i] || [];
                 for (let c = 0; c < row.length; c++) {
-                    const cell = normalizeKey(row[c]);
+                    const cellRaw = String(row[c] ?? '').trim();
+                    const cell = normalizeKey(cellRaw);
                     if (
                         cell.includes(normalizeKey('المادة')) ||
+                        cell === normalizeKey('مادة') ||
                         cell.includes(normalizeKey('matiere')) ||
                         cell.includes(normalizeKey('module'))
                     ) {
-                        // Check next cell for the subject value
-                        const next = String(row[c + 1] ?? '').trim();
-                        if (
-                            next &&
-                            !normalizeKey(next).includes(normalizeKey('النقط')) &&
-                            !normalizeKey(next).includes('note')
-                        ) {
-                            debugGradesImport('subject:method1', { sheetName, subject: next, row: i, col: c + 1 });
-                            return next;
+                        const isNoise = (val) => {
+                            const k = normalizeKey(val);
+                            return k.includes(normalizeKey('النقط')) || k.includes('note');
+                        };
+
+                        // Inline pattern: "المادة : الرياضيات" in the same cell
+                        const inlineMatch = cellRaw.match(/[:：]\s*(.+)$/);
+                        if (inlineMatch && inlineMatch[1].trim() && !isNoise(inlineMatch[1])) {
+                            const inlineSubject = inlineMatch[1].trim();
+                            debugGradesImport('subject:method1-inline', { sheetName, subject: inlineSubject, row: i, col: c });
+                            return inlineSubject;
+                        }
+
+                        // Search next cells to the right (skip separators and empty)
+                        for (let offset = 1; offset <= 4; offset++) {
+                            const candidate = String(row[c + offset] ?? '').trim();
+                            if (isSeparatorCell(candidate)) continue;
+                            if (isNoise(candidate)) continue;
+                            if (candidate) {
+                                debugGradesImport('subject:method1-right', { sheetName, subject: candidate, row: i, col: c + offset });
+                                return candidate;
+                            }
+                        }
+
+                        // Cells below (check multiple positions)
+                        for (let ri = 1; ri <= 2; ri++) {
+                            const belowRow = rows[i + ri] || [];
+                            for (let offset = 0; offset <= 2; offset++) {
+                                const candidate = String(belowRow[c + offset] ?? '').trim();
+                                if (isSeparatorCell(candidate) || isNoise(candidate)) continue;
+                                if (candidate) {
+                                    debugGradesImport('subject:method1-below', { sheetName, subject: candidate, row: i + ri, col: c + offset });
+                                    return candidate;
+                                }
+                            }
                         }
                     }
                 }
@@ -1217,8 +1400,11 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
                     }
                 }
             }
-            return 1;
+            return null;
         })();
+
+        const finalSemester = semesterFromMeta || 1;
+        debugGradesImport('semester:detected', { sheetName, semesterFromMeta, finalSemester });
 
         const gradeColumns = [];
         headers.forEach((header, idx) => {
@@ -1237,6 +1423,7 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
             subjectFromMeta,
             sectionFromMeta,
             semesterFromMeta,
+            finalSemester,
             teacherNameFromMeta,
             levelFromMeta,
             teacherNameColumnIndex,
@@ -1282,13 +1469,13 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
                 );
                 const rowLevel = levelColumnIndex !== -1 ? String(row[levelColumnIndex] ?? '').trim() : '';
                 const finalSection = sectionFromMeta || (student ? student.section : '');
-                const finalLevel = rowLevel || levelFromMeta || deriveLevelFromSection(finalSection);
+                const finalLevel = normalizeLevelName(rowLevel) || normalizeLevelName(levelFromMeta) || deriveLevelFromSection(finalSection);
                 grades.push({
                     student_id: student ? student.id : null,
                     student_code: studentCode,
-                    subject: `${subjectFromMeta}${subjectSuffix}`,
+                    subject: `${normalizeSubjectName(subjectFromMeta)}${subjectSuffix}`,
                     grade: gradeValue,
-                    semester: semesterFromMeta,
+                    semester: finalSemester,
                     teacher_name: rowTeacherName || teacherNameFromMeta || '',
                     level: finalLevel,
                     school_year: schoolYear,
@@ -1301,8 +1488,10 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
     });
 
     if (!grades.length) throw new Error('لم يتم العثور على نقط صالحة داخل الملف');
+    const detectedSemester = grades[0].semester;
     debugGradesImport('importGrades:summary', {
         totalGrades: grades.length,
+        detectedSemester,
         uniqueStudents: new Set(grades.map((g) => String(g.student_code || '').trim()).filter(Boolean)).size,
         uniqueSubjects: [...new Set(grades.map((g) => g.subject))].slice(0, 40)
     });
@@ -1310,7 +1499,7 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
     const res = await window.api.grades.saveBulk(grades);
     if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ النقط');
     const studentCodes = [...new Set(grades.map((g) => String(g.student_code || '').trim()).filter(Boolean))];
-    return { gradesCount: grades.length, studentsCount: studentCodes.length, studentCodes };
+    return { gradesCount: grades.length, studentsCount: studentCodes.length, studentCodes, semester: detectedSemester };
 }
 
 async function importAbsences(workbook, schoolYear) {

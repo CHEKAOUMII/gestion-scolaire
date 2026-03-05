@@ -158,7 +158,7 @@ async function loadInitialData() {
                 _subject: normalizeSubjectName(subjectRaw),
                 _teacherRaw: teacherRaw,
                 _teacher: cleanTeacher,
-                _level: getLevelFromSection(grade.section),
+                _level: _getLocalLevelName(grade.section),
                 _examNo: extractExamNumber(subjectRaw),
                 _createdAtMs: parseDateMs(grade.created_at)
             };
@@ -289,24 +289,13 @@ function renderTeacherFilter() {
 }
 
 /* ─── Utility Functions ─── */
-function getLevelFromSection(section) {
-    const value = String(section || '').trim();
-    if (!value) return '';
-    if (sectionToLevel[value]) return sectionToLevel[value];
-    const compact = value.replace(/[\s_]/g, '').toUpperCase();
-    if (compact.startsWith('TCS')) return 'الجذع المشترك';
-    if (compact.startsWith('1BACSEF')) return 'الأولى باكالوريا العلوم التجريبية - خيار فرنسية';
-    if (compact.startsWith('1BACSMF')) return 'الأولى باكالوريا العلوم الرياضية - خيار فرنسية';
-    if (compact.startsWith('1BACSH')) return 'الأولى باكالوريا العلوم الإنسانية';
-    if (compact.startsWith('1BACSEG')) return 'الأولى باكالوريا العلوم الاقتصادية والتدبير';
-    if (compact.startsWith('1BAC')) return 'الأولى باكالوريا';
-    if (compact.startsWith('2BACSPF')) return 'الثانية باكالوريا العلوم الفيزيائية - خيار فرنسية';
-    if (compact.startsWith('2BACSE')) return 'الثانية باكالوريا علوم الحياة والأرض';
-    if (compact.startsWith('2BACSH')) return 'الثانية باكالوريا العلوم الإنسانية';
-    if (compact.startsWith('2BAC')) return 'الثانية باكالوريا';
-    if (value.includes('-')) return value.split('-')[0].trim();
-    if (value.includes(' ')) return value.split(' ')[0].trim();
-    return value;
+// Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
+// Note: getLevelNameFromSection is loaded globally from utils.js
+function _getLocalLevelName(section) {
+    const s = String(section || '').trim();
+    if (!s) return '';
+    if (sectionToLevel[s]) return sectionToLevel[s];
+    return getLevelNameFromSection(s);
 }
 
 function getBaseFilteredGrades() {

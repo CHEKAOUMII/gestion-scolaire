@@ -195,71 +195,7 @@ async function saveToDatabase(students, schoolYear = null) {
 }
 
 // استخراج المستوى من اسم القسم
-function getLevelFromSection(section) {
-    if (!section) return { code: 'other', name: 'أخرى', order: 99 };
-    const s = section.toUpperCase();
-
-    // استخراج البادئة (قبل الرقم مثل TCSF-1 → TCSF)
-    const prefix = s.replace(/-\d+$/, '');
-
-    // === الجذع المشترك ===
-    if (prefix === 'TCSF' || prefix === 'TCS' || s.startsWith('TCSF')) {
-        return { code: 'tcsf', name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 };
-    }
-    if (prefix === 'TCSA' || s.startsWith('TCSA')) {
-        return { code: 'tcsa', name: 'الجذع المشترك العلمي خيار عربية', order: 2 };
-    }
-    if (prefix === 'TCLSH' || prefix === 'TCL' || s.startsWith('TCLSH') || s.startsWith('TCL')) {
-        return { code: 'tclsh', name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 };
-    }
-
-    // === الأولى باكالوريا ===
-    if (prefix === '1BACSM' || s.startsWith('1BACSM')) {
-        return { code: '1bacsm', name: 'الأولى باكالوريا العلوم الرياضية خيار فرنسية', order: 4 };
-    }
-    if (prefix === '1BACSH' || prefix === '1BACL' || s.startsWith('1BACSH') || s.startsWith('1BACL')) {
-        return { code: '1bacsh', name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 5 };
-    }
-    if (prefix === '1BACSEF' || s.startsWith('1BACSEF')) {
-        return { code: '1bacsef', name: 'الأولى باكالوريا علوم تجريبية خيار فرنسية', order: 6 };
-    }
-    if (prefix === '1BACECO' || prefix === '1BACGE' || s.startsWith('1BACECO') || s.startsWith('1BACGE')) {
-        return { code: '1baceco', name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 7 };
-    }
-    if (prefix === '1BACSEA' || s.startsWith('1BACSEA')) {
-        return { code: '1bacsea', name: 'الأولى باكالوريا علوم تجريبية خيار عربية', order: 8 };
-    }
-    if (prefix === '1BACSE' || s.startsWith('1BACSE')) {
-        return { code: '1bacse', name: 'الأولى باكالوريا علوم تجريبية', order: 6 };
-    }
-
-    // === الثانية باكالوريا ===
-    if (prefix === '2BACSA' || s.startsWith('2BACSA')) {
-        return { code: '2bacsa', name: 'الثانية باكالوريا علوم شرعية', order: 8 };
-    }
-    if (prefix === '2BACSM' || s.startsWith('2BACSM')) {
-        return { code: '2bacsm', name: 'الثانية باكالوريا العلوم الرياضية', order: 8 };
-    }
-    if (prefix === '2BACSVT' || s.startsWith('2BACSVT') || s.includes('SVT')) {
-        return { code: '2bacsvt', name: 'الثانية باكالوريا علوم الحياة والأرض', order: 9 };
-    }
-    if (prefix === '2BACPC' || s.startsWith('2BACPC') || (s.includes('2BAC') && s.includes('PC'))) {
-        return { code: '2bacpc', name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 10 };
-    }
-    if (prefix === '2BACSH' || prefix === '2BACL' || s.startsWith('2BACSH') || s.startsWith('2BACL')) {
-        return { code: '2bacsh', name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 11 };
-    }
-    if (prefix === '2BACECO' || prefix === '2BACGC' || s.includes('ECO') || s.includes('GESTION')) {
-        return { code: '2baceco', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 12 };
-    }
-
-    // Fallbacks
-    if (s.includes('1BAC')) return { code: '1bac', name: 'الأولى باكالوريا', order: 13 };
-    if (s.includes('2BAC')) return { code: '2bac', name: 'الثانية باكالوريا', order: 14 };
-    if (s.startsWith('TC')) return { code: 'tc', name: 'الجذع المشترك', order: 15 };
-
-    return { code: 'other', name: section, order: 99 };
-}
+// Uses shared getLevelFromSection() from utils.js (returns {code, name, order})
 
 // استخراج وحفظ المستويات الفريدة من بيانات التلاميذ
 async function saveLevelsFromStudents(students) {

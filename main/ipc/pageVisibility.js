@@ -1,14 +1,4 @@
-const { getDb } = require('../db/context');
-const { requireRole } = require('./auth');
-
-function authErrorResponse(err) {
-    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
-    return {
-        success: false,
-        code: isAuthError ? err.code : 'INTERNAL_ERROR',
-        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
-    };
-}
+const { handleRead, handleWrite } = require('./ipc-helpers');
 
 function normalizePageKey(value) {
     const raw = String(value || '').trim();
@@ -20,8 +10,7 @@ function normalizePageKey(value) {
 }
 
 function registerPageVisibilityIpc(ipcMain) {
-    ipcMain.handle('pageVisibility:getMap', async () => {
-        const db = getDb();
+    handleRead(ipcMain, 'pageVisibility:getMap', (db) => {
         const rows = db.prepare('SELECT page_key, is_visible FROM page_visibility').all();
         const map = {};
         for (const row of rows) {
@@ -32,33 +21,27 @@ function registerPageVisibilityIpc(ipcMain) {
         return { success: true, map };
     });
 
-    ipcMain.handle('pageVisibility:setVisibility', async (event, payload) => {
-        try {
-            requireRole(event, ['admin']);
-            const pageKey = normalizePageKey(payload?.pageKey);
-            if (!pageKey) {
-                return { success: false, code: 'INVALID_PAGE', error: 'اسم الصفحة غير صالح' };
-            }
+    handleWrite(ipcMain, 'pageVisibility:setVisibility', ['admin'], (db, _event, payload) => {
+        const pageKey = normalizePageKey(payload?.pageKey);
+        if (!pageKey) {
+            return { success: false, code: 'INVALID_PAGE', error: 'اسم الصفحة غير صالح' };
+        }
 
-            const isVisible = payload?.isVisible === true ? 1 : 0;
-            const db = getDb();
-            db.prepare(
-                `
+        const isVisible = payload?.isVisible === true ? 1 : 0;
+        db.prepare(
+            `
                     INSERT INTO page_visibility(page_key, is_visible, updated_at)
                     VALUES(?, ?, CURRENT_TIMESTAMP)
                     ON CONFLICT(page_key)
                     DO UPDATE SET is_visible = excluded.is_visible, updated_at = CURRENT_TIMESTAMP
                 `
-            ).run(pageKey, isVisible);
+        ).run(pageKey, isVisible);
 
-            return {
-                success: true,
-                pageKey,
-                isVisible: isVisible === 1
-            };
-        } catch (err) {
-            return authErrorResponse(err);
-        }
+        return {
+            success: true,
+            pageKey,
+            isVisible: isVisible === 1
+        };
     });
 }
 
