@@ -77,17 +77,16 @@
 
         /* --- Timetable Header --- */
         [data-theme="dark"] .timetable th {
-            background: #2B4F8C;
-            color: #D4E8DC;
-            border-color: rgba(91, 132, 214, 0.2);
+            background: #374151;
+            color: #e2e8f0;
+            border-color: #4b5563;
         }
 
         /* --- Table Cells --- */
         [data-theme="dark"] .timetable td {
-            background: #1A1A1A;
-            border-color: rgba(91, 132, 214, 0.10);
-            color: var(--color-text-main, #E8E8E8);
-            transition: background 0.2s ease;
+            background: #1e293b;
+            border-color: #4b5563;
+            color: #e2e8f0;
         }
 
         /* Alternating row tint for readability */
@@ -107,17 +106,18 @@
         }
 
         [data-theme="dark"] .timetable .day-cell {
-            background: #2B4F8C;
-            color: #D4E8DC;
+            background: #374151 !important;
+            color: #e2e8f0 !important;
         }
 
         [data-theme="dark"] .timetable .total-header {
-            background: #1E3B6E;
+            background: #374151;
+            color: #e2e8f0;
         }
 
         [data-theme="dark"] .timetable th.period-header {
-            background: rgba(59, 106, 197, 0.30);
-            color: #A8D5BA;
+            background: #374151;
+            color: #e2e8f0;
         }
 
         /* --- Separator Row --- */
@@ -319,15 +319,41 @@
         }
 
         /* --- Filter Section --- */
+        [data-theme="dark"] .filter-section {
+            background: linear-gradient(135deg, rgba(30, 43, 74, 0.6) 0%, rgba(26, 26, 26, 0.9) 100%);
+            border-color: rgba(91, 132, 214, 0.12);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+        }
+
         [data-theme="dark"] .filter-group select {
-            background: #1E2B4A;
-            border-color: rgba(91, 132, 214, 0.15);
+            background: linear-gradient(135deg, #1E2B4A 0%, #1A2340 100%);
+            border-color: rgba(91, 132, 214, 0.2);
             color: #E8E8E8;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235B84D6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+
+        [data-theme="dark"] .filter-group select:hover {
+            border-color: rgba(91, 132, 214, 0.4);
+            box-shadow: 0 4px 12px rgba(91, 132, 214, 0.15);
+        }
+
+        [data-theme="dark"] .filter-group select:focus {
+            border-color: #5B84D6;
+            box-shadow: 0 0 0 3px rgba(91, 132, 214, 0.15), 0 4px 12px rgba(91, 132, 214, 0.1);
         }
 
         [data-theme="dark"] .filter-group select option {
             background: #1A1A1A;
             color: #E8E8E8;
+        }
+
+        [data-theme="dark"] .filter-group label {
+            color: #8FA898;
+        }
+
+        [data-theme="dark"] .filter-group label i {
+            color: #5B84D6;
         }
 
         /* --- Edit Controls --- */
@@ -1343,38 +1369,73 @@
 
         /* Filter Section */
         .filter-section {
-            background: var(--glass);
-            backdrop-filter: blur(10px);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
+            backdrop-filter: blur(12px);
             border-radius: 16px;
-            padding: 14px 20px;
-            border: 1px solid var(--border);
+            padding: 16px 24px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
             margin-bottom: 24px;
             display: flex;
-            gap: 16px;
+            gap: 20px;
             align-items: center;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
         }
 
         .filter-group {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             white-space: nowrap;
         }
 
         .filter-group label {
             color: var(--text-muted);
-            font-weight: 500;
+            font-weight: 600;
             font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-group label i {
+            color: var(--primary, #3B6AC5);
+            font-size: 0.9rem;
         }
 
         .filter-group select {
-            padding: 10px 15px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            background: var(--glass);
+            padding: 10px 40px 10px 16px;
+            border-radius: 10px;
+            border: 1.5px solid rgba(0, 0, 0, 0.1);
+            background: #fff;
             color: var(--text);
             font-family: 'Tajawal', sans-serif;
-            min-width: 180px;
+            font-weight: 500;
+            font-size: 0.92rem;
+            min-width: 200px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233B6AC5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: left 14px center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        }
+
+        .filter-group select:hover {
+            border-color: var(--primary, #3B6AC5);
+            box-shadow: 0 4px 12px rgba(59, 106, 197, 0.12);
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary, #3B6AC5);
+            box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.12), 0 4px 12px rgba(59, 106, 197, 0.08);
+        }
+
+        .filter-group select option {
+            padding: 10px;
+            font-weight: 500;
         }
 
         .filter-actions {
@@ -1453,16 +1514,16 @@
         .timetable td {
             padding: 6px 4px;
             text-align: center;
-            border: 1.5px solid #444;
+            border: 1px solid #999;
             vertical-align: middle;
         }
 
         .timetable th {
-            background: #2B5AAE;
-            color: white;
+            background: #e8e8e8;
+            color: #222;
             font-weight: 700;
             font-size: 0.82rem;
-            padding: 8px 4px;
+            padding: 6px 4px;
             white-space: nowrap;
             letter-spacing: 0;
         }
@@ -1478,8 +1539,8 @@
 
         .timetable th.period-header {
             width: 60px;
-            background: rgba(59, 106, 197, 0.12);
-            color: var(--color-text-main, #111111);
+            background: #e0e0e0;
+            color: #222;
         }
 
         .timetable td {
@@ -1505,12 +1566,12 @@
 
         /* Day cell (horizontal layout - days as rows) */
         .timetable .day-cell {
-            background: #2B5AAE !important;
-            color: white !important;
-            font-weight: 700;
-            font-size: 0.95rem;
-            min-width: 80px;
-            width: 90px;
+            background: #e0e0e0 !important;
+            color: #111 !important;
+            font-weight: 800;
+            font-size: 0.9rem;
+            min-width: 70px;
+            width: 80px;
             text-align: center;
             white-space: nowrap;
             letter-spacing: 0;
@@ -1522,9 +1583,10 @@
         /* Total hours header */
         .timetable .total-header {
             min-width: 80px;
-            background: #254A8A;
-            font-size: 1.1rem;
-            font-weight: 700;
+            background: #d0d0d0;
+            color: #222;
+            font-size: 0.85rem;
+            font-weight: 800;
         }
 
         /* Merged cell for consecutive hours */
@@ -1533,7 +1595,7 @@
         }
 
         .timetable .separator-row td {
-            background: #2B5AAE;
+            background: #999;
             height: 3px;
             padding: 0;
             border: none;

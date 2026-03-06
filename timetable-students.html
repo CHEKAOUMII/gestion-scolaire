@@ -18,254 +18,176 @@
     /* ==================== Stats Cards ==================== */
     .class-stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
       opacity: 0;
-      transform: translateY(20px);
-      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: opacity 0.3s ease;
     }
 
     .class-stats-grid.visible {
       opacity: 1;
-      transform: translateY(0);
     }
 
     .class-stat-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8));
-      backdrop-filter: blur(10px);
-      border-radius: 16px;
-      padding: 20px;
-      border: 1px solid rgba(0, 0, 0, 0.06);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .class-stat-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 80px;
-      height: 80px;
-      border-radius: 0 16px 0 50%;
-      opacity: 0.12;
-      transition: all 0.3s;
-    }
-
-    .class-stat-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px 14px;
+      border: 1px solid #e2e8f0;
     }
 
     .class-stat-card .stat-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.2rem;
-      margin-bottom: 12px;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
       color: white;
     }
 
     .class-stat-card .stat-value {
-      font-size: 1.8rem;
+      font-size: 1.4rem;
       font-weight: 800;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       font-family: 'IBM Plex Sans Arabic', sans-serif;
     }
 
     .class-stat-card .stat-label {
-      font-size: 0.85rem;
-      color: var(--text-secondary, #607d8b);
+      font-size: 0.78rem;
+      color: #607d8b;
       font-weight: 500;
     }
 
     .class-stat-card.hours .stat-icon {
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      background: #6366f1;
     }
 
     .class-stat-card.hours .stat-value {
       color: #4f46e5;
     }
 
-    .class-stat-card.hours::before {
-      background: #6366f1;
-    }
-
     .class-stat-card.teachers .stat-icon {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
+      background: #f59e0b;
     }
 
     .class-stat-card.teachers .stat-value {
       color: #d97706;
     }
 
-    .class-stat-card.teachers::before {
-      background: #f59e0b;
-    }
-
     .class-stat-card.subjects .stat-icon {
-      background: linear-gradient(135deg, #10b981, #059669);
+      background: #10b981;
     }
 
     .class-stat-card.subjects .stat-value {
       color: #059669;
     }
 
-    .class-stat-card.subjects::before {
-      background: #10b981;
-    }
-
     .class-stat-card.rooms .stat-icon {
-      background: linear-gradient(135deg, #ec4899, #db2777);
+      background: #ec4899;
     }
 
     .class-stat-card.rooms .stat-value {
       color: #db2777;
     }
 
-    .class-stat-card.rooms::before {
-      background: #ec4899;
-    }
-
-    /* ==================== Timetable (Image-matched: time horizontal, days vertical) ==================== */
+    /* ==================== Clean Timetable ==================== */
     .class-timetable-wrapper {
       overflow-x: auto;
-      border-radius: 16px;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      animation: fadeInUp 0.5s ease;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(15px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      border: 2px solid #333;
     }
 
     .class-timetable {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.88rem;
+      font-size: 0.82rem;
       table-layout: fixed;
     }
 
     /* Header row (time slots) */
     .class-timetable thead th {
-      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
-      color: white;
-      padding: 14px 8px;
-      font-weight: 600;
+      background: #e8e8e8;
+      color: #222;
+      padding: 6px 4px;
+      font-weight: 700;
       text-align: center;
       white-space: nowrap;
       position: sticky;
       top: 0;
       z-index: 10;
-      font-size: 0.85rem;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    .class-timetable thead th:last-child {
-      border-radius: 0 16px 0 0;
-    }
-
-    .class-timetable thead th:first-child {
-      border-radius: 16px 0 0 0;
+      font-size: 0.78rem;
+      border: 1px solid #999;
     }
 
     .class-timetable thead th.total-header {
-      background: linear-gradient(135deg, #2F5499, #3B6AC5);
-      font-size: 0.95rem;
-      font-weight: 700;
+      background: #d0d0d0;
+      font-size: 0.85rem;
+      font-weight: 800;
     }
 
-    /* Day column (right side, vertical) */
+    /* Day column */
     .class-timetable tbody td.day-cell {
-      background: linear-gradient(135deg, #3B6AC5, #2F5499);
-      color: white;
-      font-weight: 700;
-      font-size: 1rem;
-      min-width: 90px;
-      width: 100px;
+      background: #e0e0e0;
+      color: #111;
+      font-weight: 800;
+      font-size: 0.9rem;
+      min-width: 70px;
+      width: 80px;
       text-align: center;
       vertical-align: middle;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      letter-spacing: 0.5px;
+      border: 1px solid #999;
     }
 
     .class-timetable tbody td {
-      padding: 4px;
-      text-align: center;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      vertical-align: middle;
-      min-width: 110px;
-      height: 60px;
-      transition: background 0.2s;
-    }
-
-    .class-timetable tbody tr:hover td:not(.day-cell) {
-      background: rgba(59, 106, 197, 0.04);
-    }
-
-    .class-timetable .period-separator td {
-      background: linear-gradient(90deg, transparent, rgba(59, 106, 197, 0.15), transparent) !important;
-      height: 6px;
       padding: 0;
-      border: none;
+      text-align: center;
+      border: 1px solid #999;
+      vertical-align: middle;
+      min-width: 90px;
+      height: 1px;
     }
 
-    /* ==================== Subject Cell with Colors ==================== */
+    /* ==================== Subject Cell — Compact ==================== */
     .subject-cell {
-      border-radius: 8px;
-      padding: 6px 5px;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       justify-content: center;
-      gap: 2px;
       height: 100%;
-      min-height: 50px;
-      transition: all 0.2s;
+      min-height: 32px;
       cursor: default;
-    }
-
-    .subject-cell:hover {
-      transform: scale(1.02);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+      flex: 1;
     }
 
     .subject-cell .subject-name {
-      font-weight: 700;
-      font-size: 0.78rem;
-      line-height: 1.3;
+      font-weight: 800;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      padding: 2px 4px;
       text-align: center;
     }
 
     .subject-cell .teacher-name {
-      font-size: 0.72rem;
-      opacity: 0.8;
+      font-size: 0.62rem;
+      font-weight: 500;
+      line-height: 1.2;
+      padding: 2px 4px;
       text-align: center;
     }
 
     .subject-cell .room-name {
-      font-size: 0.7rem;
+      font-size: 0.6rem;
       font-weight: 600;
-      opacity: 0.85;
+      padding: 1px 4px;
+      text-align: center;
     }
 
     .empty-cell {
-      color: #cbd5e1;
-      font-size: 1.2rem;
+      color: #ccc;
+      font-size: 0.9rem;
     }
 
     /* ==================== Tafwij (Grouping) Cell ==================== */
@@ -279,7 +201,6 @@
 
     .tafwij-cell .tafwij-group {
       flex: 1;
-      border-radius: 6px;
       padding: 4px 4px;
       display: flex;
       flex-direction: column;
@@ -290,12 +211,7 @@
     }
 
     .tafwij-cell .tafwij-group:first-child {
-      border-radius: 6px 6px 2px 2px;
       border-bottom: none;
-    }
-
-    .tafwij-cell .tafwij-group:last-child {
-      border-radius: 2px 2px 6px 6px;
     }
 
     .tafwij-cell .tafwij-group .group-label {
@@ -362,49 +278,47 @@
     .class-info-bar {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 16px 20px;
-      background: linear-gradient(135deg, rgba(59, 106, 197, 0.06), rgba(38, 166, 154, 0.04));
-      border-radius: 12px;
-      margin-bottom: 16px;
-      border: 1px solid rgba(59, 106, 197, 0.1);
-      animation: fadeInUp 0.3s ease;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #f5f5f5;
+      margin-bottom: 12px;
+      border: 1px solid #ddd;
     }
 
     .class-info-bar .class-avatar {
-      width: 52px;
-      height: 52px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: #6366f1;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-size: 1.4rem;
+      font-size: 1rem;
     }
 
     .class-info-bar .class-details h4 {
-      margin: 0 0 4px;
-      font-size: 1.15rem;
-      color: var(--color-text-main, #111111);
+      margin: 0 0 2px;
+      font-size: 1rem;
+      color: #111;
     }
 
     .class-info-bar .class-details span {
-      font-size: 0.85rem;
-      color: var(--color-text-muted, #6B7B72);
+      font-size: 0.8rem;
+      color: #666;
     }
 
     .class-info-bar .total-hours-badge {
       margin-right: auto;
-      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
+      background: #333;
       color: white;
-      padding: 8px 20px;
-      border-radius: 25px;
+      padding: 4px 12px;
+      border-radius: 4px;
       font-weight: 700;
-      font-size: 0.95rem;
+      font-size: 0.85rem;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     /* ==================== No Data State ==================== */
@@ -437,8 +351,8 @@
 
     /* ==================== Dark Mode ==================== */
     [data-theme="dark"] .class-stat-card {
-      background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(30, 41, 59, 0.7));
-      border-color: rgba(255, 255, 255, 0.08);
+      background: #1e293b;
+      border-color: #334155;
     }
 
     [data-theme="dark"] .class-stat-card .stat-label {
@@ -446,38 +360,35 @@
     }
 
     [data-theme="dark"] .class-timetable thead th {
-      background: linear-gradient(135deg, #312e81, #4338ca);
+      background: #374151;
+      color: #e2e8f0;
+      border-color: #4b5563;
     }
 
     [data-theme="dark"] .class-timetable tbody td {
-      border-color: rgba(255, 255, 255, 0.06);
+      border-color: #4b5563;
       color: #e2e8f0;
     }
 
     [data-theme="dark"] .class-timetable tbody td.day-cell {
-      background: linear-gradient(135deg, #312e81, #4338ca);
-    }
-
-    [data-theme="dark"] .class-timetable tbody tr:hover td:not(.day-cell) {
-      background: rgba(99, 102, 241, 0.06);
+      background: #374151;
+      color: #e2e8f0;
     }
 
     [data-theme="dark"] .filter-select {
       background: #1e293b;
-      border-color: rgba(255, 255, 255, 0.1);
+      border-color: #334155;
       color: #e2e8f0;
     }
 
     [data-theme="dark"] .class-info-bar {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.06));
-      border-color: rgba(99, 102, 241, 0.15);
+      background: #1e293b;
+      border-color: #334155;
     }
 
     [data-theme="dark"] .class-info-bar .class-details h4 {
       color: #e2e8f0;
     }
-
-    /* Subject colors are now applied via inline styles from JS */
 
     /* ==================== Print ==================== */
     @page {
@@ -1058,7 +969,7 @@
               const groupContent = sortedGroups.map(lesson => {
                 const color = getSubjectColor(lesson.subject);
                 return `
-                  <div class="tafwij-group" style="background: ${color.bg}; color: ${color.text}; border: 1px solid ${color.border};">
+                  <div class="tafwij-group" style="background: ${color.bg}; color: ${color.text};">
                     <span class="group-label">${lesson.group || ''}</span>
                     <div class="subject-name" style="color: ${color.text};">${lesson.subject}${lesson.group ? ':' + lesson.group : ''}</div>
                     ${lesson.room ? `<div class="room-name" style="color: ${color.border};">${lesson.room}</div>` : ''}
@@ -1070,7 +981,7 @@
               const lesson = cell.lessons[0];
               const color = getSubjectColor(lesson.subject);
               html += `<td${colspanAttr}>
-                <div class="subject-cell" style="background: ${color.bg}; color: ${color.text}; border: 1px solid ${color.border};">
+                <div class="subject-cell" style="background: ${color.bg}; color: ${color.text};">
                   <div class="subject-name" style="color: ${color.text};">${lesson.subject}</div>
                   ${lesson.room ? `<div class="room-name" style="color: ${color.border};">${lesson.room}</div>` : ''}
                 </div>

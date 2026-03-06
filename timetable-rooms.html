@@ -11,265 +11,174 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="ux-enhancements.css">
   <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
+  <script src="js/notifications.js"></script>
   <script src="js/sidebar.js"></script>
   <script src="js/ux-enhancements.js"></script>
   <style>
     /* ==================== Room Stats Cards ==================== */
     .room-stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
       opacity: 0;
-      transform: translateY(20px);
-      transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: opacity 0.3s ease;
     }
 
     .room-stats-grid.visible {
       opacity: 1;
-      transform: translateY(0);
     }
 
     .room-stat-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8));
-      backdrop-filter: blur(10px);
-      border-radius: 16px;
-      padding: 20px;
-      border: 1px solid rgba(0, 0, 0, 0.06);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .room-stat-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 80px;
-      height: 80px;
-      border-radius: 0 16px 0 50%;
-      opacity: 0.12;
-      transition: all 0.3s;
-    }
-
-    .room-stat-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px 14px;
+      border: 1px solid #e2e8f0;
     }
 
     .room-stat-card .stat-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.2rem;
-      margin-bottom: 12px;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
       color: white;
     }
 
     .room-stat-card .stat-value {
-      font-size: 1.8rem;
+      font-size: 1.4rem;
       font-weight: 800;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       font-family: 'IBM Plex Sans Arabic', sans-serif;
     }
 
     .room-stat-card .stat-label {
-      font-size: 0.85rem;
-      color: var(--text-secondary, #607d8b);
+      font-size: 0.78rem;
+      color: #607d8b;
       font-weight: 500;
     }
 
     .room-stat-card.usage .stat-icon {
-      background: linear-gradient(135deg, #10b981, #059669);
+      background: #10b981;
     }
 
     .room-stat-card.usage .stat-value {
       color: #059669;
     }
 
-    .room-stat-card.usage::before {
-      background: #10b981;
-    }
-
     .room-stat-card.hours .stat-icon {
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      background: #6366f1;
     }
 
     .room-stat-card.hours .stat-value {
       color: #4f46e5;
     }
 
-    .room-stat-card.hours::before {
-      background: #6366f1;
-    }
-
     .room-stat-card.teachers .stat-icon {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
+      background: #f59e0b;
     }
 
     .room-stat-card.teachers .stat-value {
       color: #d97706;
     }
 
-    .room-stat-card.teachers::before {
-      background: #f59e0b;
-    }
-
     .room-stat-card.subjects .stat-icon {
-      background: linear-gradient(135deg, #ec4899, #db2777);
+      background: #ec4899;
     }
 
     .room-stat-card.subjects .stat-value {
       color: #db2777;
     }
 
-    .room-stat-card.subjects::before {
-      background: #ec4899;
-    }
-
-    /* ==================== Timetable (time horizontal, days vertical) ==================== */
+    /* ==================== Simple Clean Timetable ==================== */
     .room-timetable-wrapper {
       overflow-x: auto;
-      border-radius: 16px;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      animation: fadeInUp 0.5s ease;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(15px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      border: 2px solid #333;
     }
 
     .room-timetable {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.88rem;
+      font-size: 0.75rem;
       table-layout: fixed;
     }
 
     /* Header row (time slots) */
     .room-timetable thead th {
-      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
-      color: white;
-      padding: 14px 8px;
-      font-weight: 600;
+      background: #e8e8e8;
+      color: #222;
+      padding: 6px 4px;
+      font-weight: 700;
       text-align: center;
       white-space: nowrap;
       position: sticky;
       top: 0;
       z-index: 10;
-      font-size: 0.85rem;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    .room-timetable thead th:last-child {
-      border-radius: 0 16px 0 0;
-    }
-
-    .room-timetable thead th:first-child {
-      border-radius: 16px 0 0 0;
+      font-size: 0.78rem;
+      border: 1px solid #999;
     }
 
     .room-timetable thead th.total-header {
-      background: linear-gradient(135deg, #2F5499, #3B6AC5);
-      font-size: 0.95rem;
-      font-weight: 700;
+      background: #d0d0d0;
+      font-size: 0.85rem;
+      font-weight: 800;
     }
 
-    /* Day column (right side, vertical) */
+    /* Day column */
     .room-timetable tbody td.day-cell {
-      background: linear-gradient(135deg, #3B6AC5, #2F5499);
-      color: white;
-      font-weight: 700;
-      font-size: 1rem;
-      min-width: 90px;
-      width: 100px;
+      background: #e0e0e0;
+      color: #111;
+      font-weight: 800;
+      font-size: 0.9rem;
+      min-width: 70px;
+      width: 80px;
       text-align: center;
       vertical-align: middle;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      letter-spacing: 0.5px;
+      border: 1px solid #999;
     }
 
     .room-timetable tbody td {
-      padding: 4px;
+      padding: 2px;
       text-align: center;
-      border: 1px solid rgba(0, 0, 0, 0.08);
+      border: 1px solid #999;
       vertical-align: middle;
-      min-width: 110px;
-      min-height: 60px;
+      min-width: 90px;
       height: auto;
-      transition: background 0.2s;
     }
 
-    .room-timetable tbody tr:hover td:not(.day-cell) {
-      background: rgba(59, 106, 197, 0.04);
-    }
-
-    .room-timetable .period-separator td {
-      background: linear-gradient(90deg, transparent, rgba(59, 106, 197, 0.15), transparent) !important;
-      height: 6px;
-      padding: 0;
-      border: none;
-    }
-
-    /* ==================== Subject Cell with Colors ==================== */
+    /* ==================== Subject Cell — Flat & Compact ==================== */
     .subject-cell {
-      border-radius: 8px;
-      padding: 6px 5px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
+      align-items: stretch;
       height: 100%;
-      min-height: 50px;
-      transition: all 0.2s;
+      min-height: 32px;
       cursor: default;
+      overflow: hidden;
     }
 
-    .subject-cell:hover {
-      transform: scale(1.02);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-
-    .subject-cell .subject-name {
-      font-weight: 700;
-      font-size: 0.78rem;
-      line-height: 1.3;
+    .subject-cell .class-name {
+      font-size: 0.72rem;
+      font-weight: 800;
+      line-height: 1.2;
+      padding: 2px 4px;
       text-align: center;
     }
 
     .subject-cell .teacher-name {
-      font-size: 0.72rem;
-      opacity: 0.8;
+      font-size: 0.62rem;
+      font-weight: 500;
+      line-height: 1.2;
+      padding: 2px 4px;
       text-align: center;
-    }
-
-    .subject-cell .class-name {
-      font-size: 0.68rem;
-      font-weight: 600;
-      opacity: 0.85;
-      background: rgba(0, 0, 0, 0.08);
-      padding: 1px 8px;
-      border-radius: 10px;
     }
 
     .subject-stack {
       display: grid;
-      gap: 4px;
+      gap: 2px;
     }
 
     .room-timetable tbody td.has-multiple-lessons {
@@ -279,184 +188,85 @@
     .subject-stack .subject-cell {
       min-height: auto;
       height: auto;
-      padding: 5px 4px;
     }
 
     .empty-cell {
-      color: #cbd5e1;
-      font-size: 1.2rem;
+      color: #ccc;
+      font-size: 0.9rem;
     }
 
-    /* ==================== Subject Color Palette ==================== */
-    .subject-color-0 {
-      background: #e3f2fd;
-      color: #1565c0;
-      border: 1px solid #90caf9;
-    }
 
-    .subject-color-1 {
-      background: #fff3e0;
-      color: #e65100;
-      border: 1px solid #ffcc80;
-    }
-
-    .subject-color-2 {
-      background: #e8f5e9;
-      color: #2e7d32;
-      border: 1px solid #a5d6a7;
-    }
-
-    .subject-color-3 {
-      background: #fce4ec;
-      color: #c62828;
-      border: 1px solid #ef9a9a;
-    }
-
-    .subject-color-4 {
-      background: #f3e5f5;
-      color: #6a1b9a;
-      border: 1px solid #ce93d8;
-    }
-
-    .subject-color-5 {
-      background: #e0f7fa;
-      color: #00695c;
-      border: 1px solid #80cbc4;
-    }
-
-    .subject-color-6 {
-      background: #fff8e1;
-      color: #f57f17;
-      border: 1px solid #ffe082;
-    }
-
-    .subject-color-7 {
-      background: #efebe9;
-      color: #4e342e;
-      border: 1px solid #bcaaa4;
-    }
-
-    .subject-color-8 {
-      background: #e8eaf6;
-      color: #283593;
-      border: 1px solid #9fa8da;
-    }
-
-    .subject-color-9 {
-      background: #f1f8e9;
-      color: #33691e;
-      border: 1px solid #aed581;
-    }
-
-    .subject-color-10 {
-      background: #fbe9e7;
-      color: #bf360c;
-      border: 1px solid #ffab91;
-    }
-
-    .subject-color-11 {
-      background: #e1f5fe;
-      color: #01579b;
-      border: 1px solid #81d4fa;
-    }
-
-    .subject-color-12 {
-      background: #f9fbe7;
-      color: #827717;
-      border: 1px solid #dce775;
-    }
-
-    .subject-color-13 {
-      background: #ede7f6;
-      color: #4527a0;
-      border: 1px solid #b39ddb;
-    }
-
-    .subject-color-14 {
-      background: #e0f2f1;
-      color: #004d40;
-      border: 1px solid #80cbc4;
-    }
 
     /* ==================== Room Select ==================== */
     #room-select {
-      padding: 12px 16px;
-      border-radius: 12px;
-      border: 2px solid rgba(0, 0, 0, 0.1);
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-weight: 500;
-      transition: all 0.3s;
       background: white;
       cursor: pointer;
-      min-width: 220px;
+      min-width: 180px;
     }
 
     #room-select:focus {
       border-color: #3B6AC5;
       outline: none;
-      box-shadow: 0 0 0 4px rgba(59, 106, 197, 0.1);
+      box-shadow: 0 0 0 2px rgba(59, 106, 197, 0.15);
     }
 
-    /* ==================== Room Info Bar ==================== */
+    /* ==================== Room Info Header (simple) ==================== */
     .room-info-bar {
       display: flex;
       align-items: center;
       gap: 16px;
-      padding: 16px 20px;
-      background: linear-gradient(135deg, rgba(59, 106, 197, 0.06), rgba(38, 166, 154, 0.04));
-      border-radius: 12px;
-      margin-bottom: 16px;
-      border: 1px solid rgba(59, 106, 197, 0.1);
-      animation: fadeInUp 0.3s ease;
+      padding: 8px 16px;
+      background: #f5f5f5;
+      border: 1px solid #ccc;
+      margin-bottom: 0;
+      border-bottom: none;
     }
 
     .room-info-bar .room-avatar {
-      width: 52px;
-      height: 52px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 1.4rem;
+      display: none;
     }
 
     .room-info-bar .room-details h4 {
-      margin: 0 0 4px;
-      font-size: 1.15rem;
-      color: var(--color-text-main, #111111);
+      margin: 0;
+      font-size: 1rem;
+      color: #111;
+      font-weight: 700;
     }
 
     .room-info-bar .room-details span {
-      font-size: 0.85rem;
-      color: var(--color-text-muted, #6B7B72);
+      font-size: 0.8rem;
+      color: #666;
     }
 
     .room-info-bar .total-hours-badge {
       margin-right: auto;
-      background: linear-gradient(135deg, #3B6AC5, #5B84D6);
+      background: #3B6AC5;
       color: white;
-      padding: 8px 20px;
-      border-radius: 25px;
-      font-weight: 700;
-      font-size: 0.95rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .room-info-bar .usage-badge {
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: white;
-      padding: 6px 14px;
-      border-radius: 25px;
+      padding: 4px 12px;
+      border-radius: 4px;
       font-weight: 700;
       font-size: 0.85rem;
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    .room-info-bar .usage-badge {
+      background: #10b981;
+      color: white;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     /* ==================== No Data State ==================== */
@@ -489,7 +299,7 @@
 
     /* ==================== Dark Mode ==================== */
     [data-theme="dark"] .room-stat-card {
-      background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(30, 41, 59, 0.7));
+      background: rgba(30, 41, 59, 0.9);
       border-color: rgba(255, 255, 255, 0.08);
     }
 
@@ -497,21 +307,25 @@
       color: #94a3b8;
     }
 
+    [data-theme="dark"] .room-timetable-wrapper {
+      border-color: #555;
+    }
+
     [data-theme="dark"] .room-timetable thead th {
-      background: linear-gradient(135deg, #312e81, #4338ca);
+      background: #2d2d2d;
+      color: #e0e0e0;
+      border-color: #555;
     }
 
     [data-theme="dark"] .room-timetable tbody td {
-      border-color: rgba(255, 255, 255, 0.06);
+      border-color: #444;
       color: #e2e8f0;
+      background: #1a1a1a;
     }
 
     [data-theme="dark"] .room-timetable tbody td.day-cell {
-      background: linear-gradient(135deg, #312e81, #4338ca);
-    }
-
-    [data-theme="dark"] .room-timetable tbody tr:hover td:not(.day-cell) {
-      background: rgba(99, 102, 241, 0.06);
+      background: #2d2d2d;
+      color: #e0e0e0;
     }
 
     [data-theme="dark"] #room-select {
@@ -521,102 +335,16 @@
     }
 
     [data-theme="dark"] .room-info-bar {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.06));
-      border-color: rgba(99, 102, 241, 0.15);
+      background: #222;
+      border-color: #555;
     }
 
     [data-theme="dark"] .room-info-bar .room-details h4 {
       color: #e2e8f0;
     }
 
-    [data-theme="dark"] .subject-color-0 {
-      background: rgba(30, 136, 229, 0.2);
-      color: #90caf9;
-      border-color: rgba(30, 136, 229, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-1 {
-      background: rgba(230, 81, 0, 0.2);
-      color: #ffcc80;
-      border-color: rgba(230, 81, 0, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-2 {
-      background: rgba(46, 125, 50, 0.2);
-      color: #a5d6a7;
-      border-color: rgba(46, 125, 50, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-3 {
-      background: rgba(198, 40, 40, 0.2);
-      color: #ef9a9a;
-      border-color: rgba(198, 40, 40, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-4 {
-      background: rgba(106, 27, 154, 0.2);
-      color: #ce93d8;
-      border-color: rgba(106, 27, 154, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-5 {
-      background: rgba(0, 105, 92, 0.2);
-      color: #80cbc4;
-      border-color: rgba(0, 105, 92, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-6 {
-      background: rgba(245, 127, 23, 0.2);
-      color: #ffe082;
-      border-color: rgba(245, 127, 23, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-7 {
-      background: rgba(78, 52, 46, 0.2);
-      color: #bcaaa4;
-      border-color: rgba(78, 52, 46, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-8 {
-      background: rgba(40, 53, 147, 0.2);
-      color: #9fa8da;
-      border-color: rgba(40, 53, 147, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-9 {
-      background: rgba(51, 105, 30, 0.2);
-      color: #aed581;
-      border-color: rgba(51, 105, 30, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-10 {
-      background: rgba(191, 54, 12, 0.2);
-      color: #ffab91;
-      border-color: rgba(191, 54, 12, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-11 {
-      background: rgba(1, 87, 155, 0.2);
-      color: #81d4fa;
-      border-color: rgba(1, 87, 155, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-12 {
-      background: rgba(130, 119, 23, 0.2);
-      color: #dce775;
-      border-color: rgba(130, 119, 23, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-13 {
-      background: rgba(69, 39, 160, 0.2);
-      color: #b39ddb;
-      border-color: rgba(69, 39, 160, 0.3);
-    }
-
-    [data-theme="dark"] .subject-color-14 {
-      background: rgba(0, 77, 64, 0.2);
-      color: #80cbc4;
-      border-color: rgba(0, 77, 64, 0.3);
+    [data-theme="dark"] .room-info-bar .room-details span {
+      color: #94a3b8;
     }
 
     /* ==================== Print ==================== */
@@ -661,97 +389,85 @@
       }
 
       .room-timetable-wrapper {
-        border: 1px solid #ccc;
-        border-radius: 0 !important;
+        border: 1px solid #333;
         overflow: visible !important;
-        animation: none !important;
       }
 
       .room-timetable {
         width: 100% !important;
         table-layout: fixed !important;
-        font-size: 9px !important;
+        font-size: 8px !important;
         border-collapse: collapse !important;
         page-break-inside: avoid;
       }
 
       .room-timetable thead th {
-        padding: 5px 3px !important;
-        font-size: 9px !important;
+        padding: 4px 2px !important;
+        font-size: 8px !important;
         position: static !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
 
       .room-timetable tbody td {
-        padding: 3px 2px !important;
-        font-size: 8px !important;
+        padding: 2px 1px !important;
+        font-size: 7px !important;
         min-width: 0 !important;
-        border: 1px solid #ddd !important;
-        line-height: 1.3 !important;
+        border: 1px solid #666 !important;
+        line-height: 1.2 !important;
         height: auto !important;
       }
 
       .room-timetable tbody td.day-cell {
-        font-size: 9px !important;
+        font-size: 8px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
 
       .subject-cell {
-        padding: 3px 2px !important;
-        border-radius: 4px !important;
+        padding: 2px 1px !important;
         min-height: 0 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
 
-      .subject-cell .subject-name {
-        font-size: 8px !important;
-      }
-
-      .subject-cell .teacher-name {
+      .subject-cell .class-name {
         font-size: 7px !important;
       }
 
-      .subject-cell .class-name {
-        font-size: 6.5px !important;
+      .subject-cell .teacher-name {
+        font-size: 6px !important;
+      }
+
+      .subject-cell .subject-name {
+        font-size: 5.5px !important;
       }
 
       .room-info-bar {
-        padding: 8px 12px !important;
-        margin-bottom: 8px !important;
+        padding: 6px 10px !important;
+        margin-bottom: 0 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
 
-      .room-info-bar .room-avatar {
-        display: none !important;
-      }
-
       .room-info-bar .room-details h4 {
-        font-size: 12px !important;
+        font-size: 11px !important;
       }
 
       .room-info-bar .room-details span {
-        font-size: 9px !important;
+        font-size: 8px !important;
       }
 
       .room-info-bar .total-hours-badge,
       .room-info-bar .usage-badge {
-        font-size: 10px !important;
-        padding: 4px 10px !important;
+        font-size: 9px !important;
+        padding: 3px 8px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
 
       .empty-cell {
-        font-size: 8px !important;
-      }
-
-      .period-separator td {
-        height: 2px !important;
-        padding: 0 !important;
+        font-size: 7px !important;
       }
     }
   </style>
@@ -936,12 +652,60 @@
         `<i class="fas fa-info-circle"></i> ${roomNames.length} قاعة متاحة`;
     }
 
-    function getSubjectColor(subject) {
-      if (!subjectColorMap[subject]) {
-        const idx = Object.keys(subjectColorMap).length % 15;
-        subjectColorMap[subject] = idx;
+    /* ── Color palettes ── */
+    const TEACHER_COLORS = [
+      { bg: '#FFCC80', fg: '#4E342E' },
+      { bg: '#EF9A9A', fg: '#B71C1C' },
+      { bg: '#A5D6A7', fg: '#1B5E20' },
+      { bg: '#CE93D8', fg: '#4A148C' },
+      { bg: '#80CBC4', fg: '#004D40' },
+      { bg: '#FFE082', fg: '#5D4037' },
+      { bg: '#90CAF9', fg: '#0D47A1' },
+      { bg: '#FFAB91', fg: '#BF360C' },
+      { bg: '#B39DDB', fg: '#311B92' },
+      { bg: '#C5E1A5', fg: '#33691E' },
+      { bg: '#81D4FA', fg: '#01579B' },
+      { bg: '#BCAAA4', fg: '#3E2723' },
+      { bg: '#FFF59D', fg: '#F57F17' },
+      { bg: '#F48FB1', fg: '#880E4F' },
+      { bg: '#9FA8DA', fg: '#1A237E' },
+    ];
+
+    const SECTION_COLORS = [
+      { bg: '#E8F5E9', fg: '#2E7D32' },
+      { bg: '#E3F2FD', fg: '#1565C0' },
+      { bg: '#FFF3E0', fg: '#E65100' },
+      { bg: '#FCE4EC', fg: '#C62828' },
+      { bg: '#F3E5F5', fg: '#6A1B9A' },
+      { bg: '#E0F7FA', fg: '#00695C' },
+      { bg: '#FFF8E1', fg: '#F57F17' },
+      { bg: '#E8EAF6', fg: '#283593' },
+      { bg: '#F1F8E9', fg: '#33691E' },
+      { bg: '#EFEBE9', fg: '#4E342E' },
+      { bg: '#E0F2F1', fg: '#004D40' },
+      { bg: '#E1F5FE', fg: '#01579B' },
+      { bg: '#FBE9E7', fg: '#BF360C' },
+      { bg: '#EDE7F6', fg: '#4527A0' },
+      { bg: '#F9FBE7', fg: '#827717' },
+    ];
+
+    let teacherColorMap = {};
+    let sectionColorMap = {};
+
+    function getTeacherColor(teacher) {
+      if (!teacherColorMap[teacher]) {
+        const idx = Object.keys(teacherColorMap).length % TEACHER_COLORS.length;
+        teacherColorMap[teacher] = TEACHER_COLORS[idx];
       }
-      return `subject-color-${subjectColorMap[subject]}`;
+      return teacherColorMap[teacher];
+    }
+
+    function getSectionColor(section) {
+      if (!sectionColorMap[section]) {
+        const idx = Object.keys(sectionColorMap).length % SECTION_COLORS.length;
+        sectionColorMap[section] = SECTION_COLORS[idx];
+      }
+      return sectionColorMap[section];
     }
 
     function showRoomSchedule(roomName) {
@@ -974,8 +738,9 @@
         }
       });
 
-      // Reset subject color map for this room
-      subjectColorMap = {};
+      // Reset color maps for this room
+      teacherColorMap = {};
+      sectionColorMap = {};
 
       // All hours in order
       const allHoursOrdered = [];
@@ -992,17 +757,11 @@
 
       let html = `
         <div class="room-info-bar">
-          <div class="room-avatar"><i class="fas fa-door-open"></i></div>
           <div class="room-details">
-            <h4>جدول استعمال القاعة : ${roomName}</h4>
+            <h4>جدول حصص :  ${roomName}</h4>
             <span>الموسم الدراسي 2025-2026</span>
           </div>
-          <div class="usage-badge">
-            <i class="fas fa-chart-pie"></i>
-            ${usagePercent}%
-          </div>
           <div class="total-hours-badge">
-            <i class="fas fa-clock"></i>
             ${usedSlots} h
           </div>
         </div>
@@ -1041,22 +800,28 @@
           });
         });
 
-        // Detect consecutive hours with same subject+teacher for merging
+        // Detect consecutive hours with same subject+teacher for merging (supports 2, 3, 4+ hours)
         for (let i = 0; i < dayCells.length - 1; i++) {
+          if (dayCells[i].skip) continue;
           if (separatorAfter > 0 && i === separatorAfter - 1) continue;
 
-          const curr = dayCells[i];
-          const next = dayCells[i + 1];
+          const anchor = dayCells[i];
+          if (!anchor.lessons || anchor.lessons.length !== 1) continue;
 
-          if (curr.lessons && next.lessons &&
-            curr.lessons.length === 1 && next.lessons.length === 1 &&
-            curr.lessons[0].subject === next.lessons[0].subject &&
-            curr.lessons[0].teacher === next.lessons[0].teacher &&
-            curr.lessons[0].students === next.lessons[0].students &&
-            curr.period === next.period) {
-            curr.colspan = 2;
+          let span = 1;
+          const mergedSections = [anchor.lessons[0].students || ''];
+          for (let j = i + 1; j < dayCells.length; j++) {
+            if (separatorAfter > 0 && j === separatorAfter) break;
+            const next = dayCells[j];
+            if (!next.lessons || next.lessons.length !== 1) break;
+            if (next.lessons[0].subject !== anchor.lessons[0].subject ||
+              next.lessons[0].teacher !== anchor.lessons[0].teacher ||
+              next.period !== anchor.period) break;
+            span++;
+            mergedSections.push(next.lessons[0].students || '');
             next.skip = true;
           }
+          if (span > 1) { anchor.colspan = span; anchor.mergedSections = mergedSections; }
         }
 
         html += `<tr><td class="day-cell">${day}</td>`;
@@ -1077,21 +842,42 @@
               return aKey.localeCompare(bKey, 'ar');
             });
 
-            const cellContent = lessonsAtSlot.map(lesson => {
-              const colorClass = getSubjectColor(lesson.subject);
-              return `
-                <div class="subject-cell ${colorClass}">
-                  <div class="subject-name">${lesson.subject}</div>
-                  <div class="teacher-name">${lesson.teacher}</div>
-                  ${lesson.students ? `<div class="class-name">${lesson.students}</div>` : ''}
-                </div>`;
-            }).join('');
+            // Merged cell: sections side-by-side, teacher spanning below
+            if (cell.mergedSections && cell.mergedSections.length > 1) {
+              const lesson = lessonsAtSlot[0];
+              const tc = getTeacherColor(lesson.teacher);
+              const uniqueSections = [...new Set(cell.mergedSections)];
+              const allSame = uniqueSections.length === 1;
+              let sectionsRow = '';
+              if (allSame && uniqueSections[0]) {
+                const sc = getSectionColor(uniqueSections[0]);
+                sectionsRow = `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${uniqueSections[0]}</div>`;
+              } else {
+                sectionsRow = `<div style="display:flex">${cell.mergedSections.map(s => {
+                  if (!s) return '<span style="flex:1"></span>';
+                  const sc = getSectionColor(s);
+                  return `<span class="class-name" style="background:${sc.bg};color:${sc.fg};flex:1">${s}</span>`;
+                }).join('')}</div>`;
+              }
+              const cellContent = `<div class="subject-cell">${sectionsRow}<div class="teacher-name" style="background:${tc.bg};color:${tc.fg}">${lesson.teacher} : (${lesson.subject})</div></div>`;
+              html += `<td${colspanAttr} class="merged-cell">${cellContent}</td>`;
+            } else {
+              const cellContent = lessonsAtSlot.map(lesson => {
+                const tc = getTeacherColor(lesson.teacher);
+                const sc = lesson.students ? getSectionColor(lesson.students) : null;
+                return `
+                  <div class="subject-cell">
+                    ${lesson.students ? `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${lesson.students}</div>` : ''}
+                    <div class="teacher-name" style="background:${tc.bg};color:${tc.fg}">${lesson.teacher} : (${lesson.subject})</div>
+                  </div>`;
+              }).join('');
 
-            const tdClasses = [];
-            if (cell.colspan > 1) tdClasses.push('merged-cell');
-            if (lessonsAtSlot.length > 1) tdClasses.push('has-multiple-lessons');
-            const classAttr = tdClasses.length > 0 ? ` class="${tdClasses.join(' ')}"` : '';
-            html += `<td${colspanAttr}${classAttr}>${lessonsAtSlot.length > 1 ? `<div class="subject-stack">${cellContent}</div>` : cellContent}</td>`;
+              const tdClasses = [];
+              if (cell.colspan > 1) tdClasses.push('merged-cell');
+              if (lessonsAtSlot.length > 1) tdClasses.push('has-multiple-lessons');
+              const classAttr = tdClasses.length > 0 ? ` class="${tdClasses.join(' ')}"` : '';
+              html += `<td${colspanAttr}${classAttr}>${lessonsAtSlot.length > 1 ? `<div class="subject-stack">${cellContent}</div>` : cellContent}</td>`;
+            }
           } else {
             const classAttr = cell.colspan > 1 ? ' class="merged-cell"' : '';
             html += `<td${colspanAttr}${classAttr}><span class="empty-cell">�</span></td>`;

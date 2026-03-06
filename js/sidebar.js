@@ -10,8 +10,8 @@ function injectSidebar() {
         <div class="school-info">
             <i class="fas fa-university"></i>
             <div class="school-details">
-                <h3>الثانوية التأهيلية</h3>
-                <p>ابن سينا</p>
+                <h3 id="sidebar-school-type">المؤسسة التعليمية</h3>
+                <p id="sidebar-school-name">...</p>
             </div>
         </div>
         <nav class="sidebar-nav">
@@ -37,11 +37,11 @@ function injectSidebar() {
                     </ul>
                 </li>
                 <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>الاستعمال الزمني</span><i class="fas fa-chevron-down arrow"></i></a>
+                    <a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
-                        <li><a href="timetable.html"><i class="fas fa-table"></i> جداول الحصص</a></li>
+                        <li><a href="timetable.html"><i class="fas fa-table"></i>جدول حصص الأساتذة</a></li>
                         <li><a href="timetable-students.html"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</a></li>
-                        <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول القاعات</a></li>
+                        <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول حصص القاعات</a></li>
                         <li><a href="timetable-teachers.html"><i class="fas fa-chalkboard-teacher"></i> جدول حصص الأساتذة</a></li>
                     </ul>
                 </li>
@@ -104,6 +104,9 @@ function injectSidebar() {
     `;
 
     sidebar.dataset.injected = 'true';
+
+    // Load school name from database and update sidebar + page title
+    loadSchoolIdentity();
 
     // Re-apply role-based navigation restrictions after sidebar injection.
     // This handles the timing gap: utils.js may run before sidebar.js,
@@ -185,6 +188,66 @@ function injectSidebar() {
         });
     }
 }
+
+/**
+ * Load school identity from database and update the sidebar header + page title.
+ * Called automatically after sidebar injection.
+ */
+async function loadSchoolIdentity() {
+    try {
+        if (!window.api?.reports?.getIdentity) return;
+        const id = await window.api.reports.getIdentity();
+        const fullName = (id?.school_name || '').trim();
+        if (!fullName) return;
+
+        // Try to split into type (e.g. "الثانوية التأهيلية") and name (e.g. "ابن سينا")
+        // Common school type prefixes in Morocco
+        const typePatterns = [
+            'الثانوية التأهيلية',
+            'الثانوية الإعدادية',
+            'المدرسة الابتدائية',
+            'مجموعة مدارس',
+            'الثانوية',
+            'الإعدادية',
+            'المدرسة'
+        ];
+
+        let schoolType = '';
+        let schoolName = fullName;
+
+        for (const pattern of typePatterns) {
+            if (fullName.startsWith(pattern)) {
+                schoolType = pattern;
+                schoolName = fullName.slice(pattern.length).trim();
+                break;
+            }
+        }
+
+        // If no pattern matched, use the full name as the school name
+        if (!schoolType) {
+            schoolType = 'المؤسسة التعليمية';
+            schoolName = fullName;
+        }
+
+        // Update sidebar elements
+        const typeEl = document.getElementById('sidebar-school-type');
+        const nameEl = document.getElementById('sidebar-school-name');
+        if (typeEl) typeEl.textContent = schoolType;
+        if (nameEl) nameEl.textContent = schoolName;
+
+        // Update page title
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            const pageName = titleEl.textContent.split('|')[0]?.trim() || 'برنامج التدبير المدرسي';
+            titleEl.textContent = `${pageName} | ${fullName}`;
+        }
+    } catch (err) {
+        console.warn('Could not load school identity for sidebar:', err);
+    }
+}
+
+/** Refresh sidebar school name — callable from other pages (e.g. settings). */
+window.refreshSidebarSchoolName = loadSchoolIdentity;
 
 // Auto-inject on DOM ready
 if (document.readyState === 'loading') {
