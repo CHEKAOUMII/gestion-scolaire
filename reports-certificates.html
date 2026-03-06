@@ -163,8 +163,8 @@
             e.preventDefault();
             const code = document.getElementById('student-code').value.trim();
             const type = document.getElementById('cert-type').value;
-
-            const students = await window.api.students.search('', '', '', '2025/2026');
+            const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+            const students = await window.api.students.search('', '', '', year);
             const student = (students || []).find(s => s.massar_code === code);
 
             if (!student) {
@@ -189,7 +189,7 @@
                         <div class="cert-field"><strong>الاسم الكامل:</strong> <span>${student.full_name || '-'}</span></div>
                         <div class="cert-field"><strong>رمز مسار:</strong> <span>${student.massar_code || '-'}</span></div>
                         <div class="cert-field"><strong>القسم:</strong> <span>${student.class_name || '-'}</span></div>
-                        <div class="cert-field"><strong>السنة الدراسية:</strong> <span>2025/2026</span></div>
+                        <div class="cert-field"><strong>السنة الدراسية:</strong> <span>${year}</span></div>
                         <div class="cert-field"><strong>تاريخ الإصدار:</strong> <span>${dateStr}</span></div>
                     </div>
                     <div class="cert-preview-actions">
@@ -210,7 +210,7 @@
          */
         function buildCertificateBody(student, type) {
             const bodyText = CERT_TYPE_BODY_TEXT[type];
-            const year = '2025/2026';
+            const year = getSchoolYear();
 
             return `
                 <!-- Student info table -->
@@ -292,8 +292,8 @@
         }
 
         function exportCertPDF() { dispatchCert('pdf'); }
-        function printCert()     { dispatchCert('print'); }
-        function previewCert()   { dispatchCert('preview'); }
+        function printCert() { dispatchCert('print'); }
+        function previewCert() { dispatchCert('preview'); }
     </script>
 </body>
 

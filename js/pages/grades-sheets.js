@@ -15,7 +15,6 @@
     const classSelect = () => $('class-select');
     const subjectSelect = () => $('subject-select');
     const semesterSelect = () => $('semester-select');
-    const yearSelect = () => $('school-year');
     const previewBody = () => $('gs-preview-body');
     const countBadge = () => $('gs-count-badge');
     const feedback = () => $('gs-feedback');
@@ -25,7 +24,7 @@
     const printPreviewBtn = () => $('print-btn');
 
     function getYear() {
-        return yearSelect()?.value || '2025/2026';
+        return typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
     }
 
     // ─── Helpers ───
@@ -129,11 +128,7 @@
             const ss = subjectSelect();
             while (ss.options.length > 1) ss.remove(1);
 
-            const normalizeSubjectName = (subject) =>
-                String(subject || '')
-                    .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
-                    .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-                    .trim();
+            // normalizeSubjectName() — provided by js/utils.js
 
             const uniqueSubjects = Array.from(
                 new Set(subjects.map((s) => normalizeSubjectName(s.name)).filter(Boolean))
@@ -159,7 +154,7 @@
         const selectedLevel = ls?.value || '';
         if (selectedLevel && classLevelMap.has(selectedLevel)) {
             const entry = classLevelMap.get(selectedLevel);
-            entry.sections.sort().forEach((name) => {
+            sortSectionNames(entry.sections).forEach((name) => {
                 const opt = document.createElement('option');
                 opt.value = name;
                 opt.textContent = name;
@@ -170,7 +165,7 @@
             [...classLevelMap.entries()]
                 .sort((a, b) => a[1].order - b[1].order)
                 .forEach(([, info]) => {
-                    info.sections.sort().forEach((name) => {
+                    sortSectionNames(info.sections).forEach((name) => {
                         const opt = document.createElement('option');
                         opt.value = name;
                         opt.textContent = name;
@@ -443,16 +438,5 @@
 
         // Print Preview (shared UX system)
         printPreviewBtn()?.addEventListener('click', openPreview);
-
-        // School year change: reload filters and reset
-        yearSelect()?.addEventListener('change', async () => {
-            await loadFilters();
-            showEmpty();
-            updateButtons(false);
-            isGenerated = false;
-            currentStudents = [];
-            const badge = countBadge();
-            if (badge) badge.style.display = 'none';
-        });
     });
 })();

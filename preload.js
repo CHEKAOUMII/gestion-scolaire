@@ -37,7 +37,8 @@ contextBridge.exposeInMainWorld('api', {
     // Settings
     settings: {
         get: (key) => ipcRenderer.invoke('settings:get', key),
-        set: (key, value) => ipcRenderer.invoke('settings:set', key, value)
+        set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+        setSchoolYear: (year) => ipcRenderer.invoke('settings:setSchoolYear', year)
     },
 
     // Page visibility

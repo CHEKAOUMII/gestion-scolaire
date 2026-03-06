@@ -1,7 +1,7 @@
 // Student Data - Will be loaded from SQLite
 let studentsData = [];
 let isDbReady = false;
-let currentSchoolYear = '2025/2026'; // الموسم الدراسي الحالي
+let currentSchoolYear = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026'; // الموسم الدراسي الحالي
 
 const EXTERNAL_LIBS = {
     chart: 'vendor/chart.min.js',
@@ -110,12 +110,17 @@ async function initDatabase(schoolYear = null) {
 // جلب المواسم الدراسية المتوفرة
 async function updateAvailableYears() {
     try {
-        const years = new Set(['2025/2026']); // الموسم الافتراضي
+        const activeYear = typeof getSchoolYear === 'function' ? getSchoolYear() : currentSchoolYear;
 
-        // إضافة الموسم الحالي دائماً
-        years.add(currentSchoolYear);
+        // Build a standard range of years (same as setupUnifiedHeader in utils.js)
+        const nowYear = new Date().getFullYear();
+        const years = new Set();
+        for (let y = nowYear + 1; y >= nowYear - 3; y--) {
+            years.add(`${y}/${y + 1}`);
+        }
 
-        // إضافة المواسم المحفوظة محلياً
+        // Also include any extra years saved locally or the current DB year
+        years.add(activeYear);
         const savedYears = localStorage.getItem('addedSchoolYears');
         if (savedYears) {
             JSON.parse(savedYears).forEach(y => years.add(y));
@@ -132,15 +137,18 @@ async function updateAvailableYears() {
                 const option = document.createElement('option');
                 option.value = year;
                 option.textContent = year;
-                if (year === currentSchoolYear) option.selected = true;
+                if (year === activeYear) option.selected = true;
                 yearSelect.appendChild(option);
             });
 
-            // إضافة خيار موسم جديد
-            const newOption = document.createElement('option');
-            newOption.value = 'new';
-            newOption.textContent = '+ إضافة موسم جديد';
-            yearSelect.appendChild(newOption);
+            // Re-wire change event (header may have been rebuilt)
+            yearSelect.onchange = null;
+            yearSelect.addEventListener('change', () => {
+                const chosen = yearSelect.value;
+                if (chosen && chosen !== 'new' && typeof setSchoolYear === 'function') {
+                    setSchoolYear(chosen);
+                }
+            });
         }
     } catch (error) {
         console.error('Error updating years:', error);
@@ -585,7 +593,8 @@ async function renderCharts(filterSection = 'all', stats) {
     destroyChartInstances();
 
     if (!stats) stats = calculateStats();
-    const sectionsOptions = stats.sectionsList.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    const sortedSectionsList = sortSectionNames(stats.sectionsList);
+    const sectionsOptions = sortedSectionsList.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
     const html = `<div class="charts-grid">
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب السن</h3><div class="chart-controls"><select id="age-section-filter"><option value="all" ${filterSection === 'all' ? 'selected' : ''}>جميع الأقسام</option>${sectionsOptions}</select><button><i class="fas fa-print"></i> طباعة</button></div></div><div class="chart-body"><canvas id="ageChart"></canvas></div></div>
@@ -639,7 +648,7 @@ async function renderCharts(filterSection = 'all', stats) {
         sectionStats[s.section].total++;
         s.gender === "ذكر" ? sectionStats[s.section].males++ : sectionStats[s.section].females++;
     });
-    const sectionNames = Object.keys(sectionStats);
+    const sectionNames = sortSectionNames(Object.keys(sectionStats));
     chartInstances.levels = new Chart(document.getElementById('levelsChart'), {
         type: 'bar',
         data: {
@@ -756,7 +765,8 @@ function renderStudentsTable(searchName = '', searchFamily = '', filterSection =
     const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
 
     const stats = calculateStats();
-    const sectionsOptions = stats.sectionsList.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    const sortedSectionsList2 = sortSectionNames(stats.sectionsList);
+    const sectionsOptions = sortedSectionsList2.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 
     const rows = paginatedStudents.map(s => `<tr><td>${escapeHtml(s.section)}</td><td>${escapeHtml(s.id)}</td><td>${escapeHtml(s.code)}</td><td>${escapeHtml(s.familyName)}</td><td>${escapeHtml(s.firstName)}</td><td class="${s.gender === 'ذكر' ? 'gender-male' : 'gender-female'}">${escapeHtml(s.gender)}</td><td>${escapeHtml(s.birthDate)}</td><td>${escapeHtml(s.birthPlace)}</td><td></td></tr>`).join('');
 

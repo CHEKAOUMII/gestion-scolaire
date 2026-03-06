@@ -58,8 +58,17 @@ function registerStudentsIpc(ipcMain) {
     // No auth: bulk-import is used by settings-imports page before login
     handleWriteNoAuth(ipcMain, 'students:addBulk', (db, students) => {
         const insert = db.prepare(`
-                INSERT OR REPLACE INTO students (code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type)
+                INSERT INTO students (code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(code, school_year) DO UPDATE SET
+                    full_name=excluded.full_name,
+                    family_name=excluded.family_name,
+                    birth_date=excluded.birth_date,
+                    birth_place=excluded.birth_place,
+                    gender=excluded.gender,
+                    section=excluded.section,
+                    status=excluded.status,
+                    registration_type=excluded.registration_type
             `);
         const insertMany = db.transaction((items) => {
             for (const student of items) {
@@ -153,6 +162,13 @@ function registerStudentsIpc(ipcMain) {
         return { success: true };
     });
 
+    // No auth: allow changing the current school year without requiring admin session
+    handleWriteNoAuth(ipcMain, 'settings:setSchoolYear', (db, year) => {
+        if (!year || typeof year !== 'string') return { success: false, error: 'Invalid year' };
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('currentSchoolYear', ?)").run(year);
+        return { success: true };
+    });
+
     // ── Grades (read = open, write = admin/staff) ──
 
     handleRead(ipcMain, 'grades:getAll', (db, schoolYear) => {
@@ -170,7 +186,7 @@ function registerStudentsIpc(ipcMain) {
 
     handleRead(ipcMain, 'grades:getZeroStudents', (db, filters) => {
         filters = filters || {};
-        const year = String(filters.schoolYear || '2025/2026').trim();
+        const year = String(normalizeYear(filters.schoolYear)).trim();
         const className = String(filters.className || '').trim();
         const semester = String(filters.semester || '').trim();
         const searchTerm = String(filters.searchTerm || '').trim();
@@ -420,11 +436,61 @@ function registerStudentsIpc(ipcMain) {
             )
             .all();
 
-        const normalizeSubjectName = (subject) =>
-            String(subject || '')
+        // Subject normalization — canonical source: js/utils.js
+        // Full version needed for French→Arabic translation (utils.js can't be require'd in Node.js).
+        // If you add new subjects, update BOTH here AND js/utils.js SUBJECT_FR_TO_AR.
+        const _SUBJECT_FR_TO_AR = {
+            'MATHEMATIQUES': 'الرياضيات', 'MATH': 'الرياضيات', 'MATHS': 'الرياضيات',
+            'SCIENCES MATHEMATIQUES': 'الرياضيات',
+            'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
+            'PHYSIQUE ET CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE': 'الفيزياء والكيمياء',
+            'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
+            'SVT': 'علوم الحياة والأرض', 'SCIENCES NATURELLES': 'علوم الحياة والأرض',
+            'PHILOSOPHIE': 'الفلسفة', 'PHILO': 'الفلسفة',
+            'LANGUE ARABE': 'اللغة العربية', 'ARABE': 'اللغة العربية',
+            'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAIS': 'اللغة الفرنسية',
+            'FRANCAISE': 'اللغة الفرنسية',
+            'LANGUE ANGLAISE': 'اللغة الإنجليزية', 'ANGLAIS': 'اللغة الإنجليزية',
+            'ANGLAISE': 'اللغة الإنجليزية', 'ENGLISH': 'اللغة الإنجليزية',
+            'ESPAGNOL': 'اللغة الإسبانية', 'ALLEMAND': 'اللغة الألمانية',
+            'EDUCATION ISLAMIQUE': 'التربية الإسلامية', 'ISLAMIQUE': 'التربية الإسلامية',
+            'EDUCATION PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
+            'EDUCATION PHYSIQUE': 'التربية البدنية', 'EPS': 'التربية البدنية',
+            'HISTOIRE ET GEOGRAPHIE': 'التاريخ والجغرافيا',
+            'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا', 'HISTOIRE': 'التاريخ والجغرافيا',
+            'INFORMATIQUE': 'المعلوميات', 'INFORMATIQUE DE GESTION': 'معلوميات التدبير',
+            'ECONOMIE GENERALE': 'الاقتصاد العام والإحصاء',
+            'ECO GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
+            'ECONOMIE GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
+            'ECONOMIE ET ORGANISATION': 'الاقتصاد والتنظيم الإداري للمقاولات',
+            'ECO ET ORG ADMIN ENTREPRISE': 'الاقتصاد والتنظيم الإداري للمقاولات',
+            'ECONOMIE ET ORGANISATION ADMINISTRATIVE DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
+            'ECONOMIE ET ORGANISATION DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
+            'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
+            'COMPTABILITE': 'المحاسبة والرياضيات المالية',
+            'DROIT': 'القانون', 'TRADUCTION': 'الترجمة',
+            "SCIENCES DE L'INGENIEUR": 'علوم المهندس', 'SI': 'علوم المهندس',
+            'ARTS APPLIQUES': 'الفنون التطبيقية', 'DESSIN': 'الفنون التطبيقية',
+        };
+        const _FR_KEYS_DESC = Object.keys(_SUBJECT_FR_TO_AR).sort((a, b) => b.length - a.length);
+        const normalizeSubjectName = (subject) => {
+            const text = String(subject || '')
                 .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
                 .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
                 .trim();
+            if (!text) return text;
+            if (/[a-zA-Z]/.test(text)) {
+                const upper = text.toUpperCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[_.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+                if (_SUBJECT_FR_TO_AR[upper]) return _SUBJECT_FR_TO_AR[upper];
+                for (const key of _FR_KEYS_DESC) {
+                    if (key.length > 3 && (upper.includes(key) || key.includes(upper)))
+                        return _SUBJECT_FR_TO_AR[key];
+                }
+            }
+            return text;
+        };
 
         const invalidSubjectNames = new Set(['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة']);
         const uniqueSubjects = new Set();

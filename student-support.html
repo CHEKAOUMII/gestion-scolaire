@@ -808,7 +808,7 @@
     </div>
 
     <script>
-        const year = '2025/2026';
+        const year = getSchoolYear();
         const CHART_JS_CDN = 'vendor/chart.min.js';
         let allSections = [];
         let allGradesCache = [];
@@ -945,12 +945,7 @@
             return getLevelNameFromSection(s);
         }
 
-        function normalizeSubjectName(subject) {
-            return String(subject || '').trim()
-                .replace(/\s*\(فرض\s*\d+\)\s*$/, '')
-                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-                .trim();
-        }
+        // normalizeSubjectName() — provided by js/utils.js
 
         function renderClassOptions(selectedLevel = '') {
             const classSelect = document.getElementById('class-select');
@@ -960,13 +955,12 @@
                 ? allSections.filter(section => _getLocalLevelName(section) === selectedLevel)
                 : allSections.slice();
 
-            list.sort((a, b) => String(a).localeCompare(String(b), 'ar'))
-                .forEach(section => {
-                    const opt = document.createElement('option');
-                    opt.value = section;
-                    opt.textContent = section;
-                    classSelect.appendChild(opt);
-                });
+            sortSectionNames(list).forEach(section => {
+                const opt = document.createElement('option');
+                opt.value = section;
+                opt.textContent = section;
+                classSelect.appendChild(opt);
+            });
         }
 
         function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
@@ -1022,14 +1016,12 @@
                 if (level) levels.add(level);
             });
 
-            Array.from(levels)
-                .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
-                .forEach(level => {
-                    const opt = document.createElement('option');
-                    opt.value = level;
-                    opt.textContent = level;
-                    levelSelect.appendChild(opt);
-                });
+            sortLevelNames(Array.from(levels)).forEach(level => {
+                const opt = document.createElement('option');
+                opt.value = level;
+                opt.textContent = level;
+                levelSelect.appendChild(opt);
+            });
 
             renderClassOptions('');
             renderSubjectOptions('', '');

@@ -2,7 +2,7 @@
    Teachers Performance – مؤشرات أداء الأساتذة
    ═══════════════════════════════════════════════════════ */
 
-const DEFAULT_YEAR = '2025/2026';
+const DEFAULT_YEAR = getSchoolYear();
 const CHART_JS_CDN = 'vendor/chart.min.js';
 
 let chartLoaderPromise = null;
@@ -177,9 +177,7 @@ function renderLevelFilter() {
     const select = document.getElementById('tp-level-filter');
     if (!select) return;
     const previous = select.value;
-    const levels = Array.from(new Set(allGradesCache.map((g) => g._level).filter(Boolean))).sort((a, b) =>
-        a.localeCompare(b, 'ar')
-    );
+    const levels = sortLevelNames(Array.from(new Set(allGradesCache.map((g) => g._level).filter(Boolean))));
     select.innerHTML = '<option value="">كل المستويات</option>';
     levels.forEach((level) => {
         const o = document.createElement('option');
@@ -202,7 +200,12 @@ function renderClassFilter() {
                 .map((g) => String(g.section || '').trim())
                 .filter(Boolean)
         )
-    ).sort((a, b) => a.localeCompare(b, 'ar'));
+    ).sort((a, b) => {
+        const infoA = getLevelFromSection(a);
+        const infoB = getLevelFromSection(b);
+        if (infoA.order !== infoB.order) return infoA.order - infoB.order;
+        return a.localeCompare(b, 'ar');
+    });
     s.innerHTML = '<option value="">كل الأقسام</option>';
     classes.forEach((c) => {
         const o = document.createElement('option');
@@ -272,20 +275,13 @@ function renderTeacherFilter() {
     const s = document.getElementById('tp-teacher-filter');
     if (!s) return;
     const prev = s.value || selectedTeacherName;
-    const teachers = Array.from(new Set(base.map((g) => g._teacher).filter(Boolean))).sort((a, b) =>
-        a.localeCompare(b, 'ar')
-    );
-    s.innerHTML = '<option value="">كل الأساتذة</option>';
-    teachers.forEach((t) => {
-        const o = document.createElement('option');
-        o.value = t;
-        o.textContent = t;
-        s.appendChild(o);
-    });
-    if (prev && teachers.includes(prev)) {
+
+    const allTeachers = populateTeachersBySubject(s, base, 'كل الأساتذة');
+
+    if (prev && allTeachers.includes(prev)) {
         s.value = prev;
         selectedTeacherName = prev;
-    } else if (selectedTeacherName && !teachers.includes(selectedTeacherName)) selectedTeacherName = '';
+    } else if (selectedTeacherName && !allTeachers.includes(selectedTeacherName)) selectedTeacherName = '';
 }
 
 /* ─── Utility Functions ─── */
@@ -316,13 +312,7 @@ function studentIdentity(record) {
     return String(record.student_id || record.student_code || record.full_name || 'غير محدد');
 }
 
-function normalizeSubjectName(subject) {
-    const clean = String(subject || '')
-        .replace(/\s*\(\s*فرض\s*\d+\s*\)\s*$/i, '')
-        .replace(/\s*\(الأنشطة المندمجة\)\s*$/i, '')
-        .trim();
-    return clean || 'غير محدد';
-}
+// normalizeSubjectName() — provided by js/utils.js
 
 function normalizeLoose(value) {
     return String(value || '')

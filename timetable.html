@@ -70,9 +70,9 @@
 
         /* --- Timetable Wrapper --- */
         [data-theme="dark"] .timetable-wrapper {
-            background: #151D17;
-            border: 1px solid rgba(91, 132, 214, 0.12);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            background: #1A1A1A;
+            border: 2px solid rgba(91, 132, 214, 0.25);
+            box-shadow: none;
         }
 
         /* --- Timetable Header --- */
@@ -1386,28 +1386,26 @@
 
         /* Timetable Grid */
         .timetable-wrapper {
-            background: var(--color-surface, #FAFAF8);
-            backdrop-filter: blur(10px);
-            border-radius: 18px;
-            border: 1px solid var(--color-accent, #E8E8E8);
+            background: #fff;
+            border-radius: 0;
+            border: 2px solid #333;
             overflow: hidden;
-            box-shadow: 0 2px 10px rgba(17, 17, 17, 0.05);
-            transition: box-shadow 0.3s ease;
+            box-shadow: none;
         }
 
         .timetable-header {
-            padding: 12px 18px;
-            border-bottom: 1px solid var(--color-accent, #E8E8E8);
+            padding: 10px 16px;
+            border-bottom: 2px solid #333;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(to left, var(--color-primary-mist, rgba(59, 106, 197, 0.08)), transparent);
+            background: #fff;
         }
 
         .timetable-header-info {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--color-accent, #E8E8E8);
-            background: linear-gradient(135deg, rgba(59, 106, 197, 0.03), transparent);
+            padding: 10px 16px;
+            border-bottom: 2px solid #333;
+            background: #fff;
         }
 
         .timetable-header-info h3 {
@@ -1434,19 +1432,18 @@
 
         .table-responsive {
             overflow-x: auto;
-            padding: 12px;
+            padding: 0;
             -webkit-overflow-scrolling: touch;
         }
 
         .timetable-grid {
             overflow-x: auto;
-            padding: 12px;
+            padding: 0;
         }
 
         .timetable {
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
+            border-collapse: collapse;
             min-width: 800px;
             table-layout: fixed;
             font-size: 0.88rem;
@@ -1454,20 +1451,20 @@
 
         .timetable th,
         .timetable td {
-            padding: 10px 8px;
+            padding: 6px 4px;
             text-align: center;
-            border: 1px solid var(--color-accent, #E8E8E8);
+            border: 1.5px solid #444;
             vertical-align: middle;
         }
 
         .timetable th {
             background: #2B5AAE;
             color: white;
-            font-weight: 600;
-            font-size: 0.9rem;
-            padding: 14px 8px;
+            font-weight: 700;
+            font-size: 0.82rem;
+            padding: 8px 4px;
             white-space: nowrap;
-            letter-spacing: 0.3px;
+            letter-spacing: 0;
         }
 
         .timetable th:first-child {
@@ -1486,29 +1483,22 @@
         }
 
         .timetable td {
-            background: var(--color-surface, #FAFAF8);
-            min-height: 55px;
-            height: 60px;
+            background: #fff;
+            min-height: 50px;
+            height: 55px;
             max-width: 140px;
             word-wrap: break-word;
             overflow-wrap: break-word;
-            transition: background 0.2s ease;
+            transition: none;
         }
 
-        /* Alternating row tint for light mode */
-        .timetable tbody tr:nth-child(even) td:not(.day-cell) {
-            background: var(--color-surface-alt, #F6F5F2);
-        }
-
-        .timetable tr:hover td {
-            box-shadow: inset 0 0 0 1000px rgba(59, 106, 197, 0.05);
-        }
+        /* Alternating row tint removed for paper style */
 
         .timetable .period-cell {
-            background: rgba(59, 106, 197, 0.05);
+            background: #f0f0f0;
             font-weight: 700;
-            color: var(--color-primary, #3B6AC5);
-            font-size: 0.85rem;
+            color: #333;
+            font-size: 0.82rem;
             white-space: nowrap;
             width: 70px;
         }
@@ -1518,12 +1508,12 @@
             background: #2B5AAE !important;
             color: white !important;
             font-weight: 700;
-            font-size: 1rem;
-            min-width: 90px;
-            width: 100px;
+            font-size: 0.95rem;
+            min-width: 80px;
+            width: 90px;
             text-align: center;
             white-space: nowrap;
-            letter-spacing: 0.5px;
+            letter-spacing: 0;
             position: sticky;
             right: 0;
             z-index: 1;
@@ -1543,7 +1533,7 @@
         }
 
         .timetable .separator-row td {
-            background: linear-gradient(90deg, transparent, rgba(43, 90, 174, 0.5), transparent);
+            background: #2B5AAE;
             height: 3px;
             padding: 0;
             border: none;
@@ -1554,32 +1544,28 @@
         }
 
         .activity-cell {
-            background: linear-gradient(135deg, rgba(59, 106, 197, 0.06), rgba(91, 132, 214, 0.03));
-            border-radius: 8px;
-            padding: 8px 10px;
-            margin: 2px;
-            border-right: 3px solid var(--color-primary-light, #5B84D6);
-            transition: background 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .activity-cell:hover {
-            box-shadow: 0 2px 8px rgba(59, 106, 197, 0.12);
+            background: none;
+            border-radius: 0;
+            padding: 3px 4px;
+            margin: 0;
+            border-right: none;
+            transition: none;
         }
 
         .activity-cell .subject {
             font-weight: 700;
-            color: var(--color-primary, #3B6AC5);
-            font-size: 0.88rem;
-            margin-bottom: 3px;
-            line-height: 1.35;
+            color: inherit;
+            font-size: 0.82rem;
+            margin-bottom: 2px;
+            line-height: 1.3;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
         .activity-cell .class {
-            font-size: 0.82rem;
-            color: var(--color-text-main, #111111);
+            font-size: 0.78rem;
+            color: inherit;
             font-weight: 600;
             white-space: nowrap;
             overflow: hidden;
@@ -1587,14 +1573,14 @@
         }
 
         .activity-cell .room {
-            font-size: 0.75rem;
-            color: var(--color-text-muted, #6B7B72);
-            margin-top: 2px;
+            font-size: 0.72rem;
+            color: inherit;
+            margin-top: 1px;
+            opacity: 0.8;
         }
 
         .empty-cell {
-            color: var(--color-text-light, #C0C0C0);
-            font-size: 0.82rem;
+            display: none;
         }
 
         /* Print Styles */
@@ -2720,104 +2706,81 @@
             margin-right: auto;
         }
 
-        /* ==================== Color Legend Styles ==================== */
-        .color-legend {
-            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 15px 20px;
-            margin-top: 15px;
+        /* ==================== Timetable Footer (Clean Traditional Style) ==================== */
+        .timetable-footer-section {
+            border: 2px solid #333;
+            border-top: none;
+            background: #fff;
+            padding: 0;
         }
 
-        .color-legend .legend-title {
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 10px;
+        .timetable-footer-row {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 8px;
+            padding: 10px 20px;
+            border-bottom: 1px solid #ccc;
         }
 
-        .color-legend .legend-items {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
+        .timetable-footer-row:last-child {
+            border-bottom: none;
         }
 
-        .color-legend .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            background: white;
-            border-radius: 6px;
-            font-size: 0.85rem;
+        .footer-sections-label {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #333;
+            white-space: nowrap;
         }
 
-        .color-legend .legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 4px;
+        .footer-sections-list {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #111;
+            text-align: center;
+            flex: 1;
+            padding: 0 15px;
         }
 
-        .color-legend .legend-name {
-            color: var(--text);
-        }
-
-        /* Timetable Summary Section */
-        .timetable-summary {
-            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 15px 20px;
-            margin-top: 15px;
-        }
-
-        .timetable-summary .summary-title {
+        .footer-signature {
+            text-align: center;
+            padding: 12px 20px;
             font-weight: 600;
-            color: var(--text);
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            font-size: 0.9rem;
+            color: #333;
+            min-height: 60px;
         }
 
-        .timetable-summary .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
+        [data-theme="dark"] .timetable-footer-section {
+            background: var(--color-surface, #1A1A1A);
+            border-color: rgba(91, 132, 214, 0.25);
         }
 
-        .timetable-summary .summary-card {
-            background: white;
-            border-radius: 8px;
-            padding: 10px 15px;
-            display: flex;
-            flex-direction: column;
+        [data-theme="dark"] .timetable-footer-row {
+            border-color: rgba(91, 132, 214, 0.15);
         }
 
-        .timetable-summary .summary-card .label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .timetable-summary .summary-card .value {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text);
+        [data-theme="dark"] .footer-sections-label,
+        [data-theme="dark"] .footer-sections-list,
+        [data-theme="dark"] .footer-signature {
+            color: #D4E8DC;
         }
 
         @media print {
-
-            .color-legend,
-            .timetable-summary {
-                margin-top: 10px;
-                padding: 10px;
+            .timetable-footer-section {
+                border: 1px solid #999;
+                page-break-inside: avoid;
             }
 
-            .color-legend .legend-items {
-                gap: 5px;
+            .footer-signature {
+                min-height: 50px;
             }
+        }
+
+        /* Legacy classes kept hidden */
+        .color-legend,
+        .timetable-summary {
+            display: none;
         }
     </style>
 
@@ -4328,26 +4291,26 @@
         // Theme-aware color palette — 20 vibrant, distinct hues
         // Each entry has 'light' and 'dark' variants for proper theme support
         const colorPalette = [
-            { light: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }, dark: { bg: 'rgba(59,130,246,0.15)', border: '#60a5fa', text: '#93c5fd' } },    // Blue
-            { light: { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' }, dark: { bg: 'rgba(236,72,153,0.15)', border: '#f472b6', text: '#f9a8d4' } },    // Pink
-            { light: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' }, dark: { bg: 'rgba(245,158,11,0.15)', border: '#fbbf24', text: '#fde68a' } },     // Amber
-            { light: { bg: '#e0e7ff', border: '#6366f1', text: '#4338ca' }, dark: { bg: 'rgba(99,102,241,0.15)', border: '#818cf8', text: '#a5b4fc' } },     // Indigo
-            { light: { bg: '#ccfbf1', border: '#14b8a6', text: '#115e59' }, dark: { bg: 'rgba(20,184,166,0.15)', border: '#2dd4bf', text: '#5eead4' } },     // Teal
-            { light: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' }, dark: { bg: 'rgba(239,68,68,0.15)', border: '#f87171', text: '#fca5a5' } },      // Red
-            { light: { bg: '#f3e8ff', border: '#a855f7', text: '#7c3aed' }, dark: { bg: 'rgba(168,85,247,0.15)', border: '#c084fc', text: '#d8b4fe' } },     // Purple
-            { light: { bg: '#cffafe', border: '#06b6d4', text: '#155e75' }, dark: { bg: 'rgba(6,182,212,0.15)', border: '#22d3ee', text: '#67e8f9' } },      // Cyan
-            { light: { bg: '#dcfce7', border: '#22c55e', text: '#166534' }, dark: { bg: 'rgba(34,197,94,0.15)', border: '#4ade80', text: '#86efac' } },      // Green
-            { light: { bg: '#fef9c3', border: '#eab308', text: '#854d0e' }, dark: { bg: 'rgba(234,179,8,0.15)', border: '#facc15', text: '#fef08a' } },      // Yellow
-            { light: { bg: '#ffe4e6', border: '#f43f5e', text: '#be123c' }, dark: { bg: 'rgba(244,63,94,0.15)', border: '#fb7185', text: '#fda4af' } },      // Rose
-            { light: { bg: '#d1fae5', border: '#10b981', text: '#047857' }, dark: { bg: 'rgba(16,185,129,0.15)', border: '#34d399', text: '#6ee7b7' } },     // Emerald
-            { light: { bg: '#c7d2fe', border: '#8b5cf6', text: '#5b21b6' }, dark: { bg: 'rgba(139,92,246,0.15)', border: '#a78bfa', text: '#c4b5fd' } },     // Violet
-            { light: { bg: '#fae8ff', border: '#d946ef', text: '#86198f' }, dark: { bg: 'rgba(217,70,239,0.15)', border: '#e879f9', text: '#f0abfc' } },     // Fuchsia
-            { light: { bg: '#ecfccb', border: '#84cc16', text: '#3f6212' }, dark: { bg: 'rgba(132,204,22,0.15)', border: '#a3e635', text: '#bef264' } },     // Lime
-            { light: { bg: '#fed7aa', border: '#f97316', text: '#9a3412' }, dark: { bg: 'rgba(249,115,22,0.15)', border: '#fb923c', text: '#fdba74' } },     // Orange
-            { light: { bg: '#bae6fd', border: '#0ea5e9', text: '#075985' }, dark: { bg: 'rgba(14,165,233,0.15)', border: '#38bdf8', text: '#7dd3fc' } },     // Sky
-            { light: { bg: '#fda4af', border: '#fb7185', text: '#9f1239' }, dark: { bg: 'rgba(251,113,133,0.12)', border: '#fda4af', text: '#fecdd3' } },    // Light Rose
-            { light: { bg: '#a5f3fc', border: '#22d3ee', text: '#0e7490' }, dark: { bg: 'rgba(34,211,238,0.12)', border: '#67e8f9', text: '#a5f3fc' } },    // Light Cyan
-            { light: { bg: '#bbf7d0', border: '#4ade80', text: '#15803d' }, dark: { bg: 'rgba(74,222,128,0.12)', border: '#86efac', text: '#bbf7d0' } },    // Light Green
+            { light: { bg: '#FFB3BA', border: '#E8929A', text: '#333' }, dark: { bg: 'rgba(255,179,186,0.25)', border: '#E8929A', text: '#fca5a5' } },    // Pink
+            { light: { bg: '#FFDFBA', border: '#E8C8A3', text: '#333' }, dark: { bg: 'rgba(255,223,186,0.25)', border: '#E8C8A3', text: '#fde68a' } },    // Orange
+            { light: { bg: '#BAE1FF', border: '#93C5E8', text: '#333' }, dark: { bg: 'rgba(186,225,255,0.25)', border: '#93C5E8', text: '#93c5fd' } },    // Blue
+            { light: { bg: '#FFFFBA', border: '#E8E893', text: '#333' }, dark: { bg: 'rgba(255,255,186,0.25)', border: '#E8E893', text: '#fef08a' } },    // Yellow
+            { light: { bg: '#BAFFC9', border: '#93E8A8', text: '#333' }, dark: { bg: 'rgba(186,255,201,0.25)', border: '#93E8A8', text: '#86efac' } },    // Green
+            { light: { bg: '#E8BAFF', border: '#D093E8', text: '#333' }, dark: { bg: 'rgba(232,186,255,0.25)', border: '#D093E8', text: '#d8b4fe' } },    // Purple
+            { light: { bg: '#FFE4BA', border: '#E8CDA3', text: '#333' }, dark: { bg: 'rgba(255,228,186,0.25)', border: '#E8CDA3', text: '#fdba74' } },    // Warm Orange
+            { light: { bg: '#BAFFF5', border: '#93E8DC', text: '#333' }, dark: { bg: 'rgba(186,255,245,0.25)', border: '#93E8DC', text: '#5eead4' } },    // Teal
+            { light: { bg: '#FFC9BA', border: '#E8A893', text: '#333' }, dark: { bg: 'rgba(255,201,186,0.25)', border: '#E8A893', text: '#fda4af' } },    // Salmon
+            { light: { bg: '#D4BAFF', border: '#BD93E8', text: '#333' }, dark: { bg: 'rgba(212,186,255,0.25)', border: '#BD93E8', text: '#c4b5fd' } },    // Violet
+            { light: { bg: '#BAFFD9', border: '#93E8BA', text: '#333' }, dark: { bg: 'rgba(186,255,217,0.25)', border: '#93E8BA', text: '#6ee7b7' } },    // Mint
+            { light: { bg: '#FFD4BA', border: '#E8BD93', text: '#333' }, dark: { bg: 'rgba(255,212,186,0.25)', border: '#E8BD93', text: '#fdba74' } },    // Peach
+            { light: { bg: '#BAD4FF', border: '#93BDE8', text: '#333' }, dark: { bg: 'rgba(186,212,255,0.25)', border: '#93BDE8', text: '#93c5fd' } },    // Light Blue
+            { light: { bg: '#FFBAE1', border: '#E893CA', text: '#333' }, dark: { bg: 'rgba(255,186,225,0.25)', border: '#E893CA', text: '#f9a8d4' } },    // Hot Pink
+            { light: { bg: '#E1FFBA', border: '#CAE893', text: '#333' }, dark: { bg: 'rgba(225,255,186,0.25)', border: '#CAE893', text: '#bef264' } },    // Lime
+            { light: { bg: '#FFBABA', border: '#E89393', text: '#333' }, dark: { bg: 'rgba(255,186,186,0.25)', border: '#E89393', text: '#fca5a5' } },    // Light Red
+            { light: { bg: '#BAF5FF', border: '#93DDE8', text: '#333' }, dark: { bg: 'rgba(186,245,255,0.25)', border: '#93DDE8', text: '#67e8f9' } },    // Cyan
+            { light: { bg: '#F5BAFF', border: '#DD93E8', text: '#333' }, dark: { bg: 'rgba(245,186,255,0.25)', border: '#DD93E8', text: '#f0abfc' } },    // Fuchsia
+            { light: { bg: '#D9FFBA', border: '#C2E893', text: '#333' }, dark: { bg: 'rgba(217,255,186,0.25)', border: '#C2E893', text: '#bef264' } },    // Bright Green
+            { light: { bg: '#FFCBBA', border: '#E8B493', text: '#333' }, dark: { bg: 'rgba(255,203,186,0.25)', border: '#E8B493', text: '#fdba74' } },    // Coral
         ];
 
         // Map to store class/subject -> color assignment
@@ -4462,7 +4425,7 @@
             // Time slot headers
             allSlots.forEach((slot, i) => {
                 if (i === separatorAfter) {
-                    html += '<th style="width:4px; padding:0; background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1));"></th>';
+                    html += '<th style="width:3px; padding:0; background: #1e3a6e;"></th>';
                 }
                 html += `<th>${getSlotLabel(slot)}</th>`;
             });
@@ -4505,7 +4468,7 @@
                 dayCells.forEach((cell, i) => {
                     // Insert separator column
                     if (i === separatorAfter) {
-                        html += '<td style="width:4px; padding:0; background: linear-gradient(180deg, rgba(45,95,74,0.08), transparent); border: none;"></td>';
+                        html += '<td style="width:3px; padding:0; background: #ddd; border: none;"></td>';
                     }
                     if (cell.skip) return;
 
@@ -4524,20 +4487,20 @@
                         teacherSubjects.add(cell.activity.subject);
 
                         const cellStyle = color
-                            ? `style="background: ${color.bg}; border-right: 4px solid ${color.border};"`
+                            ? `style="background: ${color.bg};"`
                             : '';
                         const classNameStyle = color
-                            ? `style="color: ${color.text}; font-weight: 700; font-size: 0.72rem;"`
+                            ? `style="color: ${color.text}; font-weight: 700; font-size: 0.78rem;"`
                             : '';
                         const roomStyle = color
-                            ? `style="color: ${color.border}; font-weight: 700; font-size: 0.7rem; letter-spacing: 0.3px;"`
+                            ? `style="color: ${color.text}; font-weight: 600; font-size: 0.7rem; opacity: 0.7;"`
                             : '';
                         const subjectDisplay = cell.activity.subject ? cell.activity.subject.replace(/_/g, ' ') : '';
                         const classDisplay = cell.activity.students ? cell.activity.students.replace(/_/g, ' ') : '';
 
                         const subjectStyle = color
-                            ? `style="font-size:0.78rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
-                            : `style="font-size:0.78rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
+                            ? `style="font-size:0.82rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
+                            : `style="font-size:0.82rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
 
                         html += `<td class="${mergedClass}"${colspanPart} ${dataAttrs} ${cellStyle}>
                             <div class="activity-cell" style="border-right: none; background: none;">
@@ -4565,7 +4528,7 @@
             wrapper.style.display = 'block';
             document.getElementById('print-preview-btn').style.display = '';
 
-            // Add color legend and summary after the wrapper
+            // Add clean footer after the wrapper
             let legendContainer = document.getElementById('teacher-legend-container');
             if (!legendContainer) {
                 legendContainer = document.createElement('div');
@@ -4573,32 +4536,17 @@
                 wrapper.after(legendContainer);
             }
 
-            // Generate legend (by class)
             legendContainer.innerHTML = '';
             if (teacherClasses.size > 0) {
-                legendContainer.innerHTML = generateColorLegend('classes', Array.from(teacherClasses).sort());
-
-                // Add assigned classes list
                 const classesList = Array.from(teacherClasses).sort().map(c => c.replace(/_/g, ' ')).join(' + ');
-                legendContainer.innerHTML += `
-                    <div class="timetable-summary">
-                        <div class="summary-title"><i class="fas fa-users"></i> لائحة الأقسام المسندة للأستاذ(ة):</div>
-                        <div style="padding: 8px 15px; font-weight: 600; color: var(--color-text-main, #111111); font-size: 0.95rem;">
-                            ${classesList}
+                legendContainer.innerHTML = `
+                    <div class="timetable-footer-section">
+                        <div class="timetable-footer-row">
+                            <span class="footer-sections-label">لائحة الأقسام المسندة للأستاذ(ة):</span>
+                            <span class="footer-sections-list">${classesList}</span>
                         </div>
-                        <div class="summary-grid">
-                            <div class="summary-card">
-                                <span class="label">الأقسام</span>
-                                <span class="value">${teacherClasses.size} قسم</span>
-                            </div>
-                            <div class="summary-card">
-                                <span class="label">المواد</span>
-                                <span class="value">${teacherSubjects.size} مادة</span>
-                            </div>
-                            <div class="summary-card">
-                                <span class="label">مجموع الحصص</span>
-                                <span class="value">${totalHours} ساعة/أسبوع</span>
-                            </div>
+                        <div class="footer-signature">
+                            خاتم و توقيع السيد مدير المؤسسة
                         </div>
                     </div>
                 `;

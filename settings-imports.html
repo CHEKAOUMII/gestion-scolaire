@@ -72,10 +72,6 @@
                     title="اختصارات لوحة المفاتيح (?)">
                     <i class="fas fa-keyboard"></i>
                 </button>
-                <label for="school-year" class="visually-hidden">الموسم الدراسي</label>
-                <select id="school-year" title="الموسم الدراسي">
-                    <option value="2025/2026" selected>2025/2026</option>
-                </select>
                 <label for="semester-select" class="visually-hidden">الدورة</label>
                 <select id="semester-select" title="الدورة">
                     <option value="1" selected>الدورة الأولى</option>
@@ -91,7 +87,8 @@
 
             <!-- Data Stats Section -->
             <div class="students-results data-stats-section">
-                <h3><i class="fas fa-database"></i> البيانات المخزنة</h3>
+                <h3><i class="fas fa-database"></i> البيانات المخزنة <span id="stats-year-label"
+                        style="font-size:13px;font-weight:normal;opacity:0.7;margin-right:6px;"></span></h3>
                 <div class="data-stats-grid">
                     <div class="stat-card" id="stat-card-students">
                         <div class="stat-card-icon"><i class="fas fa-user-graduate"></i></div>

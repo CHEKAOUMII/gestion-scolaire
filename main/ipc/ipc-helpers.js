@@ -4,7 +4,15 @@
 const { getDb } = require('../db/context');
 const { requireRole } = require('./auth');
 
-const DEFAULT_YEAR = '2025/2026';
+function getDefaultYear() {
+    try {
+        const db = getDb();
+        const row = db.prepare("SELECT value FROM settings WHERE key = 'currentSchoolYear'").get();
+        return row ? row.value : '2025/2026';
+    } catch (e) {
+        return '2025/2026';
+    }
+}
 
 /**
  * Standardized error response for auth and general errors.
@@ -23,7 +31,7 @@ function authErrorResponse(err) {
  * Normalize school year with a consistent default.
  */
 function normalizeYear(schoolYear) {
-    return schoolYear || DEFAULT_YEAR;
+    return schoolYear || getDefaultYear();
 }
 
 /**
@@ -91,5 +99,5 @@ module.exports = {
     handleRead,
     handleWrite,
     handleWriteNoAuth,
-    DEFAULT_YEAR
+    getDefaultYear
 };

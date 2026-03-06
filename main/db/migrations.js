@@ -141,6 +141,149 @@ const MIGRATIONS = [
             db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)`);
             db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read)`);
         }
+    },
+    {
+        version: '2026-03-016-grades-unique-constraint',
+        up: () => {
+            const db = getDb();
+            db.exec(`UPDATE grades SET student_code = '' WHERE student_code IS NULL`);
+            db.exec(`UPDATE grades SET subject = '' WHERE subject IS NULL`);
+            db.exec(`UPDATE grades SET semester = 0 WHERE semester IS NULL`);
+            db.exec(`UPDATE grades SET school_year = '' WHERE school_year IS NULL`);
+            db.exec(`
+                DELETE FROM grades WHERE id NOT IN (
+                    SELECT MAX(id) FROM grades
+                    GROUP BY student_code, subject, semester, school_year
+                )
+            `);
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_grades_unique
+                ON grades(student_code, subject, semester, school_year)
+            `);
+        }
+    },
+    {
+        version: '2026-03-017-absences-unique-constraint',
+        up: () => {
+            const db = getDb();
+            db.exec(`UPDATE absences SET student_code = '' WHERE student_code IS NULL`);
+            db.exec(`UPDATE absences SET month = '' WHERE month IS NULL`);
+            db.exec(`UPDATE absences SET school_year = '' WHERE school_year IS NULL`);
+            db.exec(`UPDATE absences SET absence_type = 'unjustified' WHERE absence_type IS NULL`);
+            db.exec(`
+                UPDATE absences SET
+                    hours = COALESCE((
+                        SELECT SUM(a2.hours) FROM absences a2
+                        WHERE a2.student_code = absences.student_code
+                          AND a2.month = absences.month
+                          AND a2.school_year = absences.school_year
+                          AND a2.absence_type = absences.absence_type
+                    ), absences.hours),
+                    days = COALESCE((
+                        SELECT SUM(a2.days) FROM absences a2
+                        WHERE a2.student_code = absences.student_code
+                          AND a2.month = absences.month
+                          AND a2.school_year = absences.school_year
+                          AND a2.absence_type = absences.absence_type
+                    ), absences.days)
+                WHERE id IN (
+                    SELECT MAX(id) FROM absences
+                    GROUP BY student_code, month, school_year, absence_type
+                    HAVING COUNT(*) > 1
+                )
+            `);
+            db.exec(`
+                DELETE FROM absences WHERE id NOT IN (
+                    SELECT MAX(id) FROM absences
+                    GROUP BY student_code, month, school_year, absence_type
+                )
+            `);
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_absences_unique
+                ON absences(student_code, month, school_year, absence_type)
+            `);
+        }
+    },
+    {
+        version: '2026-03-018-repair-unique-constraints',
+        up: () => {
+            const db = getDb();
+            // Repair: if migrations 016/017 ran but failed on NULLs,
+            // the index was never created. Fix NULLs and retry.
+            db.exec(`UPDATE grades SET student_code = '' WHERE student_code IS NULL`);
+            db.exec(`UPDATE grades SET subject = '' WHERE subject IS NULL`);
+            db.exec(`UPDATE grades SET semester = 0 WHERE semester IS NULL`);
+            db.exec(`UPDATE grades SET school_year = '' WHERE school_year IS NULL`);
+            db.exec(`
+                DELETE FROM grades WHERE id NOT IN (
+                    SELECT MAX(id) FROM grades
+                    GROUP BY student_code, subject, semester, school_year
+                )
+            `);
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_grades_unique
+                ON grades(student_code, subject, semester, school_year)
+            `);
+
+            db.exec(`UPDATE absences SET student_code = '' WHERE student_code IS NULL`);
+            db.exec(`UPDATE absences SET month = '' WHERE month IS NULL`);
+            db.exec(`UPDATE absences SET school_year = '' WHERE school_year IS NULL`);
+            db.exec(`UPDATE absences SET absence_type = 'unjustified' WHERE absence_type IS NULL`);
+            db.exec(`
+                DELETE FROM absences WHERE id NOT IN (
+                    SELECT MAX(id) FROM absences
+                    GROUP BY student_code, month, school_year, absence_type
+                )
+            `);
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_absences_unique
+                ON absences(student_code, month, school_year, absence_type)
+            `);
+        }
+    },
+    {
+        version: '2026-03-019-students-unique-constraint-year',
+        up: () => {
+            const db = getDb();
+            // Check if we need to migrate (if code is UNIQUE)
+            const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='students'").get();
+            if (tableInfo && tableInfo.sql.includes('code TEXT UNIQUE')) {
+                db.exec('PRAGMA foreign_keys=off;');
+                const txn = db.transaction(() => {
+                    db.exec(`
+                        CREATE TABLE IF NOT EXISTS students_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            code TEXT,
+                            full_name TEXT NOT NULL,
+                            family_name TEXT,
+                            birth_date TEXT,
+                            birth_place TEXT,
+                            gender TEXT,
+                            section TEXT,
+                            school_year TEXT,
+                            status TEXT DEFAULT 'active',
+                            registration_type TEXT DEFAULT 'new',
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(code, school_year)
+                        );
+                    `);
+
+                    db.exec(`
+                        INSERT INTO students_new (id, code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type, created_at)
+                        SELECT id, code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, COALESCE(registration_type, 'new'), created_at
+                        FROM students;
+                    `);
+
+                    db.exec('DROP TABLE students;');
+                    db.exec('ALTER TABLE students_new RENAME TO students;');
+
+                    db.exec('CREATE INDEX IF NOT EXISTS idx_students_year ON students(school_year);');
+                    db.exec('CREATE INDEX IF NOT EXISTS idx_students_code_year ON students(code, school_year);');
+                });
+                txn();
+                db.exec('PRAGMA foreign_keys=on;');
+            }
+        }
     }
 ];
 

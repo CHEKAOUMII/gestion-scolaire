@@ -1278,7 +1278,7 @@
 
 
     <script>
-        const year = '2025/2026';
+        const year = getSchoolYear();
         const CHART_JS_CDN = 'vendor/chart.min.js';
         let chartInstances = {};
         let chartLoaderPromise = null;
@@ -1711,31 +1711,31 @@
 
                 // Populate level dropdown from unique levels
                 const levelSelect = document.getElementById('level-select');
-                const levels = [...new Set(allClasses.map(c => extractLevel(c.name)))].sort();
+                const levels = sortLevelNames([...new Set(allClasses.map(c => extractLevel(c.name)))]);
                 levels.forEach(lv => {
                     const opt = document.createElement('option');
                     opt.value = lv; opt.textContent = lv;
                     levelSelect.appendChild(opt);
                 });
 
-                // Populate class dropdown (all initially)
+                // Populate class dropdown (all initially, sorted by educational order)
                 const classSelect = document.getElementById('class-select');
-                allClasses.forEach(c => {
+                sortSectionNames(allClasses.map(c => c.name)).forEach(name => {
                     const opt = document.createElement('option');
-                    opt.value = c.name; opt.textContent = c.name;
+                    opt.value = name; opt.textContent = name;
                     classSelect.appendChild(opt);
                 });
 
-                // Level ? filter classes
+                // Level → filter classes
                 levelSelect.addEventListener('change', () => {
                     const selectedLevel = levelSelect.value;
                     classSelect.innerHTML = '<option value="">كل الأقسام</option>';
                     const filtered = selectedLevel
                         ? allClasses.filter(c => extractLevel(c.name) === selectedLevel)
                         : allClasses;
-                    filtered.forEach(c => {
+                    sortSectionNames(filtered.map(c => c.name)).forEach(name => {
                         const opt = document.createElement('option');
-                        opt.value = c.name; opt.textContent = c.name;
+                        opt.value = name; opt.textContent = name;
                         classSelect.appendChild(opt);
                     });
                 });
@@ -1754,11 +1754,9 @@
         });
 
         // --- Helpers for subject name normalization ---
+        // baseSubject → uses normalizeSubjectName() from js/utils.js
         function baseSubject(subj) {
-            return String(subj || '')
-                .replace(/\s*\(فرض\s*\d+\)\s*$/, '')
-                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-                .trim();
+            return normalizeSubjectName(subj);
         }
         function testOrder(subj) {
             const m = String(subj || '').match(/\(فرض\s*(\d+)\)/);

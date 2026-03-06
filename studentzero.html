@@ -263,7 +263,7 @@
     </main>
 
     <script>
-        const year = '2025/2026';
+        const year = getSchoolYear();
         let currentPage = 1;
         let searchDebounceTimer = null;
         let activeRequestId = 0;
@@ -511,10 +511,11 @@
                 const classes = await window.api.classes.getAll(year) || [];
                 const select = $('class-select');
                 while (select.options.length > 1) select.remove(1);
-                classes.forEach((c) => {
+                const classNames = classes.map(c => c.name);
+                sortSectionNames(classNames).forEach((name) => {
                     const opt = document.createElement('option');
-                    opt.value = c.name;
-                    opt.textContent = c.name;
+                    opt.value = name;
+                    opt.textContent = name;
                     select.appendChild(opt);
                 });
             } catch (err) {

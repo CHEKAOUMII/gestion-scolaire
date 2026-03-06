@@ -62,50 +62,26 @@ function registerAbsencesIpc(ipcMain) {
 
     // No auth: bulk-import is used by settings-imports page before login
     handleWriteNoAuth(ipcMain, 'absences:saveBulk', (db, absences) => {
-        const check = db.prepare(`
-                SELECT id FROM absences 
-                WHERE student_code = ? AND month = ? AND school_year = ? AND absence_type = ?
-            `);
-        const update = db.prepare(`
-                UPDATE absences SET hours = ?, days = ?
-                WHERE student_code = ? AND month = ? AND school_year = ? AND absence_type = ?
-            `);
-        const insert = db.prepare(`
+        const upsert = db.prepare(`
                 INSERT INTO absences(student_id, student_code, absence_date, month, absence_type, hours, days, reason, school_year)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(student_code, month, school_year, absence_type)
+                DO UPDATE SET hours = excluded.hours, days = excluded.days
             `);
 
         const upsertMany = db.transaction((items) => {
             for (const absence of items) {
-                const exists = check.get(
+                upsert.run(
+                    absence.student_id,
                     absence.student_code,
+                    absence.absence_date,
                     absence.month,
-                    absence.school_year,
-                    absence.absence_type
+                    absence.absence_type,
+                    absence.hours,
+                    absence.days,
+                    absence.reason,
+                    absence.school_year
                 );
-
-                if (exists) {
-                    update.run(
-                        absence.hours,
-                        absence.days,
-                        absence.student_code,
-                        absence.month,
-                        absence.school_year,
-                        absence.absence_type
-                    );
-                } else {
-                    insert.run(
-                        absence.student_id,
-                        absence.student_code,
-                        absence.absence_date,
-                        absence.month,
-                        absence.absence_type,
-                        absence.hours,
-                        absence.days,
-                        absence.reason,
-                        absence.school_year
-                    );
-                }
             }
         });
         upsertMany(absences);

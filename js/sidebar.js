@@ -1,7 +1,3 @@
-/**
- * Shared Sidebar Component
- * مكون القائمة الجانبية الموحدة لجميع الصفحات
- */
 
 function injectSidebar() {
     const sidebar = document.getElementById('sidebar');

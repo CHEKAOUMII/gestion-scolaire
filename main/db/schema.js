@@ -8,7 +8,7 @@ function createTables() {
     db.exec(`
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT UNIQUE,
+            code TEXT,
             full_name TEXT NOT NULL,
             family_name TEXT,
             birth_date TEXT,
@@ -17,7 +17,9 @@ function createTables() {
             section TEXT,
             school_year TEXT,
             status TEXT DEFAULT 'active',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            registration_type TEXT DEFAULT 'new',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(code, school_year)
         );
     `);
 
@@ -223,28 +225,34 @@ function createTables() {
 
     // Set default school year
     db.prepare(`INSERT OR IGNORE INTO settings(key, value) VALUES('currentSchoolYear', '2025/2026')`).run();
-    const adminPassword = generateRandomPassword();
-    db.prepare(
-        `
-            INSERT OR IGNORE INTO users(id, name, email, role, password_hash, disabled, must_change_password)
-            VALUES(1, 'Admin', 'admin@school.local', 'admin', ?, 0, 1)
-        `
-    ).run(hashPassword(adminPassword));
 
-    db.prepare(
-        `
-            UPDATE users
-            SET password_hash = ?, must_change_password = 1
-            WHERE lower(email) = 'admin@school.local'
-              AND (password_hash IS NULL OR trim(password_hash) = '')
-        `
-    ).run(hashPassword(generateRandomPassword()));
+    // Only seed admin user on first-ever creation (no row with id=1 yet)
+    const existingAdmin = db.prepare('SELECT id FROM users WHERE id = 1').get();
+    if (!existingAdmin) {
+        const adminPassword = generateRandomPassword();
+        db.prepare(
+            `
+                INSERT INTO users(id, name, email, role, password_hash, disabled, must_change_password)
+                VALUES(1, 'Admin', 'admin@school.local', 'admin', ?, 0, 1)
+            `
+        ).run(hashPassword(adminPassword));
 
-    // Log the initial admin password to console on first-ever database creation
-    const adminRow = db.prepare('SELECT id FROM users WHERE id = 1').get();
-    if (adminRow) {
         console.log('[SETUP] Initial admin password: ' + adminPassword);
         console.log('[SETUP] You will be required to change this password on first login.');
+    }
+
+    // Safety net: if admin exists but has no password (e.g. corrupted data), reset it
+    const adminNoPw = db
+        .prepare(
+            `SELECT id FROM users WHERE id = 1 AND (password_hash IS NULL OR trim(password_hash) = '')`
+        )
+        .get();
+    if (adminNoPw) {
+        const resetPassword = generateRandomPassword();
+        db.prepare(`UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = 1`).run(
+            hashPassword(resetPassword)
+        );
+        console.log('[SETUP] Admin password was missing — reset to: ' + resetPassword);
     }
 
     // ── Performance indexes ──

@@ -540,9 +540,6 @@
             </div>
             <div class="header-right">
                 <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-                <select id="school-year">
-                    <option value="2025/2026" selected>2025/2026</option>
-                </select>
             </div>
         </header>
 
@@ -621,8 +618,7 @@
             let generatedData = null;
 
             const schoolYear = () => {
-                const el = document.getElementById('school-year');
-                return el ? el.value : '2025/2026';
+                return typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
             };
 
             // ─── Level Normalization ───
@@ -715,7 +711,7 @@
                     if (!selectedLevel) return;
                     const entry = levels.get(selectedLevel);
                     const classes = entry ? entry.sections : [];
-                    classes.sort().forEach(cls => {
+                    sortSectionNames(classes).forEach(cls => {
                         const opt = document.createElement('option');
                         opt.value = cls;
                         opt.textContent = cls;

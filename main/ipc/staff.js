@@ -99,7 +99,7 @@ function registerStaffIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'teacherAbsence:add', ['admin', 'staff'], (db, _event, payload) => {
-        const year = payload.school_year || '2025/2026';
+        const year = normalizeYear(payload.school_year);
         const teacherName = String(payload.teacher || '').trim();
         const teacher = db
             .prepare('SELECT id FROM teachers WHERE full_name = ? AND school_year = ? LIMIT 1')

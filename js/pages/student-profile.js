@@ -3,7 +3,7 @@
  * صفحة ملف التلميذ — المتحكم الديناميكي
  */
 
-const SCHOOL_YEAR = '2025/2026';
+const SCHOOL_YEAR = getSchoolYear();
 
 // ─── Gender helpers (shared with students-list.js) ───
 function isMale(gender) {
@@ -53,12 +53,7 @@ function gradeColor(val) {
     return '#E85D5D';
 }
 
-function normalizeSubjectName(subject) {
-    return String(subject || '')
-        .replace(/\s*\(\s*فرض\s*\d+\s*\)\s*$/i, '')
-        .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-        .trim();
-}
+// normalizeSubjectName() — provided by js/utils.js
 
 // ─── URL Params ───
 function getStudentCodeFromUrl() {

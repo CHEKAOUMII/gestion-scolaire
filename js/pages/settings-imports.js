@@ -675,7 +675,7 @@ function inferStudentCodeColumn(rows, headerIndex, fallbackIndex, validCodesSet)
 }
 
 function getCurrentSchoolYear() {
-    return document.getElementById('school-year')?.value || '2025/2026';
+    return typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
 }
 
 function getSelectedSemester() {
@@ -777,65 +777,7 @@ function deriveLevelFromSection(sectionValue) {
 }
 
 // ─── Subject Normalization (French → Arabic) ─────────────────────────────────
-const SUBJECT_FR_TO_AR = {
-    'MATHEMATIQUES': 'الرياضيات', 'MATH': 'الرياضيات', 'MATHS': 'الرياضيات',
-    'SCIENCES MATHEMATIQUES': 'الرياضيات',
-    'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
-    'PHYSIQUE ET CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE': 'الفيزياء والكيمياء',
-    'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-    'SVT': 'علوم الحياة والأرض', 'SCIENCES NATURELLES': 'علوم الحياة والأرض',
-    'PHILOSOPHIE': 'الفلسفة', 'PHILO': 'الفلسفة',
-    'LANGUE ARABE': 'اللغة العربية', 'ARABE': 'اللغة العربية',
-    'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAIS': 'اللغة الفرنسية',
-    'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAISE': 'اللغة الفرنسية',
-    'LANGUE ANGLAISE': 'اللغة الإنجليزية', 'ANGLAIS': 'اللغة الإنجليزية',
-    'ANGLAISE': 'اللغة الإنجليزية', 'ENGLISH': 'اللغة الإنجليزية',
-    'ESPAGNOL': 'اللغة الإسبانية', 'LANGUE ESPAGNOLE': 'اللغة الإسبانية',
-    'ALLEMAND': 'اللغة الألمانية', 'ITALIEN': 'اللغة الإيطالية',
-    'EDUCATION ISLAMIQUE': 'التربية الإسلامية', 'INSTRUCTION ISLAMIQUE': 'التربية الإسلامية',
-    'ISLAMIQUE': 'التربية الإسلامية',
-    'EDUCATION PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
-    'EDUCATION PHYSIQUE': 'التربية البدنية', 'EPS': 'التربية البدنية', 'SPORT': 'التربية البدنية',
-    'HISTOIRE ET GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HISTOIRE-GEOGRAPHIE': 'التاريخ والجغرافيا', 'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HISTOIRE': 'التاريخ والجغرافيا', 'GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'INFORMATIQUE': 'المعلوميات',
-    'ECONOMIE GENERALE': 'الاقتصاد والتدبير', 'ECONOMIE ET ORGANISATION': 'الاقتصاد والتدبير',
-    'ECONOMIE': 'الاقتصاد والتدبير', 'SCIENCES ECONOMIQUES': 'الاقتصاد والتدبير',
-    'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
-    'COMPTABILITE': 'المحاسبة والرياضيات المالية',
-    'DROIT': 'القانون', 'TRADUCTION': 'الترجمة',
-    "SCIENCES DE L'INGENIEUR": 'علوم المهندس', 'SCIENCES INGENIEURS': 'علوم المهندس',
-    'SI': 'علوم المهندس',
-    'ARTS APPLIQUES': 'الفنون التطبيقية', 'DESSIN': 'الفنون التطبيقية',
-    // Abbreviated forms (Massar exports)
-    'SC DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-    'SC VIE TERRE': 'علوم الحياة والأرض', 'SC NAT': 'علوم الحياة والأرض',
-    'SC PHYSIQUE': 'الفيزياء والكيمياء', 'SC PHYS': 'الفيزياء والكيمياء',
-    'SC MATH': 'الرياضيات', 'SC MATHS': 'الرياضيات',
-    'ED ISLAMIQUE': 'التربية الإسلامية', 'INSTR ISLAMIQUE': 'التربية الإسلامية',
-    'ED PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
-    'ED PHYSIQUE': 'التربية البدنية',
-    'HIST GEO': 'التاريخ والجغرافيا', 'HIST GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HIST ET GEO': 'التاريخ والجغرافيا',
-    'L ARABE': 'اللغة العربية', 'L FRANCAISE': 'اللغة الفرنسية',
-    'L ANGLAISE': 'اللغة الإنجليزية', 'L ESPAGNOLE': 'اللغة الإسبانية',
-    "SC DE L INGENIEUR": 'علوم المهندس'
-};
-const SUBJECT_FR_KEYS_DESC = Object.keys(SUBJECT_FR_TO_AR).sort((a, b) => b.length - a.length);
-
-function normalizeSubjectName(rawSubject) {
-    const text = String(rawSubject || '').trim();
-    if (!text || !/[a-zA-Z]/.test(text)) return text;
-    const upper = text.toUpperCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[_.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
-    if (SUBJECT_FR_TO_AR[upper]) return SUBJECT_FR_TO_AR[upper];
-    for (const key of SUBJECT_FR_KEYS_DESC) {
-        if (key.length > 3 && (upper.includes(key) || key.includes(upper))) return SUBJECT_FR_TO_AR[key];
-    }
-    return text;
-}
+// SUBJECT_FR_TO_AR and normalizeSubjectName are provided globally by js/utils.js
 
 function getSheetRows(workbook, sheetName) {
     const sheet = workbook.Sheets[sheetName];
@@ -889,6 +831,84 @@ async function runImport(action) {
         return;
     }
     input.click();
+}
+
+/**
+ * Scans the first 30 rows of all sheets in a workbook for a school-year pattern
+ * like "2024/2025" or "2024-2025". Returns the first match found, or null.
+ */
+function detectSchoolYearFromWorkbook(workbook) {
+    if (!workbook) return null;
+    const YEAR_RE = /\b(20\d{2})[\/\-](20\d{2})\b/;
+    for (const sheetName of workbook.SheetNames) {
+        const rows = getSheetRows(workbook, sheetName);
+        const limit = Math.min(rows.length, 30);
+        for (let i = 0; i < limit; i++) {
+            for (const cell of (rows[i] || [])) {
+                const val = String(cell ?? '').trim();
+                const m = val.match(YEAR_RE);
+                if (m) {
+                    const y1 = parseInt(m[1], 10);
+                    const y2 = parseInt(m[2], 10);
+                    if (y2 === y1 + 1) return `${y1}/${y2}`;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Checks if the detected year inside the file matches the selected year.
+ * If different, shows a styled confirmation overlay.
+ * Resolves true = proceed anyway, false = cancel.
+ */
+function checkYearMismatch(detectedYear, selectedYear) {
+    if (!detectedYear || detectedYear === selectedYear) return Promise.resolve(true);
+
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;direction:rtl;';
+
+        overlay.innerHTML = `
+        <div style="background:#1e293b;border:1px solid #f59e0b;border-radius:12px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,0.5);font-family:'Tajawal',sans-serif;color:#f1f5f9;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                <i class="fas fa-exclamation-triangle" style="font-size:28px;color:#f59e0b;"></i>
+                <h3 style="margin:0;font-size:18px;color:#fde68a;">تحذير: تعارض في الموسم الدراسي</h3>
+            </div>
+            <p style="margin:0 0 8px;line-height:1.7;color:#cbd5e1;">
+                الملف المستورَد يبدو أنه يخص الموسم الدراسي:
+                <strong style="color:#fde68a;font-size:16px;"> ${detectedYear} </strong>
+            </p>
+            <p style="margin:0 0 20px;line-height:1.7;color:#cbd5e1;">
+                بينما الموسم المختار حالياً هو:
+                <strong style="color:#6ee7b7;font-size:16px;"> ${selectedYear} </strong>
+            </p>
+            <p style="margin:0 0 24px;font-size:13px;color:#94a3b8;">
+                إذا واصلت، ستُخزَّن البيانات تحت الموسم <strong style="color:#6ee7b7;">${selectedYear}</strong>.
+                إذا أردت حفظها تحت <strong style="color:#fde68a;">${detectedYear}</strong>، ألغِ وغيّر الموسم أولاً.
+            </p>
+            <div style="display:flex;gap:12px;justify-content:flex-end;">
+                <button id="ym-cancel" style="padding:10px 20px;border:1px solid #475569;background:transparent;color:#94a3b8;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;transition:all 0.2s;">
+                    إلغاء — سأغير الموسم
+                </button>
+                <button id="ym-proceed" style="padding:10px 20px;border:none;background:#f59e0b;color:#1e293b;border-radius:8px;cursor:pointer;font-weight:bold;font-size:14px;font-family:inherit;transition:all 0.2s;">
+                    واصل على أي حال
+                </button>
+            </div>
+        </div>`;
+
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('#ym-proceed').onclick = () => {
+            document.body.removeChild(overlay);
+            resolve(true);
+        };
+        overlay.querySelector('#ym-cancel').onclick = () => {
+            document.body.removeChild(overlay);
+            resolve(false);
+        };
+    });
 }
 
 function inferImportActionFromFiles(files) {
@@ -958,7 +978,13 @@ async function loadDataStats() {
         const el = document.getElementById(id);
         if (el) el.textContent = String(value);
     };
-    const schoolYear = getCurrentSchoolYear();
+    // Prefer the toolbar select value (most up-to-date user choice), fall back to localStorage
+    const toolbarSelect = document.getElementById('school-year');
+    const schoolYear = (toolbarSelect && toolbarSelect.value) ? toolbarSelect.value : getCurrentSchoolYear();
+
+    // Show which year is being queried
+    const yearLabel = document.getElementById('stats-year-label');
+    if (yearLabel) yearLabel.textContent = `(${schoolYear})`;
 
     try {
         const students = (await window.api?.students?.getAll?.(schoolYear)) || [];
@@ -993,6 +1019,7 @@ async function loadDataStats() {
         setValue('stat-timetable-status', 'غير محمّل');
     }
 }
+
 
 async function clearData(type) {
     const schoolYear = getCurrentSchoolYear();
@@ -1073,6 +1100,19 @@ async function handleImport(action, files) {
                     totalImported += await importFetXml(file);
                 } else {
                     const workbook = await parseWorkbook(file);
+                    updateImportProgress(start + 20, `(${i + 1}/${fileList.length}) تمت القراءة، جاري التحقق...`);
+
+                    // ── Year mismatch detection ──────────────────────────
+                    const fileYear = detectSchoolYearFromWorkbook(workbook);
+                    const proceed = await checkYearMismatch(fileYear, year);
+                    if (!proceed) {
+                        // User chose to cancel this file
+                        failedFiles++;
+                        failedReasons.push(`الملف ${i + 1}: ${file.name} — ألغاه المستخدم بسبب تعارض الموسم الدراسي`);
+                        updateImportProgress(end, `(${i + 1}/${fileList.length}) تم إلغاء ${file.name}`);
+                        continue;
+                    }
+
                     updateImportProgress(start + 28, `(${i + 1}/${fileList.length}) تمت القراءة، جاري الحفظ...`);
 
                     if (action === 'students') {

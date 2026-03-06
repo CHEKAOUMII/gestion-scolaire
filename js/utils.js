@@ -1371,6 +1371,15 @@ function setupUnifiedHeader() {
     const titleIcon = existingTitle?.querySelector('i')?.className || '';
     const hasSidebar = !!document.getElementById('sidebar');
 
+    // Build year options dynamically
+    const currentYear = new Date().getFullYear();
+    const activeYear = typeof getSchoolYear === 'function' ? getSchoolYear() : `${currentYear}/${currentYear + 1}`;
+    const yearOptions = [];
+    for (let y = currentYear + 1; y >= currentYear - 3; y--) {
+        const yStr = `${y}/${y + 1}`;
+        yearOptions.push(`<option value="${yStr}"${yStr === activeYear ? ' selected' : ''}>${yStr}</option>`);
+    }
+
     header.classList.add('unified-header');
     header.innerHTML = `
         <div class="header-left">
@@ -1385,7 +1394,7 @@ function setupUnifiedHeader() {
                 <i class="fas fa-database"></i>
             </button>
             <select id="school-year" title="الموسم الدراسي">
-                <option value="2025/2026" selected>2025/2026</option>
+                ${yearOptions.join('')}
             </select>
             <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
                 <i class="fas fa-moon"></i>
@@ -1402,6 +1411,17 @@ function setupUnifiedHeader() {
         </div>
     `;
     header.dataset.unifiedHeader = 'true';
+
+    // Wire school-year select change
+    const yearSelect = header.querySelector('#school-year');
+    if (yearSelect) {
+        yearSelect.addEventListener('change', () => {
+            const chosen = yearSelect.value;
+            if (typeof setSchoolYear === 'function') {
+                setSchoolYear(chosen);
+            }
+        });
+    }
 
     if (!hasSidebar) {
         mainContent.classList.add('standalone-page');
@@ -1571,8 +1591,258 @@ function extractLevelFromSection(section) {
     return getLevelNameFromSection(s);
 }
 
+/**
+ * ترتيب أسماء المستويات حسب الترتيب التعليمي (الجذوع ← الأوليات ← الثانيات)
+ * @param {string[]} levelNames - مصفوفة أسماء المستويات بالعربية
+ * @returns {string[]} - مصفوفة مرتبة
+ */
+function sortLevelNames(levelNames) {
+    // Build a map from Arabic level name → minimum order
+    const nameOrderMap = {};
+    for (const [, info] of Object.entries(LEVEL_CODE_TO_AR)) {
+        if (!(info.name in nameOrderMap) || info.order < nameOrderMap[info.name]) {
+            nameOrderMap[info.name] = info.order;
+        }
+    }
+    return [...levelNames].sort((a, b) => {
+        const orderA = nameOrderMap[a] ?? 99;
+        const orderB = nameOrderMap[b] ?? 99;
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a).localeCompare(String(b), 'ar');
+    });
+}
+
+/**
+ * ترتيب أسماء الأقسام حسب ترتيب المستوى أولاً، ثم أبجدياً داخل نفس المستوى
+ * @param {string[]} sectionNames - مصفوفة أسماء الأقسام
+ * @returns {string[]} - مصفوفة مرتبة
+ */
+function sortSectionNames(sectionNames) {
+    return [...sectionNames].sort((a, b) => {
+        const infoA = getLevelFromSection(a);
+        const infoB = getLevelFromSection(b);
+        if (infoA.order !== infoB.order) return infoA.order - infoB.order;
+        return String(a).localeCompare(String(b), 'ar');
+    });
+}
+
+/**
+ * تعبئة قائمة أساتذة مجمّعة حسب المادة في عنصر <select>
+ * @param {HTMLSelectElement} selectEl - عنصر القائمة المنسدلة
+ * @param {Array} grades - مصفوفة النقاط (كل عنصر يحتوي على _teacher و _subject)
+ * @param {string} [defaultLabel='كل الأساتذة'] - نص الخيار الافتراضي
+ * @returns {string[]} - قائمة أسماء الأساتذة المدرجة
+ */
+function populateTeachersBySubject(selectEl, grades, defaultLabel) {
+    if (!selectEl) return [];
+    defaultLabel = defaultLabel || 'كل الأساتذة';
+
+    // Build teacher → subject frequency map
+    const teacherSubjectCount = new Map();
+    grades.forEach((g) => {
+        if (!g._teacher || !g._subject) return;
+        if (!teacherSubjectCount.has(g._teacher)) teacherSubjectCount.set(g._teacher, new Map());
+        const subMap = teacherSubjectCount.get(g._teacher);
+        subMap.set(g._subject, (subMap.get(g._subject) || 0) + 1);
+    });
+
+    // Find primary subject (most frequent) for each teacher
+    const teacherPrimarySubject = new Map();
+    teacherSubjectCount.forEach((subMap, teacher) => {
+        let maxSubject = '', maxCount = 0;
+        subMap.forEach((count, subject) => {
+            if (count > maxCount) { maxCount = count; maxSubject = subject; }
+        });
+        teacherPrimarySubject.set(teacher, maxSubject);
+    });
+
+    // Group teachers by primary subject
+    const subjectTeachers = new Map();
+    teacherPrimarySubject.forEach((subject, teacher) => {
+        const key = subject || 'أخرى';
+        if (!subjectTeachers.has(key)) subjectTeachers.set(key, []);
+        subjectTeachers.get(key).push(teacher);
+    });
+
+    // Sort subjects alphabetically, sort teachers within each group
+    const sortedSubjects = Array.from(subjectTeachers.keys()).sort((a, b) => a.localeCompare(b, 'ar'));
+    sortedSubjects.forEach((subj) => subjectTeachers.get(subj).sort((a, b) => a.localeCompare(b, 'ar')));
+
+    // Populate the select element
+    selectEl.innerHTML = `<option value="">${escapeHtml(defaultLabel)}</option>`;
+    const allTeachers = [];
+    sortedSubjects.forEach((subject) => {
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = `──── ${subject} ────`;
+        sep.style.fontWeight = '700';
+        sep.style.color = '#3B6AC5';
+        selectEl.appendChild(sep);
+
+        subjectTeachers.get(subject).forEach((teacher) => {
+            const o = document.createElement('option');
+            o.value = teacher;
+            o.textContent = teacher;
+            selectEl.appendChild(o);
+            allTeachers.push(teacher);
+        });
+    });
+
+    return allTeachers;
+}
+
+// ===== Subject Name Normalization (Central) =====
+// ─── French → Arabic subject name mapping ──────────────────────────────────────
+const SUBJECT_FR_TO_AR = Object.freeze({
+    'MATHEMATIQUES': 'الرياضيات', 'MATH': 'الرياضيات', 'MATHS': 'الرياضيات',
+    'SCIENCES MATHEMATIQUES': 'الرياضيات',
+    'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
+    'PHYSIQUE ET CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE': 'الفيزياء والكيمياء',
+    'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
+    'SVT': 'علوم الحياة والأرض', 'SCIENCES NATURELLES': 'علوم الحياة والأرض',
+    'PHILOSOPHIE': 'الفلسفة', 'PHILO': 'الفلسفة',
+    'LANGUE ARABE': 'اللغة العربية', 'ARABE': 'اللغة العربية',
+    'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAIS': 'اللغة الفرنسية',
+    'FRANCAISE': 'اللغة الفرنسية',
+    'LANGUE FRANÇAISE': 'اللغة الفرنسية', 'FRANÇAIS': 'اللغة الفرنسية',
+    'LANGUE ANGLAISE': 'اللغة الإنجليزية', 'ANGLAIS': 'اللغة الإنجليزية',
+    'ANGLAISE': 'اللغة الإنجليزية', 'LANGUE ANGLAIS': 'اللغة الإنجليزية',
+    'ENGLISH': 'اللغة الإنجليزية',
+    'ESPAGNOL': 'اللغة الإسبانية', 'LANGUE ESPAGNOLE': 'اللغة الإسبانية',
+    'ALLEMAND': 'اللغة الألمانية', 'ITALIEN': 'اللغة الإيطالية',
+    'EDUCATION ISLAMIQUE': 'التربية الإسلامية', 'INSTRUCTION ISLAMIQUE': 'التربية الإسلامية',
+    'ISLAMIQUE': 'التربية الإسلامية',
+    'EDUCATION PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
+    'EDUCATION PHYSIQUE': 'التربية البدنية', 'EPS': 'التربية البدنية', 'SPORT': 'التربية البدنية',
+    'HISTOIRE ET GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'HISTOIRE-GEOGRAPHIE': 'التاريخ والجغرافيا', 'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'HISTOIRE': 'التاريخ والجغرافيا', 'GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'INFORMATIQUE': 'المعلوميات',
+    'ECONOMIE GENERALE': 'الاقتصاد العام والإحصاء', 'ECONOMIE ET ORGANISATION': 'الاقتصاد والتنظيم الإداري للمقاولات',
+    'ECONOMIE': 'الاقتصاد العام والإحصاء', 'SCIENCES ECONOMIQUES': 'الاقتصاد العام والإحصاء',
+    // Economics branch subjects (Massar export forms)
+    'ECO GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
+    'ECO. GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
+    'ECONOMIE GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
+    'ECO ET ORG ADMIN ENTREPRISE': 'الاقتصاد والتنظيم الإداري للمقاولات',
+    'ECO. ET ORG. ADMIN. ENTREPRISE': 'الاقتصاد والتنظيم الإداري للمقاولات',
+    'ECONOMIE ET ORGANISATION ADMINISTRATIVE DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
+    'ECONOMIE ET ORGANISATION DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
+    'ECO ET ORGANISATION': 'الاقتصاد والتنظيم الإداري للمقاولات',
+    'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
+    'COMPTABILITE': 'المحاسبة والرياضيات المالية',
+    'INFORMATIQUE DE GESTION': 'معلوميات التدبير',
+    'DROIT': 'القانون', 'TRADUCTION': 'الترجمة',
+    "SCIENCES DE L'INGENIEUR": 'علوم المهندس', 'SCIENCES INGENIEURS': 'علوم المهندس',
+    'SI': 'علوم المهندس',
+    'ARTS APPLIQUES': 'الفنون التطبيقية', 'DESSIN': 'الفنون التطبيقية',
+    // Abbreviated forms (Massar exports)
+    'SC DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
+    'SC VIE TERRE': 'علوم الحياة والأرض', 'SC NAT': 'علوم الحياة والأرض',
+    'SC PHYSIQUE': 'الفيزياء والكيمياء', 'SC PHYS': 'الفيزياء والكيمياء',
+    'SC MATH': 'الرياضيات', 'SC MATHS': 'الرياضيات',
+    'ED ISLAMIQUE': 'التربية الإسلامية', 'INSTR ISLAMIQUE': 'التربية الإسلامية',
+    'ED PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
+    'ED PHYSIQUE': 'التربية البدنية',
+    'HIST GEO': 'التاريخ والجغرافيا', 'HIST GEOGRAPHIE': 'التاريخ والجغرافيا',
+    'HIST ET GEO': 'التاريخ والجغرافيا',
+    'L ARABE': 'اللغة العربية', 'L FRANCAISE': 'اللغة الفرنسية',
+    'L ANGLAISE': 'اللغة الإنجليزية', 'L ESPAGNOLE': 'اللغة الإسبانية',
+    "SC DE L INGENIEUR": 'علوم المهندس'
+});
+const _SUBJECT_FR_KEYS_DESC = Object.keys(SUBJECT_FR_TO_AR).sort((a, b) => b.length - a.length);
+
+/**
+ * تطبيع اسم المادة:
+ * 1. إزالة لاحقات الفروض (فرض 1) والأنشطة المندمجة
+ * 2. ترجمة الأسماء الفرنسية إلى العربية
+ * @param {string} subject - اسم المادة الخام
+ * @returns {string} - الاسم المطبّع
+ */
+function normalizeSubjectName(subject) {
+    const text = String(subject || '')
+        .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
+        .replace(/\s*\(الأنشطة المندمجة\)\s*$/i, '')
+        .trim();
+    if (!text) return text;
+    // If it contains Latin letters, try French → Arabic translation
+    if (/[a-zA-Z]/.test(text)) {
+        const upper = text.toUpperCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[_.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        if (SUBJECT_FR_TO_AR[upper]) return SUBJECT_FR_TO_AR[upper];
+        for (const key of _SUBJECT_FR_KEYS_DESC) {
+            if (key.length > 3 && (upper.includes(key) || key.includes(upper))) return SUBJECT_FR_TO_AR[key];
+        }
+    }
+    return text;
+}
+
+// ===== Dynamic School Year =====
+const SCHOOL_YEAR_KEY = 'gsl_current_school_year';
+
+function getSchoolYear() {
+    return localStorage.getItem(SCHOOL_YEAR_KEY) || '2025/2026';
+}
+
+function setSchoolYear(newYear) {
+    if (!newYear) return;
+    localStorage.setItem(SCHOOL_YEAR_KEY, newYear);
+    // Use no-auth endpoint specifically for school year to avoid auth rejection
+    const saveToDb = window.api && window.api.settings && window.api.settings.setSchoolYear
+        ? window.api.settings.setSchoolYear(newYear)
+        : (window.api && window.api.settings && window.api.settings.set
+            ? window.api.settings.set('currentSchoolYear', newYear)
+            : Promise.resolve());
+    saveToDb.finally(() => {
+        window.location.reload();
+    });
+}
+
+async function initSchoolYear() {
+    const localYear = localStorage.getItem(SCHOOL_YEAR_KEY);
+
+    if (!localYear) {
+        // localStorage is empty = first launch or cleared cache.
+        // Use DB value as the source of truth.
+        if (window.api && window.api.settings && window.api.settings.get) {
+            try {
+                const dbYear = await window.api.settings.get('currentSchoolYear');
+                if (dbYear) {
+                    localStorage.setItem(SCHOOL_YEAR_KEY, dbYear);
+                } else {
+                    localStorage.setItem(SCHOOL_YEAR_KEY, '2025/2026');
+                }
+            } catch (e) {
+                console.error('Error fetching school year from DB:', e);
+                localStorage.setItem(SCHOOL_YEAR_KEY, '2025/2026');
+            }
+        } else {
+            localStorage.setItem(SCHOOL_YEAR_KEY, '2025/2026');
+        }
+    }
+    // When localStorage already has a value (set by setSchoolYear after user choice),
+    // keep it as-is. The DB will have been updated by setSchoolYear() already.
+
+    // Sync the toolbar year select to match the resolved value
+    const resolvedYear = localStorage.getItem(SCHOOL_YEAR_KEY);
+    const yearSelect = document.getElementById('school-year');
+    if (yearSelect && resolvedYear) {
+        // Make sure the option exists in the select; if not, add it
+        let opt = yearSelect.querySelector(`option[value="${resolvedYear}"]`);
+        if (!opt) {
+            opt = document.createElement('option');
+            opt.value = resolvedYear;
+            opt.textContent = resolvedYear;
+            yearSelect.insertBefore(opt, yearSelect.firstChild);
+        }
+        yearSelect.value = resolvedYear;
+    }
+}
+
 // ===== Auto-init =====
 document.addEventListener('DOMContentLoaded', () => {
+    initSchoolYear();
     setupUnifiedHeader();
     setupSidebar();
 
@@ -1597,6 +1867,13 @@ if (typeof module !== 'undefined' && module.exports) {
         LEVEL_CODE_TO_AR,
         getLevelFromSection,
         getLevelNameFromSection,
-        extractLevelFromSection
+        extractLevelFromSection,
+        SUBJECT_FR_TO_AR,
+        normalizeSubjectName,
+        sortLevelNames,
+        sortSectionNames,
+        populateTeachersBySubject,
+        getSchoolYear,
+        setSchoolYear
     };
 }

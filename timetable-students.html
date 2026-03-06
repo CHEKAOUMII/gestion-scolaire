@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="ux-enhancements.css">
   <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
+  <script src="js/notifications.js"></script>
   <script src="js/sidebar.js"></script>
   <script src="js/ux-enhancements.js"></script>
   <style>
@@ -685,7 +685,7 @@
         <div class="class-stat-card rooms">
           <div class="stat-icon"><i class="fas fa-door-open"></i></div>
           <div class="stat-value" id="stat-rooms">�</div>
-          <div class="stat-label">????</div>
+          <div class="stat-label">قاعة دراسية</div>
         </div>
       </div>
 
@@ -729,7 +729,7 @@
         classSelect.innerHTML = '<option value="">-- اختر القسم --</option>';
 
         if (level && levelsMap[level]) {
-          levelsMap[level].forEach(name => {
+          sortSectionNames(levelsMap[level]).forEach(name => {
             const opt = document.createElement('option');
             opt.value = name;
             opt.textContent = name;
@@ -841,14 +841,14 @@
         discoveredAfternoonHours = [...afternoonSet].sort(naturalSort);
 
         // Extract levels from class names
-        const classNames = Object.keys(classesIndex).sort((a, b) => a.localeCompare(b, 'ar'));
+        const classNames = sortSectionNames(Object.keys(classesIndex));
         levelsMap = extractLevels(classNames);
 
         populateLevelSelect(Object.keys(levelsMap));
 
         if (classNames.length > 0) {
           document.getElementById('class-count-badge').innerHTML =
-            `<i class="fas fa-info-circle"></i> ${classNames.length} ??? ????`;
+            `<i class="fas fa-info-circle"></i> ${classNames.length} قسم متوفر`;
           showToast(`تم تحميل ${classNames.length} قسم من البيانات المحفوظة`, 'success');
         } else {
           showNoClassesState();
@@ -863,8 +863,7 @@
     function extractLevels(classNames) {
       const levels = {};
       classNames.forEach(name => {
-        let level = name.replace(/\d+$/, '').trim();
-        if (!level) level = name;
+        const level = getLevelNameFromSection(name) || name.replace(/\d+$/, '').trim() || name;
         if (!levels[level]) levels[level] = [];
         levels[level].push(name);
       });
@@ -874,8 +873,7 @@
     function populateLevelSelect(levelNames) {
       const select = document.getElementById('level-select');
       select.innerHTML = '<option value="">-- اختر المستوى --</option>';
-      levelNames.sort((a, b) => a.localeCompare(b, 'ar'));
-      levelNames.forEach(name => {
+      sortLevelNames(levelNames).forEach(name => {
         const opt = document.createElement('option');
         opt.value = name;
         opt.textContent = `${name} (${levelsMap[name].length})`;

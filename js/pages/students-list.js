@@ -1,4 +1,4 @@
-﻿const year = '2025/2026';
+﻿const year = getSchoolYear();
 let students = [];
 let filteredStudents = [];
 let currentPage = 1;
@@ -128,10 +128,11 @@ async function loadClasses() {
     const select = document.getElementById('search-class');
     try {
         const classes = (await window.api.classes.getAll(year)) || [];
-        classes.forEach((c) => {
+        const classNames = classes.map(c => c.name);
+        sortSectionNames(classNames).forEach((name) => {
             const opt = document.createElement('option');
-            opt.value = c.name;
-            opt.textContent = c.name;
+            opt.value = name;
+            opt.textContent = name;
             select.appendChild(opt);
         });
     } catch (_error) {
@@ -413,12 +414,7 @@ function gradeColor(val) {
     return '#E85D5D';
 }
 
-function normalizeSubjectName(subject) {
-    return String(subject || '')
-        .replace(/\s*\(\s*فرض\s*\d+\s*\)\s*$/i, '')
-        .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-        .trim();
-}
+// normalizeSubjectName() — provided by js/utils.js
 
 // ─── View Student Modal ───
 async function viewStudent(index) {

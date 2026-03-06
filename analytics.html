@@ -664,7 +664,7 @@
     </main>
 
     <script>
-        const year = '2025/2026';
+        const year = getSchoolYear();
         const CHART_JS_CDN = 'vendor/chart.min.js';
         let detailChart = null;
         let barChart = null;
@@ -833,8 +833,7 @@
                 ? allSections.filter(section => _getLocalLevelName(section) === selectedLevel)
                 : allSections.slice();
 
-            list
-                .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
+            sortSectionNames(list)
                 .forEach(section => {
                     const opt = document.createElement('option');
                     opt.value = section;
@@ -1059,8 +1058,7 @@
             renderTeacherSubjectOptions('', '');
             toggleTeacherSubjectFilter();
 
-            Array.from(levels)
-                .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
+            sortLevelNames(Array.from(levels))
                 .forEach(level => {
                     const opt = document.createElement('option');
                     opt.value = level;

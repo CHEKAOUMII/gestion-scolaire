@@ -443,81 +443,16 @@ function _normalizeArabic(s) {
 
 /**
  * French → Arabic subject name mapping.
- * Keys are UPPERCASE French names (as they appear in the imported data).
+ * Now provided globally by js/utils.js as SUBJECT_FR_TO_AR
  */
-const SUBJECT_FR_TO_AR = {
-    'MATHEMATIQUES': 'الرياضيات',
-    'MATH': 'الرياضيات',
-    'MATHS': 'الرياضيات',
-    'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء',
-    'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
-    'PHYSIQUE': 'الفيزياء والكيمياء',
-    'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-    'SVT': 'علوم الحياة والأرض',
-    'SCIENCES NATURELLES': 'علوم الحياة والأرض',
-    'PHILOSOPHIE': 'الفلسفة',
-    'PHILO': 'الفلسفة',
-    'LANGUE ARABE': 'اللغة العربية',
-    'ARABE': 'اللغة العربية',
-    'LANGUE FRANCAISE': 'اللغة الفرنسية',
-    'FRANCAIS': 'اللغة الفرنسية',
-    'FRANCAISE': 'اللغة الفرنسية',
-    'LANGUE FRANÇAISE': 'اللغة الفرنسية',
-    'FRANÇAIS': 'اللغة الفرنسية',
-    'LANGUE ANGLAISE': 'اللغة الإنجليزية',
-    'ANGLAIS': 'اللغة الإنجليزية',
-    'ANGLAISE': 'اللغة الإنجليزية',
-    'LANGUE ANGLAIS': 'اللغة الإنجليزية',
-    'ENGLISH': 'اللغة الإنجليزية',
-    'EDUCATION ISLAMIQUE': 'التربية الإسلامية',
-    'INSTRUCTION ISLAMIQUE': 'التربية الإسلامية',
-    'ISLAMIQUE': 'التربية الإسلامية',
-    'EDUCATION PHYSIQUE': 'التربية البدنية',
-    'EDUCATION PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
-    'EPS': 'التربية البدنية',
-    'SPORT': 'التربية البدنية',
-    'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HISTOIRE-GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HISTOIRE ET GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HISTOIRE': 'التاريخ والجغرافيا',
-    'GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'INFORMATIQUE': 'المعلوميات',
-    'ECONOMIE': 'الاقتصاد والتدبير',
-    'ECONOMIE GENERALE': 'الاقتصاد والتدبير',
-    'ECONOMIE ET ORGANISATION': 'الاقتصاد والتدبير',
-    'COMPTABILITE': 'المحاسبة والرياضيات المالية',
-    'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
-    'DROIT': 'القانون',
-    'SCIENCES ECONOMIQUES': 'الاقتصاد والتدبير',
-    'TRADUCTION': 'الترجمة',
-    'SCIENCES DE L\'INGENIEUR': 'علوم المهندس',
-    'SCIENCES INGENIEURS': 'علوم المهندس',
-    'SI': 'علوم المهندس',
-    'SCIENCES MATHEMATIQUES': 'الرياضيات',
-    'ARTS APPLIQUES': 'الفنون التطبيقية',
-    'DESSIN': 'الفنون التطبيقية',
-};
 
 function getSubjectCoefficient(subjectName, branch) {
     if (!branch || !CC_BRANCH_COEFFICIENTS[branch]) return 1;
     const table = CC_BRANCH_COEFFICIENTS[branch];
-    let name = String(subjectName || '').trim();
-
-    // 0. French → Arabic translation
-    const upper = name.toUpperCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents
-        .replace(/[_-]+/g, ' ').trim();
-    if (SUBJECT_FR_TO_AR[upper]) {
-        name = SUBJECT_FR_TO_AR[upper];
-    } else {
-        // Partial match for French names
-        for (const [frKey, arVal] of Object.entries(SUBJECT_FR_TO_AR)) {
-            if (upper.includes(frKey) || frKey.includes(upper)) {
-                name = arVal;
-                break;
-            }
-        }
-    }
+    // Use centralized normalizeSubjectName() for French → Arabic translation + suffix stripping
+    let name = (typeof normalizeSubjectName === 'function')
+        ? normalizeSubjectName(subjectName)
+        : String(subjectName || '').trim();
 
     // 1. Direct lookup
     if (table[name] !== undefined) return table[name];
