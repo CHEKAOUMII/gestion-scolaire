@@ -1,10 +1,15 @@
-﻿const year = getSchoolYear();
+﻿function getCurrentYear() {
+    return getSchoolYear();
+}
+
 let students = [];
 let filteredStudents = [];
 let currentPage = 1;
 const PAGE_SIZE = 25;
 let sortColumn = null;
 let sortDirection = 'asc';
+let allClasses = []; // keep all class names for level cascading
+let sectionToLevel = {}; // section → level mapping
 
 // Avatar color palette
 const avatarColors = [
@@ -55,13 +60,9 @@ function getInitial(name) {
 
 // escapeHtml is provided by utils.js (loaded globally)
 
-function escapeAttribute(value) {
-    return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
-
 // ─── DOM Ready ───
 document.addEventListener('DOMContentLoaded', async () => {
-    await loadClasses();
+    await loadClassesAndLevels();
     restoreFilters();
     await searchStudents();
 
@@ -73,14 +74,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Live search with debounce
-    const nameInput = document.getElementById('search-name');
-    const codeInput = document.getElementById('search-code');
+    const queryInput = document.getElementById('search-query');
     const debouncedSearch = debounce(async () => {
         currentPage = 1;
         await searchStudents();
     }, 300);
-    nameInput.addEventListener('input', debouncedSearch);
-    codeInput.addEventListener('input', debouncedSearch);
+    queryInput.addEventListener('input', debouncedSearch);
+
+    // Level cascading → class dropdown
+    document.getElementById('search-level').addEventListener('change', async () => {
+        renderClassOptions(document.getElementById('search-level').value);
+        currentPage = 1;
+        await searchStudents();
+    });
 
     // Filter changes
     document.getElementById('search-class').addEventListener('change', async () => {
@@ -114,8 +120,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
             e.preventDefault();
-            nameInput.focus();
-            nameInput.select();
+            queryInput.focus();
+            queryInput.select();
         }
         if (e.key === 'Escape') {
             closeStudentModal();
@@ -123,30 +129,75 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-// ─── Load Classes ───
-async function loadClasses() {
-    const select = document.getElementById('search-class');
+// ─── Load Classes & Levels ───
+async function loadClassesAndLevels() {
+    const classSelect = document.getElementById('search-class');
+    const levelSelect = document.getElementById('search-level');
     try {
-        const classes = (await window.api.classes.getAll(year)) || [];
-        const classNames = classes.map(c => c.name);
-        sortSectionNames(classNames).forEach((name) => {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            select.appendChild(opt);
+        const classes = (await window.api.classes.getAll(getCurrentYear())) || [];
+        allClasses = classes.map(c => c.name);
+
+        // Build level mapping
+        const mappingRaw = await window.api.settings.get('levelsMapping');
+        try { sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {}; } catch (_) { sectionToLevel = {}; }
+
+        const levels = new Set();
+        allClasses.forEach(name => {
+            const level = _getLocalLevelName(name);
+            if (level) levels.add(level);
         });
+
+        // Populate levels
+        sortLevelNames(Array.from(levels)).forEach(level => {
+            const opt = document.createElement('option');
+            opt.value = level;
+            opt.textContent = level;
+            levelSelect.appendChild(opt);
+        });
+
+        // Populate classes (all initially)
+        renderClassOptions('');
     } catch (_error) {
         showToast('تعذر تحميل قائمة الأقسام', 'warning');
+    }
+}
+
+function _getLocalLevelName(section) {
+    const s = String(section || '').trim();
+    if (!s) return '';
+    if (sectionToLevel[s]) return sectionToLevel[s];
+    return getLevelNameFromSection(s);
+}
+
+function renderClassOptions(selectedLevel) {
+    const classSelect = document.getElementById('search-class');
+    const previousValue = classSelect.value;
+    classSelect.innerHTML = '<option value="">\u0643\u0644 \u0627\u0644\u0623\u0642\u0633\u0627\u0645</option>';
+
+    const list = selectedLevel
+        ? allClasses.filter(name => _getLocalLevelName(name) === selectedLevel)
+        : allClasses.slice();
+
+    sortSectionNames(list).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        classSelect.appendChild(opt);
+    });
+
+    // Restore previous value if still in list
+    if (previousValue && Array.from(classSelect.options).some(o => o.value === previousValue)) {
+        classSelect.value = previousValue;
     }
 }
 
 // ─── Save / Restore Filters ───
 function saveFilters() {
     const filters = {
-        name: document.getElementById('search-name').value,
+        query: document.getElementById('search-query').value,
+        level: document.getElementById('search-level').value,
         class: document.getElementById('search-class').value,
-        gender: document.getElementById('search-gender').value,
-        code: document.getElementById('search-code').value
+        gender: document.getElementById('search-gender').value
     };
     saveToStorage('sl_filters', filters);
 }
@@ -154,24 +205,46 @@ function saveFilters() {
 function restoreFilters() {
     const filters = loadFromStorage('sl_filters');
     if (!filters) return;
-    if (filters.name) document.getElementById('search-name').value = filters.name;
+    if (filters.query) document.getElementById('search-query').value = filters.query;
+    if (filters.level) {
+        document.getElementById('search-level').value = filters.level;
+        renderClassOptions(filters.level);
+    }
     if (filters.class) document.getElementById('search-class').value = filters.class;
     if (filters.gender) document.getElementById('search-gender').value = filters.gender;
-    if (filters.code) document.getElementById('search-code').value = filters.code;
 }
 
 // ─── Search ───
 async function searchStudents() {
-    const name = document.getElementById('search-name').value.trim();
+    const query = document.getElementById('search-query').value.trim().toLowerCase();
+    const levelName = document.getElementById('search-level').value;
     const className = document.getElementById('search-class').value;
-    const code = document.getElementById('search-code').value.trim();
     const gender = document.getElementById('search-gender').value;
 
     saveFilters();
     renderTableState('loading');
 
     try {
-        students = (await window.api.students.search(name, className, code, year)) || [];
+        // Pass query to server-side search (filters by name/code on the DB)
+        students = (await window.api.students.search(query, className, '', getCurrentYear())) || [];
+
+        // Level filter (client-side — depends on local mapping)
+        if (levelName) {
+            students = students.filter(s => _getLocalLevelName(s.class_name || s.section || '') === levelName);
+        }
+
+        // Birth date filter (client-side — not covered by server search)
+        if (query) {
+            const serverMatched = new Set(students.map(s => s.id));
+            if (!serverMatched.size) {
+                // Server returned nothing for name/code; try birth_date match
+                const allInClass = (await window.api.students.search('', className, '', getCurrentYear())) || [];
+                students = allInClass.filter(s => {
+                    const birth = (s.birth_date || '').toLowerCase();
+                    return birth.includes(query);
+                });
+            }
+        }
 
         // Client-side gender filter
         if (gender) {
@@ -285,7 +358,7 @@ function renderStudents() {
                 <td>${escapeHtml(s.birth_date || '-')}</td>
                 <td>
                     <button class="sl-action-btn" type="button" title="عرض ملف التلميذ" aria-label="عرض ملف التلميذ"
-                        onclick="viewStudent(${start + i})">
+                        onclick="viewStudent('${escapeHtml(s.massar_code || s.id)}')">
                         <i class="fas fa-eye" aria-hidden="true"></i>
                     </button>
                 </td>
@@ -417,8 +490,8 @@ function gradeColor(val) {
 // normalizeSubjectName() — provided by js/utils.js
 
 // ─── View Student Modal ───
-async function viewStudent(index) {
-    const student = filteredStudents[index];
+async function viewStudent(code) {
+    const student = filteredStudents.find(s => (s.massar_code || s.id) === code);
     if (!student) return;
 
     const name = student.full_name || '-';
@@ -426,16 +499,12 @@ async function viewStudent(index) {
     const color = getAvatarColor(name);
     const genderLabel = isMale(student.gender) ? 'ذكر' : isFemale(student.gender) ? 'أنثى' : '-';
 
-    // Fetch absence hours for this student
+    // Fetch absence hours for this student (server-side filtered)
     let justifiedHours = 0;
     let unjustifiedHours = 0;
     try {
-        const allAbsences = (await window.api.absences.getAll(year)) || [];
         const studentCode = student.massar_code || '';
-        const studentAbsences = allAbsences.filter((a) => {
-            const code = String(a.student_code || '').trim();
-            return code && code === studentCode;
-        });
+        const studentAbsences = (await window.api.absences.getByStudentCode(studentCode, getCurrentYear())) || [];
         studentAbsences.forEach((a) => {
             const h = Number(a.hours) || 0;
             if (a.absence_type === 'justified') {
@@ -505,17 +574,10 @@ async function viewStudent(index) {
         }
     }
 
-    // Fetch and render grades
+    // Fetch and render grades (server-side filtered by student code)
     try {
-        const allGrades = (await window.api.grades.getAll(year)) || [];
-
-        // Match by massar_code or full_name
-        const studentId = student.massar_code || student.full_name || '';
-        const rawStudentGrades = allGrades
-            .filter((g) => {
-                const id = String(g.student_code || g.student_id || g.full_name || '');
-                return id === studentId;
-            })
+        const studentCode = student.massar_code || '';
+        const rawStudentGrades = ((await window.api.grades.getByStudentCode(studentCode, getCurrentYear())) || [])
             .map((g) => ({ ...g, grade: Number(g.grade) }))
             .filter((g) => Number.isFinite(g.grade));
 
@@ -716,7 +778,7 @@ function openSlPrintPreview() {
     // Update count badge text for print
     const feedbackEl = document.getElementById('students-feedback');
     const savedFeedback = feedbackEl ? feedbackEl.textContent : '';
-    if (feedbackEl) feedbackEl.textContent = `${classFilter} — السنة الدراسية ${year} — العدد: ${filteredStudents.length}`;
+    if (feedbackEl) feedbackEl.textContent = `${classFilter} — السنة الدراسية ${getCurrentYear()} — العدد: ${filteredStudents.length}`;
 
     // Use the shared print preview system (without contentSelector → letterhead auto-injected)
     try {
@@ -728,7 +790,7 @@ function openSlPrintPreview() {
             previewFn({
                 title: 'لائحة التلاميذ',
                 pageSize: 'A4',
-                defaultFileName: `لائحة_التلاميذ_${year.replace('/', '-')}`
+                defaultFileName: `لائحة_التلاميذ_${getCurrentYear().replace('/', '-')}`
             });
         } else {
             window.print();

@@ -1049,9 +1049,186 @@ body.ux-preview-open {
     font-size: 10px !important;
 }
 
-.ux-pp-sheet .analytics-page .grades-container {
+.ux-pp-sheet .analytics-page .grades-container,
+.ux-pp-sheet .grades-container {
     padding: 0 !important;
-    gap: 10px !important;
+    gap: 8px !important;
+}
+
+/* Analytics KPI cards — compact for A4 */
+.ux-pp-sheet .analysis-kpis {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-card {
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    animation: none !important;
+}
+
+.ux-pp-sheet .analysis-kpi-card::before {
+    height: 2px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-icon {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 12px !important;
+    border-radius: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-label {
+    font-size: 8px !important;
+    margin-bottom: 3px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-value {
+    font-size: 14px !important;
+    margin-bottom: 2px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-sub {
+    font-size: 7px !important;
+    margin-top: 2px !important;
+}
+
+/* Analytics grid layouts — compact */
+.ux-pp-sheet .analysis-grid-two {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+.ux-pp-sheet .analysis-grid-three {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+/* Analytics panels — compact */
+.ux-pp-sheet .analysis-panel {
+    padding: 8px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.ux-pp-sheet .analysis-panel h4 {
+    font-size: 9px !important;
+    margin: 0 0 6px !important;
+    padding-bottom: 4px !important;
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .analysis-panel h4 i {
+    font-size: 10px !important;
+}
+
+/* Analytics chart images — constrain height */
+.ux-pp-sheet .analysis-panel img {
+    max-height: 140px !important;
+    width: 100% !important;
+    object-fit: contain !important;
+}
+
+.ux-pp-sheet .analysis-detail-chart,
+.ux-pp-sheet .analysis-canvas {
+    max-height: 140px !important;
+    height: auto !important;
+}
+
+/* Analytics collapsible blocks — compact */
+.ux-pp-sheet .analysis-block {
+    margin-bottom: 6px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    animation: none !important;
+}
+
+.ux-pp-sheet .analysis-block>summary {
+    padding: 6px 10px !important;
+    font-size: 10px !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    background: #f5f8fa !important;
+    color: #162730 !important;
+}
+
+.ux-pp-sheet .analysis-block-body {
+    padding: 6px !important;
+}
+
+/* Analytics progress bars — compact */
+.ux-pp-sheet .analysis-progress-item {
+    padding: 6px 8px !important;
+    border-radius: 6px !important;
+}
+
+.ux-pp-sheet .analysis-progress-title {
+    font-size: 9px !important;
+    margin-bottom: 4px !important;
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .analysis-progress-title i {
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .analysis-progress-track {
+    height: 10px !important;
+    margin-bottom: 3px !important;
+}
+
+.ux-pp-sheet .analysis-progress-value {
+    font-size: 7px !important;
+}
+
+.ux-pp-sheet .analysis-progress-meta {
+    font-size: 8px !important;
+}
+
+/* Analytics zero-students list — compact */
+.ux-pp-sheet .analysis-zero-list {
+    gap: 3px !important;
+}
+
+.ux-pp-sheet .analysis-zero-item {
+    padding: 5px 8px !important;
+    border-radius: 6px !important;
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .analysis-zero-badge {
+    padding: 2px 8px !important;
+    font-size: 8px !important;
+}
+
+/* Analytics summary table — compact */
+.ux-pp-sheet .analysis-summary-table th,
+.ux-pp-sheet .analysis-summary-table td {
+    padding: 4px 8px !important;
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .analysis-grade-pill {
+    padding: 2px 8px !important;
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .analysis-panel-note {
+    font-size: 7px !important;
 }
 
 .ux-pp-sheet .kpi-grid {
@@ -1979,6 +2156,30 @@ body.ux-printing-active #ux-print-root .page-title-row {
 }
 
 /* ==================== Responsive Design ==================== */
+@media (max-width: 992px) {
+    .shortcuts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-nav-panel {
+        width: 280px;
+    }
+
+    .quick-nav-toggle {
+        bottom: 15px;
+        left: 15px;
+        width: 48px;
+        height: 48px;
+        font-size: 17px;
+    }
+
+    .theme-toggle {
+        width: 42px;
+        height: 42px;
+        font-size: 15px;
+    }
+}
+
 @media (max-width: 768px) {
     .shortcuts-grid {
         grid-template-columns: 1fr;
@@ -2248,12 +2449,111 @@ body.ux-printing-active #ux-print-root .report-panel,
 body.ux-printing-active #ux-print-root .report-kpi-card,
 body.ux-printing-active #ux-print-root .card,
 body.ux-printing-active #ux-print-root .class-stat-card,
-body.ux-printing-active #ux-print-root .room-stat-card {
+body.ux-printing-active #ux-print-root .room-stat-card,
+body.ux-printing-active #ux-print-root .analysis-panel,
+body.ux-printing-active #ux-print-root .analysis-kpi-card,
+body.ux-printing-active #ux-print-root .analysis-block {
     background: #fff !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     border: 1px solid #dde5ea !important;
+}
+
+/* Analytics compact rules for print/PDF export */
+body.ux-printing-active #ux-print-root .analysis-kpis {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-card {
+    padding: 8px 10px !important;
+    animation: none !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-card::before {
+    height: 2px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-icon {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 12px !important;
+    margin-bottom: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-label {
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-value {
+    font-size: 14px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-sub {
+    font-size: 7px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-grid-two {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-grid-three {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-panel {
+    padding: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-panel h4 {
+    font-size: 9px !important;
+    margin: 0 0 6px !important;
+    padding-bottom: 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-panel img {
+    max-height: 140px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-block>summary {
+    padding: 6px 10px !important;
+    font-size: 10px !important;
+    background: #f5f8fa !important;
+    color: #162730 !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-block-body {
+    padding: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-progress-track {
+    height: 10px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-progress-title {
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-zero-item {
+    padding: 5px 8px !important;
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-summary-table th,
+body.ux-printing-active #ux-print-root .analysis-summary-table td {
+    padding: 4px 8px !important;
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .grades-container {
+    padding: 0 !important;
+    gap: 8px !important;
 }
 
 body.ux-printing-active #ux-print-root .class-stats-grid,
@@ -2403,7 +2703,10 @@ body.ux-printing-active #ux-print-root .room-timetable-wrapper {
     [data-theme="dark"] .card,
     [data-theme="dark"] details,
     [data-theme="dark"] .search-section,
-    [data-theme="dark"] .students-results {
+    [data-theme="dark"] .students-results,
+    [data-theme="dark"] .analysis-panel,
+    [data-theme="dark"] .analysis-kpi-card,
+    [data-theme="dark"] .analysis-block {
         background: #fff !important;
         border-color: #dde5ea !important;
         box-shadow: none !important;
@@ -2447,13 +2750,112 @@ body.ux-printing-active #ux-print-root .room-timetable-wrapper {
     .stat-card,
     .report-panel,
     .report-kpi-card,
-    .card {
+    .card,
+    .analysis-panel,
+    .analysis-kpi-card {
         background: #fff !important;
         box-shadow: none !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
         border: 1px solid #dde5ea !important;
         animation: none !important;
+    }
+
+    /* Analytics compact rules for @media print */
+    .analysis-kpis {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .analysis-kpi-card {
+        padding: 8px 10px !important;
+    }
+
+    .analysis-kpi-card::before {
+        height: 2px !important;
+    }
+
+    .analysis-kpi-icon {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 12px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-kpi-label {
+        font-size: 8px !important;
+    }
+
+    .analysis-kpi-value {
+        font-size: 14px !important;
+    }
+
+    .analysis-kpi-sub {
+        font-size: 7px !important;
+    }
+
+    .analysis-grid-two {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-grid-three {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-panel {
+        padding: 8px !important;
+    }
+
+    .analysis-panel h4 {
+        font-size: 9px !important;
+        margin: 0 0 6px !important;
+        padding-bottom: 4px !important;
+    }
+
+    .analysis-panel img {
+        max-height: 140px !important;
+    }
+
+    .analysis-block {
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-block>summary {
+        padding: 6px 10px !important;
+        font-size: 10px !important;
+    }
+
+    .analysis-block-body {
+        padding: 6px !important;
+    }
+
+    .analysis-progress-track {
+        height: 10px !important;
+    }
+
+    .analysis-progress-title {
+        font-size: 9px !important;
+    }
+
+    .analysis-zero-item {
+        padding: 5px 8px !important;
+        font-size: 9px !important;
+    }
+
+    .analysis-summary-table th,
+    .analysis-summary-table td {
+        padding: 4px 8px !important;
+        font-size: 9px !important;
+    }
+
+    .grades-container {
+        padding: 0 !important;
+        gap: 8px !important;
     }
 
     /* Details blocks — open, visible, compact */
@@ -2728,16 +3130,16 @@ a.quick-nav-item {
     background: rgba(0, 0, 0, 0.65) !important;
 }
 
-[data-theme="dark"] #activation-modal-overlay > div {
+[data-theme="dark"] #activation-modal-overlay>div {
     background: var(--color-surface) !important;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
-[data-theme="dark"] #activation-modal-overlay > div > div[style*="border-bottom"] {
+[data-theme="dark"] #activation-modal-overlay>div>div[style*="border-bottom"] {
     border-bottom-color: var(--color-accent) !important;
 }
 
-[data-theme="dark"] #activation-modal-overlay > div > div[style*="background:#fef2f2"] {
+[data-theme="dark"] #activation-modal-overlay>div>div[style*="background:#fef2f2"] {
     background: rgba(255, 92, 51, 0.12) !important;
     border-bottom-color: rgba(255, 92, 51, 0.25) !important;
     color: #FF5C33 !important;

@@ -54,14 +54,17 @@
         <!-- Sidebar will be injected by sidebar.js -->
     </aside>
 
-    <main class="main-content">
-        <header class="header">
+    <main class="main-content standalone-page">
+        <header class="header unified-header">
             <div class="header-left">
                 <button class="menu-toggle" id="menu-toggle" type="button" aria-label="فتح القائمة الجانبية"
                     title="القائمة">
                     <i class="fas fa-bars"></i>
                 </button>
-                <h1 class="page-title"><i class="fas fa-file-import"></i> استيراد البيانات</h1>
+                <div class="search-box" role="search">
+                    <input type="text" id="header-search" placeholder="ابحث عن صفحة..." aria-label="بحث">
+                    <i class="fas fa-search"></i>
+                </div>
             </div>
             <div class="header-right">
                 <button class="theme-toggle" id="theme-toggle" type="button" aria-label="تبديل المظهر"
@@ -82,6 +85,10 @@
                 </div>
             </div>
         </header>
+
+        <div class="page-title-row">
+            <h2><i class="fas fa-file-import"></i> استيراد البيانات</h2>
+        </div>
 
         <div class="grades-container">
 

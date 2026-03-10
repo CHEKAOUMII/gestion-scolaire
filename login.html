@@ -21,13 +21,155 @@
             font-family: var(--font-main);
             min-height: 100vh;
             display: flex;
+            align-items: stretch;
+            background-color: var(--color-secondary);
+        }
+
+        /* ── Split Layout ── */
+        .login-split {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        /* Right panel: branding/decorative */
+        .login-brand-panel {
+            flex: 1;
+            background: linear-gradient(135deg, #2c5282 0%, #3B6AC5 40%, #5B84D6 100%);
+            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-brand-panel::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+        }
+
+        .brand-content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            color: white;
+        }
+
+        .brand-logo {
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 28px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transform: rotate(-5deg);
+            transition: transform 0.3s ease;
+        }
+
+        .brand-logo:hover {
+            transform: rotate(0deg) scale(1.05);
+        }
+
+        .brand-logo i {
+            font-size: 44px;
+            color: white;
+        }
+
+        .brand-content h1 {
+            font-family: var(--font-display);
+            font-size: 30px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-content p {
+            font-size: 16px;
+            opacity: 0.85;
+            max-width: 320px;
+            line-height: 1.6;
+        }
+
+        .brand-features {
+            margin-top: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .brand-feature {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(8px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.92);
+        }
+
+        .brand-feature i {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Floating decorative shapes */
+        .brand-shape {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.04);
+            z-index: 0;
+        }
+
+        .brand-shape.s1 {
+            width: 300px;
+            height: 300px;
+            top: -80px;
+            right: -60px;
+        }
+
+        .brand-shape.s2 {
+            width: 200px;
+            height: 200px;
+            bottom: -50px;
+            left: -40px;
+        }
+
+        .brand-shape.s3 {
+            width: 150px;
+            height: 150px;
+            bottom: 30%;
+            right: 10%;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        /* Left panel: form */
+        .login-form-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 30px;
             background-color: var(--color-secondary);
             background-image:
-                radial-gradient(at 0% 0%, rgba(59, 106, 197, 0.08) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(59, 106, 197, 0.05) 0px, transparent 50%);
-            padding: 20px;
+                radial-gradient(at 0% 0%, rgba(59, 106, 197, 0.06) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 106, 197, 0.04) 0px, transparent 50%);
+            overflow-y: auto;
         }
 
         .login-container {
@@ -35,21 +177,61 @@
             max-width: 420px;
         }
 
+        /* ── Tabs ── */
+        .auth-tabs {
+            display: flex;
+            background: var(--glass-bg);
+            border-radius: var(--radius-md);
+            padding: 4px;
+            margin-bottom: 24px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            border-radius: calc(var(--radius-md) - 4px);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .auth-tab.active {
+            background: var(--color-primary);
+            color: white;
+            box-shadow: 0 2px 8px rgba(59, 106, 197, 0.3);
+        }
+
+        .auth-tab:not(.active):hover {
+            background: rgba(59, 106, 197, 0.08);
+            color: var(--color-primary);
+        }
+
+        /* ── Form Card ── */
         .login-card {
             background: var(--glass-bg);
             backdrop-filter: var(--glass-blur);
             -webkit-backdrop-filter: var(--glass-blur);
             border: 1px solid var(--glass-border);
             border-radius: var(--radius-lg);
-            padding: 40px;
+            padding: 32px;
             box-shadow: var(--shadow-card);
-            animation: slideUp 0.6s ease-out;
+            animation: slideUp 0.5s ease-out;
         }
 
         @keyframes slideUp {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(20px);
             }
 
             to {
@@ -58,75 +240,48 @@
             }
         }
 
-        .login-header {
-            text-align: center;
-            margin-bottom: 35px;
+        .auth-form {
+            display: none;
         }
 
-        .login-logo {
-            width: 80px;
-            height: 80px;
-            background: var(--gradient-primary);
-            border-radius: var(--radius-md);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            box-shadow: var(--shadow-soft);
-            transform: rotate(-5deg);
-        }
-
-        .login-logo i {
-            font-size: 36px;
-            color: white;
-        }
-
-        .login-header h1 {
-            font-family: var(--font-display);
-            font-size: 24px;
-            color: var(--color-text-main);
-            margin-bottom: 8px;
-            font-weight: 700;
-        }
-
-        .login-header p {
-            color: var(--color-text-muted);
-            font-size: 14px;
+        .auth-form.active {
+            display: block;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-weight: 600;
             color: var(--color-text-main);
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .input-wrapper {
             position: relative;
         }
 
-        .input-wrapper i {
+        .input-wrapper>i:first-child {
             position: absolute;
-            right: 15px;
+            right: 14px;
             top: 50%;
             transform: translateY(-50%);
             color: var(--color-text-muted);
-            font-size: 18px;
+            font-size: 16px;
+            pointer-events: none;
         }
 
         .form-group input {
             width: 100%;
-            padding: 15px 45px 15px 15px;
+            padding: 13px 42px 13px 42px;
             border: 1px solid var(--color-accent);
             border-radius: var(--radius-sm);
-            font-size: 16px;
+            font-size: 15px;
             font-family: inherit;
-            transition: var(--transition-fast);
+            transition: all 0.2s ease;
             background: rgba(255, 255, 255, 0.8);
         }
 
@@ -134,21 +289,63 @@
             outline: none;
             border-color: var(--color-primary);
             background: white;
-            box-shadow: 0 0 0 4px rgba(59, 106, 197, 0.15);
+            box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.12);
         }
 
+        /* ── Show/hide password toggle ── */
+        .password-toggle {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--color-text-muted);
+            font-size: 16px;
+            padding: 4px;
+            transition: color 0.2s ease;
+        }
+
+        .password-toggle:hover {
+            color: var(--color-primary);
+        }
+
+        /* ── Remember me ── */
+        .remember-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 18px;
+            font-size: 13px;
+            color: var(--color-text-muted);
+        }
+
+        .remember-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--color-primary);
+            cursor: pointer;
+        }
+
+        .remember-row label {
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        /* ── Submit button ── */
         .btn-login {
             width: 100%;
-            padding: 16px;
+            padding: 14px;
             background: var(--color-primary);
             color: white;
             border: none;
             border-radius: var(--radius-sm);
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             font-family: inherit;
             cursor: pointer;
-            transition: var(--transition-fast);
+            transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -159,7 +356,7 @@
         .btn-login:hover {
             background: var(--color-primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(59, 106, 197, 0.4);
+            box-shadow: 0 8px 15px -3px rgba(59, 106, 197, 0.35);
         }
 
         .btn-login:disabled {
@@ -169,8 +366,8 @@
         }
 
         .btn-login .spinner {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border: 3px solid rgba(255, 255, 255, 0.3);
             border-top-color: white;
             border-radius: 50%;
@@ -192,146 +389,366 @@
             }
         }
 
+        /* ── Error message ── */
         .error-message {
             background: #FED7D7;
             color: #C53030;
-            padding: 12px 15px;
-            border-radius: variables(--radius-sm);
-            margin-bottom: 20px;
-            font-size: 14px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+            font-size: 13px;
             display: none;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .error-message.show {
             display: flex;
         }
 
+        /* ── Success message ── */
+        .success-message {
+            background: #C6F6D5;
+            color: #22543D;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+            font-size: 13px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .success-message.show {
+            display: flex;
+        }
+
+        /* ── Footer ── */
         .login-footer {
             text-align: center;
-            margin-top: 25px;
-            padding-top: 20px;
+            margin-top: 20px;
+            padding-top: 16px;
             border-top: 1px solid var(--color-accent);
         }
 
         .login-footer p {
             color: var(--color-text-muted);
-            font-size: 13px;
-        }
-
-        .school-name {
-            text-align: center;
-            margin-top: 30px;
-            color: var(--color-text-muted);
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .school-name i {
-            margin-left: 5px;
-            color: var(--color-primary);
+            font-size: 12px;
         }
 
         .btn-back {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 2;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 20px;
-            margin-bottom: 16px;
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: var(--radius-sm);
-            color: var(--color-text-main);
-            font-size: 14px;
+            color: white;
+            font-size: 13px;
             font-weight: 600;
             font-family: inherit;
             cursor: pointer;
             text-decoration: none;
-            transition: var(--transition-fast);
-            box-shadow: var(--shadow-soft);
+            transition: all 0.2s ease;
         }
 
         .btn-back:hover {
-            background: var(--color-primary);
+            background: rgba(255, 255, 255, 0.25);
             color: white;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 106, 197, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .btn-back i {
-            font-size: 14px;
+        /* ── Password strength indicator ── */
+        .password-strength {
+            margin-top: 6px;
+            height: 3px;
+            border-radius: 3px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+
+        .password-strength-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 3px;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+
+        .password-strength-label {
+            font-size: 11px;
+            margin-top: 4px;
+            color: var(--color-text-muted);
+            font-weight: 600;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .login-brand-panel {
+                display: none;
+            }
+
+            .login-form-panel {
+                flex: 1;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="login-container">
-        <a href="index.html" class="btn-back">
-            <i class="fas fa-arrow-right"></i>
-            رجوع
-        </a>
-        <div class="login-card">
-            <div class="login-header">
-                <div class="login-logo">
+    <div class="login-split">
+        <!-- Right: Branding Panel -->
+        <div class="login-brand-panel">
+            <a href="index.html" class="btn-back">
+                <i class="fas fa-arrow-right"></i>
+                رجوع
+            </a>
+            <div class="brand-shape s1"></div>
+            <div class="brand-shape s2"></div>
+            <div class="brand-shape s3"></div>
+            <div class="brand-content">
+                <div class="brand-logo">
                     <i class="fas fa-graduation-cap"></i>
                 </div>
                 <h1>برنامج التدبير المدرسي</h1>
-                <p>تسجيل دخول المشرف فقط</p>
-            </div>
-
-
-
-            <div class="error-message" id="error-message">
-                <i class="fas fa-exclamation-circle"></i>
-                <span id="error-text"></span>
-            </div>
-
-            <form id="login-form">
-                <div class="form-group">
-                    <label for="email">البريد الإلكتروني</label>
-                    <div class="input-wrapper">
-                        <i class="fas fa-envelope"></i>
-                        <input type="email" id="email" placeholder="example@email.com" required>
+                <p>نظام متكامل لإدارة شؤون المؤسسة التعليمية والتلاميذ والأساتذة</p>
+                <div class="brand-features">
+                    <div class="brand-feature">
+                        <i class="fas fa-chart-line"></i>
+                        <span>إحصائيات ونتائج فورية</span>
+                    </div>
+                    <div class="brand-feature">
+                        <i class="fas fa-user-graduate"></i>
+                        <span>إدارة شاملة للتلاميذ</span>
+                    </div>
+                    <div class="brand-feature">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>أمان وحماية البيانات</span>
                     </div>
                 </div>
-
-                <div class="form-group">
-                    <label for="password">كلمة المرور</label>
-                    <div class="input-wrapper">
-                        <i class="fas fa-lock"></i>
-                        <input type="password" id="password" placeholder="••••••••" required>
-                    </div>
-                </div>
-
-                <button type="submit" class="btn-login" id="btn-login">
-                    <div class="spinner"></div>
-                    <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
-                </button>
-
-
-            </form>
-
-            <div class="login-footer">
-                <p>© 2026 جميع الحقوق محفوظة</p>
             </div>
         </div>
 
-        <p class="school-name">
-            <i class="fas fa-school"></i>
-            الثانوية التأهيلية ابن سينا
-        </p>
+        <!-- Left: Form Panel -->
+        <div class="login-form-panel">
+            <div class="login-container">
+                <!-- Tabs -->
+                <div class="auth-tabs">
+                    <button class="auth-tab active" data-tab="login" id="tab-login">
+                        <i class="fas fa-sign-in-alt"></i>
+                        تسجيل الدخول
+                    </button>
+                    <button class="auth-tab" data-tab="register" id="tab-register" disabled style="display:none;">
+                        <i class="fas fa-user-plus"></i>
+                        إنشاء حساب
+                    </button>
+                </div>
+
+                <div class="login-card">
+                    <!-- ── Login Form ── -->
+                    <div class="auth-form active" id="form-login">
+                        <div class="error-message" id="login-error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span id="login-error-text"></span>
+                        </div>
+
+                        <form id="login-form">
+                            <div class="form-group">
+                                <label for="login-email">البريد الإلكتروني</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-envelope"></i>
+                                    <input type="email" id="login-email" placeholder="example@email.com" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="login-password">كلمة المرور</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-lock"></i>
+                                    <input type="password" id="login-password" placeholder="••••••••" required>
+                                    <button type="button" class="password-toggle" data-target="login-password"
+                                        aria-label="إظهار كلمة المرور">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="remember-row">
+                                <input type="checkbox" id="remember-me">
+                                <label for="remember-me">تذكرني</label>
+                            </div>
+
+                            <button type="submit" class="btn-login" id="btn-login">
+                                <div class="spinner"></div>
+                                <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- ── Register Form ── -->
+                    <div class="auth-form" id="form-register">
+                        <div class="error-message" id="register-error">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span id="register-error-text"></span>
+                        </div>
+                        <div class="success-message" id="register-success">
+                            <i class="fas fa-check-circle"></i>
+                            <span id="register-success-text"></span>
+                        </div>
+
+                        <form id="register-form">
+                            <div class="form-group">
+                                <label for="reg-name">الاسم الكامل</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" id="reg-name" placeholder="أحمد محمد" required minlength="2">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="reg-email">البريد الإلكتروني</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-envelope"></i>
+                                    <input type="email" id="reg-email" placeholder="example@email.com" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="reg-password">كلمة المرور</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-lock"></i>
+                                    <input type="password" id="reg-password" placeholder="6 أحرف على الأقل" required
+                                        minlength="6">
+                                    <button type="button" class="password-toggle" data-target="reg-password"
+                                        aria-label="إظهار كلمة المرور">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="password-strength" id="pw-strength">
+                                    <div class="password-strength-bar" id="pw-strength-bar"></div>
+                                </div>
+                                <div class="password-strength-label" id="pw-strength-label"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="reg-password-confirm">تأكيد كلمة المرور</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-lock"></i>
+                                    <input type="password" id="reg-password-confirm" placeholder="أعد كتابة كلمة المرور"
+                                        required minlength="6">
+                                    <button type="button" class="password-toggle" data-target="reg-password-confirm"
+                                        aria-label="إظهار كلمة المرور">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn-login" id="btn-register">
+                                <div class="spinner"></div>
+                                <span><i class="fas fa-user-plus"></i> إنشاء حساب</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="login-footer">
+                        <p>© 2026 جميع الحقوق محفوظة</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        const form = document.getElementById('login-form');
+        // ── DOM refs ──
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
         const btnLogin = document.getElementById('btn-login');
-        const errorMessage = document.getElementById('error-message');
-        const errorText = document.getElementById('error-text');
+        const btnRegister = document.getElementById('btn-register');
+        const loginError = document.getElementById('login-error');
+        const loginErrorText = document.getElementById('login-error-text');
+        const registerError = document.getElementById('register-error');
+        const registerErrorText = document.getElementById('register-error-text');
+        const registerSuccess = document.getElementById('register-success');
+        const registerSuccessText = document.getElementById('register-success-text');
 
+        // ── Tabs ──
+        document.querySelectorAll('.auth-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.tab;
+                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`form-${target}`).classList.add('active');
+                // Clear errors
+                loginError.classList.remove('show');
+                registerError.classList.remove('show');
+                registerSuccess.classList.remove('show');
+            });
+        });
 
+        // ── Show/hide password toggle ──
+        document.querySelectorAll('.password-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.dataset.target;
+                const input = document.getElementById(targetId);
+                if (!input) return;
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                const icon = btn.querySelector('i');
+                icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+            });
+        });
+
+        // ── Password strength ──
+        const regPassword = document.getElementById('reg-password');
+        const strengthBar = document.getElementById('pw-strength-bar');
+        const strengthLabel = document.getElementById('pw-strength-label');
+
+        regPassword.addEventListener('input', () => {
+            const pw = regPassword.value;
+            let score = 0;
+            if (pw.length >= 6) score++;
+            if (pw.length >= 8) score++;
+            if (/[A-Z]/.test(pw)) score++;
+            if (/[0-9]/.test(pw)) score++;
+            if (/[^A-Za-z0-9]/.test(pw)) score++;
+
+            const levels = [
+                { width: '0%', color: '#e5e7eb', label: '' },
+                { width: '20%', color: '#EF4444', label: 'ضعيفة' },
+                { width: '40%', color: '#F59E0B', label: 'مقبولة' },
+                { width: '60%', color: '#3B82F6', label: 'متوسطة' },
+                { width: '80%', color: '#10B981', label: 'جيدة' },
+                { width: '100%', color: '#059669', label: 'قوية' }
+            ];
+
+            const level = levels[Math.min(score, levels.length - 1)];
+            strengthBar.style.width = level.width;
+            strengthBar.style.background = level.color;
+            strengthLabel.textContent = pw.length > 0 ? level.label : '';
+            strengthLabel.style.color = level.color;
+        });
+
+        // ── Remember me ──
+        const REMEMBER_KEY = 'gsl_remember_email';
+        const loginEmail = document.getElementById('login-email');
+        const rememberMe = document.getElementById('remember-me');
+
+        try {
+            const savedEmail = localStorage.getItem(REMEMBER_KEY);
+            if (savedEmail) {
+                loginEmail.value = savedEmail;
+                rememberMe.checked = true;
+            }
+        } catch (_) { }
+
+        // ── Helpers ──
         function getSafeNextPage() {
             const params = new URLSearchParams(window.location.search);
             const next = String(params.get('next') || '').trim();
@@ -343,32 +760,36 @@
             if (!window.api?.auth?.getSession) return;
             try {
                 const res = await window.api.auth.getSession();
-                if (res?.success && res?.authenticated && String(res.user?.role || '').toLowerCase() === 'admin') {
+                if (res?.success && res?.authenticated && res.user?.role) {
                     const nextPage = getSafeNextPage();
                     window.location.replace(`${nextPage}?loggedin=1`);
                 }
-            } catch (_err) {
-                // ignore
-            }
+            } catch (_err) { }
         }
 
         function clearLocalSession() {
-            try {
-                localStorage.removeItem('gsl_auth_session_v1');
-            } catch (_err) {
-                // ignore storage errors
-            }
+            try { localStorage.removeItem('gsl_auth_session_v1'); } catch (_) { }
         }
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        function saveRememberMe(email) {
+            try {
+                if (rememberMe.checked) {
+                    localStorage.setItem(REMEMBER_KEY, email);
+                } else {
+                    localStorage.removeItem(REMEMBER_KEY);
+                }
+            } catch (_) { }
+        }
 
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+        // ── Login ──
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = loginEmail.value;
+            const password = document.getElementById('login-password').value;
 
             btnLogin.classList.add('loading');
             btnLogin.disabled = true;
-            errorMessage.classList.remove('show');
+            loginError.classList.remove('show');
 
             try {
                 if (!window.api?.auth?.login) {
@@ -378,66 +799,140 @@
                 const appSessionRes = await window.api.auth.login({ email, password });
                 if (!appSessionRes?.success || !appSessionRes?.authenticated) {
                     clearLocalSession();
-                    errorText.textContent = appSessionRes?.error || 'فشل تسجيل الدخول';
-                    errorMessage.classList.add('show');
+                    loginErrorText.textContent = appSessionRes?.error || 'فشل تسجيل الدخول';
+                    loginError.classList.add('show');
                     btnLogin.classList.remove('loading');
                     btnLogin.disabled = false;
                     return;
                 }
 
                 const sessionUser = appSessionRes.user || {};
-                if (String(sessionUser.role || '').toLowerCase() !== 'admin') {
-                    await window.api.auth.logout();
-                    clearLocalSession();
-                    errorText.textContent = 'هذه الصفحة مخصصة للمشرف فقط';
-                    errorMessage.classList.add('show');
-                    btnLogin.classList.remove('loading');
-                    btnLogin.disabled = false;
-                    return;
+                const userRole = String(sessionUser.role || 'staff').toLowerCase();
+
+                // Save remember-me
+                saveRememberMe(email);
+
+                // Compute session hash (same logic as utils.js)
+                function _computeSessionHash(data) {
+                    const payload = [data.userId, data.role, data.loggedAt].join('|');
+                    let hash = 0;
+                    const key = 'gsl_session_integrity_2024';
+                    const combined = key + ':' + payload;
+                    for (let i = 0; i < combined.length; i++) {
+                        const char = combined.charCodeAt(i);
+                        hash = ((hash << 5) - hash) + char;
+                        hash = hash & hash;
+                    }
+                    return hash.toString(36);
                 }
 
-                localStorage.setItem(
-                    'gsl_auth_session_v1',
-                    JSON.stringify({
-                        userId: Number(sessionUser.userId || 0),
-                        name: String(sessionUser.name || ''),
-                        email: String(sessionUser.email || email || '').trim().toLowerCase(),
-                        role: 'admin',
-                        loggedAt: Date.now(),
-                        source: 'sqlite'
-                    })
-                );
+                const sessionData = {
+                    userId: Number(sessionUser.userId || 0),
+                    name: String(sessionUser.name || ''),
+                    email: String(sessionUser.email || email || '').trim().toLowerCase(),
+                    role: userRole,
+                    loggedAt: Date.now(),
+                    source: 'sqlite'
+                };
+                sessionData._h = _computeSessionHash(sessionData);
+                localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
 
                 const nextPage = getSafeNextPage();
                 window.location.replace(`${nextPage}?loggedin=1`);
             } catch (error) {
                 let message = 'حدث خطأ أثناء تسجيل الدخول';
-
                 switch (error.code) {
-                    case 'USER_NOT_FOUND':
-                        message = 'البريد الإلكتروني غير مسجل';
-                        break;
-                    case 'INVALID_CREDENTIALS':
-                        message = 'كلمة المرور غير صحيحة';
-                        break;
-                    case 'INVALID_EMAIL':
-                        message = 'البريد الإلكتروني غير صالح';
-                        break;
-                    case 'INVALID_PASSWORD':
-                        message = 'كلمة المرور مطلوبة';
-                        break;
-                    case 'PASSWORD_NOT_SET':
-                        message = 'لم يتم إعداد كلمة مرور لهذا المستخدم';
-                        break;
-                    case 'USER_DISABLED':
-                        message = 'هذا المستخدم معطّل من طرف الإدارة';
-                        break;
+                    case 'USER_NOT_FOUND': message = 'البريد الإلكتروني غير مسجل'; break;
+                    case 'INVALID_CREDENTIALS': message = 'كلمة المرور غير صحيحة'; break;
+                    case 'INVALID_EMAIL': message = 'البريد الإلكتروني غير صالح'; break;
+                    case 'INVALID_PASSWORD': message = 'كلمة المرور مطلوبة'; break;
+                    case 'PASSWORD_NOT_SET': message = 'لم يتم إعداد كلمة مرور لهذا المستخدم'; break;
+                    case 'USER_DISABLED': message = 'هذا المستخدم معطّل من طرف الإدارة'; break;
                 }
-
-                errorText.textContent = message;
-                errorMessage.classList.add('show');
+                loginErrorText.textContent = message;
+                loginError.classList.add('show');
                 btnLogin.classList.remove('loading');
                 btnLogin.disabled = false;
+            }
+        });
+
+        // ── Register ──
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            const confirmPassword = document.getElementById('reg-password-confirm').value;
+
+            registerError.classList.remove('show');
+            registerSuccess.classList.remove('show');
+
+            if (password !== confirmPassword) {
+                registerErrorText.textContent = 'كلمتا المرور غير متطابقتين';
+                registerError.classList.add('show');
+                return;
+            }
+
+            if (password.length < 6) {
+                registerErrorText.textContent = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+                registerError.classList.add('show');
+                return;
+            }
+
+            btnRegister.classList.add('loading');
+            btnRegister.disabled = true;
+
+            try {
+                if (!window.api?.auth?.register) {
+                    throw new Error('تعذر تهيئة جلسة التطبيق');
+                }
+
+                const res = await window.api.auth.register({ name, email, password });
+                if (!res?.success) {
+                    registerErrorText.textContent = res?.error || 'فشل إنشاء الحساب';
+                    registerError.classList.add('show');
+                    btnRegister.classList.remove('loading');
+                    btnRegister.disabled = false;
+                    return;
+                }
+
+                // Registration successful
+                registerSuccessText.textContent = 'تم إنشاء حسابك بنجاح! جاري التحويل...';
+                registerSuccess.classList.add('show');
+
+                // Store session for the staff user
+                const sessionUser = res.user || {};
+                function _computeSessionHash(data) {
+                    const payload = [data.userId, data.role, data.loggedAt].join('|');
+                    let hash = 0;
+                    const key = 'gsl_session_integrity_2024';
+                    const combined = key + ':' + payload;
+                    for (let i = 0; i < combined.length; i++) {
+                        const char = combined.charCodeAt(i);
+                        hash = ((hash << 5) - hash) + char;
+                        hash = hash & hash;
+                    }
+                    return hash.toString(36);
+                }
+                const sessionData = {
+                    userId: Number(sessionUser.userId || 0),
+                    name: String(sessionUser.name || name),
+                    email: String(sessionUser.email || email).trim().toLowerCase(),
+                    role: String(sessionUser.role || 'staff'),
+                    loggedAt: Date.now(),
+                    source: 'sqlite'
+                };
+                sessionData._h = _computeSessionHash(sessionData);
+                localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
+
+                setTimeout(() => {
+                    window.location.replace('index.html');
+                }, 1200);
+            } catch (error) {
+                registerErrorText.textContent = error.message || 'حدث خطأ أثناء إنشاء الحساب';
+                registerError.classList.add('show');
+                btnRegister.classList.remove('loading');
+                btnRegister.disabled = false;
             }
         });
 

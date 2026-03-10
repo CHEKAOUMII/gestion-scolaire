@@ -3,6 +3,7 @@ const { registerAbsencesIpc } = require('./absences');
 const { registerAuthIpc } = require('./auth');
 const { registerSchoolOpsIpc } = require('./schoolOps');
 const { registerStaffIpc } = require('./staff');
+const { registerStaffAttendanceIpc } = require('./staffAttendance');
 const { registerExamsIpc } = require('./exams');
 const { registerSystemIpc } = require('./system');
 const { registerLicensingIpc } = require('./licensing');
@@ -18,6 +19,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerAbsencesIpc(ipcMain);
     registerSchoolOpsIpc(ipcMain);
     registerStaffIpc(ipcMain);
+    registerStaffAttendanceIpc(ipcMain);
     registerExamsIpc(ipcMain);
     registerSystemIpc(ipcMain);
     registerLicensingIpc(ipcMain);

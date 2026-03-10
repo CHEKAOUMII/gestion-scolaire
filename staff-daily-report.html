@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>التقرير اليومي | برنامج التدبير المدرسي</title>
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+    <style>
+        /* ─── Print-only header ─── */
+        .print-report-header {
+            display: none;
+            /* hidden on screen */
+        }
+
+        /* Print-specific overrides captured by openPrintPreview clone */
+        .print-report-header {
+            display: none;
+        }
+
+        .ux-pp-body .print-report-header {
+            display: flex !important;
+            align-items: baseline;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #3B6AC5;
+            padding-bottom: 8px;
+        }
+
+        .ux-pp-body .print-report-header h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a2332;
+            margin: 0;
+        }
+
+        .ux-pp-body .print-report-header .print-report-date {
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .ux-pp-body .report-stats {
+            display: none !important;
+        }
+
+        .ux-pp-body .report-section-header i {
+            display: none !important;
+        }
+
+        .ux-pp-body #absences-section .report-section-header .badge-count,
+        .ux-pp-body #compensatory-section .report-section-header .badge-count,
+        .ux-pp-body #tardiness-section .report-section-header .badge-count {
+            display: none !important;
+        }
+
+        .ux-pp-body #affected-section {
+            display: none !important;
+        }
+
+        /* ─── Daily Report Page Styles ─── */
+        .report-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 16px 20px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+        }
+
+        .report-controls label {
+            font-family: var(--font-main);
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--color-text-main);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .report-controls input[type="date"] {
+            padding: 8px 14px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-size: 14px;
+            background: var(--color-surface-alt);
+            color: var(--color-text-main);
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+
+        .report-controls input[type="date"]:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-mist);
+        }
+
+        .report-controls .report-date-display {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--color-primary);
+            margin-right: auto;
+        }
+
+        /* ─── Stat Cards ─── */
+        .report-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .report-stat-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: var(--transition-normal);
+            animation: fadeInUp 0.4s ease-out both;
+        }
+
+        .report-stat-card:nth-child(1) {
+            animation-delay: 0.05s;
+        }
+
+        .report-stat-card:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .report-stat-card:nth-child(3) {
+            animation-delay: 0.15s;
+        }
+
+        .report-stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+            border-color: var(--color-primary-light);
+        }
+
+        .report-stat-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .report-stat-icon.danger {
+            background: rgba(232, 93, 93, 0.12);
+            color: var(--color-danger-bg);
+        }
+
+        .report-stat-icon.warning {
+            background: rgba(240, 173, 78, 0.12);
+            color: var(--color-warning-bg);
+        }
+
+        .report-stat-icon.info {
+            background: rgba(59, 106, 197, 0.10);
+            color: var(--color-primary);
+        }
+
+        .report-stat-body h4 {
+            margin: 0;
+            font-family: var(--font-display);
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--color-text-main);
+            line-height: 1;
+        }
+
+        .report-stat-body p {
+            margin: 4px 0 0;
+            font-family: var(--font-main);
+            font-size: 13px;
+            color: var(--color-text-muted);
+            font-weight: 500;
+        }
+
+        /* ─── Tables ─── */
+        .report-section {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-md);
+            margin-bottom: 20px;
+            overflow: hidden;
+            animation: fadeInUp 0.4s ease-out both;
+        }
+
+        .report-section:nth-of-type(1) {
+            animation-delay: 0.1s;
+        }
+
+        .report-section:nth-of-type(2) {
+            animation-delay: 0.15s;
+        }
+
+        .report-section:nth-of-type(3) {
+            animation-delay: 0.2s;
+        }
+
+        .report-section-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--color-accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--color-surface-alt);
+        }
+
+        .report-section-header h3 {
+            margin: 0;
+            font-family: var(--font-display);
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--color-text-main);
+        }
+
+        .report-section-header i {
+            color: var(--color-primary);
+            font-size: 16px;
+        }
+
+        .report-section-header .badge-count {
+            background: var(--color-primary);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: var(--radius-full);
+            margin-right: auto;
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-main);
+            font-size: 14px;
+        }
+
+        .report-table th {
+            background: var(--color-surface-alt);
+            color: var(--color-text-muted);
+            padding: 10px 16px;
+            font-weight: 600;
+            text-align: right;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--color-accent);
+            font-size: 13px;
+        }
+
+        .report-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--color-accent);
+            color: var(--color-text-main);
+            vertical-align: middle;
+        }
+
+        .report-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .report-table tbody tr:hover td {
+            background: var(--color-primary-mist);
+        }
+
+        .report-table .empty-row td {
+            text-align: center;
+            padding: 28px 16px;
+            color: var(--color-text-muted);
+            font-style: italic;
+        }
+
+        .section-tag {
+            display: inline-block;
+            background: var(--color-primary-mist);
+            color: var(--color-primary);
+            padding: 2px 10px;
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-weight: 600;
+            margin: 2px;
+        }
+
+        .justified-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .justified-badge.yes {
+            background: rgba(46, 204, 113, 0.12);
+            color: var(--color-success);
+        }
+
+        .justified-badge.no {
+            background: rgba(232, 93, 93, 0.12);
+            color: var(--color-danger);
+        }
+
+        /* ─── Affected Sections Grid ─── */
+        .affected-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+            padding: 16px 20px;
+        }
+
+        .affected-item {
+            background: var(--color-surface-alt);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            transition: var(--transition-fast);
+        }
+
+        .affected-item:hover {
+            border-color: var(--color-primary-light);
+        }
+
+        .affected-item .teacher-name {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--color-text-main);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .affected-item .teacher-name i {
+            color: var(--color-danger-bg);
+            font-size: 13px;
+        }
+
+        .affected-item .sections-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        /* ─── Empty State ─── */
+        .report-empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--color-text-muted);
+        }
+
+        .report-empty-state i {
+            font-size: 48px;
+            color: var(--color-primary-light);
+            display: block;
+            margin-bottom: 12px;
+            opacity: 0.6;
+        }
+
+        .report-empty-state p {
+            font-size: 15px;
+            margin: 0;
+        }
+
+        /* ─── Print Styles ─── */
+        @media print {
+            body {
+                background: #fff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .sidebar,
+            .header,
+            .toast-container,
+            .report-controls .btn-primary,
+            .report-controls .btn-secondary,
+            #print-btn,
+            #pdf-btn {
+                display: none !important;
+            }
+
+            .main-content {
+                margin: 0 !important;
+                padding: 10px !important;
+            }
+
+            .report-stat-card:hover,
+            .report-section-header,
+            .affected-item:hover {
+                transform: none !important;
+                box-shadow: none !important;
+            }
+
+            .report-controls {
+                border: none;
+                padding: 0 0 10px;
+                margin-bottom: 10px;
+                border-bottom: 2px solid #333;
+            }
+
+            .report-controls .report-date-display {
+                font-size: 18px;
+                color: #000;
+            }
+
+            .report-table th {
+                background: #f0f0f0 !important;
+            }
+
+            .report-section {
+                break-inside: avoid;
+                margin-bottom: 12px;
+            }
+
+            .report-stat-card {
+                border: 1px solid #ccc;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-file-alt"></i> التقرير اليومي</h2>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="grades-container">
+            <!-- Date controls -->
+            <div class="report-controls no-print">
+                <label for="report-date">
+                    <i class="fas fa-calendar-day"></i>
+                    تاريخ التقرير
+                </label>
+                <input type="date" id="report-date">
+                <button class="btn-primary" id="load-btn" type="button">
+                    <i class="fas fa-sync-alt"></i> تحميل التقرير
+                </button>
+                <span class="report-date-display" id="date-display"></span>
+                <button class="btn-secondary" id="print-btn" type="button" style="margin-right: auto;">
+                    <i class="fas fa-print"></i> طباعة
+                </button>
+            </div>
+
+            <!-- Print-only title + date (hidden on screen, visible in print) -->
+            <div class="print-report-header" id="print-report-header">
+                <h2>التقرير اليومي</h2>
+                <span class="print-report-date" id="print-date-display"></span>
+            </div>
+
+            <!-- Stat Cards -->
+            <div class="report-stats no-print" id="stat-cards">
+                <div class="report-stat-card">
+                    <div class="report-stat-icon danger">
+                        <i class="fas fa-user-minus"></i>
+                    </div>
+                    <div class="report-stat-body">
+                        <h4 id="stat-absent">0</h4>
+                        <p>أساتذة غائبون</p>
+                    </div>
+                </div>
+                <div class="report-stat-card">
+                    <div class="report-stat-icon warning"
+                        style="background: rgba(240, 173, 78, 0.12); color: var(--color-warning-bg);">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="report-stat-body">
+                        <h4 id="stat-late">0</h4>
+                        <p>حالات تأخر</p>
+                    </div>
+                </div>
+                <div class="report-stat-card">
+                    <div class="report-stat-icon warning">
+                        <i class="fas fa-chalkboard"></i>
+                    </div>
+                    <div class="report-stat-body">
+                        <h4 id="stat-sections">0</h4>
+                        <p>أقسام متضررة</p>
+                    </div>
+                </div>
+                <div class="report-stat-card">
+                    <div class="report-stat-icon info">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="report-stat-body">
+                        <h4 id="stat-hours">0</h4>
+                        <p>ساعات ضائعة</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher Absences Table -->
+            <div class="report-section" id="absences-section">
+                <div class="report-section-header">
+                    <i class="fas fa-user-minus"></i>
+                    <h3>الأساتذة الغائبون</h3>
+                    <span class="badge-count" id="absence-count">0</span>
+                </div>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الأستاذ(ة)</th>
+                            <th>المادة</th>
+                            <th>التوقيت/المدة</th>
+                            <th>السبب</th>
+                            <th>الأقسام المتضررة</th>
+                        </tr>
+                    </thead>
+                    <tbody id="absences-tbody">
+                        <tr class="empty-row">
+                            <td colspan="6">اختر تاريخاً لعرض التقرير</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Affected Sections -->
+            <div class="report-section" id="affected-section">
+                <div class="report-section-header">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>الحصص المتضررة التي تحتاج تعويض</h3>
+                    <span class="badge-count" id="affected-count">0</span>
+                </div>
+                <div class="affected-grid" id="affected-grid">
+                    <div class="report-empty-state" style="grid-column: 1 / -1;">
+                        <i class="fas fa-check-circle"></i>
+                        <p>لا توجد حصص متضررة</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tardiness Table -->
+            <div class="report-section" id="tardiness-section">
+                <div class="report-section-header">
+                    <i class="fas fa-clock"></i>
+                    <h3>التأخرات</h3>
+                    <span class="badge-count" id="tardiness-count">0</span>
+                </div>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>الأستاذ(ة)</th>
+                            <th>المادة</th>
+                            <th>وقت الوصول</th>
+                            <th>مدة التأخر</th>
+                            <th>السبب</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tardiness-tbody">
+                        <tr class="empty-row">
+                            <td colspan="6">لا توجد تأخرات</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Compensatory Hours by Section -->
+            <div class="report-section" id="compensatory-section">
+                <div class="report-section-header">
+                    <i class="fas fa-redo-alt"></i>
+                    <h3>الأقسام الأكثر احتياجاً لحصص تعويضية</h3>
+                    <span class="badge-count" id="compensatory-count">0</span>
+                </div>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>القسم</th>
+                            <th>عدد الساعات الضائعة</th>
+                            <th>الأساتذة الغائبون</th>
+                        </tr>
+                    </thead>
+                    <tbody id="compensatory-tbody">
+                        <tr class="empty-row">
+                            <td colspan="4">اختر تاريخاً لعرض التقرير</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        /** Format a date string to Arabic locale */
+        function formatDateAr(dateStr) {
+            try {
+                const d = new Date(dateStr + 'T00:00:00');
+                return d.toLocaleDateString('ar-MA', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+            } catch {
+                return dateStr;
+            }
+        }
+
+        /** Get today's date as YYYY-MM-DD */
+        function todayStr() {
+            const d = new Date();
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+        }
+
+        /** Convert YYYY-MM-DD to dd/mm/yyyy */
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            return parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+
+        const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const dateInput = document.getElementById('report-date');
+            dateInput.value = todayStr();
+            loadReport();
+
+            document.getElementById('load-btn').addEventListener('click', loadReport);
+            dateInput.addEventListener('change', loadReport);
+
+            document.getElementById('print-btn').addEventListener('click', () => {
+                openPrintPreview({ title: 'التقرير اليومي', pageSize: 'A4' });
+            });
+        });
+
+        /**
+         * Normalize a name for fuzzy matching:
+         * remove underscores, collapse whitespace, strip Arabic diacritics, trim
+         */
+        function normalizeName(name) {
+            return (name || '')
+                .replace(/_/g, ' ')
+                .replace(/[\u064B-\u065F\u0670]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        /**
+         * Get the sections a teacher was scheduled to teach on a specific date,
+         * reading from the timetable stored in localStorage.
+         * Falls back to the provided fallbackSections if timetable data is unavailable.
+         */
+        function getSectionsForDay(teacherName, dateStr, fallbackSections) {
+            try {
+                const raw = localStorage.getItem('timetableData');
+                if (!raw) return fallbackSections || [];
+                const data = JSON.parse(raw);
+                if (!data || !data.timetables) return fallbackSections || [];
+
+                const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                const dateObj = new Date(dateStr + 'T00:00:00');
+                const dayName = dayNames[dateObj.getDay()];
+
+                const normalizedTarget = normalizeName(teacherName);
+                const timetableTeachers = Object.keys(data.timetables);
+
+                // 1. Exact match  2. Normalized  3. Partial
+                let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === teacherName);
+                if (!teacherKey) {
+                    teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
+                }
+                if (!teacherKey) {
+                    teacherKey = timetableTeachers.find(k => {
+                        const nk = normalizeName(k);
+                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
+                    });
+                }
+                if (!teacherKey) return fallbackSections || [];
+
+                const dayData = data.timetables[teacherKey][dayName];
+                if (!dayData) return [];
+
+                const sections = new Set();
+                for (const [period, hours] of Object.entries(dayData)) {
+                    for (const [hour, lesson] of Object.entries(hours)) {
+                        const students = (lesson.students || '').trim();
+                        if (students) {
+                            const baseClass = students.replace(/:[Gg]\d+$/g, '').trim();
+                            if (baseClass) sections.add(baseClass);
+                        }
+                    }
+                }
+                return [...sections].sort();
+            } catch (e) {
+                console.warn('Error reading timetable for day filtering:', e);
+                return fallbackSections || [];
+            }
+        }
+
+        /**
+         * Format a raw subject string (possibly comma-separated GROUP_CONCAT)
+         * into a clean, normalized, deduplicated display.
+         */
+        function formatSubject(rawSubject) {
+            if (!rawSubject) return '—';
+            const subjects = rawSubject.split(',').map(s => {
+                const trimmed = s.trim();
+                return typeof normalizeSubjectName === 'function'
+                    ? normalizeSubjectName(trimmed)
+                    : trimmed;
+            }).filter(Boolean);
+            // Deduplicate
+            const unique = [...new Set(subjects)];
+            return unique.length > 0 ? escapeHtml(unique.join('، ')) : '—';
+        }
+
+        /**
+         * Get the scheduled time periods for a teacher on a specific date.
+         * Returns an array of period strings, e.g. ['08:00-09:00', '10:00-11:00']
+         */
+        function getScheduleForDay(teacherName, dateStr, fallback) {
+            try {
+                const raw = localStorage.getItem('timetableData');
+                if (!raw) return fallback || [];
+                const data = JSON.parse(raw);
+                if (!data || !data.timetables) return fallback || [];
+
+                const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                const dateObj = new Date(dateStr + 'T00:00:00');
+                const dayName = dayNames[dateObj.getDay()];
+
+                const normalizedTarget = normalizeName(teacherName);
+                const timetableTeachers = Object.keys(data.timetables);
+
+                let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === teacherName);
+                if (!teacherKey) {
+                    teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
+                }
+                if (!teacherKey) {
+                    teacherKey = timetableTeachers.find(k => {
+                        const nk = normalizeName(k);
+                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
+                    });
+                }
+                if (!teacherKey) return fallback || [];
+
+                const dayData = data.timetables[teacherKey][dayName];
+                if (!dayData) return [];
+
+                const periodMap = {
+                    'h1': '08:00-09:00', 'h2': '09:00-10:00',
+                    'h3': '10:00-11:00', 'h4': '11:00-12:00',
+                    'h5': '14:00-15:00', 'h6': '15:00-16:00',
+                    'h7': '16:00-17:00', 'h8': '17:00-18:00'
+                };
+
+                const periods = [];
+                for (const [periodType, hours] of Object.entries(dayData)) {
+                    if (!hours || typeof hours !== 'object') continue;
+                    const sortedKeys = Object.keys(hours).sort();
+                    for (const h of sortedKeys) {
+                        if (hours[h]) {
+                            periods.push(periodMap[h] || h);
+                        }
+                    }
+                }
+                return periods;
+            } catch (e) {
+                console.warn('Error reading schedule:', e);
+                return fallback || [];
+            }
+        }
+
+        async function loadReport() {
+            const date = document.getElementById('report-date').value;
+            if (!date) return;
+
+            // Update date display
+            const dateDisplayText = formatDateAr(date);
+            document.getElementById('date-display').textContent = dateDisplayText;
+            document.getElementById('print-date-display').textContent = dateDisplayText;
+
+            let data;
+            try {
+                data = await window.api.dailyReport.getData(date, year);
+            } catch (err) {
+                console.error('Error loading daily report:', err);
+                showToast('خطأ في تحميل التقرير', 'error');
+                return;
+            }
+
+            if (!data) {
+                showToast('لا توجد بيانات', 'warning');
+                return;
+            }
+
+            const { absences, staffAbsences, staffTardiness, teacherSections: backendTeacherSections, sectionStudentCounts, allSections, affectedSections: backendAffected } = data;
+
+            // Override teacher sections with timetable data filtered by actual day
+            const teacherSectionsOverride = {};
+            const affectedSections = {};
+
+            // Combine all absence lists for display
+            const allAbsences = [...(absences || []), ...(staffAbsences || [])];
+            // Deduplicate by full_name (same teacher shouldn't appear twice)
+            const seenNames = new Set();
+            const uniqueAbsences = allAbsences.filter(a => {
+                if (!a.full_name || seenNames.has(a.full_name)) return false;
+                seenNames.add(a.full_name);
+                return true;
+            });
+
+            // Build day-specific sections for each absent teacher
+            for (const absence of uniqueAbsences) {
+                const name = absence.full_name;
+                if (!name) continue;
+                const fallback = (backendTeacherSections && backendTeacherSections[name]) || [];
+                const daySections = getSectionsForDay(name, date, fallback);
+                teacherSectionsOverride[name] = daySections;
+                if (daySections.length > 0) {
+                    affectedSections[name] = daySections;
+                }
+            }
+
+            // Use the overridden teacher sections
+            const teacherSections = teacherSectionsOverride;
+
+            // ── Stat Cards ──
+            const absentCount = uniqueAbsences.length;
+            const lateCount = staffTardiness ? staffTardiness.length : 0;
+            const affectedSectionNames = new Set();
+            if (affectedSections) {
+                for (const sections of Object.values(affectedSections)) {
+                    sections.forEach(s => affectedSectionNames.add(s));
+                }
+            }
+
+            document.getElementById('stat-absent').textContent = absentCount;
+            document.getElementById('stat-late').textContent = lateCount;
+            document.getElementById('stat-sections').textContent = affectedSectionNames.size;
+
+            // ── Teacher Absences Table ──
+            document.getElementById('absence-count').textContent = absentCount;
+            const absencesTbody = document.getElementById('absences-tbody');
+
+            if (absentCount === 0) {
+                absencesTbody.innerHTML = `
+                    <tr class="empty-row">
+                        <td colspan="6">
+                            <i class="fas fa-check-circle" style="color: var(--color-success-bg); margin-left: 8px;"></i>
+                            لا يوجد أساتذة غائبون في هذا اليوم
+                        </td>
+                    </tr>`;
+            } else {
+                absencesTbody.innerHTML = uniqueAbsences.map((a, i) => {
+                    const sections = (teacherSections && teacherSections[a.full_name])
+                        ? teacherSections[a.full_name].map(s => `<span class="section-tag">${escapeHtml(s)}</span>`).join('')
+                        : '<span style="color: var(--color-text-light);">—</span>';
+                    // Get schedule hours from timetable for this day
+                    let scheduleHtml = '—';
+                    if (a.full_name) {
+                        const scheduleHours = getScheduleForDay(a.full_name, date, []);
+                        if (scheduleHours.length > 0) {
+                            scheduleHtml = scheduleHours
+                                .map(h => `<span class="section-tag" style="font-size: 11px;">${escapeHtml(h)}</span>`)
+                                .join('');
+                        }
+                    }
+                    return `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td><strong>${escapeHtml(a.full_name || '—')}</strong></td>
+                            <td>${formatSubject(a.subject)}</td>
+                            <td>${scheduleHtml}</td>
+                            <td>${escapeHtml(a.reason || '—')}</td>
+                            <td>${sections}</td>
+                        </tr>`;
+                }).join('');
+            }
+
+            // ── Affected Sections Grid ──
+            const affectedKeys = affectedSections ? Object.keys(affectedSections) : [];
+            document.getElementById('affected-count').textContent = affectedSectionNames.size;
+            const affectedGrid = document.getElementById('affected-grid');
+
+            if (affectedKeys.length === 0) {
+                affectedGrid.innerHTML = `
+                    <div class="report-empty-state" style="grid-column: 1 / -1;">
+                        <i class="fas fa-check-circle"></i>
+                        <p>لا توجد حصص متضررة</p>
+                    </div>`;
+            } else {
+                affectedGrid.innerHTML = affectedKeys.map(teacherName => {
+                    const sections = affectedSections[teacherName];
+                    return `
+                        <div class="affected-item">
+                            <div class="teacher-name">
+                                <i class="fas fa-user-minus"></i>
+                                ${escapeHtml(teacherName)}
+                            </div>
+                            <div class="sections-list">
+                                ${sections.map(s => `<span class="section-tag">${escapeHtml(s)}</span>`).join('')}
+                            </div>
+                        </div>`;
+                }).join('');
+            }
+
+            // ── Tardiness Table ──
+            const tardinessCount = staffTardiness ? staffTardiness.length : 0;
+            document.getElementById('tardiness-count').textContent = tardinessCount;
+            const tardinessTbody = document.getElementById('tardiness-tbody');
+
+            if (tardinessCount === 0) {
+                tardinessTbody.innerHTML = `
+                    <tr class="empty-row">
+                        <td colspan="6">
+                            <i class="fas fa-check-circle" style="color: var(--color-success-bg); margin-left: 8px;"></i>
+                            لا توجد تأخرات في هذا اليوم
+                        </td>
+                    </tr>`;
+            } else {
+                tardinessTbody.innerHTML = staffTardiness.map((t, i) => {
+                    return `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td><strong>${escapeHtml(t.full_name || '—')}</strong></td>
+                            <td>${escapeHtml(t.subject || '—')}</td>
+                            <td>${escapeHtml(t.arrival_time || '—')}</td>
+                            <td>${t.late_duration ? t.late_duration + ' دقيقة' : '—'}</td>
+                            <td>${escapeHtml(t.reason || '—')}</td>
+                        </tr>`;
+                }).join('');
+            }
+
+            // ── Compensatory Hours by Section ──
+            // Calculate how many hours each section lost due to absent teachers
+            const sectionHoursMap = {}; // { sectionName: { hours: number, teachers: Set } }
+
+            if (uniqueAbsences.length > 0) {
+                try {
+                    const raw = localStorage.getItem('timetableData');
+                    if (raw) {
+                        const ttData = JSON.parse(raw);
+                        if (ttData && ttData.timetables) {
+                            const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                            const dateObj = new Date(date + 'T00:00:00');
+                            const dayName = dayNames[dateObj.getDay()];
+                            const timetableTeachers = Object.keys(ttData.timetables);
+
+                            for (const absence of uniqueAbsences) {
+                                const name = absence.full_name;
+                                if (!name) continue;
+
+                                // Find teacher key using fuzzy matching
+                                const normalizedTarget = normalizeName(name);
+                                let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === name);
+                                if (!teacherKey) {
+                                    teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
+                                }
+                                if (!teacherKey) {
+                                    teacherKey = timetableTeachers.find(k => {
+                                        const nk = normalizeName(k);
+                                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
+                                    });
+                                }
+                                if (!teacherKey) continue;
+
+                                const dayData = ttData.timetables[teacherKey][dayName];
+                                if (!dayData) continue;
+
+                                // Iterate each period type (morning, afternoon)
+                                for (const [periodType, hours] of Object.entries(dayData)) {
+                                    if (!hours || typeof hours !== 'object') continue;
+                                    for (const [h, lesson] of Object.entries(hours)) {
+                                        if (!lesson) continue;
+                                        const sectionName = lesson.students || '';
+                                        if (!sectionName) continue;
+
+                                        if (!sectionHoursMap[sectionName]) {
+                                            sectionHoursMap[sectionName] = { hours: 0, teachers: new Set() };
+                                        }
+                                        sectionHoursMap[sectionName].hours += 1; // Each H = 1 hour
+                                        sectionHoursMap[sectionName].teachers.add(name);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error calculating compensatory hours:', e);
+                }
+            }
+
+            // Sort sections by hours descending
+            const sortedSections = Object.entries(sectionHoursMap)
+                .sort((a, b) => b[1].hours - a[1].hours);
+
+            // Update stat card with total lost hours
+            const totalLostHours = sortedSections.reduce((sum, [, data]) => sum + data.hours, 0);
+            document.getElementById('stat-hours').textContent = totalLostHours;
+
+            document.getElementById('compensatory-count').textContent = sortedSections.length;
+            const compensatoryTbody = document.getElementById('compensatory-tbody');
+
+            if (sortedSections.length === 0) {
+                compensatoryTbody.innerHTML = `
+                    <tr class="empty-row">
+                        <td colspan="4">
+                            <i class="fas fa-check-circle" style="color: var(--color-success-bg); margin-left: 8px;"></i>
+                            لا توجد أقسام تحتاج ساعات تعويضية
+                        </td>
+                    </tr>`;
+            } else {
+                compensatoryTbody.innerHTML = sortedSections.map(([section, data], i) => {
+                    const teacherNames = [...data.teachers].map(t => escapeHtml(t)).join('، ');
+                    return `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td><strong>${escapeHtml(section)}</strong></td>
+                            <td>
+                                <span class="justified-badge no" style="font-weight: 700; font-size: 14px;">
+                                    ${data.hours} ساعة
+                                </span>
+                            </td>
+                            <td style="font-size: 12px;">${teacherNames}</td>
+                        </tr>`;
+                }).join('');
+            }
+        }
+    </script>
+</body>
+
+</html>

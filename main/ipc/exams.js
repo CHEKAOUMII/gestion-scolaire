@@ -1,4 +1,5 @@
 const { handleRead, handleWrite, normalizeYear } = require('./ipc-helpers');
+const { requireFields, validateSchoolYear, validateDate } = require('./validation');
 
 function registerExamsIpc(ipcMain) {
     // ── Read handlers (no auth required) ──
@@ -10,11 +11,20 @@ function registerExamsIpc(ipcMain) {
     // ── Write handlers (require admin or staff role) ──
 
     handleWrite(ipcMain, 'exams:save', ['admin', 'staff'], (db, _event, payload) => {
+        requireFields(payload, ['title', 'school_year']);
+        validateSchoolYear(payload.school_year);
+        if (payload.exam_date) {
+            validateDate('exam_date', payload.exam_date);
+        }
         if (payload.id) {
-            db.prepare(
+            const safeId = Number(payload.id);
+            if (!Number.isFinite(safeId) || safeId <= 0) {
+                return { success: false, error: 'Invalid ID' };
+            }
+            const result = db.prepare(
                 `
                     UPDATE exams SET title = ?, section = ?, subject = ?, exam_date = ?, exam_time = ?, school_year = ?
-                    WHERE id = ?
+                    WHERE id = ? AND school_year = ?
                 `
             ).run(
                 payload.title,
@@ -23,8 +33,12 @@ function registerExamsIpc(ipcMain) {
                 payload.exam_date || null,
                 payload.exam_time || null,
                 payload.school_year,
-                payload.id
+                safeId,
+                payload.school_year
             );
+            if (result.changes === 0) {
+                return { success: false, error: 'Record not found or school year mismatch' };
+            }
         } else {
             db.prepare(
                 `
@@ -44,7 +58,11 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'exams:delete', ['admin', 'staff'], (db, _event, id) => {
-        db.prepare('DELETE FROM exams WHERE id = ?').run(id);
+        const examId = Number(id);
+        if (!Number.isFinite(examId) || examId <= 0) {
+            return { success: false, error: 'Invalid ID' };
+        }
+        db.prepare('DELETE FROM exams WHERE id = ?').run(examId);
         return { success: true };
     });
 
@@ -106,61 +124,11 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'examProctors:delete', ['admin', 'staff'], (db, _event, id) => {
-        db.prepare('DELETE FROM exam_proctors WHERE id = ?').run(id);
-        return { success: true };
-    });
-
-    handleRead(ipcMain, 'proctors:getAll', (db, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT id, teacher_name as teacher, room, date, session
-            FROM exam_proctors
-            WHERE school_year = ?
-            ORDER BY id DESC
-        `
-            )
-            .all(normalizeYear(schoolYear));
-    });
-
-    handleWrite(ipcMain, 'proctors:save', ['admin', 'staff'], (db, _event, payload) => {
-        const year = normalizeYear(payload.school_year);
-        if (payload.id) {
-            db.prepare(
-                `
-                    UPDATE exam_proctors
-                    SET teacher_name = ?, room = ?, date = ?, session = ?, school_year = ?
-                    WHERE id = ?
-                `
-            ).run(
-                payload.teacher || null,
-                payload.room || null,
-                payload.date || null,
-                payload.session || null,
-                year,
-                payload.id
-            );
-        } else {
-            db.prepare(
-                `
-                    INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, room, school_year, date, session)
-                    VALUES(?, ?, ?, ?, ?, ?, ?)
-                `
-            ).run(
-                null,
-                null,
-                payload.teacher || null,
-                payload.room || null,
-                year,
-                payload.date || null,
-                payload.session || null
-            );
+        const proctorId = Number(id);
+        if (!Number.isFinite(proctorId) || proctorId <= 0) {
+            return { success: false, error: 'Invalid ID' };
         }
-        return { success: true };
-    });
-
-    handleWrite(ipcMain, 'proctors:delete', ['admin', 'staff'], (db, _event, id) => {
-        db.prepare('DELETE FROM exam_proctors WHERE id = ?').run(id);
+        db.prepare('DELETE FROM exam_proctors WHERE id = ?').run(proctorId);
         return { success: true };
     });
 
@@ -172,15 +140,23 @@ function registerExamsIpc(ipcMain) {
 
     handleWrite(ipcMain, 'examRooms:save', ['admin', 'staff'], (db, _event, payload) => {
         if (payload.id) {
-            db.prepare(
-                'UPDATE exam_rooms SET room_name = ?, capacity = ?, equipment = ?, school_year = ? WHERE id = ?'
+            const safeId = Number(payload.id);
+            if (!Number.isFinite(safeId) || safeId <= 0) {
+                return { success: false, error: 'Invalid ID' };
+            }
+            const result = db.prepare(
+                'UPDATE exam_rooms SET room_name = ?, capacity = ?, equipment = ?, school_year = ? WHERE id = ? AND school_year = ?'
             ).run(
                 payload.room_name,
                 payload.capacity || 0,
                 payload.equipment || null,
                 payload.school_year,
-                payload.id
+                safeId,
+                payload.school_year
             );
+            if (result.changes === 0) {
+                return { success: false, error: 'Record not found or school year mismatch' };
+            }
         } else {
             db.prepare(
                 'INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)'
@@ -190,41 +166,11 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'examRooms:delete', ['admin'], (db, _event, id) => {
-        db.prepare('DELETE FROM exam_rooms WHERE id = ?').run(id);
-        return { success: true };
-    });
-
-    handleRead(ipcMain, 'rooms:getAll', (db, schoolYear) => {
-        const rows = db
-            .prepare(
-                'SELECT id, room_name, capacity, equipment FROM exam_rooms WHERE school_year = ? ORDER BY room_name'
-            )
-            .all(normalizeYear(schoolYear));
-        return rows.map((r) => ({ ...r, name: r.room_name }));
-    });
-
-    handleWrite(ipcMain, 'rooms:save', ['admin', 'staff'], (db, _event, payload) => {
-        const year = normalizeYear(payload.school_year);
-        if (payload.id) {
-            db.prepare(
-                'UPDATE exam_rooms SET room_name = ?, capacity = ?, equipment = ?, school_year = ? WHERE id = ?'
-            ).run(
-                payload.name || payload.room_name,
-                payload.capacity || 0,
-                payload.equipment || null,
-                year,
-                payload.id
-            );
-        } else {
-            db.prepare(
-                'INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)'
-            ).run(payload.name || payload.room_name, payload.capacity || 0, payload.equipment || null, year);
+        const roomId = Number(id);
+        if (!Number.isFinite(roomId) || roomId <= 0) {
+            return { success: false, error: 'Invalid ID' };
         }
-        return { success: true };
-    });
-
-    handleWrite(ipcMain, 'rooms:delete', ['admin', 'staff'], (db, _event, id) => {
-        db.prepare('DELETE FROM exam_rooms WHERE id = ?').run(id);
+        db.prepare('DELETE FROM exam_rooms WHERE id = ?').run(roomId);
         return { success: true };
     });
 
@@ -241,10 +187,14 @@ function registerExamsIpc(ipcMain) {
 
     handleWrite(ipcMain, 'tests:save', ['admin', 'staff'], (db, _event, payload) => {
         if (payload.id) {
-            db.prepare(
+            const safeId = Number(payload.id);
+            if (!Number.isFinite(safeId) || safeId <= 0) {
+                return { success: false, error: 'Invalid ID' };
+            }
+            const result = db.prepare(
                 `
                     UPDATE tests SET title = ?, section = ?, subject = ?, teacher_name = ?, status = ?, test_date = ?, school_year = ?
-                    WHERE id = ?
+                    WHERE id = ? AND school_year = ?
                 `
             ).run(
                 payload.title,
@@ -254,8 +204,12 @@ function registerExamsIpc(ipcMain) {
                 payload.status || 'planned',
                 payload.test_date || null,
                 payload.school_year,
-                payload.id
+                safeId,
+                payload.school_year
             );
+            if (result.changes === 0) {
+                return { success: false, error: 'Record not found or school year mismatch' };
+            }
         } else {
             db.prepare(
                 `
@@ -276,7 +230,11 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'tests:delete', ['admin', 'staff'], (db, _event, id) => {
-        db.prepare('DELETE FROM tests WHERE id = ?').run(id);
+        const testId = Number(id);
+        if (!Number.isFinite(testId) || testId <= 0) {
+            return { success: false, error: 'Invalid ID' };
+        }
+        db.prepare('DELETE FROM tests WHERE id = ?').run(testId);
         return { success: true };
     });
 }

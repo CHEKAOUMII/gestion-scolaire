@@ -135,6 +135,24 @@ function createTables() {
     );
     `);
 
+    // Staff attendance (absences + tardiness)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS staff_attendance(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        teacher_id INTEGER,
+        teacher_name TEXT,
+        subject TEXT,
+        attendance_date DATE NOT NULL,
+        type TEXT NOT NULL DEFAULT 'absence',
+        late_duration INTEGER,
+        arrival_time TEXT,
+        reason TEXT,
+        notes TEXT,
+        school_year TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    `);
+
     db.exec(`
         CREATE TABLE IF NOT EXISTS exams(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -266,6 +284,8 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_absences_year_month  ON absences(school_year, month);
         CREATE INDEX IF NOT EXISTS idx_teachers_year        ON teachers(school_year);
         CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
+        CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
+        CREATE INDEX IF NOT EXISTS idx_staff_attendance_date ON staff_attendance(attendance_date, school_year);
     `);
 }
 

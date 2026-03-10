@@ -20,10 +20,12 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'students-register.html', title: 'التسجيل والحركة العامة', group: 'التلاميذ', completed: true },
     { page: 'students-files.html', title: 'ترتيب الملفات', group: 'التلاميذ', completed: true },
     { page: 'students-movement.html', title: 'حركية التلاميذ', group: 'التلاميذ', completed: true },
-    { page: 'teachers-list.html', title: 'قائمة الأساتذة', group: 'الأساتذة', completed: true },
-    { page: 'teachers-schedule.html', title: 'حصص الأساتذة', group: 'الأساتذة', completed: true },
-    { page: 'teachers-absence.html', title: 'غياب الأساتذة', group: 'الأساتذة', completed: true },
-    { page: 'teachers-performance.html', title: 'مؤشرات الأداء', group: 'الأساتذة', completed: true },
+    { page: 'teachers-list.html', title: 'قائمة الأساتذة', group: 'تدبير الموظفين', completed: true },
+    { page: 'teachers-schedule.html', title: 'حصص الأساتذة', group: 'تدبير الموظفين', completed: true },
+    { page: 'teachers-absence.html', title: 'غياب الأساتذة', group: 'تدبير الموظفين', completed: true },
+    { page: 'teachers-performance.html', title: 'مؤشرات الأداء', group: 'تدبير الموظفين', completed: true },
+    { page: 'staff-attendance.html', title: 'الحضور والغياب', group: 'تدبير الموظفين', completed: true },
+    { page: 'staff-daily-report.html', title: 'التقرير اليومي', group: 'تدبير الموظفين', completed: true },
     { page: 'timetable.html', title: 'جداول الحصص', group: 'الاستعمال الزمني', completed: true },
     { page: 'timetable-students.html', title: 'جدول حصص التلاميذ', group: 'الاستعمال الزمني', completed: true },
     { page: 'timetable-rooms.html', title: 'جدول القاعات', group: 'الاستعمال الزمني', completed: true },
@@ -107,6 +109,19 @@ function _normalizeRole(role) {
     return AUTH_ALLOWED_ROLES.has(normalized) ? normalized : 'staff';
 }
 
+function _computeSessionHash(data) {
+    const payload = [data.userId, data.role, data.loggedAt].join('|');
+    let hash = 0;
+    const key = 'gsl_session_integrity_2024';
+    const combined = key + ':' + payload;
+    for (let i = 0; i < combined.length; i++) {
+        const char = combined.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(36);
+}
+
 function getAuthSessionData() {
     let raw = null;
     try {
@@ -119,6 +134,9 @@ function getAuthSessionData() {
     try {
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== 'object') return null;
+        if (parsed._h !== _computeSessionHash(parsed)) {
+            return null;
+        }
         return parsed;
     } catch (_err) {
         return null;
@@ -390,15 +408,21 @@ function _isAdminRole(role) {
     return String(role || '').toLowerCase() === 'admin';
 }
 
+function _isAuthenticatedRole(role) {
+    return ['admin', 'staff', 'viewer'].includes(String(role || '').toLowerCase());
+}
+
 function _deriveAppRoleFromSession(session) {
     if (!session || !isAuthSessionActive()) return 'limited';
-    return _isAdminRole(_normalizeRole(session.role || 'staff')) ? 'admin' : 'limited';
+    const normalized = _normalizeRole(session.role || 'staff');
+    if (['admin', 'staff', 'viewer'].includes(normalized)) return normalized;
+    return 'limited';
 }
 
 function setCurrentAppRole(role) {
     const normalized = String(role || '').toLowerCase();
-    if (_isAdminRole(normalized)) {
-        document.documentElement.dataset.currentAppRole = 'admin';
+    if (['admin', 'staff', 'viewer'].includes(normalized)) {
+        document.documentElement.dataset.currentAppRole = normalized;
         return;
     }
     if (normalized === 'licensed') {
@@ -415,6 +439,8 @@ function setCurrentAppRole(role) {
 function getCurrentAppRole() {
     const value = document.documentElement.dataset.currentAppRole;
     if (value === 'admin') return 'admin';
+    if (value === 'staff') return 'staff';
+    if (value === 'viewer') return 'viewer';
     if (value === 'licensed') return 'licensed';
     if (value === 'trial') return 'trial';
     return 'limited';
@@ -423,18 +449,20 @@ function getCurrentAppRole() {
 function setAuthSession(email = '', user = {}) {
     const safeUser = user && typeof user === 'object' ? user : {};
     try {
+        const sessionData = {
+            userId: Number(safeUser.userId || 0),
+            name: String(safeUser.name || ''),
+            email: String(safeUser.email || email || '')
+                .trim()
+                .toLowerCase(),
+            role: _normalizeRole(safeUser.role || 'staff'),
+            loggedAt: Date.now(),
+            source: 'sqlite'
+        };
+        sessionData._h = _computeSessionHash(sessionData);
         localStorage.setItem(
             AUTH_SESSION_KEY,
-            JSON.stringify({
-                userId: Number(safeUser.userId || 0),
-                name: String(safeUser.name || ''),
-                email: String(safeUser.email || email || '')
-                    .trim()
-                    .toLowerCase(),
-                role: _normalizeRole(safeUser.role || 'staff'),
-                loggedAt: Date.now(),
-                source: 'sqlite'
-            })
+            JSON.stringify(sessionData)
         );
     } catch (_err) {
         // ignore storage write errors
@@ -795,7 +823,7 @@ async function openForcedActivationModal() {
 
 function ensureLimitedModeNotice(role, activationStatus = null) {
     const mode = String(role || '').toLowerCase();
-    if (_isAdminRole(mode) || mode === 'licensed') {
+    if (_isAuthenticatedRole(mode) || mode === 'licensed') {
         _limitedNoticeClosedForPage = false;
         _removeLimitedNotice();
         return;
@@ -908,7 +936,7 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
 
 function refreshLimitedModeNotice(role) {
     const mode = String(role || '').toLowerCase();
-    if (_isAdminRole(mode) || mode === 'licensed') {
+    if (_isAuthenticatedRole(mode) || mode === 'licensed') {
         _removeLimitedNotice();
         return;
     }
@@ -927,7 +955,7 @@ function refreshLimitedModeNotice(role) {
             // Stale-request guard: ignore if a newer request was issued
             if (token !== _refreshToken) return;
             // Never downgrade an admin role from a licensing callback
-            if (_isAdminRole(getCurrentAppRole())) return;
+            if (_isAuthenticatedRole(getCurrentAppRole())) return;
 
             if (!res?.success) {
                 ensureLimitedModeNotice('limited', { activated: false });
@@ -974,7 +1002,7 @@ function refreshLimitedModeNotice(role) {
             // Stale-request guard
             if (token !== _refreshToken) return;
             // Never downgrade admin
-            if (_isAdminRole(getCurrentAppRole())) return;
+            if (_isAuthenticatedRole(getCurrentAppRole())) return;
 
             if (getCurrentAppRole() !== 'limited') {
                 const session = isAuthSessionActive() ? getAuthSessionData() : null;
@@ -985,41 +1013,110 @@ function refreshLimitedModeNotice(role) {
         });
 }
 
+// ── Role display helpers ──
+function _normalizeRole(raw) {
+    const r = String(raw || '').trim().toLowerCase();
+    if (['admin', 'مشرف'].includes(r)) return 'admin';
+    if (['staff', 'موظف'].includes(r)) return 'staff';
+    if (['viewer', 'مشاهد'].includes(r)) return 'viewer';
+    return r || 'staff';
+}
+
+function _roleLabel(normalized) {
+    const labels = { admin: 'مشرف', staff: 'موظف', viewer: 'مشاهد' };
+    return labels[normalized] || normalized;
+}
+
+function _roleTone(normalized) {
+    const tones = {
+        admin: { bg: '#EBF4FF', fg: '#1E40AF', border: '#93B3F2' },
+        staff: { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        viewer: { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' }
+    };
+    return tones[normalized] || tones.staff;
+}
+
+// ── Change password modal ──
+function openChangePasswordModal() {
+    const old = document.getElementById('change-pw-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'change-pw-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5);';
+    modal.innerHTML = ''
+        + '<div style="background:var(--color-surface,#fff);border-radius:16px;padding:28px 24px;width:min(400px,90vw);box-shadow:0 20px 50px rgba(0,0,0,0.2);position:relative;direction:rtl;font-family:var(--font-main);">'
+        + '<button type="button" id="cpw-close" style="position:absolute;top:12px;left:12px;width:32px;height:32px;border-radius:8px;border:1px solid var(--color-accent,#e5e7eb);background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);"><i class="fas fa-times"></i></button>'
+        + '<h3 style="margin:0 0 20px;font-size:18px;font-weight:700;color:var(--color-text-main);"><i class="fas fa-key" style="margin-left:8px;color:var(--color-primary);"></i>تغيير كلمة المرور</h3>'
+        + '<div id="cpw-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
+        + '<div id="cpw-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
+        + '<form id="cpw-form" style="display:flex;flex-direction:column;gap:14px;">'
+        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">كلمة المرور الحالية</label><input type="password" id="cpw-current" required style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>'
+        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">كلمة المرور الجديدة</label><input type="password" id="cpw-new" required minlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>'
+        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد كلمة المرور الجديدة</label><input type="password" id="cpw-confirm" required minlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>'
+        + '<button type="submit" style="padding:12px;background:var(--color-primary,#3B6AC5);color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">تغيير كلمة المرور</button>'
+        + '</form></div>';
+    document.body.appendChild(modal);
+
+    document.getElementById('cpw-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('cpw-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorEl = document.getElementById('cpw-error');
+        const successEl = document.getElementById('cpw-success');
+        errorEl.style.display = 'none';
+        successEl.style.display = 'none';
+
+        const currentPassword = document.getElementById('cpw-current').value;
+        const newPassword = document.getElementById('cpw-new').value;
+        const confirmPassword = document.getElementById('cpw-confirm').value;
+
+        if (newPassword !== confirmPassword) {
+            errorEl.textContent = 'كلمتا المرور الجديدتان غير متطابقتين';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        try {
+            const res = await window.api.auth.changePassword({ currentPassword, newPassword });
+            if (!res?.success) {
+                errorEl.textContent = res?.error || 'فشل تغيير كلمة المرور';
+                errorEl.style.display = 'block';
+                return;
+            }
+            successEl.textContent = 'تم تغيير كلمة المرور بنجاح';
+            successEl.style.display = 'block';
+            document.getElementById('cpw-form').reset();
+            setTimeout(() => modal.remove(), 1500);
+        } catch (err) {
+            errorEl.textContent = err.message || 'حدث خطأ';
+            errorEl.style.display = 'block';
+        }
+    });
+}
+
 function ensureAdminAuthButton(role) {
     const currentPage = _getCurrentPageName();
     if (currentPage === 'login.html') return;
 
-    const header = document.querySelector('main.main-content > .header') || document.querySelector('.header');
-    if (!header) return;
+    // ── Sidebar auth section ──
+    const loginBtn = document.getElementById('sidebar-login-btn');
+    const changePwBtn = document.getElementById('sidebar-change-pw-btn');
+    const activateBtn = document.getElementById('sidebar-activate-btn');
+    const userSection = document.getElementById('sidebar-auth-user');
+    const nameEl = document.getElementById('sidebar-auth-name');
+    const roleBadge = document.getElementById('sidebar-auth-role-badge');
 
-    const target = header.querySelector('.header-right') || header;
-    let btn = header.querySelector('[data-admin-auth-btn="1"]');
-    let activateBtn = header.querySelector('[data-activate-link-btn="1"]');
+    if (!loginBtn) return;
 
-    if (!activateBtn) {
-        activateBtn = document.createElement('button');
-        activateBtn.type = 'button';
-        activateBtn.className = 'theme-toggle';
-        activateBtn.setAttribute('data-activate-link-btn', '1');
-        activateBtn.style.cssText = 'padding:8px 14px;display:flex;align-items:center;gap:6px;width:auto;height:auto;white-space:nowrap;font-size:13px;';
-        activateBtn.innerHTML = '<i class="fas fa-key"></i><span>تفعيل البرنامج</span>';
-        activateBtn.title = 'فتح نموذج التفعيل';
-        activateBtn.addEventListener('click', () => {
-            void openActivationModal();
-        });
-        target.appendChild(activateBtn);
-    }
-
-    if (!btn) {
-        btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'theme-toggle';
-        btn.setAttribute('data-admin-auth-btn', '1');
-        btn.style.cssText = 'padding:8px 14px;display:flex;align-items:center;gap:6px;width:auto;height:auto;white-space:nowrap;font-size:13px;';
-        target.appendChild(btn);
-        btn.addEventListener('click', async () => {
+    // Bind events once
+    if (!loginBtn.dataset.authBound) {
+        loginBtn.dataset.authBound = '1';
+        loginBtn.addEventListener('click', async () => {
             const currentRole = getCurrentAppRole();
-            if (_isAdminRole(currentRole)) {
+            if (_isAuthenticatedRole(currentRole)) {
+                // Logout
                 if (window.api?.auth?.logout) {
                     await window.api.auth.logout();
                 }
@@ -1043,16 +1140,60 @@ function ensureAdminAuthButton(role) {
         });
     }
 
-    if (_isAdminRole(role)) {
+    if (activateBtn && !activateBtn.dataset.authBound) {
+        activateBtn.dataset.authBound = '1';
+        activateBtn.addEventListener('click', () => {
+            void openActivationModal();
+        });
+    }
+
+    if (changePwBtn && !changePwBtn.dataset.authBound) {
+        changePwBtn.dataset.authBound = '1';
+        changePwBtn.addEventListener('click', () => {
+            if (typeof openChangePasswordModal === 'function') {
+                openChangePasswordModal();
+            }
+        });
+    }
+
+    // ── Remove old header-based auth/activate buttons ──
+    document.querySelectorAll('[data-admin-auth-btn="1"], [data-activate-link-btn="1"]').forEach(el => el.remove());
+
+    // ── Update UI based on role ──
+    const authenticatedRoles = ['admin', 'staff', 'viewer'];
+    const isAuthenticated = authenticatedRoles.includes(String(role || '').toLowerCase());
+
+    if (isAuthenticated) {
+        // User is logged in (any role)
+        const session = getAuthSessionData();
+        if (userSection) userSection.style.display = '';
+        if (nameEl) {
+            nameEl.textContent = String(session?.name || session?.email || 'المستخدم').trim() || 'المستخدم';
+        }
+        if (roleBadge) {
+            const normalized = _normalizeRole(session?.role || role);
+            const tone = _roleTone(normalized);
+            roleBadge.textContent = _roleLabel(normalized);
+            roleBadge.style.background = tone.bg;
+            roleBadge.style.color = tone.fg;
+            roleBadge.style.borderColor = tone.border;
+        }
         if (activateBtn) activateBtn.style.display = 'none';
-        btn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>خروج المشرف</span>';
-        btn.title = 'خروج المشرف';
+        if (changePwBtn) changePwBtn.style.display = '';
+        loginBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
+        loginBtn.title = '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c';
+        loginBtn.classList.remove('sidebar-auth-login');
+        loginBtn.classList.add('sidebar-auth-logout');
     } else {
+        // Not logged in
+        if (userSection) userSection.style.display = 'none';
+        if (changePwBtn) changePwBtn.style.display = 'none';
         const roleMode = String(role || '').toLowerCase();
-        // Show activate button only in limited mode (not trial or licensed)
         if (activateBtn) activateBtn.style.display = roleMode === 'limited' ? '' : 'none';
-        btn.innerHTML = '<i class="fas fa-user-shield"></i><span>دخول المشرف</span>';
-        btn.title = 'دخول المشرف';
+        loginBtn.innerHTML = '<i class="fas fa-user-shield"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628</span>';
+        loginBtn.title = '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628';
+        loginBtn.classList.remove('sidebar-auth-logout');
+        loginBtn.classList.add('sidebar-auth-login');
     }
 }
 
@@ -1095,7 +1236,7 @@ function applyRoleUi(role, session) {
     setCurrentAppRole(role);
 
     const roleMode = String(role || '').toLowerCase();
-    if (_isAdminRole(role) || roleMode === 'licensed' || roleMode === 'trial') {
+    if (['admin', 'staff', 'viewer'].includes(roleMode) || roleMode === 'licensed' || roleMode === 'trial') {
         try {
             sessionStorage.removeItem(BLOCKED_REDIRECT_NEXT_KEY);
         } catch (_err) {
@@ -1129,10 +1270,12 @@ function applyRoleUi(role, session) {
     if (window.api?.auth?.getSession) {
         try {
             const authRes = await window.api.auth.getSession();
-            if (authRes?.success && authRes?.authenticated && _isAdminRole(_normalizeRole(authRes.user?.role || 'staff'))) {
+            const authRole = _normalizeRole(authRes?.user?.role || '');
+            const isAuthenticatedRole = ['admin', 'staff', 'viewer'].includes(authRole);
+            if (authRes?.success && authRes?.authenticated && isAuthenticatedRole) {
                 session = authRes.user || {};
                 setAuthSession(session.email || '', session);
-                mode = 'admin';
+                mode = authRole;
             } else {
                 clearAuthSession();
                 session = null;
@@ -1143,7 +1286,7 @@ function applyRoleUi(role, session) {
         }
     }
 
-    if (!_isAdminRole(mode)) {
+    if (!['admin', 'staff', 'viewer'].includes(String(mode || '').toLowerCase())) {
         mode = await resolvePublicAccessMode();
     }
 
@@ -1191,9 +1334,12 @@ window.PageVisibility = {
  */
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // ===== Toast Messages =====
@@ -1314,16 +1460,23 @@ function formatAverage(average) {
  * إعداد الشريط الجانبي
  */
 function setupSidebar() {
-    // Toggle sidebar
-    const menuToggle = document.getElementById('menu-toggle');
     const sidebar = document.getElementById('sidebar');
 
-    if (menuToggle && sidebar) {
+    // sidebar.js owns the canonical setup (toggle, expandable menus, active page).
+    // If it already ran, skip all re-binding to avoid double-click issues.
+    if (sidebar && sidebar.dataset.setupComplete === 'true') return;
+
+    // Toggle sidebar
+    const menuToggle = document.getElementById('menu-toggle');
+
+    if (menuToggle && sidebar && menuToggle.dataset.toggleBound !== 'true') {
+        menuToggle.dataset.toggleBound = 'true';
         menuToggle.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
             const mainContent = document.querySelector('.main-content');
             if (mainContent) {
-                mainContent.style.marginRight = sidebar.classList.contains('collapsed') ? '80px' : '280px';
+                const sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim() || '280px';
+                mainContent.style.marginRight = sidebar.classList.contains('collapsed') ? '' : sidebarWidth;
             }
         });
     }
@@ -1877,3 +2030,4 @@ if (typeof module !== 'undefined' && module.exports) {
         setSchoolYear
     };
 }
+

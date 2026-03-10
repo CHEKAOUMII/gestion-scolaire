@@ -28,12 +28,14 @@ function injectSidebar() {
                     </ul>
                 </li>
                 <li class="expandable">
-                    <a href="#" class="nav-link"><i class="fas fa-chalkboard-teacher"></i><span>الأساتذة</span><i class="fas fa-chevron-down arrow"></i></a>
+                    <a href="#" class="nav-link"><i class="fas fa-users-cog"></i><span>تدبير الموظفين</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="teachers-list.html"><i class="fas fa-users"></i> قائمة الأساتذة</a></li>
                         <li><a href="teachers-schedule.html"><i class="fas fa-clock"></i> حصص الأساتذة</a></li>
                         <li><a href="teachers-absence.html"><i class="fas fa-user-minus"></i> غياب الأساتذة</a></li>
                         <li><a href="teachers-performance.html"><i class="fas fa-chart-line"></i> مؤشرات الأداء</a></li>
+                        <li><a href="staff-attendance.html"><i class="fas fa-clipboard-check"></i> الحضور والغياب</a></li>
+                        <li><a href="staff-daily-report.html"><i class="fas fa-file-alt"></i> التقرير اليومي</a></li>
                     </ul>
                 </li>
                 <li class="expandable">
@@ -101,9 +103,57 @@ function injectSidebar() {
                 </li>
             </ul>
         </nav>
+        <div class="sidebar-auth-section" id="sidebar-auth-section">
+            <div class="sidebar-auth-user" id="sidebar-auth-user" style="display:none;">
+                <div class="sidebar-auth-avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="sidebar-auth-info">
+                    <span class="sidebar-auth-name" id="sidebar-auth-name">المستخدم</span>
+                    <span class="sidebar-auth-role" id="sidebar-auth-role-badge">Staff</span>
+                </div>
+            </div>
+            <div class="sidebar-auth-actions" id="sidebar-auth-actions">
+                <button type="button" class="sidebar-auth-btn sidebar-auth-change-pw" id="sidebar-change-pw-btn" title="تغيير كلمة المرور" style="display:none;">
+                    <i class="fas fa-key"></i>
+                    <span>تغيير كلمة المرور</span>
+                </button>
+                <button type="button" class="sidebar-auth-btn sidebar-auth-activate" id="sidebar-activate-btn" title="تفعيل البرنامج" style="display:none;">
+                    <i class="fas fa-key"></i>
+                    <span>تفعيل البرنامج</span>
+                </button>
+                <button type="button" class="sidebar-auth-btn sidebar-auth-login" id="sidebar-login-btn">
+                    <i class="fas fa-user-shield"></i>
+                    <span>تسجيل الدخول أو إنشاء حساب</span>
+                </button>
+            </div>
+        </div>
     `;
 
     sidebar.dataset.injected = 'true';
+
+    // ── Synchronous early-render from localStorage to prevent flash ──
+    try {
+        const rawSession = localStorage.getItem('gsl_auth_session_v1');
+        if (rawSession) {
+            const sess = JSON.parse(rawSession);
+            const role = String(sess?.role || '').toLowerCase();
+            if (['admin', 'staff', 'viewer'].includes(role)) {
+                const userSection = document.getElementById('sidebar-auth-user');
+                const nameEl = document.getElementById('sidebar-auth-name');
+                const loginBtn = document.getElementById('sidebar-login-btn');
+                const changePwBtn = document.getElementById('sidebar-change-pw-btn');
+                if (userSection) userSection.style.display = '';
+                if (nameEl) nameEl.textContent = String(sess.name || sess.email || '\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645').trim();
+                if (loginBtn) {
+                    loginBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
+                    loginBtn.classList.remove('sidebar-auth-login');
+                    loginBtn.classList.add('sidebar-auth-logout');
+                }
+                if (changePwBtn) changePwBtn.style.display = '';
+            }
+        }
+    } catch (_) { /* ignore parse errors */ }
 
     // Load school name from database and update sidebar + page title
     loadSchoolIdentity();
@@ -144,6 +194,9 @@ function injectSidebar() {
         }
     });
 
+    // Mark sidebar setup as complete so utils.js setupSidebar() skips re-binding
+    sidebar.dataset.setupComplete = 'true';
+
     // Setup expandable menu items
     document.querySelectorAll('.expandable > .nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
@@ -157,15 +210,17 @@ function injectSidebar() {
         });
     });
 
-    // Setup sidebar toggle
+    // Setup sidebar toggle (canonical implementation — utils.js defers to this)
     const menuToggle = document.getElementById('menu-toggle');
     if (menuToggle) {
+        menuToggle.dataset.toggleBound = 'true';
         menuToggle.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
             const isCollapsed = sidebar.classList.contains('collapsed');
             const mainContent = document.querySelector('.main-content');
             if (mainContent) {
-                mainContent.style.marginRight = isCollapsed ? '80px' : '280px';
+                const sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim() || '280px';
+                mainContent.style.marginRight = isCollapsed ? '' : sidebarWidth;
             }
             // When collapsing: clear inline submenu display so CSS !important hides them
             // When expanding: restore the active page's parent submenu

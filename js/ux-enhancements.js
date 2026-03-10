@@ -374,7 +374,7 @@ function openPrintPreview(options = {}) {
                 }
             });
             // Force solid white backgrounds on glass/card elements (override CSS variables)
-            clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details').forEach(el => {
+            clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details, .analysis-panel, .analysis-kpi-card, .analysis-block').forEach(el => {
                 el.style.background = '#fff';
                 el.style.boxShadow = 'none';
                 el.style.backdropFilter = 'none';

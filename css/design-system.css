@@ -87,6 +87,9 @@
     --spacing-lg: 2rem;
     --spacing-xl: 3rem;
 
+    /* ─── Layout (responsive) ─── */
+    --sidebar-width: clamp(220px, 14vw, 320px);
+
     /* ─── Transitions ─── */
     --transition-fast: 0.15s ease;
     --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -106,6 +109,7 @@
 /* ─── Smooth Theme Transition ─── */
 html {
     transition: background-color 0.35s ease, color 0.35s ease;
+    font-size: clamp(14px, 0.4vw + 10px, 20px);
 }
 
 html[data-theme="dark"] {
@@ -391,6 +395,7 @@ html[data-theme="dark"] {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     border-left: 1px solid var(--glass-border);
+    width: var(--sidebar-width);
 }
 
 /* Header bar */

@@ -18,9 +18,9 @@ function collectInvokeChannels(preloadSource) {
 
 function collectHandleChannels(ipcSources) {
     // Match both direct ipcMain.handle('channel') and helper patterns:
-    // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'), handleWriteNoAuth(ipcMain, 'channel')
+    // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'), handleWriteSoftAuth(ipcMain, 'channel')
     const directMatches = [...ipcSources.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((m) => m[1]);
-    const helperMatches = [...ipcSources.matchAll(/(?:handleRead|handleWrite|handleWriteNoAuth)\(ipcMain,\s*'([^']+)'/g)].map((m) => m[1]);
+    const helperMatches = [...ipcSources.matchAll(/(?:handleRead|handleWrite|handleWriteSoftAuth)\(ipcMain,\s*'([^']+)'/g)].map((m) => m[1]);
     return unique([...directMatches, ...helperMatches]);
 }
 
@@ -178,6 +178,214 @@ function runNoCdnSmoke() {
     console.log('[smoke] No-CDN policy OK (vendor files present)');
 }
 
+function runValidationTests() {
+    const validation = require(path.join(root, 'main', 'ipc', 'validation.js'));
+    const { requireFields, validateRange, validateDate, validateSchoolYear } = validation;
+
+    // ── requireFields ──
+    // Valid data — should not throw
+    requireFields({ name: 'Ali', age: 20 }, ['name', 'age']);
+
+    // Missing field
+    try {
+        requireFields({ name: 'Ali' }, ['name', 'email']);
+        assert.fail('requireFields should throw on missing field');
+    } catch (err) {
+        assert.ok(err.message.includes('email'), 'Error should mention the missing field');
+    }
+
+    // Null data
+    try {
+        requireFields(null, ['name']);
+        assert.fail('requireFields should throw on null data');
+    } catch (err) {
+        assert.ok(err.message.length > 0, 'Error message should be non-empty for null data');
+    }
+
+    // Non-object data (string)
+    try {
+        requireFields('not-an-object', ['name']);
+        assert.fail('requireFields should throw on non-object data');
+    } catch (err) {
+        assert.ok(err.message.length > 0, 'Error message should be non-empty for non-object data');
+    }
+
+    // Empty string field treated as missing
+    try {
+        requireFields({ name: '   ' }, ['name']);
+        assert.fail('requireFields should throw on empty/whitespace string field');
+    } catch (err) {
+        assert.ok(err.message.includes('name'), 'Error should mention the empty field');
+    }
+
+    // ── validateRange ──
+    // Valid range
+    const result = validateRange('score', 15, 0, 20);
+    assert.strictEqual(result, 15, 'validateRange should return the numeric value');
+
+    // Below min
+    try {
+        validateRange('score', -1, 0, 20);
+        assert.fail('validateRange should throw when below min');
+    } catch (err) {
+        assert.ok(err.message.includes('score'), 'Error should mention the field name');
+    }
+
+    // Above max
+    try {
+        validateRange('score', 21, 0, 20);
+        assert.fail('validateRange should throw when above max');
+    } catch (err) {
+        assert.ok(err.message.includes('score'), 'Error should mention the field name');
+    }
+
+    // NaN value
+    try {
+        validateRange('score', 'abc', 0, 20);
+        assert.fail('validateRange should throw on NaN');
+    } catch (err) {
+        assert.ok(err.message.includes('score'), 'Error should mention the field name for NaN');
+    }
+
+    // Null value
+    try {
+        validateRange('score', null, 0, 20);
+        assert.fail('validateRange should throw on null');
+    } catch (err) {
+        assert.ok(err.message.length > 0, 'Error message should be non-empty for null');
+    }
+
+    // ── validateDate ──
+    // Valid date
+    const dateResult = validateDate('birthday', '2024-09-15');
+    assert.strictEqual(dateResult, '2024-09-15', 'validateDate should return the trimmed date string');
+
+    // Invalid format (no separators)
+    try {
+        validateDate('birthday', '20240915');
+        assert.fail('validateDate should throw on invalid format');
+    } catch (err) {
+        assert.ok(err.message.includes('birthday'), 'Error should mention the field name');
+    }
+
+    // Null value
+    try {
+        validateDate('birthday', null);
+        assert.fail('validateDate should throw on null');
+    } catch (err) {
+        assert.ok(err.message.includes('birthday'), 'Error should mention the field name for null');
+    }
+
+    // Empty string
+    try {
+        validateDate('birthday', '');
+        assert.fail('validateDate should throw on empty string');
+    } catch (err) {
+        assert.ok(err.message.includes('birthday'), 'Error should mention the field name for empty');
+    }
+
+    // ── validateSchoolYear ──
+    // Valid school year
+    const yearResult = validateSchoolYear('2024/2025');
+    assert.strictEqual(yearResult, '2024/2025', 'validateSchoolYear should return the school year string');
+
+    // Invalid format with dash
+    try {
+        validateSchoolYear('2024-2025');
+        assert.fail('validateSchoolYear should throw on dash-separated year');
+    } catch (err) {
+        assert.ok(err.message.includes('YYYY/YYYY'), 'Error should mention the expected format');
+    }
+
+    // Wrong format (single year)
+    try {
+        validateSchoolYear('2024');
+        assert.fail('validateSchoolYear should throw on single year');
+    } catch (err) {
+        assert.ok(err.message.length > 0, 'Error message should be non-empty for wrong format');
+    }
+
+    // Null value
+    try {
+        validateSchoolYear(null);
+        assert.fail('validateSchoolYear should throw on null');
+    } catch (err) {
+        assert.ok(err.message.length > 0, 'Error message should be non-empty for null');
+    }
+
+    console.log('[smoke] Validation module behavioral tests OK');
+}
+
+function runAuthTests() {
+    const { hashPassword, verifyPassword } = require(path.join(root, 'main', 'auth', 'password'));
+    const { authErrorResponse } = require(path.join(root, 'main', 'ipc', 'ipc-helpers'));
+
+    // ── hashPassword + verifyPassword ──
+    // Correct password verifies
+    const hash = hashPassword('MySecretPass123');
+    assert.ok(hash.startsWith('scrypt$'), 'Hash should start with scrypt$ prefix');
+    assert.strictEqual(verifyPassword('MySecretPass123', hash), true, 'Correct password should verify');
+
+    // Wrong password fails
+    assert.strictEqual(verifyPassword('WrongPassword', hash), false, 'Wrong password should not verify');
+
+    // ── authErrorResponse ──
+    // UNAUTHENTICATED error
+    const unauthErr = new Error('Not logged in');
+    unauthErr.code = 'UNAUTHENTICATED';
+    const unauthResp = authErrorResponse(unauthErr);
+    assert.strictEqual(unauthResp.success, false, 'authErrorResponse should set success=false');
+    assert.strictEqual(unauthResp.code, 'UNAUTHENTICATED', 'Should preserve UNAUTHENTICATED code');
+    assert.strictEqual(unauthResp.error, 'Not logged in', 'Should preserve error message');
+
+    // FORBIDDEN error
+    const forbiddenErr = new Error('No permission');
+    forbiddenErr.code = 'FORBIDDEN';
+    const forbiddenResp = authErrorResponse(forbiddenErr);
+    assert.strictEqual(forbiddenResp.code, 'FORBIDDEN', 'Should preserve FORBIDDEN code');
+    assert.strictEqual(forbiddenResp.error, 'No permission', 'Should preserve error message');
+
+    // Unknown error code defaults to INTERNAL_ERROR
+    const genericErr = new Error('Something broke');
+    genericErr.code = 'SOME_RANDOM_CODE';
+    const genericResp = authErrorResponse(genericErr);
+    assert.strictEqual(genericResp.code, 'INTERNAL_ERROR', 'Unknown code should default to INTERNAL_ERROR');
+    assert.strictEqual(genericResp.error, 'Something broke', 'Should preserve error message');
+
+    console.log('[smoke] Auth module behavioral tests OK');
+}
+
+function runConsolidationSmoke() {
+    // 1. No legacy channel aliases in preload.js
+    const preloadSource = read('preload.js');
+    const legacyPatterns = ['proctors:', 'rooms:', 'teacherAbsence:', 'absence:getByClass'];
+    const legacyHits = legacyPatterns.filter(p => preloadSource.includes(`'${p}`));
+    assert.strictEqual(legacyHits.length, 0, `Legacy channels still in preload.js: ${legacyHits.join(', ')}`);
+
+    // 2. No handleWriteNoAuth usage in IPC handler files
+    const ipcDir = path.join(root, 'main', 'ipc');
+    const ipcFiles = fs.readdirSync(ipcDir).filter(f => f.endsWith('.js'));
+    const noAuthHits = [];
+    ipcFiles.forEach(file => {
+        const source = read(path.join('main', 'ipc', file));
+        if (source.includes('handleWriteNoAuth')) {
+            noAuthHits.push(file);
+        }
+    });
+    assert.strictEqual(noAuthHits.length, 0, `handleWriteNoAuth still used in: ${noAuthHits.join(', ')}`);
+
+    // 3. Validation module exists and exports expected functions
+    const validationPath = path.join(root, 'main', 'ipc', 'validation.js');
+    assert.ok(fs.existsSync(validationPath), 'validation.js module missing');
+    const validation = require(validationPath);
+    assert.strictEqual(typeof validation.requireFields, 'function', 'requireFields not exported');
+    assert.strictEqual(typeof validation.validateRange, 'function', 'validateRange not exported');
+    assert.strictEqual(typeof validation.validateDate, 'function', 'validateDate not exported');
+    assert.strictEqual(typeof validation.validateSchoolYear, 'function', 'validateSchoolYear not exported');
+
+    console.log('[smoke] Consolidation checks OK (no legacy channels, no handleWriteNoAuth, validation module)');
+}
+
 function run() {
     runContractSmoke();
     runModuleExportsSmoke();
@@ -186,6 +394,9 @@ function run() {
     runLazyLoadSmoke();
     runRestoreSafetySmoke();
     runNoCdnSmoke();
+    runConsolidationSmoke();
+    runValidationTests();
+    runAuthTests();
     console.log('[smoke] All smoke checks passed');
 }
 

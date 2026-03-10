@@ -22,54 +22,59 @@
 
         /* --- Profile Header Card --- */
         .sp-header-card {
-            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark, #2F5499) 100%);
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
             border-radius: var(--radius-md);
             padding: 36px 30px;
-            color: white;
+            color: var(--color-text-main);
             display: flex;
             align-items: center;
             gap: 24px;
             margin-bottom: 24px;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 8px 32px rgba(59, 106, 197, 0.3);
+            box-shadow: var(--shadow-card);
             animation: fadeInUp 0.4s ease-out both;
         }
 
+        /* Subtle accent glow on the top edge */
         .sp-header-card::before {
             content: '';
             position: absolute;
-            top: -60px;
-            left: -60px;
-            width: 200px;
-            height: 200px;
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 50%;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-primary);
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
         }
 
+        /* Soft decorative circle (very subtle) */
         .sp-header-card::after {
             content: '';
             position: absolute;
-            bottom: -40px;
-            right: -40px;
-            width: 160px;
-            height: 160px;
-            background: rgba(255, 255, 255, 0.05);
+            bottom: -50px;
+            right: -50px;
+            width: 180px;
+            height: 180px;
+            background: var(--color-primary-mist);
             border-radius: 50%;
+            pointer-events: none;
         }
 
         .sp-avatar {
             width: 100px;
             height: 100px;
             border-radius: 50%;
-            border: 4px solid rgba(255, 255, 255, 0.25);
+            border: 3px solid var(--color-primary);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 40px;
             font-weight: 800;
-            color: #fff;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+            color: var(--color-primary);
+            background: var(--color-primary-mist);
+            box-shadow: 0 4px 16px rgba(59, 106, 197, 0.15);
             flex-shrink: 0;
             font-family: var(--font-display);
             position: relative;
@@ -87,43 +92,45 @@
             margin: 0 0 10px;
             font-weight: 800;
             font-family: var(--font-display);
+            color: var(--color-text-main);
         }
 
         .sp-meta {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             flex-wrap: wrap;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .sp-meta span {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(255, 255, 255, 0.13);
+            background: var(--color-surface-alt);
+            border: 1px solid var(--color-accent);
             padding: 6px 14px;
             border-radius: 50px;
-            backdrop-filter: blur(4px);
             font-weight: 500;
             white-space: nowrap;
+            color: var(--color-text-muted);
         }
 
         .sp-meta span i {
-            font-size: 13px;
-            opacity: 0.85;
+            font-size: 12px;
+            color: var(--color-primary);
         }
 
         .sp-status-badge {
             position: absolute;
             top: 24px;
             left: 24px;
-            background: var(--color-success, #2ECC71);
+            background: var(--color-success-bg);
             color: white;
             padding: 5px 14px;
             border-radius: 20px;
             font-weight: 700;
             font-size: 13px;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
             z-index: 1;
             display: flex;
             align-items: center;

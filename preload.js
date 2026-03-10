@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('api', {
     // Grades
     grades: {
         getAll: (schoolYear) => ipcRenderer.invoke('grades:getAll', schoolYear),
+        getByStudentCode: (studentCode, schoolYear) =>
+            ipcRenderer.invoke('grades:getByStudentCode', studentCode, schoolYear),
         getZeroStudents: (filters) => ipcRenderer.invoke('grades:getZeroStudents', filters),
         save: (grade) => ipcRenderer.invoke('grades:save', grade),
         saveBulk: (grades) => ipcRenderer.invoke('grades:saveBulk', grades),
@@ -55,7 +57,10 @@ contextBridge.exposeInMainWorld('api', {
     // Absences
     absences: {
         getAll: (schoolYear) => ipcRenderer.invoke('absences:getAll', schoolYear),
-        getByStudent: (studentId) => ipcRenderer.invoke('absences:getByStudent', studentId),
+        getByStudent: (studentId, schoolYear) =>
+            ipcRenderer.invoke('absences:getByStudent', studentId, schoolYear),
+        getByStudentCode: (studentCode, schoolYear) =>
+            ipcRenderer.invoke('absences:getByStudentCode', studentCode, schoolYear),
         getBySection: (section, schoolYear) => ipcRenderer.invoke('absences:getBySection', section, schoolYear),
         save: (absence) => ipcRenderer.invoke('absences:save', absence),
         saveBulk: (absences) => ipcRenderer.invoke('absences:saveBulk', absences),
@@ -65,10 +70,6 @@ contextBridge.exposeInMainWorld('api', {
         getSummaryByStudent: (schoolYear) => ipcRenderer.invoke('absences:getSummaryByStudent', schoolYear)
     },
 
-    // Compatibility alias (legacy pages)
-    absence: {
-        getByClass: (className, schoolYear) => ipcRenderer.invoke('absence:getByClass', className, schoolYear)
-    },
 
     // Correspondence
     correspondence: {
@@ -96,6 +97,7 @@ contextBridge.exposeInMainWorld('api', {
     // Teachers
     teachers: {
         getAll: (schoolYear) => ipcRenderer.invoke('teachers:getAll', schoolYear),
+        getFromGrades: (schoolYear) => ipcRenderer.invoke('teachers:getFromGrades', schoolYear),
         add: (teacher) => ipcRenderer.invoke('teachers:add', teacher),
         update: (id, data) => ipcRenderer.invoke('teachers:update', id, data),
         delete: (id) => ipcRenderer.invoke('teachers:delete', id)
@@ -108,12 +110,18 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('teacherAbsences:delete', id)
     },
 
-    // Compatibility alias (legacy pages)
-    teacherAbsence: {
-        getAll: (schoolYear) => ipcRenderer.invoke('teacherAbsence:getAll', schoolYear),
-        add: (payload) => ipcRenderer.invoke('teacherAbsence:add', payload),
-        delete: (id) => ipcRenderer.invoke('teacherAbsence:delete', id)
+    // Daily report
+    dailyReport: {
+        getData: (date, schoolYear) => ipcRenderer.invoke('dailyReport:getData', date, schoolYear)
     },
+
+    // Staff attendance (absences + tardiness)
+    staffAttendance: {
+        getAll: (schoolYear) => ipcRenderer.invoke('staffAttendance:getAll', schoolYear),
+        save: (payload) => ipcRenderer.invoke('staffAttendance:save', payload),
+        delete: (id) => ipcRenderer.invoke('staffAttendance:delete', id)
+    },
+
 
     // Exams
     exams: {
@@ -130,12 +138,6 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('examProctors:delete', id)
     },
 
-    // Compatibility alias (legacy pages)
-    proctors: {
-        getAll: (schoolYear) => ipcRenderer.invoke('proctors:getAll', schoolYear),
-        save: (payload) => ipcRenderer.invoke('proctors:save', payload),
-        delete: (id) => ipcRenderer.invoke('proctors:delete', id)
-    },
 
     // Exam rooms
     examRooms: {
@@ -144,12 +146,6 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('examRooms:delete', id)
     },
 
-    // Compatibility alias (legacy pages)
-    rooms: {
-        getAll: (schoolYear) => ipcRenderer.invoke('rooms:getAll', schoolYear),
-        save: (payload) => ipcRenderer.invoke('rooms:save', payload),
-        delete: (id) => ipcRenderer.invoke('rooms:delete', id)
-    },
 
     timetable: {
         getByTeacher: (teacher, schoolYear) => ipcRenderer.invoke('timetable:getByTeacher', teacher, schoolYear),
@@ -182,6 +178,8 @@ contextBridge.exposeInMainWorld('api', {
     // Auth
     auth: {
         login: (payload) => ipcRenderer.invoke('auth:login', payload),
+        register: (payload) => ipcRenderer.invoke('auth:register', payload),
+        changePassword: (payload) => ipcRenderer.invoke('auth:changePassword', payload),
         getSession: () => ipcRenderer.invoke('auth:getSession'),
         logout: () => ipcRenderer.invoke('auth:logout')
     },

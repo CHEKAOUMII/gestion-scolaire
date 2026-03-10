@@ -2,15 +2,25 @@
 // Shared IPC registration helpers — eliminates boilerplate across all handler files.
 
 const { getDb } = require('../db/context');
-const { requireRole } = require('./auth');
+const { requireRole, getSessionByEvent } = require('./auth');
+
+function computeDefaultYear() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-indexed, so September = 8
+    if (month >= 8) {
+        return `${year}/${year + 1}`;
+    }
+    return `${year - 1}/${year}`;
+}
 
 function getDefaultYear() {
     try {
         const db = getDb();
         const row = db.prepare("SELECT value FROM settings WHERE key = 'currentSchoolYear'").get();
-        return row ? row.value : '2025/2026';
+        return row ? row.value : computeDefaultYear();
     } catch (e) {
-        return '2025/2026';
+        return computeDefaultYear();
     }
 }
 
@@ -31,7 +41,10 @@ function authErrorResponse(err) {
  * Normalize school year with a consistent default.
  */
 function normalizeYear(schoolYear) {
-    return schoolYear || getDefaultYear();
+    if (schoolYear && typeof schoolYear === 'string' && /^\d{4}\/\d{4}$/.test(schoolYear)) {
+        return schoolYear;
+    }
+    return getDefaultYear();
 }
 
 /**
@@ -75,16 +88,41 @@ function handleWrite(ipcMain, channel, roles, handler) {
 }
 
 /**
- * Register a WRITE handler that skips auth
- * (e.g. bulk import used before login on settings-imports page).
+ * Register a WRITE handler with soft auth.
+ * If a session exists → enforce role-based auth (like handleWrite).
+ * If no session exists → allow the operation but log the unauthenticated write.
+ *
+ * This is used for bulk-import channels that run from the settings-imports page
+ * which may be opened before login.
  *
  * @param {Electron.IpcMain} ipcMain
- * @param {string} channel
+ * @param {string} channel       – e.g. 'students:addBulk'
+ * @param {string[]} roles       – e.g. ['admin', 'staff']
  * @param {(db: any, ...args: any[]) => any} handler
  */
-function handleWriteNoAuth(ipcMain, channel, handler) {
-    ipcMain.handle(channel, async (_event, ...args) => {
+function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
+    ipcMain.handle(channel, async (event, ...args) => {
         try {
+            const session = getSessionByEvent(event);
+            if (session) {
+                // Session exists — enforce role check
+                requireRole(event, roles);
+            } else {
+                // No session — allow but log the unauthenticated write
+                try {
+                    const db = getDb();
+                    db.prepare(
+                        `INSERT INTO system_logs(action, entity, details, timestamp)
+                         VALUES(?, ?, ?, datetime('now'))`
+                    ).run(
+                        'UNAUTHENTICATED_WRITE',
+                        channel,
+                        `Unauthenticated write on channel "${channel}" — no active session`
+                    );
+                } catch (_logErr) {
+                    // Logging failure should not block the operation
+                }
+            }
             const db = getDb();
             return await handler(db, ...args);
         } catch (err) {
@@ -98,6 +136,7 @@ module.exports = {
     normalizeYear,
     handleRead,
     handleWrite,
-    handleWriteNoAuth,
+    handleWriteSoftAuth,
     getDefaultYear
 };
+

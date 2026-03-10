@@ -1,5 +1,5 @@
 const { getDb } = require('../db/context');
-const { verifyPassword } = require('../auth/password');
+const { verifyPassword, hashPassword } = require('../auth/password');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
@@ -181,16 +181,17 @@ function registerAuthIpc(ipcMain) {
                 recordFailedLogin(email);
                 return {
                     success: false,
-                    code: 'USER_NOT_FOUND',
-                    error: 'هذا الحساب غير موجود محلياً'
+                    code: 'INVALID_CREDENTIALS',
+                    error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
                 };
             }
 
             if (Number(user.disabled || 0) === 1) {
+                recordFailedLogin(email);
                 return {
                     success: false,
-                    code: 'USER_DISABLED',
-                    error: 'تم تعطيل هذا المستخدم من طرف الإدارة'
+                    code: 'INVALID_CREDENTIALS',
+                    error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
                 };
             }
 
@@ -257,10 +258,91 @@ function registerAuthIpc(ipcMain) {
             return { success: false, error: err.message };
         }
     });
+
+    // ── Self-registration (creates staff user, never admin) ──
+    ipcMain.handle('auth:register', async (event, payload) => {
+        try {
+            const name = String(payload?.name || '').trim();
+            const email = normalizeEmail(payload?.email);
+            const password = String(payload?.password || '');
+
+            if (!name || name.length < 2) {
+                return { success: false, code: 'INVALID_NAME', error: 'الاسم مطلوب (حرفان على الأقل)' };
+            }
+            if (!email || !email.includes('@')) {
+                return { success: false, code: 'INVALID_EMAIL', error: 'البريد الإلكتروني غير صالح' };
+            }
+            if (password.length < 6) {
+                return { success: false, code: 'WEAK_PASSWORD', error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' };
+            }
+
+            const db = getDb();
+            const existing = db.prepare('SELECT id FROM users WHERE lower(email) = ? LIMIT 1').get(email);
+            if (existing) {
+                return { success: false, code: 'EMAIL_EXISTS', error: 'هذا البريد الإلكتروني مستخدم بالفعل' };
+            }
+
+            const result = db.prepare(
+                `INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
+                 VALUES(?, ?, 'staff', ?, 0, 0)`
+            ).run(name, email, hashPassword(password));
+
+            const userId = result.lastInsertRowid;
+            const userRow = db.prepare('SELECT id, name, email, role, disabled, must_change_password FROM users WHERE id = ?').get(userId);
+            const session = setSessionForEvent(event, userRow);
+
+            return {
+                success: true,
+                authenticated: true,
+                user: session
+            };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── Change password (requires current password) ──
+    ipcMain.handle('auth:changePassword', async (event, payload) => {
+        try {
+            const session = getSessionByEvent(event);
+            if (!session) {
+                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
+            }
+
+            const currentPassword = String(payload?.currentPassword || '');
+            const newPassword = String(payload?.newPassword || '');
+
+            if (!currentPassword) {
+                return { success: false, code: 'MISSING_CURRENT', error: 'كلمة المرور الحالية مطلوبة' };
+            }
+            if (newPassword.length < 6) {
+                return { success: false, code: 'WEAK_PASSWORD', error: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' };
+            }
+
+            const db = getDb();
+            const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(session.userId);
+            if (!user) {
+                return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
+            }
+
+            if (!verifyPassword(currentPassword, String(user.password_hash || ''))) {
+                return { success: false, code: 'INVALID_CURRENT', error: 'كلمة المرور الحالية غير صحيحة' };
+            }
+
+            db.prepare(
+                'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?'
+            ).run(hashPassword(newPassword), session.userId);
+
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
 }
 
 module.exports = {
     registerAuthIpc,
     requireAuth,
-    requireRole
+    requireRole,
+    getSessionByEvent
 };

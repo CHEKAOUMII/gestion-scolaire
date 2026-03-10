@@ -1,4 +1,5 @@
-const { handleRead, handleWrite, handleWriteNoAuth, normalizeYear } = require('./ipc-helpers');
+const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear } = require('./ipc-helpers');
+const { requireFields, validateSchoolYear, validateRange } = require('./validation');
 
 function registerStudentsIpc(ipcMain) {
     // ── Read handlers (no auth required — app starts without login) ──
@@ -35,6 +36,8 @@ function registerStudentsIpc(ipcMain) {
     // ── Write handlers (require admin or staff role) ──
 
     handleWrite(ipcMain, 'students:add', ['admin', 'staff'], (db, _event, student) => {
+        requireFields(student, ['code', 'full_name', 'school_year']);
+        validateSchoolYear(student.school_year);
         db.prepare(
             `
                 INSERT INTO students(code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type)
@@ -56,7 +59,13 @@ function registerStudentsIpc(ipcMain) {
     });
 
     // No auth: bulk-import is used by settings-imports page before login
-    handleWriteNoAuth(ipcMain, 'students:addBulk', (db, students) => {
+    handleWriteSoftAuth(ipcMain, 'students:addBulk', ['admin', 'staff'], (db, students) => {
+        if (!Array.isArray(students)) {
+            return { success: false, error: 'Expected an array' };
+        }
+        if (students.length > 5000) {
+            return { success: false, error: 'Batch size exceeds maximum of 5000' };
+        }
         const insert = db.prepare(`
                 INSERT INTO students (code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -72,6 +81,7 @@ function registerStudentsIpc(ipcMain) {
             `);
         const insertMany = db.transaction((items) => {
             for (const student of items) {
+                requireFields(student, ['code', 'full_name', 'school_year']);
                 insert.run(
                     student.code,
                     student.full_name,
@@ -135,8 +145,8 @@ function registerStudentsIpc(ipcMain) {
         return { success: true };
     });
 
-    // No auth: used by settings-imports page to clear data before re-import
-    handleWriteNoAuth(ipcMain, 'students:deleteByYear', (db, schoolYear) => {
+    // No auth: delete is used from settings-imports page which may be opened before login
+    handleWriteSoftAuth(ipcMain, 'students:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
         const year = normalizeYear(schoolYear);
         const runDelete = db.transaction((targetYear) => {
             db.prepare('DELETE FROM grades WHERE school_year = ?').run(targetYear);
@@ -157,13 +167,25 @@ function registerStudentsIpc(ipcMain) {
         return row ? row.value : null;
     });
 
+    const ALLOWED_SETTINGS_KEYS = new Set([
+        'currentSchoolYear',
+        'schoolYear',
+        'levels',
+        'levelsMapping',
+        'pageVisibilityMap',
+        'school_info'
+    ]);
+
     handleWrite(ipcMain, 'settings:set', ['admin'], (db, _event, key, value) => {
+        if (!ALLOWED_SETTINGS_KEYS.has(key)) {
+            return { success: false, error: 'Invalid setting key' };
+        }
         db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
         return { success: true };
     });
 
     // No auth: allow changing the current school year without requiring admin session
-    handleWriteNoAuth(ipcMain, 'settings:setSchoolYear', (db, year) => {
+    handleWriteSoftAuth(ipcMain, 'settings:setSchoolYear', ['admin', 'staff'], (db, year) => {
         if (!year || typeof year !== 'string') return { success: false, error: 'Invalid year' };
         db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('currentSchoolYear', ?)").run(year);
         return { success: true };
@@ -175,13 +197,27 @@ function registerStudentsIpc(ipcMain) {
         return db
             .prepare(
                 `
-            SELECT g.*, s.full_name, s.section 
-            FROM grades g 
-            LEFT JOIN students s ON g.student_id = s.id 
+            SELECT g.*, s.full_name, s.section
+            FROM grades g
+            LEFT JOIN students s ON g.student_id = s.id
             WHERE g.school_year = ?
         `
             )
             .all(normalizeYear(schoolYear));
+    });
+
+    handleRead(ipcMain, 'grades:getByStudentCode', (db, studentCode, schoolYear) => {
+        return db
+            .prepare(
+                `
+            SELECT g.*, s.full_name, s.section
+            FROM grades g
+            LEFT JOIN students s ON g.student_id = s.id
+            WHERE g.student_code = ? AND g.school_year = ?
+            ORDER BY g.subject, g.semester
+        `
+            )
+            .all(String(studentCode || '').trim(), normalizeYear(schoolYear));
     });
 
     handleRead(ipcMain, 'grades:getZeroStudents', (db, filters) => {
@@ -314,6 +350,7 @@ function registerStudentsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'grades:save', ['admin', 'staff'], (db, _event, grade) => {
+        validateRange('grade', grade.grade, 0, 20);
         db.prepare(
             `
                 INSERT OR REPLACE INTO grades (student_id, student_code, subject, grade, semester, teacher_name, level, section, school_year)
@@ -334,13 +371,21 @@ function registerStudentsIpc(ipcMain) {
     });
 
     // No auth: bulk-import is used by settings-imports page before login
-    handleWriteNoAuth(ipcMain, 'grades:saveBulk', (db, grades) => {
+    handleWriteSoftAuth(ipcMain, 'grades:saveBulk', ['admin', 'staff'], (db, grades) => {
+        if (!Array.isArray(grades)) {
+            return { success: false, error: 'Expected an array' };
+        }
+        if (grades.length > 5000) {
+            return { success: false, error: 'Batch size exceeds maximum of 5000' };
+        }
         const insert = db.prepare(`
                 INSERT OR REPLACE INTO grades (student_id, student_code, subject, grade, semester, teacher_name, level, section, school_year)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
         const insertMany = db.transaction((items) => {
             for (const grade of items) {
+                requireFields(grade, ['student_code', 'subject', 'semester', 'school_year']);
+                validateRange('grade', grade.grade, 0, 20);
                 insert.run(
                     grade.student_id,
                     grade.student_code,
@@ -358,14 +403,13 @@ function registerStudentsIpc(ipcMain) {
         return { success: true, count: grades.length };
     });
 
-    // No auth: used by settings-imports page to clear data before re-import
-    handleWriteNoAuth(ipcMain, 'grades:deleteByYear', (db, schoolYear) => {
+    // No auth: delete is used from settings-imports page which may be opened before login
+    handleWriteSoftAuth(ipcMain, 'grades:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
         const info = db.prepare('DELETE FROM grades WHERE school_year = ?').run(normalizeYear(schoolYear));
         return { success: true, count: info.changes };
     });
 
-    // No auth: used by settings-imports page to clear grades for a specific semester
-    handleWriteNoAuth(ipcMain, 'grades:deleteBySemester', (db, schoolYear, semester) => {
+    handleWriteSoftAuth(ipcMain, 'grades:deleteBySemester', ['admin', 'staff'], (db, schoolYear, semester) => {
         const year = normalizeYear(schoolYear);
         const sem = parseInt(semester, 10) || 1;
         const info = db

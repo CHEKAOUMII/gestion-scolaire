@@ -284,6 +284,29 @@ const MIGRATIONS = [
                 db.exec('PRAGMA foreign_keys=on;');
             }
         }
+    },
+    {
+        version: '2026-03-020-staff-attendance-teacher-name',
+        up: () => {
+            const db = getDb();
+            // Add teacher_name column if staff_attendance table exists without it
+            try {
+                db.exec(`ALTER TABLE staff_attendance ADD COLUMN teacher_name TEXT`);
+            } catch (_e) {
+                // Column already exists or table doesn't exist yet
+            }
+        }
+    },
+    {
+        version: '2026-03-021-staff-attendance-subject',
+        up: () => {
+            const db = getDb();
+            try {
+                db.exec(`ALTER TABLE staff_attendance ADD COLUMN subject TEXT`);
+            } catch (_e) {
+                // Column already exists
+            }
+        }
     }
 ];
 

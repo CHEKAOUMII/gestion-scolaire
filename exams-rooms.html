@@ -40,7 +40,7 @@
                     <input id="name" placeholder="اسم القاعة" required>
                     <input id="capacity" type="number" placeholder="السعة">
                     <input id="building" placeholder="المبنى">
-                    <button class="btn btn-success" type="submit">???</button>
+                    <button class="btn btn-success" type="submit">حفظ</button>
                 </form>
             </div>
 
@@ -62,6 +62,17 @@
     </main>
 
     <script>
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        const year = getSchoolYear();
         let rows = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -70,16 +81,16 @@
         });
 
         async function loadRows() {
-            rows = await window.api.rooms.getAll() || [];
+            rows = await window.api.examRooms.getAll(year) || [];
             document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
                 <tr>
                     <td>${i + 1}</td>
-                    <td>${r.name || '-'}</td>
-                    <td>${r.capacity || '-'}</td>
-                    <td>${r.building || '-'}</td>
+                    <td>${escapeHtml(r.room_name || '-')}</td>
+                    <td>${escapeHtml(r.capacity || '-')}</td>
+                    <td>${escapeHtml(r.equipment || '-')}</td>
                     <td>
-                        <button class="btn btn-secondary" onclick="editRow(${r.id})"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-secondary" onclick="delRow(${r.id})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-secondary" onclick="editRow(${Number(r.id)})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-secondary" onclick="delRow(${Number(r.id)})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('') : '<tr><td colspan="5" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
@@ -89,11 +100,12 @@
             e.preventDefault();
             const payload = {
                 id: document.getElementById('id').value ? Number(document.getElementById('id').value) : undefined,
-                name: document.getElementById('name').value.trim(),
+                room_name: document.getElementById('name').value.trim(),
                 capacity: document.getElementById('capacity').value,
-                building: document.getElementById('building').value.trim()
+                equipment: document.getElementById('building').value.trim(),
+                school_year: year
             };
-            const res = await window.api.rooms.save(payload);
+            const res = await window.api.examRooms.save(payload);
             if (!res || res.success === false) {
                 showToast('فشل الحفظ', 'error');
                 return;
@@ -108,15 +120,15 @@
             const r = rows.find(x => x.id === id);
             if (!r) return;
             document.getElementById('id').value = r.id;
-            document.getElementById('name').value = r.name || '';
+            document.getElementById('name').value = r.room_name || '';
             document.getElementById('capacity').value = r.capacity || '';
-            document.getElementById('building').value = r.building || '';
+            document.getElementById('building').value = r.equipment || '';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         async function delRow(id) {
             if (!confirm('حذف هذه القاعة؟')) return;
-            const res = await window.api.rooms.delete(id);
+            const res = await window.api.examRooms.delete(id);
             if (!res || res.success === false) {
                 showToast('فشل الحذف', 'error');
                 return;

@@ -41,7 +41,7 @@
                     <input id="room" placeholder="القاعة">
                     <input type="date" id="date">
                     <input id="session" placeholder="الفترة (صباحية/مسائية)">
-                    <button class="btn btn-success" type="submit">???</button>
+                    <button class="btn btn-success" type="submit">حفظ</button>
                 </form>
             </div>
 
@@ -64,6 +64,16 @@
     </main>
 
     <script>
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         const year = getSchoolYear();
         let rows = [];
 
@@ -73,17 +83,17 @@
         });
 
         async function loadRows() {
-            rows = await window.api.proctors.getAll(year) || [];
+            rows = await window.api.examProctors.getAll(year) || [];
             document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
                 <tr>
                     <td>${i + 1}</td>
-                    <td>${r.teacher || '-'}</td>
-                    <td>${r.room || '-'}</td>
-                    <td>${r.date || '-'}</td>
-                    <td>${r.session || '-'}</td>
+                    <td>${escapeHtml(r.teacher_full_name || r.teacher_name || '-')}</td>
+                    <td>${escapeHtml(r.room || '-')}</td>
+                    <td>${escapeHtml(r.date || '-')}</td>
+                    <td>${escapeHtml(r.session || '-')}</td>
                     <td>
-                        <button class="btn btn-secondary" onclick="editRow(${r.id})"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-secondary" onclick="delRow(${r.id})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-secondary" onclick="editRow(${Number(r.id)})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-secondary" onclick="delRow(${Number(r.id)})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
@@ -92,14 +102,11 @@
         async function save(e) {
             e.preventDefault();
             const payload = {
-                id: document.getElementById('id').value ? Number(document.getElementById('id').value) : undefined,
-                teacher: document.getElementById('teacher').value.trim(),
+                teacher_name: document.getElementById('teacher').value.trim(),
                 room: document.getElementById('room').value.trim(),
-                date: document.getElementById('date').value,
-                session: document.getElementById('session').value.trim(),
                 school_year: year
             };
-            const res = await window.api.proctors.save(payload);
+            const res = await window.api.examProctors.saveManual(payload);
             if (!res || res.success === false) {
                 showToast('فشل الحفظ', 'error');
                 return;
@@ -114,7 +121,7 @@
             const r = rows.find(x => x.id === id);
             if (!r) return;
             document.getElementById('id').value = r.id;
-            document.getElementById('teacher').value = r.teacher || '';
+            document.getElementById('teacher').value = r.teacher_full_name || r.teacher_name || '';
             document.getElementById('room').value = r.room || '';
             document.getElementById('date').value = r.date || '';
             document.getElementById('session').value = r.session || '';
@@ -123,7 +130,7 @@
 
         async function delRow(id) {
             if (!confirm('حذف هذا السجل؟')) return;
-            const res = await window.api.proctors.delete(id);
+            const res = await window.api.examProctors.delete(id);
             if (!res || res.success === false) {
                 showToast('فشل الحذف', 'error');
                 return;
