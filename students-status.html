@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الوضعية الدراسية | برنامج التدبير المدرسي</title>
+    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/utils.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/ux-enhancements.js"></script>
+    <style>
+        .print-header { display: none; }
+
+        /* ─── Stats Cards ─── */
+        .status-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: var(--color-surface, #fff);
+            border-radius: 14px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            transition: var(--transition);
+            border: 1px solid var(--glass-border, #E8E8E8);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .stat-icon.total { background: linear-gradient(135deg, #6366f1, #818cf8); }
+        .stat-icon.dropout { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .stat-icon.expelled { background: linear-gradient(135deg, #dc2626, #f87171); }
+        .stat-icon.not-enrolled { background: linear-gradient(135deg, #64748b, #94a3b8); }
+
+        .stat-info h4 {
+            font-size: 12px;
+            color: var(--color-text-muted, #777);
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .stat-info .stat-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--color-text-main, #1a1a2e);
+            font-family: var(--font-display, inherit);
+        }
+
+        /* ─── Tab Filters ─── */
+        .status-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .status-tab {
+            padding: 7px 18px;
+            border-radius: 20px;
+            border: 2px solid #e5e7eb;
+            background: var(--color-surface, #fff);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-tab:hover { border-color: #9ca3af; }
+
+        .status-tab.active { color: white; border-color: transparent; }
+        .status-tab.active[data-status="all"] { background: var(--color-primary, #3B6AC5); }
+        .status-tab.active[data-status="dropout"] { background: #f59e0b; }
+        .status-tab.active[data-status="expelled"] { background: #dc2626; }
+        .status-tab.active[data-status="not_enrolled"] { background: #64748b; }
+
+        .status-tab .tab-count {
+            background: rgba(255,255,255,0.25);
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+        }
+
+        .status-tab:not(.active) .tab-count {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        /* ─── Status Badges ─── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .badge-dropout { background: #fef3c7; color: #92400e; }
+        .badge-expelled { background: #fee2e2; color: #991b1b; }
+        .badge-not_enrolled { background: #f1f5f9; color: #475569; }
+        .badge-active { background: #dcfce7; color: #166534; }
+
+        /* ─── Action bar ─── */
+        .results-action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .results-action-bar .action-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ─── Quick search ─── */
+        .table-quick-search {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .table-quick-search input {
+            flex: 1;
+            padding: 10px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: var(--transition);
+        }
+
+        .table-quick-search input:focus {
+            outline: none;
+            border-color: var(--color-primary, #3B6AC5);
+        }
+
+        .table-quick-search .search-count {
+            font-size: 12px;
+            color: var(--color-text-muted, #777);
+            white-space: nowrap;
+        }
+
+        /* ─── Change Status Modal ─── */
+        .status-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 11000;
+            background: rgba(0,0,0,0.45);
+            backdrop-filter: blur(3px);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .status-modal-overlay.active { display: flex; }
+
+        .status-modal {
+            background: var(--color-surface, #fff);
+            border-radius: 16px;
+            width: min(500px, 95vw);
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            animation: modalIn 0.2s ease;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .status-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--color-accent, #E8E8E8);
+            background: linear-gradient(135deg, var(--color-primary-soft, #eef4f0), var(--color-secondary-soft, #f4f8f5));
+            border-radius: 16px 16px 0 0;
+        }
+
+        .status-modal-header h3 {
+            margin: 0;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--color-primary-dark, #2F5499);
+        }
+
+        .status-modal-header .close-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--color-text-muted, #777);
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: 0.2s;
+        }
+
+        .status-modal-header .close-btn:hover {
+            background: rgba(0,0,0,0.08);
+            color: #dc2626;
+        }
+
+        .status-modal-body {
+            padding: 20px 22px;
+        }
+
+        .status-modal-body .form-group {
+            margin-bottom: 15px;
+        }
+
+        .status-modal-body .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--color-text-main, #1a1a2e);
+        }
+
+        .status-modal-body select,
+        .status-modal-body input,
+        .status-modal-body textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: var(--transition);
+        }
+
+        .status-modal-body select:focus,
+        .status-modal-body input:focus,
+        .status-modal-body textarea:focus {
+            outline: none;
+            border-color: var(--color-primary, #3B6AC5);
+        }
+
+        .status-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 15px 22px;
+            border-top: 1px solid var(--color-accent, #E8E8E8);
+        }
+
+        /* ─── Checkbox in table ─── */
+        .students-table input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        /* ─── Empty state ─── */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--color-text-muted, #999);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.4;
+        }
+
+        .empty-state p {
+            font-size: 15px;
+            margin-top: 10px;
+        }
+
+        /* ─── Print styles ─── */
+        @media print {
+            body, html {
+                background: #fff !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            .sidebar, .header, .search-section, .toast-container,
+            .menu-toggle, .theme-toggle, .status-tabs,
+            .table-quick-search, .results-action-bar .action-group,
+            .students-table input[type="checkbox"],
+            .students-table th:first-child,
+            .students-table td:first-child { display: none !important; }
+
+            .main-content, .grades-container, .students-results, .table-responsive {
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                position: static !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+
+            .print-header {
+                display: block !important;
+                text-align: center;
+                margin-bottom: 8px;
+                padding-bottom: 6px;
+                border-bottom: 1px solid #333;
+            }
+
+            .print-header h1 { font-size: 16px; margin: 0 0 4px 0; }
+            .print-header p { color: #666; margin: 2px 0; font-size: 10px; }
+
+            .status-stats {
+                grid-template-columns: repeat(4, 1fr) !important;
+                gap: 6px !important;
+                margin-bottom: 6px !important;
+            }
+
+            .stat-card {
+                padding: 6px 8px !important;
+                gap: 6px !important;
+                box-shadow: none !important;
+            }
+
+            .stat-icon {
+                width: 28px !important;
+                height: 28px !important;
+                font-size: 12px !important;
+            }
+
+            .stat-info h4 { font-size: 8px !important; }
+            .stat-info .stat-value { font-size: 13px !important; }
+
+            .students-results {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+            }
+
+            .students-table { font-size: 10px; }
+            .students-table th {
+                background: #f3f4f6 !important;
+                color: #111 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .students-table td, .students-table th {
+                border: 1px solid #d1d5db !important;
+                padding: 3px 5px !important;
+            }
+
+            @page { size: A4 portrait; margin: 0.8cm; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="toast-container" id="toast-container"></div>
+
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <h2 class="page-title"><i class="fas fa-user-slash"></i> الوضعية الدراسية للتلاميذ</h2>
+            </div>
+            <div class="header-right" style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+            </div>
+        </header>
+
+        <div class="print-header" id="print-header">
+            <h1><i class="fas fa-user-slash"></i> الوضعية الدراسية للتلاميذ</h1>
+            <p id="print-date"></p>
+            <p id="print-filters"></p>
+        </div>
+
+        <div class="grades-container">
+            <!-- Search / Filter Section -->
+            <div class="search-section">
+                <h3><i class="fas fa-filter"></i> تصفية البيانات</h3>
+                <form class="search-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    <select id="level-select">
+                        <option value="">كل المستويات</option>
+                    </select>
+                    <select id="section-select">
+                        <option value="">كل الأقسام</option>
+                    </select>
+                    <input type="text" id="search-input" placeholder="بحث بالاسم أو رمز مسار...">
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary" type="button" id="search-btn"
+                            style="flex:1;padding:12px 20px;font-size:14px;border-radius:10px;margin:0;justify-content:center;">
+                            <i class="fas fa-search"></i> بحث
+                        </button>
+                        <button class="btn btn-success ux-print-preview-btn" type="button" id="print-btn"
+                            style="padding:12px 16px;font-size:14px;border-radius:10px;margin:0;white-space:nowrap;">
+                            <i class="fas fa-print"></i> طباعة
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Stat Cards -->
+            <div class="status-stats" id="status-stats">
+                <div class="stat-card">
+                    <div class="stat-icon total"><i class="fas fa-users"></i></div>
+                    <div class="stat-info">
+                        <h4>المجموع</h4>
+                        <div class="stat-value" id="stat-total">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon dropout"><i class="fas fa-user-clock"></i></div>
+                    <div class="stat-info">
+                        <h4>المنقطعون</h4>
+                        <div class="stat-value" id="stat-dropout">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon expelled"><i class="fas fa-user-times"></i></div>
+                    <div class="stat-info">
+                        <h4>المفصولون</h4>
+                        <div class="stat-value" id="stat-expelled">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon not-enrolled"><i class="fas fa-user-minus"></i></div>
+                    <div class="stat-info">
+                        <h4>غير الملتحقين</h4>
+                        <div class="stat-value" id="stat-not-enrolled">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs + Table -->
+            <div class="students-results">
+                <div class="results-action-bar">
+                    <h3 style="margin:0;"><i class="fas fa-list"></i> قائمة التلاميذ</h3>
+                    <div class="action-group">
+                        <button class="btn btn-primary" id="btn-change-status" type="button" disabled>
+                            <i class="fas fa-exchange-alt"></i> تغيير الحالة
+                        </button>
+                        <button class="btn btn-success" id="btn-export" type="button">
+                            <i class="fas fa-file-excel"></i> تصدير Excel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="status-tabs" id="status-tabs">
+                    <button class="status-tab active" data-status="all">
+                        <i class="fas fa-list"></i> الكل <span class="tab-count" id="count-all">0</span>
+                    </button>
+                    <button class="status-tab" data-status="dropout">
+                        <i class="fas fa-user-clock"></i> المنقطعون <span class="tab-count" id="count-dropout">0</span>
+                    </button>
+                    <button class="status-tab" data-status="expelled">
+                        <i class="fas fa-user-times"></i> المفصولون <span class="tab-count" id="count-expelled">0</span>
+                    </button>
+                    <button class="status-tab" data-status="not_enrolled">
+                        <i class="fas fa-user-minus"></i> غير الملتحقين <span class="tab-count" id="count-not-enrolled">0</span>
+                    </button>
+                </div>
+
+                <div class="table-quick-search" id="table-quick-search">
+                    <i class="fas fa-filter" style="color:var(--color-text-muted,#999)"></i>
+                    <input type="text" id="quick-search-input" placeholder="تصفية سريعة بالاسم أو رمز مسار...">
+                    <span class="search-count" id="search-count"></span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;"><input type="checkbox" id="select-all" title="تحديد الكل"></th>
+                                <th>#</th>
+                                <th>رمز مسار</th>
+                                <th>الاسم الكامل</th>
+                                <th>القسم</th>
+                                <th>الجنس</th>
+                                <th>الحالة</th>
+                                <th>التاريخ</th>
+                                <th>الملاحظات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Change Status Modal -->
+    <div class="status-modal-overlay" id="status-modal-overlay">
+        <div class="status-modal">
+            <div class="status-modal-header">
+                <h3><i class="fas fa-exchange-alt"></i> تغيير حالة التلاميذ</h3>
+                <button class="close-btn" id="modal-close">&times;</button>
+            </div>
+            <div class="status-modal-body">
+                <p id="modal-selection-info" style="margin-bottom:15px;font-size:13px;color:var(--color-text-muted,#777);"></p>
+                <div class="form-group">
+                    <label for="new-status">الحالة الجديدة</label>
+                    <select id="new-status">
+                        <option value="active">نشط (عودة للدراسة)</option>
+                        <option value="dropout">منقطع عن الدراسة</option>
+                        <option value="expelled">مفصول</option>
+                        <option value="not_enrolled">غير ملتحق</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="status-reason">الملاحظات (اختياري)</label>
+                    <textarea id="status-reason" rows="3" placeholder="أدخل سبب التغيير..."></textarea>
+                </div>
+            </div>
+            <div class="status-modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel" type="button">إلغاء</button>
+                <button class="btn btn-primary" id="modal-confirm" type="button"><i class="fas fa-check"></i> تأكيد</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/pages/students-status.js" defer></script>
+</body>
+
+</html>

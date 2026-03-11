@@ -160,6 +160,115 @@ function registerStudentsIpc(ipcMain) {
         return { success: true, count };
     });
 
+    // ── Student status tracking (read = open, write = admin/staff) ──
+
+    handleRead(ipcMain, 'students:getByStatus', (db, filters) => {
+        filters = filters || {};
+        const year = normalizeYear(filters.schoolYear);
+        const statusFilter = String(filters.status || '').trim();
+        const sectionFilter = String(filters.section || '').trim();
+        const searchTerm = String(filters.searchTerm || '').trim();
+
+        // Non-active statuses
+        const validStatuses = ['dropout', 'expelled', 'not_enrolled'];
+
+        const whereParts = ['s.school_year = ?'];
+        const params = [year];
+
+        if (statusFilter && validStatuses.includes(statusFilter)) {
+            whereParts.push('s.status = ?');
+            params.push(statusFilter);
+        } else {
+            // Show all non-active students
+            whereParts.push('s.status IN (\'dropout\', \'expelled\', \'not_enrolled\')');
+        }
+
+        if (sectionFilter) {
+            whereParts.push('s.section = ?');
+            params.push(sectionFilter);
+        }
+
+        if (searchTerm) {
+            whereParts.push("(s.full_name LIKE ? OR s.code LIKE ?)");
+            const like = `%${searchTerm}%`;
+            params.push(like, like);
+        }
+
+        const whereSql = whereParts.join(' AND ');
+
+        // Get rows with optional movement info
+        const rows = db.prepare(`
+            SELECT s.*,
+                   m.movement_date AS status_date,
+                   m.notes AS status_notes
+            FROM students s
+            LEFT JOIN (
+                SELECT student_id, movement_date, notes,
+                       ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY created_at DESC) AS rn
+                FROM student_movements
+                WHERE movement_type IN ('dropout', 'expulsion', 'not_enrolled')
+            ) m ON m.student_id = s.id AND m.rn = 1
+            WHERE ${whereSql}
+            ORDER BY s.section, s.full_name
+        `).all(...params);
+
+        // Summary counts (always for full year, ignoring search/section filters)
+        const summary = db.prepare(`
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'dropout' THEN 1 ELSE 0 END) AS dropouts,
+                SUM(CASE WHEN status = 'expelled' THEN 1 ELSE 0 END) AS expelled,
+                SUM(CASE WHEN status = 'not_enrolled' THEN 1 ELSE 0 END) AS not_enrolled
+            FROM students
+            WHERE school_year = ?
+              AND status IN ('dropout', 'expelled', 'not_enrolled')
+        `).get(year);
+
+        const totalStudents = db.prepare(
+            'SELECT COUNT(*) AS total FROM students WHERE school_year = ?'
+        ).get(year);
+
+        return {
+            success: true,
+            rows,
+            summary: {
+                total: Number(summary?.total || 0),
+                dropouts: Number(summary?.dropouts || 0),
+                expelled: Number(summary?.expelled || 0),
+                notEnrolled: Number(summary?.not_enrolled || 0),
+                totalStudents: Number(totalStudents?.total || 0)
+            }
+        };
+    });
+
+    handleWrite(ipcMain, 'students:updateStatusBulk', ['admin', 'staff'], (db, _event, items) => {
+        if (!Array.isArray(items)) {
+            return { success: false, error: 'Expected an array' };
+        }
+        if (items.length > 500) {
+            return { success: false, error: 'Batch size exceeds maximum of 500' };
+        }
+
+        const validStatuses = ['active', 'dropout', 'expelled', 'not_enrolled'];
+        const updateStmt = db.prepare('UPDATE students SET status = ? WHERE id = ?');
+
+        const updateMany = db.transaction((entries) => {
+            let updated = 0;
+            for (const item of entries) {
+                const id = Number(item.student_id);
+                const status = String(item.status || '').trim();
+                if (!Number.isFinite(id) || id <= 0) continue;
+                if (!validStatuses.includes(status)) continue;
+                const info = updateStmt.run(status, id);
+                updated += info.changes;
+            }
+            return updated;
+        });
+
+        const count = updateMany(items);
+        return { success: true, count };
+    });
+
     // ── Settings (read = open, write = admin only) ──
 
     handleRead(ipcMain, 'settings:get', (db, key) => {

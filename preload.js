@@ -11,7 +11,9 @@ contextBridge.exposeInMainWorld('api', {
         addBulk: (students) => ipcRenderer.invoke('students:addBulk', students),
         update: (id, data) => ipcRenderer.invoke('students:update', id, data),
         delete: (id) => ipcRenderer.invoke('students:delete', id),
-        deleteByYear: (schoolYear) => ipcRenderer.invoke('students:deleteByYear', schoolYear)
+        deleteByYear: (schoolYear) => ipcRenderer.invoke('students:deleteByYear', schoolYear),
+        getByStatus: (filters) => ipcRenderer.invoke('students:getByStatus', filters),
+        updateStatusBulk: (items) => ipcRenderer.invoke('students:updateStatusBulk', items)
     },
 
     // Lookup catalogs
@@ -181,7 +183,13 @@ contextBridge.exposeInMainWorld('api', {
         register: (payload) => ipcRenderer.invoke('auth:register', payload),
         changePassword: (payload) => ipcRenderer.invoke('auth:changePassword', payload),
         getSession: () => ipcRenderer.invoke('auth:getSession'),
-        logout: () => ipcRenderer.invoke('auth:logout')
+        logout: () => ipcRenderer.invoke('auth:logout'),
+        setupPin: (payload) => ipcRenderer.invoke('auth:setupPin', payload),
+        verifyPin: (payload) => ipcRenderer.invoke('auth:verifyPin', payload),
+        removePin: () => ipcRenderer.invoke('auth:removePin'),
+        getPinStatus: () => ipcRenderer.invoke('auth:getPinStatus'),
+        lockSession: () => ipcRenderer.invoke('auth:lockSession'),
+        unlockWithPassword: (payload) => ipcRenderer.invoke('auth:unlockWithPassword', payload)
     },
 
     // Users

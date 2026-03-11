@@ -307,6 +307,13 @@ const MIGRATIONS = [
                 // Column already exists
             }
         }
+    },
+    {
+        version: '2026-03-022-user-pin-support',
+        up: () => {
+            ensureColumn('users', 'pin_hash', 'TEXT');
+            ensureColumn('users', 'pin_failed_attempts', 'INTEGER DEFAULT 0');
+        }
     }
 ];
 

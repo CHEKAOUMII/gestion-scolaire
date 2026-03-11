@@ -25,6 +25,7 @@ function injectSidebar() {
                         <li><a href="students-files.html"><i class="fas fa-folder-open"></i> ترتيب الملفات</a></li>
                         <li><a href="students-movement.html"><i class="fas fa-exchange-alt"></i> حركية التلاميذ</a></li>
                         <li><a href="student-profile-prototype.html"><i class="fas fa-user-circle"></i> ملف التلميذ</a></li>
+                        <li><a href="students-status.html"><i class="fas fa-user-slash"></i> الوضعية الدراسية</a></li>
                     </ul>
                 </li>
                 <li class="expandable">
@@ -114,6 +115,14 @@ function injectSidebar() {
                 </div>
             </div>
             <div class="sidebar-auth-actions" id="sidebar-auth-actions">
+                <button type="button" class="sidebar-auth-btn sidebar-auth-lock" id="sidebar-lock-btn" title="قفل الجلسة" style="display:none;">
+                    <i class="fas fa-lock"></i>
+                    <span>قفل الجلسة</span>
+                </button>
+                <button type="button" class="sidebar-auth-btn sidebar-auth-pin-setup" id="sidebar-pin-setup-btn" title="إعداد رمز PIN" style="display:none;">
+                    <i class="fas fa-fingerprint"></i>
+                    <span>إعداد رمز PIN</span>
+                </button>
                 <button type="button" class="sidebar-auth-btn sidebar-auth-change-pw" id="sidebar-change-pw-btn" title="تغيير كلمة المرور" style="display:none;">
                     <i class="fas fa-key"></i>
                     <span>تغيير كلمة المرور</span>
@@ -165,14 +174,15 @@ function injectSidebar() {
     function _reapplyRoleUi() {
         if (typeof getCurrentAppRole !== 'function') return;
         const currentRole = getCurrentAppRole();
+        const currentAccess = typeof getAppAccessState === 'function' ? getAppAccessState() : 'blocked';
         if (typeof applyNavigationRestrictions === 'function') {
-            applyNavigationRestrictions(currentRole);
+            applyNavigationRestrictions(currentRole, currentAccess);
         }
         if (typeof applyPageVisibilityToDocument === 'function') {
             applyPageVisibilityToDocument(currentRole);
         }
         if (typeof ensureAdminAuthButton === 'function') {
-            ensureAdminAuthButton(currentRole);
+            ensureAdminAuthButton(currentRole, currentAccess);
         }
     }
     _reapplyRoleUi();

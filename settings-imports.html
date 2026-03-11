@@ -49,6 +49,9 @@
         accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
         multiple>
     <input type="file" id="fet-file-input" class="file-input-hidden" accept=".xml,text/xml,application/xml">
+    <input type="file" id="status-file-input" class="file-input-hidden"
+        accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+        multiple>
 
     <aside class="sidebar" id="sidebar">
         <!-- Sidebar will be injected by sidebar.js -->
@@ -164,6 +167,11 @@
                         <i class="fas fa-calendar-alt"></i>
                         <span>استيراد FET (XML)</span>
                         <small class="import-format-hint">.xml – ملف _teachers.xml</small>
+                    </button>
+                    <button class="btn btn-primary" data-action="student-status" type="button">
+                        <i class="fas fa-user-slash"></i>
+                        <span>استيراد الوضعيات الدراسية</span>
+                        <small class="import-format-hint">.xlsx .xls .csv</small>
                     </button>
                 </div>
 

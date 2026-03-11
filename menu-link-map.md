@@ -16,6 +16,7 @@ Sources of truth:
     - `ترتيب الملفات` -> `students-files.html`
     - `حركية التلاميذ` -> `students-movement.html`
     - `ملف التلميذ` -> `student-profile-prototype.html`
+    - `الوضعية الدراسية` -> `students-status.html`
 
 - Teachers (`الأساتذة`)
     - `قائمة الأساتذة` -> `teachers-list.html`

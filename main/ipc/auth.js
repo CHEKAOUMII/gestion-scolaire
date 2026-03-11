@@ -4,6 +4,7 @@ const { verifyPassword, hashPassword } = require('../auth/password');
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
 const ALLOWED_ROLES = new Set(['admin', 'staff', 'viewer']);
+const MAX_PIN_ATTEMPTS = 5;
 
 // ── Login throttling ──
 const LOGIN_ATTEMPTS = new Map(); // email → { count, lockedUntil }
@@ -332,6 +333,194 @@ function registerAuthIpc(ipcMain) {
             db.prepare(
                 'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?'
             ).run(hashPassword(newPassword), session.userId);
+
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── PIN: setup (authenticated user sets or changes PIN) ──
+    ipcMain.handle('auth:setupPin', async (event, payload) => {
+        try {
+            const session = getSessionByEvent(event);
+            if (!session) {
+                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
+            }
+
+            const pin = String(payload?.pin || '');
+            if (!/^\d{4,6}$/.test(pin)) {
+                return { success: false, code: 'INVALID_PIN', error: 'رمز PIN يجب أن يكون من 4 إلى 6 أرقام' };
+            }
+
+            const db = getDb();
+            db.prepare(
+                'UPDATE users SET pin_hash = ?, pin_failed_attempts = 0 WHERE id = ?'
+            ).run(hashPassword(pin), session.userId);
+
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── PIN: verify (lock-screen unlock) ──
+    ipcMain.handle('auth:verifyPin', async (event, payload) => {
+        try {
+            const session = getSessionByEvent(event);
+            if (!session) {
+                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
+            }
+
+            const pin = String(payload?.pin || '');
+            if (!pin) {
+                return { success: false, code: 'INVALID_PIN', error: 'رمز PIN مطلوب' };
+            }
+
+            const db = getDb();
+            const user = db.prepare(
+                'SELECT id, pin_hash, pin_failed_attempts FROM users WHERE id = ?'
+            ).get(session.userId);
+            if (!user) {
+                return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
+            }
+
+            const storedPinHash = String(user.pin_hash || '').trim();
+            if (!storedPinHash) {
+                return { success: false, code: 'PIN_NOT_SET', error: 'لم يتم إعداد رمز PIN' };
+            }
+
+            const failedAttempts = Number(user.pin_failed_attempts || 0);
+            if (failedAttempts >= MAX_PIN_ATTEMPTS) {
+                return {
+                    success: false,
+                    code: 'PIN_LOCKED',
+                    error: 'تم تجاوز الحد الأقصى لمحاولات PIN. استخدم كلمة المرور.',
+                    requirePassword: true
+                };
+            }
+
+            if (!verifyPassword(pin, storedPinHash)) {
+                const newCount = failedAttempts + 1;
+                db.prepare(
+                    'UPDATE users SET pin_failed_attempts = ? WHERE id = ?'
+                ).run(newCount, session.userId);
+
+                if (newCount >= MAX_PIN_ATTEMPTS) {
+                    return {
+                        success: false,
+                        code: 'PIN_LOCKED',
+                        error: 'تم تجاوز الحد الأقصى لمحاولات PIN. استخدم كلمة المرور.',
+                        requirePassword: true,
+                        attemptsRemaining: 0
+                    };
+                }
+
+                return {
+                    success: false,
+                    code: 'INVALID_PIN',
+                    error: 'رمز PIN غير صحيح',
+                    attemptsRemaining: MAX_PIN_ATTEMPTS - newCount
+                };
+            }
+
+            // Success — reset failed attempts and unlock
+            db.prepare(
+                'UPDATE users SET pin_failed_attempts = 0 WHERE id = ?'
+            ).run(session.userId);
+            session.locked = false;
+
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── PIN: remove ──
+    ipcMain.handle('auth:removePin', async (event) => {
+        try {
+            const session = getSessionByEvent(event);
+            if (!session) {
+                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
+            }
+
+            const db = getDb();
+            db.prepare(
+                'UPDATE users SET pin_hash = NULL, pin_failed_attempts = 0 WHERE id = ?'
+            ).run(session.userId);
+
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── PIN: get status (has PIN configured?) ──
+    ipcMain.handle('auth:getPinStatus', async (event) => {
+        try {
+            const session = getSessionByEvent(event);
+            if (!session) {
+                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
+            }
+
+            const db = getDb();
+            const user = db.prepare(
+                'SELECT pin_hash, pin_failed_attempts FROM users WHERE id = ?'
+            ).get(session.userId);
+
+            const hasPin = !!(user && String(user.pin_hash || '').trim());
+            const pinLocked = hasPin && Number(user.pin_failed_attempts || 0) >= MAX_PIN_ATTEMPTS;
+
+            return { success: true, configured: hasPin, locked: pinLocked };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── Session lock (marks in-memory session as locked) ──
+    ipcMain.handle('auth:lockSession', async (event) => {
+        try {
+            const session = getSessionByEvent(event);
+            if (!session) {
+                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
+            }
+            session.locked = true;
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── Unlock with password (fallback when PIN is locked out) ──
+    ipcMain.handle('auth:unlockWithPassword', async (event, payload) => {
+        try {
+            const session = getSessionByEvent(event);
+            if (!session) {
+                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
+            }
+
+            const password = String(payload?.password || '');
+            if (!password) {
+                return { success: false, code: 'INVALID_PASSWORD', error: 'كلمة المرور مطلوبة' };
+            }
+
+            const db = getDb();
+            const user = db.prepare(
+                'SELECT id, password_hash FROM users WHERE id = ?'
+            ).get(session.userId);
+            if (!user) {
+                return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
+            }
+
+            if (!verifyPassword(password, String(user.password_hash || ''))) {
+                return { success: false, code: 'INVALID_PASSWORD', error: 'كلمة المرور غير صحيحة' };
+            }
+
+            // Reset PIN failed attempts and unlock session
+            db.prepare(
+                'UPDATE users SET pin_failed_attempts = 0 WHERE id = ?'
+            ).run(session.userId);
+            session.locked = false;
 
             return { success: true };
         } catch (err) {

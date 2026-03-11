@@ -223,6 +223,8 @@ function createTables() {
         email TEXT UNIQUE,
         role TEXT DEFAULT 'staff',
         password_hash TEXT,
+        pin_hash TEXT,
+        pin_failed_attempts INTEGER DEFAULT 0,
         disabled INTEGER DEFAULT 0,
         must_change_password INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP

@@ -58,7 +58,8 @@ function runPageScriptExtractionSmoke() {
     const checks = [
         { html: 'index.html', script: 'js/pages/dashboard-init.js' },
         { html: 'students-list.html', script: 'js/pages/students-list.js' },
-        { html: 'settings-imports.html', script: 'js/pages/settings-imports.js' }
+        { html: 'settings-imports.html', script: 'js/pages/settings-imports.js' },
+        { html: 'students-status.html', script: 'js/pages/students-status.js' }
     ];
 
     checks.forEach(({ html, script }) => {

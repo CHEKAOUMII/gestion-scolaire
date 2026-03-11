@@ -2,13 +2,15 @@ const FILE_INPUTS = {
     students: 'students-file-input',
     grades: 'grades-file-input',
     absences: 'absences-file-input',
-    fet: 'fet-file-input'
+    fet: 'fet-file-input',
+    'student-status': 'status-file-input'
 };
 const ACTION_LABELS = {
     students: 'لائحة التلاميذ',
     grades: 'النقط',
     absences: 'الغياب',
-    fet: 'FET'
+    fet: 'FET',
+    'student-status': 'الوضعيات الدراسية'
 };
 
 const XLSX_CDN = 'vendor/xlsx.full.min.js';
@@ -1125,6 +1127,8 @@ async function handleImport(action, files) {
                         if (gradeResult.semester) detectedSemester = gradeResult.semester;
                     } else if (action === 'absences') {
                         totalImported += await importAbsences(workbook, year);
+                    } else if (action === 'student-status') {
+                        totalImported += await importStudentStatus(workbook, year);
                     }
                 }
 
@@ -1144,7 +1148,7 @@ async function handleImport(action, files) {
         }
 
         const unit =
-            action === 'students' ? 'تلميذ' : action === 'grades' ? 'نقطة' : action === 'fet' ? 'أستاذ' : 'سجل غياب';
+            action === 'students' ? 'تلميذ' : action === 'grades' ? 'نقطة' : action === 'fet' ? 'أستاذ' : action === 'student-status' ? 'تلميذ' : 'سجل غياب';
         const fileWord = fileList.length === 1 ? 'ملف' : 'ملفات';
         const semesterName =
             action === 'grades' && detectedSemester
@@ -1992,4 +1996,196 @@ async function loadLogs() {
             )
             .join('')
         : '<tr><td colspan="4" style="padding: 30px; text-align: center; color: #888;"><i class="fas fa-inbox" style="font-size: 32px; display: block; margin-bottom: 10px;"></i>لا توجد عمليات بعد</td></tr>';
+}
+
+// ─── Student Status Import ──────────────────────────────────────────────────
+
+const STATUS_CODE_ALIASES = [
+    ...HEADER_ALIASES.code,
+    'رقمالطلبة', 'رقم الطلبة', 'رقمالتلميذ', 'رقم التلميذ',
+    'numeroapogee', 'numero', 'numéro', 'n°', 'num'
+];
+
+const STATUS_HEADER_ALIASES = {
+    status: [
+        'status', 'الحالة', 'الوضعية', 'الوضعيةالدراسية',
+        'situation', 'etat', 'état', 'statut'
+    ]
+};
+
+const STATUS_VALUE_MAP = {
+    'منقطع': 'dropout', 'منقطعة': 'dropout', 'منقطع عن الدراسة': 'dropout',
+    'abandon': 'dropout', 'abandonné': 'dropout', 'abandonnee': 'dropout',
+    'decrochage': 'dropout', 'décrochage': 'dropout',
+    'dropout': 'dropout', 'dropped': 'dropout', 'dropped out': 'dropout',
+
+    'مفصول': 'expelled', 'مفصولة': 'expelled', 'مطرود': 'expelled', 'مطرودة': 'expelled',
+    'exclu': 'expelled', 'exclue': 'expelled', 'exclusion': 'expelled',
+    'renvoyé': 'expelled', 'renvoyée': 'expelled', 'renvoye': 'expelled',
+    'expelled': 'expelled', 'expulsion': 'expelled',
+
+    'غير ملتحق': 'not_enrolled', 'غير ملتحقة': 'not_enrolled',
+    'لم يلتحق': 'not_enrolled', 'غير مسجل': 'not_enrolled', 'غير مسجلة': 'not_enrolled',
+    'non inscrit': 'not_enrolled', 'non inscrite': 'not_enrolled',
+    'non scolarisé': 'not_enrolled', 'non scolarise': 'not_enrolled',
+    'not enrolled': 'not_enrolled', 'not_enrolled': 'not_enrolled', 'unenrolled': 'not_enrolled',
+
+    'active': 'active', 'نشط': 'active', 'نشطة': 'active'
+};
+
+// Patterns to detect status from file/sheet titles or metadata rows
+const STATUS_TITLE_PATTERNS = [
+    { re: /غير\s*ملتحق|الغير\s*الملتحق|لم\s*يلتحق|غير\s*مسجل|non\s*inscri|not.enrolled/i, status: 'not_enrolled' },
+    { re: /منقطع|الانقطاع|abandon|décrochage|decrochage|dropout/i, status: 'dropout' },
+    { re: /مفصول|مطرود|الفصل|الطرد|exclu|exclusion|expelled|renvoy/i, status: 'expelled' }
+];
+
+function normalizeStatusValue(raw) {
+    const text = String(raw || '').trim().toLowerCase();
+    if (!text) return '';
+    if (STATUS_VALUE_MAP[text]) return STATUS_VALUE_MAP[text];
+    const clean = text.replace(/[\u064B-\u065F]/g, '').trim();
+    if (STATUS_VALUE_MAP[clean]) return STATUS_VALUE_MAP[clean];
+    return '';
+}
+
+/**
+ * Scan text (title, metadata rows, sheet name) for status keywords.
+ * Returns the detected status code or '' if none found.
+ */
+function detectStatusFromText(text) {
+    if (!text) return '';
+    for (const { re, status } of STATUS_TITLE_PATTERNS) {
+        if (re.test(text)) return status;
+    }
+    return '';
+}
+
+async function importStudentStatus(workbook, schoolYear) {
+    const allRecords = []; // {code, full_name, family_name, birth_date, birth_place, gender, section, status}
+    let skippedNoCode = 0;
+
+    // Header aliases for additional columns
+    const familyNameAliases = [...HEADER_ALIASES.familyName, 'النسب', 'اللقب'];
+    const firstNameAliases  = [...HEADER_ALIASES.firstName, 'الاسم', 'الإسم'];
+    const fullNameAliases   = HEADER_ALIASES.fullName;
+    const genderAliases     = HEADER_ALIASES.gender;
+    const birthDateAliases  = [...HEADER_ALIASES.birthDate, 'تاريخالإزدياد', 'تاريخالازدياد', 'تاريخ الإزدياد', 'تاريخ الازدياد'];
+    const birthPlaceAliases = [...HEADER_ALIASES.birthPlace, 'مكانالإزدياد', 'مكانالازدياد', 'مكان الإزدياد', 'مكان الازدياد'];
+    const sectionAliases    = HEADER_ALIASES.section;
+
+    // Process every sheet in the workbook
+    for (const sheetName of workbook.SheetNames) {
+        const rows = getSheetRows(workbook, sheetName);
+        if (!rows.length) continue;
+
+        // 1. Find header row (only need code column at minimum)
+        const codeOnlyHeader = findBestHeaderRow(rows, [STATUS_CODE_ALIASES]);
+        if (codeOnlyHeader.index < 0) continue;
+
+        const headerIdx = codeOnlyHeader.index;
+        const headerRow = rows[headerIdx];
+
+        // Map columns
+        const codeIdx      = findHeaderIndex(headerRow, STATUS_CODE_ALIASES);
+        if (codeIdx < 0) continue;
+
+        const familyIdx    = findHeaderIndex(headerRow, familyNameAliases);
+        const firstIdx     = findHeaderIndex(headerRow, firstNameAliases);
+        const fullIdx      = findHeaderIndex(headerRow, fullNameAliases);
+        const genderIdx    = findHeaderIndex(headerRow, genderAliases);
+        const birthDIdx    = findHeaderIndex(headerRow, birthDateAliases);
+        const birthPIdx    = findHeaderIndex(headerRow, birthPlaceAliases);
+        const sectionIdx   = findHeaderIndex(headerRow, sectionAliases);
+        const statusColIdx = findHeaderIndex(headerRow, STATUS_HEADER_ALIASES.status);
+
+        // 2. Detect status from title/metadata if no status column
+        let impliedStatus = '';
+        if (statusColIdx < 0) {
+            impliedStatus = detectStatusFromText(sheetName);
+            if (!impliedStatus) {
+                for (let r = 0; r < Math.min(rows.length, 15); r++) {
+                    for (const cell of (rows[r] || [])) {
+                        const text = String(cell ?? '').trim();
+                        impliedStatus = detectStatusFromText(text);
+                        if (impliedStatus) break;
+                    }
+                    if (impliedStatus) break;
+                }
+            }
+            if (!impliedStatus) continue; // can't determine status, skip sheet
+        }
+
+        // 3. Derive section from sheet name if no section column
+        //    Sheet names like "2BACSPF-1" → use as section
+        const sheetSection = (sectionIdx < 0) ? sheetName.trim() : '';
+
+        // 4. Parse data rows
+        for (let i = headerIdx + 1; i < rows.length; i++) {
+            const row = rows[i] || [];
+            const rawCode = normalizeStudentCode(row[codeIdx]);
+            if (!rawCode) { skippedNoCode++; continue; }
+
+            // Build full name
+            const family = String(row[familyIdx] ?? '').trim();
+            const first  = String(row[firstIdx] ?? '').trim();
+            let fullName = fullIdx >= 0 ? String(row[fullIdx] ?? '').trim() : '';
+            if (!fullName && (family || first)) {
+                fullName = [family, first].filter(Boolean).join(' ');
+            }
+            if (!fullName) fullName = rawCode; // fallback to code
+
+            // Gender
+            let gender = genderIdx >= 0 ? String(row[genderIdx] ?? '').trim() : '';
+
+            // Birth date
+            let birthDate = birthDIdx >= 0 ? excelDateToIso(row[birthDIdx]) : '';
+
+            // Birth place
+            let birthPlace = birthPIdx >= 0 ? String(row[birthPIdx] ?? '').trim() : '';
+
+            // Section
+            let section = sectionIdx >= 0 ? String(row[sectionIdx] ?? '').trim() : sheetSection;
+
+            // Status
+            let status;
+            if (statusColIdx >= 0) {
+                status = normalizeStatusValue(row[statusColIdx]);
+                if (!status) status = impliedStatus || 'not_enrolled';
+            } else {
+                status = impliedStatus;
+            }
+
+            allRecords.push({
+                code: rawCode,
+                full_name: fullName,
+                family_name: family,
+                birth_date: birthDate,
+                birth_place: birthPlace,
+                gender: gender,
+                section: section,
+                school_year: schoolYear,
+                status: status
+            });
+        }
+    }
+
+    if (!allRecords.length) {
+        const hint = skippedNoCode
+            ? `${skippedNoCode} صف بدون رمز مسار`
+            : 'لم يتم التعرف على الحالة من عنوان الملف أو لم يُعثر على أعمدة صالحة';
+        throw new Error('لم يتم العثور على سجلات صالحة. ' + hint);
+    }
+
+    // Use addBulk which does UPSERT (insert new + update existing)
+    let totalProcessed = 0;
+    for (let i = 0; i < allRecords.length; i += 500) {
+        const batch = allRecords.slice(i, i + 500);
+        const result = await window.api.students.addBulk(batch);
+        if (result && result.success) {
+            totalProcessed += result.count || batch.length;
+        }
+    }
+
+    return totalProcessed;
 }

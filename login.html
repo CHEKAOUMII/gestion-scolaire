@@ -665,6 +665,33 @@
     </div>
 
     <script>
+        // ── Shared session hash (single definition) ──
+        function _computeSessionHash(data) {
+            const payload = [data.userId, data.role, data.loggedAt].join('|');
+            let hash = 0;
+            const key = 'gsl_session_integrity_2024';
+            const combined = key + ':' + payload;
+            for (let i = 0; i < combined.length; i++) {
+                const char = combined.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return hash.toString(36);
+        }
+
+        function _saveLocalSession(sessionUser, fallbackEmail, fallbackName) {
+            const sessionData = {
+                userId: Number(sessionUser.userId || 0),
+                name: String(sessionUser.name || fallbackName || ''),
+                email: String(sessionUser.email || fallbackEmail || '').trim().toLowerCase(),
+                role: String(sessionUser.role || 'staff'),
+                loggedAt: Date.now(),
+                source: 'sqlite'
+            };
+            sessionData._h = _computeSessionHash(sessionData);
+            localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
+        }
+
         // ── DOM refs ──
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
@@ -812,30 +839,7 @@
                 // Save remember-me
                 saveRememberMe(email);
 
-                // Compute session hash (same logic as utils.js)
-                function _computeSessionHash(data) {
-                    const payload = [data.userId, data.role, data.loggedAt].join('|');
-                    let hash = 0;
-                    const key = 'gsl_session_integrity_2024';
-                    const combined = key + ':' + payload;
-                    for (let i = 0; i < combined.length; i++) {
-                        const char = combined.charCodeAt(i);
-                        hash = ((hash << 5) - hash) + char;
-                        hash = hash & hash;
-                    }
-                    return hash.toString(36);
-                }
-
-                const sessionData = {
-                    userId: Number(sessionUser.userId || 0),
-                    name: String(sessionUser.name || ''),
-                    email: String(sessionUser.email || email || '').trim().toLowerCase(),
-                    role: userRole,
-                    loggedAt: Date.now(),
-                    source: 'sqlite'
-                };
-                sessionData._h = _computeSessionHash(sessionData);
-                localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
+                _saveLocalSession(sessionUser, email, '');
 
                 const nextPage = getSafeNextPage();
                 window.location.replace(`${nextPage}?loggedin=1`);
@@ -897,37 +901,15 @@
                 }
 
                 // Registration successful
-                registerSuccessText.textContent = 'تم إنشاء حسابك بنجاح! جاري التحويل...';
+                registerSuccessText.textContent = 'تم إنشاء حسابك بنجاح!';
                 registerSuccess.classList.add('show');
 
                 // Store session for the staff user
                 const sessionUser = res.user || {};
-                function _computeSessionHash(data) {
-                    const payload = [data.userId, data.role, data.loggedAt].join('|');
-                    let hash = 0;
-                    const key = 'gsl_session_integrity_2024';
-                    const combined = key + ':' + payload;
-                    for (let i = 0; i < combined.length; i++) {
-                        const char = combined.charCodeAt(i);
-                        hash = ((hash << 5) - hash) + char;
-                        hash = hash & hash;
-                    }
-                    return hash.toString(36);
-                }
-                const sessionData = {
-                    userId: Number(sessionUser.userId || 0),
-                    name: String(sessionUser.name || name),
-                    email: String(sessionUser.email || email).trim().toLowerCase(),
-                    role: String(sessionUser.role || 'staff'),
-                    loggedAt: Date.now(),
-                    source: 'sqlite'
-                };
-                sessionData._h = _computeSessionHash(sessionData);
-                localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
+                _saveLocalSession(sessionUser, email, name);
 
-                setTimeout(() => {
-                    window.location.replace('index.html');
-                }, 1200);
+                // Offer PIN setup after registration
+                _showPinSetupPrompt();
             } catch (error) {
                 registerErrorText.textContent = error.message || 'حدث خطأ أثناء إنشاء الحساب';
                 registerError.classList.add('show');
@@ -935,6 +917,102 @@
                 btnRegister.disabled = false;
             }
         });
+
+        // ── PIN setup prompt after registration ──
+        function _showPinSetupPrompt() {
+            const card = document.querySelector('.login-card');
+            if (!card) {
+                window.location.replace('index.html');
+                return;
+            }
+
+            // Hide current forms and tabs
+            document.querySelectorAll('.auth-form').forEach(f => f.style.display = 'none');
+            document.querySelector('.auth-tabs').style.display = 'none';
+
+            const pinPrompt = document.createElement('div');
+            pinPrompt.style.cssText = 'animation:slideUp 0.4s ease-out;';
+            pinPrompt.innerHTML = `
+                <div style="text-align:center;margin-bottom:20px;">
+                    <div style="width:64px;height:64px;border-radius:50%;background:#EBF4FF;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                        <i class="fas fa-fingerprint" style="font-size:28px;color:#1E40AF;"></i>
+                    </div>
+                    <h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--color-text-main);">إعداد رمز PIN</h3>
+                    <p style="margin:0;font-size:13px;color:var(--color-text-muted);">رمز PIN يتيح لك قفل وفتح الجلسة بسرعة دون كلمة المرور.</p>
+                </div>
+                <div id="pin-prompt-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>
+                <div id="pin-prompt-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>
+                <form id="pin-prompt-form" style="display:flex;flex-direction:column;gap:14px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">رمز PIN (4-6 أرقام)</label>
+                        <input type="password" id="pin-prompt-new" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6"
+                            style="width:100%;padding:13px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);font-size:20px;text-align:center;letter-spacing:10px;direction:ltr;font-family:ui-monospace,monospace;">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد رمز PIN</label>
+                        <input type="password" id="pin-prompt-confirm" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6"
+                            style="width:100%;padding:13px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);font-size:20px;text-align:center;letter-spacing:10px;direction:ltr;font-family:ui-monospace,monospace;">
+                    </div>
+                    <button type="submit" class="btn-login" style="margin-top:4px;">
+                        <span><i class="fas fa-lock"></i> حفظ رمز PIN</span>
+                    </button>
+                </form>
+                <button type="button" id="pin-prompt-skip" style="width:100%;margin-top:10px;padding:12px;background:transparent;border:1px solid var(--color-accent);border-radius:var(--radius-sm);font-size:14px;font-weight:600;color:var(--color-text-muted);cursor:pointer;font-family:inherit;transition:all 0.2s;">
+                    تخطي — يمكنك إعداده لاحقاً
+                </button>
+            `;
+            card.appendChild(pinPrompt);
+
+            // Skip → go to app
+            pinPrompt.querySelector('#pin-prompt-skip').addEventListener('click', () => {
+                window.location.replace('index.html');
+            });
+
+            // Save PIN
+            pinPrompt.querySelector('#pin-prompt-form').addEventListener('submit', async (ev) => {
+                ev.preventDefault();
+                const errorEl = pinPrompt.querySelector('#pin-prompt-error');
+                const successEl = pinPrompt.querySelector('#pin-prompt-success');
+                errorEl.style.display = 'none';
+                successEl.style.display = 'none';
+
+                const pin = pinPrompt.querySelector('#pin-prompt-new').value;
+                const confirmPin = pinPrompt.querySelector('#pin-prompt-confirm').value;
+
+                if (!/^\d{4,6}$/.test(pin)) {
+                    errorEl.textContent = 'رمز PIN يجب أن يكون من 4 إلى 6 أرقام';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                if (pin !== confirmPin) {
+                    errorEl.textContent = 'رمزا PIN غير متطابقين';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                try {
+                    const res = await window.api.auth.setupPin({ pin });
+                    if (!res?.success) {
+                        errorEl.textContent = res?.error || 'فشل حفظ رمز PIN';
+                        errorEl.style.display = 'block';
+                        return;
+                    }
+                    successEl.textContent = 'تم حفظ رمز PIN بنجاح! جاري التحويل...';
+                    successEl.style.display = 'block';
+                    setTimeout(() => {
+                        window.location.replace('index.html');
+                    }, 1200);
+                } catch (err) {
+                    errorEl.textContent = err.message || 'حدث خطأ';
+                    errorEl.style.display = 'block';
+                }
+            });
+
+            // Focus the first PIN input
+            setTimeout(() => {
+                pinPrompt.querySelector('#pin-prompt-new')?.focus();
+            }, 100);
+        }
 
         checkExistingAdminSession();
     </script>

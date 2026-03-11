@@ -67,7 +67,17 @@ const MANAGED_PAGE_SET = new Set(Object.keys(PAGE_DEFAULT_VISIBILITY));
 const TRIAL_BANNER_DISMISSED_KEY = 'trial_banner_dismissed';
 const TRIAL_BANNER_SHOWN_ON_OPEN_KEY = 'trial_banner_shown_on_open';
 
+// ── Separated State Model ──
+// appAccessState: 'blocked' | 'trial' | 'licensed'  (from licensing, never a role)
+// authState: 'anonymous' | 'authenticated'           (from session)
+// userRole: 'admin' | 'staff' | 'viewer' | null      (only real DB roles)
+// sessionLockState: 'unlocked' | 'locked'             (PIN lock)
+const LEGACY_PSEUDO_ROLES = new Set(['limited', 'guest', 'trial', 'licensed']);
+
 let _activationModalEl = null;
+let _lockScreenEl = null;
+let _pinSetupModalEl = null;
+let _sessionLocked = false;
 let _limitedNoticeClosedForPage = false;
 try {
     _limitedNoticeClosedForPage = sessionStorage.getItem(TRIAL_BANNER_DISMISSED_KEY) === '1';
@@ -78,35 +88,8 @@ let _refreshToken = 0;  // stale-request guard for refreshLimitedModeNotice
 let _pageVisibilityState = null;
 let _pageVisibilityLoadPromise = null;
 
-function _roleLabel(role) {
-    if (role === 'guest') return 'Limited';
-    if (role === 'limited') return 'Limited';
-    if (role === 'licensed') return 'User';
-    if (role === 'trial') return 'Trial';
-    const normalized = _normalizeRole(role);
-    if (normalized === 'admin') return 'Admin';
-    if (normalized === 'viewer') return 'Viewer';
-    return 'Staff';
-}
-
-function _roleTone(role) {
-    if (role === 'guest') return { bg: '#eef2f7', fg: '#3f4b5f', border: '#d3dce8' };
-    if (role === 'limited') return { bg: '#eef2f7', fg: '#3f4b5f', border: '#d3dce8' };
-    if (role === 'licensed') return { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' };
-    if (role === 'trial') return { bg: '#e8f0fe', fg: '#1a56db', border: '#b4c9f0' };
-    const normalized = _normalizeRole(role);
-    if (normalized === 'admin') return { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' };
-    if (normalized === 'viewer') return { bg: '#eef2f7', fg: '#3f4b5f', border: '#d3dce8' };
-    return { bg: '#fff5e8', fg: '#8a4b00', border: '#f2d6b4' };
-}
-
 function _getCurrentPageName() {
     return window.location.pathname.split('/').pop() || 'index.html';
-}
-
-function _normalizeRole(role) {
-    const normalized = String(role || '').trim().toLowerCase();
-    return AUTH_ALLOWED_ROLES.has(normalized) ? normalized : 'staff';
 }
 
 function _computeSessionHash(data) {
@@ -208,25 +191,29 @@ function _isPageHiddenByAdminToggle(pageName, role) {
     return !_isPageVisibleByAdminConfig(normalizedPage);
 }
 
-function _canRoleOpenPage(pageName, role) {
+function _canRoleOpenPage(pageName, authRole, accessState) {
     const normalizedPage = _normalizePageKey(pageName);
     if (!normalizedPage) return false;
-    if (_isAdminRole(role)) return true;
-    if (_isPageHiddenByAdminToggle(normalizedPage, role)) return false;
+    if (_isAdminRole(authRole)) return true;
+    if (_isPageHiddenByAdminToggle(normalizedPage, authRole)) return false;
     if (ADMIN_ONLY_PAGES.has(normalizedPage)) return false;
 
-    const mode = String(role || '').toLowerCase();
-    if (mode === 'licensed' || mode === 'trial') return true;
+    // Authenticated users (any role) can access non-admin pages
+    if (_isAuthenticatedRole(authRole)) return true;
+
+    // Non-authenticated: access depends on activation state
+    const state = String(accessState || '').toLowerCase();
+    if (state === 'licensed' || state === 'trial') return true;
     return GUEST_ALLOWED_PAGES.has(normalizedPage);
 }
 
-function _pickSafeRedirectPage(role, blockedPage = '') {
+function _pickSafeRedirectPage(authRole, accessState, blockedPage = '') {
     const blocked = _normalizePageKey(blockedPage);
     const candidates = ['index.html', 'students-list.html', 'settings-imports.html', 'login.html'];
     for (const page of candidates) {
         if (page === blocked) continue;
         if (page === 'login.html') return page;
-        if (_canRoleOpenPage(page, role)) return page;
+        if (_canRoleOpenPage(page, authRole, accessState)) return page;
     }
     return 'login.html';
 }
@@ -412,38 +399,35 @@ function _isAuthenticatedRole(role) {
     return ['admin', 'staff', 'viewer'].includes(String(role || '').toLowerCase());
 }
 
-function _deriveAppRoleFromSession(session) {
-    if (!session || !isAuthSessionActive()) return 'limited';
+function _deriveAuthRoleFromSession(session) {
+    if (!session || !isAuthSessionActive()) return null;
     const normalized = _normalizeRole(session.role || 'staff');
     if (['admin', 'staff', 'viewer'].includes(normalized)) return normalized;
-    return 'limited';
+    return null;
 }
 
-function setCurrentAppRole(role) {
-    const normalized = String(role || '').toLowerCase();
-    if (['admin', 'staff', 'viewer'].includes(normalized)) {
-        document.documentElement.dataset.currentAppRole = normalized;
-        return;
+function setAppAccessState(state) {
+    const s = String(state || '').toLowerCase();
+    if (['licensed', 'trial', 'blocked'].includes(s)) {
+        document.documentElement.dataset.appAccessState = s;
+    } else {
+        document.documentElement.dataset.appAccessState = 'blocked';
     }
-    if (normalized === 'licensed') {
-        document.documentElement.dataset.currentAppRole = 'licensed';
-        return;
-    }
-    if (normalized === 'trial') {
-        document.documentElement.dataset.currentAppRole = 'trial';
-        return;
-    }
-    document.documentElement.dataset.currentAppRole = 'limited';
+}
+
+function getAppAccessState() {
+    const value = document.documentElement.dataset.appAccessState;
+    if (value === 'licensed') return 'licensed';
+    if (value === 'trial') return 'trial';
+    return 'blocked';
 }
 
 function getCurrentAppRole() {
-    const value = document.documentElement.dataset.currentAppRole;
-    if (value === 'admin') return 'admin';
-    if (value === 'staff') return 'staff';
-    if (value === 'viewer') return 'viewer';
-    if (value === 'licensed') return 'licensed';
-    if (value === 'trial') return 'trial';
-    return 'limited';
+    const session = getAuthSessionData();
+    if (!session || !isAuthSessionActive()) return null;
+    const normalized = _normalizeRole(session.role || '');
+    if (['admin', 'staff', 'viewer'].includes(normalized)) return normalized;
+    return null;
 }
 
 function setAuthSession(email = '', user = {}) {
@@ -477,40 +461,49 @@ function clearAuthSession() {
     }
 }
 
-function _isSidebarLinkBlocked(href, role) {
-    if (_isAdminRole(role)) return false;
+function _isSidebarLinkBlocked(href, authRole, accessState) {
+    if (_isAdminRole(authRole)) return false;
     const normalizedHref = _normalizePageKey(href);
     if (!normalizedHref || normalizedHref === '#') return false;
 
-    if (_isPageHiddenByAdminToggle(normalizedHref, role)) {
+    if (_isPageHiddenByAdminToggle(normalizedHref, authRole)) {
         return true;
     }
 
-    const mode = String(role || '').toLowerCase();
-    if (mode === 'licensed' || mode === 'trial') {
+    // Authenticated users can see everything except admin-only
+    if (_isAuthenticatedRole(authRole)) {
+        return ADMIN_ONLY_PAGES.has(normalizedHref);
+    }
+
+    // Non-authenticated: licensed/trial can see non-admin pages
+    const state = String(accessState || '').toLowerCase();
+    if (state === 'licensed' || state === 'trial') {
         return ADMIN_ONLY_PAGES.has(normalizedHref);
     }
 
     return !GUEST_ALLOWED_LINKS.has(normalizedHref);
 }
 
-function applyNavigationRestrictions(role) {
-    const isAdmin = _isAdminRole(role);
+function applyNavigationRestrictions(authRole, accessState) {
+    const isAdmin = _isAdminRole(authRole);
 
     document.querySelectorAll('.sidebar-nav a[href]').forEach((link) => {
         if (!link.dataset.limitedGuardBound) {
             link.addEventListener('click', (event) => {
-                const mode = getCurrentAppRole();
-                if (!_isSidebarLinkBlocked(link.getAttribute('href'), mode)) return;
+                const currentRole = getCurrentAppRole();
+                const currentAccess = getAppAccessState();
+                if (!_isSidebarLinkBlocked(link.getAttribute('href'), currentRole, currentAccess)) return;
                 event.preventDefault();
                 event.stopPropagation();
                 const href = _normalizePageKey(link.getAttribute('href'));
-                if (_isPageHiddenByAdminToggle(href, mode)) {
+                if (_isPageHiddenByAdminToggle(href, currentRole)) {
                     showToast('هذه الصفحة غير متاحة حالياً', 'warning');
                     return;
                 }
-                const message =
-                    (mode === 'licensed' || mode === 'trial')
+                const isAuth = _isAuthenticatedRole(currentRole);
+                const message = isAuth
+                    ? 'هذه الصفحة مخصصة للمشرف (Admin)'
+                    : (currentAccess === 'licensed' || currentAccess === 'trial')
                         ? 'هذه الصفحة مخصصة للمشرف (Admin)'
                         : 'الوصول في الوضع المحدود متاح فقط لصفحتي اللوائح والاستيراد';
                 showToast(message, 'warning');
@@ -520,11 +513,10 @@ function applyNavigationRestrictions(role) {
 
         const href = _normalizePageKey(link.getAttribute('href'));
         const isAdminOnlyPage = ADMIN_ONLY_PAGES.has(href);
-        const isHiddenByAdmin = _isPageHiddenByAdminToggle(href, role);
-        const blocked = _isSidebarLinkBlocked(link.getAttribute('href'), role);
+        const isHiddenByAdmin = _isPageHiddenByAdminToggle(href, authRole);
+        const blocked = _isSidebarLinkBlocked(link.getAttribute('href'), authRole, accessState);
         const listItem = link.closest('li');
 
-        // Completely hide admin-only and manually hidden pages for non-admin users
         if (!isAdmin && (isAdminOnlyPage || isHiddenByAdmin)) {
             if (listItem) listItem.style.display = 'none';
             return;
@@ -546,22 +538,30 @@ function applyNavigationRestrictions(role) {
     });
 }
 
-function applySessionToUI(session, roleOverride = null) {
+function applySessionToUI(session, authRole, accessState) {
     const safe = session && typeof session === 'object' ? session : {};
-    const effectiveRole = roleOverride || _deriveAppRoleFromSession(session);
-    const isAdmin = _isAdminRole(effectiveRole);
-    const mode = String(effectiveRole || '').toLowerCase();
-    const isLicensed = mode === 'licensed';
-    const isTrial = mode === 'trial';
-    const displayName = isAdmin
-        ? String(safe.name || safe.email || 'المشرف').trim() || 'المشرف'
-        : isLicensed
-            ? 'مستخدم مرخص'
-            : isTrial
-                ? 'فترة تجريبية'
-                : 'مستخدم محدود';
-    const role = isAdmin ? _normalizeRole(safe.role || 'admin') : isLicensed ? 'licensed' : isTrial ? 'trial' : 'limited';
-    const tone = _roleTone(role);
+    const isAuthenticated = _isAuthenticatedRole(authRole);
+    const state = String(accessState || '').toLowerCase();
+
+    let displayName, badgeLabel, tone;
+    if (isAuthenticated) {
+        displayName = String(safe.name || safe.email || 'المستخدم').trim() || 'المستخدم';
+        const normalized = _normalizeRole(authRole);
+        badgeLabel = _roleLabel(normalized);
+        tone = _roleTone(normalized);
+    } else if (state === 'trial') {
+        displayName = 'فترة تجريبية';
+        badgeLabel = 'تجريبي';
+        tone = { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' };
+    } else if (state === 'licensed') {
+        displayName = 'مستخدم مرخص';
+        badgeLabel = 'مرخص';
+        tone = { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' };
+    } else {
+        displayName = 'وضع محدود';
+        badgeLabel = 'محدود';
+        tone = { bg: '#FEE2E2', fg: '#991B1B', border: '#FECACA' };
+    }
 
     document.querySelectorAll('[id="user-email"]').forEach((node) => {
         node.textContent = displayName;
@@ -577,7 +577,7 @@ function applySessionToUI(session, roleOverride = null) {
             container.appendChild(badge);
         }
 
-        badge.textContent = _roleLabel(role);
+        badge.textContent = badgeLabel;
         badge.style.background = tone.bg;
         badge.style.color = tone.fg;
         badge.style.borderColor = tone.border;
@@ -589,42 +589,57 @@ function redirectToLoginPage() {
     window.location.replace(`login.html?next=${next}`);
 }
 
-function redirectToSafePage(role, blockedPage = '') {
-    const target = _pickSafeRedirectPage(role, blockedPage);
+function redirectToSafePage(authRole, accessState, blockedPage = '') {
+    const target = _pickSafeRedirectPage(authRole, accessState, blockedPage);
     window.location.replace(target);
 }
 
-function enforcePageRoleOrRedirect(role) {
+function enforcePageRoleOrRedirect(authRole, accessState) {
     const currentPage = _normalizePageKey(_getCurrentPageName());
-    const isAdmin = _isAdminRole(role);
+    const isAdmin = _isAdminRole(authRole);
 
     if (isAdmin) return true;
 
-    if (_isPageHiddenByAdminToggle(currentPage, role)) {
+    if (_isPageHiddenByAdminToggle(currentPage, authRole)) {
         try {
             sessionStorage.setItem(PAGE_VISIBILITY_BLOCKED_NOTICE_KEY, '1');
         } catch (_err) {
             // ignore
         }
-        redirectToSafePage(role, currentPage);
+        redirectToSafePage(authRole, accessState, currentPage);
         return false;
     }
 
-    const mode = String(role || '').toLowerCase();
-
-    if (mode === 'licensed' || mode === 'trial') {
+    // Authenticated non-admin users can access everything except admin-only
+    if (_isAuthenticatedRole(authRole)) {
         if (ADMIN_ONLY_PAGES.has(currentPage)) {
             try {
                 sessionStorage.setItem(BLOCKED_REDIRECT_NOTICE_KEY, currentPage);
             } catch (_err) {
                 // ignore
             }
-            redirectToSafePage(role, currentPage);
+            redirectToSafePage(authRole, accessState, currentPage);
             return false;
         }
         return true;
     }
 
+    // Non-authenticated: check access state
+    const state = String(accessState || '').toLowerCase();
+    if (state === 'licensed' || state === 'trial') {
+        if (ADMIN_ONLY_PAGES.has(currentPage)) {
+            try {
+                sessionStorage.setItem(BLOCKED_REDIRECT_NOTICE_KEY, currentPage);
+            } catch (_err) {
+                // ignore
+            }
+            redirectToSafePage(authRole, accessState, currentPage);
+            return false;
+        }
+        return true;
+    }
+
+    // Blocked/unactivated — only guest-allowed pages
     if (!GUEST_ALLOWED_PAGES.has(currentPage)) {
         try {
             sessionStorage.setItem(BLOCKED_REDIRECT_NOTICE_KEY, currentPage);
@@ -632,12 +647,12 @@ function enforcePageRoleOrRedirect(role) {
         } catch (_err) {
             // ignore
         }
-        redirectToSafePage(role, currentPage);
+        redirectToSafePage(authRole, accessState, currentPage);
         return false;
     }
 
     if (ADMIN_ONLY_PAGES.has(currentPage)) {
-        redirectToSafePage(role, currentPage);
+        redirectToSafePage(authRole, accessState, currentPage);
         return false;
     }
 
@@ -821,9 +836,9 @@ async function openForcedActivationModal() {
     }
 }
 
-function ensureLimitedModeNotice(role, activationStatus = null) {
-    const mode = String(role || '').toLowerCase();
-    if (_isAuthenticatedRole(mode) || mode === 'licensed') {
+function ensureLimitedModeNotice(authRole, accessState, activationStatus = null) {
+    const state = String(accessState || '').toLowerCase();
+    if (_isAuthenticatedRole(authRole) || state === 'licensed') {
         _limitedNoticeClosedForPage = false;
         _removeLimitedNotice();
         return;
@@ -841,7 +856,7 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
     }
 
     // Trial mode: show trial info banner
-    if (mode === 'trial') {
+    if (state === 'trial') {
         const mainContent = document.querySelector('main.main-content');
         if (!mainContent) return;
 
@@ -934,16 +949,16 @@ function ensureLimitedModeNotice(role, activationStatus = null) {
     });
 }
 
-function refreshLimitedModeNotice(role) {
-    const mode = String(role || '').toLowerCase();
-    if (_isAuthenticatedRole(mode) || mode === 'licensed') {
+function refreshLimitedModeNotice(authRole, accessState) {
+    const state = String(accessState || '').toLowerCase();
+    if (_isAuthenticatedRole(authRole) || state === 'licensed') {
         _removeLimitedNotice();
         return;
     }
     // Trial mode: don't short-circuit, continue to fetch status for days remaining
 
     if (!window.api?.licensing?.getPublicStatus) {
-        ensureLimitedModeNotice(role, { activated: false });
+        ensureLimitedModeNotice(authRole, 'blocked', { activated: false });
         return;
     }
 
@@ -958,17 +973,17 @@ function refreshLimitedModeNotice(role) {
             if (_isAuthenticatedRole(getCurrentAppRole())) return;
 
             if (!res?.success) {
-                ensureLimitedModeNotice('limited', { activated: false });
+                ensureLimitedModeNotice(authRole, 'blocked', { activated: false });
                 return;
             }
 
             // Trial active
             if (res.status === 'trial') {
-                if (getCurrentAppRole() !== 'trial') {
+                if (getAppAccessState() !== 'trial') {
                     const session = isAuthSessionActive() ? getAuthSessionData() : null;
-                    applyRoleUi('trial', session);
+                    applyAppUi(authRole, 'trial', session);
                 } else {
-                    ensureLimitedModeNotice('trial', res);
+                    ensureLimitedModeNotice(authRole, 'trial', res);
                 }
                 return;
             }
@@ -981,22 +996,22 @@ function refreshLimitedModeNotice(role) {
 
             const isActivated = !!(res.activated);
             if (isActivated) {
-                if (getCurrentAppRole() !== 'licensed') {
+                if (getAppAccessState() !== 'licensed') {
                     const session = isAuthSessionActive() ? getAuthSessionData() : null;
-                    applyRoleUi('licensed', session);
+                    applyAppUi(authRole, 'licensed', session);
                 } else {
                     _removeLimitedNotice();
                 }
                 return;
             }
 
-            if (getCurrentAppRole() !== 'limited') {
+            if (getAppAccessState() !== 'blocked') {
                 const session = isAuthSessionActive() ? getAuthSessionData() : null;
-                applyRoleUi('limited', session);
+                applyAppUi(authRole, 'blocked', session);
                 return;
             }
 
-            ensureLimitedModeNotice('limited', res || { activated: false });
+            ensureLimitedModeNotice(authRole, 'blocked', res || { activated: false });
         })
         .catch(() => {
             // Stale-request guard
@@ -1004,12 +1019,12 @@ function refreshLimitedModeNotice(role) {
             // Never downgrade admin
             if (_isAuthenticatedRole(getCurrentAppRole())) return;
 
-            if (getCurrentAppRole() !== 'limited') {
+            if (getAppAccessState() !== 'blocked') {
                 const session = isAuthSessionActive() ? getAuthSessionData() : null;
-                applyRoleUi('limited', session);
+                applyAppUi(authRole, 'blocked', session);
                 return;
             }
-            ensureLimitedModeNotice('limited', { activated: false });
+            ensureLimitedModeNotice(authRole, 'blocked', { activated: false });
         });
 }
 
@@ -1096,7 +1111,246 @@ function openChangePasswordModal() {
     });
 }
 
-function ensureAdminAuthButton(role) {
+// ── Lock screen ──
+function isSessionLocked() {
+    return _sessionLocked;
+}
+
+function lockScreen() {
+    if (!isAuthSessionActive()) return;
+    _sessionLocked = true;
+    if (window.api?.auth?.lockSession) {
+        window.api.auth.lockSession().catch(() => {});
+    }
+    showLockScreen();
+}
+
+function showLockScreen() {
+    if (_lockScreenEl && document.body.contains(_lockScreenEl)) {
+        _lockScreenEl.style.display = 'flex';
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'lock-screen-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.85);z-index:10200;padding:16px;';
+
+    const session = getAuthSessionData();
+    const userName = String(session?.name || session?.email || 'المستخدم').trim() || 'المستخدم';
+
+    overlay.innerHTML = `
+        <div style="width:min(380px,90vw);background:#fff;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.3);overflow:hidden;direction:rtl;text-align:center;">
+            <div style="padding:30px 24px 10px;">
+                <div style="width:64px;height:64px;border-radius:50%;background:#EBF4FF;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                    <i class="fas fa-lock" style="font-size:24px;color:#1E40AF;"></i>
+                </div>
+                <h3 style="margin:0 0 6px;font-size:18px;color:#111827;">${escapeHtml(userName)}</h3>
+                <p style="margin:0 0 20px;font-size:13px;color:#6b7280;">الجلسة مقفلة</p>
+            </div>
+            <div id="lock-pin-section" style="padding:0 24px 10px;display:none;">
+                <input id="lock-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="أدخل رمز PIN" style="direction:ltr;width:100%;padding:12px;border:1px solid #d1d5db;border-radius:8px;text-align:center;font-size:18px;letter-spacing:8px;font-family:ui-monospace,monospace;">
+                <div id="lock-pin-error" style="display:none;color:#DC2626;font-size:12px;margin-top:8px;"></div>
+            </div>
+            <div id="lock-password-section" style="padding:0 24px 10px;display:none;">
+                <input id="lock-pw-input" type="password" placeholder="أدخل كلمة المرور" style="width:100%;padding:12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit;">
+                <div id="lock-pw-error" style="display:none;color:#DC2626;font-size:12px;margin-top:8px;"></div>
+            </div>
+            <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:8px;">
+                <button type="button" id="lock-unlock-btn" class="btn btn-success" style="width:100%;padding:12px;font-size:15px;"><i class="fas fa-unlock"></i> فتح القفل</button>
+                <button type="button" id="lock-use-password-btn" style="display:none;border:none;background:transparent;color:#3B6AC5;font-size:13px;cursor:pointer;padding:8px;">استخدم كلمة المرور بدلاً من PIN</button>
+                <button type="button" id="lock-logout-btn" style="border:none;background:transparent;color:#DC2626;font-size:12px;cursor:pointer;padding:8px;">تسجيل الخروج</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    _lockScreenEl = overlay;
+
+    // Determine if PIN is available
+    let usePinMode = false;
+    if (window.api?.auth?.getPinStatus) {
+        window.api.auth.getPinStatus().then((res) => {
+            if (res?.success && res.configured && !res.locked) {
+                usePinMode = true;
+                overlay.querySelector('#lock-pin-section').style.display = '';
+                overlay.querySelector('#lock-use-password-btn').style.display = '';
+                overlay.querySelector('#lock-pin-input')?.focus();
+            } else {
+                overlay.querySelector('#lock-password-section').style.display = '';
+                overlay.querySelector('#lock-pw-input')?.focus();
+            }
+        }).catch(() => {
+            overlay.querySelector('#lock-password-section').style.display = '';
+            overlay.querySelector('#lock-pw-input')?.focus();
+        });
+    } else {
+        overlay.querySelector('#lock-password-section').style.display = '';
+        overlay.querySelector('#lock-pw-input')?.focus();
+    }
+
+    // Switch to password mode
+    overlay.querySelector('#lock-use-password-btn')?.addEventListener('click', () => {
+        usePinMode = false;
+        overlay.querySelector('#lock-pin-section').style.display = 'none';
+        overlay.querySelector('#lock-password-section').style.display = '';
+        overlay.querySelector('#lock-use-password-btn').style.display = 'none';
+        overlay.querySelector('#lock-pw-input')?.focus();
+    });
+
+    // Unlock handler
+    overlay.querySelector('#lock-unlock-btn')?.addEventListener('click', async () => {
+        if (usePinMode) {
+            const pin = overlay.querySelector('#lock-pin-input')?.value || '';
+            if (!pin) return;
+            const errorEl = overlay.querySelector('#lock-pin-error');
+            try {
+                const res = await window.api.auth.verifyPin({ pin });
+                if (res?.success) {
+                    _sessionLocked = false;
+                    hideLockScreen();
+                    return;
+                }
+                if (res?.code === 'PIN_LOCKED' || res?.requirePassword) {
+                    usePinMode = false;
+                    overlay.querySelector('#lock-pin-section').style.display = 'none';
+                    overlay.querySelector('#lock-password-section').style.display = '';
+                    overlay.querySelector('#lock-use-password-btn').style.display = 'none';
+                    overlay.querySelector('#lock-pw-input')?.focus();
+                    const pwError = overlay.querySelector('#lock-pw-error');
+                    if (pwError) {
+                        pwError.textContent = 'تم تجاوز محاولات PIN. استخدم كلمة المرور.';
+                        pwError.style.display = '';
+                    }
+                    return;
+                }
+                if (errorEl) {
+                    errorEl.textContent = res?.error || 'رمز PIN غير صحيح';
+                    if (res?.attemptsRemaining != null) {
+                        errorEl.textContent += ` (${res.attemptsRemaining} محاولات متبقية)`;
+                    }
+                    errorEl.style.display = '';
+                }
+            } catch (_err) {
+                if (errorEl) { errorEl.textContent = 'حدث خطأ'; errorEl.style.display = ''; }
+            }
+            overlay.querySelector('#lock-pin-input').value = '';
+            overlay.querySelector('#lock-pin-input')?.focus();
+        } else {
+            const password = overlay.querySelector('#lock-pw-input')?.value || '';
+            if (!password) return;
+            const errorEl = overlay.querySelector('#lock-pw-error');
+            try {
+                const res = await window.api.auth.unlockWithPassword({ password });
+                if (res?.success) {
+                    _sessionLocked = false;
+                    hideLockScreen();
+                    return;
+                }
+                if (errorEl) {
+                    errorEl.textContent = res?.error || 'كلمة المرور غير صحيحة';
+                    errorEl.style.display = '';
+                }
+            } catch (_err) {
+                if (errorEl) { errorEl.textContent = 'حدث خطأ'; errorEl.style.display = ''; }
+            }
+            overlay.querySelector('#lock-pw-input').value = '';
+            overlay.querySelector('#lock-pw-input')?.focus();
+        }
+    });
+
+    // Allow Enter key to submit
+    overlay.querySelector('#lock-pin-input')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') overlay.querySelector('#lock-unlock-btn')?.click();
+    });
+    overlay.querySelector('#lock-pw-input')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') overlay.querySelector('#lock-unlock-btn')?.click();
+    });
+
+    // Logout handler
+    overlay.querySelector('#lock-logout-btn')?.addEventListener('click', async () => {
+        if (window.api?.auth?.logout) {
+            await window.api.auth.logout();
+        }
+        clearAuthSession();
+        _sessionLocked = false;
+        hideLockScreen();
+        window.location.replace('index.html');
+    });
+}
+
+function hideLockScreen() {
+    if (_lockScreenEl) {
+        _lockScreenEl.style.display = 'none';
+    }
+}
+
+// ── PIN setup modal ──
+function openPinSetupModal() {
+    const old = document.getElementById('pin-setup-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'pin-setup-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5);';
+    modal.innerHTML = ''
+        + '<div style="background:var(--color-surface,#fff);border-radius:16px;padding:28px 24px;width:min(380px,90vw);box-shadow:0 20px 50px rgba(0,0,0,0.2);position:relative;direction:rtl;font-family:var(--font-main);">'
+        + '<button type="button" id="pin-close" style="position:absolute;top:12px;left:12px;width:32px;height:32px;border-radius:8px;border:1px solid var(--color-accent,#e5e7eb);background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);"><i class="fas fa-times"></i></button>'
+        + '<h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--color-text-main);"><i class="fas fa-lock" style="margin-left:8px;color:var(--color-primary);"></i>إعداد رمز PIN</h3>'
+        + '<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">رمز PIN يتيح لك قفل الجلسة وفتحها بسرعة دون الحاجة لكلمة المرور.</p>'
+        + '<div id="pin-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
+        + '<div id="pin-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
+        + '<form id="pin-form" style="display:flex;flex-direction:column;gap:14px;">'
+        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">رمز PIN (4-6 أرقام)</label><input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:18px;text-align:center;letter-spacing:8px;direction:ltr;font-family:ui-monospace,monospace;"></div>'
+        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد رمز PIN</label><input type="password" id="pin-confirm" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:18px;text-align:center;letter-spacing:8px;direction:ltr;font-family:ui-monospace,monospace;"></div>'
+        + '<button type="submit" style="padding:12px;background:var(--color-primary,#3B6AC5);color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">حفظ رمز PIN</button>'
+        + '</form></div>';
+    document.body.appendChild(modal);
+    _pinSetupModalEl = modal;
+
+    document.getElementById('pin-close').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('pin-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorEl = document.getElementById('pin-error');
+        const successEl = document.getElementById('pin-success');
+        errorEl.style.display = 'none';
+        successEl.style.display = 'none';
+
+        const pin = document.getElementById('pin-new').value;
+        const confirmPin = document.getElementById('pin-confirm').value;
+
+        if (!/^\d{4,6}$/.test(pin)) {
+            errorEl.textContent = 'رمز PIN يجب أن يكون من 4 إلى 6 أرقام';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        if (pin !== confirmPin) {
+            errorEl.textContent = 'رمزا PIN غير متطابقين';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        try {
+            const res = await window.api.auth.setupPin({ pin });
+            if (!res?.success) {
+                errorEl.textContent = res?.error || 'فشل حفظ رمز PIN';
+                errorEl.style.display = 'block';
+                return;
+            }
+            successEl.textContent = 'تم حفظ رمز PIN بنجاح';
+            successEl.style.display = 'block';
+            document.getElementById('pin-form').reset();
+            setTimeout(() => modal.remove(), 1500);
+        } catch (err) {
+            errorEl.textContent = err.message || 'حدث خطأ';
+            errorEl.style.display = 'block';
+        }
+    });
+}
+
+function ensureAdminAuthButton(authRole, accessState) {
     const currentPage = _getCurrentPageName();
     if (currentPage === 'login.html') return;
 
@@ -1104,6 +1358,8 @@ function ensureAdminAuthButton(role) {
     const loginBtn = document.getElementById('sidebar-login-btn');
     const changePwBtn = document.getElementById('sidebar-change-pw-btn');
     const activateBtn = document.getElementById('sidebar-activate-btn');
+    const lockBtn = document.getElementById('sidebar-lock-btn');
+    const pinSetupBtn = document.getElementById('sidebar-pin-setup-btn');
     const userSection = document.getElementById('sidebar-auth-user');
     const nameEl = document.getElementById('sidebar-auth-name');
     const roleBadge = document.getElementById('sidebar-auth-role-badge');
@@ -1115,7 +1371,7 @@ function ensureAdminAuthButton(role) {
         loginBtn.dataset.authBound = '1';
         loginBtn.addEventListener('click', async () => {
             const currentRole = getCurrentAppRole();
-            if (_isAuthenticatedRole(currentRole)) {
+            if (isAuthSessionActive() && _isAuthenticatedRole(currentRole)) {
                 // Logout
                 if (window.api?.auth?.logout) {
                     await window.api.auth.logout();
@@ -1156,12 +1412,25 @@ function ensureAdminAuthButton(role) {
         });
     }
 
+    if (lockBtn && !lockBtn.dataset.authBound) {
+        lockBtn.dataset.authBound = '1';
+        lockBtn.addEventListener('click', () => {
+            lockScreen();
+        });
+    }
+
+    if (pinSetupBtn && !pinSetupBtn.dataset.authBound) {
+        pinSetupBtn.dataset.authBound = '1';
+        pinSetupBtn.addEventListener('click', () => {
+            openPinSetupModal();
+        });
+    }
+
     // ── Remove old header-based auth/activate buttons ──
     document.querySelectorAll('[data-admin-auth-btn="1"], [data-activate-link-btn="1"]').forEach(el => el.remove());
 
     // ── Update UI based on role ──
-    const authenticatedRoles = ['admin', 'staff', 'viewer'];
-    const isAuthenticated = authenticatedRoles.includes(String(role || '').toLowerCase());
+    const isAuthenticated = _isAuthenticatedRole(authRole);
 
     if (isAuthenticated) {
         // User is logged in (any role)
@@ -1171,7 +1440,7 @@ function ensureAdminAuthButton(role) {
             nameEl.textContent = String(session?.name || session?.email || 'المستخدم').trim() || 'المستخدم';
         }
         if (roleBadge) {
-            const normalized = _normalizeRole(session?.role || role);
+            const normalized = _normalizeRole(session?.role || authRole);
             const tone = _roleTone(normalized);
             roleBadge.textContent = _roleLabel(normalized);
             roleBadge.style.background = tone.bg;
@@ -1180,6 +1449,8 @@ function ensureAdminAuthButton(role) {
         }
         if (activateBtn) activateBtn.style.display = 'none';
         if (changePwBtn) changePwBtn.style.display = '';
+        if (lockBtn) lockBtn.style.display = '';
+        if (pinSetupBtn) pinSetupBtn.style.display = '';
         loginBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
         loginBtn.title = '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c';
         loginBtn.classList.remove('sidebar-auth-login');
@@ -1188,8 +1459,9 @@ function ensureAdminAuthButton(role) {
         // Not logged in
         if (userSection) userSection.style.display = 'none';
         if (changePwBtn) changePwBtn.style.display = 'none';
-        const roleMode = String(role || '').toLowerCase();
-        if (activateBtn) activateBtn.style.display = roleMode === 'limited' ? '' : 'none';
+        if (lockBtn) lockBtn.style.display = 'none';
+        if (pinSetupBtn) pinSetupBtn.style.display = 'none';
+        if (activateBtn) activateBtn.style.display = accessState === 'blocked' ? '' : 'none';
         loginBtn.innerHTML = '<i class="fas fa-user-shield"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628</span>';
         loginBtn.title = '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628';
         loginBtn.classList.remove('sidebar-auth-logout');
@@ -1215,28 +1487,26 @@ function showPendingBlockedPageToast() {
     }
 }
 
-async function resolvePublicAccessMode() {
-    if (!window.api?.licensing?.getPublicStatus) return 'limited';
+async function resolveAccessState() {
+    if (!window.api?.licensing?.getPublicStatus) return 'blocked';
     try {
         const res = await window.api.licensing.getPublicStatus();
         if (res?.success && res.status === 'trial') return 'trial';
         if (res?.success && res.status === 'trial_expired') {
-            // Trial expired: show forced activation modal
             void openForcedActivationModal();
-            return 'limited';
+            return 'blocked';
         }
         if (res?.success && res.activated) return 'licensed';
     } catch (_err) {
-        // ignore and fallback to limited mode
+        // ignore and fallback
     }
-    return 'limited';
+    return 'blocked';
 }
 
-function applyRoleUi(role, session) {
-    setCurrentAppRole(role);
+function applyAppUi(authRole, accessState, session) {
+    setAppAccessState(accessState);
 
-    const roleMode = String(role || '').toLowerCase();
-    if (['admin', 'staff', 'viewer'].includes(roleMode) || roleMode === 'licensed' || roleMode === 'trial') {
+    if (_isAuthenticatedRole(authRole) || accessState === 'licensed' || accessState === 'trial') {
         try {
             sessionStorage.removeItem(BLOCKED_REDIRECT_NEXT_KEY);
         } catch (_err) {
@@ -1244,19 +1514,20 @@ function applyRoleUi(role, session) {
         }
     }
 
-    applySessionToUI(session, role);
-    applyNavigationRestrictions(role);
-    applyPageVisibilityToDocument(role);
-    ensureAdminAuthButton(role);
-    refreshLimitedModeNotice(role);
+    applySessionToUI(session, authRole, accessState);
+    applyNavigationRestrictions(authRole, accessState);
+    applyPageVisibilityToDocument(authRole);
+    ensureAdminAuthButton(authRole, accessState);
+    refreshLimitedModeNotice(authRole, accessState);
     showPendingBlockedPageToast();
 
     setTimeout(() => {
         const currentRole = getCurrentAppRole();
-        applyNavigationRestrictions(currentRole);
+        const currentAccess = getAppAccessState();
+        applyNavigationRestrictions(currentRole, currentAccess);
         applyPageVisibilityToDocument(currentRole);
-        ensureAdminAuthButton(currentRole);
-        refreshLimitedModeNotice(currentRole);
+        ensureAdminAuthButton(currentRole, currentAccess);
+        refreshLimitedModeNotice(currentRole, currentAccess);
     }, 120);
 }
 
@@ -1265,38 +1536,40 @@ function applyRoleUi(role, session) {
     if (currentPage === 'login.html') return;
 
     let session = isAuthSessionActive() ? getAuthSessionData() : null;
-    let mode = _deriveAppRoleFromSession(session);
+    let authRole = _deriveAuthRoleFromSession(session);
+    let accessState = 'blocked';
 
     if (window.api?.auth?.getSession) {
         try {
             const authRes = await window.api.auth.getSession();
-            const authRole = _normalizeRole(authRes?.user?.role || '');
-            const isAuthenticatedRole = ['admin', 'staff', 'viewer'].includes(authRole);
-            if (authRes?.success && authRes?.authenticated && isAuthenticatedRole) {
+            const role = _normalizeRole(authRes?.user?.role || '');
+            const isAuth = ['admin', 'staff', 'viewer'].includes(role);
+            if (authRes?.success && authRes?.authenticated && isAuth) {
                 session = authRes.user || {};
                 setAuthSession(session.email || '', session);
-                mode = authRole;
+                authRole = role;
             } else {
                 clearAuthSession();
                 session = null;
+                authRole = null;
             }
         } catch (_err) {
             clearAuthSession();
             session = null;
+            authRole = null;
         }
     }
 
-    if (!['admin', 'staff', 'viewer'].includes(String(mode || '').toLowerCase())) {
-        mode = await resolvePublicAccessMode();
-    }
+    // Always resolve access state from licensing (independent of auth)
+    accessState = await resolveAccessState();
 
     await loadPageVisibilityState();
 
-    if (!enforcePageRoleOrRedirect(mode)) {
+    if (!enforcePageRoleOrRedirect(authRole, accessState)) {
         return;
     }
 
-    applyRoleUi(mode, session);
+    applyAppUi(authRole, accessState, session);
 
     const params = new URLSearchParams(window.location.search);
     if (params.has('loggedin')) {
@@ -1321,7 +1594,8 @@ window.PageVisibility = {
     setVisibility: setPageVisibilityForAdmin,
     applyForCurrentRole: () => {
         const role = getCurrentAppRole();
-        applyNavigationRestrictions(role);
+        const access = getAppAccessState();
+        applyNavigationRestrictions(role, access);
         applyPageVisibilityToDocument(role);
     }
 };
@@ -2000,8 +2274,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSidebar();
 
     const session = isAuthSessionActive() ? getAuthSessionData() : null;
-    const role = _deriveAppRoleFromSession(session);
-    applyRoleUi(role, session);
+    const authRole = _deriveAuthRoleFromSession(session);
+    const accessState = getAppAccessState();
+    applyAppUi(authRole, accessState, session);
 });
 
 // Export for module usage (if needed)
@@ -2027,7 +2302,13 @@ if (typeof module !== 'undefined' && module.exports) {
         sortSectionNames,
         populateTeachersBySubject,
         getSchoolYear,
-        setSchoolYear
+        setSchoolYear,
+        getAppAccessState,
+        setAppAccessState,
+        getCurrentAppRole,
+        lockScreen,
+        isSessionLocked,
+        openPinSetupModal
     };
 }
 
