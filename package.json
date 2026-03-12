@@ -1,6 +1,6 @@
 {
   "name": "gestion-scolaire",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا",
   "main": "main.js",
   "scripts": {
