@@ -211,27 +211,37 @@
         [data-theme="dark"] .badge-source-fet { color: #f0b27a; }
 
         /* ─── Detail Drawer (slide-in panel) ─── */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideInFromRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
         .detail-overlay {
             display: none;
             position: fixed;
             inset: 0;
-            z-index: 900;
-            background: rgba(0, 0, 0, 0.4);
+            z-index: 1100;
+            background: rgba(0, 0, 0, 0.5);
             animation: fadeIn 0.2s ease;
         }
 
         .detail-overlay.active {
             display: flex;
-            justify-content: flex-start;
+            justify-content: flex-end;
         }
 
         .detail-panel {
-            width: min(480px, 90vw);
+            width: min(520px, 92vw);
             height: 100vh;
             background: var(--color-surface);
-            box-shadow: var(--shadow-elevated);
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
             overflow-y: auto;
-            animation: slideInRight 0.25s ease;
+            animation: slideInFromRight 0.3s ease;
             padding: 0;
         }
 
@@ -239,7 +249,9 @@
             background: var(--gradient-primary);
             color: #fff;
             padding: 24px 20px 20px;
-            position: relative;
+            position: sticky;
+            top: 0;
+            z-index: 2;
         }
 
         .detail-header .close-detail {
@@ -249,12 +261,15 @@
             background: rgba(255,255,255,0.15);
             border: none;
             color: #fff;
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
-            font-size: 14px;
+            font-size: 15px;
             cursor: pointer;
             transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .detail-header .close-detail:hover {
@@ -392,6 +407,139 @@
 
         .empty-state p {
             font-size: 0.9rem;
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 1200px) {
+            .staff-stats-row {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .staff-toolbar {
+                gap: 8px;
+            }
+
+            .staff-toolbar select {
+                font-size: 12px;
+                padding: 8px 10px;
+            }
+        }
+
+        @media (max-width: 992px) {
+            .staff-stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .staff-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .staff-toolbar .search-input {
+                min-width: unset;
+                width: 100%;
+            }
+
+            .staff-toolbar select {
+                width: 100%;
+            }
+
+            .staff-counter {
+                margin-right: 0;
+                text-align: center;
+            }
+
+            .staff-form-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .detail-panel {
+                width: min(460px, 94vw);
+            }
+
+            .detail-grid {
+                gap: 6px 12px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .staff-stats-row {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .staff-stat-card {
+                padding: 12px;
+            }
+
+            .staff-stat-card .stat-value {
+                font-size: 1.5rem;
+            }
+
+            .staff-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .detail-panel {
+                width: 100vw;
+            }
+
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .staff-table th,
+            .staff-table td {
+                padding: 8px 6px;
+                font-size: 12px;
+            }
+
+            /* Hide less important columns on mobile */
+            .staff-table th:nth-child(5),
+            .staff-table td:nth-child(5),
+            .staff-table th:nth-child(6),
+            .staff-table td:nth-child(6),
+            .staff-table th:nth-child(7),
+            .staff-table td:nth-child(7),
+            .staff-table th:nth-child(8),
+            .staff-table td:nth-child(8) {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .staff-stats-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+
+            .staff-stat-card .stat-value {
+                font-size: 1.3rem;
+            }
+
+            .staff-stat-card .stat-label {
+                font-size: 0.7rem;
+            }
+
+            .detail-header {
+                padding: 20px 16px 16px;
+            }
+
+            .detail-body {
+                padding: 16px;
+            }
+
+            .detail-header .teacher-main-name {
+                font-size: 1rem;
+            }
+
+            /* Hide more columns on very small screens */
+            .staff-table th:nth-child(2),
+            .staff-table td:nth-child(2),
+            .staff-table th:nth-child(9),
+            .staff-table td:nth-child(9) {
+                display: none;
+            }
         }
 
         @media print {

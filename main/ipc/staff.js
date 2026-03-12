@@ -76,7 +76,7 @@ function registerStaffIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'teachers:deleteByYear', ['admin'], (db, _event, schoolYear) => {
+    handleWriteSoftAuth(ipcMain, 'teachers:deleteByYear', ['admin'], (db, schoolYear) => {
         const year = normalizeYear(schoolYear);
         if (!year) return { success: false, error: 'Invalid school year' };
         const info = db.prepare('DELETE FROM teachers WHERE school_year = ?').run(year);

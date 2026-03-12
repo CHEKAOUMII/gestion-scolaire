@@ -616,8 +616,20 @@ async function renderCharts(filterSection = 'all', stats) {
     const currentYear = new Date().getFullYear();
     filteredData.forEach(s => {
         if (!s.birthDate) return;
-        const birthYear = parseInt(s.birthDate.split('-')[0]);
+        // Extract birth year from various date formats (YYYY-MM-DD, DD/MM/YYYY, YYYY, etc.)
+        let birthYear;
+        const parts = s.birthDate.split(/[-/]/);
+        if (parts[0].length === 4) {
+            birthYear = parseInt(parts[0]); // YYYY-MM-DD
+        } else if (parts.length >= 3 && parts[2].length === 4) {
+            birthYear = parseInt(parts[2]); // DD/MM/YYYY
+        } else {
+            birthYear = parseInt(parts[0]);
+        }
+        if (!birthYear || isNaN(birthYear)) return;
         const age = currentYear - birthYear;
+        // Only accept reasonable student ages (10-40)
+        if (age < 10 || age > 40) return;
         if (!ageStats[age]) ageStats[age] = { total: 0, males: 0, females: 0 };
         ageStats[age].total++;
         s.gender === "ذكر" ? ageStats[age].males++ : ageStats[age].females++;

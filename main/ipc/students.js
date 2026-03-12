@@ -241,7 +241,7 @@ function registerStudentsIpc(ipcMain) {
         };
     });
 
-    handleWrite(ipcMain, 'students:updateStatusBulk', ['admin', 'staff'], (db, _event, items) => {
+    handleWriteSoftAuth(ipcMain, 'students:updateStatusBulk', ['admin', 'staff'], (db, items) => {
         if (!Array.isArray(items)) {
             return { success: false, error: 'Expected an array' };
         }
