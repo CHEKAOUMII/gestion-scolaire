@@ -485,7 +485,11 @@ const chartInstances = {
     age: null,
     gender: null,
     levels: null,
-    place: null
+    place: null,
+    teacherSubject: null,
+    teacherGender: null,
+    teacherAge: null,
+    studentStatus: null
 };
 
 function destroyChartInstances() {
@@ -719,20 +723,227 @@ async function renderCharts(filterSection = 'all', stats) {
     }
 }
 
+// Render Extra Charts (Teacher stats + Student status)
+async function renderExtraCharts() {
+    try {
+        await ensureChartLoaded();
+    } catch (error) {
+        console.error('Chart.js load failed for extra charts:', error);
+        const section = document.getElementById('extra-charts-section');
+        if (section) section.innerHTML = '';
+        return;
+    }
+
+    // Destroy previous instances
+    ['teacherSubject', 'teacherGender', 'teacherAge', 'studentStatus'].forEach(key => {
+        if (chartInstances[key] && typeof chartInstances[key].destroy === 'function') {
+            chartInstances[key].destroy();
+        }
+        chartInstances[key] = null;
+    });
+
+    // Load teacher data and student status data in parallel
+    let teachers = [];
+    let statusSummary = { dropouts: 0, expelled: 0, notEnrolled: 0, totalStudents: 0 };
+
+    try {
+        const [teacherResult, statusResult] = await Promise.all([
+            window.api.teachers.getAll(currentSchoolYear),
+            window.api.students.getByStatus({ schoolYear: currentSchoolYear })
+        ]);
+        if (Array.isArray(teacherResult)) teachers = teacherResult;
+        if (statusResult && statusResult.success && statusResult.summary) {
+            statusSummary = statusResult.summary;
+        }
+    } catch (err) {
+        console.warn('Failed to load extra chart data:', err);
+    }
+
+    const tc = getChartThemeColors();
+
+    // --- Teacher by Subject/Specialty ---
+    const subjectCounts = {};
+    teachers.forEach(t => {
+        const subj = (t.subject || t.specialty_subject || '').trim() || 'غير محدد';
+        subjectCounts[subj] = (subjectCounts[subj] || 0) + 1;
+    });
+    const subjectEntries = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]);
+    const subjectColors = generatePalette(subjectEntries.length);
+
+    // --- Teacher by Gender ---
+    let teacherMales = 0;
+    let teacherFemales = 0;
+    teachers.forEach(t => {
+        if (t.gender === 'ذكر') teacherMales++;
+        else if (t.gender === 'أنثى') teacherFemales++;
+    });
+
+    // --- Teacher by Age ---
+    const teacherAgeGroups = {};
+    const currentYear = new Date().getFullYear();
+    teachers.forEach(t => {
+        if (!t.birth_date) return;
+        const birthYear = parseInt(t.birth_date.split('-')[0]);
+        if (!birthYear || isNaN(birthYear)) return;
+        const age = currentYear - birthYear;
+        // Group by decade ranges
+        let group;
+        if (age < 30) group = 'أقل من 30';
+        else if (age < 40) group = '30-39';
+        else if (age < 50) group = '40-49';
+        else if (age < 60) group = '50-59';
+        else group = '60+';
+        teacherAgeGroups[group] = (teacherAgeGroups[group] || 0) + 1;
+    });
+    const ageOrder = ['أقل من 30', '30-39', '40-49', '50-59', '60+'];
+    const ageLabels = ageOrder.filter(g => teacherAgeGroups[g]);
+    const ageData = ageLabels.map(g => teacherAgeGroups[g]);
+    const ageColors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'];
+
+    // --- Student Status ---
+    const activeStudents = statusSummary.totalStudents - statusSummary.dropouts - statusSummary.expelled - statusSummary.notEnrolled;
+
+    // Build HTML
+    const html = `<div class="charts-grid">
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chalkboard-teacher"></i> توزيع الأساتذة حسب التخصص</h3></div><div class="chart-body"><canvas id="teacherSubjectChart"></canvas></div></div>
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-venus-mars"></i> توزيع الأساتذة حسب الجنس</h3></div><div class="chart-body"><canvas id="teacherGenderChart"></canvas></div></div>
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-birthday-cake"></i> توزيع الأساتذة حسب الفئة العمرية</h3></div><div class="chart-body"><canvas id="teacherAgeChart"></canvas></div></div>
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-user-graduate"></i> وضعية التلاميذ</h3></div><div class="chart-body"><canvas id="studentStatusChart"></canvas></div></div>
+    </div>`;
+
+    const section = document.getElementById('extra-charts-section');
+    if (!section) return;
+    section.innerHTML = html;
+
+    // Chart 1: Teacher by Subject (horizontal bar)
+    if (subjectEntries.length > 0) {
+        chartInstances.teacherSubject = new Chart(document.getElementById('teacherSubjectChart'), {
+            type: 'bar',
+            data: {
+                labels: subjectEntries.map(e => e[0]),
+                datasets: [{
+                    label: 'عدد الأساتذة',
+                    data: subjectEntries.map(e => e[1]),
+                    backgroundColor: subjectColors,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false }, tooltip: { rtl: true, textDirection: 'rtl' } },
+                scales: {
+                    x: { reverse: true, position: 'top', min: 0, grid: { color: tc.gridColor }, ticks: { color: tc.textColor, stepSize: 1 } },
+                    y: { position: 'right', grid: { display: false }, ticks: { color: tc.textColor, font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' } } }
+                }
+            }
+        });
+    }
+
+    // Chart 2: Teacher by Gender (doughnut)
+    chartInstances.teacherGender = new Chart(document.getElementById('teacherGenderChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['إناث', 'ذكور'],
+            datasets: [{ data: [teacherFemales, teacherMales], backgroundColor: [tc.primaryLight, tc.accent], borderWidth: 0, hoverOffset: 8 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } } }
+    });
+
+    // Chart 3: Teacher by Age Group (bar)
+    if (ageLabels.length > 0) {
+        chartInstances.teacherAge = new Chart(document.getElementById('teacherAgeChart'), {
+            type: 'bar',
+            data: {
+                labels: ageLabels,
+                datasets: [{
+                    label: 'عدد الأساتذة',
+                    data: ageData,
+                    backgroundColor: ageColors.slice(0, ageLabels.length),
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } },
+                    y: { ticks: { color: tc.textColor, stepSize: 1 }, grid: { color: tc.gridColor } }
+                }
+            }
+        });
+    }
+
+    // Chart 4: Student Status (doughnut)
+    chartInstances.studentStatus = new Chart(document.getElementById('studentStatusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['متمدرسون', 'منقطعون', 'مطرودون', 'غير ملتحقين'],
+            datasets: [{
+                data: [
+                    Math.max(activeStudents, 0),
+                    statusSummary.dropouts,
+                    statusSummary.expelled,
+                    statusSummary.notEnrolled
+                ],
+                backgroundColor: ['#4CAF50', '#FF9800', '#F44336', '#9E9E9E'],
+                borderWidth: 0,
+                hoverOffset: 8
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } } }
+    });
+}
+
+function generatePalette(count) {
+    const base = ['#3B6AC5', '#9B64AB', '#E8913A', '#4CAF50', '#F44336', '#00BCD4', '#795548', '#607D8B', '#FF5722', '#8BC34A', '#CDDC39', '#FFC107', '#03A9F4', '#E91E63', '#673AB7'];
+    const result = [];
+    for (let i = 0; i < count; i++) result.push(base[i % base.length]);
+    return result;
+}
+
 // Render Movement Section
-function renderMovement(stats) {
+async function renderMovement(stats) {
     if (!stats) stats = calculateStats();
+
+    // Fetch real status and movement data from the database
+    let dropouts = 0, notEnrolled = 0, expelled = 0;
+    let departures = 0, arrivals = 0, internals = 0;
+
+    try {
+        const [statusResult, movementStats] = await Promise.all([
+            window.api.students.getByStatus({ schoolYear: currentSchoolYear }),
+            window.api.studentMovements.getStats(currentSchoolYear)
+        ]);
+        if (statusResult && statusResult.success && statusResult.summary) {
+            dropouts = statusResult.summary.dropouts || 0;
+            notEnrolled = statusResult.summary.notEnrolled || 0;
+            expelled = statusResult.summary.expelled || 0;
+        }
+        if (movementStats) {
+            departures = movementStats.departure || 0;
+            arrivals = movementStats.arrival || 0;
+            internals = movementStats.internal || 0;
+        }
+    } catch (err) {
+        console.warn('Failed to load movement data:', err);
+    }
+
+    const activeStudents = Math.max(stats.total - dropouts - notEnrolled - expelled, 0);
+
     document.getElementById('movement-section').innerHTML = `
         <div class="movement-header"><h3><i class="fas fa-exchange-alt"></i> حركية التلاميذ</h3><div class="movement-filters"><select><option>جميع الأقسام</option></select><select><option>الوضعية الحالية</option></select><button class="btn-apply"><i class="fas fa-check"></i> تحيين</button></div></div>
         <div class="movement-stats">
             <div class="movement-stat registered"><span class="stat-value">${stats.total}</span><span class="stat-label"><i class="fas fa-users"></i> المسجلون</span></div>
-            <div class="movement-stat studying"><span class="stat-value">${stats.total}</span><span class="stat-label"><i class="fas fa-book-reader"></i> المتمدرسون</span></div>
-            <div class="movement-stat dropouts"><span class="stat-value">0</span><span class="stat-label"><i class="fas fa-user-slash"></i> المنقطعون</span></div>
-            <div class="movement-stat non-enrolled"><span class="stat-value">0</span><span class="stat-label"><i class="fas fa-user-times"></i> غير الملتحقين</span></div>
-            <div class="movement-stat"><span class="stat-value">0</span><span class="stat-label"><i class="fas fa-sign-out-alt"></i> المغادرون</span></div>
+            <div class="movement-stat studying"><span class="stat-value">${activeStudents}</span><span class="stat-label"><i class="fas fa-book-reader"></i> المتمدرسون</span></div>
+            <div class="movement-stat dropouts"><span class="stat-value">${dropouts}</span><span class="stat-label"><i class="fas fa-user-slash"></i> المنقطعون</span></div>
+            <div class="movement-stat non-enrolled"><span class="stat-value">${notEnrolled}</span><span class="stat-label"><i class="fas fa-user-times"></i> غير الملتحقين</span></div>
+            <div class="movement-stat"><span class="stat-value">${departures}</span><span class="stat-label"><i class="fas fa-sign-out-alt"></i> المغادرون</span></div>
             <div class="movement-stat"><span class="stat-value">0</span><span class="stat-label"><i class="fas fa-handshake"></i> المدمجون</span></div>
-            <div class="movement-stat"><span class="stat-value">0</span><span class="stat-label"><i class="fas fa-exchange-alt"></i> المنتقلون</span></div>
-            <div class="movement-stat"><span class="stat-value">0</span><span class="stat-label"><i class="fas fa-sign-in-alt"></i> الوافدون</span></div>
+            <div class="movement-stat"><span class="stat-value">${internals}</span><span class="stat-label"><i class="fas fa-exchange-alt"></i> المنتقلون</span></div>
+            <div class="movement-stat"><span class="stat-value">${arrivals}</span><span class="stat-label"><i class="fas fa-sign-in-alt"></i> الوافدون</span></div>
         </div>`;
 }
 
@@ -922,6 +1133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const filterEl = document.getElementById('age-section-filter');
                 const currentFilter = filterEl ? filterEl.value : 'all';
                 renderCharts(currentFilter);
+                void renderExtraCharts();
                 break;
             }
         }
@@ -936,7 +1148,8 @@ function refreshDashboard() {
     const stats = calculateStats();
     renderStatsCards(stats);
     renderCharts('all', stats);
-    renderMovement(stats);
+    void renderExtraCharts();
+    void renderMovement(stats);
     void renderOwnerSyncSection();
 }
 
@@ -948,6 +1161,7 @@ function goToHome() {
     // إظهار جميع الأقسام
     document.getElementById('stats-section').style.display = 'block';
     document.getElementById('charts-section').style.display = 'block';
+    document.getElementById('extra-charts-section').style.display = 'block';
     document.getElementById('movement-section').style.display = 'block';
     showToast('تم تحديث لوحة التحكم', 'success');
 }

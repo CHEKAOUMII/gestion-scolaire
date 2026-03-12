@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="css/modern-imports.css">
     <script src="js/utils.js" defer></script>
     <script src="js/notifications.js"></script>
+    <script src="js/data/ma-education-labels.js"></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
     <noscript>
@@ -52,6 +53,7 @@
     <input type="file" id="status-file-input" class="file-input-hidden"
         accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
         multiple>
+    <input type="file" id="agent-xml-file-input" class="file-input-hidden" accept=".xml,text/xml,application/xml">
 
     <aside class="sidebar" id="sidebar">
         <!-- Sidebar will be injected by sidebar.js -->
@@ -121,7 +123,19 @@
                         <div class="stat-card-icon"><i class="fas fa-calendar-alt"></i></div>
                         <div class="stat-card-value" id="stat-timetable-status"><i class="fas fa-spinner fa-spin"></i>
                         </div>
-                        <div class="stat-card-label">نقطة</div>
+                        <div class="stat-card-label">الجدول الزمني</div>
+                    </div>
+                    <div class="stat-card" id="stat-card-teachers">
+                        <div class="stat-card-icon"><i class="fas fa-university"></i></div>
+                        <div class="stat-card-value" id="stat-teachers-count"><i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <div class="stat-card-label">أستاذ (الوزارة)</div>
+                    </div>
+                    <div class="stat-card" id="stat-card-status">
+                        <div class="stat-card-icon"><i class="fas fa-user-slash"></i></div>
+                        <div class="stat-card-value" id="stat-status-count"><i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <div class="stat-card-label">وضعية دراسية</div>
                     </div>
                 </div>
                 <div class="data-actions">
@@ -140,6 +154,14 @@
                     <button class="btn btn-danger-outline" id="btn-clear-timetable" type="button"
                         title="حذف بيانات الجدول الزمني">
                         <i class="fas fa-trash-alt"></i> حذف الجدول
+                    </button>
+                    <button class="btn btn-danger-outline" id="btn-clear-teachers" type="button"
+                        title="حذف جميع بيانات الأساتذة لهذه السنة">
+                        <i class="fas fa-trash-alt"></i> حذف الأساتذة
+                    </button>
+                    <button class="btn btn-danger-outline" id="btn-clear-status" type="button"
+                        title="إعادة جميع الوضعيات إلى نشط لهذه السنة">
+                        <i class="fas fa-trash-alt"></i> مسح الوضعيات
                     </button>
                 </div>
             </div>
@@ -172,6 +194,11 @@
                         <i class="fas fa-user-slash"></i>
                         <span>استيراد الوضعيات الدراسية</span>
                         <small class="import-format-hint">.xlsx .xls .csv</small>
+                    </button>
+                    <button class="btn btn-primary" data-action="agent-xml" type="button">
+                        <i class="fas fa-university"></i>
+                        <span>استيراد ملف الوزارة</span>
+                        <small class="import-format-hint">.xml – ملف بيانات الأساتذة</small>
                     </button>
                 </div>
 

@@ -102,7 +102,9 @@ contextBridge.exposeInMainWorld('api', {
         getFromGrades: (schoolYear) => ipcRenderer.invoke('teachers:getFromGrades', schoolYear),
         add: (teacher) => ipcRenderer.invoke('teachers:add', teacher),
         update: (id, data) => ipcRenderer.invoke('teachers:update', id, data),
-        delete: (id) => ipcRenderer.invoke('teachers:delete', id)
+        delete: (id) => ipcRenderer.invoke('teachers:delete', id),
+        deleteByYear: (schoolYear) => ipcRenderer.invoke('teachers:deleteByYear', schoolYear),
+        importBulk: (teachers) => ipcRenderer.invoke('teachers:importBulk', teachers)
     },
 
     // Teacher absences

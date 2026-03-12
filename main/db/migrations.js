@@ -314,6 +314,54 @@ const MIGRATIONS = [
             ensureColumn('users', 'pin_hash', 'TEXT');
             ensureColumn('users', 'pin_failed_attempts', 'INTEGER DEFAULT 0');
         }
+    },
+    {
+        version: '2026-03-023-teachers-admin-columns',
+        up: () => {
+            const db = getDb();
+            ensureColumn('teachers', 'ppr', 'TEXT');
+            ensureColumn('teachers', 'cin', 'TEXT');
+            ensureColumn('teachers', 'full_name_fr', 'TEXT');
+            ensureColumn('teachers', 'gender', 'TEXT');
+            ensureColumn('teachers', 'birth_date', 'TEXT');
+            ensureColumn('teachers', 'birth_place', 'TEXT');
+            ensureColumn('teachers', 'address', 'TEXT');
+            ensureColumn('teachers', 'grade', 'TEXT');
+            ensureColumn('teachers', 'cadre', 'TEXT');
+            ensureColumn('teachers', 'echelon', 'INTEGER');
+            ensureColumn('teachers', 'hire_date', 'TEXT');
+            ensureColumn('teachers', 'marital_status', 'TEXT');
+            ensureColumn('teachers', 'function_title', 'TEXT');
+            ensureColumn('teachers', 'source', "TEXT DEFAULT 'manual'");
+            // Partial unique index on ppr+school_year (only when ppr is set)
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_ppr_year
+                ON teachers(ppr, school_year)
+                WHERE ppr IS NOT NULL AND ppr != ''
+            `);
+        }
+    },
+    {
+        version: '2026-03-024-teachers-specialty-subject',
+        up: () => {
+            ensureColumn('teachers', 'specialty_subject', 'TEXT');
+        }
+    },
+    {
+        version: '2026-03-025-teachers-ministry-fields',
+        up: () => {
+            ensureColumn('teachers', 'position', 'TEXT');
+            ensureColumn('teachers', 'statut', 'TEXT');
+            ensureColumn('teachers', 'diploma_school', 'TEXT');
+            ensureColumn('teachers', 'diploma_professional', 'TEXT');
+            ensureColumn('teachers', 'seniority_admin', 'TEXT');
+            ensureColumn('teachers', 'seniority_grade', 'TEXT');
+            ensureColumn('teachers', 'echelon_date', 'TEXT');
+            ensureColumn('teachers', 'titularization_date', 'TEXT');
+            ensureColumn('teachers', 'total_hours', 'REAL');
+            ensureColumn('teachers', 'overtime_hours', 'REAL');
+            ensureColumn('teachers', 'num_classes', 'REAL');
+        }
     }
 ];
 

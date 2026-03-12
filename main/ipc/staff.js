@@ -1,4 +1,4 @@
-const { handleRead, handleWrite, normalizeYear } = require('./ipc-helpers');
+const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear } = require('./ipc-helpers');
 const { requireFields, validateDate } = require('./validation');
 
 function registerStaffIpc(ipcMain) {
@@ -14,14 +14,30 @@ function registerStaffIpc(ipcMain) {
         requireFields(teacher, ['full_name', 'school_year']);
         db.prepare(
             `
-                INSERT INTO teachers(full_name, subject, phone, email, school_year, active)
-                VALUES(?, ?, ?, ?, ?, ?)
+                INSERT INTO teachers(ppr, cin, full_name, full_name_fr, subject, gender, birth_date, birth_place,
+                    phone, email, address, grade, cadre, echelon, hire_date, marital_status, function_title,
+                    source, school_year, active)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
         ).run(
+            teacher.ppr || null,
+            teacher.cin || null,
             teacher.full_name,
+            teacher.full_name_fr || null,
             teacher.subject || null,
+            teacher.gender || null,
+            teacher.birth_date || null,
+            teacher.birth_place || null,
             teacher.phone || null,
             teacher.email || null,
+            teacher.address || null,
+            teacher.grade || null,
+            teacher.cadre || null,
+            teacher.echelon != null ? Number(teacher.echelon) || null : null,
+            teacher.hire_date || null,
+            teacher.marital_status || null,
+            teacher.function_title || null,
+            teacher.source || 'manual',
             teacher.school_year,
             teacher.active == null ? 1 : teacher.active ? 1 : 0
         );
@@ -33,7 +49,14 @@ function registerStaffIpc(ipcMain) {
         if (!Number.isFinite(teacherId) || teacherId <= 0) {
             return { success: false, error: 'Invalid ID' };
         }
-        const ALLOWED_COLUMNS = new Set(['full_name', 'subject', 'phone', 'email', 'school_year', 'active']);
+        const ALLOWED_COLUMNS = new Set([
+            'ppr', 'cin', 'full_name', 'full_name_fr', 'subject', 'specialty_subject', 'gender',
+            'birth_date', 'birth_place', 'phone', 'email', 'address', 'grade', 'cadre', 'echelon',
+            'hire_date', 'marital_status', 'function_title', 'position', 'statut',
+            'diploma_school', 'diploma_professional', 'seniority_admin', 'seniority_grade',
+            'echelon_date', 'titularization_date', 'total_hours', 'overtime_hours', 'num_classes',
+            'source', 'school_year', 'active'
+        ]);
         const safeEntries = Object.entries(data).filter(([k]) => ALLOWED_COLUMNS.has(k));
         if (!safeEntries.length) {
             return { success: false, error: 'No valid fields to update' };
@@ -51,6 +74,139 @@ function registerStaffIpc(ipcMain) {
         }
         db.prepare('DELETE FROM teachers WHERE id = ?').run(teacherId);
         return { success: true };
+    });
+
+    handleWrite(ipcMain, 'teachers:deleteByYear', ['admin'], (db, _event, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        if (!year) return { success: false, error: 'Invalid school year' };
+        const info = db.prepare('DELETE FROM teachers WHERE school_year = ?').run(year);
+        return { success: true, count: info.changes };
+    });
+
+    // ── Bulk import (UPSERT by PPR or name) ──
+
+    handleWriteSoftAuth(ipcMain, 'teachers:importBulk', ['admin', 'staff'], (db, teachers) => {
+        if (!Array.isArray(teachers) || !teachers.length) {
+            return { success: false, error: 'No data to import' };
+        }
+
+        const upsertByPpr = db.prepare(`
+            INSERT INTO teachers(ppr, cin, full_name, full_name_fr, subject, specialty_subject, gender, birth_date, birth_place,
+                phone, email, address, grade, cadre, echelon, hire_date, marital_status, function_title,
+                position, statut, diploma_school, diploma_professional, seniority_admin, seniority_grade,
+                echelon_date, titularization_date, total_hours, overtime_hours, num_classes,
+                source, school_year, active)
+            VALUES(@ppr, @cin, @full_name, @full_name_fr, @subject, @specialty_subject, @gender, @birth_date, @birth_place,
+                @phone, @email, @address, @grade, @cadre, @echelon, @hire_date, @marital_status,
+                @function_title, @position, @statut, @diploma_school, @diploma_professional,
+                @seniority_admin, @seniority_grade, @echelon_date, @titularization_date,
+                @total_hours, @overtime_hours, @num_classes,
+                @source, @school_year, @active)
+            ON CONFLICT(ppr, school_year) WHERE ppr IS NOT NULL AND ppr != '' DO UPDATE SET
+                cin              = COALESCE(excluded.cin, cin),
+                full_name        = COALESCE(excluded.full_name, full_name),
+                full_name_fr     = COALESCE(excluded.full_name_fr, full_name_fr),
+                -- specialty_subject وgrade وcadre: دائماً من ملف الوزارة (مصدر موثوق)
+                specialty_subject = excluded.specialty_subject,
+                grade            = excluded.grade,
+                cadre            = excluded.cadre,
+                -- subject: نحدّثه فقط إن كان خالياً أو إن القادم من الوزارة غير فارغ
+                subject          = CASE
+                                     WHEN excluded.subject IS NOT NULL AND excluded.subject != ''
+                                     THEN excluded.subject
+                                     ELSE COALESCE(subject, excluded.subject)
+                                   END,
+                gender           = COALESCE(excluded.gender, gender),
+                birth_date       = COALESCE(excluded.birth_date, birth_date),
+                birth_place      = COALESCE(excluded.birth_place, birth_place),
+                phone            = COALESCE(excluded.phone, phone),
+                email            = COALESCE(excluded.email, email),
+                address          = COALESCE(excluded.address, address),
+                echelon          = COALESCE(excluded.echelon, echelon),
+                hire_date        = COALESCE(excluded.hire_date, hire_date),
+                marital_status   = COALESCE(excluded.marital_status, marital_status),
+                function_title   = COALESCE(excluded.function_title, function_title),
+                -- الحقول الجديدة من ملف الوزارة (مصدر موثوق = دائماً يُحدَّث)
+                position         = excluded.position,
+                statut           = excluded.statut,
+                diploma_school   = COALESCE(excluded.diploma_school, diploma_school),
+                diploma_professional = COALESCE(excluded.diploma_professional, diploma_professional),
+                seniority_admin  = excluded.seniority_admin,
+                seniority_grade  = excluded.seniority_grade,
+                echelon_date     = excluded.echelon_date,
+                titularization_date = excluded.titularization_date,
+                total_hours      = excluded.total_hours,
+                overtime_hours   = excluded.overtime_hours,
+                num_classes      = excluded.num_classes,
+                source           = excluded.source,
+                active           = excluded.active
+        `);
+
+        // For FET source (no PPR): insert only if name doesn't exist
+        const insertByName = db.prepare(`
+            INSERT OR IGNORE INTO teachers(full_name, subject, source, school_year, active)
+            SELECT @full_name, @subject, @source, @school_year, 1
+            WHERE NOT EXISTS (
+                SELECT 1 FROM teachers WHERE full_name = @full_name AND school_year = @school_year
+            )
+        `);
+
+        // For FET: update subject if teacher exists but has no subject
+        const updateSubjectByName = db.prepare(`
+            UPDATE teachers SET subject = COALESCE(subject, @subject)
+            WHERE full_name = @full_name AND school_year = @school_year AND (subject IS NULL OR TRIM(subject) = '')
+        `);
+
+        let imported = 0;
+        const txn = db.transaction(() => {
+            for (const t of teachers) {
+                if (!t.full_name || !t.school_year) continue;
+                const row = {
+                    ppr: t.ppr || null,
+                    cin: t.cin || null,
+                    full_name: t.full_name,
+                    full_name_fr: t.full_name_fr || null,
+                    subject: t.subject || null,
+                    specialty_subject: t.specialty_subject || null,
+                    gender: t.gender || null,
+                    birth_date: t.birth_date || null,
+                    birth_place: t.birth_place || null,
+                    phone: t.phone || null,
+                    email: t.email || null,
+                    address: t.address || null,
+                    grade: t.grade || null,
+                    cadre: t.cadre || null,
+                    echelon: t.echelon != null ? Number(t.echelon) || null : null,
+                    hire_date: t.hire_date || null,
+                    marital_status: t.marital_status || null,
+                    function_title: t.function_title || null,
+                    position: t.position || null,
+                    statut: t.statut || null,
+                    diploma_school: t.diploma_school || null,
+                    diploma_professional: t.diploma_professional || null,
+                    seniority_admin: t.seniority_admin || null,
+                    seniority_grade: t.seniority_grade || null,
+                    echelon_date: t.echelon_date || null,
+                    titularization_date: t.titularization_date || null,
+                    total_hours: t.total_hours != null ? Number(t.total_hours) || null : null,
+                    overtime_hours: t.overtime_hours != null ? Number(t.overtime_hours) || null : null,
+                    num_classes: t.num_classes != null ? Number(t.num_classes) || null : null,
+                    source: t.source || 'manual',
+                    school_year: t.school_year,
+                    active: t.active == null ? 1 : t.active ? 1 : 0
+                };
+
+                if (row.ppr) {
+                    upsertByPpr.run(row);
+                } else {
+                    insertByName.run(row);
+                    if (row.subject) updateSubjectByName.run(row);
+                }
+                imported++;
+            }
+        });
+        txn();
+        return { success: true, count: imported };
     });
 
     // ── Teacher absences (read = open, write = admin/staff) ──

@@ -3,14 +3,16 @@ const FILE_INPUTS = {
     grades: 'grades-file-input',
     absences: 'absences-file-input',
     fet: 'fet-file-input',
-    'student-status': 'status-file-input'
+    'student-status': 'status-file-input',
+    'agent-xml': 'agent-xml-file-input'
 };
 const ACTION_LABELS = {
     students: 'لائحة التلاميذ',
     grades: 'النقط',
     absences: 'الغياب',
     fet: 'FET',
-    'student-status': 'الوضعيات الدراسية'
+    'student-status': 'الوضعيات الدراسية',
+    'agent-xml': 'ملف الوزارة'
 };
 
 const XLSX_CDN = 'vendor/xlsx.full.min.js';
@@ -195,6 +197,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('btn-clear-grades')?.addEventListener('click', () => clearData('grades'));
         document.getElementById('btn-clear-absences')?.addEventListener('click', () => clearData('absences'));
         document.getElementById('btn-clear-timetable')?.addEventListener('click', () => clearData('timetable'));
+        document.getElementById('btn-clear-teachers')?.addEventListener('click', () => clearData('teachers'));
+        document.getElementById('btn-clear-status')?.addEventListener('click', () => clearData('status'));
 
         // Backup buttons
         const createBackupBtn = document.getElementById('create-backup-btn');
@@ -919,7 +923,11 @@ function inferImportActionFromFiles(files) {
 
     const names = safeFiles.map((f) => String(f?.name || '').toLowerCase());
     const hasXml = names.some((n) => n.endsWith('.xml'));
-    if (hasXml) return 'fet';
+    if (hasXml) {
+        // DsAgentExport files typically start with a school code pattern (e.g. 14007Z_20260309.xml)
+        if (names.some((n) => /^\d{4,6}[a-z]?_/i.test(n))) return 'agent-xml';
+        return 'fet';
+    }
 
     if (names.some((n) => /abs|absence|غياب/.test(n))) return 'absences';
     if (names.some((n) => /note|notes|grade|point|نقط/.test(n))) return 'grades';
@@ -1020,6 +1028,25 @@ async function loadDataStats() {
     } catch {
         setValue('stat-timetable-status', 'غير محمّل');
     }
+
+    try {
+        const teachers = (await window.api?.teachers?.getAll?.(schoolYear)) || [];
+        setValue('stat-teachers-count', teachers.length > 0 ? teachers.length.toLocaleString('ar-MA') : '0');
+    } catch {
+        setValue('stat-teachers-count', '-');
+    }
+
+    try {
+        const statusRes = await window.api?.students?.getByStatus?.({ school_year: schoolYear });
+        const summary = statusRes?.summary;
+        if (summary && summary.total > 0) {
+            setValue('stat-status-count', summary.total.toLocaleString('ar-MA'));
+        } else {
+            setValue('stat-status-count', '0');
+        }
+    } catch {
+        setValue('stat-status-count', '-');
+    }
 }
 
 
@@ -1031,11 +1058,15 @@ async function clearData(type) {
         students: 'بيانات التلاميذ',
         grades: `نقط ${semesterName}`,
         absences: 'سجلات الغياب',
-        timetable: 'بيانات الجدول الزمني'
+        timetable: 'بيانات الجدول الزمني',
+        teachers: 'بيانات الأساتذة',
+        status: 'الوضعيات الدراسية'
     };
     const label = labels[type] || type;
     const message =
-        type === 'timetable' ? `هل تريد حذف ${label}؟` : `هل تريد حذف ${label} الخاصة بالموسم ${schoolYear}؟`;
+        type === 'timetable' ? `هل تريد حذف ${label}؟`
+            : type === 'status' ? `هل تريد إعادة جميع الوضعيات إلى "نشط" للموسم ${schoolYear}؟`
+                : `هل تريد حذف ${label} الخاصة بالموسم ${schoolYear}؟`;
 
     const confirmed = await showActionConfirm(message);
     if (!confirmed) return;
@@ -1056,6 +1087,19 @@ async function clearData(type) {
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف الغياب');
         } else if (type === 'timetable') {
             localStorage.removeItem('timetableData');
+        } else if (type === 'teachers') {
+            if (!window.api?.teachers?.deleteByYear) throw new Error('ميزة حذف الأساتذة غير متاحة في هذا الإصدار');
+            const res = await window.api.teachers.deleteByYear(schoolYear);
+            if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف بيانات الأساتذة');
+        } else if (type === 'status') {
+            if (!window.api?.students?.updateStatusBulk) throw new Error('ميزة مسح الوضعيات غير متاحة في هذا الإصدار');
+            const statusRes = await window.api.students.getByStatus({ school_year: schoolYear });
+            const rows = statusRes?.rows || [];
+            if (rows.length) {
+                const items = rows.map((r) => ({ id: r.id, status: 'active' }));
+                const res = await window.api.students.updateStatusBulk(items);
+                if (!res || res.success === false) throw new Error(res?.error || 'تعذر مسح الوضعيات');
+            }
         } else {
             throw new Error('نوع حذف غير مدعوم');
         }
@@ -1100,6 +1144,8 @@ async function handleImport(action, files) {
 
                 if (action === 'fet') {
                     totalImported += await importFetXml(file);
+                } else if (action === 'agent-xml') {
+                    totalImported += await importAgentXml(file);
                 } else {
                     const workbook = await parseWorkbook(file);
                     updateImportProgress(start + 20, `(${i + 1}/${fileList.length}) تمت القراءة، جاري التحقق...`);
@@ -1148,7 +1194,7 @@ async function handleImport(action, files) {
         }
 
         const unit =
-            action === 'students' ? 'تلميذ' : action === 'grades' ? 'نقطة' : action === 'fet' ? 'أستاذ' : action === 'student-status' ? 'تلميذ' : 'سجل غياب';
+            action === 'students' ? 'تلميذ' : action === 'grades' ? 'نقطة' : action === 'fet' ? 'أستاذ' : action === 'agent-xml' ? 'أستاذ' : action === 'student-status' ? 'تلميذ' : 'سجل غياب';
         const fileWord = fileList.length === 1 ? 'ملف' : 'ملفات';
         const semesterName =
             action === 'grades' && detectedSemester
@@ -1920,6 +1966,250 @@ async function importFetXml(file) {
                 console.log('FET data saved to localStorage:', fetDataLocal.teachers.length, 'teachers');
 
                 resolve(fetDataLocal.teachers.length);
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
+        reader.readAsText(file, 'UTF-8');
+    });
+}
+
+// ─── DsAgentExport (Ministry XML) Import ──────────────────────────────────────
+
+async function importAgentXml(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(event.target.result, 'text/xml');
+
+                if (xmlDoc.querySelector('parsererror')) {
+                    throw new Error('ملف XML غير صالح');
+                }
+
+                const rootTag = xmlDoc.documentElement.tagName;
+                if (rootTag !== 'DsAgentExport') {
+                    throw new Error('هذا ليس ملف بيانات الوزارة (DsAgentExport)');
+                }
+
+                // ── Build lookup maps from reference tables ──
+                const buildLookup = (tagName, codeField, labelField) => {
+                    const map = new Map();
+                    xmlDoc.querySelectorAll(tagName).forEach(el => {
+                        const code = el.querySelector(codeField)?.textContent?.trim();
+                        const label = el.querySelector(labelField)?.textContent?.trim();
+                        if (code && label) map.set(code, label);
+                    });
+                    return map;
+                };
+
+                const gradeMap = buildLookup('R_GRADE', 'CD_GRADE', 'LL_GRADE');
+                const cadreMap = buildLookup('R_CADRE', 'CD_CADRE', 'LL_CADRE');
+                const disciplineMap = buildLookup('R_Discip', 'CD_Discip', 'LL_DISCIP');
+                const fonctionMap = buildLookup('R_FONCT', 'CD_Fonc', 'LL_FONC');
+                const sitFamMap = buildLookup('R_SitFam', 'Sit_Fam', 'LL_SitFam');
+                const positionMap = buildLookup('R_Position', 'CD_Position', 'LL_POSITION');
+                const statutMap = buildLookup('R_Statut', 'CD_Statut', 'LL_STATUT');
+                const dipScolMap = buildLookup('R_DipSCol', 'CD_DIPS', 'LL_DIPS');
+                const dipProfMap = buildLookup('R_DipProf', 'CD_DIPP', 'LL_DIPP');
+
+                // Build Arabic-label lookups (prefer Arabic when available)
+                const fonctionArMap = buildLookup('R_FONCT', 'CD_Fonc', 'LA_Fonc');
+                const disciplineArMap = buildLookup('R_Discip', 'CD_Discip', 'LA_DISCIP');
+                const dipScolArMap = buildLookup('R_DipSCol', 'CD_DIPS', 'LA_DIPS');
+                const dipProfArMap = buildLookup('R_DipProf', 'CD_DIPP', 'LA_DIPP');
+
+                console.log('[agent-xml] Lookup tables built:',
+                    'grades:', gradeMap.size,
+                    'cadres:', cadreMap.size,
+                    'disciplines:', disciplineMap.size,
+                    'fonctions:', fonctionMap.size,
+                    'sitFam:', sitFamMap.size,
+                    'positions:', positionMap.size,
+                    'statuts:', statutMap.size
+                );
+
+                // ── Build ACTIVITE map: PPR → first activity details ──
+                const activiteMap = new Map();
+                xmlDoc.querySelectorAll('ACTIVITE').forEach(el => {
+                    const ppr = el.querySelector('PPR')?.textContent?.trim();
+                    if (!ppr || activiteMap.has(ppr)) return;
+                    activiteMap.set(ppr, {
+                        cd_fonc: el.querySelector('CD_FONC')?.textContent?.trim() || '',
+                        cd_etab: el.querySelector('CD_ETAB')?.textContent?.trim() || '',
+                        cd_activites: el.querySelector('CD_ACTIVITES')?.textContent?.trim() || '',
+                        dateaffect: el.querySelector('DATEAFFECT')?.textContent?.trim() || ''
+                    });
+                });
+
+                // ── Build R_TABSERV map: CD_ACTIVITES → aggregated teaching hours ──
+                const tabservMap = new Map();
+                xmlDoc.querySelectorAll('R_TABSERV').forEach(el => {
+                    const cdAct = el.querySelector('CD_ACTIVITES')?.textContent?.trim();
+                    if (!cdAct) return;
+                    const heures = parseFloat(el.querySelector('NBR_HEURE_ENS')?.textContent?.trim()) || 0;
+                    const heuresSup = parseFloat(el.querySelector('NBR_HEURE_SUP')?.textContent?.trim()) || 0;
+                    const classes = parseFloat(el.querySelector('NBR_CLASSE')?.textContent?.trim()) || 0;
+                    const existing = tabservMap.get(cdAct);
+                    if (existing) {
+                        existing.total_hours += heures;
+                        existing.overtime_hours += heuresSup;
+                        existing.num_classes += classes;
+                    } else {
+                        tabservMap.set(cdAct, {
+                            total_hours: heures,
+                            overtime_hours: heuresSup,
+                            num_classes: classes
+                        });
+                    }
+                });
+
+                // ── Parse DATAIDENTIFPERSONNEL records ──
+                const personnelElements = xmlDoc.querySelectorAll('DATAIDENTIFPERSONNEL');
+                if (!personnelElements.length) {
+                    throw new Error('لم يتم العثور على بيانات الأساتذة (DATAIDENTIFPERSONNEL) في الملف');
+                }
+
+                const schoolYear = getCurrentSchoolYear();
+                const teachers = [];
+
+                const getText = (el, tag) => el.querySelector(tag)?.textContent?.trim() || '';
+
+                personnelElements.forEach(el => {
+                    const ppr = getText(el, 'PPR');
+                    if (!ppr) return;
+
+                    // ── Names ──
+                    const nomA = getText(el, 'NOMA');
+                    const prenomA = getText(el, 'PRENOMA');
+                    const nomL = getText(el, 'NOML');
+                    const prenomL = getText(el, 'PRENOML');
+
+                    const fullName = [nomA, prenomA].filter(Boolean).join(' ') || [nomL, prenomL].filter(Boolean).join(' ');
+                    const fullNameFr = [prenomL, nomL].filter(Boolean).join(' ');
+
+                    if (!fullName) return;
+
+                    // ── CIN ──
+                    const cina = getText(el, 'CINA');
+                    const cinn = getText(el, 'CINN');
+                    const cin = cina && cinn ? `${cina}${cinn}` : '';
+
+                    // ── Birth date ──
+                    const birthDay = getText(el, 'JOUR_NAIS');
+                    const birthMonth = getText(el, 'MOIS_NAIS');
+                    const birthYear = getText(el, 'AN_NAIS');
+                    let birthDate = '';
+                    if (birthYear && birthMonth && birthDay) {
+                        birthDate = `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`;
+                    }
+
+                    // ── Address ──
+                    const adresse = getText(el, 'ADRESSE');
+                    const ville = getText(el, 'VILLE');
+                    const codePostal = getText(el, 'CODE_POSTAL');
+                    const address = [adresse, ville, codePostal].filter(Boolean).join(', ');
+
+                    // ── Phone ──
+                    const phone = getText(el, 'TEL_PORTABLE') || getText(el, 'TEL_FIXE');
+
+                    // ── Resolve codes to labels ──
+                    const cdGrade = getText(el, 'CD_GRADE');
+                    const cdCadre = getText(el, 'CD_CADRE');
+                    const cdDiscip = getText(el, 'CD_DISCIP');
+                    const cdSitFam = getText(el, 'SIT_FAM');
+                    const cdPosition = getText(el, 'CD_POSITION');
+                    const cdStatut = getText(el, 'CD_STATUT');
+                    const cdDipS = getText(el, 'CD_DIPS');
+                    const cdDipP = getText(el, 'CD_DIPP');
+
+                    // Get function from ACTIVITE
+                    const activite = activiteMap.get(ppr);
+                    const cdFonc = activite?.cd_fonc || getText(el, 'CD_FONC');
+
+                    // ── Teaching service from R_TABSERV ──
+                    const cdActivites = activite?.cd_activites || '';
+                    const tabserv = cdActivites ? tabservMap.get(cdActivites) : null;
+
+                    // ── Map GENRE ──
+                    const rawGenre = getText(el, 'GENRE');
+                    let gender = rawGenre;
+                    if (rawGenre === '1' || rawGenre === 'M') gender = 'ذكر';
+                    if (rawGenre === '2' || rawGenre === 'F') gender = 'أنثى';
+
+                    // ── Helper: apply translation function if available ──
+                    const tr = (fn, val) => (typeof fn === 'function' ? fn(val) : val) || val || null;
+
+                    const specialtyAr = tr(translateSubject, disciplineMap.get(cdDiscip));
+                    const gradeAr     = tr(translateGrade,   gradeMap.get(cdGrade));
+                    const cadreAr     = tr(translateCadre,   cadreMap.get(cdCadre));
+                    const sitFamAr    = tr(translateMaritalStatus, sitFamMap.get(cdSitFam));
+
+                    // Prefer Arabic labels, fall back to French
+                    const fonctionLabel  = fonctionArMap.get(cdFonc) || fonctionMap.get(cdFonc) || null;
+                    const dipScolLabel   = dipScolArMap.get(cdDipS) || dipScolMap.get(cdDipS) || null;
+                    const dipProfLabel   = dipProfArMap.get(cdDipP) || dipProfMap.get(cdDipP) || null;
+
+                    // Seniority dates (extract date part before T)
+                    const parseXmlDate = (tag) => {
+                        const raw = getText(el, tag);
+                        return raw ? raw.split('T')[0] : null;
+                    };
+
+                    teachers.push({
+                        ppr,
+                        cin,
+                        full_name: fullName,
+                        full_name_fr: fullNameFr || null,
+                        // specialty_subject = التخصص الرسمي للأستاذ من ملف الوزارة
+                        // subject = المادة التي يدرسها فعلياً (تُكمَّل من FET أو يدوياً)
+                        specialty_subject: specialtyAr || null,
+                        subject: specialtyAr || null,   // FET قد يحدّثها لاحقاً
+                        gender: gender || null,
+                        birth_date: birthDate || null,
+                        birth_place: getText(el, 'LIEU_NAIS') || null,
+                        phone: phone || null,
+                        email: getText(el, 'ADRESSE_ELEC') || null,
+                        address: address || null,
+                        grade: gradeAr,
+                        cadre: cadreAr,
+                        echelon: parseInt(getText(el, 'ECHELON'), 10) || null,
+                        hire_date: getText(el, 'DATE_REC')?.split('T')[0] || null,
+                        marital_status: sitFamAr,
+                        function_title: fonctionLabel,
+                        // ── New fields ──
+                        position: positionMap.get(cdPosition) || null,
+                        statut: statutMap.get(cdStatut) || null,
+                        diploma_school: dipScolLabel,
+                        diploma_professional: dipProfLabel,
+                        seniority_admin: parseXmlDate('ANC_ADM'),
+                        seniority_grade: parseXmlDate('ANC_GRADE'),
+                        echelon_date: parseXmlDate('DT_ECHELON'),
+                        titularization_date: parseXmlDate('DT_TITUL'),
+                        total_hours: tabserv?.total_hours || null,
+                        overtime_hours: tabserv?.overtime_hours || null,
+                        num_classes: tabserv?.num_classes || null,
+                        source: 'agent_xml',
+                        school_year: schoolYear,
+                        active: 1
+                    });
+                });
+
+                if (!teachers.length) {
+                    throw new Error('لم يتم العثور على أساتذة بـ PPR صالح في الملف');
+                }
+
+                console.log('[agent-xml] Parsed', teachers.length, 'teachers. Sending to importBulk...');
+
+                const res = await window.api.teachers.importBulk(teachers);
+                if (!res || res.success === false) {
+                    throw new Error(res?.error || 'فشل حفظ بيانات الأساتذة');
+                }
+
+                console.log('[agent-xml] Import successful:', res.count, 'teachers');
+                resolve(teachers.length);
             } catch (error) {
                 reject(error);
             }

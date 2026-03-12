@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>قائمة الأساتذة | برنامج التدبير المدرسي</title>
+    <title>بطاقات الأساتذة | برنامج التدبير المدرسي</title>
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/design-system.css">
@@ -14,103 +14,760 @@
     <script src="js/notifications.js"></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
+    <style>
+        /* ─── Staff Page Specific Styles ─── */
+        .staff-stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .staff-stat-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            text-align: center;
+            transition: var(--transition-fast);
+        }
+
+        .staff-stat-card:hover {
+            border-color: var(--color-primary-light);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .staff-stat-card .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--color-primary);
+            font-family: var(--font-display);
+        }
+
+        .staff-stat-card .stat-label {
+            font-size: 0.8rem;
+            color: var(--color-text-muted);
+            margin-top: 4px;
+        }
+
+        /* ─── Search & Filter Bar ─── */
+        .staff-toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .staff-toolbar .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 14px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            font-family: var(--font-main);
+            font-size: 14px;
+            transition: var(--transition-fast);
+        }
+
+        .staff-toolbar .search-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-mist);
+        }
+
+        .staff-toolbar select {
+            padding: 10px 14px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            font-family: var(--font-main);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .staff-counter {
+            font-size: 13px;
+            color: var(--color-text-muted);
+            margin-right: auto;
+            white-space: nowrap;
+        }
+
+        /* ─── Responsive Table ─── */
+        .staff-table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+        }
+
+        .staff-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .staff-table th {
+            position: sticky;
+            top: 0;
+            background: var(--color-surface-alt);
+            color: var(--color-text-muted);
+            font-weight: 600;
+            font-size: 12px;
+            padding: 10px 8px;
+            border-bottom: 2px solid var(--color-accent);
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        .staff-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--color-accent);
+            color: var(--color-text-main);
+            vertical-align: middle;
+        }
+
+        .staff-table tbody tr {
+            transition: background 0.15s ease;
+            cursor: pointer;
+        }
+
+        .staff-table tbody tr:hover {
+            background: var(--color-primary-mist);
+        }
+
+        .staff-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .staff-table .col-ppr {
+            font-family: 'IBM Plex Sans Arabic', monospace;
+            font-size: 12px;
+            direction: ltr;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .staff-table .col-actions {
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .staff-table .col-actions .actions-row {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .staff-table .col-actions button {
+            padding: 4px 8px;
+            font-size: 12px;
+            margin: 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-cadre {
+            background: var(--color-primary-mist);
+            color: var(--color-primary);
+        }
+
+        .badge-grade {
+            background: rgba(46, 204, 113, 0.12);
+            color: var(--color-success);
+        }
+
+        .badge-source {
+            font-size: 10px;
+            padding: 1px 6px;
+        }
+
+        .badge-source-agent {
+            background: rgba(155, 89, 182, 0.12);
+            color: #8e44ad;
+        }
+
+        .badge-source-manual {
+            background: rgba(52, 152, 219, 0.12);
+            color: #2980b9;
+        }
+
+        .badge-source-fet {
+            background: rgba(230, 126, 34, 0.12);
+            color: #d35400;
+        }
+
+        [data-theme="dark"] .badge-source-agent { color: #c39bd3; }
+        [data-theme="dark"] .badge-source-manual { color: #85c1e9; }
+        [data-theme="dark"] .badge-source-fet { color: #f0b27a; }
+
+        /* ─── Detail Drawer (slide-in panel) ─── */
+        .detail-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 900;
+            background: rgba(0, 0, 0, 0.4);
+            animation: fadeIn 0.2s ease;
+        }
+
+        .detail-overlay.active {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .detail-panel {
+            width: min(480px, 90vw);
+            height: 100vh;
+            background: var(--color-surface);
+            box-shadow: var(--shadow-elevated);
+            overflow-y: auto;
+            animation: slideInRight 0.25s ease;
+            padding: 0;
+        }
+
+        .detail-header {
+            background: var(--gradient-primary);
+            color: #fff;
+            padding: 24px 20px 20px;
+            position: relative;
+        }
+
+        .detail-header .close-detail {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .detail-header .close-detail:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .detail-header .teacher-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+
+        .detail-header .teacher-main-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            font-family: var(--font-display);
+        }
+
+        .detail-header .teacher-sub-name {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-top: 2px;
+            direction: ltr;
+            text-align: right;
+        }
+
+        .detail-body {
+            padding: 20px;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-section h4 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--color-primary);
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--color-accent);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 16px;
+        }
+
+        .detail-field {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .detail-field .field-label {
+            font-size: 11px;
+            color: var(--color-text-muted);
+            font-weight: 600;
+        }
+
+        .detail-field .field-value {
+            font-size: 13px;
+            color: var(--color-text-main);
+        }
+
+        .detail-field.full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* ─── Add/Edit Form ─── */
+        .staff-form-section {
+            background: var(--color-surface);
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .staff-form-section h3 {
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .staff-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .staff-form-grid input {
+            padding: 8px 12px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-xs);
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            font-family: var(--font-main);
+            font-size: 13px;
+        }
+
+        .staff-form-grid input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .staff-form-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--color-text-muted);
+        }
+
+        .empty-state i {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            opacity: 0.4;
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+        }
+
+        @media print {
+            .staff-toolbar, .staff-form-section, .col-actions, .detail-overlay, .sidebar, .header { display: none !important; }
+            .main-content { margin: 0 !important; padding: 10px !important; }
+            .staff-table { font-size: 11px; }
+        }
+    </style>
 </head>
 
 <body>
     <div class="toast-container" id="toast-container"></div>
 
-    <aside class="sidebar" id="sidebar">
-        <!-- Sidebar will be injected by sidebar.js -->
-    </aside>
+    <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main-content">
         <header class="header">
             <div class="header-left">
                 <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-users"></i> قائمة الأساتذة</h2>
+                <h2 class="page-title"><i class="fas fa-id-card-alt"></i> بطاقات الأساتذة</h2>
             </div>
             <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
-                    <i class="fas fa-moon"></i>
-                </button>
-                <button class="theme-toggle" id="shortcuts-btn" title="اختصارات لوحة المفاتيح (?)">
-                    <i class="fas fa-keyboard"></i>
+                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+                <button class="btn btn-secondary" id="btn-print" title="طباعة" style="padding: 6px 12px;">
+                    <i class="fas fa-print"></i>
                 </button>
             </div>
         </header>
 
         <div class="grades-container">
-            <div class="search-section">
-                <h3>إضافة/تعديل أستاذ</h3>
-                <form id="teacher-form" class="search-form"
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+
+            <!-- Stats Row -->
+            <div class="staff-stats-row animate-in">
+                <div class="staff-stat-card">
+                    <div class="stat-value" id="stat-total">-</div>
+                    <div class="stat-label">مجموع الأساتذة</div>
+                </div>
+                <div class="staff-stat-card">
+                    <div class="stat-value" id="stat-agent">-</div>
+                    <div class="stat-label">من ملف الوزارة</div>
+                </div>
+                <div class="staff-stat-card">
+                    <div class="stat-value" id="stat-male">-</div>
+                    <div class="stat-label">ذكور</div>
+                </div>
+                <div class="staff-stat-card">
+                    <div class="stat-value" id="stat-female">-</div>
+                    <div class="stat-label">إناث</div>
+                </div>
+            </div>
+
+            <!-- Add/Edit Form -->
+            <div class="staff-form-section animate-in animate-in-delay-1">
+                <h3><i class="fas fa-plus-circle"></i> <span id="form-title">إضافة أستاذ</span></h3>
+                <form id="teacher-form">
                     <input type="hidden" id="teacher-id">
-                    <input id="teacher-name" placeholder="الاسم الكامل" required>
-                    <input id="teacher-subject" placeholder="المادة">
-                    <input id="teacher-phone" placeholder="الهاتف">
-                    <input id="teacher-email" placeholder="البريد الإلكتروني">
-                    <button class="btn btn-success" type="submit">???</button>
-                    <button class="btn btn-secondary" type="button" id="cancel-edit"
-                        style="display: none;">إلغاء</button>
+                    <div class="staff-form-grid">
+                        <input id="teacher-name" placeholder="الاسم الكامل *" required>
+                        <input id="teacher-subject" placeholder="المادة">
+                        <input id="teacher-phone" placeholder="الهاتف">
+                        <input id="teacher-email" placeholder="البريد الإلكتروني" type="email">
+                    </div>
+                    <div class="staff-form-actions">
+                        <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> حفظ</button>
+                        <button class="btn btn-secondary" type="button" id="cancel-edit" style="display:none;">إلغاء</button>
+                    </div>
                 </form>
             </div>
 
-            <div class="students-results">
-                <h3>لائحة الأساتذة</h3>
-                <div class="table-responsive">
-                    <table class="students-table">
+            <!-- Toolbar -->
+            <div class="students-results animate-in animate-in-delay-2">
+                <h3><i class="fas fa-table"></i> لائحة الأساتذة</h3>
+                <div class="staff-toolbar">
+                    <input type="text" class="search-input" id="search-input" placeholder="بحث بالاسم أو ر.ت أو المادة...">
+                    <select id="filter-gender">
+                        <option value="">كل الأنواع</option>
+                        <option value="ذكور">ذكور</option>
+                        <option value="إناث">إناث</option>
+                    </select>
+                    <select id="filter-subject">
+                        <option value="">كل التخصصات</option>
+                    </select>
+                    <select id="filter-cadre">
+                        <option value="">كل الأطر</option>
+                    </select>
+                    <select id="filter-source">
+                        <option value="">كل المصادر</option>
+                        <option value="agent_xml">ملف الوزارة</option>
+                        <option value="fet">FET</option>
+                        <option value="manual">يدوي</option>
+                    </select>
+                    <span class="staff-counter" id="staff-counter"></span>
+                </div>
+
+                <!-- Table -->
+                <div class="staff-table-wrap">
+                    <table class="staff-table" id="staff-table">
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>الاسم</th>
+                                <th>ر.ت</th>
+                                <th>الاسم الكامل</th>
                                 <th>المادة</th>
+                                <th>الإطار</th>
+                                <th>الدرجة</th>
+                                <th>الرتبة</th>
                                 <th>الهاتف</th>
-                                <th>البريد</th>
-                                <th>الإجراء</th>
+                                <th>المصدر</th>
+                                <th class="col-actions">إجراء</th>
                             </tr>
                         </thead>
                         <tbody id="teachers-tbody"></tbody>
                     </table>
                 </div>
             </div>
+
         </div>
     </main>
 
+    <!-- Detail Drawer -->
+    <div class="detail-overlay" id="detail-overlay">
+        <div class="detail-panel" id="detail-panel">
+            <div class="detail-header">
+                <button class="close-detail" id="close-detail" title="إغلاق"><i class="fas fa-times"></i></button>
+                <div class="teacher-avatar"><i class="fas fa-user"></i></div>
+                <div class="teacher-main-name" id="detail-name">-</div>
+                <div class="teacher-sub-name" id="detail-name-fr"></div>
+            </div>
+            <div class="detail-body" id="detail-body">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/data/ma-education-labels.js"></script>
+    <script src="js/utils.js"></script>
     <script>
-        const year = getSchoolYear();
+        const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
         let teachers = [];
+        let filtered = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             await loadTeachers();
             setupForm();
+            setupFilters();
+            setupDetailPanel();
+            document.getElementById('btn-print')?.addEventListener('click', () => window.print());
         });
 
         async function loadTeachers() {
-            teachers = await window.api.teachers.getAll(year) || [];
+            const result = await window.api.teachers.getAll(year);
+            console.log('[DEBUG] getSchoolYear:', year, 'getAll result:', result);
+            teachers = Array.isArray(result) ? result : [];
+            populateDropdowns();
+            applyFilters();
+            updateStats();
+        }
+
+        function updateStats() {
+            const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+            el('stat-total', teachers.length);
+            el('stat-agent', teachers.filter(t => t.source === 'agent_xml').length);
+            el('stat-male', teachers.filter(t => (t.gender || '').includes('1') || (t.gender || '').includes('ذكر')).length);
+            el('stat-female', teachers.filter(t => (t.gender || '').includes('2') || (t.gender || '').includes('أنثى')).length);
+        }
+
+        function populateDropdowns() {
+            // Populate Cadre
+            const selectCadre = document.getElementById('filter-cadre');
+            const cadres = [...new Set(teachers.map(t => t.cadre).filter(Boolean))].sort();
+            selectCadre.innerHTML = '<option value="">كل الأطر</option>';
+            cadres.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = (typeof translateCadre === 'function') ? translateCadre(c) : c;
+                selectCadre.appendChild(opt);
+            });
+
+            // Populate Subject — prefer specialty_subject, fallback to subject
+            const selectSubject = document.getElementById('filter-subject');
+            const subjectSet = new Set();
+            teachers.forEach(t => {
+                const raw = t.specialty_subject || t.subject;
+                if (!raw) return;
+                const label = (typeof translateSubject === 'function') ? translateSubject(raw) : raw;
+                if (label) subjectSet.add(label);
+            });
+            const subjects = [...subjectSet].sort((a, b) => a.localeCompare(b, 'ar'));
+            selectSubject.innerHTML = '<option value="">كل التخصصات</option>';
+            subjects.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s; opt.textContent = s;
+                selectSubject.appendChild(opt);
+            });
+        }
+
+        function setupFilters() {
+            document.getElementById('search-input').addEventListener('input', applyFilters);
+            document.getElementById('filter-cadre').addEventListener('change', applyFilters);
+            document.getElementById('filter-source').addEventListener('change', applyFilters);
+            document.getElementById('filter-gender').addEventListener('change', applyFilters);
+            document.getElementById('filter-subject').addEventListener('change', applyFilters);
+        }
+
+        function applyFilters() {
+            const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+            const cadre = document.getElementById('filter-cadre')?.value || '';
+            const source = document.getElementById('filter-source')?.value || '';
+            const genderVal = document.getElementById('filter-gender')?.value || '';
+            const subject = document.getElementById('filter-subject')?.value || '';
+
+            filtered = teachers.filter(t => {
+                if (q) {
+                    const haystack = [t.full_name, t.full_name_fr, t.ppr, t.subject,
+                                      t.specialty_subject, t.phone, t.cin].join(' ').toLowerCase();
+                    if (!haystack.includes(q)) return false;
+                }
+                if (cadre && t.cadre !== cadre) return false;
+                if (source && t.source !== source) return false;
+                if (subject) {
+                    // Match against translated specialty_subject OR subject
+                    const raw = t.specialty_subject || t.subject;
+                    const label = (typeof translateSubject === 'function') ? translateSubject(raw) : raw;
+                    if (label !== subject) return false;
+                }
+                if (genderVal) {
+                    const isMale = (t.gender || '').includes('ذكر') || (t.gender || '').includes('1');
+                    const isFemale = (t.gender || '').includes('أنثى') || (t.gender || '').includes('2');
+                    if (genderVal === 'ذكور' && !isMale) return false;
+                    if (genderVal === 'إناث' && !isFemale) return false;
+                }
+                return true;
+            });
+
             renderTeachers();
+            const counter = document.getElementById('staff-counter');
+            if (counter) counter.textContent = `${filtered.length} / ${teachers.length} أستاذ`;
+        }
+
+        function esc(v) {
+            return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function sourceLabel(src) {
+            if (src === 'agent_xml') return '<span class="badge badge-source badge-source-agent">الوزارة</span>';
+            if (src === 'fet') return '<span class="badge badge-source badge-source-fet">FET</span>';
+            return '<span class="badge badge-source badge-source-manual">يدوي</span>';
         }
 
         function renderTeachers() {
             const tbody = document.getElementById('teachers-tbody');
-            if (!teachers.length) {
-                tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
+            if (!filtered.length) {
+                tbody.innerHTML = `
+                    <tr><td colspan="10">
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>لا توجد بيانات بخصوص معايير البحث المحددة</p>
+                        </div>
+                    </td></tr>`;
                 return;
             }
-            tbody.innerHTML = teachers.map((t, i) => `
-                <tr>
+            tbody.innerHTML = filtered.map((t, i) => {
+                // عرض مادة التخصص من DB أو ترجمتها مباشرةً
+                const specRaw = t.specialty_subject || t.subject;
+                const specDisplay = specRaw
+                    ? (typeof translateSubject === 'function' ? translateSubject(specRaw) : specRaw)
+                    : '-';
+                const cadreDisplay = t.cadre
+                    ? (typeof translateCadre === 'function' ? translateCadre(t.cadre) : t.cadre)
+                    : '-';
+                const gradeDisplay = t.grade
+                    ? (typeof translateGrade === 'function' ? translateGrade(t.grade) : t.grade)
+                    : '-';
+                const genderIcon = t.gender && (t.gender.includes('2') || t.gender.includes('أنثى'))
+                    ? '&nbsp;<i class="fas fa-venus" style="color:#e83e8c;font-size:0.8em;"></i>'
+                    : (t.gender ? '&nbsp;<i class="fas fa-mars" style="color:#0d6efd;font-size:0.8em;"></i>' : '');
+                return `
+                <tr onclick="showDetail(${t.id})" title="انقر لعرض التفاصيل" class="teacher-row">
                     <td>${i + 1}</td>
-                    <td>${t.full_name || '-'}</td>
-                    <td>${t.subject || '-'}</td>
-                    <td>${t.phone || '-'}</td>
-                    <td>${t.email || '-'}</td>
-                    <td>
-                        <button class="btn btn-secondary" onclick="editTeacher(${t.id})"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-secondary" onclick="deleteTeacher(${t.id})"><i class="fas fa-trash"></i></button>
+                    <td class="col-ppr">${esc(t.ppr) || '-'}</td>
+                    <td><strong>${esc(t.full_name)}</strong>${genderIcon}</td>
+                    <td>${esc(specDisplay)}</td>
+                    <td>${t.cadre ? '<span class="badge badge-cadre">' + esc(cadreDisplay) + '</span>' : '-'}</td>
+                    <td>${t.grade ? '<span class="badge badge-grade">' + esc(gradeDisplay) + '</span>' : '-'}</td>
+                    <td>${t.echelon || '-'}</td>
+                    <td style="direction:ltr;text-align:right;font-size:12px;">${esc(t.phone) || '-'}</td>
+                    <td>${sourceLabel(t.source)}</td>
+                    <td class="col-actions" onclick="event.stopPropagation()">
+                        <div class="actions-row">
+                            <button class="btn btn-secondary" onclick="editTeacher(${t.id})" title="تعديل"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-secondary" style="color:var(--color-danger)" onclick="deleteTeacher(${t.id})" title="حذف"><i class="fas fa-trash"></i></button>
+                        </div>
                     </td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
         }
 
+        /* ─── Detail Panel ─── */
+        function setupDetailPanel() {
+            document.getElementById('close-detail').addEventListener('click', closeDetail);
+            document.getElementById('detail-overlay').addEventListener('click', e => {
+                if (e.target === e.currentTarget) closeDetail();
+            });
+        }
+
+        function closeDetail() {
+            document.getElementById('detail-overlay').classList.remove('active');
+        }
+
+        function showDetail(id) {
+            const t = teachers.find(x => x.id === id);
+            if (!t) return;
+
+            document.getElementById('detail-name').textContent = t.full_name || '-';
+            document.getElementById('detail-name-fr').textContent = t.full_name_fr || '';
+
+            const f = (label, value) => value ? `
+                <div class="detail-field">
+                    <span class="field-label">${label}</span>
+                    <span class="field-value">${esc(value)}</span>
+                </div>` : '';
+
+            const fFull = (label, value) => value ? `
+                <div class="detail-field full-width">
+                    <span class="field-label">${label}</span>
+                    <span class="field-value">${esc(value)}</span>
+                </div>` : '';
+
+            const body = document.getElementById('detail-body');
+            body.innerHTML = `
+                <div class="detail-section">
+                    <h4><i class="fas fa-id-badge"></i> المعلومات الإدارية</h4>
+                    <div class="detail-grid">
+                        ${f('رقم التأجير (PPR)', t.ppr)}
+                        ${f('رقم ب.و.ت (CIN)', t.cin)}
+                        ${f('الإطار', t.cadre ? (typeof translateCadre === 'function' ? translateCadre(t.cadre) : t.cadre) : '')}
+                        ${f('الدرجة', t.grade ? (typeof translateGrade === 'function' ? translateGrade(t.grade) : t.grade) : '')}
+                        ${f('الرتبة', t.echelon)}
+                        ${f('الوظيفة', t.function_title)}
+                        ${f('تاريخ التوظيف', t.hire_date)}
+                        ${f('المصدر', t.source === 'agent_xml' ? 'ملف الوزارة' : t.source === 'fet' ? 'FET' : 'يدوي')}
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h4><i class="fas fa-book"></i> المعلومات المهنية</h4>
+                    <div class="detail-grid">
+                        ${f('مادة التخصص الرسمية', t.specialty_subject)}
+                        ${t.subject && t.subject !== t.specialty_subject ? f('المادة المُدرَّسة', t.subject) : ''}
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h4><i class="fas fa-user"></i> المعلومات الشخصية</h4>
+                    <div class="detail-grid">
+                        ${f('الجنس', t.gender === '1' ? 'ذكر' : t.gender === '2' ? 'أنثى' : t.gender)}
+                        ${f('تاريخ الازدياد', t.birth_date)}
+                        ${f('مكان الازدياد', t.birth_place)}
+                        ${f('الحالة العائلية', t.marital_status)}
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h4><i class="fas fa-phone-alt"></i> معلومات الاتصال</h4>
+                    <div class="detail-grid">
+                        ${f('الهاتف', t.phone)}
+                        ${f('البريد الإلكتروني', t.email)}
+                        ${fFull('العنوان', t.address)}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('detail-overlay').classList.add('active');
+        }
+
+        /* ─── Form CRUD ─── */
         function setupForm() {
             document.getElementById('teacher-form').addEventListener('submit', async e => {
                 e.preventDefault();
@@ -123,12 +780,14 @@
                     school_year: year,
                     active: 1
                 };
-                let res = id ? await window.api.teachers.update(Number(id), payload) : await window.api.teachers.add(payload);
+                const res = id
+                    ? await window.api.teachers.update(Number(id), payload)
+                    : await window.api.teachers.add(payload);
                 if (!res || res.success === false) {
-                    showToast('???: ' + (res?.error || 'save failed'), 'error');
+                    showToast('خطأ: ' + (res?.error || 'فشل الحفظ'), 'error');
                     return;
                 }
-                showToast('تم الحفظ', 'success');
+                showToast(id ? 'تم التعديل' : 'تم الإضافة', 'success');
                 clearForm();
                 await loadTeachers();
             });
@@ -143,24 +802,27 @@
             document.getElementById('teacher-subject').value = t.subject || '';
             document.getElementById('teacher-phone').value = t.phone || '';
             document.getElementById('teacher-email').value = t.email || '';
+            document.getElementById('form-title').textContent = 'تعديل: ' + (t.full_name || '');
             document.getElementById('cancel-edit').style.display = 'inline-flex';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         async function deleteTeacher(id) {
-            if (!confirm('حذف الأستاذ؟')) return;
+            if (!confirm('هل تريد حذف هذا الأستاذ؟')) return;
             const res = await window.api.teachers.delete(id);
             if (!res || res.success === false) {
                 showToast('فشل الحذف', 'error');
                 return;
             }
             showToast('تم الحذف', 'success');
+            closeDetail();
             await loadTeachers();
         }
 
         function clearForm() {
             document.getElementById('teacher-form').reset();
             document.getElementById('teacher-id').value = '';
+            document.getElementById('form-title').textContent = 'إضافة أستاذ';
             document.getElementById('cancel-edit').style.display = 'none';
         }
     </script>

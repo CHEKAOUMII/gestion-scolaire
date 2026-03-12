@@ -112,10 +112,36 @@ function createTables() {
     db.exec(`
         CREATE TABLE IF NOT EXISTS teachers(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ppr TEXT,
+        cin TEXT,
         full_name TEXT NOT NULL,
+        full_name_fr TEXT,
         subject TEXT,
+        specialty_subject TEXT,
+        gender TEXT,
+        birth_date TEXT,
+        birth_place TEXT,
         phone TEXT,
         email TEXT,
+        address TEXT,
+        grade TEXT,
+        cadre TEXT,
+        echelon INTEGER,
+        hire_date TEXT,
+        marital_status TEXT,
+        function_title TEXT,
+        position TEXT,
+        statut TEXT,
+        diploma_school TEXT,
+        diploma_professional TEXT,
+        seniority_admin TEXT,
+        seniority_grade TEXT,
+        echelon_date TEXT,
+        titularization_date TEXT,
+        total_hours REAL,
+        overtime_hours REAL,
+        num_classes REAL,
+        source TEXT DEFAULT 'manual',
         school_year TEXT,
         active INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -289,6 +315,10 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_date ON staff_attendance(attendance_date, school_year);
     `);
+    // ppr index: may fail on existing DBs before migration adds the column — migration handles it too
+    try {
+        db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_ppr_year ON teachers(ppr, school_year) WHERE ppr IS NOT NULL AND ppr != ''`);
+    } catch (_) { /* column doesn't exist yet — migration will create it */ }
 }
 
 function ensureLicensingSchema(existingDb) {
