@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/data/ma-education-labels.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
@@ -438,6 +439,62 @@
                 border: 1px solid #ccc;
             }
         }
+
+        /* ─── Events Section ─── */
+        .event-row select,
+        .event-row input[type="text"],
+        .event-row input[type="time"] {
+            padding: 6px 10px;
+            border: 1px solid var(--color-accent);
+            border-radius: var(--radius-sm);
+            font-family: var(--font-main);
+            font-size: 13px;
+            background: var(--color-surface);
+            color: var(--color-text-main);
+            width: 100%;
+        }
+
+        .event-row select {
+            width: auto;
+            min-width: 140px;
+            cursor: pointer;
+        }
+
+        .event-row input[type="text"]:focus,
+        .event-row input[type="time"]:focus,
+        .event-row select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-mist);
+        }
+
+        .event-row .btn-delete-event {
+            background: none;
+            border: none;
+            color: var(--color-danger-bg);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: var(--radius-sm);
+            transition: var(--transition-fast);
+            font-size: 14px;
+        }
+
+        .event-row .btn-delete-event:hover {
+            background: rgba(232, 93, 93, 0.12);
+        }
+
+        .ux-pp-body .event-row select,
+        .ux-pp-body .event-row input {
+            border: none;
+            background: transparent;
+            padding: 0;
+            font-weight: 600;
+        }
+
+        .ux-pp-body .no-print,
+        .ux-pp-body #add-event-btn {
+            display: none !important;
+        }
     </style>
 </head>
 
@@ -517,6 +574,15 @@
                     <div class="report-stat-body">
                         <h4 id="stat-hours">0</h4>
                         <p>ساعات ضائعة</p>
+                    </div>
+                </div>
+                <div class="report-stat-card">
+                    <div class="report-stat-icon" style="background: rgba(46, 204, 113, 0.12); color: var(--color-success);">
+                        <i class="fas fa-check-double"></i>
+                    </div>
+                    <div class="report-stat-body">
+                        <h4 id="stat-compensated">0</h4>
+                        <p>حصص معوّضة</p>
                     </div>
                 </div>
             </div>
@@ -607,6 +673,34 @@
                     <tbody id="compensatory-tbody">
                         <tr class="empty-row">
                             <td colspan="4">اختر تاريخاً لعرض التقرير</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- School Events -->
+            <div class="report-section" id="events-section">
+                <div class="report-section-header">
+                    <i class="fas fa-calendar-check"></i>
+                    <h3>أحداث المؤسسة</h3>
+                    <span class="badge-count" id="events-count">0</span>
+                    <button class="btn-primary" id="add-event-btn" type="button" style="margin-right: auto; padding: 4px 14px; font-size: 13px;">
+                        <i class="fas fa-plus"></i> إضافة حدث
+                    </button>
+                </div>
+                <table class="report-table" id="events-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>نوع الحدث</th>
+                            <th>التفاصيل</th>
+                            <th>التوقيت</th>
+                            <th class="no-print" style="width: 50px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="events-tbody">
+                        <tr class="empty-row" id="events-empty-row">
+                            <td colspan="5">لا توجد أحداث مسجلة لهذا اليوم</td>
                         </tr>
                     </tbody>
                 </table>
@@ -809,6 +903,64 @@
             }
         }
 
+        function getDetailedSessionsForDay(uniqueAbsences, date) {
+            const sessions = [];
+            const periodMap = {
+                'h1': '08:00-09:00', 'h2': '09:00-10:00',
+                'h3': '10:00-11:00', 'h4': '11:00-12:00',
+                'h5': '14:00-15:00', 'h6': '15:00-16:00',
+                'h7': '16:00-17:00', 'h8': '17:00-18:00'
+            };
+            try {
+                const raw = localStorage.getItem('timetableData');
+                if (!raw) return sessions;
+                const ttData = JSON.parse(raw);
+                if (!ttData || !ttData.timetables) return sessions;
+
+                const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                const dateObj = new Date(date + 'T00:00:00');
+                const dayName = dayNames[dateObj.getDay()];
+                const timetableTeachers = Object.keys(ttData.timetables);
+
+                for (const absence of uniqueAbsences) {
+                    const name = absence.full_name;
+                    if (!name) continue;
+                    const normalizedTarget = normalizeName(name);
+                    let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === name);
+                    if (!teacherKey) teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
+                    if (!teacherKey) teacherKey = timetableTeachers.find(k => {
+                        const nk = normalizeName(k);
+                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
+                    });
+                    if (!teacherKey) continue;
+
+                    const dayData = ttData.timetables[teacherKey][dayName];
+                    if (!dayData) continue;
+
+                    for (const [periodType, hours] of Object.entries(dayData)) {
+                        if (!hours || typeof hours !== 'object') continue;
+                        for (const [h, lesson] of Object.entries(hours)) {
+                            if (!lesson) continue;
+                            const sectionName = (lesson.students || '').trim();
+                            if (!sectionName) continue;
+                            sessions.push({
+                                absence_date: date,
+                                teacher_name: name,
+                                section: sectionName,
+                                period_slot: h,
+                                period_time: periodMap[h] || h,
+                                subject: lesson.subject || absence.subject || '',
+                                school_year: year
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Error extracting detailed sessions:', e);
+            }
+            return sessions;
+        }
+
         async function loadReport() {
             const date = document.getElementById('report-date').value;
             if (!date) return;
@@ -970,6 +1122,11 @@
                 }).join('');
             }
 
+            // ── School Events ──
+            const events = data.events || [];
+            document.getElementById('events-count').textContent = events.length;
+            renderEventsTable(events);
+
             // ── Compensatory Hours by Section ──
             // Calculate how many hours each section lost due to absent teachers
             const sectionHoursMap = {}; // { sectionName: { hours: number, teachers: Set } }
@@ -1037,6 +1194,26 @@
             const totalLostHours = sortedSections.reduce((sum, [, data]) => sum + data.hours, 0);
             document.getElementById('stat-hours').textContent = totalLostHours;
 
+            // ── Auto-save lost sessions to compensation tracking ──
+            const detailedSessions = getDetailedSessionsForDay(uniqueAbsences, date);
+            if (detailedSessions.length > 0) {
+                try {
+                    await window.api.compensation.saveBatch(detailedSessions);
+                } catch (e) {
+                    console.warn('Error saving compensation sessions:', e);
+                }
+            }
+            // Fetch compensation status for stat card
+            try {
+                const compRecords = await window.api.compensation.getByDate(date, year);
+                const compDone = compRecords.filter(r => r.compensated).length;
+                const compTotal = compRecords.length;
+                document.getElementById('stat-compensated').textContent =
+                    compTotal > 0 ? compDone + '/' + compTotal : '0';
+            } catch (e) {
+                console.warn('Error fetching compensation status:', e);
+            }
+
             document.getElementById('compensatory-count').textContent = sortedSections.length;
             const compensatoryTbody = document.getElementById('compensatory-tbody');
 
@@ -1065,6 +1242,145 @@
                 }).join('');
             }
         }
+
+        const EVENT_TYPES = [
+            'زيارة تفتيشية',
+            'اجتماع',
+            'نشاط تربوي',
+            'عطلة / توقف',
+            'حادث مدرسي',
+            'إضراب',
+            'تكوين / ورشة',
+            'امتحان',
+            'زيارة رسمية',
+            'أخرى'
+        ];
+
+        function renderEventsTable(events) {
+            const tbody = document.getElementById('events-tbody');
+            const emptyRow = document.getElementById('events-empty-row');
+
+            if (!events || events.length === 0) {
+                tbody.innerHTML = '';
+                tbody.appendChild(createEmptyEventsRow());
+                return;
+            }
+
+            tbody.innerHTML = events.map((ev, i) => `
+                <tr class="event-row" data-event-id="${ev.id}">
+                    <td>${i + 1}</td>
+                    <td>${escapeHtml(ev.event_type || '—')}</td>
+                    <td>${escapeHtml(ev.details || '—')}</td>
+                    <td>${escapeHtml(ev.event_time || '—')}</td>
+                    <td class="no-print">
+                        <button class="btn-delete-event" onclick="deleteEvent(${ev.id})" style="font-size: 17px; padding: 6px 8px;" title="حذف">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function createEmptyEventsRow() {
+            const tr = document.createElement('tr');
+            tr.classList.add('empty-row');
+            tr.id = 'events-empty-row';
+            tr.innerHTML = '<td colspan="5">لا توجد أحداث مسجلة لهذا اليوم</td>';
+            return tr;
+        }
+
+        function addEventRow() {
+            const tbody = document.getElementById('events-tbody');
+            const emptyRow = document.getElementById('events-empty-row');
+            if (emptyRow) emptyRow.remove();
+
+            const tr = document.createElement('tr');
+            tr.classList.add('event-row', 'event-row-new');
+
+            const typeOptions = EVENT_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+            const rowNum = tbody.querySelectorAll('tr:not(.empty-row)').length + 1;
+
+            tr.innerHTML = `
+                <td>${rowNum}</td>
+                <td>
+                    <select class="event-type-select">${typeOptions}</select>
+                </td>
+                <td>
+                    <input type="text" class="event-details-input" placeholder="تفاصيل الحدث...">
+                </td>
+                <td>
+                    <input type="time" class="event-time-input">
+                </td>
+                <td class="no-print">
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="btn-primary" onclick="saveEventRow(this)" style="padding: 6px 14px; font-size: 15px;" title="حفظ">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn-delete-event" onclick="cancelEventRow(this)" style="font-size: 17px; padding: 6px 8px;" title="إلغاء">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+
+            // Focus on details input
+            tr.querySelector('.event-details-input').focus();
+        }
+
+        async function saveEventRow(btn) {
+            const row = btn.closest('tr');
+            const eventType = row.querySelector('.event-type-select').value;
+            const details = row.querySelector('.event-details-input').value.trim();
+            const eventTime = row.querySelector('.event-time-input').value;
+            const eventDate = document.getElementById('report-date').value;
+
+            if (!eventType) {
+                showToast('اختر نوع الحدث', 'warning');
+                return;
+            }
+
+            try {
+                await window.api.schoolEvents.save({
+                    event_date: eventDate,
+                    event_type: eventType,
+                    details: details,
+                    event_time: eventTime,
+                    school_year: year
+                });
+                showToast('تم حفظ الحدث بنجاح', 'success');
+                loadReport();
+            } catch (err) {
+                console.error('Error saving event:', err);
+                showToast('خطأ في حفظ الحدث', 'error');
+            }
+        }
+
+        function cancelEventRow(btn) {
+            const row = btn.closest('tr');
+            row.remove();
+
+            const tbody = document.getElementById('events-tbody');
+            if (tbody.querySelectorAll('tr:not(.empty-row)').length === 0) {
+                tbody.appendChild(createEmptyEventsRow());
+            }
+        }
+
+        async function deleteEvent(eventId) {
+            if (!confirm('هل تريد حذف هذا الحدث؟')) return;
+
+            try {
+                await window.api.schoolEvents.delete(eventId);
+                showToast('تم حذف الحدث', 'success');
+                loadReport();
+            } catch (err) {
+                console.error('Error deleting event:', err);
+                showToast('خطأ في حذف الحدث', 'error');
+            }
+        }
+
+        // Wire up "Add Event" button
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('add-event-btn').addEventListener('click', addEventRow);
+        });
     </script>
 </body>
 

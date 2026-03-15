@@ -330,7 +330,7 @@ function renderGradesTab(student, rawGrades) {
         bySubject[subj].push(g);
     });
 
-    const subjects = Object.keys(bySubject).sort((a, b) => a.localeCompare(b, 'ar'));
+    const subjects = Object.keys(bySubject).sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
 
     // KPIs
     const subjectAvgsArr = subjects.map(s => {

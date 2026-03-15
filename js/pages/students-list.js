@@ -652,7 +652,7 @@ async function viewStudent(code) {
         `;
 
         // Render subject blocks
-        const sortedSubjects = subjects.sort((a, b) => a.localeCompare(b, 'ar'));
+        const sortedSubjects = subjects.sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
         subjectsContainer.innerHTML = sortedSubjects
             .map((subj) => {
                 const grades = bySubject[subj];

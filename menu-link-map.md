@@ -1,98 +1,110 @@
-# App Menu Link Map
+﻿# App Menu Link Map
 
-Sources of truth:
+Source of truth:
 
-- `js/sidebar.js` (sidebar structure)
-- `js/utils.js` (role gating and page-visibility rules)
+- `js/sidebar.js` for the rendered sidebar structure
+- `js/utils.js` for access control and page-visibility rules
 
 ## Sidebar Tree
 
 - Dashboard
-    - `لوحة التحكم` -> `index.html`
+  - `لوحة التحكم` -> `index.html`
 
 - Students (`التلاميذ`)
-    - `لوائح التلاميذ` -> `students-list.html`
-    - `التسجيل والحركة العامة` -> `students-register.html`
-    - `ترتيب الملفات` -> `students-files.html`
-    - `حركية التلاميذ` -> `students-movement.html`
-    - `ملف التلميذ` -> `student-profile-prototype.html`
-    - `الوضعية الدراسية` -> `students-status.html`
+  - `لوائح التلاميذ` -> `students-list.html`
+  - `التسجيل والحركة العامة` -> `students-register.html`
+  - `ترتيب الملفات` -> `students-files.html`
+  - `حركية التلاميذ` -> `students-movement.html`
+  - `ملف التلميذ` -> `student-profile-prototype.html`
+  - `الوضعية الدراسية` -> `students-status.html`
 
-- Teachers (`الأساتذة`)
-    - `قائمة الأساتذة` -> `teachers-list.html`
-    - `حصص الأساتذة` -> `teachers-schedule.html`
-    - `غياب الأساتذة` -> `teachers-absence.html`
-    - `مؤشرات الأداء` -> `teachers-performance.html`
+- Staff Management (`تدبير الموظفين`)
+  - `قائمة الأساتذة` -> `teachers-list.html`
+  - `حصص الأساتذة` -> `teachers-schedule.html`
+  - `غياب الأساتذة` -> `teachers-absence.html`
+  - `مؤشرات الأداء` -> `teachers-performance.html`
+  - `الحضور والغياب` -> `staff-attendance.html`
+  - `التقرير اليومي` -> `staff-daily-report.html`
+  - `تتبع التعويضات` -> `compensation-tracking.html`
 
-- Timetable (`الاستعمال الزمني`)
-    - `جداول الحصص` -> `timetable.html`
-    - `جدول حصص التلاميذ` -> `timetable-students.html`
-    - `جدول القاعات` -> `timetable-rooms.html`
-    - `جدول حصص الأساتذة` -> `timetable-teachers.html`
+- Timetable Management (`تدبير الحصص`)
+  - `جدول حصص الأساتذة` -> `timetable.html`
+  - `إعادة توزيع الأقسام` -> `timetable-redistribution.html`
+  - `جدول حصص التلاميذ` -> `timetable-students.html`
+  - `جدول حصص القاعات` -> `timetable-rooms.html`
+  - `جدول حصص الأساتذة` -> `timetable-teachers.html`
 
 - Assessment & Results (`التقويم والنتائج`)
-    - `النتائج والإحصائيات` -> `grades.html`
-    - `تحليل النتائج` -> `analytics.html`
-    - `أوراق التنقيط` -> `grades-sheets.html`
-    - `بيان النتائج` -> `grades-results.html`
-    - `التلاميذ الحاصلون على صفر` -> `studentzero.html`
-    - `الدعم التربوي` -> `student-support.html`
+  - `النتائج والإحصائيات` -> `grades.html`
+  - `تحليل النتائج` -> `analytics.html`
+  - `أوراق التنقيط` -> `grades-sheets.html`
+  - `بيان النتائج` -> `grades-results.html`
+  - `التلاميذ الحاصلون على صفر` -> `studentzero.html`
+  - `الدعم التربوي` -> `student-support.html`
 
 - Attendance (`الغياب والمتابعة`)
-    - `ورقة الغياب الأسبوعية` -> `absence-weekly.html`
-    - `غياب التلاميذ` -> `absence-students.html`
-    - `مراسلة الأولياء` -> `absence-correspondence.html`
-    - `إحصائيات الغياب` -> `absence-analytics.html`
+  - `ورقة الغياب الأسبوعية` -> `absence-weekly.html`
+  - `غياب التلاميذ` -> `absence-students.html`
+  - `مراسلة الأولياء` -> `absence-correspondence.html`
+  - `إحصائيات الغياب` -> `absence-analytics.html`
 
 - Exams Center (`مركز الامتحانات`)
-    - `برمجة الامتحانات` -> `exams-schedule.html`
-    - `توزيع الحراسة` -> `exams-proctors.html`
-    - `قاعات الامتحان` -> `exams-rooms.html`
-    - `تدبير الفروض` -> `exams-tests.html`
+  - `برمجة الامتحانات` -> `exams-schedule.html`
+  - `توزيع الحراسة` -> `exams-proctors.html`
+  - `قاعات الامتحان` -> `exams-rooms.html`
+  - `تدبير الفروض` -> `exams-tests.html`
 
 - Reports & Documents (`التقارير والوثائق`)
-    - `الشواهد المدرسية` -> `reports-certificates.html`
-    - `الاستمارات الإدارية` -> `reports-forms.html`
-    - `تقارير الفصل` -> `reports-semester.html`
+  - `الشواهد المدرسية` -> `reports-certificates.html`
+  - `الاستمارات الإدارية` -> `reports-forms.html`
+  - `تقارير الفصل` -> `reports-semester.html`
 
 - Settings (`الإعدادات`)
-    - `معلومات المؤسسة` -> `settings-school.html`
-    - `استيراد البيانات` -> `settings-imports.html`
-    - `المستخدمون` -> `settings-users.html`
-    - `الترخيص والأجهزة` -> `settings-license.html`
-    - `سجل النشاطات` -> `settings-logs.html`
+  - `معلومات المؤسسة` -> `settings-school.html`
+  - `استيراد البيانات` -> `settings-imports.html`
+  - `المستخدمون` -> `settings-users.html`
+  - `الترخيص والأجهزة` -> `settings-license.html`
+  - `سجل النشاطات` -> `settings-logs.html`
 
 - New Designs (`التصاميم الجديدة`)
-    - `مركز التواصل (جديد)` -> `communication-center-prototype.html`
+  - `مركز التواصل (جديد)` -> `communication-center-prototype.html`
 
-## Header Actions
+## Sidebar Auth Actions
 
-- `دخول المشرف` -> `login.html?next=<current-page-or-blocked-target>`
-- `خروج المشرف` (shown when admin session is active)
-- `تفعيل البرنامج` (shown only in limited mode; opens activation modal)
+- `تسجيل الدخول أو إنشاء حساب` -> auth flow
+- `تسجيل الخروج` -> shown when a valid session exists
+- `قفل الجلسة` -> shown for authenticated users with PIN support
+- `إعداد رمز PIN` -> shown when relevant
+- `تغيير كلمة المرور` -> shown for authenticated users
+- `تفعيل البرنامج` -> shown in blocked mode
 
-## Access Modes
+## Access Rules
 
-- Limited mode
-    - Allowed pages: `index.html`, `students-list.html`, `settings-imports.html`, `login.html`
-    - Sidebar clickable links: `students-list.html`, `settings-imports.html`
-    - Admin-only pages are hidden: `settings-users.html`, `settings-license.html`
+- Guest / blocked access
+  - Allowed pages: `index.html`, `students-list.html`, `settings-imports.html`, `login.html`
+  - Sidebar clickable links: `students-list.html`, `settings-imports.html`
+  - Everything else is blocked or redirected
 
-- Trial mode
-    - Same page scope as licensed mode for navigation
-    - Admin-only pages are hidden for non-admin users
+- Trial access
+  - All non-admin pages are available
+  - `settings-users.html` and `settings-license.html` remain hidden for non-admin users
 
-- Licensed mode
-    - All non-admin pages are available
-    - Admin-only pages are hidden for non-admin users
+- Licensed access
+  - All non-admin pages are available
+  - `settings-users.html` and `settings-license.html` remain hidden for non-admin users
 
-- Admin mode
-    - Full access to all pages and sections
+- Authenticated staff/viewer
+  - Can open any non-admin page, regardless of license state
 
-## Page Visibility Notes
+- Admin
+  - Full access to all pages and admin-only settings pages
 
-- A configurable visibility catalog is defined in `js/utils.js` and managed from `settings-users.html`.
-- Pages with `completed: false` in the catalog are hidden by default for non-admin users:
-    - `student-profile-prototype.html`
-    - `communication-center-prototype.html`
-- `grades-results.html` exists in the sidebar but is not currently part of the visibility catalog.
+## Visibility Notes
+
+- `js/utils.js` maintains a page visibility catalog for admin-controlled hiding/showing.
+- Hidden by default for non-admin users because `completed: false`:
+  - `student-profile-prototype.html`
+  - `communication-center-prototype.html`
+- Present in sidebar but not in `PAGE_VISIBILITY_CATALOG`:
+  - `grades-results.html`
+  - `compensation-tracking.html`

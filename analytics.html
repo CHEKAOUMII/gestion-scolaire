@@ -663,6 +663,7 @@
         </div>
     </main>
 
+    <script src="js/data/ma-education-labels.js"></script>
     <script>
         const year = getSchoolYear();
         const CHART_JS_CDN = 'vendor/chart.min.js';
@@ -862,7 +863,7 @@
                 }
             });
 
-            return Array.from(subjects).sort((a, b) => String(a).localeCompare(String(b), 'ar'));
+            return Array.from(subjects).sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => String(a).localeCompare(String(b), 'ar'));
         }
 
         function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
@@ -928,14 +929,6 @@
             return typeof computeWeightedGeneralAverage === 'function'
                 ? computeWeightedGeneralAverage(subjectAverages, branch)
                 : avg(subjectAverages.map(s => s.avg));
-        }
-
-        function normalizeSubjectName(subject) {
-            const clean = String(subject || '')
-                .replace(/\s*\(\s*نشط\s*\d+\s*\)\s*$/i, '')
-                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-                .trim();
-            return clean || 'غير محدد';
         }
 
         function normalizeLoose(value) {

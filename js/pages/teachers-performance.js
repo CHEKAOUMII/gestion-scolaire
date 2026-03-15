@@ -121,7 +121,9 @@ async function getCurrentYear() {
             const stored = await window.api.settings.get('schoolYear');
             if (stored) return stored;
         }
-    } catch (_) { /* fallback to default */ }
+    } catch (_) {
+        /* fallback to default */
+    }
     return DEFAULT_YEAR;
 }
 
@@ -151,12 +153,16 @@ async function loadInitialData() {
             const subjectRaw = String(grade.subject || '').trim();
             const teacherRaw = String(grade.teacher_name || '').trim();
             const cleanTeacher = sanitizeTeacherName(teacherRaw);
+            const teacherId = Number(grade.teacher_id) || null;
+            const teacherKey = teacherId ? `id:${teacherId}` : cleanTeacher ? `name:${cleanTeacher}` : '';
             return {
                 ...grade,
                 grade: value,
                 _subjectRaw: subjectRaw,
                 _subject: normalizeSubjectName(subjectRaw),
                 _teacherRaw: teacherRaw,
+                _teacherId: teacherId,
+                _teacherKey: teacherKey,
                 _teacher: cleanTeacher,
                 _level: _getLocalLevelName(grade.section),
                 _examNo: extractExamNumber(subjectRaw),
@@ -229,7 +235,7 @@ function renderSubjectFilter() {
                 .map((g) => g._subject)
                 .filter(Boolean)
         )
-    ).sort((a, b) => a.localeCompare(b, 'ar'));
+    ).sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
     s.innerHTML = '<option value="">كل المواد</option>';
     subjects.forEach((sub) => {
         const o = document.createElement('option');
@@ -474,10 +480,12 @@ function buildTeacherRows(grades) {
     const byTeacher = new Map();
     grades.forEach((grade) => {
         const teacher = grade._teacher;
-        if (!teacher) return;
-        let row = byTeacher.get(teacher);
+        const teacherKey = grade._teacherKey;
+        if (!teacher || !teacherKey) return;
+        let row = byTeacher.get(teacherKey);
         if (!row) {
             row = {
+                teacherKey,
                 teacher,
                 sum: 0,
                 count: 0,
@@ -490,7 +498,7 @@ function buildTeacherRows(grades) {
                 sem1Grades: [],
                 sem2Grades: []
             };
-            byTeacher.set(teacher, row);
+            byTeacher.set(teacherKey, row);
         }
         row.sum += grade.grade;
         row.count += 1;
@@ -514,13 +522,16 @@ function buildTeacherRows(grades) {
         const semesterDiff = sem1Avg !== null && sem2Avg !== null ? sem2Avg - sem1Avg : null;
         return {
             teacher: row.teacher,
+            teacherKey: row.teacherKey,
             avg: avgScore,
             passRate,
             gradeCount: row.count,
             studentCount: row.students.size,
             sectionsCount: row.sections.size,
             sections: Array.from(row.sections).sort((a, b) => a.localeCompare(b, 'ar')),
-            subjects: Array.from(row.subjects).sort((a, b) => a.localeCompare(b, 'ar')),
+            subjects: Array.from(row.subjects).sort(
+                typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar')
+            ),
             lastImportedMs: row.lastImportedMs,
             gradeValues: row.gradeValues,
             rating,
@@ -689,23 +700,24 @@ function renderAbsenceByTeacherChart(rows) {
     const teacherSections = new Map();
     rows.forEach((row) => {
         row.sections.forEach((sec) => {
-            if (!teacherSections.has(row.teacher)) teacherSections.set(row.teacher, new Set());
-            teacherSections.get(row.teacher).add(sec);
+            if (!teacherSections.has(row.teacherKey))
+                teacherSections.set(row.teacherKey, { teacher: row.teacher, sections: new Set() });
+            teacherSections.get(row.teacherKey).sections.add(sec);
         });
     });
 
     // Compute total & average absence hours per teacher's sections
     const teacherAbsence = [];
-    teacherSections.forEach((sections, teacher) => {
+    teacherSections.forEach((entry, teacherKey) => {
         let totalHours = 0;
         allAbsencesCache.forEach((a) => {
-            if (a._section && sections.has(a._section)) totalHours += a._hours;
+            if (a._section && entry.sections.has(a._section)) totalHours += a._hours;
         });
         // Student count from rows data
-        const rowData = rows.find((r) => r.teacher === teacher);
+        const rowData = rows.find((r) => r.teacherKey === teacherKey);
         const studentCount = rowData ? rowData.studentCount : 0;
         const avgHours = studentCount > 0 ? totalHours / studentCount : 0;
-        teacherAbsence.push({ teacher, totalHours, studentCount, avgHours });
+        teacherAbsence.push({ teacher: entry.teacher, totalHours, studentCount, avgHours });
     });
 
     if (!teacherAbsence.length) {
@@ -716,7 +728,10 @@ function renderAbsenceByTeacherChart(rows) {
     // Sort by average and pick top 5 most + top 5 least
     const sorted = [...teacherAbsence].sort((a, b) => b.avgHours - a.avgHours);
     const top5Most = sorted.slice(0, 5);
-    const top5Least = sorted.filter((t) => t.avgHours >= 0).slice(-5).reverse();
+    const top5Least = sorted
+        .filter((t) => t.avgHours >= 0)
+        .slice(-5)
+        .reverse();
 
     // Merge: most first, then least (avoid duplicates)
     const leastNames = new Set(top5Least.map((t) => t.teacher));
@@ -737,13 +752,15 @@ function renderAbsenceByTeacherChart(rows) {
         type: 'bar',
         data: {
             labels,
-            datasets: [{
-                label: 'متوسط ساعات الغياب / تلميذ',
-                data,
-                backgroundColor: colors,
-                borderRadius: 6,
-                borderSkipped: false
-            }]
+            datasets: [
+                {
+                    label: 'متوسط ساعات الغياب / تلميذ',
+                    data,
+                    backgroundColor: colors,
+                    borderRadius: 6,
+                    borderSkipped: false
+                }
+            ]
         },
         options: {
             indexAxis: 'y',
@@ -791,7 +808,9 @@ function renderAbsenceByTeacherChart(rows) {
     });
 
     const totalAbsAllTeachers = teacherAbsence.reduce((s, t) => s + t.totalHours, 0);
-    const globalAvgAbs = teacherAbsence.length ? teacherAbsence.reduce((s, t) => s + t.avgHours, 0) / teacherAbsence.length : 0;
+    const globalAvgAbs = teacherAbsence.length
+        ? teacherAbsence.reduce((s, t) => s + t.avgHours, 0) / teacherAbsence.length
+        : 0;
     meta.textContent = `${teacherAbsence.length} أستاذ · متوسط الغياب: ${globalAvgAbs.toFixed(2)} ساعة/تلميذ · الإجمالي: ${totalAbsAllTeachers.toFixed(0)} ساعة. 🔴 الأكثر  🟢 الأقل`;
 }
 
@@ -863,7 +882,7 @@ function renderComparisonChart(rows) {
     const labels = finalList.map((r) => r.teacher);
     const data = finalList.map((r) => Number(r.passRate.toFixed(1)));
     const colors = finalList.map((r) => {
-        if (r.teacher === selectedTeacherName) return 'rgba(59, 106, 197, 0.95)';
+        if (r.teacherKey === selectedTeacherName) return 'rgba(59, 106, 197, 0.95)';
         const isBest = top5Best.some((b) => b.teacher === r.teacher);
         return isBest ? 'rgba(47, 179, 109, 0.85)' : 'rgba(231, 76, 60, 0.85)';
     });
@@ -951,7 +970,7 @@ function renderTeacherTable(rows, subjectFilter) {
                     ? `<span style="color:${row.semesterDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};font-weight:700;">${row.semesterDiff >= 0 ? '+' : ''}${row.semesterDiff.toFixed(2)}</span>`
                     : '<span style="color:var(--color-text-light);">-</span>';
             return `
-            <tr data-teacher="${escapeHtml(row.teacher)}" class="${row.teacher === selectedTeacherName ? 'tp-row-selected' : ''}">
+            <tr data-teacher="${escapeHtml(row.teacherKey)}" class="${row.teacherKey === selectedTeacherName ? 'tp-row-selected' : ''}">
                 <td>${escapeHtml(row.teacher)}</td>
                 <td>${escapeHtml(rowSubjectLabel(row, subjectFilter))}</td>
                 <td title="${escapeHtml(row.sections.join(' - '))}">${escapeHtml(rowSectionLabel(row))}</td>
@@ -986,11 +1005,11 @@ function renderTeacherCard(baseFiltered, rows) {
 
     const teacherSelect = document.getElementById('tp-teacher-filter');
     if (teacherSelect?.value) selectedTeacherName = teacherSelect.value;
-    if (!selectedTeacherName || !rows.some((r) => r.teacher === selectedTeacherName))
-        selectedTeacherName = rows[0].teacher;
+    if (!selectedTeacherName || !rows.some((r) => r.teacherKey === selectedTeacherName))
+        selectedTeacherName = rows[0].teacherKey;
 
-    const row = rows.find((r) => r.teacher === selectedTeacherName) || rows[0];
-    const teacherGrades = baseFiltered.filter((g) => g._teacher === row.teacher);
+    const row = rows.find((r) => r.teacherKey === selectedTeacherName) || rows[0];
+    const teacherGrades = baseFiltered.filter((g) => g._teacherKey === row.teacherKey);
     const studentCount = new Set(teacherGrades.map(studentIdentity)).size;
 
     // Calculate benchmark: what % of same-subject teachers does this teacher beat?
@@ -1234,7 +1253,7 @@ function renderRadarChart(rows) {
         note.textContent = 'اختر أستاذ من الجدول.';
         return;
     }
-    const row = rows.find((r) => r.teacher === selectedTeacherName) || rows[0];
+    const row = rows.find((r) => r.teacherKey === selectedTeacherName) || rows[0];
     const sd = row.gradeValues ? stdDev(row.gradeValues) : 0;
     const consistency = Math.max(0, Math.min(100, (1 - sd / 10) * 100));
     const semProgress = row.semesterDiff !== null ? Math.max(0, Math.min(100, 50 + row.semesterDiff * 10)) : 50;
@@ -1362,8 +1381,8 @@ async function runAnalysis() {
             (a, b) => b.passRate - a.passRate || b.avg - a.avg || b.gradeCount - a.gradeCount
         );
         if (teacherSelect?.value) selectedTeacherName = teacherSelect.value;
-        if (rows.length && (!selectedTeacherName || !rows.some((r) => r.teacher === selectedTeacherName)))
-            selectedTeacherName = rows[0].teacher;
+        if (rows.length && (!selectedTeacherName || !rows.some((r) => r.teacherKey === selectedTeacherName)))
+            selectedTeacherName = rows[0].teacherKey;
         teacherRowsCache = rows;
 
         renderStateLine(baseFiltered, rows);

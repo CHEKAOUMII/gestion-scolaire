@@ -127,6 +127,7 @@ const SUBJECT_LABELS = Object.freeze({
     'ECO. ET ORG. ADMIN. ENTREPRISE':  'الاقتصاد والتنظيم الإداري للمقاولات',
     'ECO ET ORGANISATION':             'الاقتصاد والتنظيم الإداري للمقاولات',
     'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
+    'COMPTA ET MATHS FINANCIERES':  'المحاسبة والرياضيات المالية',
     'COMPTABILITE':                    'المحاسبة والرياضيات المالية',
     'INFORMATIQUE DE GESTION':         'معلوميات التدبير',
     'DROIT':                           'القانون',
@@ -136,6 +137,7 @@ const SUBJECT_LABELS = Object.freeze({
     "SCIENCES DE L'INGENIEUR":         'علوم المهندس',
     "SCIENCES DE L INGENIEUR":         'علوم المهندس',
     'SCIENCES INGENIEURS':             'علوم المهندس',
+    'SC DE L INGENIEUR':               'علوم المهندس',
     'SI':                              'علوم المهندس',
 
     // ── فنون تطبيقية ─────────────────────────────────────────
@@ -257,8 +259,116 @@ const MARITAL_LABELS = Object.freeze({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 5. ترتيب المواد (Subject Display Order)
+// ─────────────────────────────────────────────────────────────────────────────
+// الترتيب الرسمي للمواد حسب المنظومة التعليمية المغربية
+const SUBJECT_ORDER = Object.freeze([
+    'اللغة العربية',
+    'اللغة الفرنسية',
+    'اللغة الإنجليزية',
+    'اللغة الإسبانية',
+    'اللغة الألمانية',
+    'اللغة الإيطالية',
+    'التاريخ والجغرافيا',
+    'الرياضيات',
+    'علوم الحياة والأرض',
+    'الفيزياء والكيمياء',
+    'التربية الإسلامية',
+    'التربية البدنية',
+    'التربية البدنية والرياضية',
+    'المعلوميات',
+    'الفلسفة',
+    'الترجمة',
+    'القانون',
+    'المحاسبة والرياضيات المالية',
+    'الاقتصاد العام والإحصاء',
+    'الاقتصاد والتنظيم الإداري للمقاولات',
+    'معلوميات التدبير',
+]);
+
+/**
+ * دالة ترتيب المواد حسب الترتيب الرسمي
+ * المواد غير الموجودة في القائمة تُوضع في النهاية مرتبة أبجدياً
+ * @param {string} a - اسم المادة الأولى
+ * @param {string} b - اسم المادة الثانية
+ * @returns {number} - نتيجة المقارنة
+ */
+function compareSubjects(a, b) {
+    const idxA = SUBJECT_ORDER.indexOf(a);
+    const idxB = SUBJECT_ORDER.indexOf(b);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return a.localeCompare(b, 'ar');
+}
+
+/**
+ * ترتيب مصفوفة من أسماء المواد حسب الترتيب الرسمي
+ * @param {string[]} subjects - مصفوفة أسماء المواد
+ * @returns {string[]} - المصفوفة مرتبة
+ */
+function sortSubjects(subjects) {
+    return [...subjects].sort(compareSubjects);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // دوال الترجمة
 // ─────────────────────────────────────────────────────────────────────────────
+
+// دالة تطبيع للمقارنة: حروف كبيرة + إزالة التشكيل + توحيد الفواصل العليا
+function _normKey(str) {
+    return String(str)
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u2018\u2019\u02bc]/g, "'")
+        .replace(/[_\-.]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// Pre-computed sorted keys + normalized forms (built once at load time)
+const _SUBJECT_SORTED_ENTRIES = Object.keys(SUBJECT_LABELS)
+    .sort((a, b) => b.length - a.length)
+    .map(k => {
+        const kn = _normKey(k);
+        return { key: k, norm: kn, clean: kn.replace(/[' ]/g, '') };
+    });
+
+// Memoization cache for translateSubject
+const _translateCache = Object.create(null);
+
+// Arabic-only fast check (no Latin letters → skip translation pipeline)
+const _HAS_LATIN = /[A-Za-z\u00C0-\u024F]/;
+
+// خريطة عكسية: القيم العربية الأساسية (canonical) لمطابقة المتغيرات المختلفة
+// المفتاح = النسخة المطبّعة (بدون مسافات زائدة)، القيمة = الاسم القياسي
+const _ARABIC_CANONICAL = Object.create(null);
+
+// إزالة التشكيل فقط (فتحة، ضمة، كسرة، شدة، سكون، تنوين) بدون مس الحروف
+const _TASHKEEL = /[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]/g;
+
+/**
+ * تطبيع نص عربي: إزالة التشكيل + توحيد واو العطف + توحيد المسافات
+ * "المحاسبة و الرياضيات" → "المحاسبة والرياضيات"
+ */
+function _normArabic(str) {
+    return str
+        .replace(_TASHKEEL, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        // واو العطف المنفصلة: "كلمة و كلمة" → "كلمة وكلمة"
+        .replace(/\s+و\s+/g, ' و');
+}
+
+(function _buildArabicCanonical() {
+    const seen = new Set();
+    for (const val of Object.values(SUBJECT_LABELS)) {
+        if (seen.has(val)) continue;
+        seen.add(val);
+        _ARABIC_CANONICAL[_normArabic(val)] = val;
+    }
+})();
 
 /**
  * ترجمة اسم التخصص / المادة من الفرنسية إلى العربية
@@ -268,28 +378,32 @@ const MARITAL_LABELS = Object.freeze({
  */
 function translateSubject(raw) {
     if (!raw) return raw;
-    // دالة تطبيع للمقارنة: حروف كبيرة + إزالة التشكيل + توحيد الفواصل العليا
-    const norm = str => String(str)
-        .toUpperCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[\u2018\u2019\u02bc]/g, "'")
-        .replace(/[_\-.]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
 
-    const key = norm(raw);
-    if (SUBJECT_LABELS[key]) return SUBJECT_LABELS[key];
+    // Cache hit → instant return
+    if (_translateCache[raw] !== undefined) return _translateCache[raw];
+
+    // Arabic-only text → check canonical map for normalization
+    if (!_HAS_LATIN.test(raw)) {
+        const normKey = _normArabic(raw);
+        const canonical = _ARABIC_CANONICAL[normKey] || raw;
+        _translateCache[raw] = canonical;
+        return canonical;
+    }
+
+    const key = _normKey(raw);
+    if (SUBJECT_LABELS[key]) {
+        _translateCache[raw] = SUBJECT_LABELS[key];
+        return SUBJECT_LABELS[key];
+    }
 
     // بحث بعد إزالة الفواصل العليا والشرطات
     const keyClean = key.replace(/[' ]/g, '');
-    const sorted = Object.keys(SUBJECT_LABELS).sort((a, b) => b.length - a.length);
-    for (const k of sorted) {
-        const kn = norm(k);
-        if (kn === key) return SUBJECT_LABELS[k];
-        if (kn.replace(/[' ]/g, '') === keyClean && keyClean.length > 3) return SUBJECT_LABELS[k];
-        if (kn.length > 3 && (key.includes(kn) || kn.includes(key))) return SUBJECT_LABELS[k];
+    for (const entry of _SUBJECT_SORTED_ENTRIES) {
+        if (entry.norm === key) { _translateCache[raw] = SUBJECT_LABELS[entry.key]; return SUBJECT_LABELS[entry.key]; }
+        if (entry.clean === keyClean && keyClean.length > 3) { _translateCache[raw] = SUBJECT_LABELS[entry.key]; return SUBJECT_LABELS[entry.key]; }
+        if (entry.norm.length > 3 && (key.includes(entry.norm) || entry.norm.includes(key))) { _translateCache[raw] = SUBJECT_LABELS[entry.key]; return SUBJECT_LABELS[entry.key]; }
     }
+    _translateCache[raw] = raw;
     return raw;
 }
 
@@ -329,12 +443,37 @@ function translateMaritalStatus(raw) {
     return MARITAL_LABELS[key] || raw;
 }
 
+// Memoization cache for normalizeSubjectName
+const _normalizeCache = Object.create(null);
+
+/**
+ * تطبيع اسم المادة:
+ * 1. إزالة لاحقات الفروض (فرض 1) والأنشطة المندمجة
+ * 2. ترجمة الأسماء الفرنسية إلى العربية باستخدام translateSubject
+ * @param {string} subject - اسم المادة الخام
+ * @returns {string} - الاسم المطبّع
+ */
+function normalizeSubjectName(subject) {
+    const raw = String(subject || '');
+    if (_normalizeCache[raw] !== undefined) return _normalizeCache[raw];
+
+    const text = raw
+        .replace(/\s*\(\s*(?:فرض|نشط)\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
+        .replace(/\s*\(الأنشطة المندمجة\)\s*$/i, '')
+        .trim();
+    if (!text) { _normalizeCache[raw] = text; return text; }
+    const result = translateSubject(text);
+    _normalizeCache[raw] = result;
+    return result;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // تصدير (Node.js + Browser)
 // ─────────────────────────────────────────────────────────────────────────────
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         SUBJECT_LABELS,
+        SUBJECT_ORDER,
         CADRE_LABELS,
         GRADE_LABELS,
         MARITAL_LABELS,
@@ -342,5 +481,8 @@ if (typeof module !== 'undefined' && module.exports) {
         translateGrade,
         translateCadre,
         translateMaritalStatus,
+        compareSubjects,
+        sortSubjects,
+        normalizeSubjectName,
     };
 }

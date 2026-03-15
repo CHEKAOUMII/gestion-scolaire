@@ -1,11 +1,14 @@
 const { handleRead, handleWrite, normalizeYear } = require('./ipc-helpers');
+const { resolveTeacherIdentity } = require('../teachers/identity');
 const { requireFields, validateSchoolYear, validateDate } = require('./validation');
 
 function registerExamsIpc(ipcMain) {
     // ── Read handlers (no auth required) ──
 
     handleRead(ipcMain, 'exams:getAll', (db, schoolYear) => {
-        return db.prepare('SELECT * FROM exams WHERE school_year = ? ORDER BY exam_date, exam_time').all(normalizeYear(schoolYear));
+        return db
+            .prepare('SELECT * FROM exams WHERE school_year = ? ORDER BY exam_date, exam_time')
+            .all(normalizeYear(schoolYear));
     });
 
     // ── Write handlers (require admin or staff role) ──
@@ -21,21 +24,23 @@ function registerExamsIpc(ipcMain) {
             if (!Number.isFinite(safeId) || safeId <= 0) {
                 return { success: false, error: 'Invalid ID' };
             }
-            const result = db.prepare(
-                `
+            const result = db
+                .prepare(
+                    `
                     UPDATE exams SET title = ?, section = ?, subject = ?, exam_date = ?, exam_time = ?, school_year = ?
                     WHERE id = ? AND school_year = ?
                 `
-            ).run(
-                payload.title,
-                payload.section || null,
-                payload.subject || null,
-                payload.exam_date || null,
-                payload.exam_time || null,
-                payload.school_year,
-                safeId,
-                payload.school_year
-            );
+                )
+                .run(
+                    payload.title,
+                    payload.section || null,
+                    payload.subject || null,
+                    payload.exam_date || null,
+                    payload.exam_time || null,
+                    payload.school_year,
+                    safeId,
+                    payload.school_year
+                );
             if (result.changes === 0) {
                 return { success: false, error: 'Record not found or school year mismatch' };
             }
@@ -84,6 +89,13 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'examProctors:saveManual', ['admin', 'staff'], (db, _event, payload) => {
+        const year = normalizeYear(payload.school_year);
+        const resolvedTeacher = resolveTeacherIdentity(db, {
+            teacher_id: payload.teacher_id,
+            teacher_name: payload.teacher_name,
+            school_year: year,
+            source: 'examProctors:saveManual'
+        });
         db.prepare(
             `
                 INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, room, school_year)
@@ -91,10 +103,10 @@ function registerExamsIpc(ipcMain) {
             `
         ).run(
             payload.exam_id || null,
-            payload.teacher_id || null,
-            payload.teacher_name || null,
+            resolvedTeacher.teacher_id || null,
+            resolvedTeacher.teacher_name || payload.teacher_name || null,
             payload.room || null,
-            payload.school_year
+            year
         );
         return { success: true };
     });
@@ -135,7 +147,9 @@ function registerExamsIpc(ipcMain) {
     // ── Exam rooms (read = open, write = admin/staff) ──
 
     handleRead(ipcMain, 'examRooms:getAll', (db, schoolYear) => {
-        return db.prepare('SELECT * FROM exam_rooms WHERE school_year = ? ORDER BY room_name').all(normalizeYear(schoolYear));
+        return db
+            .prepare('SELECT * FROM exam_rooms WHERE school_year = ? ORDER BY room_name')
+            .all(normalizeYear(schoolYear));
     });
 
     handleWrite(ipcMain, 'examRooms:save', ['admin', 'staff'], (db, _event, payload) => {
@@ -144,23 +158,28 @@ function registerExamsIpc(ipcMain) {
             if (!Number.isFinite(safeId) || safeId <= 0) {
                 return { success: false, error: 'Invalid ID' };
             }
-            const result = db.prepare(
-                'UPDATE exam_rooms SET room_name = ?, capacity = ?, equipment = ?, school_year = ? WHERE id = ? AND school_year = ?'
-            ).run(
-                payload.room_name,
-                payload.capacity || 0,
-                payload.equipment || null,
-                payload.school_year,
-                safeId,
-                payload.school_year
-            );
+            const result = db
+                .prepare(
+                    'UPDATE exam_rooms SET room_name = ?, capacity = ?, equipment = ?, school_year = ? WHERE id = ? AND school_year = ?'
+                )
+                .run(
+                    payload.room_name,
+                    payload.capacity || 0,
+                    payload.equipment || null,
+                    payload.school_year,
+                    safeId,
+                    payload.school_year
+                );
             if (result.changes === 0) {
                 return { success: false, error: 'Record not found or school year mismatch' };
             }
         } else {
-            db.prepare(
-                'INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)'
-            ).run(payload.room_name, payload.capacity || 0, payload.equipment || null, payload.school_year);
+            db.prepare('INSERT INTO exam_rooms (room_name, capacity, equipment, school_year) VALUES (?, ?, ?, ?)').run(
+                payload.room_name,
+                payload.capacity || 0,
+                payload.equipment || null,
+                payload.school_year
+            );
         }
         return { success: true };
     });
@@ -182,48 +201,61 @@ function registerExamsIpc(ipcMain) {
     // ── Tests (read = open, write = admin/staff) ──
 
     handleRead(ipcMain, 'tests:getAll', (db, schoolYear) => {
-        return db.prepare('SELECT * FROM tests WHERE school_year = ? ORDER BY test_date, id').all(normalizeYear(schoolYear));
+        return db
+            .prepare('SELECT * FROM tests WHERE school_year = ? ORDER BY test_date, id')
+            .all(normalizeYear(schoolYear));
     });
 
     handleWrite(ipcMain, 'tests:save', ['admin', 'staff'], (db, _event, payload) => {
+        const year = normalizeYear(payload.school_year);
+        const resolvedTeacher = resolveTeacherIdentity(db, {
+            teacher_id: payload.teacher_id,
+            teacher_name: payload.teacher_name,
+            school_year: year,
+            source: 'tests:save'
+        });
         if (payload.id) {
             const safeId = Number(payload.id);
             if (!Number.isFinite(safeId) || safeId <= 0) {
                 return { success: false, error: 'Invalid ID' };
             }
-            const result = db.prepare(
-                `
-                    UPDATE tests SET title = ?, section = ?, subject = ?, teacher_name = ?, status = ?, test_date = ?, school_year = ?
+            const result = db
+                .prepare(
+                    `
+                    UPDATE tests SET title = ?, section = ?, subject = ?, teacher_id = ?, teacher_name = ?, status = ?, test_date = ?, school_year = ?
                     WHERE id = ? AND school_year = ?
                 `
-            ).run(
-                payload.title,
-                payload.section || null,
-                payload.subject || null,
-                payload.teacher_name || null,
-                payload.status || 'planned',
-                payload.test_date || null,
-                payload.school_year,
-                safeId,
-                payload.school_year
-            );
+                )
+                .run(
+                    payload.title,
+                    payload.section || null,
+                    payload.subject || null,
+                    resolvedTeacher.teacher_id || null,
+                    resolvedTeacher.teacher_name || payload.teacher_name || null,
+                    payload.status || 'planned',
+                    payload.test_date || null,
+                    year,
+                    safeId,
+                    year
+                );
             if (result.changes === 0) {
                 return { success: false, error: 'Record not found or school year mismatch' };
             }
         } else {
             db.prepare(
                 `
-                    INSERT INTO tests(title, section, subject, teacher_name, status, test_date, school_year)
-                    VALUES(?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO tests(title, section, subject, teacher_id, teacher_name, status, test_date, school_year)
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?)
                 `
             ).run(
                 payload.title,
                 payload.section || null,
                 payload.subject || null,
-                payload.teacher_name || null,
+                resolvedTeacher.teacher_id || null,
+                resolvedTeacher.teacher_name || payload.teacher_name || null,
                 payload.status || 'planned',
                 payload.test_date || null,
-                payload.school_year
+                year
             );
         }
         return { success: true };

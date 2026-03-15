@@ -564,6 +564,7 @@
         </div>
     </div>
 
+    <script src="js/data/ma-education-labels.js"></script>
     <script>
         const year = getSchoolYear();
         let allSections = [];
@@ -1035,7 +1036,7 @@
             `;
 
             // Render subjects
-            const sortedSubjects = subjects.sort((a, b) => a.localeCompare(b, 'ar'));
+            const sortedSubjects = subjects.sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
             document.getElementById('detail-subjects').innerHTML = sortedSubjects.map(subj => {
                 const grades = bySubject[subj];
                 const avg = computeSubjectAverage(subj, grades);

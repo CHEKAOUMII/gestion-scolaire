@@ -132,7 +132,7 @@
 
             const uniqueSubjects = Array.from(
                 new Set(subjects.map((s) => normalizeSubjectName(s.name)).filter(Boolean))
-            ).sort((a, b) => a.localeCompare(b, 'ar'));
+            ).sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
 
             uniqueSubjects.forEach((subjectName) => {
                 const opt = document.createElement('option');

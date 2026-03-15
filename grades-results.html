@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="ux-enhancements.css">
+    <script src="js/data/ma-education-labels.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
@@ -625,12 +626,6 @@
             // Uses shared getLevelFromSection() from utils.js (returns {code, name, order})
 
             // ─── Helpers ───
-            function normalizeSubjectName(subject) {
-                return String(subject || '')
-                    .replace(/\s*\(\s*فرض\s*[\d٠-٩]+\s*\)\s*$/i, '')
-                    .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-                    .trim();
-            }
 
             function gradeComment(avg) {
                 if (avg >= 16) return 'ممتاز';

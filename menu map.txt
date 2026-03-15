@@ -1,5 +1,5 @@
-Menu Map (Current Sidebar)
-Source: js/sidebar.js
+﻿Menu Map (Current Sidebar)
+Source of truth: `js/sidebar.js`
 
 Top level
 - لوحة التحكم -> index.html
@@ -8,23 +8,29 @@ Top level
   - التسجيل والحركة العامة -> students-register.html
   - ترتيب الملفات -> students-files.html
   - حركية التلاميذ -> students-movement.html
-- الأساتذة
+  - ملف التلميذ -> student-profile-prototype.html
+  - الوضعية الدراسية -> students-status.html
+- تدبير الموظفين
   - قائمة الأساتذة -> teachers-list.html
   - حصص الأساتذة -> teachers-schedule.html
   - غياب الأساتذة -> teachers-absence.html
   - مؤشرات الأداء -> teachers-performance.html
-- الاستعمال الزمني
-  - جداول الحصص -> timetable.html
+  - الحضور والغياب -> staff-attendance.html
+  - التقرير اليومي -> staff-daily-report.html
+  - تتبع التعويضات -> compensation-tracking.html
+- تدبير الحصص
+  - جدول حصص الأساتذة -> timetable.html
+  - إعادة توزيع الأقسام -> timetable-redistribution.html
   - جدول حصص التلاميذ -> timetable-students.html
-  - جدول القاعات -> timetable-rooms.html
+  - جدول حصص القاعات -> timetable-rooms.html
   - جدول حصص الأساتذة -> timetable-teachers.html
 - التقويم والنتائج
   - النتائج والإحصائيات -> grades.html
   - تحليل النتائج -> analytics.html
   - أوراق التنقيط -> grades-sheets.html
+  - بيان النتائج -> grades-results.html
   - التلاميذ الحاصلون على صفر -> studentzero.html
   - الدعم التربوي -> student-support.html
-  - مؤشرات أداء الأساتذة -> teachers-performance.html
 - الغياب والمتابعة
   - ورقة الغياب الأسبوعية -> absence-weekly.html
   - غياب التلاميذ -> absence-students.html
@@ -46,26 +52,24 @@ Top level
   - الترخيص والأجهزة -> settings-license.html
   - سجل النشاطات -> settings-logs.html
 - التصاميم الجديدة
-  - ملف التلميذ (جديد) -> student-profile-prototype.html
   - مركز التواصل (جديد) -> communication-center-prototype.html
 
-Access modes (current behavior)
-- Limited mode (before activation):
-  - Allowed pages: index.html, students-list.html, settings-imports.html
+Access modes
+- Guest / blocked:
+  - Allowed pages: index.html, students-list.html, settings-imports.html, login.html
   - Sidebar active links: students-list.html, settings-imports.html
-  - All other links are blocked
-- Licensed mode (after activation):
-  - All normal pages unlocked
-  - Admin-only pages remain blocked: settings-users.html, settings-license.html
-- Admin mode (after admin login):
+- Trial / licensed:
+  - All non-admin pages unlocked
+  - Admin-only pages remain hidden for non-admin users: settings-users.html, settings-license.html
+- Authenticated staff/viewer:
+  - All non-admin pages accessible
+- Admin:
   - Full access to all pages
 
-Top header actions
-- دخول المشرف -> login.html?next=<current page>
-- خروج المشرف (when admin session exists)
-- تفعيل البرنامج (shown in limited mode, opens activation modal)
-
-Notes
-- teachers-performance.html appears in two sections:
-  - الأساتذة
-  - التقويم والنتائج
+Visibility notes
+- Hidden by default for non-admin users:
+  - student-profile-prototype.html
+  - communication-center-prototype.html
+- In sidebar but not in PAGE_VISIBILITY_CATALOG:
+  - grades-results.html
+  - compensation-tracking.html

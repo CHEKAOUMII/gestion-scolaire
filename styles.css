@@ -47,20 +47,21 @@ body {
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     border-left: 1px solid var(--glass-border);
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
     position: fixed;
     right: 0;
     top: 0;
     z-index: 1000;
     transition: var(--transition);
-    overflow-y: auto;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
 
 /* ── Sidebar Auth Section (sticky bottom) ── */
 .sidebar-auth-section {
-    margin-top: auto;
+    flex-shrink: 0;
     padding: 12px 15px 16px;
     border-top: 1px solid var(--glass-border);
     background: rgba(255, 255, 255, 0.35);
@@ -420,6 +421,9 @@ body {
 
 .sidebar-nav {
     padding: 20px 0;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .sidebar-nav ul {

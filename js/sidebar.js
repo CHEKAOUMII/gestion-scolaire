@@ -36,16 +36,16 @@ function injectSidebar() {
                         <li><a href="teachers-performance.html"><i class="fas fa-chart-line"></i> مؤشرات الأداء</a></li>
                         <li><a href="staff-attendance.html"><i class="fas fa-clipboard-check"></i> الحضور والغياب</a></li>
                         <li><a href="staff-daily-report.html"><i class="fas fa-file-alt"></i> التقرير اليومي</a></li>
-                        <li><a href="compensation-tracking.html"><i class="fas fa-exchange-alt"></i> تتبع التعويضات</a></li>
+                        <li><a href="compensation-tracking.html"><i class="fas fa-exchange-alt"></i> الحصص التعويضية</a></li>
                     </ul>
                 </li>
                 <li class="expandable">
                     <a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="timetable.html"><i class="fas fa-table"></i>جدول حصص الأساتذة</a></li>
-                        <li><a href="timetable-redistribution.html"><i class="fas fa-random"></i> إعادة توزيع الأقسام</a></li>
                         <li><a href="timetable-students.html"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</a></li>
                         <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول حصص القاعات</a></li>
+                        <li><a href="timetable-redistribution.html"><i class="fas fa-random"></i> إعادة توزيع الأقسام</a></li>
                         <li><a href="timetable-teachers.html"><i class="fas fa-chalkboard-teacher"></i> جدول حصص الأساتذة</a></li>
                     </ul>
                 </li>

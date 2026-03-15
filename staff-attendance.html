@@ -1,978 +1,1079 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>الحضور والغياب | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/design-system.css" />
+        <link rel="stylesheet" href="styles.css" />
+        <link rel="stylesheet" href="ux-enhancements.css" />
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+        <style>
+            /* ─── Staff Attendance Page Styles ─── */
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الحضور والغياب | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
-    <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/ux-enhancements.js"></script>
-    <style>
-        /* ─── Staff Attendance Page Styles ─── */
-
-        /* ─── Form Section ─── */
-        .attendance-form-card {
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
-            overflow: hidden;
-            animation: fadeInUp 0.4s ease-out both;
-        }
-
-        .attendance-form-header {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--color-accent);
-            background: var(--color-surface-alt);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .attendance-form-header h3 {
-            margin: 0;
-            font-family: var(--font-display);
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--color-text-main);
-        }
-
-        .attendance-form-header i {
-            color: var(--color-primary);
-        }
-
-        .attendance-form-body {
-            padding: 20px;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 14px;
-            align-items: end;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .form-group label {
-            font-family: var(--font-main);
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--color-text-muted);
-        }
-
-        .form-group select,
-        .form-group input {
-            padding: 9px 14px;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            font-family: var(--font-main);
-            font-size: 14px;
-            background: var(--color-surface-alt);
-            color: var(--color-text-main);
-            transition: var(--transition-fast);
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .form-group select:focus,
-        .form-group input:focus {
-            outline: none;
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px var(--color-primary-mist);
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 16px;
-        }
-
-        /* Type toggle pills */
-        .type-toggle {
-            display: flex;
-            gap: 0;
-            border-radius: var(--radius-sm);
-            overflow: hidden;
-            border: 1px solid var(--color-accent);
-        }
-
-        .type-toggle-btn {
-            padding: 9px 20px;
-            border: none;
-            background: var(--color-surface-alt);
-            color: var(--color-text-muted);
-            font-family: var(--font-main);
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition-fast);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .type-toggle-btn.active {
-            background: var(--color-primary);
-            color: #fff;
-        }
-
-        .type-toggle-btn:hover:not(.active) {
-            background: var(--color-primary-mist);
-            color: var(--color-primary);
-        }
-
-        /* Late-only fields */
-        .late-fields {
-            display: none;
-        }
-
-        .late-fields.visible {
-            display: contents;
-        }
-
-        /* ─── Stat Cards ─── */
-        .att-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-
-        .att-stat-card {
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-md);
-            padding: 18px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            transition: var(--transition-normal);
-            animation: fadeInUp 0.4s ease-out both;
-        }
-
-        .att-stat-card:nth-child(1) {
-            animation-delay: 0.05s;
-        }
-
-        .att-stat-card:nth-child(2) {
-            animation-delay: 0.1s;
-        }
-
-        .att-stat-card:nth-child(3) {
-            animation-delay: 0.15s;
-        }
-
-        .att-stat-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-hover);
-            border-color: var(--color-primary-light);
-        }
-
-        .att-stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            flex-shrink: 0;
-        }
-
-        .att-stat-icon.absence {
-            background: rgba(232, 93, 93, 0.12);
-            color: var(--color-danger-bg);
-        }
-
-        .att-stat-icon.late {
-            background: rgba(240, 173, 78, 0.12);
-            color: var(--color-warning-bg);
-        }
-
-        .att-stat-icon.total {
-            background: rgba(59, 106, 197, 0.10);
-            color: var(--color-primary);
-        }
-
-        .att-stat-body h4 {
-            margin: 0;
-            font-family: var(--font-display);
-            font-size: 24px;
-            font-weight: 800;
-            color: var(--color-text-main);
-            line-height: 1;
-        }
-
-        .att-stat-body p {
-            margin: 3px 0 0;
-            font-family: var(--font-main);
-            font-size: 12px;
-            color: var(--color-text-muted);
-            font-weight: 500;
-        }
-
-        /* ─── Records Table ─── */
-        .att-section {
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
-            overflow: hidden;
-            animation: fadeInUp 0.4s ease-out both;
-            animation-delay: 0.2s;
-        }
-
-        .att-section-header {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--color-accent);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--color-surface-alt);
-            flex-wrap: wrap;
-        }
-
-        .att-section-header h3 {
-            margin: 0;
-            font-family: var(--font-display);
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--color-text-main);
-        }
-
-        .att-section-header i {
-            color: var(--color-primary);
-            font-size: 16px;
-        }
-
-        .att-section-header .badge-count {
-            background: var(--color-primary);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 10px;
-            border-radius: var(--radius-full);
-        }
-
-        .filter-bar {
-            display: flex;
-            gap: 10px;
-            margin-right: auto;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .filter-bar select,
-        .filter-bar input {
-            padding: 6px 12px;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            font-family: var(--font-main);
-            font-size: 13px;
-            background: var(--color-surface);
-            color: var(--color-text-main);
-        }
-
-        .att-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: var(--font-main);
-            font-size: 14px;
-        }
-
-        .att-table th {
-            background: var(--color-surface-alt);
-            color: var(--color-text-muted);
-            padding: 10px 14px;
-            font-weight: 600;
-            text-align: right;
-            white-space: nowrap;
-            border-bottom: 1px solid var(--color-accent);
-            font-size: 13px;
-        }
-
-        .att-table td {
-            padding: 10px 14px;
-            border-bottom: 1px solid var(--color-accent);
-            color: var(--color-text-main);
-            vertical-align: middle;
-        }
-
-        .att-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .att-table tbody tr:hover td {
-            background: var(--color-primary-mist);
-        }
-
-        .att-table .empty-row td {
-            text-align: center;
-            padding: 28px 14px;
-            color: var(--color-text-muted);
-            font-style: italic;
-        }
-
-        .type-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 12px;
-            border-radius: var(--radius-full);
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .type-badge.absence {
-            background: rgba(232, 93, 93, 0.12);
-            color: var(--color-danger);
-        }
-
-        .type-badge.late {
-            background: rgba(240, 173, 78, 0.12);
-            color: var(--color-warning);
-        }
-
-        .section-tag {
-            display: inline-block;
-            background: var(--color-primary-mist);
-            color: var(--color-primary);
-            padding: 2px 9px;
-            border-radius: var(--radius-full);
-            font-size: 11px;
-            font-weight: 600;
-            margin: 1px;
-        }
-
-        .delete-btn {
-            background: none;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            padding: 5px 10px;
-            cursor: pointer;
-            color: var(--color-danger);
-            transition: var(--transition-fast);
-            font-size: 13px;
-        }
-
-        .delete-btn:hover {
-            background: rgba(232, 93, 93, 0.08);
-            border-color: var(--color-danger-bg);
-        }
-
-        /* ── Print ── */
-        @media print {
-
-            .sidebar,
-            .header,
-            .toast-container,
-            .attendance-form-card,
-            .filter-bar {
-                display: none !important;
+            /* ─── Form Section ─── */
+            .attendance-form-card {
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                margin-bottom: 20px;
+                overflow: hidden;
+                animation: fadeInUp 0.4s ease-out both;
             }
 
-            .main-content {
-                margin: 0 !important;
-                padding: 10px !important;
+            .attendance-form-header {
+                padding: 14px 20px;
+                border-bottom: 1px solid var(--color-accent);
+                background: var(--color-surface-alt);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .attendance-form-header h3 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: 15px;
+                font-weight: 700;
+                color: var(--color-text-main);
+            }
+
+            .attendance-form-header i {
+                color: var(--color-primary);
+            }
+
+            .attendance-form-body {
+                padding: 20px;
+            }
+
+            .form-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 14px;
+                align-items: end;
+            }
+
+            .form-group {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .form-group label {
+                font-family: var(--font-main);
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--color-text-muted);
+            }
+
+            .form-group select,
+            .form-group input {
+                padding: 9px 14px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                font-family: var(--font-main);
+                font-size: 14px;
+                background: var(--color-surface-alt);
+                color: var(--color-text-main);
+                transition: var(--transition-fast);
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .form-group select:focus,
+            .form-group input:focus {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px var(--color-primary-mist);
+            }
+
+            .form-actions {
+                display: flex;
+                gap: 10px;
+                margin-top: 16px;
+            }
+
+            /* Type toggle pills */
+            .type-toggle {
+                display: flex;
+                gap: 0;
+                border-radius: var(--radius-sm);
+                overflow: hidden;
+                border: 1px solid var(--color-accent);
+            }
+
+            .type-toggle-btn {
+                padding: 9px 20px;
+                border: none;
+                background: var(--color-surface-alt);
+                color: var(--color-text-muted);
+                font-family: var(--font-main);
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: var(--transition-fast);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .type-toggle-btn.active {
+                background: var(--color-primary);
+                color: #fff;
+            }
+
+            .type-toggle-btn:hover:not(.active) {
+                background: var(--color-primary-mist);
+                color: var(--color-primary);
+            }
+
+            /* Late-only fields */
+            .late-fields {
+                display: none;
+            }
+
+            .late-fields.visible {
+                display: contents;
+            }
+
+            /* ─── Stat Cards ─── */
+            .att-stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 16px;
+                margin-bottom: 20px;
+            }
+
+            .att-stat-card {
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                padding: 18px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                transition: var(--transition-normal);
+                animation: fadeInUp 0.4s ease-out both;
+            }
+
+            .att-stat-card:nth-child(1) {
+                animation-delay: 0.05s;
+            }
+
+            .att-stat-card:nth-child(2) {
+                animation-delay: 0.1s;
+            }
+
+            .att-stat-card:nth-child(3) {
+                animation-delay: 0.15s;
             }
 
             .att-stat-card:hover {
-                transform: none !important;
-                box-shadow: none !important;
+                transform: translateY(-3px);
+                box-shadow: var(--shadow-hover);
+                border-color: var(--color-primary-light);
+            }
+
+            .att-stat-icon {
+                width: 48px;
+                height: 48px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                flex-shrink: 0;
+            }
+
+            .att-stat-icon.absence {
+                background: rgba(232, 93, 93, 0.12);
+                color: var(--color-danger-bg);
+            }
+
+            .att-stat-icon.late {
+                background: rgba(240, 173, 78, 0.12);
+                color: var(--color-warning-bg);
+            }
+
+            .att-stat-icon.total {
+                background: rgba(59, 106, 197, 0.1);
+                color: var(--color-primary);
+            }
+
+            .att-stat-body h4 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: 24px;
+                font-weight: 800;
+                color: var(--color-text-main);
+                line-height: 1;
+            }
+
+            .att-stat-body p {
+                margin: 3px 0 0;
+                font-family: var(--font-main);
+                font-size: 12px;
+                color: var(--color-text-muted);
+                font-weight: 500;
+            }
+
+            /* ─── Records Table ─── */
+            .att-section {
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                margin-bottom: 20px;
+                overflow: hidden;
+                animation: fadeInUp 0.4s ease-out both;
+                animation-delay: 0.2s;
+            }
+
+            .att-section-header {
+                padding: 14px 20px;
+                border-bottom: 1px solid var(--color-accent);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: var(--color-surface-alt);
+                flex-wrap: wrap;
+            }
+
+            .att-section-header h3 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: 15px;
+                font-weight: 700;
+                color: var(--color-text-main);
+            }
+
+            .att-section-header i {
+                color: var(--color-primary);
+                font-size: 16px;
+            }
+
+            .att-section-header .badge-count {
+                background: var(--color-primary);
+                color: #fff;
+                font-size: 11px;
+                font-weight: 700;
+                padding: 2px 10px;
+                border-radius: var(--radius-full);
+            }
+
+            .filter-bar {
+                display: flex;
+                gap: 10px;
+                margin-right: auto;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+
+            .filter-bar select,
+            .filter-bar input {
+                padding: 6px 12px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                font-family: var(--font-main);
+                font-size: 13px;
+                background: var(--color-surface);
+                color: var(--color-text-main);
+            }
+
+            .att-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: var(--font-main);
+                font-size: 14px;
             }
 
             .att-table th {
-                background: #f0f0f0 !important;
+                background: var(--color-surface-alt);
+                color: var(--color-text-muted);
+                padding: 10px 14px;
+                font-weight: 600;
+                text-align: right;
+                white-space: nowrap;
+                border-bottom: 1px solid var(--color-accent);
+                font-size: 13px;
+            }
+
+            .att-table td {
+                padding: 10px 14px;
+                border-bottom: 1px solid var(--color-accent);
+                color: var(--color-text-main);
+                vertical-align: middle;
+            }
+
+            .att-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+            .att-table tbody tr:hover td {
+                background: var(--color-primary-mist);
+            }
+
+            .att-table .empty-row td {
+                text-align: center;
+                padding: 28px 14px;
+                color: var(--color-text-muted);
+                font-style: italic;
+            }
+
+            .type-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 12px;
+                border-radius: var(--radius-full);
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            .type-badge.absence {
+                background: rgba(232, 93, 93, 0.12);
+                color: var(--color-danger);
+            }
+
+            .type-badge.late {
+                background: rgba(240, 173, 78, 0.12);
+                color: var(--color-warning);
+            }
+
+            .section-tag {
+                display: inline-block;
+                background: var(--color-primary-mist);
+                color: var(--color-primary);
+                padding: 2px 9px;
+                border-radius: var(--radius-full);
+                font-size: 11px;
+                font-weight: 600;
+                margin: 1px;
             }
 
             .delete-btn {
-                display: none !important;
+                background: none;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                padding: 5px 10px;
+                cursor: pointer;
+                color: var(--color-danger);
+                transition: var(--transition-fast);
+                font-size: 13px;
             }
-        }
-    </style>
-</head>
 
-<body>
-    <div class="toast-container" id="toast-container"></div>
+            .delete-btn:hover {
+                background: rgba(232, 93, 93, 0.08);
+                border-color: var(--color-danger-bg);
+            }
 
-    <aside class="sidebar" id="sidebar"></aside>
+            /* ── Print ── */
+            @media print {
+                .sidebar,
+                .header,
+                .toast-container,
+                .attendance-form-card,
+                .filter-bar {
+                    display: none !important;
+                }
 
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-clipboard-check"></i> الحضور والغياب</h2>
-            </div>
-            <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
+                .main-content {
+                    margin: 0 !important;
+                    padding: 10px !important;
+                }
 
-        <div class="grades-container">
+                .att-stat-card:hover {
+                    transform: none !important;
+                    box-shadow: none !important;
+                }
 
-            <!-- ══ Add Record Form ══ -->
-            <div class="attendance-form-card">
-                <div class="attendance-form-header">
-                    <i class="fas fa-plus-circle"></i>
-                    <h3>تسجيل غياب أو تأخر</h3>
+                .att-table th {
+                    background: #f0f0f0 !important;
+                }
+
+                .delete-btn {
+                    display: none !important;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <h2 class="page-title"><i class="fas fa-clipboard-check"></i> الحضور والغياب</h2>
                 </div>
-                <div class="attendance-form-body">
-                    <form id="att-form">
-                        <!-- Type Toggle -->
-                        <div style="margin-bottom: 14px;">
-                            <label
-                                style="font-family: var(--font-main); font-size: 13px; font-weight: 600; color: var(--color-text-muted); margin-bottom: 6px; display: block;">النوع</label>
-                            <div class="type-toggle">
-                                <button type="button" class="type-toggle-btn active" data-type="absence">
-                                    <i class="fas fa-user-minus"></i> غياب
-                                </button>
-                                <button type="button" class="type-toggle-btn" data-type="late">
-                                    <i class="fas fa-clock"></i> تأخر
-                                </button>
-                            </div>
-                            <input type="hidden" id="att-type" value="absence">
-                        </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
 
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="att-subject">المادة</label>
-                                <select id="att-subject">
-                                    <option value="">-- كل المواد --</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="att-teacher">الأستاذ(ة)</label>
-                                <select id="att-teacher" required>
-                                    <option value="">-- اختر أستاذ(ة) --</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="att-date">التاريخ</label>
-                                <input type="date" id="att-date" required>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="att-reason">السبب</label>
-                                <select id="att-reason">
-                                    <option value="">-- اختر السبب --</option>
-                                    <option value="رخصة">رخصة</option>
-                                    <option value="تكوين">تكوين</option>
-                                    <option value="لقاء تربوي">لقاء تربوي</option>
-                                    <option value="إضراب">إضراب</option>
-                                    <option value="بدون">بدون</option>
-                                    <option value="أخرى">أخرى</option>
-                                </select>
+            <div class="grades-container">
+                <!-- ══ Add Record Form ══ -->
+                <div class="attendance-form-card">
+                    <div class="attendance-form-header">
+                        <i class="fas fa-plus-circle"></i>
+                        <h3>تسجيل غياب أو تأخر</h3>
+                    </div>
+                    <div class="attendance-form-body">
+                        <form id="att-form">
+                            <!-- Type Toggle -->
+                            <div style="margin-bottom: 14px">
+                                <label
+                                    style="
+                                        font-family: var(--font-main);
+                                        font-size: 13px;
+                                        font-weight: 600;
+                                        color: var(--color-text-muted);
+                                        margin-bottom: 6px;
+                                        display: block;
+                                    "
+                                    >النوع</label
+                                >
+                                <div class="type-toggle">
+                                    <button type="button" class="type-toggle-btn active" data-type="absence">
+                                        <i class="fas fa-user-minus"></i> غياب
+                                    </button>
+                                    <button type="button" class="type-toggle-btn" data-type="late">
+                                        <i class="fas fa-clock"></i> تأخر
+                                    </button>
+                                </div>
+                                <input type="hidden" id="att-type" value="absence" />
                             </div>
 
-                            <!-- Late-only fields -->
-                            <div class="late-fields" id="late-fields">
+                            <div class="form-grid">
                                 <div class="form-group">
-                                    <label for="att-arrival-time">وقت الوصول</label>
-                                    <input type="time" id="att-arrival-time">
+                                    <label for="att-subject">المادة</label>
+                                    <select id="att-subject">
+                                        <option value="">-- كل المواد --</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="att-teacher">الأستاذ(ة)</label>
+                                    <select id="att-teacher" required>
+                                        <option value="">-- اختر أستاذ(ة) --</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="att-date">التاريخ</label>
+                                    <input type="date" id="att-date" required />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="att-reason">السبب</label>
+                                    <select id="att-reason">
+                                        <option value="">-- اختر السبب --</option>
+                                        <option value="رخصة">رخصة</option>
+                                        <option value="تكوين">تكوين</option>
+                                        <option value="لقاء تربوي">لقاء تربوي</option>
+                                        <option value="إضراب">إضراب</option>
+                                        <option value="بدون">بدون</option>
+                                        <option value="أخرى">أخرى</option>
+                                    </select>
+                                </div>
+
+                                <!-- Late-only fields -->
+                                <div class="late-fields" id="late-fields">
+                                    <div class="form-group">
+                                        <label for="att-arrival-time">وقت الوصول</label>
+                                        <input type="time" id="att-arrival-time" />
+                                    </div>
+                                </div>
+
+                                <div class="late-fields" id="late-fields-duration">
+                                    <div class="form-group">
+                                        <label for="att-late-duration">مدة التأخر (بالدقائق)</label>
+                                        <input
+                                            type="number"
+                                            id="att-late-duration"
+                                            min="1"
+                                            max="480"
+                                            placeholder="مثال: 15"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="att-notes">ملاحظات</label>
+                                    <input type="text" id="att-notes" placeholder="اختياري" />
                                 </div>
                             </div>
 
-                            <div class="late-fields" id="late-fields-duration">
-                                <div class="form-group">
-                                    <label for="att-late-duration">مدة التأخر (بالدقائق)</label>
-                                    <input type="number" id="att-late-duration" min="1" max="480"
-                                        placeholder="مثال: 15">
-                                </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary"><i class="fas fa-save"></i> حفظ</button>
+                                <button type="reset" class="btn-secondary" id="reset-btn">
+                                    <i class="fas fa-undo"></i> إعادة تعيين
+                                </button>
                             </div>
+                        </form>
+                    </div>
+                </div>
 
-                            <div class="form-group">
-                                <label for="att-notes">ملاحظات</label>
-                                <input type="text" id="att-notes" placeholder="اختياري">
-                            </div>
+                <!-- ══ Stat Cards ══ -->
+                <div class="att-stats" id="stat-cards">
+                    <div class="att-stat-card">
+                        <div class="att-stat-icon absence"><i class="fas fa-user-minus"></i></div>
+                        <div class="att-stat-body">
+                            <h4 id="stat-absence">0</h4>
+                            <p>حالة غياب</p>
                         </div>
-
-                        <div class="form-actions">
-                            <button type="submit" class="btn-primary">
-                                <i class="fas fa-save"></i> حفظ
-                            </button>
-                            <button type="reset" class="btn-secondary" id="reset-btn">
-                                <i class="fas fa-undo"></i> إعادة تعيين
-                            </button>
+                    </div>
+                    <div class="att-stat-card">
+                        <div class="att-stat-icon late"><i class="fas fa-clock"></i></div>
+                        <div class="att-stat-body">
+                            <h4 id="stat-late">0</h4>
+                            <p>حالة تأخر</p>
                         </div>
-                    </form>
+                    </div>
+                    <div class="att-stat-card">
+                        <div class="att-stat-icon total"><i class="fas fa-clipboard-list"></i></div>
+                        <div class="att-stat-body">
+                            <h4 id="stat-total">0</h4>
+                            <p>إجمالي السجلات</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══ Records Table ══ -->
+                <div class="att-section">
+                    <div class="att-section-header">
+                        <i class="fas fa-clipboard-list"></i>
+                        <h3>سجل الحضور والغياب</h3>
+                        <span class="badge-count" id="records-count">0</span>
+                        <div class="filter-bar">
+                            <select id="filter-type">
+                                <option value="">الكل</option>
+                                <option value="absence">غياب</option>
+                                <option value="late">تأخر</option>
+                            </select>
+                            <input type="date" id="filter-date" title="فلترة حسب التاريخ" />
+                        </div>
+                    </div>
+                    <table class="att-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>النوع</th>
+                                <th>الأستاذ(ة)</th>
+                                <th>المادة</th>
+                                <th>التاريخ</th>
+                                <th>التوقيت / المدة</th>
+                                <th>السبب</th>
+                                <th>الأقسام المتضررة</th>
+                                <th>إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="records-tbody">
+                            <tr class="empty-row">
+                                <td colspan="9">لا توجد سجلات</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+        </main>
 
-            <!-- ══ Stat Cards ══ -->
-            <div class="att-stats" id="stat-cards">
-                <div class="att-stat-card">
-                    <div class="att-stat-icon absence"><i class="fas fa-user-minus"></i></div>
-                    <div class="att-stat-body">
-                        <h4 id="stat-absence">0</h4>
-                        <p>حالة غياب</p>
-                    </div>
-                </div>
-                <div class="att-stat-card">
-                    <div class="att-stat-icon late"><i class="fas fa-clock"></i></div>
-                    <div class="att-stat-body">
-                        <h4 id="stat-late">0</h4>
-                        <p>حالة تأخر</p>
-                    </div>
-                </div>
-                <div class="att-stat-card">
-                    <div class="att-stat-icon total"><i class="fas fa-clipboard-list"></i></div>
-                    <div class="att-stat-body">
-                        <h4 id="stat-total">0</h4>
-                        <p>إجمالي السجلات</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ══ Records Table ══ -->
-            <div class="att-section">
-                <div class="att-section-header">
-                    <i class="fas fa-clipboard-list"></i>
-                    <h3>سجل الحضور والغياب</h3>
-                    <span class="badge-count" id="records-count">0</span>
-                    <div class="filter-bar">
-                        <select id="filter-type">
-                            <option value="">الكل</option>
-                            <option value="absence">غياب</option>
-                            <option value="late">تأخر</option>
-                        </select>
-                        <input type="date" id="filter-date" title="فلترة حسب التاريخ">
-                    </div>
-                </div>
-                <table class="att-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>النوع</th>
-                            <th>الأستاذ(ة)</th>
-                            <th>المادة</th>
-                            <th>التاريخ</th>
-                            <th>التوقيت / المدة</th>
-                            <th>السبب</th>
-                            <th>الأقسام المتضررة</th>
-                            <th>إجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody id="records-tbody">
-                        <tr class="empty-row">
-                            <td colspan="9">لا توجد سجلات</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-
-    <script src="js/utils.js"></script>
-    <script>
-        function escapeHtml(text) {
-            if (text === null || text === undefined) return '';
-            return String(text)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function todayStr() {
-            const d = new Date();
-            return d.getFullYear() + '-' +
-                String(d.getMonth() + 1).padStart(2, '0') + '-' +
-                String(d.getDate()).padStart(2, '0');
-        }
-
-        /** Convert YYYY-MM-DD to dd/mm/yyyy */
-        function formatDate(dateStr) {
-            if (!dateStr) return '—';
-            const parts = dateStr.split('-');
-            if (parts.length !== 3) return dateStr;
-            return parts[2] + '/' + parts[1] + '/' + parts[0];
-        }
-
-        const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
-        let allRecords = [];
-        let teachersList = [];
-        let teacherSections = {};
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Set today's date
-            document.getElementById('att-date').value = todayStr();
-
-            // Load teachers from grades table (primary source)
-            try {
-                let result = await window.api.teachers.getFromGrades(year);
-                teachersList = Array.isArray(result) ? result : [];
-
-                // Fallback to teachers table
-                if (teachersList.length === 0) {
-                    result = await window.api.teachers.getAll(year);
-                    teachersList = Array.isArray(result) ? result : [];
-                }
-            } catch (err) {
-                console.error('[Staff Attendance] Error loading teachers:', err);
-                // Try fallback
-                try {
-                    const result = await window.api.teachers.getAll(year);
-                    teachersList = Array.isArray(result) ? result : [];
-                } catch (e2) {
-                    teachersList = [];
-                }
+        <script src="js/utils.js"></script>
+        <script src="js/data/ma-education-labels.js"></script>
+        <script>
+            function escapeHtml(text) {
+                if (text === null || text === undefined) return '';
+                return String(text)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
             }
 
-            if (teachersList.length === 0) {
-                showToast('لم يتم العثور على أساتذة', 'warning');
-            }
-
-            // Build unique subjects list from teachers data (with normalization)
-            const subjectsSet = new Set();
-            teachersList.forEach(t => {
-                if (t.subject) {
-                    // subject may be comma-separated from GROUP_CONCAT
-                    t.subject.split(',').forEach(s => {
-                        const trimmed = s.trim();
-                        if (trimmed) {
-                            const normalized = typeof normalizeSubjectName === 'function'
-                                ? normalizeSubjectName(trimmed)
-                                : trimmed;
-                            if (normalized) subjectsSet.add(normalized);
-                        }
-                    });
-                }
-            });
-            const subjectSelect = document.getElementById('att-subject');
-            [...subjectsSet].sort().forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s;
-                opt.textContent = s;
-                subjectSelect.appendChild(opt);
-            });
-
-            // Filter teachers by selected subject
-            const teacherSelect = document.getElementById('att-teacher');
-
-            function filterTeachers() {
-                const selectedSubject = subjectSelect.value;
-                teacherSelect.innerHTML = '<option value="">-- اختر أستاذ(ة) --</option>';
-
-                const seen = new Set();
-                teachersList.forEach(t => {
-                    // Check if teacher teaches the selected subject (normalized)
-                    if (selectedSubject) {
-                        const subjects = (t.subject || '').split(',').map(s => {
-                            const trimmed = s.trim();
-                            return typeof normalizeSubjectName === 'function'
-                                ? normalizeSubjectName(trimmed) : trimmed;
-                        });
-                        if (!subjects.includes(selectedSubject)) return;
-                    }
-                    // Deduplicate by name
-                    if (seen.has(t.full_name)) return;
-                    seen.add(t.full_name);
-
-                    const opt = document.createElement('option');
-                    opt.value = t.id || t.full_name;
-                    opt.textContent = t.full_name;
-                    opt.dataset.subject = selectedSubject || t.subject || '';
-                    opt.dataset.hasId = t.id ? '1' : '0';
-                    teacherSelect.appendChild(opt);
-                });
-            }
-
-            subjectSelect.addEventListener('change', filterTeachers);
-            filterTeachers(); // Initial populate
-
-            // Load teacher → sections mapping for affected sections display
-            try {
-                const reportData = await window.api.dailyReport.getData(todayStr(), year);
-                if (reportData && reportData.teacherSections) {
-                    teacherSections = reportData.teacherSections;
-                }
-            } catch (e) {
-                console.warn('Could not load teacher sections:', e);
-            }
-
-            // Type toggle
-            document.querySelectorAll('.type-toggle-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.type-toggle-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    const type = btn.dataset.type;
-                    document.getElementById('att-type').value = type;
-                    const lateFields = document.querySelectorAll('.late-fields');
-                    lateFields.forEach(f => {
-                        f.classList.toggle('visible', type === 'late');
-                    });
-                });
-            });
-
-            // Reset button
-            document.getElementById('reset-btn').addEventListener('click', () => {
-                document.getElementById('att-subject').value = '';
-                filterTeachers();
-                document.querySelectorAll('.late-fields').forEach(f => f.classList.remove('visible'));
-                document.querySelectorAll('.type-toggle-btn').forEach(b => b.classList.remove('active'));
-                document.querySelector('.type-toggle-btn[data-type="absence"]').classList.add('active');
-                document.getElementById('att-type').value = 'absence';
-                document.getElementById('att-date').value = todayStr();
-            });
-
-            // Save form
-            document.getElementById('att-form').addEventListener('submit', saveRecord);
-
-            // Filters
-            document.getElementById('filter-type').addEventListener('change', renderTable);
-            document.getElementById('filter-date').addEventListener('change', renderTable);
-
-            // Load records
-            await loadRecords();
-        });
-
-        async function loadRecords() {
-            allRecords = await window.api.staffAttendance.getAll(year) || [];
-            updateStats();
-            renderTable();
-        }
-
-        function updateStats() {
-            const now = new Date();
-            const currentMonth = now.getMonth();
-            const currentYear = now.getFullYear();
-
-            // Filter for current month
-            const thisMonth = allRecords.filter(r => {
-                if (!r.attendance_date) return false;
-                const d = new Date(r.attendance_date);
-                return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-            });
-
-            const absences = thisMonth.filter(r => r.type === 'absence').length;
-            const lates = thisMonth.filter(r => r.type === 'late').length;
-
-            document.getElementById('stat-absence').textContent = absences;
-            document.getElementById('stat-late').textContent = lates;
-            document.getElementById('stat-total').textContent = allRecords.length;
-        }
-
-        /**
-         * Normalize a name for fuzzy matching:
-         * remove underscores, collapse whitespace, strip Arabic diacritics, trim
-         */
-        function normalizeName(name) {
-            return (name || '')
-                .replace(/_/g, ' ')
-                .replace(/[\u064B-\u065F\u0670]/g, '') // strip Arabic diacritics
-                .replace(/\s+/g, ' ')
-                .trim();
-        }
-
-        let _debugSectionsShown = false;
-
-        /**
-         * Get the sections a teacher was scheduled to teach on a specific date,
-         * reading from the timetable stored in localStorage.
-         */
-        function getSectionsForDay(teacherName, dateStr) {
-            try {
-                const raw = localStorage.getItem('timetableData');
-                if (!raw) return teacherSections[teacherName] || [];
-                const data = JSON.parse(raw);
-                if (!data || !data.timetables) return teacherSections[teacherName] || [];
-
-                // Map JS getDay() → Arabic day name
-                const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-                const dateObj = new Date(dateStr + 'T00:00:00');
-                const dayName = dayNames[dateObj.getDay()];
-
-                // Normalize the teacher name for matching
-                const normalizedTarget = normalizeName(teacherName);
-                const timetableTeachers = Object.keys(data.timetables);
-
-                // Try matching strategies in order:
-                // 1. Exact match after underscore replacement
-                // 2. Normalized match (diacritics, whitespace)
-                // 3. Partial/includes match
-                let teacherKey = timetableTeachers.find(k =>
-                    k.replace(/_/g, ' ') === teacherName
+            function todayStr() {
+                const d = new Date();
+                return (
+                    d.getFullYear() +
+                    '-' +
+                    String(d.getMonth() + 1).padStart(2, '0') +
+                    '-' +
+                    String(d.getDate()).padStart(2, '0')
                 );
-                if (!teacherKey) {
-                    teacherKey = timetableTeachers.find(k =>
-                        normalizeName(k) === normalizedTarget
-                    );
-                }
-                if (!teacherKey) {
-                    // Partial match: one name contains the other
-                    teacherKey = timetableTeachers.find(k => {
-                        const nk = normalizeName(k);
-                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
-                    });
-                }
+            }
 
-                // Debug: show matching info once
-                if (!_debugSectionsShown) {
-                    _debugSectionsShown = true;
-                    const ttSample = timetableTeachers.slice(0, 5).map(k => normalizeName(k));
-                    console.log('[Sections Debug]',
-                        '\nTeacher from record:', JSON.stringify(teacherName),
-                        '\nNormalized:', JSON.stringify(normalizedTarget),
-                        '\nDay:', dayName,
-                        '\nTimetable teachers (first 5):', ttSample,
-                        '\nMatch found:', teacherKey || 'NONE'
-                    );
-                }
+            /** Convert YYYY-MM-DD to dd/mm/yyyy */
+            function formatDate(dateStr) {
+                if (!dateStr) return '—';
+                const parts = dateStr.split('-');
+                if (parts.length !== 3) return dateStr;
+                return parts[2] + '/' + parts[1] + '/' + parts[0];
+            }
 
-                if (!teacherKey) return teacherSections[teacherName] || [];
+            const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+            let allRecords = [];
+            let teachersList = [];
+            let teacherSections = {};
 
-                const dayData = data.timetables[teacherKey][dayName];
-                if (!dayData) return [];
+            document.addEventListener('DOMContentLoaded', async () => {
+                // Set today's date
+                document.getElementById('att-date').value = todayStr();
 
-                // Collect unique sections from all periods/hours for that day
-                const sections = new Set();
-                for (const [period, hours] of Object.entries(dayData)) {
-                    for (const [hour, lesson] of Object.entries(hours)) {
-                        const students = (lesson.students || '').trim();
-                        if (students) {
-                            // Strip group suffix (:G1, :G2)
-                            const baseClass = students.replace(/:[Gg]\d+$/g, '').trim();
-                            if (baseClass) sections.add(baseClass);
-                        }
+                // Load teachers from grades table (primary source)
+                try {
+                    let result = await window.api.teachers.getFromGrades(year);
+                    teachersList = Array.isArray(result) ? result : [];
+
+                    // Fallback to teachers table
+                    if (teachersList.length === 0) {
+                        result = await window.api.teachers.getAll(year);
+                        teachersList = Array.isArray(result) ? result : [];
+                    }
+                } catch (err) {
+                    console.error('[Staff Attendance] Error loading teachers:', err);
+                    // Try fallback
+                    try {
+                        const result = await window.api.teachers.getAll(year);
+                        teachersList = Array.isArray(result) ? result : [];
+                    } catch (e2) {
+                        teachersList = [];
                     }
                 }
-                return [...sections].sort();
-            } catch (e) {
-                console.warn('Error reading timetable for day filtering:', e);
-                return teacherSections[teacherName] || [];
-            }
-        }
 
-        /**
-         * Get the scheduled time periods for a teacher on a specific date.
-         * Returns an array of period strings, e.g. ['08:00-09:00', '10:00-11:00']
-         */
-        function getScheduleForDay(teacherName, dateStr) {
-            try {
-                const raw = localStorage.getItem('timetableData');
-                if (!raw) return [];
-                const data = JSON.parse(raw);
-                if (!data || !data.timetables) return [];
-
-                const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-                const dateObj = new Date(dateStr + 'T00:00:00');
-                const dayName = dayNames[dateObj.getDay()];
-
-                const normalizedTarget = normalizeName(teacherName);
-                const timetableTeachers = Object.keys(data.timetables);
-
-                let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === teacherName);
-                if (!teacherKey) {
-                    teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
+                if (teachersList.length === 0) {
+                    showToast('لم يتم العثور على أساتذة', 'warning');
                 }
-                if (!teacherKey) {
-                    teacherKey = timetableTeachers.find(k => {
-                        const nk = normalizeName(k);
-                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
+
+                // Build unique subjects list from teachers data (with normalization)
+                const subjectsSet = new Set();
+                teachersList.forEach((t) => {
+                    if (t.subject) {
+                        // subject may be comma-separated from GROUP_CONCAT
+                        t.subject.split(',').forEach((s) => {
+                            const trimmed = s.trim();
+                            if (trimmed) {
+                                const normalized =
+                                    typeof normalizeSubjectName === 'function'
+                                        ? normalizeSubjectName(trimmed)
+                                        : trimmed;
+                                if (normalized) subjectsSet.add(normalized);
+                            }
+                        });
+                    }
+                });
+                const subjectSelect = document.getElementById('att-subject');
+                [...subjectsSet]
+                    .sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'))
+                    .forEach((s) => {
+                        const opt = document.createElement('option');
+                        opt.value = s;
+                        opt.textContent = s;
+                        subjectSelect.appendChild(opt);
+                    });
+
+                // Filter teachers by selected subject
+                const teacherSelect = document.getElementById('att-teacher');
+
+                function filterTeachers() {
+                    const selectedSubject = subjectSelect.value;
+                    teacherSelect.innerHTML = '<option value="">-- اختر أستاذ(ة) --</option>';
+
+                    const seen = new Set();
+                    teachersList.forEach((t) => {
+                        // Check if teacher teaches the selected subject (normalized)
+                        if (selectedSubject) {
+                            const subjects = (t.subject || '').split(',').map((s) => {
+                                const trimmed = s.trim();
+                                return typeof normalizeSubjectName === 'function'
+                                    ? normalizeSubjectName(trimmed)
+                                    : trimmed;
+                            });
+                            if (!subjects.includes(selectedSubject)) return;
+                        }
+                        // Deduplicate by name
+                        if (seen.has(t.full_name)) return;
+                        seen.add(t.full_name);
+
+                        const opt = document.createElement('option');
+                        opt.value = t.id || t.full_name;
+                        opt.textContent = t.full_name;
+                        opt.dataset.subject = selectedSubject || t.subject || '';
+                        opt.dataset.hasId = t.id ? '1' : '0';
+                        teacherSelect.appendChild(opt);
                     });
                 }
-                if (!teacherKey) return [];
 
-                const dayData = data.timetables[teacherKey][dayName];
-                if (!dayData) return [];
+                subjectSelect.addEventListener('change', filterTeachers);
+                filterTeachers(); // Initial populate
 
-                // Period mapping from common FET hour names to display times
-                const periodMap = {
-                    'h1': '08:00-09:00', 'h2': '09:00-10:00',
-                    'h3': '10:00-11:00', 'h4': '11:00-12:00',
-                    'h5': '14:00-15:00', 'h6': '15:00-16:00',
-                    'h7': '16:00-17:00', 'h8': '17:00-18:00'
+                // Load teacher → sections mapping for affected sections display
+                try {
+                    const reportData = await window.api.dailyReport.getData(todayStr(), year);
+                    if (reportData && reportData.teacherSections) {
+                        teacherSections = reportData.teacherSections;
+                    }
+                } catch (e) {
+                    console.warn('Could not load teacher sections:', e);
+                }
+
+                // Type toggle
+                document.querySelectorAll('.type-toggle-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        const type = btn.dataset.type;
+                        document.getElementById('att-type').value = type;
+                        const lateFields = document.querySelectorAll('.late-fields');
+                        lateFields.forEach((f) => {
+                            f.classList.toggle('visible', type === 'late');
+                        });
+                    });
+                });
+
+                // Reset button
+                document.getElementById('reset-btn').addEventListener('click', () => {
+                    document.getElementById('att-subject').value = '';
+                    filterTeachers();
+                    document.querySelectorAll('.late-fields').forEach((f) => f.classList.remove('visible'));
+                    document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
+                    document.querySelector('.type-toggle-btn[data-type="absence"]').classList.add('active');
+                    document.getElementById('att-type').value = 'absence';
+                    document.getElementById('att-date').value = todayStr();
+                });
+
+                // Save form
+                document.getElementById('att-form').addEventListener('submit', saveRecord);
+
+                // Filters
+                document.getElementById('filter-type').addEventListener('change', renderTable);
+                document.getElementById('filter-date').addEventListener('change', renderTable);
+
+                // Load records
+                await loadRecords();
+            });
+
+            async function loadRecords() {
+                allRecords = (await window.api.staffAttendance.getAll(year)) || [];
+                updateStats();
+                renderTable();
+            }
+
+            function updateStats() {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+
+                // Filter for current month
+                const thisMonth = allRecords.filter((r) => {
+                    if (!r.attendance_date) return false;
+                    const d = new Date(r.attendance_date);
+                    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                });
+
+                const absences = thisMonth.filter((r) => r.type === 'absence').length;
+                const lates = thisMonth.filter((r) => r.type === 'late').length;
+
+                document.getElementById('stat-absence').textContent = absences;
+                document.getElementById('stat-late').textContent = lates;
+                document.getElementById('stat-total').textContent = allRecords.length;
+            }
+
+            /**
+             * Normalize a name for fuzzy matching:
+             * remove underscores, collapse whitespace, strip Arabic diacritics, trim
+             */
+            function normalizeName(name) {
+                return (name || '')
+                    .replace(/_/g, ' ')
+                    .replace(/[\u064B-\u065F\u0670]/g, '') // strip Arabic diacritics
+                    .replace(/\bال/g, '') // strip Arabic definite article "ال"
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+            }
+
+            function normalizeStoredTeacherMeta(key, entry) {
+                const sourceName = String(entry?.sourceName || key || '').trim();
+                const sourceDisplayName = String(entry?.sourceDisplayName || sourceName || '').trim();
+                const teacherName = String(
+                    entry?.teacherName || entry?.displayName || sourceDisplayName || sourceName || ''
+                ).trim();
+                return {
+                    key: String(key || entry?.key || '').trim(),
+                    teacherId: Number(entry?.teacherId) || null,
+                    teacherName,
+                    displayName: String(entry?.displayName || teacherName || sourceDisplayName || sourceName).trim(),
+                    sourceName,
+                    sourceDisplayName
+                };
+            }
+
+            function getStoredTimetableTeacherEntries(data) {
+                const entriesByKey = new Map();
+
+                Object.entries(data?.teacherMetaByKey || {}).forEach(([key, entry]) => {
+                    entriesByKey.set(key, normalizeStoredTeacherMeta(key, entry));
+                });
+
+                (Array.isArray(data?.teachers) ? data.teachers : []).forEach((entry) => {
+                    const normalized = normalizeStoredTeacherMeta(entry?.key || entry?.name, entry);
+                    if (normalized.key && !entriesByKey.has(normalized.key)) {
+                        entriesByKey.set(normalized.key, normalized);
+                    }
+                });
+
+                Object.keys(data?.timetables || {}).forEach((key) => {
+                    if (!entriesByKey.has(key)) {
+                        entriesByKey.set(
+                            key,
+                            normalizeStoredTeacherMeta(key, { key, sourceName: key, teacherName: key })
+                        );
+                    }
+                });
+
+                return Array.from(entriesByKey.values());
+            }
+
+            function getFallbackTeacherSections(teacherId, teacherName) {
+                const byId = teacherId ? teacherSections[`id:${teacherId}`] : null;
+                if (Array.isArray(byId) && byId.length) return byId;
+                const byName = teacherSections[teacherName] || teacherSections[`name:${teacherName}`];
+                return Array.isArray(byName) ? byName : [];
+            }
+
+            function resolveTeacherTimetableKeys(data, teacherId, teacherName) {
+                const entries = getStoredTimetableTeacherEntries(data);
+                const targetId = Number(teacherId) || null;
+                const targetName = String(teacherName || '').trim();
+                const normalizedTarget = normalizeName(targetName);
+                const matchedKeys = [];
+
+                const addMatches = (predicate) => {
+                    entries.forEach((entry) => {
+                        if (entry.key && predicate(entry)) matchedKeys.push(entry.key);
+                    });
+                    return [...new Set(matchedKeys)];
                 };
 
-                const periods = [];
-                // Iterate morning and afternoon, collecting all scheduled hours
-                for (const [periodType, hours] of Object.entries(dayData)) {
-                    if (!hours || typeof hours !== 'object') continue;
-                    // Sort keys to display in order
-                    const sortedKeys = Object.keys(hours).sort();
-                    for (const h of sortedKeys) {
-                        if (hours[h]) {
-                            periods.push(periodMap[h] || h);
+                if (targetId) {
+                    const byId = addMatches((entry) => entry.teacherId === targetId);
+                    if (byId.length) return byId;
+                }
+
+                if (!targetName) return [];
+
+                const fieldsForEntry = (entry) => [
+                    entry.teacherName,
+                    entry.displayName,
+                    entry.sourceDisplayName,
+                    entry.sourceName,
+                    entry.key.replace(/^tafwij:/, '').replace(/_/g, ' ')
+                ];
+
+                const exact = addMatches((entry) =>
+                    fieldsForEntry(entry).some((value) => String(value || '').trim() === targetName)
+                );
+                if (exact.length) return exact;
+
+                const normalized = addMatches((entry) =>
+                    fieldsForEntry(entry).some((value) => normalizeName(value) === normalizedTarget)
+                );
+                if (normalized.length) return normalized;
+
+                return addMatches((entry) =>
+                    fieldsForEntry(entry).some((value) => {
+                        const normalizedValue = normalizeName(value);
+                        return (
+                            normalizedValue &&
+                            (normalizedValue.includes(normalizedTarget) || normalizedTarget.includes(normalizedValue))
+                        );
+                    })
+                );
+            }
+
+            let _debugSectionsShown = false;
+
+            /**
+             * Get the sections a teacher was scheduled to teach on a specific date,
+             * reading from the timetable stored in localStorage.
+             */
+            function getSectionsForDay(teacherId, teacherName, dateStr) {
+                try {
+                    const raw = localStorage.getItem('timetableData');
+                    if (!raw) return getFallbackTeacherSections(teacherId, teacherName);
+                    const data = JSON.parse(raw);
+                    if (!data || !data.timetables) return getFallbackTeacherSections(teacherId, teacherName);
+
+                    // Map JS getDay() → Arabic day name
+                    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                    const dateObj = new Date(dateStr + 'T00:00:00');
+                    const dayName = dayNames[dateObj.getDay()];
+
+                    const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
+
+                    // Debug: show matching info once
+                    if (!_debugSectionsShown) {
+                        _debugSectionsShown = true;
+                        const ttSample = getStoredTimetableTeacherEntries(data)
+                            .slice(0, 5)
+                            .map((entry) => ({ key: entry.key, teacherId: entry.teacherId, name: entry.teacherName }));
+                        console.log(
+                            '[Sections Debug]',
+                            '\nTeacher from record:',
+                            JSON.stringify(teacherName),
+                            '\nTeacher ID:',
+                            JSON.stringify(teacherId || null),
+                            '\nDay:',
+                            dayName,
+                            '\nTimetable teachers (first 5):',
+                            ttSample,
+                            '\nMatches found:',
+                            teacherKeys.length ? teacherKeys : 'NONE'
+                        );
+                    }
+
+                    const sections = new Set();
+                    teacherKeys.forEach((teacherKey) => {
+                        const dayData = data.timetables?.[teacherKey]?.[dayName];
+                        if (!dayData) return;
+                        for (const hours of Object.values(dayData)) {
+                            for (const lesson of Object.values(hours || {})) {
+                                const students = (lesson.students || '').trim();
+                                if (students) {
+                                    const baseClass = students.replace(/:[Gg]\d+$/g, '').trim();
+                                    if (baseClass) sections.add(baseClass);
+                                }
+                            }
                         }
-                    }
+                    });
+
+                    if (sections.size > 0) return [...sections].sort();
+                    return getFallbackTeacherSections(teacherId, teacherName);
+                } catch (e) {
+                    console.warn('Error reading timetable for day filtering:', e);
+                    return getFallbackTeacherSections(teacherId, teacherName);
                 }
-                return periods;
-            } catch (e) {
-                console.warn('Error reading schedule:', e);
-                return [];
-            }
-        }
-
-        function renderTable() {
-            const filterType = document.getElementById('filter-type').value;
-            const filterDate = document.getElementById('filter-date').value;
-
-            let filtered = allRecords;
-            if (filterType) {
-                filtered = filtered.filter(r => r.type === filterType);
-            }
-            if (filterDate) {
-                filtered = filtered.filter(r => r.attendance_date === filterDate);
             }
 
-            document.getElementById('records-count').textContent = filtered.length;
-            const tbody = document.getElementById('records-tbody');
+            /**
+             * Get the scheduled time periods for a teacher on a specific date.
+             * Returns an array of period strings, e.g. ['08:00-09:00', '10:00-11:00']
+             */
+            function getScheduleForDay(teacherId, teacherName, dateStr) {
+                try {
+                    const raw = localStorage.getItem('timetableData');
+                    if (!raw) return [];
+                    const data = JSON.parse(raw);
+                    if (!data || !data.timetables) return [];
 
-            if (filtered.length === 0) {
-                tbody.innerHTML = '<tr class="empty-row"><td colspan="9">لا توجد سجلات مطابقة</td></tr>';
-                return;
+                    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                    const dateObj = new Date(dateStr + 'T00:00:00');
+                    const dayName = dayNames[dateObj.getDay()];
+
+                    const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
+                    if (!teacherKeys.length) return [];
+
+                    // Period mapping from common FET hour names to display times
+                    const periodMap = {
+                        h1: '08:00-09:00',
+                        h2: '09:00-10:00',
+                        h3: '10:00-11:00',
+                        h4: '11:00-12:00',
+                        h5: '14:00-15:00',
+                        h6: '15:00-16:00',
+                        h7: '16:00-17:00',
+                        h8: '17:00-18:00'
+                    };
+
+                    const periods = [];
+                    teacherKeys.forEach((teacherKey) => {
+                        const dayData = data.timetables?.[teacherKey]?.[dayName];
+                        if (!dayData) return;
+                        for (const hours of Object.values(dayData)) {
+                            if (!hours || typeof hours !== 'object') continue;
+                            const sortedKeys = Object.keys(hours).sort();
+                            for (const h of sortedKeys) {
+                                if (hours[h]) {
+                                    periods.push(periodMap[h] || h);
+                                }
+                            }
+                        }
+                    });
+                    return [...new Set(periods)];
+                } catch (e) {
+                    console.warn('Error reading schedule:', e);
+                    return [];
+                }
             }
 
-            tbody.innerHTML = filtered.map((r, i) => {
-                const isAbsence = r.type === 'absence';
-                const typeBadge = isAbsence
-                    ? '<span class="type-badge absence"><i class="fas fa-user-minus"></i> غياب</span>'
-                    : '<span class="type-badge late"><i class="fas fa-clock"></i> تأخر</span>';
+            function renderTable() {
+                const filterType = document.getElementById('filter-type').value;
+                const filterDate = document.getElementById('filter-date').value;
 
-                let timeInfo = '—';
-                if (!isAbsence) {
-                    const parts = [];
-                    if (r.arrival_time) parts.push('الوصول: ' + escapeHtml(r.arrival_time));
-                    if (r.late_duration) parts.push(r.late_duration + ' دقيقة');
-                    timeInfo = parts.length ? parts.join(' · ') : '—';
-                } else if (r.full_name && r.attendance_date) {
-                    // Show schedule hours from timetable for this day
-                    const scheduleHours = getScheduleForDay(r.full_name, r.attendance_date);
-                    if (scheduleHours.length > 0) {
-                        timeInfo = scheduleHours
-                            .map(h => `<span class="section-tag" style="font-size: 11px;">${escapeHtml(h)}</span>`)
-                            .join('');
-                    }
+                let filtered = allRecords;
+                if (filterType) {
+                    filtered = filtered.filter((r) => r.type === filterType);
+                }
+                if (filterDate) {
+                    filtered = filtered.filter((r) => r.attendance_date === filterDate);
                 }
 
-                // Affected sections — from timetable for that specific day only
-                const teacherName = r.full_name;
-                let sectionsHtml = '—';
-                if (isAbsence && teacherName && r.attendance_date) {
-                    const daySections = getSectionsForDay(teacherName, r.attendance_date);
-                    if (daySections.length > 0) {
-                        sectionsHtml = daySections
-                            .map(s => `<span class="section-tag">${escapeHtml(s)}</span>`)
-                            .join('');
-                    }
+                document.getElementById('records-count').textContent = filtered.length;
+                const tbody = document.getElementById('records-tbody');
+
+                if (filtered.length === 0) {
+                    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">لا توجد سجلات مطابقة</td></tr>';
+                    return;
                 }
 
-                return `
+                tbody.innerHTML = filtered
+                    .map((r, i) => {
+                        const isAbsence = r.type === 'absence';
+                        const typeBadge = isAbsence
+                            ? '<span class="type-badge absence"><i class="fas fa-user-minus"></i> غياب</span>'
+                            : '<span class="type-badge late"><i class="fas fa-clock"></i> تأخر</span>';
+
+                        let timeInfo = '—';
+                        if (!isAbsence) {
+                            const parts = [];
+                            if (r.arrival_time) parts.push('الوصول: ' + escapeHtml(r.arrival_time));
+                            if (r.late_duration) parts.push(r.late_duration + ' دقيقة');
+                            timeInfo = parts.length ? parts.join(' · ') : '—';
+                        } else if ((r.teacher_id || r.full_name) && r.attendance_date) {
+                            // Show schedule hours from timetable for this day
+                            const scheduleHours = getScheduleForDay(r.teacher_id, r.full_name, r.attendance_date);
+                            if (scheduleHours.length > 0) {
+                                timeInfo = scheduleHours
+                                    .map(
+                                        (h) =>
+                                            `<span class="section-tag" style="font-size: 11px;">${escapeHtml(h)}</span>`
+                                    )
+                                    .join('');
+                            }
+                        }
+
+                        // Affected sections — from timetable for that specific day only
+                        const teacherName = r.full_name;
+                        let sectionsHtml = '—';
+                        if (isAbsence && (r.teacher_id || teacherName) && r.attendance_date) {
+                            const daySections = getSectionsForDay(r.teacher_id, teacherName, r.attendance_date);
+                            if (daySections.length > 0) {
+                                sectionsHtml = daySections
+                                    .map((s) => `<span class="section-tag">${escapeHtml(s)}</span>`)
+                                    .join('');
+                            }
+                        }
+
+                        return `
                     <tr>
                         <td>${i + 1}</td>
                         <td>${typeBadge}</td>
@@ -988,72 +1089,71 @@
                             </button>
                         </td>
                     </tr>`;
-            }).join('');
-        }
-
-        async function saveRecord(e) {
-            e.preventDefault();
-
-            const teacherSelect = document.getElementById('att-teacher');
-            const teacherValue = teacherSelect.value;
-            if (!teacherValue) {
-                showToast('الرجاء اختيار أستاذ(ة)', 'error');
-                return;
+                    })
+                    .join('');
             }
 
-            const selectedOption = teacherSelect.options[teacherSelect.selectedIndex];
-            const teacherName = selectedOption.textContent;
-            const hasId = selectedOption.dataset.hasId === '1';
+            async function saveRecord(e) {
+                e.preventDefault();
 
-            const type = document.getElementById('att-type').value;
-            const selectedSubject = document.getElementById('att-subject').value
-                || selectedOption.dataset.subject
-                || '';
-            const payload = {
-                teacher_id: hasId ? Number(teacherValue) : null,
-                teacher_name: teacherName,
-                subject: selectedSubject,
-                attendance_date: document.getElementById('att-date').value,
-                type: type,
-                reason: document.getElementById('att-reason').value,
-                notes: document.getElementById('att-notes').value.trim(),
-                school_year: year
-            };
+                const teacherSelect = document.getElementById('att-teacher');
+                const teacherValue = teacherSelect.value;
+                if (!teacherValue) {
+                    showToast('الرجاء اختيار أستاذ(ة)', 'error');
+                    return;
+                }
 
-            if (type === 'late') {
-                payload.arrival_time = document.getElementById('att-arrival-time').value || null;
-                payload.late_duration = Number(document.getElementById('att-late-duration').value) || null;
+                const selectedOption = teacherSelect.options[teacherSelect.selectedIndex];
+                const teacherName = selectedOption.textContent;
+                const hasId = selectedOption.dataset.hasId === '1';
+
+                const type = document.getElementById('att-type').value;
+                const selectedSubject =
+                    document.getElementById('att-subject').value || selectedOption.dataset.subject || '';
+                const payload = {
+                    teacher_id: hasId ? Number(teacherValue) : null,
+                    teacher_name: teacherName,
+                    subject: selectedSubject,
+                    attendance_date: document.getElementById('att-date').value,
+                    type: type,
+                    reason: document.getElementById('att-reason').value,
+                    notes: document.getElementById('att-notes').value.trim(),
+                    school_year: year
+                };
+
+                if (type === 'late') {
+                    payload.arrival_time = document.getElementById('att-arrival-time').value || null;
+                    payload.late_duration = Number(document.getElementById('att-late-duration').value) || null;
+                }
+
+                const res = await window.api.staffAttendance.save(payload);
+                if (!res || res.success === false) {
+                    showToast(res?.error || 'فشل الحفظ', 'error');
+                    return;
+                }
+
+                showToast('تم الحفظ بنجاح', 'success');
+                document.getElementById('att-form').reset();
+                document.getElementById('att-subject').value = '';
+                document.querySelectorAll('.late-fields').forEach((f) => f.classList.remove('visible'));
+                document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelector('.type-toggle-btn[data-type="absence"]').classList.add('active');
+                document.getElementById('att-type').value = 'absence';
+                document.getElementById('att-date').value = todayStr();
+
+                await loadRecords();
             }
 
-            const res = await window.api.staffAttendance.save(payload);
-            if (!res || res.success === false) {
-                showToast(res?.error || 'فشل الحفظ', 'error');
-                return;
+            async function deleteRecord(id) {
+                if (!confirm('هل تريد حذف هذا السجل؟')) return;
+                const res = await window.api.staffAttendance.delete(id);
+                if (!res || res.success === false) {
+                    showToast('فشل الحذف', 'error');
+                    return;
+                }
+                showToast('تم الحذف', 'success');
+                await loadRecords();
             }
-
-            showToast('تم الحفظ بنجاح', 'success');
-            document.getElementById('att-form').reset();
-            document.getElementById('att-subject').value = '';
-            document.querySelectorAll('.late-fields').forEach(f => f.classList.remove('visible'));
-            document.querySelectorAll('.type-toggle-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector('.type-toggle-btn[data-type="absence"]').classList.add('active');
-            document.getElementById('att-type').value = 'absence';
-            document.getElementById('att-date').value = todayStr();
-
-            await loadRecords();
-        }
-
-        async function deleteRecord(id) {
-            if (!confirm('هل تريد حذف هذا السجل؟')) return;
-            const res = await window.api.staffAttendance.delete(id);
-            if (!res || res.success === false) {
-                showToast('فشل الحذف', 'error');
-                return;
-            }
-            showToast('تم الحذف', 'success');
-            await loadRecords();
-        }
-    </script>
-</body>
-
+        </script>
+    </body>
 </html>
