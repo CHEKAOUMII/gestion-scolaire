@@ -42,3 +42,10 @@ server/owner-telemetry.json
 "نتائج/"
 "**/نتائج/"
 
+# Cloud Sync and agent temp
+.tmp.drivedownload/
+.tmp.driveupload/
+.agents/
+.agent/
+.claude/
+testsprite_tests/
