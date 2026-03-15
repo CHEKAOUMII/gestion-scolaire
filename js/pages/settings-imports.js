@@ -126,6 +126,51 @@ function debugFetImport(...args) {
     if (GRADES_IMPORT_DEBUG) console.log('[fet-import]', ...args);
 }
 
+const TAFWIJ_TIMETABLE_STORAGE_VERSION = 2;
+let pendingTafwijImportState = null;
+
+function makeTafwijTeacherKey(rawName) {
+    const cleaned = String(rawName || '').trim();
+    return `tafwij:${cleaned}`;
+}
+
+function getBaseClassName(className) {
+    if (!className) return '';
+    return String(className)
+        .replace(/:[Gg]\d+$/g, '')
+        .trim();
+}
+
+function normalizeStoredTeacherEntry(entry) {
+    if (typeof entry === 'string') {
+        return {
+            key: entry,
+            name: entry,
+            displayName: entry,
+            sourceName: entry,
+            sourceDisplayName: entry,
+            matchStatus: 'matched',
+            teacherId: null,
+            teacherName: entry,
+            candidateTeacherIds: []
+        };
+    }
+    const key = String(entry?.key || entry?.name || '').trim();
+    const sourceName = String(entry?.sourceName || entry?.name || '').trim();
+    const displayName = String(entry?.displayName || entry?.teacherName || sourceName || key).trim();
+    return {
+        key,
+        name: key,
+        displayName,
+        sourceName,
+        sourceDisplayName: String(entry?.sourceDisplayName || sourceName || displayName).trim(),
+        matchStatus: String(entry?.matchStatus || (entry?.teacherId ? 'matched' : 'unmatched')),
+        teacherId: Number(entry?.teacherId) || null,
+        teacherName: String(entry?.teacherName || displayName || sourceName).trim(),
+        candidateTeacherIds: Array.isArray(entry?.candidateTeacherIds) ? entry.candidateTeacherIds : []
+    };
+}
+
 function validateGrade(value) {
     return Number.isFinite(value) && value >= 0 && value <= 20;
 }
@@ -199,6 +244,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('btn-clear-timetable')?.addEventListener('click', () => clearData('timetable'));
         document.getElementById('btn-clear-teachers')?.addEventListener('click', () => clearData('teachers'));
         document.getElementById('btn-clear-status')?.addEventListener('click', () => clearData('status'));
+        document.getElementById('tafwij-save-mappings-btn')?.addEventListener('click', async () => {
+            try {
+                const result = await finalizePendingTafwijImport({ saveAliases: true, keepUnresolved: true });
+                if (!result) return;
+                showToast(
+                    result.unresolvedCount
+                        ? `تم حفظ ${result.savedAliasCount} مطابقة، وبقي ${result.unresolvedCount} اسم غير محسوم مؤقتاً`
+                        : `تم حفظ المطابقات بنجاح (${result.savedAliasCount})`,
+                    result.unresolvedCount ? 'info' : 'success'
+                );
+            } catch (error) {
+                showToast(error.message || 'تعذر حفظ مطابقة أسماء tafwij', 'error');
+            }
+        });
+        document.getElementById('tafwij-skip-mappings-btn')?.addEventListener('click', async () => {
+            try {
+                const result = await finalizePendingTafwijImport({ saveAliases: false, keepUnresolved: true });
+                if (!result) return;
+                showToast(
+                    `تم حفظ الجدول مؤقتاً مع ${result.unresolvedCount} اسم غير مطابق. يمكنك إكمال المطابقة لاحقاً من هذه الصفحة.`,
+                    'info'
+                );
+            } catch (error) {
+                showToast(error.message || 'تعذر إتمام الحفظ المؤقت', 'error');
+            }
+        });
+        document.getElementById('tafwij-cancel-mappings-btn')?.addEventListener('click', () => {
+            closeTafwijMatchingPanel();
+            renderTafwijWarningBanner();
+        });
+        document.addEventListener('click', async (event) => {
+            const target = event.target.closest('#tafwij-open-matching-btn');
+            if (!target) return;
+            try {
+                if (!pendingTafwijImportState) {
+                    await restorePendingTafwijStateFromStorage();
+                }
+                renderTafwijMatchingPanel();
+                document
+                    .getElementById('tafwij-matching-panel')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (error) {
+                console.error('Could not open tafwij matching panel:', error);
+                showToast(error?.message || 'تعذر فتح لوحة مطابقة أسماء tafwij', 'error');
+            }
+        });
 
         // Backup buttons
         const createBackupBtn = document.getElementById('create-backup-btn');
@@ -251,6 +342,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         await Promise.all([loadLogs(), loadDataStats()]);
+        renderTafwijWarningBanner();
+        await restorePendingTafwijStateFromStorage();
     } catch (error) {
         console.error('settings-imports init failed:', error);
         alert('حدث خطأ أثناء فتح صفحة الاستيراد. التفاصيل: ' + (error?.message || error));
@@ -319,9 +412,10 @@ function showImportConfirm(action, files) {
 
         const label = ACTION_LABELS[action] || action;
         const safeFiles = Array.isArray(files) ? files : [];
-        const semesterLabel = action === 'grades'
-            ? `<br><span style="color:var(--primary);font-weight:600;">📌 سيتم تحديد الدورة تلقائياً من الملف</span>`
-            : '';
+        const semesterLabel =
+            action === 'grades'
+                ? `<br><span style="color:var(--primary);font-weight:600;">📌 سيتم تحديد الدورة تلقائياً من الملف</span>`
+                : '';
         if (safeFiles.length === 1) {
             const fileName = escapeConfirmText(safeFiles[0]?.name || 'الملف المحدد');
             message.innerHTML = `هل تريد استيراد ${label} من الملف:<br><strong>${fileName}</strong>؟${semesterLabel}`;
@@ -383,6 +477,342 @@ function showActionConfirm(messageText) {
             if (e.target === overlay) cleanup(false);
         };
     });
+}
+
+function hideTafwijMatchingPanel() {
+    const panel = document.getElementById('tafwij-matching-panel');
+    const banner = document.getElementById('tafwij-warning-banner');
+    if (panel) panel.style.display = 'none';
+    if (banner && !pendingTafwijImportState) banner.style.display = 'none';
+}
+
+function renderTafwijWarningBanner() {
+    const banner = document.getElementById('tafwij-warning-banner');
+    if (!banner) return;
+    const timetableRaw = localStorage.getItem('timetableData');
+    if (!timetableRaw) {
+        banner.style.display = 'none';
+        return;
+    }
+    try {
+        const parsed = JSON.parse(timetableRaw);
+        const unresolvedCount = Array.isArray(parsed?.unresolvedTeacherKeys) ? parsed.unresolvedTeacherKeys.length : 0;
+        if (!unresolvedCount) {
+            banner.style.display = 'none';
+            return;
+        }
+        banner.style.display = 'block';
+        banner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> يوجد ${unresolvedCount} اسم من ملف tafwij لم تتم مطابقته بعد. يمكن متابعة العمل مؤقتاً، لكن بعض الربط مع الحصص أو الغياب قد يبقى غير مكتمل. <button type="button" id="tafwij-open-matching-btn" class="btn btn-secondary" style="margin-inline-start:10px;padding:6px 12px;">مراجعة الآن</button>`;
+    } catch {
+        banner.style.display = 'none';
+    }
+}
+
+async function restorePendingTafwijStateFromStorage() {
+    try {
+        const raw = localStorage.getItem('timetableData');
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const unresolvedKeys = Array.isArray(parsed?.unresolvedTeacherKeys) ? parsed.unresolvedTeacherKeys : [];
+        if (!unresolvedKeys.length || !parsed?.teacherMetaByKey) return;
+        const allTeachers = (await window.api?.teachers?.getAll?.(getCurrentSchoolYear())) || [];
+        const teacherResolver = buildTeacherResolver(allTeachers);
+        const storedTeachers = Array.isArray(parsed?.teachers)
+            ? parsed.teachers.map(normalizeStoredTeacherEntry)
+            : Object.values(parsed.teacherMetaByKey || {}).map(normalizeStoredTeacherEntry);
+        pendingTafwijImportState = {
+            schoolYear: getCurrentSchoolYear(),
+            allTeachers,
+            fileName: 'tafwij (stored)',
+            entries: storedTeachers.map((storedTeacher) => {
+                const key = storedTeacher.key;
+                const meta = normalizeStoredTeacherEntry(
+                    parsed.teacherMetaByKey[key] || storedTeacher || { key, name: key }
+                );
+                const resolved = teacherResolver.resolve(meta.sourceDisplayName || meta.displayName || meta.sourceName);
+                const timetable = parsed.timetables?.[key] || {};
+                const subjects = new Set();
+                const classes = new Set();
+                Object.values(timetable).forEach((dayData) => {
+                    ['morning', 'afternoon'].forEach((periodType) => {
+                        Object.values(dayData?.[periodType] || {}).forEach((activity) => {
+                            if (activity?.subject) subjects.add(activity.subject);
+                            const baseClass = getBaseClassName(activity?.students || '');
+                            if (baseClass) classes.add(baseClass);
+                        });
+                    });
+                });
+                return {
+                    key,
+                    sourceName: meta.sourceName,
+                    sourceDisplayName: meta.sourceDisplayName || meta.displayName,
+                    teacherId: Number(meta.teacherId) || null,
+                    teacherName: meta.teacherName || meta.displayName,
+                    displayName: meta.displayName,
+                    matchStatus: meta.matchStatus || (Number(meta.teacherId) ? 'matched' : 'unmatched'),
+                    candidates: Array.isArray(resolved.candidates) ? resolved.candidates : [],
+                    timetable,
+                    subjects: Array.from(subjects),
+                    classes: Array.from(classes)
+                };
+            })
+        };
+        renderTafwijMatchingPanel();
+    } catch (error) {
+        console.warn('Could not restore pending tafwij mappings:', error);
+    }
+}
+
+function buildTafwijStoragePayload(state, resolutionOverrides = new Map(), keepUnresolved = true) {
+    const teacherMetaByKey = {};
+    const timetables = {};
+    const unresolvedTeacherKeys = [];
+    const subjects = new Set();
+    const classes = new Set();
+    const currentStorageRaw = localStorage.getItem('timetableData');
+    let currentStorage = null;
+    try {
+        currentStorage = currentStorageRaw ? JSON.parse(currentStorageRaw) : null;
+    } catch {
+        currentStorage = null;
+    }
+    const allTeachersById = new Map(
+        (state?.allTeachers || []).map((teacher) => [Number(teacher.id), teacher]).filter(([id]) => Boolean(id))
+    );
+    const processedKeys = new Set();
+
+    (state?.entries || []).forEach((entry) => {
+        processedKeys.add(entry.key);
+        const overrideTeacherId = Number(resolutionOverrides.get(entry.key)) || null;
+        const candidateMap = new Map((entry.candidates || []).map((candidate) => [Number(candidate.id), candidate]));
+        const selectedCandidate = overrideTeacherId
+            ? candidateMap.get(overrideTeacherId) || allTeachersById.get(overrideTeacherId) || null
+            : null;
+        const isResolved = Boolean(selectedCandidate || entry.teacherId);
+        const teacherId = selectedCandidate ? Number(selectedCandidate.id) : Number(entry.teacherId) || null;
+        const teacherName = selectedCandidate
+            ? String(selectedCandidate.full_name || entry.teacherName || entry.sourceDisplayName).trim()
+            : String(entry.teacherName || entry.sourceDisplayName || '').trim();
+        const displayName = teacherName || entry.sourceDisplayName || entry.sourceName;
+        const matchStatus = selectedCandidate ? 'manual' : isResolved ? entry.matchStatus || 'matched' : 'unmatched';
+
+        teacherMetaByKey[entry.key] = {
+            key: entry.key,
+            name: entry.key,
+            displayName,
+            sourceName: entry.sourceName,
+            sourceDisplayName: entry.sourceDisplayName,
+            teacherId,
+            teacherName: teacherName || entry.sourceDisplayName,
+            matchStatus,
+            candidateTeacherIds: (entry.candidates || []).map((candidate) => Number(candidate.id)).filter(Boolean)
+        };
+
+        if (!isResolved && keepUnresolved) {
+            unresolvedTeacherKeys.push(entry.key);
+        }
+
+        timetables[entry.key] = entry.timetable || {};
+        (entry.subjects || []).forEach((subject) => {
+            if (subject) subjects.add(subject);
+        });
+        (entry.classes || []).forEach((className) => {
+            if (className) classes.add(className);
+        });
+    });
+
+    if (currentStorage?.teacherMetaByKey) {
+        Object.values(currentStorage.teacherMetaByKey)
+            .map(normalizeStoredTeacherEntry)
+            .forEach((storedTeacher) => {
+                if (!storedTeacher.key || processedKeys.has(storedTeacher.key)) return;
+                teacherMetaByKey[storedTeacher.key] = storedTeacher;
+                timetables[storedTeacher.key] = currentStorage.timetables?.[storedTeacher.key] || {};
+                if (
+                    Array.isArray(currentStorage.unresolvedTeacherKeys) &&
+                    currentStorage.unresolvedTeacherKeys.includes(storedTeacher.key)
+                ) {
+                    unresolvedTeacherKeys.push(storedTeacher.key);
+                }
+                Object.values(timetables[storedTeacher.key] || {}).forEach((dayData) => {
+                    ['morning', 'afternoon'].forEach((periodType) => {
+                        Object.values(dayData?.[periodType] || {}).forEach((activity) => {
+                            if (activity?.subject) subjects.add(activity.subject);
+                            const baseClass = getBaseClassName(activity?.students || '');
+                            if (baseClass) classes.add(baseClass);
+                        });
+                    });
+                });
+            });
+    }
+
+    return {
+        version: TAFWIJ_TIMETABLE_STORAGE_VERSION,
+        teachers: Object.values(teacherMetaByKey).sort((a, b) => a.displayName.localeCompare(b.displayName, 'ar')),
+        teacherMetaByKey,
+        subjects: Array.from(subjects),
+        classes: Array.from(classes),
+        timetables,
+        unresolvedTeacherKeys
+    };
+}
+
+function closeTafwijMatchingPanel() {
+    const panel = document.getElementById('tafwij-matching-panel');
+    if (panel) panel.style.display = 'none';
+}
+
+function buildTafwijTeacherOptions(entry, allTeachers) {
+    const teachers = Array.isArray(allTeachers) ? allTeachers : [];
+    const candidateIds = new Set((entry?.candidates || []).map((candidate) => Number(candidate.id)).filter(Boolean));
+    const normalizedEntrySubjects = new Set(
+        (entry?.subjects || [])
+            .map((subject) => normalizeSubjectName(subject))
+            .map((subject) => String(subject || '').trim())
+            .filter(Boolean)
+    );
+    const subjectBuckets = new Map();
+    const usedIds = new Set();
+
+    const addTeacherToBucket = (bucketLabel, teacher) => {
+        const teacherId = Number(teacher?.id);
+        if (!teacherId || usedIds.has(teacherId)) return;
+        if (!subjectBuckets.has(bucketLabel)) subjectBuckets.set(bucketLabel, []);
+        subjectBuckets.get(bucketLabel).push(teacher);
+        usedIds.add(teacherId);
+    };
+
+    teachers.forEach((teacher) => {
+        const normalizedTeacherSubject = normalizeSubjectName(teacher?.subject || '');
+        const cleanTeacherSubject = String(normalizedTeacherSubject || '').trim();
+        if (candidateIds.has(Number(teacher?.id))) {
+            addTeacherToBucket('اقتراحات تلقائية', teacher);
+            return;
+        }
+        if (cleanTeacherSubject && normalizedEntrySubjects.has(cleanTeacherSubject)) {
+            addTeacherToBucket(`نفس المادة: ${cleanTeacherSubject}`, teacher);
+            return;
+        }
+        addTeacherToBucket(cleanTeacherSubject || 'بدون مادة محددة', teacher);
+    });
+
+    const sortedLabels = Array.from(subjectBuckets.keys()).sort((a, b) => {
+        if (a === 'اقتراحات تلقائية') return -1;
+        if (b === 'اقتراحات تلقائية') return 1;
+        if (a.startsWith('نفس المادة:') && !b.startsWith('نفس المادة:')) return -1;
+        if (!a.startsWith('نفس المادة:') && b.startsWith('نفس المادة:')) return 1;
+        return typeof compareSubjects === 'function' ? compareSubjects(a, b) : a.localeCompare(b, 'ar');
+    });
+
+    const selectedTeacherId =
+        entry?.candidates?.length === 1 && Number(entry.candidates[0].id) ? Number(entry.candidates[0].id) : null;
+
+    return [`<option value="">-- اختر الأستاذ المرجعي --</option>`]
+        .concat(
+            sortedLabels.map((label) => {
+                const options = (subjectBuckets.get(label) || [])
+                    .sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ar'))
+                    .map(
+                        (teacher) =>
+                            `<option value="${teacher.id}" ${selectedTeacherId === Number(teacher.id) ? 'selected' : ''}>${escapeHtml(
+                                teacher.full_name
+                            )}${teacher.subject ? ` - ${escapeHtml(teacher.subject)}` : ''}</option>`
+                    )
+                    .join('');
+                return `<optgroup label="${escapeHtml(label)}">${options}</optgroup>`;
+            })
+        )
+        .join('');
+}
+
+function renderTafwijMatchingPanel() {
+    const panel = document.getElementById('tafwij-matching-panel');
+    const tbody = document.getElementById('tafwij-matching-tbody');
+    const summary = document.getElementById('tafwij-matching-summary');
+    if (!panel || !tbody || !summary) return;
+
+    const state = pendingTafwijImportState;
+    if (!state?.entries?.length) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    const unresolvedEntries = state.entries.filter((entry) => !entry.teacherId);
+    const ambiguousEntries = unresolvedEntries.filter((entry) => entry.candidates?.length > 1);
+    summary.textContent = `تمت مطابقة ${state.entries.length - unresolvedEntries.length} اسم تلقائياً، وبقي ${unresolvedEntries.length} اسم يحتاج مراجعة (${ambiguousEntries.length} محتمل/متعدد).`;
+
+    tbody.innerHTML = unresolvedEntries.length
+        ? unresolvedEntries
+              .map((entry) => {
+                  const options = buildTafwijTeacherOptions(entry, state.allTeachers);
+                  const hint = entry.candidates?.length
+                      ? entry.candidates.map((candidate) => escapeHtml(candidate.full_name)).join(' | ')
+                      : 'لا يوجد اقتراح تلقائي';
+                  const subjectsHint = (entry.subjects || []).filter(Boolean).join('، ');
+                  return `
+                    <tr data-key="${escapeHtml(entry.key)}">
+                        <td>
+                            <strong>${escapeHtml(entry.sourceDisplayName)}</strong>
+                            <div style="color:var(--text-secondary);font-size:12px;">${escapeHtml(entry.sourceName)}</div>
+                        </td>
+                        <td>${entry.candidates?.length > 1 ? 'متعدد' : 'غير مطابق'}</td>
+                        <td>
+                            <div style="display:flex;flex-direction:column;gap:8px;">
+                                <div style="color:var(--text-secondary);font-size:12px;">${hint}</div>
+                                <div style="color:var(--text-secondary);font-size:12px;">${
+                                    subjectsHint
+                                        ? `مواد الحصص: ${escapeHtml(subjectsHint)}`
+                                        : 'المادة غير متاحة في الملف'
+                                }</div>
+                                <select class="tafwij-match-select" data-key="${escapeHtml(entry.key)}">${options}</select>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+              })
+              .join('')
+        : '<tr><td colspan="3" class="loading-cell">كل الأسماء مطابقة بالفعل.</td></tr>';
+
+    panel.style.display = 'block';
+}
+
+async function finalizePendingTafwijImport({ saveAliases = false, keepUnresolved = true } = {}) {
+    const state = pendingTafwijImportState;
+    if (!state?.entries?.length) return null;
+    const selectionMap = new Map();
+    document.querySelectorAll('.tafwij-match-select').forEach((select) => {
+        const key = String(select.dataset.key || '').trim();
+        const teacherId = Number(select.value) || null;
+        if (key && teacherId) selectionMap.set(key, teacherId);
+    });
+
+    if (saveAliases && selectionMap.size) {
+        const aliases = [];
+        state.entries.forEach((entry) => {
+            const teacherId = selectionMap.get(entry.key);
+            if (!teacherId) return;
+            aliases.push({ teacher_id: teacherId, alias_name: entry.sourceDisplayName });
+        });
+        if (aliases.length) {
+            const response = await window.api.teachers.saveTafwijAliases({ school_year: state.schoolYear, aliases });
+            if (!response || response.success === false) {
+                throw new Error(response?.error || 'تعذر حفظ مطابقة أسماء tafwij');
+            }
+        }
+    }
+
+    const dataToSave = buildTafwijStoragePayload(state, selectionMap, keepUnresolved);
+    localStorage.setItem('timetableData', JSON.stringify(dataToSave));
+    const unresolvedCount = dataToSave.unresolvedTeacherKeys.length;
+    pendingTafwijImportState = null;
+    hideTafwijMatchingPanel();
+    renderTafwijWarningBanner();
+    await loadDataStats();
+    return {
+        teachersCount: dataToSave.teachers.length,
+        unresolvedCount,
+        savedAliasCount: saveAliases ? selectionMap.size : 0
+    };
 }
 
 function normalizeKey(value) {
@@ -466,6 +896,58 @@ function sanitizeTeacherName(value) {
     if (invalidContains.some((x) => normalized.includes(x))) return '';
 
     return raw;
+}
+
+function normalizeTeacherMatchKey(value) {
+    const normalized = normalizeKey(
+        String(value || '')
+            .replace(/_/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+    );
+    if (!normalized) return '';
+    return normalized
+        .replace(/(^|\s)ال/g, '$1')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function buildTeacherResolver(teachers) {
+    const normalizedMap = new Map();
+    (Array.isArray(teachers) ? teachers : []).forEach((teacher) => {
+        const variants = [teacher.full_name, teacher.full_name_fr]
+            .map((value) => String(value || '').trim())
+            .filter(Boolean);
+        variants.forEach((variant) => {
+            const key = normalizeTeacherMatchKey(variant);
+            if (!key) return;
+            if (!normalizedMap.has(key)) normalizedMap.set(key, []);
+            normalizedMap.get(key).push(teacher);
+        });
+    });
+    return {
+        resolve(rawName) {
+            const cleaned = sanitizeTeacherName(rawName);
+            if (!cleaned) return { teacher_id: null, teacher_name: '', candidates: [] };
+            const key = normalizeTeacherMatchKey(cleaned);
+            const matches = normalizedMap.get(key) || [];
+            if (matches.length === 1) {
+                return {
+                    teacher_id: matches[0].id || null,
+                    teacher_name: matches[0].full_name || cleaned,
+                    matched: true,
+                    candidates: matches
+                };
+            }
+            return {
+                teacher_id: null,
+                teacher_name: cleaned,
+                matched: false,
+                ambiguous: matches.length > 1,
+                candidates: matches
+            };
+        }
+    };
 }
 
 function findTeacherNameColumnIndex(headers, subHeaders = []) {
@@ -761,7 +1243,10 @@ function normalizeLevelName(rawLevel) {
     const text = String(rawLevel || '').trim();
     if (!text) return '';
     // 1. Section code match: "TCSF-1" → strip digits → "TCSF" → Arabic
-    const upper = text.toUpperCase().replace(/[-_\s]?\d+$/, '').trim();
+    const upper = text
+        .toUpperCase()
+        .replace(/[-_\s]?\d+$/, '')
+        .trim();
     for (const code of _LEVEL_KEYS_DESC) {
         if (upper === code || upper.startsWith(code)) return LEVEL_CODE_TO_AR[code].name;
     }
@@ -783,7 +1268,7 @@ function deriveLevelFromSection(sectionValue) {
 }
 
 // ─── Subject Normalization (French → Arabic) ─────────────────────────────────
-// SUBJECT_FR_TO_AR and normalizeSubjectName are provided globally by js/utils.js
+// normalizeSubjectName is provided globally by js/utils.js (delegates to translateSubject from ma-education-labels.js)
 
 function getSheetRows(workbook, sheetName) {
     const sheet = workbook.Sheets[sheetName];
@@ -850,7 +1335,7 @@ function detectSchoolYearFromWorkbook(workbook) {
         const rows = getSheetRows(workbook, sheetName);
         const limit = Math.min(rows.length, 30);
         for (let i = 0; i < limit; i++) {
-            for (const cell of (rows[i] || [])) {
+            for (const cell of rows[i] || []) {
                 const val = String(cell ?? '').trim();
                 const m = val.match(YEAR_RE);
                 if (m) {
@@ -874,7 +1359,8 @@ function checkYearMismatch(detectedYear, selectedYear) {
 
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;direction:rtl;';
+        overlay.style.cssText =
+            'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;direction:rtl;';
 
         overlay.innerHTML = `
         <div style="background:#1e293b;border:1px solid #f59e0b;border-radius:12px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,0.5);font-family:'Tajawal',sans-serif;color:#f1f5f9;">
@@ -990,7 +1476,7 @@ async function loadDataStats() {
     };
     // Prefer the toolbar select value (most up-to-date user choice), fall back to localStorage
     const toolbarSelect = document.getElementById('school-year');
-    const schoolYear = (toolbarSelect && toolbarSelect.value) ? toolbarSelect.value : getCurrentSchoolYear();
+    const schoolYear = toolbarSelect && toolbarSelect.value ? toolbarSelect.value : getCurrentSchoolYear();
 
     // Show which year is being queried
     const yearLabel = document.getElementById('stats-year-label');
@@ -1024,7 +1510,17 @@ async function loadDataStats() {
         const timetableRaw = localStorage.getItem('timetableData');
         const timetable = timetableRaw ? JSON.parse(timetableRaw) : null;
         const teachersCount = Array.isArray(timetable?.teachers) ? timetable.teachers.length : 0;
-        setValue('stat-timetable-status', teachersCount > 0 ? `${teachersCount} أستاذ` : 'غير محمّل');
+        const unresolvedCount = Array.isArray(timetable?.unresolvedTeacherKeys)
+            ? timetable.unresolvedTeacherKeys.length
+            : 0;
+        setValue(
+            'stat-timetable-status',
+            teachersCount > 0
+                ? unresolvedCount > 0
+                    ? `${teachersCount} أستاذ (${unresolvedCount} غير محسوم)`
+                    : `${teachersCount} أستاذ`
+                : 'غير محمّل'
+        );
     } catch {
         setValue('stat-timetable-status', 'غير محمّل');
     }
@@ -1049,7 +1545,6 @@ async function loadDataStats() {
     }
 }
 
-
 async function clearData(type) {
     const schoolYear = getCurrentSchoolYear();
     const semester = getSelectedSemester();
@@ -1064,9 +1559,11 @@ async function clearData(type) {
     };
     const label = labels[type] || type;
     const message =
-        type === 'timetable' ? `هل تريد حذف ${label}؟`
-            : type === 'status' ? `هل تريد إعادة جميع الوضعيات إلى "نشط" للموسم ${schoolYear}؟`
-                : `هل تريد حذف ${label} الخاصة بالموسم ${schoolYear}؟`;
+        type === 'timetable'
+            ? `هل تريد حذف ${label}؟`
+            : type === 'status'
+              ? `هل تريد إعادة جميع الوضعيات إلى "نشط" للموسم ${schoolYear}؟`
+              : `هل تريد حذف ${label} الخاصة بالموسم ${schoolYear}؟`;
 
     const confirmed = await showActionConfirm(message);
     if (!confirmed) return;
@@ -1087,6 +1584,9 @@ async function clearData(type) {
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف الغياب');
         } else if (type === 'timetable') {
             localStorage.removeItem('timetableData');
+            pendingTafwijImportState = null;
+            hideTafwijMatchingPanel();
+            renderTafwijWarningBanner();
         } else if (type === 'teachers') {
             if (!window.api?.teachers?.deleteByYear) throw new Error('ميزة حذف الأساتذة غير متاحة في هذا الإصدار');
             const res = await window.api.teachers.deleteByYear(schoolYear);
@@ -1126,6 +1626,7 @@ async function handleImport(action, files) {
         let succeededFiles = 0;
         let failedFiles = 0;
         let detectedSemester = null;
+        let fetImportResult = null;
         const failedReasons = [];
         if (action === 'absences') {
             updateImportProgress(7, 'تجهيز استيراد الغياب: حذف السجلات القديمة لنفس السنة...');
@@ -1143,7 +1644,8 @@ async function handleImport(action, files) {
                 updateImportProgress(start + 8, `(${i + 1}/${fileList.length}) جاري قراءة ${file.name}...`);
 
                 if (action === 'fet') {
-                    totalImported += await importFetXml(file);
+                    fetImportResult = await importFetXml(file);
+                    totalImported += Number(fetImportResult?.teachersCount) || Number(fetImportResult) || 0;
                 } else if (action === 'agent-xml') {
                     totalImported += await importAgentXml(file);
                 } else {
@@ -1194,7 +1696,17 @@ async function handleImport(action, files) {
         }
 
         const unit =
-            action === 'students' ? 'تلميذ' : action === 'grades' ? 'نقطة' : action === 'fet' ? 'أستاذ' : action === 'agent-xml' ? 'أستاذ' : action === 'student-status' ? 'تلميذ' : 'سجل غياب';
+            action === 'students'
+                ? 'تلميذ'
+                : action === 'grades'
+                  ? 'نقطة'
+                  : action === 'fet'
+                    ? 'أستاذ'
+                    : action === 'agent-xml'
+                      ? 'أستاذ'
+                      : action === 'student-status'
+                        ? 'تلميذ'
+                        : 'سجل غياب';
         const fileWord = fileList.length === 1 ? 'ملف' : 'ملفات';
         const semesterName =
             action === 'grades' && detectedSemester
@@ -1205,7 +1717,13 @@ async function handleImport(action, files) {
         const gradesStudentsSummary =
             action === 'grades' ? ` (${importedStudentsCodes.size} تلميذ — ${semesterName})` : '';
         const batchStatus = fileList.length > 1 ? ` (نجاح: ${succeededFiles} | فشل: ${failedFiles})` : '';
-        const logDetails = `استيراد ${totalImported} ${unit}${gradesStudentsSummary} من ${fileList.length} ${fileWord}${batchStatus}`;
+        const fetSummary =
+            action === 'fet' && fetImportResult
+                ? fetImportResult.unresolvedCount
+                    ? ` (${fetImportResult.unresolvedCount} اسم غير محسوم مؤقتاً)`
+                    : ''
+                : '';
+        const logDetails = `استيراد ${totalImported} ${unit}${gradesStudentsSummary}${fetSummary} من ${fileList.length} ${fileWord}${batchStatus}`;
         await safeLogImport(action, logDetails);
         if (failedReasons.length > 0) {
             window.lastFailedImports = failedReasons.slice();
@@ -1218,7 +1736,9 @@ async function handleImport(action, files) {
             100,
             action === 'grades'
                 ? `اكتمل الاستيراد: ${totalImported} ${unit} (${importedStudentsCodes.size} تلميذ — ${semesterName})`
-                : `اكتمل الاستيراد: ${totalImported} ${unit}`
+                : action === 'fet' && fetImportResult?.unresolvedCount
+                  ? `اكتمل الاستيراد: ${totalImported} ${unit} مع ${fetImportResult.unresolvedCount} اسم غير محسوم مؤقتاً`
+                  : `اكتمل الاستيراد: ${totalImported} ${unit}`
         );
         hideImportProgress(900);
         const finalMessage =
@@ -1301,6 +1821,8 @@ async function importStudents(workbook, schoolYear) {
 
 async function importGrades(workbook, schoolYear, sourceFileName = '') {
     const students = (await window.api.students.getAll(schoolYear)) || [];
+    const teachers = (await window.api.teachers.getAll(schoolYear).catch(() => [])) || [];
+    const teacherResolver = buildTeacherResolver(teachers);
     const studentByCode = new Map(students.map((s) => [String(s.code || '').trim(), s]));
     const grades = [];
     const subjectFromFileName = inferSubjectFromFileName(sourceFileName);
@@ -1353,9 +1875,12 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
                     if (inlineMatch && inlineMatch[1].trim()) {
                         return inlineMatch[1].trim();
                     }
-                    // Search next cells to the right (skip separators)
-                    for (let offset = 1; offset <= 4; offset++) {
-                        const candidate = String(row[c + offset] ?? '').trim();
+                    // Search adjacent cells both directions (RTL files may have values to the left)
+                    const offsets = [1, -1, 2, -2, 3, -3, 4, -4];
+                    for (const offset of offsets) {
+                        const idx = c + offset;
+                        if (idx < 0 || idx >= row.length) continue;
+                        const candidate = String(row[idx] ?? '').trim();
                         if (isSeparatorCell(candidate)) continue;
                         if (candidate) return candidate;
                     }
@@ -1371,6 +1896,7 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
 
         const sectionFromMeta = findMetaValue(['القسم', 'classe', 'class', 'section']);
         const teacherNameFromMeta = findTeacherNameFromMeta(rows, maxScan);
+        const resolvedMetaTeacher = teacherResolver.resolve(teacherNameFromMeta);
         const levelFromMeta = findMetaValue(['المستوى', 'niveau', 'level']);
 
         const subjectFromMeta = (() => {
@@ -1385,7 +1911,9 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
             }
 
             // Fallback 1: Look for "المادة" or "matiere" label followed by subject name
+            // Skip the data-table header row to avoid confusing column headers with meta labels
             for (let i = 0; i < maxScan; i++) {
+                if (i === headerIndex) continue;
                 const row = rows[i] || [];
                 for (let c = 0; c < row.length; c++) {
                     const cellRaw = String(row[c] ?? '').trim();
@@ -1405,29 +1933,49 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
                         const inlineMatch = cellRaw.match(/[:：]\s*(.+)$/);
                         if (inlineMatch && inlineMatch[1].trim() && !isNoise(inlineMatch[1])) {
                             const inlineSubject = inlineMatch[1].trim();
-                            debugGradesImport('subject:method1-inline', { sheetName, subject: inlineSubject, row: i, col: c });
+                            debugGradesImport('subject:method1-inline', {
+                                sheetName,
+                                subject: inlineSubject,
+                                row: i,
+                                col: c
+                            });
                             return inlineSubject;
                         }
 
-                        // Search next cells to the right (skip separators and empty)
-                        for (let offset = 1; offset <= 4; offset++) {
-                            const candidate = String(row[c + offset] ?? '').trim();
+                        // Search adjacent cells both directions (RTL files may have values to the left)
+                        const subjectOffsets = [1, -1, 2, -2, 3, -3, 4, -4];
+                        for (const offset of subjectOffsets) {
+                            const idx = c + offset;
+                            if (idx < 0 || idx >= row.length) continue;
+                            const candidate = String(row[idx] ?? '').trim();
                             if (isSeparatorCell(candidate)) continue;
                             if (isNoise(candidate)) continue;
                             if (candidate) {
-                                debugGradesImport('subject:method1-right', { sheetName, subject: candidate, row: i, col: c + offset });
+                                debugGradesImport('subject:method1-adjacent', {
+                                    sheetName,
+                                    subject: candidate,
+                                    row: i,
+                                    col: idx
+                                });
                                 return candidate;
                             }
                         }
 
-                        // Cells below (check multiple positions)
+                        // Cells below (check multiple positions both directions)
                         for (let ri = 1; ri <= 2; ri++) {
                             const belowRow = rows[i + ri] || [];
-                            for (let offset = 0; offset <= 2; offset++) {
-                                const candidate = String(belowRow[c + offset] ?? '').trim();
+                            for (const offset of [0, 1, -1, 2, -2]) {
+                                const idx = c + offset;
+                                if (idx < 0 || idx >= belowRow.length) continue;
+                                const candidate = String(belowRow[idx] ?? '').trim();
                                 if (isSeparatorCell(candidate) || isNoise(candidate)) continue;
                                 if (candidate) {
-                                    debugGradesImport('subject:method1-below', { sheetName, subject: candidate, row: i + ri, col: c + offset });
+                                    debugGradesImport('subject:method1-below', {
+                                        sheetName,
+                                        subject: candidate,
+                                        row: i + ri,
+                                        col: idx
+                                    });
                                     return candidate;
                                 }
                             }
@@ -1557,16 +2105,22 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
                 const rowTeacherName = sanitizeTeacherName(
                     teacherNameColumnIndex !== -1 ? String(row[teacherNameColumnIndex] ?? '').trim() : ''
                 );
+                const resolvedRowTeacher = teacherResolver.resolve(rowTeacherName);
+                const resolvedTeacher = resolvedRowTeacher.teacher_name ? resolvedRowTeacher : resolvedMetaTeacher;
                 const rowLevel = levelColumnIndex !== -1 ? String(row[levelColumnIndex] ?? '').trim() : '';
                 const finalSection = sectionFromMeta || (student ? student.section : '');
-                const finalLevel = normalizeLevelName(rowLevel) || normalizeLevelName(levelFromMeta) || deriveLevelFromSection(finalSection);
+                const finalLevel =
+                    normalizeLevelName(rowLevel) ||
+                    normalizeLevelName(levelFromMeta) ||
+                    deriveLevelFromSection(finalSection);
                 grades.push({
                     student_id: student ? student.id : null,
                     student_code: studentCode,
+                    teacher_id: resolvedTeacher.teacher_id || null,
                     subject: `${normalizeSubjectName(subjectFromMeta)}${subjectSuffix}`,
                     grade: gradeValue,
                     semester: finalSemester,
-                    teacher_name: rowTeacherName || teacherNameFromMeta || '',
+                    teacher_name: resolvedTeacher.teacher_name || rowTeacherName || teacherNameFromMeta || '',
                     level: finalLevel,
                     school_year: schoolYear,
                     section: finalSection
@@ -1578,15 +2132,25 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
     });
 
     if (!grades.length) throw new Error('لم يتم العثور على نقط صالحة داخل الملف');
-    const detectedSemester = grades[0].semester;
+
+    // Deduplicate: keep only the last grade per (student_code, subject, semester, school_year)
+    const gradeMap = new Map();
+    grades.forEach((g) => {
+        const key = `${g.student_code}||${g.subject}||${g.semester}||${g.school_year}`;
+        gradeMap.set(key, g);
+    });
+    const deduped = Array.from(gradeMap.values());
+
+    const detectedSemester = deduped[0].semester;
     debugGradesImport('importGrades:summary', {
-        totalGrades: grades.length,
+        totalGrades: deduped.length,
+        beforeDedup: grades.length,
         detectedSemester,
-        uniqueStudents: new Set(grades.map((g) => String(g.student_code || '').trim()).filter(Boolean)).size,
-        uniqueSubjects: [...new Set(grades.map((g) => g.subject))].slice(0, 40)
+        uniqueStudents: new Set(deduped.map((g) => String(g.student_code || '').trim()).filter(Boolean)).size,
+        uniqueSubjects: [...new Set(deduped.map((g) => g.subject))].slice(0, 40)
     });
 
-    const res = await window.api.grades.saveBulk(grades);
+    const res = await window.api.grades.saveBulk(deduped);
     if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ النقط');
     const studentCodes = [...new Set(grades.map((g) => String(g.student_code || '').trim()).filter(Boolean))];
     return { gradesCount: grades.length, studentsCount: studentCodes.length, studentCodes, semester: detectedSemester };
@@ -1839,7 +2403,7 @@ async function importAbsences(workbook, schoolYear) {
 async function importFetXml(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
@@ -1866,17 +2430,9 @@ async function importFetXml(file) {
                     Samedi_s: { day: 'السبت', period: 'afternoon', index: 5 }
                 };
 
-                function getBaseClassName(className) {
-                    if (!className) return '';
-                    return className.replace(/:[Gg]\d+$/g, '').trim();
-                }
-
-                const fetDataLocal = {
-                    teachers: [],
-                    subjects: new Set(),
-                    classes: new Set(),
-                    timetables: {}
-                };
+                const fetEntries = [];
+                const allSubjects = new Set();
+                const allClasses = new Set();
 
                 // Support both Teachers_Timetable (XML export) and fet format
                 let teacherElements;
@@ -1891,16 +2447,33 @@ async function importFetXml(file) {
 
                 console.log('Found teachers in XML:', teacherElements.length);
 
+                // Fetch canonical teacher names from DB (filled by MASSAR import)
+                let _teacherResolver = buildTeacherResolver([]);
+                let allTeachers = [];
+                try {
+                    const dbTeachers = await window.api.teachers.getAll(getCurrentSchoolYear());
+                    allTeachers = Array.isArray(dbTeachers) ? dbTeachers : [];
+                    _teacherResolver = buildTeacherResolver(allTeachers);
+                    console.log('[FET import] Canonical teacher resolver ready:', allTeachers.length, 'teachers');
+                } catch (_e) {
+                    console.warn('[FET import] Could not load teachers from DB for name normalization:', _e.message);
+                }
+
                 teacherElements.forEach((teacher) => {
-                    const teacherName = teacher.getAttribute('name');
-                    if (!teacherName) return;
+                    const rawAttrName = teacher.getAttribute('name');
+                    if (!rawAttrName) return;
 
-                    fetDataLocal.teachers.push({
-                        name: teacherName,
-                        displayName: teacherName.replace(/_/g, ' ')
-                    });
+                    const sourceDisplayName = rawAttrName.replace(/_/g, ' ').trim();
+                    const teacherKey = makeTafwijTeacherKey(rawAttrName);
+                    const resolvedTeacher = _teacherResolver.resolve(rawAttrName);
+                    const canonicalName = resolvedTeacher.teacher_name || sourceDisplayName;
+                    const teacherSubjects = new Set();
+                    const teacherClasses = new Set();
+                    const timetable = {};
 
-                    fetDataLocal.timetables[teacherName] = {};
+                    if (resolvedTeacher.teacher_id) {
+                        console.log(`[FET import] Name mapped: "${rawAttrName}" → "${canonicalName}"`);
+                    }
 
                     const days = teacher.querySelectorAll('Day');
                     days.forEach((day) => {
@@ -1911,8 +2484,8 @@ async function importFetXml(file) {
                         const arabicDay = mapping.day;
                         const periodType = mapping.period;
 
-                        if (!fetDataLocal.timetables[teacherName][arabicDay]) {
-                            fetDataLocal.timetables[teacherName][arabicDay] = {
+                        if (!timetable[arabicDay]) {
+                            timetable[arabicDay] = {
                                 morning: {},
                                 afternoon: {}
                             };
@@ -1928,17 +2501,25 @@ async function importFetXml(file) {
                             const room = hour.querySelector('Room');
 
                             if (subject) {
-                                const subjectName = subject.getAttribute('name') || '';
+                                const rawSubjectName = subject.getAttribute('name') || '';
+                                const subjectName =
+                                    typeof translateSubject === 'function'
+                                        ? translateSubject(rawSubjectName)
+                                        : rawSubjectName;
                                 const studentsName = students ? students.getAttribute('name') || '' : '';
                                 const roomName = room ? room.getAttribute('name') || '' : '';
 
-                                fetDataLocal.subjects.add(subjectName);
+                                allSubjects.add(subjectName);
+                                teacherSubjects.add(subjectName);
                                 if (studentsName) {
                                     const baseClass = getBaseClassName(studentsName);
-                                    if (baseClass) fetDataLocal.classes.add(baseClass);
+                                    if (baseClass) {
+                                        allClasses.add(baseClass);
+                                        teacherClasses.add(baseClass);
+                                    }
                                 }
 
-                                fetDataLocal.timetables[teacherName][arabicDay][periodType][hourName] = {
+                                timetable[arabicDay][periodType][hourName] = {
                                     subject: subjectName,
                                     students: studentsName,
                                     room: roomName
@@ -1946,26 +2527,64 @@ async function importFetXml(file) {
                             }
                         });
                     });
+
+                    fetEntries.push({
+                        key: teacherKey,
+                        sourceName: rawAttrName,
+                        sourceDisplayName,
+                        teacherId: resolvedTeacher.teacher_id || null,
+                        teacherName: canonicalName,
+                        displayName: canonicalName,
+                        matchStatus: resolvedTeacher.teacher_id
+                            ? 'matched'
+                            : resolvedTeacher.ambiguous
+                              ? 'ambiguous'
+                              : 'unmatched',
+                        candidates: Array.isArray(resolvedTeacher.candidates) ? resolvedTeacher.candidates : [],
+                        timetable,
+                        subjects: Array.from(teacherSubjects),
+                        classes: Array.from(teacherClasses)
+                    });
                 });
 
-                // Sort teachers alphabetically
-                fetDataLocal.teachers.sort((a, b) => a.displayName.localeCompare(b.displayName, 'ar'));
-
-                if (!fetDataLocal.teachers.length) {
+                if (!fetEntries.length) {
                     throw new Error('لم يتم العثور على أساتذة في الملف');
                 }
 
-                // Save to localStorage (same key used by timetable.html)
-                const dataToSave = {
-                    teachers: fetDataLocal.teachers,
-                    subjects: Array.from(fetDataLocal.subjects),
-                    classes: Array.from(fetDataLocal.classes),
-                    timetables: fetDataLocal.timetables
-                };
-                localStorage.setItem('timetableData', JSON.stringify(dataToSave));
-                console.log('FET data saved to localStorage:', fetDataLocal.teachers.length, 'teachers');
+                const unresolvedEntries = fetEntries.filter((entry) => !entry.teacherId);
+                if (unresolvedEntries.length) {
+                    pendingTafwijImportState = {
+                        schoolYear: getCurrentSchoolYear(),
+                        entries: fetEntries,
+                        allTeachers,
+                        fileName: file?.name || 'tafwij'
+                    };
+                    const partialData = buildTafwijStoragePayload(pendingTafwijImportState, new Map(), true);
+                    localStorage.setItem('timetableData', JSON.stringify(partialData));
+                    renderTafwijMatchingPanel();
+                    renderTafwijWarningBanner();
+                    resolve({
+                        teachersCount: fetEntries.length,
+                        unresolvedCount: unresolvedEntries.length,
+                        requiresReview: true
+                    });
+                    return;
+                }
 
-                resolve(fetDataLocal.teachers.length);
+                const dataToSave = buildTafwijStoragePayload(
+                    {
+                        schoolYear: getCurrentSchoolYear(),
+                        entries: fetEntries,
+                        allTeachers
+                    },
+                    new Map(),
+                    true
+                );
+                localStorage.setItem('timetableData', JSON.stringify(dataToSave));
+                renderTafwijWarningBanner();
+                console.log('FET data saved to localStorage:', fetEntries.length, 'teachers');
+
+                resolve({ teachersCount: fetEntries.length, unresolvedCount: 0, requiresReview: false });
             } catch (error) {
                 reject(error);
             }
@@ -1997,7 +2616,7 @@ async function importAgentXml(file) {
                 // ── Build lookup maps from reference tables ──
                 const buildLookup = (tagName, codeField, labelField) => {
                     const map = new Map();
-                    xmlDoc.querySelectorAll(tagName).forEach(el => {
+                    xmlDoc.querySelectorAll(tagName).forEach((el) => {
                         const code = el.querySelector(codeField)?.textContent?.trim();
                         const label = el.querySelector(labelField)?.textContent?.trim();
                         if (code && label) map.set(code, label);
@@ -2021,19 +2640,29 @@ async function importAgentXml(file) {
                 const dipScolArMap = buildLookup('R_DipSCol', 'CD_DIPS', 'LA_DIPS');
                 const dipProfArMap = buildLookup('R_DipProf', 'CD_DIPP', 'LA_DIPP');
 
-                console.log('[agent-xml] Lookup tables built:',
-                    'grades:', gradeMap.size,
-                    'cadres:', cadreMap.size,
-                    'disciplines:', disciplineMap.size,
-                    'fonctions:', fonctionMap.size,
-                    'sitFam:', sitFamMap.size,
-                    'positions:', positionMap.size,
-                    'statuts:', statutMap.size
+                console.log(
+                    '[agent-xml] Lookup tables built:',
+                    'grades:',
+                    gradeMap.size,
+                    'cadres:',
+                    cadreMap.size,
+                    'disciplines:',
+                    disciplineMap.size,
+                    'fonctions:',
+                    fonctionMap.size,
+                    'sitFam:',
+                    sitFamMap.size,
+                    'positions:',
+                    positionMap.size,
+                    'statuts:',
+                    statutMap.size
                 );
+                console.log('[agent-xml] positionMap values:', JSON.stringify([...positionMap.entries()]));
+                console.log('[agent-xml] statutMap values:', JSON.stringify([...statutMap.entries()]));
 
                 // ── Build ACTIVITE map: PPR → first activity details ──
                 const activiteMap = new Map();
-                xmlDoc.querySelectorAll('ACTIVITE').forEach(el => {
+                xmlDoc.querySelectorAll('ACTIVITE').forEach((el) => {
                     const ppr = el.querySelector('PPR')?.textContent?.trim();
                     if (!ppr || activiteMap.has(ppr)) return;
                     activiteMap.set(ppr, {
@@ -2046,7 +2675,7 @@ async function importAgentXml(file) {
 
                 // ── Build R_TABSERV map: CD_ACTIVITES → aggregated teaching hours ──
                 const tabservMap = new Map();
-                xmlDoc.querySelectorAll('R_TABSERV').forEach(el => {
+                xmlDoc.querySelectorAll('R_TABSERV').forEach((el) => {
                     const cdAct = el.querySelector('CD_ACTIVITES')?.textContent?.trim();
                     if (!cdAct) return;
                     const heures = parseFloat(el.querySelector('NBR_HEURE_ENS')?.textContent?.trim()) || 0;
@@ -2077,7 +2706,7 @@ async function importAgentXml(file) {
 
                 const getText = (el, tag) => el.querySelector(tag)?.textContent?.trim() || '';
 
-                personnelElements.forEach(el => {
+                personnelElements.forEach((el) => {
                     const ppr = getText(el, 'PPR');
                     if (!ppr) return;
 
@@ -2087,7 +2716,8 @@ async function importAgentXml(file) {
                     const nomL = getText(el, 'NOML');
                     const prenomL = getText(el, 'PRENOML');
 
-                    const fullName = [nomA, prenomA].filter(Boolean).join(' ') || [nomL, prenomL].filter(Boolean).join(' ');
+                    const fullName =
+                        [nomA, prenomA].filter(Boolean).join(' ') || [nomL, prenomL].filter(Boolean).join(' ');
                     const fullNameFr = [prenomL, nomL].filter(Boolean).join(' ');
 
                     if (!fullName) return;
@@ -2142,15 +2772,21 @@ async function importAgentXml(file) {
                     // ── Helper: apply translation function if available ──
                     const tr = (fn, val) => (typeof fn === 'function' ? fn(val) : val) || val || null;
 
-                    const specialtyAr = tr(translateSubject, disciplineMap.get(cdDiscip));
-                    const gradeAr     = tr(translateGrade,   gradeMap.get(cdGrade));
-                    const cadreAr     = tr(translateCadre,   cadreMap.get(cdCadre));
-                    const sitFamAr    = tr(translateMaritalStatus, sitFamMap.get(cdSitFam));
+                    const specialtyAr =
+                        disciplineArMap.get(cdDiscip) || tr(translateSubject, disciplineMap.get(cdDiscip));
+                    const gradeAr = tr(translateGrade, gradeMap.get(cdGrade));
+                    const cadreAr = tr(translateCadre, cadreMap.get(cdCadre));
+                    const sitFamAr = tr(translateMaritalStatus, sitFamMap.get(cdSitFam));
 
-                    // Prefer Arabic labels, fall back to French
-                    const fonctionLabel  = fonctionArMap.get(cdFonc) || fonctionMap.get(cdFonc) || null;
-                    const dipScolLabel   = dipScolArMap.get(cdDipS) || dipScolMap.get(cdDipS) || null;
-                    const dipProfLabel   = dipProfArMap.get(cdDipP) || dipProfMap.get(cdDipP) || null;
+                    const fonctionLabelFr = fonctionMap.get(cdFonc) || null;
+                    const isSurplus = cdFonc === 'E002' || /surnombre/i.test(fonctionLabelFr || '');
+
+                    // Prefer Arabic labels, fall back to French, but preserve the surplus meaning explicitly.
+                    const fonctionLabel = isSurplus
+                        ? 'مدرس (فائض)'
+                        : fonctionArMap.get(cdFonc) || fonctionLabelFr || null;
+                    const dipScolLabel = dipScolArMap.get(cdDipS) || dipScolMap.get(cdDipS) || null;
+                    const dipProfLabel = dipProfArMap.get(cdDipP) || dipProfMap.get(cdDipP) || null;
 
                     // Seniority dates (extract date part before T)
                     const parseXmlDate = (tag) => {
@@ -2166,7 +2802,7 @@ async function importAgentXml(file) {
                         // specialty_subject = التخصص الرسمي للأستاذ من ملف الوزارة
                         // subject = المادة التي يدرسها فعلياً (تُكمَّل من FET أو يدوياً)
                         specialty_subject: specialtyAr || null,
-                        subject: specialtyAr || null,   // FET قد يحدّثها لاحقاً
+                        subject: specialtyAr || null, // FET قد يحدّثها لاحقاً
                         gender: gender || null,
                         birth_date: birthDate || null,
                         birth_place: getText(el, 'LIEU_NAIS') || null,
@@ -2191,6 +2827,7 @@ async function importAgentXml(file) {
                         total_hours: tabserv?.total_hours || null,
                         overtime_hours: tabserv?.overtime_hours || null,
                         num_classes: tabserv?.num_classes || null,
+                        is_surplus: isSurplus ? 1 : 0,
                         source: 'agent_xml',
                         school_year: schoolYear,
                         active: 1
@@ -2271,8 +2908,8 @@ async function loadLogs() {
     if (!tb) return;
     tb.innerHTML = rows.length
         ? rows
-            .map(
-                (r, i) => `
+              .map(
+                  (r, i) => `
                 <tr>
                     <td class="log-index">${escapeHtml(r.id || i + 1)}</td>
                     <td class="log-action"><bdi dir="ltr">${escapeHtml(r.action || '-')}</bdi></td>
@@ -2283,8 +2920,8 @@ async function loadLogs() {
                     </td>
                 </tr>
             `
-            )
-            .join('')
+              )
+              .join('')
         : '<tr><td colspan="4" style="padding: 30px; text-align: center; color: #888;"><i class="fas fa-inbox" style="font-size: 32px; display: block; margin-bottom: 10px;"></i>لا توجد عمليات بعد</td></tr>';
 }
 
@@ -2292,35 +2929,63 @@ async function loadLogs() {
 
 const STATUS_CODE_ALIASES = [
     ...HEADER_ALIASES.code,
-    'رقمالطلبة', 'رقم الطلبة', 'رقمالتلميذ', 'رقم التلميذ',
-    'numeroapogee', 'numero', 'numéro', 'n°', 'num'
+    'رقمالطلبة',
+    'رقم الطلبة',
+    'رقمالتلميذ',
+    'رقم التلميذ',
+    'numeroapogee',
+    'numero',
+    'numéro',
+    'n°',
+    'num'
 ];
 
 const STATUS_HEADER_ALIASES = {
-    status: [
-        'status', 'الحالة', 'الوضعية', 'الوضعيةالدراسية',
-        'situation', 'etat', 'état', 'statut'
-    ]
+    status: ['status', 'الحالة', 'الوضعية', 'الوضعيةالدراسية', 'situation', 'etat', 'état', 'statut']
 };
 
 const STATUS_VALUE_MAP = {
-    'منقطع': 'dropout', 'منقطعة': 'dropout', 'منقطع عن الدراسة': 'dropout',
-    'abandon': 'dropout', 'abandonné': 'dropout', 'abandonnee': 'dropout',
-    'decrochage': 'dropout', 'décrochage': 'dropout',
-    'dropout': 'dropout', 'dropped': 'dropout', 'dropped out': 'dropout',
+    منقطع: 'dropout',
+    منقطعة: 'dropout',
+    'منقطع عن الدراسة': 'dropout',
+    abandon: 'dropout',
+    abandonné: 'dropout',
+    abandonnee: 'dropout',
+    decrochage: 'dropout',
+    décrochage: 'dropout',
+    dropout: 'dropout',
+    dropped: 'dropout',
+    'dropped out': 'dropout',
 
-    'مفصول': 'expelled', 'مفصولة': 'expelled', 'مطرود': 'expelled', 'مطرودة': 'expelled',
-    'exclu': 'expelled', 'exclue': 'expelled', 'exclusion': 'expelled',
-    'renvoyé': 'expelled', 'renvoyée': 'expelled', 'renvoye': 'expelled',
-    'expelled': 'expelled', 'expulsion': 'expelled',
+    مفصول: 'expelled',
+    مفصولة: 'expelled',
+    مطرود: 'expelled',
+    مطرودة: 'expelled',
+    exclu: 'expelled',
+    exclue: 'expelled',
+    exclusion: 'expelled',
+    renvoyé: 'expelled',
+    renvoyée: 'expelled',
+    renvoye: 'expelled',
+    expelled: 'expelled',
+    expulsion: 'expelled',
 
-    'غير ملتحق': 'not_enrolled', 'غير ملتحقة': 'not_enrolled',
-    'لم يلتحق': 'not_enrolled', 'غير مسجل': 'not_enrolled', 'غير مسجلة': 'not_enrolled',
-    'non inscrit': 'not_enrolled', 'non inscrite': 'not_enrolled',
-    'non scolarisé': 'not_enrolled', 'non scolarise': 'not_enrolled',
-    'not enrolled': 'not_enrolled', 'not_enrolled': 'not_enrolled', 'unenrolled': 'not_enrolled',
+    'غير ملتحق': 'not_enrolled',
+    'غير ملتحقة': 'not_enrolled',
+    'لم يلتحق': 'not_enrolled',
+    'غير مسجل': 'not_enrolled',
+    'غير مسجلة': 'not_enrolled',
+    'non inscrit': 'not_enrolled',
+    'non inscrite': 'not_enrolled',
+    'non scolarisé': 'not_enrolled',
+    'non scolarise': 'not_enrolled',
+    'not enrolled': 'not_enrolled',
+    not_enrolled: 'not_enrolled',
+    unenrolled: 'not_enrolled',
 
-    'active': 'active', 'نشط': 'active', 'نشطة': 'active'
+    active: 'active',
+    نشط: 'active',
+    نشطة: 'active'
 };
 
 // Patterns to detect status from file/sheet titles or metadata rows
@@ -2331,7 +2996,9 @@ const STATUS_TITLE_PATTERNS = [
 ];
 
 function normalizeStatusValue(raw) {
-    const text = String(raw || '').trim().toLowerCase();
+    const text = String(raw || '')
+        .trim()
+        .toLowerCase();
     if (!text) return '';
     if (STATUS_VALUE_MAP[text]) return STATUS_VALUE_MAP[text];
     const clean = text.replace(/[\u064B-\u065F]/g, '').trim();
@@ -2357,12 +3024,24 @@ async function importStudentStatus(workbook, schoolYear) {
 
     // Header aliases for additional columns
     const familyNameAliases = [...HEADER_ALIASES.familyName, 'النسب', 'اللقب'];
-    const firstNameAliases  = [...HEADER_ALIASES.firstName, 'الاسم', 'الإسم'];
-    const fullNameAliases   = HEADER_ALIASES.fullName;
-    const genderAliases     = HEADER_ALIASES.gender;
-    const birthDateAliases  = [...HEADER_ALIASES.birthDate, 'تاريخالإزدياد', 'تاريخالازدياد', 'تاريخ الإزدياد', 'تاريخ الازدياد'];
-    const birthPlaceAliases = [...HEADER_ALIASES.birthPlace, 'مكانالإزدياد', 'مكانالازدياد', 'مكان الإزدياد', 'مكان الازدياد'];
-    const sectionAliases    = HEADER_ALIASES.section;
+    const firstNameAliases = [...HEADER_ALIASES.firstName, 'الاسم', 'الإسم'];
+    const fullNameAliases = HEADER_ALIASES.fullName;
+    const genderAliases = HEADER_ALIASES.gender;
+    const birthDateAliases = [
+        ...HEADER_ALIASES.birthDate,
+        'تاريخالإزدياد',
+        'تاريخالازدياد',
+        'تاريخ الإزدياد',
+        'تاريخ الازدياد'
+    ];
+    const birthPlaceAliases = [
+        ...HEADER_ALIASES.birthPlace,
+        'مكانالإزدياد',
+        'مكانالازدياد',
+        'مكان الإزدياد',
+        'مكان الازدياد'
+    ];
+    const sectionAliases = HEADER_ALIASES.section;
 
     // Process every sheet in the workbook
     for (const sheetName of workbook.SheetNames) {
@@ -2377,16 +3056,16 @@ async function importStudentStatus(workbook, schoolYear) {
         const headerRow = rows[headerIdx];
 
         // Map columns
-        const codeIdx      = findHeaderIndex(headerRow, STATUS_CODE_ALIASES);
+        const codeIdx = findHeaderIndex(headerRow, STATUS_CODE_ALIASES);
         if (codeIdx < 0) continue;
 
-        const familyIdx    = findHeaderIndex(headerRow, familyNameAliases);
-        const firstIdx     = findHeaderIndex(headerRow, firstNameAliases);
-        const fullIdx      = findHeaderIndex(headerRow, fullNameAliases);
-        const genderIdx    = findHeaderIndex(headerRow, genderAliases);
-        const birthDIdx    = findHeaderIndex(headerRow, birthDateAliases);
-        const birthPIdx    = findHeaderIndex(headerRow, birthPlaceAliases);
-        const sectionIdx   = findHeaderIndex(headerRow, sectionAliases);
+        const familyIdx = findHeaderIndex(headerRow, familyNameAliases);
+        const firstIdx = findHeaderIndex(headerRow, firstNameAliases);
+        const fullIdx = findHeaderIndex(headerRow, fullNameAliases);
+        const genderIdx = findHeaderIndex(headerRow, genderAliases);
+        const birthDIdx = findHeaderIndex(headerRow, birthDateAliases);
+        const birthPIdx = findHeaderIndex(headerRow, birthPlaceAliases);
+        const sectionIdx = findHeaderIndex(headerRow, sectionAliases);
         const statusColIdx = findHeaderIndex(headerRow, STATUS_HEADER_ALIASES.status);
 
         // 2. Detect status from title/metadata if no status column
@@ -2395,7 +3074,7 @@ async function importStudentStatus(workbook, schoolYear) {
             impliedStatus = detectStatusFromText(sheetName);
             if (!impliedStatus) {
                 for (let r = 0; r < Math.min(rows.length, 15); r++) {
-                    for (const cell of (rows[r] || [])) {
+                    for (const cell of rows[r] || []) {
                         const text = String(cell ?? '').trim();
                         impliedStatus = detectStatusFromText(text);
                         if (impliedStatus) break;
@@ -2408,17 +3087,20 @@ async function importStudentStatus(workbook, schoolYear) {
 
         // 3. Derive section from sheet name if no section column
         //    Sheet names like "2BACSPF-1" → use as section
-        const sheetSection = (sectionIdx < 0) ? sheetName.trim() : '';
+        const sheetSection = sectionIdx < 0 ? sheetName.trim() : '';
 
         // 4. Parse data rows
         for (let i = headerIdx + 1; i < rows.length; i++) {
             const row = rows[i] || [];
             const rawCode = normalizeStudentCode(row[codeIdx]);
-            if (!rawCode) { skippedNoCode++; continue; }
+            if (!rawCode) {
+                skippedNoCode++;
+                continue;
+            }
 
             // Build full name
             const family = String(row[familyIdx] ?? '').trim();
-            const first  = String(row[firstIdx] ?? '').trim();
+            const first = String(row[firstIdx] ?? '').trim();
             let fullName = fullIdx >= 0 ? String(row[fullIdx] ?? '').trim() : '';
             if (!fullName && (family || first)) {
                 fullName = [family, first].filter(Boolean).join(' ');

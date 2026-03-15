@@ -1,45 +1,129 @@
 const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear } = require('./ipc-helpers');
 const { requireFields, validateDate } = require('./validation');
+const {
+    ensureTeacherAlias,
+    normalizeTeacherName,
+    seedTeacherAliases,
+    resolveTeacherIdentity
+} = require('../teachers/identity');
+
+function detachTeacherReferences(db, teacherRows) {
+    const teachers = Array.isArray(teacherRows) ? teacherRows.filter((row) => Number(row.id) > 0) : [];
+    if (!teachers.length) return;
+
+    const deleteAliases = db.prepare('DELETE FROM teacher_aliases WHERE teacher_id = ?');
+    const deleteTeacherAbsences = db.prepare('DELETE FROM teacher_absences WHERE school_year = ? AND teacher_id = ?');
+    const clearGrades = db.prepare(
+        `
+            UPDATE grades
+            SET teacher_id = NULL,
+                teacher_name = COALESCE(NULLIF(TRIM(teacher_name), ''), ?)
+            WHERE school_year = ? AND teacher_id = ?
+        `
+    );
+    const clearTests = db.prepare(
+        `
+            UPDATE tests
+            SET teacher_id = NULL,
+                teacher_name = COALESCE(NULLIF(TRIM(teacher_name), ''), ?)
+            WHERE school_year = ? AND teacher_id = ?
+        `
+    );
+    const clearAttendance = db.prepare(
+        `
+            UPDATE staff_attendance
+            SET teacher_id = NULL,
+                teacher_name = COALESCE(NULLIF(TRIM(teacher_name), ''), ?)
+            WHERE school_year = ? AND teacher_id = ?
+        `
+    );
+    const clearProctors = db.prepare(
+        `
+            UPDATE exam_proctors
+            SET teacher_id = NULL,
+                teacher_name = COALESCE(NULLIF(TRIM(teacher_name), ''), ?)
+            WHERE school_year = ? AND teacher_id = ?
+        `
+    );
+    const clearCompensation = db.prepare(
+        `
+            UPDATE compensation_tracking
+            SET teacher_id = NULL,
+                teacher_name = COALESCE(NULLIF(TRIM(teacher_name), ''), ?)
+            WHERE school_year = ? AND teacher_id = ?
+        `
+    );
+
+    for (const teacher of teachers) {
+        const teacherId = Number(teacher.id);
+        const schoolYear = String(teacher.school_year || '').trim();
+        const fullName = String(teacher.full_name || '').trim() || null;
+        if (!teacherId || !schoolYear) continue;
+        clearGrades.run(fullName, schoolYear, teacherId);
+        clearTests.run(fullName, schoolYear, teacherId);
+        clearAttendance.run(fullName, schoolYear, teacherId);
+        clearProctors.run(fullName, schoolYear, teacherId);
+        clearCompensation.run(fullName, schoolYear, teacherId);
+        deleteTeacherAbsences.run(schoolYear, teacherId);
+        deleteAliases.run(teacherId);
+    }
+}
 
 function registerStaffIpc(ipcMain) {
     // ── Read handlers (no auth required) ──
 
     handleRead(ipcMain, 'teachers:getAll', (db, schoolYear) => {
-        return db.prepare('SELECT * FROM teachers WHERE school_year = ? ORDER BY full_name').all(normalizeYear(schoolYear));
+        return db
+            .prepare('SELECT * FROM teachers WHERE school_year = ? ORDER BY full_name')
+            .all(normalizeYear(schoolYear));
     });
 
     // ── Write handlers (require admin or staff role) ──
 
     handleWrite(ipcMain, 'teachers:add', ['admin', 'staff'], (db, _event, teacher) => {
         requireFields(teacher, ['full_name', 'school_year']);
-        db.prepare(
-            `
+        const result = db
+            .prepare(
+                `
                 INSERT INTO teachers(ppr, cin, full_name, full_name_fr, subject, gender, birth_date, birth_place,
-                    phone, email, address, grade, cadre, echelon, hire_date, marital_status, function_title,
+                    phone, email, address, grade, cadre, echelon, hire_date, marital_status, function_title, is_surplus,
                     source, school_year, active)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
-        ).run(
-            teacher.ppr || null,
-            teacher.cin || null,
-            teacher.full_name,
-            teacher.full_name_fr || null,
-            teacher.subject || null,
-            teacher.gender || null,
-            teacher.birth_date || null,
-            teacher.birth_place || null,
-            teacher.phone || null,
-            teacher.email || null,
-            teacher.address || null,
-            teacher.grade || null,
-            teacher.cadre || null,
-            teacher.echelon != null ? Number(teacher.echelon) || null : null,
-            teacher.hire_date || null,
-            teacher.marital_status || null,
-            teacher.function_title || null,
-            teacher.source || 'manual',
-            teacher.school_year,
-            teacher.active == null ? 1 : teacher.active ? 1 : 0
+            )
+            .run(
+                teacher.ppr || null,
+                teacher.cin || null,
+                teacher.full_name,
+                teacher.full_name_fr || null,
+                teacher.subject || null,
+                teacher.gender || null,
+                teacher.birth_date || null,
+                teacher.birth_place || null,
+                teacher.phone || null,
+                teacher.email || null,
+                teacher.address || null,
+                teacher.grade || null,
+                teacher.cadre || null,
+                teacher.echelon != null ? Number(teacher.echelon) || null : null,
+                teacher.hire_date || null,
+                teacher.marital_status || null,
+                teacher.function_title || null,
+                Number(teacher.is_surplus) === 1 ? 1 : 0,
+                teacher.source || 'manual',
+                teacher.school_year,
+                teacher.active == null ? 1 : teacher.active ? 1 : 0
+            );
+        seedTeacherAliases(
+            db,
+            {
+                id: result.lastInsertRowid,
+                school_year: teacher.school_year,
+                full_name: teacher.full_name,
+                full_name_fr: teacher.full_name_fr || null,
+                source: teacher.source || 'manual'
+            },
+            teacher.source || 'manual'
         );
         return { success: true };
     });
@@ -50,20 +134,80 @@ function registerStaffIpc(ipcMain) {
             return { success: false, error: 'Invalid ID' };
         }
         const ALLOWED_COLUMNS = new Set([
-            'ppr', 'cin', 'full_name', 'full_name_fr', 'subject', 'specialty_subject', 'gender',
-            'birth_date', 'birth_place', 'phone', 'email', 'address', 'grade', 'cadre', 'echelon',
-            'hire_date', 'marital_status', 'function_title', 'position', 'statut',
-            'diploma_school', 'diploma_professional', 'seniority_admin', 'seniority_grade',
-            'echelon_date', 'titularization_date', 'total_hours', 'overtime_hours', 'num_classes',
-            'source', 'school_year', 'active'
+            'ppr',
+            'cin',
+            'full_name',
+            'full_name_fr',
+            'subject',
+            'specialty_subject',
+            'gender',
+            'birth_date',
+            'birth_place',
+            'phone',
+            'email',
+            'address',
+            'grade',
+            'cadre',
+            'echelon',
+            'hire_date',
+            'marital_status',
+            'function_title',
+            'position',
+            'statut',
+            'diploma_school',
+            'diploma_professional',
+            'seniority_admin',
+            'seniority_grade',
+            'echelon_date',
+            'titularization_date',
+            'total_hours',
+            'overtime_hours',
+            'num_classes',
+            'is_surplus',
+            'source',
+            'school_year',
+            'active'
         ]);
         const safeEntries = Object.entries(data).filter(([k]) => ALLOWED_COLUMNS.has(k));
         if (!safeEntries.length) {
             return { success: false, error: 'No valid fields to update' };
         }
+        const current = db.prepare('SELECT * FROM teachers WHERE id = ?').get(teacherId);
+        if (!current) {
+            return { success: false, error: 'Teacher not found' };
+        }
+        const nextSchoolYear = data.school_year || current.school_year;
+        const nextSource = data.source || current.source || 'manual';
+        if (current.full_name) {
+            ensureTeacherAlias(db, {
+                teacher_id: teacherId,
+                alias_name: current.full_name,
+                school_year: current.school_year,
+                source: current.source || 'manual'
+            });
+        }
+        if (current.full_name_fr) {
+            ensureTeacherAlias(db, {
+                teacher_id: teacherId,
+                alias_name: current.full_name_fr,
+                school_year: current.school_year,
+                source: current.source || 'manual'
+            });
+        }
         const fields = safeEntries.map(([k]) => `${k} = ?`).join(', ');
         const values = [...safeEntries.map(([, v]) => v), teacherId];
         db.prepare(`UPDATE teachers SET ${fields} WHERE id = ?`).run(...values);
+        seedTeacherAliases(
+            db,
+            {
+                id: teacherId,
+                school_year: nextSchoolYear,
+                full_name: data.full_name || current.full_name,
+                full_name_fr: data.full_name_fr || current.full_name_fr,
+                source: nextSource
+            },
+            nextSource
+        );
         return { success: true };
     });
 
@@ -72,15 +216,94 @@ function registerStaffIpc(ipcMain) {
         if (!Number.isFinite(teacherId) || teacherId <= 0) {
             return { success: false, error: 'Invalid ID' };
         }
-        db.prepare('DELETE FROM teachers WHERE id = ?').run(teacherId);
+        const teacher = db.prepare('SELECT id, full_name, school_year FROM teachers WHERE id = ?').get(teacherId);
+        if (!teacher) {
+            return { success: false, error: 'Teacher not found' };
+        }
+        const txn = db.transaction(() => {
+            detachTeacherReferences(db, [teacher]);
+            db.prepare('DELETE FROM teachers WHERE id = ?').run(teacherId);
+        });
+        txn();
         return { success: true };
     });
 
     handleWriteSoftAuth(ipcMain, 'teachers:deleteByYear', ['admin'], (db, schoolYear) => {
         const year = normalizeYear(schoolYear);
         if (!year) return { success: false, error: 'Invalid school year' };
-        const info = db.prepare('DELETE FROM teachers WHERE school_year = ?').run(year);
+        const teachers = db.prepare('SELECT id, full_name, school_year FROM teachers WHERE school_year = ?').all(year);
+        const txn = db.transaction(() => {
+            detachTeacherReferences(db, teachers);
+            return db.prepare('DELETE FROM teachers WHERE school_year = ?').run(year);
+        });
+        const info = txn();
         return { success: true, count: info.changes };
+    });
+
+    handleWriteSoftAuth(ipcMain, 'teachers:saveTafwijAliases', ['admin', 'staff'], (db, payload) => {
+        const schoolYear = normalizeYear(payload?.school_year);
+        const aliases = Array.isArray(payload?.aliases) ? payload.aliases : [];
+        if (!schoolYear) {
+            return { success: false, error: 'Invalid school year' };
+        }
+        if (!aliases.length) {
+            return { success: false, error: 'No aliases to save' };
+        }
+
+        const teacherById = db.prepare(
+            'SELECT id, full_name, school_year FROM teachers WHERE id = ? AND school_year = ?'
+        );
+        const aliasOwners = db.prepare(
+            `
+                SELECT ta.teacher_id, t.full_name
+                FROM teacher_aliases ta
+                LEFT JOIN teachers t ON t.id = ta.teacher_id
+                WHERE ta.school_year = ? AND ta.alias_normalized = ?
+            `
+        );
+
+        const txn = db.transaction((items) => {
+            const saved = [];
+            for (const item of items) {
+                const teacherId = Number(item?.teacher_id);
+                const aliasName = String(item?.alias_name || '')
+                    .replace(/_/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                const aliasNormalized = normalizeTeacherName(aliasName);
+                if (!Number.isFinite(teacherId) || teacherId <= 0 || !aliasName || !aliasNormalized) {
+                    throw new Error('بيانات الربط غير صالحة');
+                }
+                const teacher = teacherById.get(teacherId, schoolYear);
+                if (!teacher) {
+                    throw new Error(`تعذر العثور على الأستاذ المحدد (${teacherId})`);
+                }
+                const conflicts = aliasOwners
+                    .all(schoolYear, aliasNormalized)
+                    .filter((row) => Number(row.teacher_id) !== teacherId);
+                if (conflicts.length) {
+                    throw new Error(
+                        `الاسم "${aliasName}" مرتبط مسبقاً بالأستاذ ${conflicts[0].full_name || conflicts[0].teacher_id}`
+                    );
+                }
+                ensureTeacherAlias(db, {
+                    teacher_id: teacherId,
+                    alias_name: aliasName,
+                    school_year: schoolYear,
+                    source: 'manual:tafwij'
+                });
+                saved.push({
+                    teacher_id: teacherId,
+                    alias_name: aliasName,
+                    teacher_name: teacher.full_name,
+                    school_year: schoolYear
+                });
+            }
+            return saved;
+        });
+
+        const saved = txn(aliases);
+        return { success: true, count: saved.length, aliases: saved };
     });
 
     // ── Bulk import (UPSERT by PPR or name) ──
@@ -94,13 +317,13 @@ function registerStaffIpc(ipcMain) {
             INSERT INTO teachers(ppr, cin, full_name, full_name_fr, subject, specialty_subject, gender, birth_date, birth_place,
                 phone, email, address, grade, cadre, echelon, hire_date, marital_status, function_title,
                 position, statut, diploma_school, diploma_professional, seniority_admin, seniority_grade,
-                echelon_date, titularization_date, total_hours, overtime_hours, num_classes,
+                echelon_date, titularization_date, total_hours, overtime_hours, num_classes, is_surplus,
                 source, school_year, active)
             VALUES(@ppr, @cin, @full_name, @full_name_fr, @subject, @specialty_subject, @gender, @birth_date, @birth_place,
                 @phone, @email, @address, @grade, @cadre, @echelon, @hire_date, @marital_status,
                 @function_title, @position, @statut, @diploma_school, @diploma_professional,
                 @seniority_admin, @seniority_grade, @echelon_date, @titularization_date,
-                @total_hours, @overtime_hours, @num_classes,
+                @total_hours, @overtime_hours, @num_classes, @is_surplus,
                 @source, @school_year, @active)
             ON CONFLICT(ppr, school_year) WHERE ppr IS NOT NULL AND ppr != '' DO UPDATE SET
                 cin              = COALESCE(excluded.cin, cin),
@@ -138,6 +361,7 @@ function registerStaffIpc(ipcMain) {
                 total_hours      = excluded.total_hours,
                 overtime_hours   = excluded.overtime_hours,
                 num_classes      = excluded.num_classes,
+                is_surplus       = excluded.is_surplus,
                 source           = excluded.source,
                 active           = excluded.active
         `);
@@ -156,6 +380,8 @@ function registerStaffIpc(ipcMain) {
             UPDATE teachers SET subject = COALESCE(subject, @subject)
             WHERE full_name = @full_name AND school_year = @school_year AND (subject IS NULL OR TRIM(subject) = '')
         `);
+        const selectByPpr = db.prepare('SELECT * FROM teachers WHERE ppr = ? AND school_year = ?');
+        const selectByName = db.prepare('SELECT * FROM teachers WHERE full_name = ? AND school_year = ?');
 
         let imported = 0;
         const txn = db.transaction(() => {
@@ -191,16 +417,32 @@ function registerStaffIpc(ipcMain) {
                     total_hours: t.total_hours != null ? Number(t.total_hours) || null : null,
                     overtime_hours: t.overtime_hours != null ? Number(t.overtime_hours) || null : null,
                     num_classes: t.num_classes != null ? Number(t.num_classes) || null : null,
+                    is_surplus: Number(t.is_surplus) === 1 ? 1 : 0,
                     source: t.source || 'manual',
                     school_year: t.school_year,
                     active: t.active == null ? 1 : t.active ? 1 : 0
                 };
 
+                const existingByPpr = row.ppr ? selectByPpr.get(row.ppr, row.school_year) : null;
                 if (row.ppr) {
                     upsertByPpr.run(row);
                 } else {
                     insertByName.run(row);
                     if (row.subject) updateSubjectByName.run(row);
+                }
+                const savedTeacher = row.ppr
+                    ? selectByPpr.get(row.ppr, row.school_year)
+                    : selectByName.get(row.full_name, row.school_year);
+                if (existingByPpr && existingByPpr.full_name && existingByPpr.full_name !== row.full_name) {
+                    ensureTeacherAlias(db, {
+                        teacher_id: existingByPpr.id,
+                        alias_name: existingByPpr.full_name,
+                        school_year: existingByPpr.school_year,
+                        source: existingByPpr.source || row.source
+                    });
+                }
+                if (savedTeacher) {
+                    seedTeacherAliases(db, savedTeacher, row.source);
                 }
                 imported++;
             }
@@ -259,16 +501,22 @@ function registerStaffIpc(ipcMain) {
         const year = normalizeYear(schoolYear);
 
         // 1. Teacher absences from teacher_absences table (legacy)
-        const absences = db.prepare(`
+        const absences = db
+            .prepare(
+                `
             SELECT a.*, t.full_name, t.subject
             FROM teacher_absences a
             LEFT JOIN teachers t ON t.id = a.teacher_id
             WHERE a.absence_date = ? AND a.school_year = ?
             ORDER BY t.full_name
-        `).all(date, year);
+        `
+            )
+            .all(date, year);
 
         // 1b. Staff attendance records for the given date (new table)
-        const staffRecords = db.prepare(`
+        const staffRecords = db
+            .prepare(
+                `
             SELECT sa.*,
                    COALESCE(t.full_name, sa.teacher_name) as full_name,
                    COALESCE(sa.subject, t.subject, '') as subject
@@ -276,56 +524,94 @@ function registerStaffIpc(ipcMain) {
             LEFT JOIN teachers t ON t.id = sa.teacher_id
             WHERE sa.attendance_date = ? AND sa.school_year = ?
             ORDER BY sa.type, COALESCE(t.full_name, sa.teacher_name)
-        `).all(date, year);
+        `
+            )
+            .all(date, year);
 
         // Fill in missing subjects from grades table
-        const recordsNeedingSubject = staffRecords.filter(r => !r.subject && (r.full_name || r.teacher_name));
+        const recordsNeedingSubject = staffRecords.filter((r) => !r.subject && (r.full_name || r.teacher_name));
         if (recordsNeedingSubject.length > 0) {
-            const gradeSubjects = {};
+            const gradeSubjects = new Map();
             try {
-                const gs = db.prepare(`
-                    SELECT teacher_name, GROUP_CONCAT(DISTINCT subject) as subject
-                    FROM grades WHERE school_year = ?
-                      AND teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''
-                    GROUP BY teacher_name
-                `).all(year);
-                gs.forEach(g => { gradeSubjects[g.teacher_name] = g.subject; });
-            } catch (_e) { /* ignore */ }
+                const gs = db
+                    .prepare(
+                        `
+                    SELECT teacher_id, teacher_name, subject
+                    FROM grades
+                    WHERE school_year = ?
+                      AND subject IS NOT NULL AND TRIM(subject) <> ''
+                      AND ((teacher_id IS NOT NULL AND teacher_id > 0) OR (teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''))
+                `
+                    )
+                    .all(year);
+                for (const row of gs) {
+                    const key = row.teacher_id ? `id:${row.teacher_id}` : `name:${row.teacher_name}`;
+                    const current = gradeSubjects.get(key);
+                    if (!current) {
+                        gradeSubjects.set(key, new Set());
+                    }
+                    gradeSubjects.get(key).add(row.subject);
+                }
+            } catch {
+                /* ignore */
+            }
             for (const r of recordsNeedingSubject) {
-                r.subject = gradeSubjects[r.full_name] || gradeSubjects[r.teacher_name] || '';
+                const byId = r.teacher_id ? gradeSubjects.get(`id:${r.teacher_id}`) : null;
+                const byName = gradeSubjects.get(`name:${r.full_name}`) || gradeSubjects.get(`name:${r.teacher_name}`);
+                const subjectSet = byId || byName;
+                r.subject = subjectSet ? Array.from(subjectSet).join(', ') : '';
             }
         }
 
         // Separate into absences and tardiness
-        const staffAbsences = staffRecords.filter(r => r.type === 'absence');
-        const staffTardiness = staffRecords.filter(r => r.type === 'late');
+        const staffAbsences = staffRecords.filter((r) => r.type === 'absence');
+        const staffTardiness = staffRecords.filter((r) => r.type === 'late');
 
         // 2. Teacher → sections mapping (derived from grades)
-        const teacherSectionRows = db.prepare(`
-            SELECT DISTINCT teacher_name, section
+        const teacherSectionRows = db
+            .prepare(
+                `
+            SELECT teacher_id, teacher_name, section
             FROM grades
             WHERE school_year = ?
-              AND teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''
               AND section IS NOT NULL AND TRIM(section) <> ''
-        `).all(year);
+              AND ((teacher_id IS NOT NULL AND teacher_id > 0) OR (teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''))
+        `
+            )
+            .all(year);
 
         const teacherSections = {};
         for (const row of teacherSectionRows) {
-            if (!teacherSections[row.teacher_name]) {
-                teacherSections[row.teacher_name] = [];
+            const key = row.teacher_id ? `id:${row.teacher_id}` : `name:${row.teacher_name}`;
+            if (!teacherSections[key]) {
+                teacherSections[key] = [];
             }
-            teacherSections[row.teacher_name].push(row.section);
+            if (!teacherSections[key].includes(row.section)) {
+                teacherSections[key].push(row.section);
+            }
+            if (row.teacher_name) {
+                if (!teacherSections[row.teacher_name]) {
+                    teacherSections[row.teacher_name] = [];
+                }
+                if (!teacherSections[row.teacher_name].includes(row.section)) {
+                    teacherSections[row.teacher_name].push(row.section);
+                }
+            }
         }
 
         // 3. Student counts per section
-        const sectionRows = db.prepare(`
+        const sectionRows = db
+            .prepare(
+                `
             SELECT section, COUNT(*) as count
             FROM students
             WHERE school_year = ? AND status = 'active'
               AND section IS NOT NULL AND TRIM(section) <> ''
             GROUP BY section
             ORDER BY section
-        `).all(year);
+        `
+            )
+            .all(year);
 
         const sectionStudentCounts = {};
         for (const row of sectionRows) {
@@ -333,17 +619,29 @@ function registerStaffIpc(ipcMain) {
         }
 
         // 4. All sections list
-        const allSections = sectionRows.map(r => r.section);
+        const allSections = sectionRows.map((r) => r.section);
 
         // 5. Affected sections — combine legacy absences + new staff absences
         const affectedSections = {};
         const allAbsenceRecords = [...absences, ...staffAbsences];
         for (const absence of allAbsenceRecords) {
             const name = absence.full_name;
-            if (name && teacherSections[name] && !affectedSections[name]) {
-                affectedSections[name] = teacherSections[name];
+            const teacherKey = absence.teacher_id ? `id:${absence.teacher_id}` : `name:${name}`;
+            if (name && teacherSections[teacherKey] && !affectedSections[name]) {
+                affectedSections[name] = teacherSections[teacherKey];
             }
         }
+
+        // 6. School events for this date
+        const events = db
+            .prepare(
+                `
+            SELECT * FROM school_events
+            WHERE event_date = ? AND school_year = ?
+            ORDER BY event_time, id
+        `
+            )
+            .all(date, year);
 
         return {
             absences,
@@ -352,8 +650,126 @@ function registerStaffIpc(ipcMain) {
             teacherSections,
             sectionStudentCounts,
             allSections,
-            affectedSections
+            affectedSections,
+            events
         };
+    });
+
+    // ── School Events CRUD ──
+
+    handleWriteSoftAuth(ipcMain, 'schoolEvents:save', ['admin', 'staff'], (db, payload) => {
+        const { id, event_date, event_type, details, event_time, school_year } = payload;
+        requireFields(payload, ['event_date', 'event_type', 'school_year']);
+        const year = normalizeYear(school_year);
+
+        if (id) {
+            db.prepare(
+                `
+                UPDATE school_events
+                SET event_type = ?, details = ?, event_time = ?, event_date = ?, school_year = ?
+                WHERE id = ?
+            `
+            ).run(event_type, details || '', event_time || '', event_date, year, id);
+            return { success: true, id };
+        } else {
+            const result = db
+                .prepare(
+                    `
+                INSERT INTO school_events (event_date, event_type, details, event_time, school_year)
+                VALUES (?, ?, ?, ?, ?)
+            `
+                )
+                .run(event_date, event_type, details || '', event_time || '', year);
+            return { success: true, id: result.lastInsertRowid };
+        }
+    });
+
+    handleWriteSoftAuth(ipcMain, 'schoolEvents:delete', ['admin', 'staff'], (db, eventId) => {
+        if (!eventId) return { success: false, error: 'Invalid ID' };
+        db.prepare('DELETE FROM school_events WHERE id = ?').run(eventId);
+        return { success: true };
+    });
+
+    // ── Compensation Tracking ──
+
+    handleRead(ipcMain, 'compensation:getByDate', (db, date, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        return db
+            .prepare(
+                `
+            SELECT c.*, COALESCE(t.full_name, c.teacher_name) as teacher_name
+            FROM compensation_tracking c
+            LEFT JOIN teachers t ON t.id = c.teacher_id
+            WHERE c.absence_date = ? AND c.school_year = ?
+            ORDER BY c.section, c.period_slot
+        `
+            )
+            .all(date, year);
+    });
+
+    handleRead(ipcMain, 'compensation:getPending', (db, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        return db
+            .prepare(
+                `
+            SELECT c.*, COALESCE(t.full_name, c.teacher_name) as teacher_name
+            FROM compensation_tracking c
+            LEFT JOIN teachers t ON t.id = c.teacher_id
+            WHERE c.compensated = 0 AND c.school_year = ?
+            ORDER BY c.absence_date DESC, c.section, c.period_slot
+        `
+            )
+            .all(year);
+    });
+
+    handleWriteSoftAuth(ipcMain, 'compensation:saveBatch', ['admin', 'staff'], (db, sessions) => {
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+            return { success: true, inserted: 0 };
+        }
+        const stmt = db.prepare(`
+            INSERT OR IGNORE INTO compensation_tracking
+                (absence_date, teacher_id, teacher_name, section, period_slot, period_time, subject, school_year)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        const txn = db.transaction((items) => {
+            let inserted = 0;
+            for (const s of items) {
+                const resolved = resolveTeacherIdentity(db, {
+                    teacher_id: s.teacher_id,
+                    teacher_name: s.teacher_name,
+                    subject: s.subject,
+                    school_year: normalizeYear(s.school_year),
+                    source: 'compensation'
+                });
+                const result = stmt.run(
+                    s.absence_date,
+                    resolved.teacher_id || null,
+                    resolved.teacher_name || s.teacher_name || null,
+                    s.section,
+                    s.period_slot,
+                    s.period_time || '',
+                    resolved.subject || s.subject || '',
+                    normalizeYear(s.school_year)
+                );
+                if (result.changes > 0) inserted++;
+            }
+            return inserted;
+        });
+        const inserted = txn(sessions);
+        return { success: true, inserted };
+    });
+
+    handleWriteSoftAuth(ipcMain, 'compensation:toggleCompensated', ['admin', 'staff'], (db, id, compensated) => {
+        if (!id) return { success: false, error: 'Invalid ID' };
+        const val = compensated ? 1 : 0;
+        db.prepare(
+            `
+            UPDATE compensation_tracking
+            SET compensated = ?, compensated_date = CASE WHEN ? = 1 THEN date('now') ELSE NULL END
+            WHERE id = ?
+        `
+        ).run(val, val, id);
+        return { success: true };
     });
 }
 

@@ -27,6 +27,7 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'staff-attendance.html', title: 'الحضور والغياب', group: 'تدبير الموظفين', completed: true },
     { page: 'staff-daily-report.html', title: 'التقرير اليومي', group: 'تدبير الموظفين', completed: true },
     { page: 'timetable.html', title: 'جداول الحصص', group: 'الاستعمال الزمني', completed: true },
+    { page: 'timetable-redistribution.html', title: 'إعادة توزيع الأقسام', group: 'الاستعمال الزمني', completed: true },
     { page: 'timetable-students.html', title: 'جدول حصص التلاميذ', group: 'الاستعمال الزمني', completed: true },
     { page: 'timetable-rooms.html', title: 'جدول القاعات', group: 'الاستعمال الزمني', completed: true },
     { page: 'timetable-teachers.html', title: 'جدول حصص الأساتذة', group: 'الاستعمال الزمني', completed: true },
@@ -52,7 +53,12 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'settings-license.html', title: 'الترخيص والأجهزة', group: 'الإعدادات', completed: true },
     { page: 'settings-logs.html', title: 'سجل النشاطات', group: 'الإعدادات', completed: true },
     { page: 'student-profile-prototype.html', title: 'ملف التلميذ', group: 'التلاميذ', completed: false },
-    { page: 'communication-center-prototype.html', title: 'مركز التواصل (جديد)', group: 'التصاميم الجديدة', completed: false }
+    {
+        page: 'communication-center-prototype.html',
+        title: 'مركز التواصل (جديد)',
+        group: 'التصاميم الجديدة',
+        completed: false
+    }
 ]);
 
 const PAGE_DEFAULT_VISIBILITY = Object.freeze(
@@ -84,7 +90,7 @@ try {
 } catch (_err) {
     _limitedNoticeClosedForPage = false;
 }
-let _refreshToken = 0;  // stale-request guard for refreshLimitedModeNotice
+let _refreshToken = 0; // stale-request guard for refreshLimitedModeNotice
 let _pageVisibilityState = null;
 let _pageVisibilityLoadPromise = null;
 
@@ -99,7 +105,7 @@ function _computeSessionHash(data) {
     const combined = key + ':' + payload;
     for (let i = 0; i < combined.length; i++) {
         const char = combined.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
+        hash = (hash << 5) - hash + char;
         hash = hash & hash; // Convert to 32bit integer
     }
     return hash.toString(36);
@@ -252,7 +258,8 @@ function applyPageVisibilityToDocument(role) {
     document.querySelectorAll('a[href], [onclick*="location.href"], [data-page-link]').forEach((node) => {
         const linkedPage = _extractLinkedPageFromElement(node);
         if (!linkedPage) return;
-        const shouldHide = !isAdmin && (ADMIN_ONLY_PAGES.has(linkedPage) || _isPageHiddenByAdminToggle(linkedPage, role));
+        const shouldHide =
+            !isAdmin && (ADMIN_ONLY_PAGES.has(linkedPage) || _isPageHiddenByAdminToggle(linkedPage, role));
         _setPageLinkElementHidden(node, shouldHide);
     });
 }
@@ -444,10 +451,7 @@ function setAuthSession(email = '', user = {}) {
             source: 'sqlite'
         };
         sessionData._h = _computeSessionHash(sessionData);
-        localStorage.setItem(
-            AUTH_SESSION_KEY,
-            JSON.stringify(sessionData)
-        );
+        localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(sessionData));
     } catch (_err) {
         // ignore storage write errors
     }
@@ -503,9 +507,9 @@ function applyNavigationRestrictions(authRole, accessState) {
                 const isAuth = _isAuthenticatedRole(currentRole);
                 const message = isAuth
                     ? 'هذه الصفحة مخصصة للمشرف (Admin)'
-                    : (currentAccess === 'licensed' || currentAccess === 'trial')
-                        ? 'هذه الصفحة مخصصة للمشرف (Admin)'
-                        : 'الوصول في الوضع المحدود متاح فقط لصفحتي اللوائح والاستيراد';
+                    : currentAccess === 'licensed' || currentAccess === 'trial'
+                      ? 'هذه الصفحة مخصصة للمشرف (Admin)'
+                      : 'الوصول في الوضع المحدود متاح فقط لصفحتي اللوائح والاستيراد';
                 showToast(message, 'warning');
             });
             link.dataset.limitedGuardBound = '1';
@@ -743,8 +747,12 @@ function _ensureActivationModal(forced = false) {
     _activationModalEl = modal;
 
     const closeAction = forced
-        ? () => { if (window.api?.system?.quit) window.api.system.quit(); }
-        : () => { modal.style.display = 'none'; };
+        ? () => {
+              if (window.api?.system?.quit) window.api.system.quit();
+          }
+        : () => {
+              modal.style.display = 'none';
+          };
 
     modal.querySelector('#activation-close-btn')?.addEventListener('click', closeAction);
     modal.querySelector('#activation-cancel-btn')?.addEventListener('click', closeAction);
@@ -862,9 +870,12 @@ function ensureLimitedModeNotice(authRole, accessState, activationStatus = null)
 
         const daysRemaining = activationStatus?.trialDaysRemaining ?? 0;
         const existing = existingBanner;
-        const urgency = daysRemaining <= 7 ? 'border:1px solid #fecaca;background:#fef2f2;color:#991b1b;' :
-            daysRemaining <= 30 ? 'border:1px dashed #f59e0b;background:#fff8e8;color:#7a4b0e;' :
-                'border:1px solid #b4c9f0;background:#e8f0fe;color:#1a56db;';
+        const urgency =
+            daysRemaining <= 7
+                ? 'border:1px solid #fecaca;background:#fef2f2;color:#991b1b;'
+                : daysRemaining <= 30
+                  ? 'border:1px dashed #f59e0b;background:#fff8e8;color:#7a4b0e;'
+                  : 'border:1px solid #b4c9f0;background:#e8f0fe;color:#1a56db;';
         const icon = daysRemaining <= 7 ? 'fa-exclamation-triangle' : 'fa-clock';
 
         const html = `
@@ -994,7 +1005,7 @@ function refreshLimitedModeNotice(authRole, accessState) {
                 return;
             }
 
-            const isActivated = !!(res.activated);
+            const isActivated = !!res.activated;
             if (isActivated) {
                 if (getAppAccessState() !== 'licensed') {
                     const session = isAuthSessionActive() ? getAuthSessionData() : null;
@@ -1030,7 +1041,9 @@ function refreshLimitedModeNotice(authRole, accessState) {
 
 // ── Role display helpers ──
 function _normalizeRole(raw) {
-    const r = String(raw || '').trim().toLowerCase();
+    const r = String(raw || '')
+        .trim()
+        .toLowerCase();
     if (['admin', 'مشرف'].includes(r)) return 'admin';
     if (['staff', 'موظف'].includes(r)) return 'staff';
     if (['viewer', 'مشاهد'].includes(r)) return 'viewer';
@@ -1058,23 +1071,27 @@ function openChangePasswordModal() {
 
     const modal = document.createElement('div');
     modal.id = 'change-pw-modal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5);';
-    modal.innerHTML = ''
-        + '<div style="background:var(--color-surface,#fff);border-radius:16px;padding:28px 24px;width:min(400px,90vw);box-shadow:0 20px 50px rgba(0,0,0,0.2);position:relative;direction:rtl;font-family:var(--font-main);">'
-        + '<button type="button" id="cpw-close" style="position:absolute;top:12px;left:12px;width:32px;height:32px;border-radius:8px;border:1px solid var(--color-accent,#e5e7eb);background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);"><i class="fas fa-times"></i></button>'
-        + '<h3 style="margin:0 0 20px;font-size:18px;font-weight:700;color:var(--color-text-main);"><i class="fas fa-key" style="margin-left:8px;color:var(--color-primary);"></i>تغيير كلمة المرور</h3>'
-        + '<div id="cpw-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
-        + '<div id="cpw-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
-        + '<form id="cpw-form" style="display:flex;flex-direction:column;gap:14px;">'
-        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">كلمة المرور الحالية</label><input type="password" id="cpw-current" required style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>'
-        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">كلمة المرور الجديدة</label><input type="password" id="cpw-new" required minlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>'
-        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد كلمة المرور الجديدة</label><input type="password" id="cpw-confirm" required minlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>'
-        + '<button type="submit" style="padding:12px;background:var(--color-primary,#3B6AC5);color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">تغيير كلمة المرور</button>'
-        + '</form></div>';
+    modal.style.cssText =
+        'position:fixed;inset:0;z-index:10100;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5);';
+    modal.innerHTML =
+        '' +
+        '<div style="background:var(--color-surface,#fff);border-radius:16px;padding:28px 24px;width:min(400px,90vw);box-shadow:0 20px 50px rgba(0,0,0,0.2);position:relative;direction:rtl;font-family:var(--font-main);">' +
+        '<button type="button" id="cpw-close" style="position:absolute;top:12px;left:12px;width:32px;height:32px;border-radius:8px;border:1px solid var(--color-accent,#e5e7eb);background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);"><i class="fas fa-times"></i></button>' +
+        '<h3 style="margin:0 0 20px;font-size:18px;font-weight:700;color:var(--color-text-main);"><i class="fas fa-key" style="margin-left:8px;color:var(--color-primary);"></i>تغيير كلمة المرور</h3>' +
+        '<div id="cpw-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>' +
+        '<div id="cpw-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>' +
+        '<form id="cpw-form" style="display:flex;flex-direction:column;gap:14px;">' +
+        '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">كلمة المرور الحالية</label><input type="password" id="cpw-current" required style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>' +
+        '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">كلمة المرور الجديدة</label><input type="password" id="cpw-new" required minlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>' +
+        '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد كلمة المرور الجديدة</label><input type="password" id="cpw-confirm" required minlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:14px;font-family:inherit;"></div>' +
+        '<button type="submit" style="padding:12px;background:var(--color-primary,#3B6AC5);color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">تغيير كلمة المرور</button>' +
+        '</form></div>';
     document.body.appendChild(modal);
 
     document.getElementById('cpw-close').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
 
     document.getElementById('cpw-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1133,7 +1150,8 @@ function showLockScreen() {
 
     const overlay = document.createElement('div');
     overlay.id = 'lock-screen-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.85);z-index:10200;padding:16px;';
+    overlay.style.cssText =
+        'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.85);z-index:10200;padding:16px;';
 
     const session = getAuthSessionData();
     const userName = String(session?.name || session?.email || 'المستخدم').trim() || 'المستخدم';
@@ -1169,20 +1187,23 @@ function showLockScreen() {
     // Determine if PIN is available
     let usePinMode = false;
     if (window.api?.auth?.getPinStatus) {
-        window.api.auth.getPinStatus().then((res) => {
-            if (res?.success && res.configured && !res.locked) {
-                usePinMode = true;
-                overlay.querySelector('#lock-pin-section').style.display = '';
-                overlay.querySelector('#lock-use-password-btn').style.display = '';
-                overlay.querySelector('#lock-pin-input')?.focus();
-            } else {
+        window.api.auth
+            .getPinStatus()
+            .then((res) => {
+                if (res?.success && res.configured && !res.locked) {
+                    usePinMode = true;
+                    overlay.querySelector('#lock-pin-section').style.display = '';
+                    overlay.querySelector('#lock-use-password-btn').style.display = '';
+                    overlay.querySelector('#lock-pin-input')?.focus();
+                } else {
+                    overlay.querySelector('#lock-password-section').style.display = '';
+                    overlay.querySelector('#lock-pw-input')?.focus();
+                }
+            })
+            .catch(() => {
                 overlay.querySelector('#lock-password-section').style.display = '';
                 overlay.querySelector('#lock-pw-input')?.focus();
-            }
-        }).catch(() => {
-            overlay.querySelector('#lock-password-section').style.display = '';
-            overlay.querySelector('#lock-pw-input')?.focus();
-        });
+            });
     } else {
         overlay.querySelector('#lock-password-section').style.display = '';
         overlay.querySelector('#lock-pw-input')?.focus();
@@ -1231,7 +1252,10 @@ function showLockScreen() {
                     errorEl.style.display = '';
                 }
             } catch (_err) {
-                if (errorEl) { errorEl.textContent = 'حدث خطأ'; errorEl.style.display = ''; }
+                if (errorEl) {
+                    errorEl.textContent = 'حدث خطأ';
+                    errorEl.style.display = '';
+                }
             }
             overlay.querySelector('#lock-pin-input').value = '';
             overlay.querySelector('#lock-pin-input')?.focus();
@@ -1251,7 +1275,10 @@ function showLockScreen() {
                     errorEl.style.display = '';
                 }
             } catch (_err) {
-                if (errorEl) { errorEl.textContent = 'حدث خطأ'; errorEl.style.display = ''; }
+                if (errorEl) {
+                    errorEl.textContent = 'حدث خطأ';
+                    errorEl.style.display = '';
+                }
             }
             overlay.querySelector('#lock-pw-input').value = '';
             overlay.querySelector('#lock-pw-input')?.focus();
@@ -1291,24 +1318,28 @@ function openPinSetupModal() {
 
     const modal = document.createElement('div');
     modal.id = 'pin-setup-modal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5);';
-    modal.innerHTML = ''
-        + '<div style="background:var(--color-surface,#fff);border-radius:16px;padding:28px 24px;width:min(380px,90vw);box-shadow:0 20px 50px rgba(0,0,0,0.2);position:relative;direction:rtl;font-family:var(--font-main);">'
-        + '<button type="button" id="pin-close" style="position:absolute;top:12px;left:12px;width:32px;height:32px;border-radius:8px;border:1px solid var(--color-accent,#e5e7eb);background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);"><i class="fas fa-times"></i></button>'
-        + '<h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--color-text-main);"><i class="fas fa-lock" style="margin-left:8px;color:var(--color-primary);"></i>إعداد رمز PIN</h3>'
-        + '<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">رمز PIN يتيح لك قفل الجلسة وفتحها بسرعة دون الحاجة لكلمة المرور.</p>'
-        + '<div id="pin-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
-        + '<div id="pin-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>'
-        + '<form id="pin-form" style="display:flex;flex-direction:column;gap:14px;">'
-        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">رمز PIN (4-6 أرقام)</label><input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:18px;text-align:center;letter-spacing:8px;direction:ltr;font-family:ui-monospace,monospace;"></div>'
-        + '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد رمز PIN</label><input type="password" id="pin-confirm" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:18px;text-align:center;letter-spacing:8px;direction:ltr;font-family:ui-monospace,monospace;"></div>'
-        + '<button type="submit" style="padding:12px;background:var(--color-primary,#3B6AC5);color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">حفظ رمز PIN</button>'
-        + '</form></div>';
+    modal.style.cssText =
+        'position:fixed;inset:0;z-index:10100;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,0.5);';
+    modal.innerHTML =
+        '' +
+        '<div style="background:var(--color-surface,#fff);border-radius:16px;padding:28px 24px;width:min(380px,90vw);box-shadow:0 20px 50px rgba(0,0,0,0.2);position:relative;direction:rtl;font-family:var(--font-main);">' +
+        '<button type="button" id="pin-close" style="position:absolute;top:12px;left:12px;width:32px;height:32px;border-radius:8px;border:1px solid var(--color-accent,#e5e7eb);background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);"><i class="fas fa-times"></i></button>' +
+        '<h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--color-text-main);"><i class="fas fa-lock" style="margin-left:8px;color:var(--color-primary);"></i>إعداد رمز PIN</h3>' +
+        '<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">رمز PIN يتيح لك قفل الجلسة وفتحها بسرعة دون الحاجة لكلمة المرور.</p>' +
+        '<div id="pin-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>' +
+        '<div id="pin-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>' +
+        '<form id="pin-form" style="display:flex;flex-direction:column;gap:14px;">' +
+        '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">رمز PIN (4-6 أرقام)</label><input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:18px;text-align:center;letter-spacing:8px;direction:ltr;font-family:ui-monospace,monospace;"></div>' +
+        '<div><label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد رمز PIN</label><input type="password" id="pin-confirm" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6" style="width:100%;padding:11px 14px;border:1px solid var(--color-accent,#e5e7eb);border-radius:8px;font-size:18px;text-align:center;letter-spacing:8px;direction:ltr;font-family:ui-monospace,monospace;"></div>' +
+        '<button type="submit" style="padding:12px;background:var(--color-primary,#3B6AC5);color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">حفظ رمز PIN</button>' +
+        '</form></div>';
     document.body.appendChild(modal);
     _pinSetupModalEl = modal;
 
     document.getElementById('pin-close').addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
 
     document.getElementById('pin-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1427,7 +1458,7 @@ function ensureAdminAuthButton(authRole, accessState) {
     }
 
     // ── Remove old header-based auth/activate buttons ──
-    document.querySelectorAll('[data-admin-auth-btn="1"], [data-activate-link-btn="1"]').forEach(el => el.remove());
+    document.querySelectorAll('[data-admin-auth-btn="1"], [data-activate-link-btn="1"]').forEach((el) => el.remove());
 
     // ── Update UI based on role ──
     const isAuthenticated = _isAuthenticatedRole(authRole);
@@ -1451,7 +1482,8 @@ function ensureAdminAuthButton(authRole, accessState) {
         if (changePwBtn) changePwBtn.style.display = '';
         if (lockBtn) lockBtn.style.display = '';
         if (pinSetupBtn) pinSetupBtn.style.display = '';
-        loginBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
+        loginBtn.innerHTML =
+            '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
         loginBtn.title = '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c';
         loginBtn.classList.remove('sidebar-auth-login');
         loginBtn.classList.add('sidebar-auth-logout');
@@ -1462,8 +1494,10 @@ function ensureAdminAuthButton(authRole, accessState) {
         if (lockBtn) lockBtn.style.display = 'none';
         if (pinSetupBtn) pinSetupBtn.style.display = 'none';
         if (activateBtn) activateBtn.style.display = accessState === 'blocked' ? '' : 'none';
-        loginBtn.innerHTML = '<i class="fas fa-user-shield"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628</span>';
-        loginBtn.title = '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628';
+        loginBtn.innerHTML =
+            '<i class="fas fa-user-shield"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628</span>';
+        loginBtn.title =
+            '\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062f\u062e\u0648\u0644 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u062d\u0633\u0627\u0628';
         loginBtn.classList.remove('sidebar-auth-logout');
         loginBtn.classList.add('sidebar-auth-login');
     }
@@ -1644,10 +1678,10 @@ function showToast(message, type = 'success', duration = 3000) {
 
     const icon = document.createElement('i');
     const iconClass = {
-        'success': 'fa-check-circle',
-        'error': 'fa-exclamation-circle',
-        'warning': 'fa-exclamation-triangle',
-        'info': 'fa-info-circle'
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
     };
     icon.className = `fas ${iconClass[type] || iconClass.info}`;
 
@@ -1677,8 +1711,18 @@ function formatDate(date, format = 'short') {
     if (isNaN(d.getTime())) return '';
 
     const arabicMonths = [
-        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+        'يناير',
+        'فبراير',
+        'مارس',
+        'أبريل',
+        'مايو',
+        'يونيو',
+        'يوليو',
+        'أغسطس',
+        'سبتمبر',
+        'أكتوبر',
+        'نوفمبر',
+        'ديسمبر'
     ];
 
     const arabicDays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -1749,14 +1793,15 @@ function setupSidebar() {
             sidebar.classList.toggle('collapsed');
             const mainContent = document.querySelector('.main-content');
             if (mainContent) {
-                const sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim() || '280px';
+                const sidebarWidth =
+                    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim() || '280px';
                 mainContent.style.marginRight = sidebar.classList.contains('collapsed') ? '' : sidebarWidth;
             }
         });
     }
 
     // Expandable menu items
-    document.querySelectorAll('.expandable > .nav-link').forEach(link => {
+    document.querySelectorAll('.expandable > .nav-link').forEach((link) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             link.parentElement.classList.toggle('open');
@@ -1765,7 +1810,7 @@ function setupSidebar() {
 
     // Check for current page to mark active
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+    document.querySelectorAll('.sidebar-nav a').forEach((link) => {
         const href = link.getAttribute('href');
         if (href === currentPage) {
             link.classList.add('active');
@@ -1932,12 +1977,12 @@ function debounce(func, wait = 300) {
  * لإضافة مستوى جديد: أضف سطراً واحداً هنا فقط.
  */
 const LEVEL_CODE_TO_AR = Object.freeze({
-    'TCSF': { name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 },
-    'TCSA': { name: 'الجذع المشترك العلمي خيار عربية', order: 2 },
-    'TCS': { name: 'الجذع المشترك العلمي', order: 1 },
-    'TCLSH': { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    'TCL': { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    'TCTF': { name: 'الجذع المشترك التكنولوجي', order: 4 },
+    TCSF: { name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 },
+    TCSA: { name: 'الجذع المشترك العلمي خيار عربية', order: 2 },
+    TCS: { name: 'الجذع المشترك العلمي', order: 1 },
+    TCLSH: { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
+    TCL: { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
+    TCTF: { name: 'الجذع المشترك التكنولوجي', order: 4 },
     '1BACSMF': { name: 'الأولى باكالوريا علوم رياضية خيار فرنسية', order: 5 },
     '1BACSMA': { name: 'الأولى باكالوريا علوم رياضية خيار عربية', order: 6 },
     '1BACSM': { name: 'الأولى باكالوريا العلوم الرياضية', order: 5 },
@@ -1972,7 +2017,7 @@ const LEVEL_CODE_TO_AR = Object.freeze({
     '2BACGC': { name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
     '2BACSA': { name: 'الثانية باكالوريا علوم شرعية', order: 19 },
     '2BACOAF': { name: 'الثانية باكالوريا تعليم أصيل', order: 20 },
-    '2BACAO': { name: 'الثانية باكالوريا تعليم أصيل', order: 20 },
+    '2BACAO': { name: 'الثانية باكالوريا تعليم أصيل', order: 20 }
 });
 const _LEVEL_KEYS_DESC = Object.keys(LEVEL_CODE_TO_AR).sort((a, b) => b.length - a.length);
 
@@ -1984,7 +2029,10 @@ const _LEVEL_KEYS_DESC = Object.keys(LEVEL_CODE_TO_AR).sort((a, b) => b.length -
 function getLevelFromSection(section) {
     if (!section) return { code: 'other', name: 'أخرى', order: 99 };
     const s = String(section).trim();
-    const upper = s.toUpperCase().replace(/[-_\s]?\d+$/, '').trim();
+    const upper = s
+        .toUpperCase()
+        .replace(/[-_\s]?\d+$/, '')
+        .trim();
     for (const key of _LEVEL_KEYS_DESC) {
         if (upper === key || upper.startsWith(key)) {
             const info = LEVEL_CODE_TO_AR[key];
@@ -2056,9 +2104,9 @@ function sortSectionNames(sectionNames) {
 /**
  * تعبئة قائمة أساتذة مجمّعة حسب المادة في عنصر <select>
  * @param {HTMLSelectElement} selectEl - عنصر القائمة المنسدلة
- * @param {Array} grades - مصفوفة النقاط (كل عنصر يحتوي على _teacher و _subject)
+ * @param {Array} grades - مصفوفة النقاط (كل عنصر يحتوي على _teacherKey و _teacher و _subject)
  * @param {string} [defaultLabel='كل الأساتذة'] - نص الخيار الافتراضي
- * @returns {string[]} - قائمة أسماء الأساتذة المدرجة
+ * @returns {string[]} - قائمة مفاتيح الأساتذة المدرجة
  */
 function populateTeachersBySubject(selectEl, grades, defaultLabel) {
     if (!selectEl) return [];
@@ -2067,33 +2115,42 @@ function populateTeachersBySubject(selectEl, grades, defaultLabel) {
     // Build teacher → subject frequency map
     const teacherSubjectCount = new Map();
     grades.forEach((g) => {
-        if (!g._teacher || !g._subject) return;
-        if (!teacherSubjectCount.has(g._teacher)) teacherSubjectCount.set(g._teacher, new Map());
-        const subMap = teacherSubjectCount.get(g._teacher);
+        if (!g._teacherKey || !g._teacher || !g._subject) return;
+        if (!teacherSubjectCount.has(g._teacherKey)) {
+            teacherSubjectCount.set(g._teacherKey, { teacher: g._teacher, subjects: new Map() });
+        }
+        const entry = teacherSubjectCount.get(g._teacherKey);
+        const subMap = entry.subjects;
         subMap.set(g._subject, (subMap.get(g._subject) || 0) + 1);
     });
 
     // Find primary subject (most frequent) for each teacher
     const teacherPrimarySubject = new Map();
-    teacherSubjectCount.forEach((subMap, teacher) => {
-        let maxSubject = '', maxCount = 0;
-        subMap.forEach((count, subject) => {
-            if (count > maxCount) { maxCount = count; maxSubject = subject; }
+    teacherSubjectCount.forEach((entry, teacherKey) => {
+        let maxSubject = '',
+            maxCount = 0;
+        entry.subjects.forEach((count, subject) => {
+            if (count > maxCount) {
+                maxCount = count;
+                maxSubject = subject;
+            }
         });
-        teacherPrimarySubject.set(teacher, maxSubject);
+        teacherPrimarySubject.set(teacherKey, { teacher: entry.teacher, subject: maxSubject });
     });
 
     // Group teachers by primary subject
     const subjectTeachers = new Map();
-    teacherPrimarySubject.forEach((subject, teacher) => {
-        const key = subject || 'أخرى';
+    teacherPrimarySubject.forEach((entry, teacherKey) => {
+        const key = entry.subject || 'أخرى';
         if (!subjectTeachers.has(key)) subjectTeachers.set(key, []);
-        subjectTeachers.get(key).push(teacher);
+        subjectTeachers.get(key).push({ key: teacherKey, label: entry.teacher });
     });
 
     // Sort subjects alphabetically, sort teachers within each group
-    const sortedSubjects = Array.from(subjectTeachers.keys()).sort((a, b) => a.localeCompare(b, 'ar'));
-    sortedSubjects.forEach((subj) => subjectTeachers.get(subj).sort((a, b) => a.localeCompare(b, 'ar')));
+    const sortedSubjects = Array.from(subjectTeachers.keys()).sort(
+        typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar')
+    );
+    sortedSubjects.forEach((subj) => subjectTeachers.get(subj).sort((a, b) => a.label.localeCompare(b.label, 'ar')));
 
     // Populate the select element
     selectEl.innerHTML = `<option value="">${escapeHtml(defaultLabel)}</option>`;
@@ -2108,101 +2165,34 @@ function populateTeachersBySubject(selectEl, grades, defaultLabel) {
 
         subjectTeachers.get(subject).forEach((teacher) => {
             const o = document.createElement('option');
-            o.value = teacher;
-            o.textContent = teacher;
+            o.value = teacher.key;
+            o.textContent = teacher.label;
             selectEl.appendChild(o);
-            allTeachers.push(teacher);
+            allTeachers.push(teacher.key);
         });
     });
 
     return allTeachers;
 }
 
-// ===== Subject Name Normalization (Central) =====
-// ─── French → Arabic subject name mapping ──────────────────────────────────────
-const SUBJECT_FR_TO_AR = Object.freeze({
-    'MATHEMATIQUES': 'الرياضيات', 'MATH': 'الرياضيات', 'MATHS': 'الرياضيات',
-    'SCIENCES MATHEMATIQUES': 'الرياضيات',
-    'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
-    'PHYSIQUE ET CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE': 'الفيزياء والكيمياء',
-    'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-    'SVT': 'علوم الحياة والأرض', 'SCIENCES NATURELLES': 'علوم الحياة والأرض',
-    'PHILOSOPHIE': 'الفلسفة', 'PHILO': 'الفلسفة',
-    'LANGUE ARABE': 'اللغة العربية', 'ARABE': 'اللغة العربية',
-    'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAIS': 'اللغة الفرنسية',
-    'FRANCAISE': 'اللغة الفرنسية',
-    'LANGUE FRANÇAISE': 'اللغة الفرنسية', 'FRANÇAIS': 'اللغة الفرنسية',
-    'LANGUE ANGLAISE': 'اللغة الإنجليزية', 'ANGLAIS': 'اللغة الإنجليزية',
-    'ANGLAISE': 'اللغة الإنجليزية', 'LANGUE ANGLAIS': 'اللغة الإنجليزية',
-    'ENGLISH': 'اللغة الإنجليزية',
-    'ESPAGNOL': 'اللغة الإسبانية', 'LANGUE ESPAGNOLE': 'اللغة الإسبانية',
-    'ALLEMAND': 'اللغة الألمانية', 'ITALIEN': 'اللغة الإيطالية',
-    'EDUCATION ISLAMIQUE': 'التربية الإسلامية', 'INSTRUCTION ISLAMIQUE': 'التربية الإسلامية',
-    'ISLAMIQUE': 'التربية الإسلامية',
-    'EDUCATION PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
-    'EDUCATION PHYSIQUE': 'التربية البدنية', 'EPS': 'التربية البدنية', 'SPORT': 'التربية البدنية',
-    'HISTOIRE ET GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HISTOIRE-GEOGRAPHIE': 'التاريخ والجغرافيا', 'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HISTOIRE': 'التاريخ والجغرافيا', 'GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'INFORMATIQUE': 'المعلوميات',
-    'ECONOMIE GENERALE': 'الاقتصاد العام والإحصاء', 'ECONOMIE ET ORGANISATION': 'الاقتصاد والتنظيم الإداري للمقاولات',
-    'ECONOMIE': 'الاقتصاد العام والإحصاء', 'SCIENCES ECONOMIQUES': 'الاقتصاد العام والإحصاء',
-    // Economics branch subjects (Massar export forms)
-    'ECO GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
-    'ECO. GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
-    'ECONOMIE GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
-    'ECO ET ORG ADMIN ENTREPRISE': 'الاقتصاد والتنظيم الإداري للمقاولات',
-    'ECO. ET ORG. ADMIN. ENTREPRISE': 'الاقتصاد والتنظيم الإداري للمقاولات',
-    'ECONOMIE ET ORGANISATION ADMINISTRATIVE DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
-    'ECONOMIE ET ORGANISATION DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
-    'ECO ET ORGANISATION': 'الاقتصاد والتنظيم الإداري للمقاولات',
-    'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
-    'COMPTABILITE': 'المحاسبة والرياضيات المالية',
-    'INFORMATIQUE DE GESTION': 'معلوميات التدبير',
-    'DROIT': 'القانون', 'TRADUCTION': 'الترجمة',
-    "SCIENCES DE L'INGENIEUR": 'علوم المهندس', 'SCIENCES INGENIEURS': 'علوم المهندس',
-    'SI': 'علوم المهندس',
-    'ARTS APPLIQUES': 'الفنون التطبيقية', 'DESSIN': 'الفنون التطبيقية',
-    // Abbreviated forms (Massar exports)
-    'SC DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-    'SC VIE TERRE': 'علوم الحياة والأرض', 'SC NAT': 'علوم الحياة والأرض',
-    'SC PHYSIQUE': 'الفيزياء والكيمياء', 'SC PHYS': 'الفيزياء والكيمياء',
-    'SC MATH': 'الرياضيات', 'SC MATHS': 'الرياضيات',
-    'ED ISLAMIQUE': 'التربية الإسلامية', 'INSTR ISLAMIQUE': 'التربية الإسلامية',
-    'ED PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
-    'ED PHYSIQUE': 'التربية البدنية',
-    'HIST GEO': 'التاريخ والجغرافيا', 'HIST GEOGRAPHIE': 'التاريخ والجغرافيا',
-    'HIST ET GEO': 'التاريخ والجغرافيا',
-    'L ARABE': 'اللغة العربية', 'L FRANCAISE': 'اللغة الفرنسية',
-    'L ANGLAISE': 'اللغة الإنجليزية', 'L ESPAGNOLE': 'اللغة الإسبانية',
-    "SC DE L INGENIEUR": 'علوم المهندس'
-});
-const _SUBJECT_FR_KEYS_DESC = Object.keys(SUBJECT_FR_TO_AR).sort((a, b) => b.length - a.length);
-
-/**
- * تطبيع اسم المادة:
- * 1. إزالة لاحقات الفروض (فرض 1) والأنشطة المندمجة
- * 2. ترجمة الأسماء الفرنسية إلى العربية
- * @param {string} subject - اسم المادة الخام
- * @returns {string} - الاسم المطبّع
- */
+// ===== Subject Name Normalization =====
+// Delegated to translateSubject() from js/data/ma-education-labels.js
+// Local cache for pages where ma-education-labels.js may not be loaded
+const _utilsNormalizeCache = Object.create(null);
 function normalizeSubjectName(subject) {
-    const text = String(subject || '')
-        .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
+    const raw = String(subject || '');
+    if (_utilsNormalizeCache[raw] !== undefined) return _utilsNormalizeCache[raw];
+    const text = raw
+        .replace(/\s*\(\s*(?:فرض|نشط)\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
         .replace(/\s*\(الأنشطة المندمجة\)\s*$/i, '')
         .trim();
-    if (!text) return text;
-    // If it contains Latin letters, try French → Arabic translation
-    if (/[a-zA-Z]/.test(text)) {
-        const upper = text.toUpperCase()
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            .replace(/[_.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
-        if (SUBJECT_FR_TO_AR[upper]) return SUBJECT_FR_TO_AR[upper];
-        for (const key of _SUBJECT_FR_KEYS_DESC) {
-            if (key.length > 3 && (upper.includes(key) || key.includes(upper))) return SUBJECT_FR_TO_AR[key];
-        }
+    if (!text) {
+        _utilsNormalizeCache[raw] = text;
+        return text;
     }
-    return text;
+    const result = typeof translateSubject === 'function' ? translateSubject(text) : text;
+    _utilsNormalizeCache[raw] = result;
+    return result;
 }
 
 // ===== Dynamic School Year =====
@@ -2216,11 +2206,12 @@ function setSchoolYear(newYear) {
     if (!newYear) return;
     localStorage.setItem(SCHOOL_YEAR_KEY, newYear);
     // Use no-auth endpoint specifically for school year to avoid auth rejection
-    const saveToDb = window.api && window.api.settings && window.api.settings.setSchoolYear
-        ? window.api.settings.setSchoolYear(newYear)
-        : (window.api && window.api.settings && window.api.settings.set
-            ? window.api.settings.set('currentSchoolYear', newYear)
-            : Promise.resolve());
+    const saveToDb =
+        window.api && window.api.settings && window.api.settings.setSchoolYear
+            ? window.api.settings.setSchoolYear(newYear)
+            : window.api && window.api.settings && window.api.settings.set
+              ? window.api.settings.set('currentSchoolYear', newYear)
+              : Promise.resolve();
     saveToDb.finally(() => {
         window.location.reload();
     });
@@ -2296,7 +2287,6 @@ if (typeof module !== 'undefined' && module.exports) {
         getLevelFromSection,
         getLevelNameFromSection,
         extractLevelFromSection,
-        SUBJECT_FR_TO_AR,
         normalizeSubjectName,
         sortLevelNames,
         sortSectionNames,
@@ -2311,4 +2301,3 @@ if (typeof module !== 'undefined' && module.exports) {
         openPinSetupModal
     };
 }
-

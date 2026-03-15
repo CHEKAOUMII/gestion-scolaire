@@ -28,6 +28,7 @@ function createTables() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         student_id INTEGER,
         student_code TEXT,
+        teacher_id INTEGER,
         subject TEXT,
         grade REAL,
         semester INTEGER,
@@ -141,10 +142,25 @@ function createTables() {
         total_hours REAL,
         overtime_hours REAL,
         num_classes REAL,
+        is_surplus INTEGER DEFAULT 0,
         source TEXT DEFAULT 'manual',
         school_year TEXT,
         active INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    `);
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS teacher_aliases(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        teacher_id INTEGER NOT NULL,
+        alias_name TEXT NOT NULL,
+        alias_normalized TEXT NOT NULL,
+        source TEXT,
+        school_year TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(teacher_id) REFERENCES teachers(id),
+        UNIQUE(teacher_id, school_year, alias_normalized)
     );
     `);
 
@@ -223,6 +239,7 @@ function createTables() {
         title TEXT NOT NULL,
         section TEXT,
         subject TEXT,
+        teacher_id INTEGER,
         teacher_name TEXT,
         status TEXT DEFAULT 'planned',
         test_date DATE,
@@ -289,9 +306,7 @@ function createTables() {
 
     // Safety net: if admin exists but has no password (e.g. corrupted data), reset it
     const adminNoPw = db
-        .prepare(
-            `SELECT id FROM users WHERE id = 1 AND (password_hash IS NULL OR trim(password_hash) = '')`
-        )
+        .prepare(`SELECT id FROM users WHERE id = 1 AND (password_hash IS NULL OR trim(password_hash) = '')`)
         .get();
     if (adminNoPw) {
         const resetPassword = generateRandomPassword();
@@ -311,14 +326,30 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_absences_year_code   ON absences(school_year, student_code);
         CREATE INDEX IF NOT EXISTS idx_absences_year_month  ON absences(school_year, month);
         CREATE INDEX IF NOT EXISTS idx_teachers_year        ON teachers(school_year);
+        CREATE INDEX IF NOT EXISTS idx_teacher_aliases_lookup ON teacher_aliases(school_year, alias_normalized);
+        CREATE INDEX IF NOT EXISTS idx_teacher_aliases_teacher ON teacher_aliases(teacher_id, school_year);
         CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_date ON staff_attendance(attendance_date, school_year);
     `);
+    try {
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_grades_year_teacher ON grades(school_year, teacher_id)`);
+    } catch {
+        /* column doesn't exist yet on upgraded DBs — migration will create it */
+    }
+    try {
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_tests_year_teacher ON tests(school_year, teacher_id)`);
+    } catch {
+        /* column doesn't exist yet on upgraded DBs — migration will create it */
+    }
     // ppr index: may fail on existing DBs before migration adds the column — migration handles it too
     try {
-        db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_ppr_year ON teachers(ppr, school_year) WHERE ppr IS NOT NULL AND ppr != ''`);
-    } catch (_) { /* column doesn't exist yet — migration will create it */ }
+        db.exec(
+            `CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_ppr_year ON teachers(ppr, school_year) WHERE ppr IS NOT NULL AND ppr != ''`
+        );
+    } catch {
+        /* column doesn't exist yet — migration will create it */
+    }
 }
 
 function ensureLicensingSchema(existingDb) {
@@ -469,17 +500,15 @@ function ensurePageVisibilitySchema(existingDb) {
         if (fs.existsSync(defaultsPath)) {
             const parsed = JSON.parse(fs.readFileSync(defaultsPath, 'utf-8'));
             if (Array.isArray(parsed.hiddenPages) && parsed.hiddenPages.length > 0) {
-                hiddenPages = parsed.hiddenPages.filter(p => typeof p === 'string' && p.endsWith('.html'));
+                hiddenPages = parsed.hiddenPages.filter((p) => typeof p === 'string' && p.endsWith('.html'));
             }
         }
-    } catch (_err) {
+    } catch {
         // fallback to hardcoded defaults above
     }
 
     // Seed hidden pages with INSERT OR IGNORE (only on first creation)
-    const stmt = db.prepare(
-        'INSERT OR IGNORE INTO page_visibility(page_key, is_visible) VALUES(?, 0)'
-    );
+    const stmt = db.prepare('INSERT OR IGNORE INTO page_visibility(page_key, is_visible) VALUES(?, 0)');
     for (const page of hiddenPages) {
         stmt.run(page);
     }

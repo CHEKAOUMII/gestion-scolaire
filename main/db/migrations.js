@@ -1,6 +1,7 @@
 const { getDb } = require('./context');
 const { ensureColumn, ensureLicensingSchema, ensureOwnerSyncSchema, ensurePageVisibilitySchema } = require('./schema');
 const { generateRandomPassword, hashPassword } = require('../auth/password');
+const { normalizeTeacherName, seedTeacherAliases, resolveTeacherIdentity } = require('../teachers/identity');
 
 const MIGRATIONS = [
     {
@@ -97,9 +98,7 @@ const MIGRATIONS = [
                     updated_at  INTEGER DEFAULT (strftime('%s','now') * 1000)
                 )
             `);
-            const seed = db.prepare(
-                'INSERT OR IGNORE INTO school_identity (key, value) VALUES (?, ?)'
-            );
+            const seed = db.prepare('INSERT OR IGNORE INTO school_identity (key, value) VALUES (?, ?)');
             const defaults = [
                 ['country', 'المملكة المغربية'],
                 ['ministry', 'وزارة التربية الوطنية والتعليم الأولي والرياضة'],
@@ -361,6 +360,195 @@ const MIGRATIONS = [
             ensureColumn('teachers', 'total_hours', 'REAL');
             ensureColumn('teachers', 'overtime_hours', 'REAL');
             ensureColumn('teachers', 'num_classes', 'REAL');
+        }
+    },
+    {
+        version: '2026-03-026-school-events-table',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS school_events (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_date  TEXT NOT NULL,
+                    event_type  TEXT NOT NULL,
+                    details     TEXT,
+                    event_time  TEXT,
+                    school_year TEXT NOT NULL,
+                    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_school_events_date ON school_events(event_date, school_year)`);
+        }
+    },
+    {
+        version: '2026-03-027-compensation-tracking',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS compensation_tracking (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    absence_date     TEXT NOT NULL,
+                    teacher_name     TEXT NOT NULL,
+                    section          TEXT NOT NULL,
+                    period_slot      TEXT NOT NULL,
+                    period_time      TEXT,
+                    subject          TEXT,
+                    compensated      INTEGER DEFAULT 0,
+                    compensated_date TEXT,
+                    notes            TEXT,
+                    school_year      TEXT NOT NULL,
+                    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(absence_date, teacher_name, section, period_slot, school_year)
+                )
+            `);
+            db.exec(
+                `CREATE INDEX IF NOT EXISTS idx_compensation_date_year ON compensation_tracking(absence_date, school_year)`
+            );
+            db.exec(
+                `CREATE INDEX IF NOT EXISTS idx_compensation_pending ON compensation_tracking(compensated, school_year)`
+            );
+        }
+    },
+    {
+        version: '2026-03-028-teacher-identity-foundation',
+        up: () => {
+            const db = getDb();
+            ensureColumn('grades', 'teacher_id', 'INTEGER');
+            ensureColumn('tests', 'teacher_id', 'INTEGER');
+            ensureColumn('compensation_tracking', 'teacher_id', 'INTEGER');
+
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS teacher_aliases(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    teacher_id INTEGER NOT NULL,
+                    alias_name TEXT NOT NULL,
+                    alias_normalized TEXT NOT NULL,
+                    source TEXT,
+                    school_year TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(teacher_id) REFERENCES teachers(id),
+                    UNIQUE(teacher_id, school_year, alias_normalized)
+                )
+            `);
+            db.exec(
+                `CREATE INDEX IF NOT EXISTS idx_teacher_aliases_lookup ON teacher_aliases(school_year, alias_normalized)`
+            );
+            db.exec(
+                `CREATE INDEX IF NOT EXISTS idx_teacher_aliases_teacher ON teacher_aliases(teacher_id, school_year)`
+            );
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_grades_year_teacher ON grades(school_year, teacher_id)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_tests_year_teacher ON tests(school_year, teacher_id)`);
+            db.exec(
+                `CREATE INDEX IF NOT EXISTS idx_compensation_year_teacher ON compensation_tracking(school_year, teacher_id)`
+            );
+
+            const teachers = db
+                .prepare("SELECT * FROM teachers WHERE school_year IS NOT NULL AND TRIM(school_year) != ''")
+                .all();
+            const txn = db.transaction(() => {
+                for (const teacher of teachers) {
+                    seedTeacherAliases(db, teacher, teacher.source || 'migration');
+                }
+
+                const grades = db.prepare('SELECT id, teacher_id, teacher_name, school_year FROM grades').all();
+                const updateGrade = db.prepare('UPDATE grades SET teacher_id = ?, teacher_name = ? WHERE id = ?');
+                for (const grade of grades) {
+                    if (Number(grade.teacher_id) > 0) continue;
+                    const resolved = resolveTeacherIdentity(db, {
+                        teacher_name: grade.teacher_name,
+                        school_year: grade.school_year,
+                        source: 'migration:grades'
+                    });
+                    if (resolved.teacher_id) {
+                        updateGrade.run(
+                            resolved.teacher_id,
+                            resolved.teacher_name || grade.teacher_name || null,
+                            grade.id
+                        );
+                    }
+                }
+
+                const tests = db.prepare('SELECT id, teacher_id, teacher_name, school_year FROM tests').all();
+                const updateTest = db.prepare('UPDATE tests SET teacher_id = ?, teacher_name = ? WHERE id = ?');
+                for (const test of tests) {
+                    if (Number(test.teacher_id) > 0) continue;
+                    const resolved = resolveTeacherIdentity(db, {
+                        teacher_name: test.teacher_name,
+                        school_year: test.school_year,
+                        source: 'migration:tests'
+                    });
+                    if (resolved.teacher_id) {
+                        updateTest.run(
+                            resolved.teacher_id,
+                            resolved.teacher_name || test.teacher_name || null,
+                            test.id
+                        );
+                    }
+                }
+
+                const compensationRows = db
+                    .prepare('SELECT id, teacher_id, teacher_name, school_year FROM compensation_tracking')
+                    .all();
+                const updateCompensation = db.prepare(
+                    'UPDATE compensation_tracking SET teacher_id = ?, teacher_name = ? WHERE id = ?'
+                );
+                for (const row of compensationRows) {
+                    if (Number(row.teacher_id) > 0) continue;
+                    const resolved = resolveTeacherIdentity(db, {
+                        teacher_name: row.teacher_name,
+                        school_year: row.school_year,
+                        source: 'migration:compensation'
+                    });
+                    if (resolved.teacher_id) {
+                        updateCompensation.run(
+                            resolved.teacher_id,
+                            resolved.teacher_name || row.teacher_name || null,
+                            row.id
+                        );
+                    }
+                }
+
+                const canonicalRows = db.prepare('SELECT id, full_name, school_year FROM teachers').all();
+                for (const row of canonicalRows) {
+                    const normalized = normalizeTeacherName(row.full_name);
+                    if (!normalized) continue;
+                    db.prepare(
+                        `
+                            INSERT INTO teacher_aliases(teacher_id, alias_name, alias_normalized, source, school_year)
+                            VALUES(?, ?, ?, ?, ?)
+                            ON CONFLICT(teacher_id, school_year, alias_normalized) DO NOTHING
+                        `
+                    ).run(row.id, row.full_name, normalized, 'migration:canonical', row.school_year);
+                }
+            });
+            txn();
+        }
+    },
+    {
+        version: '2026-03-029-teachers-surplus-flag',
+        up: () => {
+            const db = getDb();
+            ensureColumn('teachers', 'is_surplus', 'INTEGER DEFAULT 0');
+            db.exec(`
+                UPDATE teachers
+                SET is_surplus = CASE
+                    WHEN
+                        instr(lower(coalesce(function_title, '')), 'surnombre') > 0 OR
+                        instr(lower(coalesce(function_title, '')), 'excedentaire') > 0 OR
+                        instr(coalesce(function_title, ''), 'excédentaire') > 0 OR
+                        instr(lower(coalesce(position, '')), 'surnombre') > 0 OR
+                        instr(lower(coalesce(position, '')), 'excedentaire') > 0 OR
+                        instr(coalesce(position, ''), 'excédentaire') > 0 OR
+                        instr(lower(coalesce(statut, '')), 'surnombre') > 0 OR
+                        instr(lower(coalesce(statut, '')), 'excedentaire') > 0 OR
+                        instr(coalesce(statut, ''), 'excédentaire') > 0 OR
+                        instr(coalesce(function_title, ''), 'فائض') > 0 OR
+                        instr(coalesce(position, ''), 'فائض') > 0 OR
+                        instr(coalesce(statut, ''), 'فائض') > 0
+                    THEN 1
+                    ELSE COALESCE(is_surplus, 0)
+                END
+            `);
         }
     }
 ];

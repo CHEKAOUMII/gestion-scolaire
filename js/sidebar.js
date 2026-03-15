@@ -1,4 +1,3 @@
-
 function injectSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
@@ -37,12 +36,14 @@ function injectSidebar() {
                         <li><a href="teachers-performance.html"><i class="fas fa-chart-line"></i> مؤشرات الأداء</a></li>
                         <li><a href="staff-attendance.html"><i class="fas fa-clipboard-check"></i> الحضور والغياب</a></li>
                         <li><a href="staff-daily-report.html"><i class="fas fa-file-alt"></i> التقرير اليومي</a></li>
+                        <li><a href="compensation-tracking.html"><i class="fas fa-exchange-alt"></i> تتبع التعويضات</a></li>
                     </ul>
                 </li>
                 <li class="expandable">
                     <a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="timetable.html"><i class="fas fa-table"></i>جدول حصص الأساتذة</a></li>
+                        <li><a href="timetable-redistribution.html"><i class="fas fa-random"></i> إعادة توزيع الأقسام</a></li>
                         <li><a href="timetable-students.html"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</a></li>
                         <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول حصص القاعات</a></li>
                         <li><a href="timetable-teachers.html"><i class="fas fa-chalkboard-teacher"></i> جدول حصص الأساتذة</a></li>
@@ -153,16 +154,22 @@ function injectSidebar() {
                 const loginBtn = document.getElementById('sidebar-login-btn');
                 const changePwBtn = document.getElementById('sidebar-change-pw-btn');
                 if (userSection) userSection.style.display = '';
-                if (nameEl) nameEl.textContent = String(sess.name || sess.email || '\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645').trim();
+                if (nameEl)
+                    nameEl.textContent = String(
+                        sess.name || sess.email || '\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645'
+                    ).trim();
                 if (loginBtn) {
-                    loginBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
+                    loginBtn.innerHTML =
+                        '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
                     loginBtn.classList.remove('sidebar-auth-login');
                     loginBtn.classList.add('sidebar-auth-logout');
                 }
                 if (changePwBtn) changePwBtn.style.display = '';
             }
         }
-    } catch (_) { /* ignore parse errors */ }
+    } catch (_) {
+        /* ignore parse errors */
+    }
 
     // Load school name from database and update sidebar + page title
     loadSchoolIdentity();
@@ -185,12 +192,20 @@ function injectSidebar() {
             ensureAdminAuthButton(currentRole, currentAccess);
         }
     }
-    _reapplyRoleUi();
-    setTimeout(_reapplyRoleUi, 250);
+    // Load page visibility state from DB before applying, to avoid race condition
+    // where _pageVisibilityState is still null and falls back to hardcoded defaults.
+    if (typeof loadPageVisibilityState === 'function') {
+        loadPageVisibilityState().then(() => {
+            _reapplyRoleUi();
+        });
+    } else {
+        _reapplyRoleUi();
+    }
+    setTimeout(_reapplyRoleUi, 500);
 
     // Mark current page as active
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+    document.querySelectorAll('.sidebar-nav a').forEach((link) => {
         const href = link.getAttribute('href');
         if (href === currentPage) {
             link.classList.add('active');
@@ -208,7 +223,7 @@ function injectSidebar() {
     sidebar.dataset.setupComplete = 'true';
 
     // Setup expandable menu items
-    document.querySelectorAll('.expandable > .nav-link').forEach(link => {
+    document.querySelectorAll('.expandable > .nav-link').forEach((link) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const parent = link.parentElement;
@@ -229,13 +244,14 @@ function injectSidebar() {
             const isCollapsed = sidebar.classList.contains('collapsed');
             const mainContent = document.querySelector('.main-content');
             if (mainContent) {
-                const sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim() || '280px';
+                const sidebarWidth =
+                    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim() || '280px';
                 mainContent.style.marginRight = isCollapsed ? '' : sidebarWidth;
             }
             // When collapsing: clear inline submenu display so CSS !important hides them
             // When expanding: restore the active page's parent submenu
             if (isCollapsed) {
-                sidebar.querySelectorAll('.sub-menu').forEach(sm => {
+                sidebar.querySelectorAll('.sub-menu').forEach((sm) => {
                     sm.style.display = '';
                 });
             } else {

@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>تتبع التعويضات | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/design-system.css" />
+        <link rel="stylesheet" href="styles.css" />
+        <link rel="stylesheet" href="ux-enhancements.css" />
+        <script src="js/data/ma-education-labels.js"></script>
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+        <style>
+            /* ─── Filter Card ─── */
+            .filter-card {
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                margin-bottom: 20px;
+                overflow: hidden;
+                animation: fadeInUp 0.4s ease-out both;
+            }
+
+            .filter-card-header {
+                padding: 14px 20px;
+                border-bottom: 1px solid var(--color-accent);
+                background: var(--color-surface-alt);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .filter-card-header h3 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: 15px;
+                font-weight: 700;
+                color: var(--color-text-main);
+            }
+
+            .filter-card-header i {
+                color: var(--color-primary);
+            }
+
+            .filter-card-body {
+                padding: 20px;
+            }
+
+            .filter-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 14px;
+                align-items: end;
+            }
+
+            .filter-group {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .filter-group label {
+                font-family: var(--font-main);
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--color-text-muted);
+            }
+
+            .filter-group select,
+            .filter-group input {
+                padding: 9px 14px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                font-family: var(--font-main);
+                font-size: 14px;
+                background: var(--color-surface-alt);
+                color: var(--color-text-main);
+                transition: var(--transition-fast);
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .filter-group select:focus,
+            .filter-group input:focus {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px var(--color-primary-mist);
+            }
+
+            .filter-actions {
+                display: flex;
+                gap: 10px;
+                align-items: flex-end;
+            }
+
+            /* ─── Stat Cards ─── */
+            .comp-stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+
+            .comp-stat-card {
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                padding: 20px;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                transition: var(--transition-normal);
+                animation: fadeInUp 0.4s ease-out both;
+            }
+
+            .comp-stat-card:nth-child(1) {
+                animation-delay: 0.05s;
+            }
+            .comp-stat-card:nth-child(2) {
+                animation-delay: 0.1s;
+            }
+            .comp-stat-card:nth-child(3) {
+                animation-delay: 0.15s;
+            }
+
+            .comp-stat-card:hover {
+                transform: translateY(-3px);
+                box-shadow: var(--shadow-hover);
+                border-color: var(--color-primary-light);
+            }
+
+            .comp-stat-icon {
+                width: 52px;
+                height: 52px;
+                border-radius: var(--radius-sm);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+                flex-shrink: 0;
+            }
+
+            .comp-stat-body h4 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: 26px;
+                font-weight: 800;
+                color: var(--color-text-main);
+                line-height: 1;
+            }
+
+            .comp-stat-body p {
+                margin: 4px 0 0;
+                font-family: var(--font-main);
+                font-size: 13px;
+                color: var(--color-text-muted);
+                font-weight: 500;
+            }
+
+            /* ─── Main Table ─── */
+            .comp-section {
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                margin-bottom: 20px;
+                overflow: hidden;
+                animation: fadeInUp 0.4s ease-out 0.2s both;
+            }
+
+            .comp-section-header {
+                padding: 14px 20px;
+                border-bottom: 1px solid var(--color-accent);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: var(--color-surface-alt);
+            }
+
+            .comp-section-header h3 {
+                margin: 0;
+                font-family: var(--font-display);
+                font-size: 15px;
+                font-weight: 700;
+                color: var(--color-text-main);
+            }
+
+            .comp-section-header i {
+                color: var(--color-primary);
+                font-size: 16px;
+            }
+
+            .comp-section-header .badge-count {
+                background: var(--color-primary);
+                color: #fff;
+                font-size: 11px;
+                font-weight: 700;
+                padding: 2px 10px;
+                border-radius: var(--radius-full);
+            }
+
+            .comp-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: var(--font-main);
+                font-size: 14px;
+            }
+
+            .comp-table th {
+                background: var(--color-surface-alt);
+                color: var(--color-text-muted);
+                padding: 10px 16px;
+                font-weight: 600;
+                text-align: right;
+                white-space: nowrap;
+                border-bottom: 1px solid var(--color-accent);
+                font-size: 13px;
+            }
+
+            .comp-table td {
+                padding: 10px 16px;
+                border-bottom: 1px solid var(--color-accent);
+                color: var(--color-text-main);
+                vertical-align: middle;
+            }
+
+            .comp-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+            .comp-table tbody tr:hover td {
+                background: var(--color-primary-mist);
+            }
+
+            .comp-table .empty-row td {
+                text-align: center;
+                padding: 28px 16px;
+                color: var(--color-text-muted);
+                font-style: italic;
+            }
+
+            /* ─── Status Badges ─── */
+            .status-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                padding: 4px 12px;
+                border-radius: var(--radius-full);
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            .status-badge.pending {
+                background: rgba(232, 93, 93, 0.12);
+                color: var(--color-danger);
+            }
+
+            .status-badge.done {
+                background: rgba(46, 204, 113, 0.12);
+                color: var(--color-success);
+            }
+
+            /* ─── Toggle Button ─── */
+            .comp-toggle {
+                background: none;
+                border: 1.5px solid var(--color-accent);
+                border-radius: var(--radius-full);
+                padding: 5px 14px;
+                cursor: pointer;
+                font-family: var(--font-main);
+                font-size: 12px;
+                font-weight: 600;
+                transition: var(--transition-fast);
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+            }
+
+            .comp-toggle.approve {
+                color: var(--color-success);
+                border-color: var(--color-success);
+            }
+
+            .comp-toggle.approve:hover {
+                background: rgba(46, 204, 113, 0.12);
+            }
+
+            .comp-toggle.undo {
+                color: var(--color-warning-bg);
+                border-color: var(--color-warning-bg);
+            }
+
+            .comp-toggle.undo:hover {
+                background: rgba(240, 173, 78, 0.12);
+            }
+
+            /* ─── Compensated row ─── */
+            .comp-table tbody tr.compensated td {
+                background: rgba(46, 204, 113, 0.04);
+            }
+
+            .section-tag {
+                display: inline-block;
+                background: var(--color-primary-mist);
+                color: var(--color-primary);
+                padding: 2px 10px;
+                border-radius: var(--radius-full);
+                font-size: 12px;
+                font-weight: 600;
+                margin: 2px;
+            }
+
+            /* ─── Empty State ─── */
+            .comp-empty-state {
+                text-align: center;
+                padding: 48px 20px;
+                color: var(--color-text-muted);
+            }
+
+            .comp-empty-state i {
+                font-size: 48px;
+                color: var(--color-primary-light);
+                display: block;
+                margin-bottom: 12px;
+                opacity: 0.6;
+            }
+
+            .comp-empty-state p {
+                font-size: 15px;
+                margin: 0;
+            }
+
+            /* ─── Print ─── */
+            @media print {
+                .comp-toggle {
+                    display: none !important;
+                }
+                .filter-card {
+                    display: none !important;
+                }
+            }
+
+            .ux-pp-body .comp-toggle {
+                display: none !important;
+            }
+            .ux-pp-body .filter-card {
+                display: none !important;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <h2 class="page-title"><i class="fas fa-exchange-alt"></i> تتبع التعويضات</h2>
+                </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="grades-container">
+                <!-- Filters -->
+                <div class="filter-card">
+                    <div class="filter-card-header">
+                        <i class="fas fa-filter"></i>
+                        <h3>فلترة وبحث</h3>
+                    </div>
+                    <div class="filter-card-body">
+                        <div class="filter-grid">
+                            <div class="filter-group">
+                                <label for="filter-date-from"><i class="fas fa-calendar-day"></i> من تاريخ</label>
+                                <input type="date" id="filter-date-from" />
+                            </div>
+                            <div class="filter-group">
+                                <label for="filter-date-to">إلى تاريخ</label>
+                                <input type="date" id="filter-date-to" />
+                            </div>
+                            <div class="filter-group">
+                                <label for="filter-section">القسم</label>
+                                <select id="filter-section">
+                                    <option value="">الكل</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="filter-teacher">الأستاذ(ة)</label>
+                                <select id="filter-teacher">
+                                    <option value="">الكل</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label for="filter-status">الحالة</label>
+                                <select id="filter-status">
+                                    <option value="">الكل</option>
+                                    <option value="pending" selected>في الانتظار</option>
+                                    <option value="done">تم التعويض</option>
+                                </select>
+                            </div>
+                            <div class="filter-actions">
+                                <button class="btn-primary" id="apply-filter-btn" type="button">
+                                    <i class="fas fa-search"></i> بحث
+                                </button>
+                                <button class="btn-secondary" id="print-btn" type="button">
+                                    <i class="fas fa-print"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stat Cards -->
+                <div class="comp-stats" id="stat-cards">
+                    <div class="comp-stat-card">
+                        <div
+                            class="comp-stat-icon"
+                            style="background: rgba(232, 93, 93, 0.12); color: var(--color-danger-bg)"
+                        >
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="comp-stat-body">
+                            <h4 id="stat-total">0</h4>
+                            <p>إجمالي الحصص الضائعة</p>
+                        </div>
+                    </div>
+                    <div class="comp-stat-card">
+                        <div
+                            class="comp-stat-icon"
+                            style="background: rgba(240, 173, 78, 0.12); color: var(--color-warning-bg)"
+                        >
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div class="comp-stat-body">
+                            <h4 id="stat-pending">0</h4>
+                            <p>في الانتظار</p>
+                        </div>
+                    </div>
+                    <div class="comp-stat-card">
+                        <div
+                            class="comp-stat-icon"
+                            style="background: rgba(46, 204, 113, 0.12); color: var(--color-success)"
+                        >
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <div class="comp-stat-body">
+                            <h4 id="stat-done">0</h4>
+                            <p>تم التعويض</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tracking Table -->
+                <div class="comp-section">
+                    <div class="comp-section-header">
+                        <i class="fas fa-list-check"></i>
+                        <h3>جدول تتبع الحصص التعويضية</h3>
+                        <span class="badge-count" id="table-count">0</span>
+                    </div>
+                    <table class="comp-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>التاريخ</th>
+                                <th>القسم</th>
+                                <th>الأستاذ(ة)</th>
+                                <th>المادة</th>
+                                <th>الحصة</th>
+                                <th>الحالة</th>
+                                <th class="no-print" style="width: 120px">إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tracking-tbody">
+                            <tr class="empty-row">
+                                <td colspan="8">جارٍ التحميل...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <script>
+            function escapeHtml(text) {
+                if (text === null || text === undefined) return '';
+                return String(text)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function formatDateShort(dateStr) {
+                if (!dateStr) return '—';
+                const parts = dateStr.split('-');
+                if (parts.length !== 3) return dateStr;
+                return parts[2] + '/' + parts[1];
+            }
+
+            function formatDateAr(dateStr) {
+                try {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    return d.toLocaleDateString('ar-MA', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                } catch {
+                    return dateStr;
+                }
+            }
+
+            function todayStr() {
+                const d = new Date();
+                return (
+                    d.getFullYear() +
+                    '-' +
+                    String(d.getMonth() + 1).padStart(2, '0') +
+                    '-' +
+                    String(d.getDate()).padStart(2, '0')
+                );
+            }
+
+            /** Get date 30 days ago as YYYY-MM-DD */
+            function thirtyDaysAgo() {
+                const d = new Date();
+                d.setDate(d.getDate() - 30);
+                return (
+                    d.getFullYear() +
+                    '-' +
+                    String(d.getMonth() + 1).padStart(2, '0') +
+                    '-' +
+                    String(d.getDate()).padStart(2, '0')
+                );
+            }
+
+            const PERIOD_MAP = {
+                h1: '08:00-09:00',
+                h2: '09:00-10:00',
+                h3: '10:00-11:00',
+                h4: '11:00-12:00',
+                h5: '14:00-15:00',
+                h6: '15:00-16:00',
+                h7: '16:00-17:00',
+                h8: '17:00-18:00'
+            };
+
+            const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+            let allRecords = [];
+
+            /** Normalize name: remove underscores, diacritics, collapse spaces */
+            function normalizeName(name) {
+                return (name || '')
+                    .replace(/_/g, ' ')
+                    .replace(/[\u064B-\u065F\u0670]/g, '')
+                    .replace(/\bال/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+            }
+
+            function normalizeStoredTeacherMeta(key, entry) {
+                const sourceName = String(entry?.sourceName || key || '').trim();
+                const sourceDisplayName = String(entry?.sourceDisplayName || sourceName || '').trim();
+                const teacherName = String(
+                    entry?.teacherName || entry?.displayName || sourceDisplayName || sourceName || ''
+                ).trim();
+                return {
+                    key: String(key || entry?.key || '').trim(),
+                    teacherId: Number(entry?.teacherId) || null,
+                    teacherName,
+                    displayName: String(entry?.displayName || teacherName || sourceDisplayName || sourceName).trim(),
+                    sourceName,
+                    sourceDisplayName
+                };
+            }
+
+            function getStoredTimetableTeacherEntries(data) {
+                const entriesByKey = new Map();
+
+                Object.entries(data?.teacherMetaByKey || {}).forEach(([key, entry]) => {
+                    entriesByKey.set(key, normalizeStoredTeacherMeta(key, entry));
+                });
+
+                (Array.isArray(data?.teachers) ? data.teachers : []).forEach((entry) => {
+                    const normalized = normalizeStoredTeacherMeta(entry?.key || entry?.name, entry);
+                    if (normalized.key && !entriesByKey.has(normalized.key)) {
+                        entriesByKey.set(normalized.key, normalized);
+                    }
+                });
+
+                Object.keys(data?.timetables || {}).forEach((key) => {
+                    if (!entriesByKey.has(key)) {
+                        entriesByKey.set(
+                            key,
+                            normalizeStoredTeacherMeta(key, { key, sourceName: key, teacherName: key })
+                        );
+                    }
+                });
+
+                return Array.from(entriesByKey.values());
+            }
+
+            function resolveTeacherTimetableKeys(data, teacherId, teacherName) {
+                const entries = getStoredTimetableTeacherEntries(data);
+                const targetId = Number(teacherId) || null;
+                const targetName = String(teacherName || '').trim();
+                const normalizedTarget = normalizeName(targetName);
+                const matchedKeys = [];
+
+                const addMatches = (predicate) => {
+                    entries.forEach((entry) => {
+                        if (entry.key && predicate(entry)) matchedKeys.push(entry.key);
+                    });
+                    return [...new Set(matchedKeys)];
+                };
+
+                if (targetId) {
+                    const byId = addMatches((entry) => entry.teacherId === targetId);
+                    if (byId.length) return byId;
+                }
+
+                if (!targetName) return [];
+
+                const fieldsForEntry = (entry) => [
+                    entry.teacherName,
+                    entry.displayName,
+                    entry.sourceDisplayName,
+                    entry.sourceName,
+                    entry.key.replace(/^tafwij:/, '').replace(/_/g, ' ')
+                ];
+
+                const exact = addMatches((entry) =>
+                    fieldsForEntry(entry).some((value) => String(value || '').trim() === targetName)
+                );
+                if (exact.length) return exact;
+
+                const normalized = addMatches((entry) =>
+                    fieldsForEntry(entry).some((value) => normalizeName(value) === normalizedTarget)
+                );
+                if (normalized.length) return normalized;
+
+                return addMatches((entry) =>
+                    fieldsForEntry(entry).some((value) => {
+                        const normalizedValue = normalizeName(value);
+                        return (
+                            normalizedValue &&
+                            (normalizedValue.includes(normalizedTarget) || normalizedTarget.includes(normalizedValue))
+                        );
+                    })
+                );
+            }
+
+            /**
+             * Extract every detailed session (teacher × section × period) for a list of
+             * absence records on a given date, using the timetable in localStorage.
+             */
+            function getDetailedSessionsForDay(absenceRecords, date) {
+                const sessions = [];
+                try {
+                    const raw = localStorage.getItem('timetableData');
+                    if (!raw) return sessions;
+                    const ttData = JSON.parse(raw);
+                    if (!ttData || !ttData.timetables) return sessions;
+
+                    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const dayName = dayNames[dateObj.getDay()];
+
+                    for (const absence of absenceRecords) {
+                        const name = absence.full_name || absence.teacher_name;
+                        if (!name) continue;
+
+                        const teacherKeys = resolveTeacherTimetableKeys(ttData, absence.teacher_id, name);
+                        if (!teacherKeys.length) continue;
+
+                        teacherKeys.forEach((teacherKey) => {
+                            const dayData = ttData.timetables?.[teacherKey]?.[dayName];
+                            if (!dayData) return;
+
+                            for (const [, hours] of Object.entries(dayData)) {
+                                if (!hours || typeof hours !== 'object') continue;
+                                for (const [h, lesson] of Object.entries(hours)) {
+                                    if (!lesson) continue;
+                                    const sectionName = (lesson.students || '').trim();
+                                    if (!sectionName) continue;
+                                    sessions.push({
+                                        absence_date: date,
+                                        teacher_id: Number(absence.teacher_id) || null,
+                                        teacher_name: name,
+                                        section: sectionName,
+                                        period_slot: h,
+                                        period_time: PERIOD_MAP[h] || h,
+                                        subject: lesson.subject || absence.subject || '',
+                                        school_year: year
+                                    });
+                                }
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.warn('[CompTracking] Error extracting sessions from timetable:', e);
+                }
+                return sessions;
+            }
+
+            /**
+             * For a date range, read staff_attendance absences, derive sessions from the
+             * timetable and save them (INSERT OR IGNORE) into compensation_tracking.
+             */
+            async function autoSeedFromAttendance(dateFrom, dateTo) {
+                try {
+                    // Fetch all staff_attendance absence records for the school year
+                    const allAtt = await window.api.staffAttendance.getAll(year);
+                    if (!allAtt || allAtt.length === 0) return;
+
+                    // Filter to absences only, within the date range
+                    const absences = allAtt.filter((r) => {
+                        if (r.type !== 'absence') return false;
+                        if (!r.attendance_date) return false;
+                        if (dateFrom && r.attendance_date < dateFrom) return false;
+                        if (dateTo && r.attendance_date > dateTo) return false;
+                        return true;
+                    });
+
+                    if (absences.length === 0) return;
+
+                    // Group by date
+                    const byDate = {};
+                    for (const r of absences) {
+                        const d = r.attendance_date;
+                        if (!byDate[d]) byDate[d] = [];
+                        byDate[d].push(r);
+                    }
+
+                    // For each day, extract sessions and saveBatch
+                    for (const [date, recs] of Object.entries(byDate)) {
+                        const sessions = getDetailedSessionsForDay(recs, date);
+                        if (sessions.length > 0) {
+                            try {
+                                await window.api.compensation.saveBatch(sessions);
+                            } catch (e) {
+                                console.warn('[CompTracking] saveBatch error for', date, e);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[CompTracking] autoSeedFromAttendance error:', e);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                // Set default date range
+                document.getElementById('filter-date-from').value = thirtyDaysAgo();
+                document.getElementById('filter-date-to').value = todayStr();
+
+                // Populate teacher/section filters
+                populateFilters();
+
+                // Load data
+                loadTrackingData();
+
+                document.getElementById('apply-filter-btn').addEventListener('click', loadTrackingData);
+                document.getElementById('print-btn').addEventListener('click', () => {
+                    openPrintPreview({ title: 'تتبع التعويضات', pageSize: 'A4' });
+                });
+
+                // Enter key on filters triggers full reload
+                document.querySelectorAll('.filter-group input, .filter-group select').forEach((el) => {
+                    el.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') loadTrackingData();
+                    });
+                    if (el.tagName === 'SELECT') el.addEventListener('change', applyFilters);
+                });
+            });
+
+            async function populateFilters() {
+                try {
+                    const teachers = await window.api.teachers.getAll(year);
+                    const teacherSelect = document.getElementById('filter-teacher');
+                    if (teachers && teachers.length) {
+                        teachers.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'ar'));
+                        teachers.forEach((t) => {
+                            const opt = document.createElement('option');
+                            opt.value = t.full_name;
+                            opt.textContent = t.full_name;
+                            teacherSelect.appendChild(opt);
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Could not load teachers for filter:', e);
+                }
+
+                // Populate sections from timetable or grades
+                try {
+                    const sectionSet = new Set();
+                    const raw = localStorage.getItem('timetableData');
+                    if (raw) {
+                        const ttData = JSON.parse(raw);
+                        if (ttData && ttData.timetables) {
+                            for (const teacher of Object.values(ttData.timetables)) {
+                                for (const day of Object.values(teacher)) {
+                                    if (!day || typeof day !== 'object') continue;
+                                    for (const period of Object.values(day)) {
+                                        if (!period || typeof period !== 'object') continue;
+                                        for (const lesson of Object.values(period)) {
+                                            if (lesson && lesson.students) {
+                                                sectionSet.add(lesson.students.trim());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    const sectionSelect = document.getElementById('filter-section');
+                    [...sectionSet].sort().forEach((s) => {
+                        const opt = document.createElement('option');
+                        opt.value = s;
+                        opt.textContent = s;
+                        sectionSelect.appendChild(opt);
+                    });
+                } catch (e) {
+                    console.warn('Could not load sections:', e);
+                }
+            }
+
+            function ensureArrayResponse(value, label) {
+                if (Array.isArray(value)) return value;
+                if (value && value.success === false) {
+                    throw new Error(value.error || `فشل تحميل ${label}`);
+                }
+                if (value == null) return [];
+                return [];
+            }
+
+            async function loadTrackingData() {
+                try {
+                    const dateFrom = document.getElementById('filter-date-from').value;
+                    const dateTo = document.getElementById('filter-date-to').value;
+
+                    // ── Step 1: Auto-seed from staff_attendance + timetable ──
+                    // This ensures sessions show up without needing staff-daily-report.html first
+                    await autoSeedFromAttendance(dateFrom, dateTo);
+
+                    // ── Step 2: Fetch all pending (not yet compensated) ──
+                    allRecords = ensureArrayResponse(
+                        await window.api.compensation.getPending(year),
+                        'بيانات التعويضات'
+                    );
+
+                    // ── Step 3: Also fetch compensated records in the date range ──
+                    if (dateFrom && dateTo) {
+                        const allDone = await fetchCompensatedInRange(dateFrom, dateTo);
+                        const idSet = new Set(allRecords.map((r) => r.id));
+                        for (const r of allDone) {
+                            if (!idSet.has(r.id)) {
+                                allRecords.push(r);
+                                idSet.add(r.id);
+                            }
+                        }
+                    }
+
+                    applyFilters();
+                } catch (err) {
+                    console.error('Error loading tracking data:', err);
+                    allRecords = [];
+                    applyFilters();
+                    showToast(err.message || 'خطأ في تحميل بيانات التتبع', 'error');
+                }
+            }
+
+            async function fetchCompensatedInRange(dateFrom, dateTo) {
+                const results = [];
+                const from = new Date(dateFrom + 'T00:00:00');
+                const to = new Date(dateTo + 'T00:00:00');
+                // Fetch each date's data (limit to 60 days max)
+                const maxDays = 60;
+                let count = 0;
+                for (let d = new Date(from); d <= to && count < maxDays; d.setDate(d.getDate() + 1), count++) {
+                    const dateStr =
+                        d.getFullYear() +
+                        '-' +
+                        String(d.getMonth() + 1).padStart(2, '0') +
+                        '-' +
+                        String(d.getDate()).padStart(2, '0');
+                    try {
+                        const dayRecords = ensureArrayResponse(
+                            await window.api.compensation.getByDate(dateStr, year),
+                            'بيانات التعويضات المؤكدة'
+                        );
+                        results.push(...dayRecords);
+                    } catch (e) {
+                        console.warn('[CompTracking] getByDate failed for', dateStr, e);
+                    }
+                }
+                return results;
+            }
+
+            function applyFilters() {
+                const dateFrom = document.getElementById('filter-date-from').value;
+                const dateTo = document.getElementById('filter-date-to').value;
+                const section = document.getElementById('filter-section').value;
+                const teacher = document.getElementById('filter-teacher').value;
+                const status = document.getElementById('filter-status').value;
+
+                let statsRecords = Array.isArray(allRecords) ? [...allRecords] : [];
+
+                if (dateFrom) {
+                    statsRecords = statsRecords.filter((r) => r.absence_date >= dateFrom);
+                }
+                if (dateTo) {
+                    statsRecords = statsRecords.filter((r) => r.absence_date <= dateTo);
+                }
+                if (section) {
+                    statsRecords = statsRecords.filter((r) => r.section === section);
+                }
+                if (teacher) {
+                    statsRecords = statsRecords.filter((r) => r.teacher_name === teacher);
+                }
+
+                let tableRecords = [...statsRecords];
+
+                if (status === 'pending') {
+                    tableRecords = tableRecords.filter((r) => !r.compensated);
+                } else if (status === 'done') {
+                    tableRecords = tableRecords.filter((r) => r.compensated);
+                }
+
+                // Sort: pending first, then by date desc
+                tableRecords.sort((a, b) => {
+                    if (a.compensated !== b.compensated) return a.compensated - b.compensated;
+                    return b.absence_date.localeCompare(a.absence_date);
+                });
+
+                renderStats(statsRecords);
+                renderTable(tableRecords);
+            }
+
+            function renderStats(records) {
+                const total = records.length;
+                const done = records.filter((r) => r.compensated).length;
+                const pending = total - done;
+
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-pending').textContent = pending;
+                document.getElementById('stat-done').textContent = done;
+            }
+
+            function renderTable(records) {
+                const tbody = document.getElementById('tracking-tbody');
+                document.getElementById('table-count').textContent = records.length;
+
+                if (records.length === 0) {
+                    tbody.innerHTML = `
+                    <tr class="empty-row">
+                        <td colspan="8">
+                            <div class="comp-empty-state">
+                                <i class="fas fa-check-circle"></i>
+                                <p>لا توجد حصص مسجلة بهذه المعايير</p>
+                            </div>
+                        </td>
+                    </tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = records
+                    .map((r, i) => {
+                        const isCompensated = r.compensated;
+                        const statusHtml = isCompensated
+                            ? '<span class="status-badge done"><i class="fas fa-check-circle"></i> تم التعويض</span>'
+                            : '<span class="status-badge pending"><i class="fas fa-hourglass-half"></i> في الانتظار</span>';
+                        const actionHtml = isCompensated
+                            ? `<button class="comp-toggle undo" onclick="toggleComp(${r.id}, false)" title="التراجع">
+                           <i class="fas fa-undo"></i> تراجع
+                       </button>`
+                            : `<button class="comp-toggle approve" onclick="toggleComp(${r.id}, true)" title="تأكيد التعويض">
+                           <i class="fas fa-check"></i> تعويض
+                       </button>`;
+                        const periodDisplay = r.period_time || PERIOD_MAP[r.period_slot] || r.period_slot;
+
+                        return `
+                    <tr class="${isCompensated ? 'compensated' : ''}">
+                        <td>${i + 1}</td>
+                        <td>${escapeHtml(formatDateAr(r.absence_date))}</td>
+                        <td><strong>${escapeHtml(r.section)}</strong></td>
+                        <td>${escapeHtml(r.teacher_name)}</td>
+                        <td>${escapeHtml(r.subject || '—')}</td>
+                        <td><span class="section-tag" style="font-size: 11px;">${escapeHtml(periodDisplay)}</span></td>
+                        <td>${statusHtml}</td>
+                        <td class="no-print">${actionHtml}</td>
+                    </tr>`;
+                    })
+                    .join('');
+            }
+
+            async function toggleComp(id, compensated) {
+                try {
+                    await window.api.compensation.toggleCompensated(id, compensated);
+                    // Update local record
+                    const rec = allRecords.find((r) => r.id === id);
+                    if (rec) {
+                        rec.compensated = compensated ? 1 : 0;
+                        rec.compensated_date = compensated ? todayStr() : null;
+                    }
+                    applyFilters();
+                    showToast(compensated ? 'تم تأكيد التعويض' : 'تم التراجع عن التعويض', 'success');
+                } catch (err) {
+                    console.error('Error toggling compensation:', err);
+                    showToast('خطأ في تحديث الحالة', 'error');
+                }
+            }
+        </script>
+    </body>
+</html>

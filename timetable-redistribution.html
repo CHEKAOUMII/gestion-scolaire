@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>إعادة توزيع الأقسام | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/design-system.css" />
+        <link rel="stylesheet" href="styles.css" />
+        <link rel="stylesheet" href="ux-enhancements.css" />
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+        <style>
+            .print-header {
+                display: none;
+            }
+
+            .redistribution-toolbar {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+                margin-bottom: 14px;
+            }
+
+            .redistribution-summary {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                margin-bottom: 18px;
+            }
+
+            .summary-card {
+                flex: 1 1 220px;
+                min-width: 180px;
+                background: linear-gradient(135deg, rgba(59, 106, 197, 0.08), rgba(15, 118, 110, 0.08));
+                border: 1px solid rgba(59, 106, 197, 0.12);
+                border-radius: 16px;
+                padding: 18px;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+            }
+
+            .summary-card .label {
+                color: var(--color-text-muted, #64748b);
+                font-size: 13px;
+                margin-bottom: 6px;
+            }
+
+            .summary-card .value {
+                color: var(--color-text-main, #0f172a);
+                font-size: 28px;
+                font-weight: 800;
+            }
+
+            .results-toolbar {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+                margin-bottom: 14px;
+            }
+
+            .results-toolbar h3 {
+                margin: 0;
+            }
+
+            .results-actions {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+
+            .sync-toggle {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                background: var(--color-surface, #fff);
+                border: 1px solid var(--glass-border, #e5e7eb);
+                border-radius: 12px;
+                padding: 10px 12px;
+                color: var(--color-text-main, #1f2937);
+                font-size: 13px;
+                font-weight: 600;
+            }
+
+            .sync-toggle input {
+                width: 16px;
+                height: 16px;
+            }
+
+            .badge-inline {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                background: rgba(59, 106, 197, 0.1);
+                color: var(--color-primary, #3b6ac5);
+                border-radius: 999px;
+                padding: 7px 12px;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            .row-status {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                border-radius: 999px;
+                padding: 5px 10px;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            .row-status.pending {
+                background: rgba(245, 158, 11, 0.14);
+                color: #b45309;
+            }
+
+            .row-status.saved {
+                background: rgba(16, 185, 129, 0.14);
+                color: #047857;
+            }
+
+            .teacher-pill-list {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            .teacher-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                border-radius: 999px;
+                padding: 5px 10px;
+                background: rgba(100, 116, 139, 0.12);
+                color: #334155;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            .slot-list {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            .slot-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                border: 1px solid rgba(59, 106, 197, 0.16);
+                background: rgba(59, 106, 197, 0.06);
+                color: #1e3a8a;
+                border-radius: 10px;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            .row-dirty {
+                background: rgba(245, 158, 11, 0.07);
+            }
+
+            .row-dirty td {
+                border-bottom-color: rgba(245, 158, 11, 0.18);
+            }
+
+            .muted-note {
+                color: var(--color-text-muted, #64748b);
+                font-size: 12px;
+            }
+
+            .page-empty-state {
+                text-align: center;
+                padding: 48px 20px;
+                border: 1px dashed rgba(148, 163, 184, 0.35);
+                border-radius: 18px;
+                color: var(--color-text-muted, #64748b);
+                background: rgba(248, 250, 252, 0.75);
+            }
+
+            .page-empty-state i {
+                font-size: 34px;
+                margin-bottom: 12px;
+                color: var(--color-primary, #3b6ac5);
+            }
+
+            .page-empty-state h4 {
+                margin-bottom: 8px;
+                color: var(--color-text-main, #0f172a);
+            }
+
+            .teacher-select {
+                min-width: 220px;
+            }
+
+            .table-responsive {
+                overflow-x: auto;
+            }
+
+            @media (max-width: 768px) {
+                .results-actions,
+                .redistribution-toolbar {
+                    width: 100%;
+                }
+
+                .results-actions > * {
+                    width: 100%;
+                }
+
+                .teacher-select {
+                    min-width: 180px;
+                }
+            }
+
+            @media print {
+                .print-header {
+                    display: block;
+                    margin-bottom: 16px;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <h2 class="page-title"><i class="fas fa-random"></i> إعادة توزيع أقسام المادة</h2>
+                </div>
+                <div class="header-right" style="display: flex; gap: 10px; flex-wrap: wrap">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="print-header" id="print-header">
+                <h1><i class="fas fa-random"></i> إعادة توزيع أقسام المادة</h1>
+                <p id="print-date"></p>
+                <p id="print-filters"></p>
+            </div>
+
+            <div class="grades-container">
+                <div class="search-section">
+                    <h3><i class="fas fa-filter"></i> تصفية التوزيع الحالي</h3>
+                    <form
+                        class="search-form"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px"
+                    >
+                        <div>
+                            <label for="level-select">المستوى</label>
+                            <select id="level-select">
+                                <option value="">كل المستويات</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="subject-select">المادة</label>
+                            <select id="subject-select">
+                                <option value="">كل المواد</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="teacher-filter-select">الأستاذ الحالي</label>
+                            <select id="teacher-filter-select">
+                                <option value="">الكل</option>
+                            </select>
+                        </div>
+                        <div class="redistribution-toolbar">
+                            <button class="btn btn-primary" type="button" id="search-btn">
+                                <i class="fas fa-search"></i> بحث
+                            </button>
+                            <button class="btn btn-success ux-print-preview-btn" type="button" id="print-btn">
+                                <i class="fas fa-print"></i> طباعة
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="redistribution-summary" id="summary-cards">
+                    <div class="summary-card">
+                        <div class="label">الأقسام المعروضة</div>
+                        <div class="value" id="sections-count">0</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="label">الحصص الأسبوعية</div>
+                        <div class="value" id="slots-count">0</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="label">التغييرات المعلقة</div>
+                        <div class="value" id="pending-count">0</div>
+                    </div>
+                </div>
+
+                <div class="students-results">
+                    <div class="results-toolbar">
+                        <div>
+                            <h3><i class="fas fa-table"></i> نتيجة البحث</h3>
+                            <div class="muted-note" id="results-hint">اختر مستوى ومادة ثم اضغط بحث.</div>
+                        </div>
+                        <div class="results-actions">
+                            <label class="sync-toggle" for="sync-grades-checkbox">
+                                <input type="checkbox" id="sync-grades-checkbox" checked />
+                                مزامنة اختيارية مع بيانات النقط والتقارير
+                            </label>
+                            <span class="badge-inline" id="search-result-badge"
+                                ><i class="fas fa-layer-group"></i> 0 صف</span
+                            >
+                            <button class="btn btn-secondary" type="button" id="reset-btn">
+                                <i class="fas fa-undo"></i> إلغاء التعديلات
+                            </button>
+                            <button class="btn btn-primary" type="button" id="save-btn">
+                                <i class="fas fa-save"></i> حفظ
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="students-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>المستوى</th>
+                                    <th>رقم القسم</th>
+                                    <th>الأستاذ الحالي</th>
+                                    <th>الأستاذ الجديد</th>
+                                    <th>الحصص</th>
+                                    <th>الفتحات الزمنية</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-tbody">
+                                <tr>
+                                    <td colspan="8">
+                                        <div class="page-empty-state">
+                                            <i class="fas fa-random"></i>
+                                            <h4>لا توجد نتائج بعد</h4>
+                                            <p>اختر المرشحات ثم شغّل البحث لإظهار توزيع المادة على الأقسام.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script src="js/pages/timetable-redistribution.js" defer></script>
+    </body>
+</html>

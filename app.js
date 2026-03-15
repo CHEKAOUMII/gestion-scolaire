@@ -77,7 +77,7 @@ async function initDatabase(schoolYear = null) {
         const students = await window.api.students.getAll(year);
 
         if (students && students.length > 0) {
-            studentsData = students.map(s => ({
+            studentsData = students.map((s) => ({
                 id: s.id,
                 code: s.code,
                 familyName: s.family_name,
@@ -123,7 +123,7 @@ async function updateAvailableYears() {
         years.add(activeYear);
         const savedYears = localStorage.getItem('addedSchoolYears');
         if (savedYears) {
-            JSON.parse(savedYears).forEach(y => years.add(y));
+            JSON.parse(savedYears).forEach((y) => years.add(y));
         }
 
         // تحديث القائمة في الواجهة
@@ -133,7 +133,7 @@ async function updateAvailableYears() {
 
             // ترتيب المواسم تنازلياً
             const sortedYears = [...years].sort().reverse();
-            sortedYears.forEach(year => {
+            sortedYears.forEach((year) => {
                 const option = document.createElement('option');
                 option.value = year;
                 option.textContent = year;
@@ -171,7 +171,7 @@ async function saveToDatabase(students, schoolYear = null) {
         const year = schoolYear || currentSchoolYear;
 
         // تحويل البيانات لتناسب SQLite
-        const dbStudents = students.map(s => ({
+        const dbStudents = students.map((s) => ({
             code: s.code,
             full_name: s.firstName,
             family_name: s.familyName,
@@ -208,10 +208,10 @@ async function saveToDatabase(students, schoolYear = null) {
 // استخراج وحفظ المستويات الفريدة من بيانات التلاميذ
 async function saveLevelsFromStudents(students) {
     try {
-        const sections = [...new Set(students.map(s => s.section).filter(s => s))];
+        const sections = [...new Set(students.map((s) => s.section).filter((s) => s))];
         const levelsMap = new Map();
 
-        sections.forEach(section => {
+        sections.forEach((section) => {
             const level = getLevelFromSection(section);
             if (level.code !== 'other' && !levelsMap.has(level.code)) {
                 levelsMap.set(level.code, {
@@ -231,7 +231,7 @@ async function saveLevelsFromStudents(students) {
 
         // حفظ في الإعدادات
         await window.api.settings.set('levels', JSON.stringify(levels));
-        console.log('✅ Saved levels:', levels.map(l => l.name).join(', '));
+        console.log('✅ Saved levels:', levels.map((l) => l.name).join(', '));
 
         return levels;
     } catch (error) {
@@ -286,7 +286,7 @@ async function saveLevelsMapping(extractedLevels) {
         await window.api.settings.set('levelsMapping', JSON.stringify(Object.fromEntries(extractedLevels)));
         await window.api.settings.set('levels', JSON.stringify(levelsArray));
 
-        console.log('✅ Saved levels mapping:', levelsArray.map(l => l.name).join(', '));
+        console.log('✅ Saved levels mapping:', levelsArray.map((l) => l.name).join(', '));
         return levelsArray;
     } catch (error) {
         console.error('Error saving levels mapping:', error);
@@ -315,15 +315,19 @@ function getDefaultStudents() {
 
 // Calculate Statistics
 function calculateStats() {
-    const females = studentsData.filter(s => s.gender === "أنثى").length;
-    const males = studentsData.filter(s => s.gender === "ذكر").length;
-    const sections = [...new Set(studentsData.map(s => s.section))];
+    const females = studentsData.filter((s) => s.gender === 'أنثى').length;
+    const males = studentsData.filter((s) => s.gender === 'ذكر').length;
+    const sections = [...new Set(studentsData.map((s) => s.section))];
     // Calculate levels - extract level from section name (e.g., TCSF, 1BAC, 2BAC, etc.)
-    const levels = [...new Set(sections.map(s => {
-        // Try to extract level prefix from section name
-        const match = s ? s.match(/^([A-Z0-9]+)/i) : null;
-        return match ? match[1] : s;
-    }))];
+    const levels = [
+        ...new Set(
+            sections.map((s) => {
+                // Try to extract level prefix from section name
+                const match = s ? s.match(/^([A-Z0-9]+)/i) : null;
+                return match ? match[1] : s;
+            })
+        )
+    ];
     const avgPerSection = sections.length > 0 ? Math.round(studentsData.length / sections.length) : 0;
     return {
         total: studentsData.length,
@@ -341,13 +345,13 @@ function calculateStats() {
 function calculateAgeStats() {
     const currentYear = new Date().getFullYear();
     const ageGroups = {};
-    studentsData.forEach(s => {
+    studentsData.forEach((s) => {
         if (!s.birthDate) return;
         const birthYear = parseInt(s.birthDate.split('-')[0]);
         const age = currentYear - birthYear;
         if (!ageGroups[age]) ageGroups[age] = { total: 0, males: 0, females: 0 };
         ageGroups[age].total++;
-        s.gender === "ذكر" ? ageGroups[age].males++ : ageGroups[age].females++;
+        s.gender === 'ذكر' ? ageGroups[age].males++ : ageGroups[age].females++;
     });
     return ageGroups;
 }
@@ -355,7 +359,10 @@ function calculateAgeStats() {
 // Render Stats Cards
 function renderStatsCards(stats) {
     if (!stats) stats = calculateStats();
-    const sectionsInfo = stats.sectionsList.length <= 3 ? stats.sectionsList.join(', ') : stats.sectionsList.slice(0, 2).join(', ') + '...';
+    const sectionsInfo =
+        stats.sectionsList.length <= 3
+            ? stats.sectionsList.join(', ')
+            : stats.sectionsList.slice(0, 2).join(', ') + '...';
     const levelsInfo = stats.levelsList.length <= 2 ? stats.levelsList.join(', ') : stats.levelsList[0] + '...';
     const femalesPct = stats.total > 0 ? ((stats.females / stats.total) * 100).toFixed(1) : 0;
     const malesPct = stats.total > 0 ? ((stats.males / stats.total) * 100).toFixed(1) : 0;
@@ -456,10 +463,11 @@ async function renderOwnerSyncSection(force = false) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${devices.length
-                ? devices
-                    .map(
-                        (d) => `
+                            ${
+                                devices.length
+                                    ? devices
+                                          .map(
+                                              (d) => `
                                 <tr>
                                     <td>${escapeHtml(d.deviceName || d.deviceCode || '-')}</td>
                                     <td>${escapeHtml(d.platform || '-')}</td>
@@ -467,9 +475,10 @@ async function renderOwnerSyncSection(force = false) {
                                     <td>${d.activated ? 'مفعّل' : 'غير مفعّل'}</td>
                                     <td>${escapeHtml(d.lastSeenAt || '-')}</td>
                                 </tr>`
-                    )
-                    .join('')
-                : '<tr><td colspan="5" style="text-align:center;padding:18px;">لا توجد أجهزة بعد</td></tr>'}
+                                          )
+                                          .join('')
+                                    : '<tr><td colspan="5" style="text-align:center;padding:18px;">لا توجد أجهزة بعد</td></tr>'
+                            }
                         </tbody>
                     </table>
                 </div>
@@ -489,7 +498,8 @@ const chartInstances = {
     teacherSubject: null,
     teacherGender: null,
     teacherAge: null,
-    studentStatus: null
+    studentStatus: null,
+    surplusTeachers: null
 };
 
 function destroyChartInstances() {
@@ -504,55 +514,166 @@ function destroyChartInstances() {
 
 // Birth place normalization — module-level so it's allocated once, not per renderCharts() call
 const BIRTH_PLACE_MAPPING = {
-    "الكرعاني": "الكرعاني", "الكرعاني آسفي": "الكرعاني", "الكرعاني أسفي": "الكرعاني", "الكرعاني اسفي": "الكرعاني", "\u200Fالكرعاني آسفي": "الكرعاني", "دوار المخاطرة جماعة الكرعاني": "الكرعاني", "جماعة الكرعاني": "الكرعاني",
-    "اسفي": "اسفي", "آسفي": "اسفي", "أسفي": "اسفي", "\u200Fآسفي": "اسفي",
-    "جمعة سحيم اسفي": "جمعة سحيم", "جمعة سحيم آسفي": "جمعة سحيم", "\u200Fجمعة سحيم آسفي": "جمعة سحيم", "الحي الاداري بلدية جمعة سحيم باشوية  جمعة سحيم إقليم أسفي": "جمعة سحيم", "جمعة اسحيم": "جمعة سحيم", "الحي الاداري جمعة اسحيم": "جمعة سحيم", "الحي الإداري": "جمعة سحيم", "الحي الاداري بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "جمعة سحيم": "جمعة سحيم", "ٍجمعة سحيم": "جمعة سحيم", "الحي الإداري جمعة سحيم": "جمعة سحيم", "الحي الاداري جمعة سحيم": "جمعة سحيم", "جمعة اسحيم آسفي": "جمعة سحيم", "بلدية جمعة سحيم": "جمعة سحيم", "بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "جماعة جمعة سحيم باشوية  جمعة سحيم إقليم أسفي": "جمعة سحيم", "جماعة جمعة سحيم باشوية جمعة سحيم اقليم اسفي": "جمعة سحيم", "الحي الاداري بلدية جمعة سحيم": "جمعة سحيم", "حي غراب جمعة سحيم": "جمعة سحيم", "شارع محمد الخامس بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "شارع محمد الخامس  بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "شارع اليوسفية جمعة اسحيم": "جمعة سحيم", "دوار لعباد جمعة سحيم": "جمعة سحيم", "حي الدعيجات جمعة اسحيم": "جمعة سحيم", "جمعة سحيم اقليم اسفي": "جمعة سحيم", "جمعة سحيم إقليم أسفي": "جمعة سحيم", "جمعة اسيم": "جمعة سحيم", "دوار الحميدات بلدية جمعة سحيم باشوية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار الحميدات بلدية جمعة سحيم باشوية  جمعة سحيم إقليم أسفي": "جمعة سحيم", "دوار الخربة بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار الخربة  بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "دوار اولاد ميمون بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار أولاد ميمون بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم", "دوار اولاد التومي بلدية جمعة سحيم اقليم اسفي": "جمعة سحيم", "دوار أولاد التومي بلدية جمعة سحيم إقليم أسفي": "جمعة سحيم",
-    "دار سي عيسي": "دار سي عيسي", "دار السي عيسى": "دار سي عيسي", "دار سي عيسى": "دار سي عيسي", "ج سيدي عيسى": "دار سي عيسي", "جماعة دار السي عيسي": "دار سي عيسي", "جماعة دار السي عيسى": "دار سي عيسي",
-    "المصابيح اسفي": "المصابيح", "المصابيح آسفي": "المصابيح", "\u200Fالمصابيح آسفي": "المصابيح", "\u200Fلمصابيح": "المصابيح", "جماعة لمصابيح آسفي": "المصابيح", "جماعة لمصابيح اسفي": "المصابيح", "سيدي عيسى": "المصابيح", "سيدي عيسى آسفي": "المصابيح", "دوار اولاد بوجمعة جماعة لمصابيح دائرة عبدة اسفي": "المصابيح", "جماعة لمصابيح": "المصابيح", "جماعة المصابيح آسفي": "المصابيح", "بلمصابيح": "المصابيح", "دوار لمصابيح ج لمصابيح عبدة": "المصابيح", "دوار الطلوح جماعة المصابيح اسفي": "المصابيح",
-    "الدار البيضاء": "الدار البيضاء", "البيضاء": "الدار البيضاء", "الدارالبيضاء": "الدار البيضاء",
-    "الرباط": "الرباط",
-    "لحضر": "لحضر", "جماعة لحضر": "لحضر", "جماعة لحضر اقليم اسفي": "لحضر", "جماعة لحضر اقليم آسفي": "لحضر",
-    "جماعة شهدة": "جماعة شهدة", "جماعة شهدة دائرة عبدة إقليم أسفي": "جماعة شهدة", "جماعة شهدة دائرة عبدة اقليم أسفي": "جماعة شهدة", "شهدة": "جماعة شهدة", "دوار الجديان جماعة شهدة أسفي": "جماعة شهدة", "جماعة شهدة اسفي": "جماعة شهدة", "دوار أولاد ميمون جماعة شهدة": "جماعة شهدة", "دوار الجديان جماعة شهدة اسفي": "جماعة شهدة", "دوار اولاد ميمون جماعة شهدة": "جماعة شهدة",
-    "اليوسفية": "اليوسفية", "بوكدرة": "بوكدرة", "لعميرات": "لعميرات", "مراكش": "مراكش",
-    "دوار اولاد بوعنان": "دوار اولاد بوعنان", "دوار أولاد بوعنان": "دوار اولاد بوعنان",
-    "حي لحرش": "حي لحرش", "انزا اكادير": "انزا اكادير", "اولادد اعبيد": "اولادد اعبيد",
-    "اولاد السي عبد السلام": "اولاد السي عبد السلام", "اولاد يحي": "اولاد يحي",
-    "بوشان": "بوشان", "ج المراسلة": "ج المراسلة", "تارودانت": "تارودانت",
-    "تجزية الاخلاص": "تجزية الاخلاص", "تجزئة الاخلاص": "تجزية الاخلاص",
-    "ج الكرعاني": "الكرعاني", "ج لبخاتي": "ج لبخاتي",
-    "الجماعة الحضرية لاسفي": "اسفي", "SAFI": "اسفي",
-    "دوار اولاد مبارك": "دوار اولاد مبارك", "حي الرزازقة": "حي الرزازقة",
-    "دوار اولاد فارقو": "دوار اولاد فارقو", "دوار أولاد فارقو": "دوار اولاد فارقو",
-    "دوار اولاد عيسي": "دوار اولاد عيسي", "دوار أولاد عيسى": "دوار اولاد عيسي",
-    "حي الدعيجات": "حي الدعيجات", "جماعة سيدي التيجي": "جماعة سيدي التيجي",
-    "حي زمران": "حي زمران", "حي العبيد": "حي العبيد",
-    "دوار اولاد امبارك الشيظمب البخاتي اسفي": "دوار اولاد امبارك الشيظمب البخاتي اسفي", "دوار اولاد امبارك الشيظمب البخاتي  اسفي": "دوار اولاد امبارك الشيظمب البخاتي اسفي",
-    "دوار اولاد بن عليوة جماعة مول البركي اسفي": "دوار اولاد بن عليوة جماعة مول البركي اسفي", "دوار أولاد بن عليوة جماعة مول البركي أسفي": "دوار اولاد بن عليوة جماعة مول البركي اسفي",
-    "SELMOUN": "SELMOUN",
-    "دوار اولاد التومي قيادة العامر اسفي": "دوار اولاد التومي قيادة العامر اسفي", "دوار اولاد التومي قيادة  العامر اسفي": "دوار اولاد التومي قيادة العامر اسفي",
-    "دوار اولاد الجيلالي": "دوار اولاد الجيلالي",
-    "دوار اولاد الحاج عيسي": "دوار اولاد الحاج عيسي", "دوار اولاد الحاج عيسى": "دوار اولاد الحاج عيسي",
-    "دوار اولاد زكري الكرعاني": "الكرعاني",
-    "دوار اولاد عزوز العامر اسفي": "دوار اولاد عزوز العامر اسفي",
-    "دوار اولاد عمران": "دوار اولاد عمران", "دوار أولاد عمران": "دوار اولاد عمران",
-    "قصر اعريب": "قصر اعريب",
-    "جماعة سيدي عيسي": "جماعة سيدي عيسي", "جماعة سيدي عيسى": "جماعة سيدي عيسي",
-    "دوار الدعابجة": "دوار الدعابجة",
-    "دوار الزيادنة اقليم اسفي": "دوار الزيادنة اقليم اسفي", "دوار الزيادنة اقليم آسفي": "دوار الزيادنة اقليم اسفي",
-    "دوار البيضان": "دوار البيضان", "دوار الجديات": "دوار الجديات",
-    "دوار الحامات": "دوار الحامات", "دوار دار عزيزي": "دوار دار عزيزي",
-    "دوار الكطاطمة": "دوار الكطاطمة", "سيدي بنور": "سيدي بنور",
-    "الزوانة": "الزوانة", "وزان": "وزان", "دوار السعادنة": "دوار السعادنة",
-    "دوار الصبيبرات": "دوار الصبيبرات", "النواصر": "النواصر",
-    "مركز ايت عميرة": "مركز ايت عميرة", "مركز أيت عميرة": "مركز ايت عميرة",
-    "ولاد علي": "ولاد علي", "دوار لحميدات": "دوار لحميدات", "لحميدات": "لحميدات",
-    "دوار اولاد مبارك الشيظمي": "دوار اولاد مبارك الشيظمي",
-    "دوار المخاطرة": "دوار المخاطرة", "لعواكل": "لعواكل",
-    "لبخاتي اسفي": "لبخاتي اسفي", "لبخاتي آسفي": "لبخاتي اسفي",
-    "دوار المساعدية جماعة الكرعاني": "الكرعاني", "القليعة": "القليعة",
-    "دوار المعاطلة": "دوار المعاطلة",
-    "دوار المعاطلة جماعة مول البركي اسفي": "دوار المعاطلة جماعة مول البركي اسفي", "دوار المعاطلة جماعة مول البركي آسفي": "دوار المعاطلة جماعة مول البركي اسفي",
-    "دوار ولاد داوود": "دوار ولاد داوود"
+    الكرعاني: 'الكرعاني',
+    'الكرعاني آسفي': 'الكرعاني',
+    'الكرعاني أسفي': 'الكرعاني',
+    'الكرعاني اسفي': 'الكرعاني',
+    '\u200Fالكرعاني آسفي': 'الكرعاني',
+    'دوار المخاطرة جماعة الكرعاني': 'الكرعاني',
+    'جماعة الكرعاني': 'الكرعاني',
+    اسفي: 'اسفي',
+    آسفي: 'اسفي',
+    أسفي: 'اسفي',
+    '\u200Fآسفي': 'اسفي',
+    'جمعة سحيم اسفي': 'جمعة سحيم',
+    'جمعة سحيم آسفي': 'جمعة سحيم',
+    '\u200Fجمعة سحيم آسفي': 'جمعة سحيم',
+    'الحي الاداري بلدية جمعة سحيم باشوية  جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'جمعة اسحيم': 'جمعة سحيم',
+    'الحي الاداري جمعة اسحيم': 'جمعة سحيم',
+    'الحي الإداري': 'جمعة سحيم',
+    'الحي الاداري بلدية جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'جمعة سحيم': 'جمعة سحيم',
+    'ٍجمعة سحيم': 'جمعة سحيم',
+    'الحي الإداري جمعة سحيم': 'جمعة سحيم',
+    'الحي الاداري جمعة سحيم': 'جمعة سحيم',
+    'جمعة اسحيم آسفي': 'جمعة سحيم',
+    'بلدية جمعة سحيم': 'جمعة سحيم',
+    'بلدية جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'جماعة جمعة سحيم باشوية  جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'جماعة جمعة سحيم باشوية جمعة سحيم اقليم اسفي': 'جمعة سحيم',
+    'الحي الاداري بلدية جمعة سحيم': 'جمعة سحيم',
+    'حي غراب جمعة سحيم': 'جمعة سحيم',
+    'شارع محمد الخامس بلدية جمعة سحيم اقليم اسفي': 'جمعة سحيم',
+    'شارع محمد الخامس  بلدية جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'شارع اليوسفية جمعة اسحيم': 'جمعة سحيم',
+    'دوار لعباد جمعة سحيم': 'جمعة سحيم',
+    'حي الدعيجات جمعة اسحيم': 'جمعة سحيم',
+    'جمعة سحيم اقليم اسفي': 'جمعة سحيم',
+    'جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'جمعة اسيم': 'جمعة سحيم',
+    'دوار الحميدات بلدية جمعة سحيم باشوية جمعة سحيم اقليم اسفي': 'جمعة سحيم',
+    'دوار الحميدات بلدية جمعة سحيم باشوية  جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'دوار الخربة بلدية جمعة سحيم اقليم اسفي': 'جمعة سحيم',
+    'دوار الخربة  بلدية جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'دوار اولاد ميمون بلدية جمعة سحيم اقليم اسفي': 'جمعة سحيم',
+    'دوار أولاد ميمون بلدية جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'دوار اولاد التومي بلدية جمعة سحيم اقليم اسفي': 'جمعة سحيم',
+    'دوار أولاد التومي بلدية جمعة سحيم إقليم أسفي': 'جمعة سحيم',
+    'دار سي عيسي': 'دار سي عيسي',
+    'دار السي عيسى': 'دار سي عيسي',
+    'دار سي عيسى': 'دار سي عيسي',
+    'ج سيدي عيسى': 'دار سي عيسي',
+    'جماعة دار السي عيسي': 'دار سي عيسي',
+    'جماعة دار السي عيسى': 'دار سي عيسي',
+    'المصابيح اسفي': 'المصابيح',
+    'المصابيح آسفي': 'المصابيح',
+    '\u200Fالمصابيح آسفي': 'المصابيح',
+    '\u200Fلمصابيح': 'المصابيح',
+    'جماعة لمصابيح آسفي': 'المصابيح',
+    'جماعة لمصابيح اسفي': 'المصابيح',
+    'سيدي عيسى': 'المصابيح',
+    'سيدي عيسى آسفي': 'المصابيح',
+    'دوار اولاد بوجمعة جماعة لمصابيح دائرة عبدة اسفي': 'المصابيح',
+    'جماعة لمصابيح': 'المصابيح',
+    'جماعة المصابيح آسفي': 'المصابيح',
+    بلمصابيح: 'المصابيح',
+    'دوار لمصابيح ج لمصابيح عبدة': 'المصابيح',
+    'دوار الطلوح جماعة المصابيح اسفي': 'المصابيح',
+    'الدار البيضاء': 'الدار البيضاء',
+    البيضاء: 'الدار البيضاء',
+    الدارالبيضاء: 'الدار البيضاء',
+    الرباط: 'الرباط',
+    لحضر: 'لحضر',
+    'جماعة لحضر': 'لحضر',
+    'جماعة لحضر اقليم اسفي': 'لحضر',
+    'جماعة لحضر اقليم آسفي': 'لحضر',
+    'جماعة شهدة': 'جماعة شهدة',
+    'جماعة شهدة دائرة عبدة إقليم أسفي': 'جماعة شهدة',
+    'جماعة شهدة دائرة عبدة اقليم أسفي': 'جماعة شهدة',
+    شهدة: 'جماعة شهدة',
+    'دوار الجديان جماعة شهدة أسفي': 'جماعة شهدة',
+    'جماعة شهدة اسفي': 'جماعة شهدة',
+    'دوار أولاد ميمون جماعة شهدة': 'جماعة شهدة',
+    'دوار الجديان جماعة شهدة اسفي': 'جماعة شهدة',
+    'دوار اولاد ميمون جماعة شهدة': 'جماعة شهدة',
+    اليوسفية: 'اليوسفية',
+    بوكدرة: 'بوكدرة',
+    لعميرات: 'لعميرات',
+    مراكش: 'مراكش',
+    'دوار اولاد بوعنان': 'دوار اولاد بوعنان',
+    'دوار أولاد بوعنان': 'دوار اولاد بوعنان',
+    'حي لحرش': 'حي لحرش',
+    'انزا اكادير': 'انزا اكادير',
+    'اولادد اعبيد': 'اولادد اعبيد',
+    'اولاد السي عبد السلام': 'اولاد السي عبد السلام',
+    'اولاد يحي': 'اولاد يحي',
+    بوشان: 'بوشان',
+    'ج المراسلة': 'ج المراسلة',
+    تارودانت: 'تارودانت',
+    'تجزية الاخلاص': 'تجزية الاخلاص',
+    'تجزئة الاخلاص': 'تجزية الاخلاص',
+    'ج الكرعاني': 'الكرعاني',
+    'ج لبخاتي': 'ج لبخاتي',
+    'الجماعة الحضرية لاسفي': 'اسفي',
+    SAFI: 'اسفي',
+    'دوار اولاد مبارك': 'دوار اولاد مبارك',
+    'حي الرزازقة': 'حي الرزازقة',
+    'دوار اولاد فارقو': 'دوار اولاد فارقو',
+    'دوار أولاد فارقو': 'دوار اولاد فارقو',
+    'دوار اولاد عيسي': 'دوار اولاد عيسي',
+    'دوار أولاد عيسى': 'دوار اولاد عيسي',
+    'حي الدعيجات': 'حي الدعيجات',
+    'جماعة سيدي التيجي': 'جماعة سيدي التيجي',
+    'حي زمران': 'حي زمران',
+    'حي العبيد': 'حي العبيد',
+    'دوار اولاد امبارك الشيظمب البخاتي اسفي': 'دوار اولاد امبارك الشيظمب البخاتي اسفي',
+    'دوار اولاد امبارك الشيظمب البخاتي  اسفي': 'دوار اولاد امبارك الشيظمب البخاتي اسفي',
+    'دوار اولاد بن عليوة جماعة مول البركي اسفي': 'دوار اولاد بن عليوة جماعة مول البركي اسفي',
+    'دوار أولاد بن عليوة جماعة مول البركي أسفي': 'دوار اولاد بن عليوة جماعة مول البركي اسفي',
+    SELMOUN: 'SELMOUN',
+    'دوار اولاد التومي قيادة العامر اسفي': 'دوار اولاد التومي قيادة العامر اسفي',
+    'دوار اولاد التومي قيادة  العامر اسفي': 'دوار اولاد التومي قيادة العامر اسفي',
+    'دوار اولاد الجيلالي': 'دوار اولاد الجيلالي',
+    'دوار اولاد الحاج عيسي': 'دوار اولاد الحاج عيسي',
+    'دوار اولاد الحاج عيسى': 'دوار اولاد الحاج عيسي',
+    'دوار اولاد زكري الكرعاني': 'الكرعاني',
+    'دوار اولاد عزوز العامر اسفي': 'دوار اولاد عزوز العامر اسفي',
+    'دوار اولاد عمران': 'دوار اولاد عمران',
+    'دوار أولاد عمران': 'دوار اولاد عمران',
+    'قصر اعريب': 'قصر اعريب',
+    'جماعة سيدي عيسي': 'جماعة سيدي عيسي',
+    'جماعة سيدي عيسى': 'جماعة سيدي عيسي',
+    'دوار الدعابجة': 'دوار الدعابجة',
+    'دوار الزيادنة اقليم اسفي': 'دوار الزيادنة اقليم اسفي',
+    'دوار الزيادنة اقليم آسفي': 'دوار الزيادنة اقليم اسفي',
+    'دوار البيضان': 'دوار البيضان',
+    'دوار الجديات': 'دوار الجديات',
+    'دوار الحامات': 'دوار الحامات',
+    'دوار دار عزيزي': 'دوار دار عزيزي',
+    'دوار الكطاطمة': 'دوار الكطاطمة',
+    'سيدي بنور': 'سيدي بنور',
+    الزوانة: 'الزوانة',
+    وزان: 'وزان',
+    'دوار السعادنة': 'دوار السعادنة',
+    'دوار الصبيبرات': 'دوار الصبيبرات',
+    النواصر: 'النواصر',
+    'مركز ايت عميرة': 'مركز ايت عميرة',
+    'مركز أيت عميرة': 'مركز ايت عميرة',
+    'ولاد علي': 'ولاد علي',
+    'دوار لحميدات': 'دوار لحميدات',
+    لحميدات: 'لحميدات',
+    'دوار اولاد مبارك الشيظمي': 'دوار اولاد مبارك الشيظمي',
+    'دوار المخاطرة': 'دوار المخاطرة',
+    لعواكل: 'لعواكل',
+    'لبخاتي اسفي': 'لبخاتي اسفي',
+    'لبخاتي آسفي': 'لبخاتي اسفي',
+    'دوار المساعدية جماعة الكرعاني': 'الكرعاني',
+    القليعة: 'القليعة',
+    'دوار المعاطلة': 'دوار المعاطلة',
+    'دوار المعاطلة جماعة مول البركي اسفي': 'دوار المعاطلة جماعة مول البركي اسفي',
+    'دوار المعاطلة جماعة مول البركي آسفي': 'دوار المعاطلة جماعة مول البركي اسفي',
+    'دوار ولاد داوود': 'دوار ولاد داوود'
 };
 
 function resolvePlace(raw) {
@@ -576,7 +697,7 @@ function getChartThemeColors() {
         primary: get('--color-primary'),
         primaryLight: get('--color-primary-light'),
         primaryDark: get('--color-primary-dark'),
-        accent: '#9B64AB',
+        accent: '#9B64AB'
     };
 }
 
@@ -598,7 +719,11 @@ async function renderCharts(filterSection = 'all', stats) {
 
     if (!stats) stats = calculateStats();
     const sortedSectionsList = sortSectionNames(stats.sectionsList);
-    const sectionsOptions = sortedSectionsList.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    const sectionsOptions = sortedSectionsList
+        .map(
+            (s) => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`
+        )
+        .join('');
 
     const html = `<div class="charts-grid">
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب السن</h3><div class="chart-controls"><select id="age-section-filter"><option value="all" ${filterSection === 'all' ? 'selected' : ''}>جميع الأقسام</option>${sectionsOptions}</select><button><i class="fas fa-print"></i> طباعة</button></div></div><div class="chart-body"><canvas id="ageChart"></canvas></div></div>
@@ -609,12 +734,13 @@ async function renderCharts(filterSection = 'all', stats) {
     document.getElementById('charts-section').innerHTML = html;
 
     // Filter data based on section
-    const filteredData = filterSection === 'all' ? studentsData : studentsData.filter(s => s.section === filterSection);
+    const filteredData =
+        filterSection === 'all' ? studentsData : studentsData.filter((s) => s.section === filterSection);
 
     // Age Chart with filtered data
     const ageStats = {};
     const currentYear = new Date().getFullYear();
-    filteredData.forEach(s => {
+    filteredData.forEach((s) => {
         if (!s.birthDate) return;
         // Extract birth year from various date formats (YYYY-MM-DD, DD/MM/YYYY, YYYY, etc.)
         let birthYear;
@@ -632,7 +758,7 @@ async function renderCharts(filterSection = 'all', stats) {
         if (age < 10 || age > 40) return;
         if (!ageStats[age]) ageStats[age] = { total: 0, males: 0, females: 0 };
         ageStats[age].total++;
-        s.gender === "ذكر" ? ageStats[age].males++ : ageStats[age].females++;
+        s.gender === 'ذكر' ? ageStats[age].males++ : ageStats[age].females++;
     });
 
     const ages = Object.keys(ageStats).sort((a, b) => a - b);
@@ -640,29 +766,66 @@ async function renderCharts(filterSection = 'all', stats) {
     chartInstances.age = new Chart(document.getElementById('ageChart'), {
         type: 'bar',
         data: {
-            labels: ages.map(a => a + ' سنة'),
+            labels: ages.map((a) => a + ' سنة'),
             datasets: [
-                { label: 'عدد التلاميذ', data: ages.map(a => ageStats[a].total), backgroundColor: tc.primary, borderRadius: 6 },
-                { label: 'الإناث', data: ages.map(a => ageStats[a].females), backgroundColor: tc.primaryLight, borderRadius: 6 },
-                { label: 'الذكور', data: ages.map(a => ageStats[a].males), backgroundColor: tc.accent, borderRadius: 6 }
+                {
+                    label: 'عدد التلاميذ',
+                    data: ages.map((a) => ageStats[a].total),
+                    backgroundColor: tc.primary,
+                    borderRadius: 6
+                },
+                {
+                    label: 'الإناث',
+                    data: ages.map((a) => ageStats[a].females),
+                    backgroundColor: tc.primaryLight,
+                    borderRadius: 6
+                },
+                {
+                    label: 'الذكور',
+                    data: ages.map((a) => ageStats[a].males),
+                    backgroundColor: tc.accent,
+                    borderRadius: 6
+                }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }, scales: { x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }, y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } },
+            scales: {
+                x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } },
+                y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }
+            }
+        }
     });
 
     // Gender Chart
     chartInstances.gender = new Chart(document.getElementById('genderChart'), {
         type: 'doughnut',
-        data: { labels: ['الإناث', 'الذكور'], datasets: [{ data: [stats.females, stats.males], backgroundColor: [tc.primaryLight, tc.accent], borderWidth: 0, hoverOffset: 8 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } } }
+        data: {
+            labels: ['الإناث', 'الذكور'],
+            datasets: [
+                {
+                    data: [stats.females, stats.males],
+                    backgroundColor: [tc.primaryLight, tc.accent],
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }
+        }
     });
 
     // Levels Chart - Show stats per section
     const sectionStats = {};
-    studentsData.forEach(s => {
+    studentsData.forEach((s) => {
         if (!sectionStats[s.section]) sectionStats[s.section] = { total: 0, males: 0, females: 0 };
         sectionStats[s.section].total++;
-        s.gender === "ذكر" ? sectionStats[s.section].males++ : sectionStats[s.section].females++;
+        s.gender === 'ذكر' ? sectionStats[s.section].males++ : sectionStats[s.section].females++;
     });
     const sectionNames = sortSectionNames(Object.keys(sectionStats));
     chartInstances.levels = new Chart(document.getElementById('levelsChart'), {
@@ -670,32 +833,59 @@ async function renderCharts(filterSection = 'all', stats) {
         data: {
             labels: sectionNames,
             datasets: [
-                { label: 'المجموع', data: sectionNames.map(s => sectionStats[s].total), backgroundColor: tc.primary, borderRadius: 6 },
-                { label: 'إناث', data: sectionNames.map(s => sectionStats[s].females), backgroundColor: tc.primaryLight, borderRadius: 6 },
-                { label: 'ذكور', data: sectionNames.map(s => sectionStats[s].males), backgroundColor: tc.accent, borderRadius: 6 }
+                {
+                    label: 'المجموع',
+                    data: sectionNames.map((s) => sectionStats[s].total),
+                    backgroundColor: tc.primary,
+                    borderRadius: 6
+                },
+                {
+                    label: 'إناث',
+                    data: sectionNames.map((s) => sectionStats[s].females),
+                    backgroundColor: tc.primaryLight,
+                    borderRadius: 6
+                },
+                {
+                    label: 'ذكور',
+                    data: sectionNames.map((s) => sectionStats[s].males),
+                    backgroundColor: tc.accent,
+                    borderRadius: 6
+                }
             ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }, scales: { x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }, y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } },
+            scales: {
+                x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } },
+                y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }
+            }
+        }
     });
 
     // Birth Place Chart
     const places = {};
-    studentsData.forEach(s => {
+    studentsData.forEach((s) => {
         const raw = (s.birthPlace || '').trim() || '-';
         const key = resolvePlace(raw);
         places[key] = (places[key] || 0) + 1;
     });
-    const topPlaces = Object.entries(places).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const topPlaces = Object.entries(places)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
     chartInstances.place = new Chart(document.getElementById('placeChart'), {
         type: 'bar',
         data: {
-            labels: topPlaces.map(p => p[0]),
-            datasets: [{
-                label: 'العدد',
-                data: topPlaces.map(p => p[1]),
-                backgroundColor: tc.primaryDark,
-                borderRadius: 6
-            }]
+            labels: topPlaces.map((p) => p[0]),
+            datasets: [
+                {
+                    label: 'العدد',
+                    data: topPlaces.map((p) => p[1]),
+                    backgroundColor: tc.primaryDark,
+                    borderRadius: 6
+                }
+            ]
         },
         options: {
             responsive: true,
@@ -731,7 +921,9 @@ async function renderCharts(filterSection = 'all', stats) {
     // Add section filter event listener (remove old listener first to avoid leak)
     const filterEl = document.getElementById('age-section-filter');
     if (filterEl) {
-        filterEl.onchange = (e) => { renderCharts(e.target.value); };
+        filterEl.onchange = (e) => {
+            renderCharts(e.target.value);
+        };
     }
 }
 
@@ -747,7 +939,7 @@ async function renderExtraCharts() {
     }
 
     // Destroy previous instances
-    ['teacherSubject', 'teacherGender', 'teacherAge', 'studentStatus'].forEach(key => {
+    ['teacherSubject', 'teacherGender', 'teacherAge', 'studentStatus', 'surplusTeachers'].forEach((key) => {
         if (chartInstances[key] && typeof chartInstances[key].destroy === 'function') {
             chartInstances[key].destroy();
         }
@@ -775,7 +967,7 @@ async function renderExtraCharts() {
 
     // --- Teacher by Subject/Specialty ---
     const subjectCounts = {};
-    teachers.forEach(t => {
+    teachers.forEach((t) => {
         const subj = (t.subject || t.specialty_subject || '').trim() || 'غير محدد';
         subjectCounts[subj] = (subjectCounts[subj] || 0) + 1;
     });
@@ -785,7 +977,7 @@ async function renderExtraCharts() {
     // --- Teacher by Gender ---
     let teacherMales = 0;
     let teacherFemales = 0;
-    teachers.forEach(t => {
+    teachers.forEach((t) => {
         if (t.gender === 'ذكر') teacherMales++;
         else if (t.gender === 'أنثى') teacherFemales++;
     });
@@ -793,7 +985,7 @@ async function renderExtraCharts() {
     // --- Teacher by Age ---
     const teacherAgeGroups = {};
     const currentYear = new Date().getFullYear();
-    teachers.forEach(t => {
+    teachers.forEach((t) => {
         if (!t.birth_date) return;
         const birthYear = parseInt(t.birth_date.split('-')[0]);
         if (!birthYear || isNaN(birthYear)) return;
@@ -808,12 +1000,38 @@ async function renderExtraCharts() {
         teacherAgeGroups[group] = (teacherAgeGroups[group] || 0) + 1;
     });
     const ageOrder = ['أقل من 30', '30-39', '40-49', '50-59', '60+'];
-    const ageLabels = ageOrder.filter(g => teacherAgeGroups[g]);
-    const ageData = ageLabels.map(g => teacherAgeGroups[g]);
+    const ageLabels = ageOrder.filter((g) => teacherAgeGroups[g]);
+    const ageData = ageLabels.map((g) => teacherAgeGroups[g]);
     const ageColors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'];
 
     // --- Student Status ---
-    const activeStudents = statusSummary.totalStudents - statusSummary.dropouts - statusSummary.expelled - statusSummary.notEnrolled;
+    const activeStudents =
+        statusSummary.totalStudents - statusSummary.dropouts - statusSummary.expelled - statusSummary.notEnrolled;
+
+    // --- Surplus Teachers (فائضون) ---
+    function isSurplusDashboard(t) {
+        if (Number(t.is_surplus) === 1) return true;
+        const pos = (t.position || '').toLowerCase();
+        const stat = (t.statut || '').toLowerCase();
+        const func = (t.function_title || '').toLowerCase();
+        const combined = `${pos} ${stat} ${func}`;
+        return (
+            combined.includes('surnombre') ||
+            combined.includes('exc\u00e9dentaire') ||
+            combined.includes('excedentaire') ||
+            combined.includes('\u0641\u0627\u0626\u0636')
+        );
+    }
+    const surplusTeachers = teachers.filter(isSurplusDashboard);
+    const surplusTotal = surplusTeachers.length;
+    const surplusBySubject = {};
+    surplusTeachers.forEach((t) => {
+        const subj = (t.specialty_subject || t.subject || '').trim() || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f';
+        surplusBySubject[subj] = (surplusBySubject[subj] || 0) + 1;
+    });
+    const surplusEntries = Object.entries(surplusBySubject).sort((a, b) => b[1] - a[1]);
+    const surplusMales = surplusTeachers.filter((t) => t.gender === '\u0630\u0643\u0631').length;
+    const surplusFemales = surplusTeachers.filter((t) => t.gender === '\u0623\u0646\u062b\u0649').length;
 
     // Build HTML
     const html = `<div class="charts-grid">
@@ -821,6 +1039,17 @@ async function renderExtraCharts() {
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-venus-mars"></i> توزيع الأساتذة حسب الجنس</h3></div><div class="chart-body"><canvas id="teacherGenderChart"></canvas></div></div>
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-birthday-cake"></i> توزيع الأساتذة حسب الفئة العمرية</h3></div><div class="chart-body"><canvas id="teacherAgeChart"></canvas></div></div>
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-user-graduate"></i> وضعية التلاميذ</h3></div><div class="chart-body"><canvas id="studentStatusChart"></canvas></div></div>
+        ${
+            surplusTotal > 0
+                ? `<div class="chart-card" style="border-color:var(--color-warning,#f59e0b)">
+            <div class="chart-header" style="border-color:var(--color-warning,#f59e0b)">
+                <h3 style="color:var(--color-warning,#f59e0b)"><i class="fas fa-exclamation-triangle"></i> الأساتذة الفائضون (${surplusTotal})</h3>
+                <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">ذكور: ${surplusMales} — إناث: ${surplusFemales}</div>
+            </div>
+            <div class="chart-body"><canvas id="surplusTeachersChart"></canvas></div>
+        </div>`
+                : ''
+        }
     </div>`;
 
     const section = document.getElementById('extra-charts-section');
@@ -832,13 +1061,15 @@ async function renderExtraCharts() {
         chartInstances.teacherSubject = new Chart(document.getElementById('teacherSubjectChart'), {
             type: 'bar',
             data: {
-                labels: subjectEntries.map(e => e[0]),
-                datasets: [{
-                    label: 'عدد الأساتذة',
-                    data: subjectEntries.map(e => e[1]),
-                    backgroundColor: subjectColors,
-                    borderRadius: 6
-                }]
+                labels: subjectEntries.map((e) => e[0]),
+                datasets: [
+                    {
+                        label: 'عدد الأساتذة',
+                        data: subjectEntries.map((e) => e[1]),
+                        backgroundColor: subjectColors,
+                        borderRadius: 6
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -846,8 +1077,21 @@ async function renderExtraCharts() {
                 indexAxis: 'y',
                 plugins: { legend: { display: false }, tooltip: { rtl: true, textDirection: 'rtl' } },
                 scales: {
-                    x: { reverse: true, position: 'top', min: 0, grid: { color: tc.gridColor }, ticks: { color: tc.textColor, stepSize: 1 } },
-                    y: { position: 'right', grid: { display: false }, ticks: { color: tc.textColor, font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' } } }
+                    x: {
+                        reverse: true,
+                        position: 'top',
+                        min: 0,
+                        grid: { color: tc.gridColor },
+                        ticks: { color: tc.textColor, stepSize: 1 }
+                    },
+                    y: {
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: {
+                            color: tc.textColor,
+                            font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' }
+                        }
+                    }
                 }
             }
         });
@@ -858,9 +1102,20 @@ async function renderExtraCharts() {
         type: 'doughnut',
         data: {
             labels: ['إناث', 'ذكور'],
-            datasets: [{ data: [teacherFemales, teacherMales], backgroundColor: [tc.primaryLight, tc.accent], borderWidth: 0, hoverOffset: 8 }]
+            datasets: [
+                {
+                    data: [teacherFemales, teacherMales],
+                    backgroundColor: [tc.primaryLight, tc.accent],
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }
+            ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }
+        }
     });
 
     // Chart 3: Teacher by Age Group (bar)
@@ -869,12 +1124,14 @@ async function renderExtraCharts() {
             type: 'bar',
             data: {
                 labels: ageLabels,
-                datasets: [{
-                    label: 'عدد الأساتذة',
-                    data: ageData,
-                    backgroundColor: ageColors.slice(0, ageLabels.length),
-                    borderRadius: 6
-                }]
+                datasets: [
+                    {
+                        label: 'عدد الأساتذة',
+                        data: ageData,
+                        backgroundColor: ageColors.slice(0, ageLabels.length),
+                        borderRadius: 6
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -893,24 +1150,114 @@ async function renderExtraCharts() {
         type: 'doughnut',
         data: {
             labels: ['متمدرسون', 'منقطعون', 'مطرودون', 'غير ملتحقين'],
-            datasets: [{
-                data: [
-                    Math.max(activeStudents, 0),
-                    statusSummary.dropouts,
-                    statusSummary.expelled,
-                    statusSummary.notEnrolled
-                ],
-                backgroundColor: ['#4CAF50', '#FF9800', '#F44336', '#9E9E9E'],
-                borderWidth: 0,
-                hoverOffset: 8
-            }]
+            datasets: [
+                {
+                    data: [
+                        Math.max(activeStudents, 0),
+                        statusSummary.dropouts,
+                        statusSummary.expelled,
+                        statusSummary.notEnrolled
+                    ],
+                    backgroundColor: ['#4CAF50', '#FF9800', '#F44336', '#9E9E9E'],
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }
+            ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }
+        }
     });
+
+    // Chart 5: Surplus Teachers by Subject (horizontal bar) — shown only when data exists
+    if (surplusTotal > 0) {
+        const surplusCanvas = document.getElementById('surplusTeachersChart');
+        if (surplusCanvas) {
+            const surplusColors = surplusEntries.map(
+                (_, i) =>
+                    [
+                        '#f59e0b',
+                        '#ef4444',
+                        '#f97316',
+                        '#eab308',
+                        '#ec4899',
+                        '#a78bfa',
+                        '#34d399',
+                        '#60a5fa',
+                        '#fb923c',
+                        '#a3e635'
+                    ][i % 10]
+            );
+            chartInstances.surplusTeachers = new Chart(surplusCanvas, {
+                type: 'bar',
+                data: {
+                    labels: surplusEntries.map((e) => e[0]),
+                    datasets: [
+                        {
+                            label: 'عدد الفائضين',
+                            data: surplusEntries.map((e) => e[1]),
+                            backgroundColor: surplusColors,
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            rtl: true,
+                            textDirection: 'rtl',
+                            callbacks: {
+                                label: (ctx) => ` ${ctx.parsed.x} أستاذ فائض`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            reverse: true,
+                            position: 'top',
+                            min: 0,
+                            ticks: { color: tc.textColor, stepSize: 1 },
+                            grid: { color: tc.gridColor }
+                        },
+                        y: {
+                            position: 'right',
+                            grid: { display: false },
+                            ticks: {
+                                color: '#f59e0b',
+                                font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '700' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
 }
 
 function generatePalette(count) {
-    const base = ['#3B6AC5', '#9B64AB', '#E8913A', '#4CAF50', '#F44336', '#00BCD4', '#795548', '#607D8B', '#FF5722', '#8BC34A', '#CDDC39', '#FFC107', '#03A9F4', '#E91E63', '#673AB7'];
+    const base = [
+        '#3B6AC5',
+        '#9B64AB',
+        '#E8913A',
+        '#4CAF50',
+        '#F44336',
+        '#00BCD4',
+        '#795548',
+        '#607D8B',
+        '#FF5722',
+        '#8BC34A',
+        '#CDDC39',
+        '#FFC107',
+        '#03A9F4',
+        '#E91E63',
+        '#673AB7'
+    ];
     const result = [];
     for (let i = 0; i < count; i++) result.push(base[i % base.length]);
     return result;
@@ -921,8 +1268,12 @@ async function renderMovement(stats) {
     if (!stats) stats = calculateStats();
 
     // Fetch real status and movement data from the database
-    let dropouts = 0, notEnrolled = 0, expelled = 0;
-    let departures = 0, arrivals = 0, internals = 0;
+    let dropouts = 0,
+        notEnrolled = 0,
+        expelled = 0;
+    let departures = 0,
+        arrivals = 0,
+        internals = 0;
 
     try {
         const [statusResult, movementStats] = await Promise.all([
@@ -969,13 +1320,13 @@ function renderStudentsTable(searchName = '', searchFamily = '', filterSection =
     let filteredStudents = studentsData;
 
     if (filterSection !== 'all') {
-        filteredStudents = filteredStudents.filter(s => s.section === filterSection);
+        filteredStudents = filteredStudents.filter((s) => s.section === filterSection);
     }
     if (searchName.trim()) {
-        filteredStudents = filteredStudents.filter(s => s.firstName && s.firstName.includes(searchName.trim()));
+        filteredStudents = filteredStudents.filter((s) => s.firstName && s.firstName.includes(searchName.trim()));
     }
     if (searchFamily.trim()) {
-        filteredStudents = filteredStudents.filter(s => s.familyName && s.familyName.includes(searchFamily.trim()));
+        filteredStudents = filteredStudents.filter((s) => s.familyName && s.familyName.includes(searchFamily.trim()));
     }
 
     // Pagination calculations
@@ -989,9 +1340,18 @@ function renderStudentsTable(searchName = '', searchFamily = '', filterSection =
 
     const stats = calculateStats();
     const sortedSectionsList2 = sortSectionNames(stats.sectionsList);
-    const sectionsOptions = sortedSectionsList2.map(s => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    const sectionsOptions = sortedSectionsList2
+        .map(
+            (s) => `<option value="${escapeHtml(s)}" ${filterSection === s ? 'selected' : ''}>${escapeHtml(s)}</option>`
+        )
+        .join('');
 
-    const rows = paginatedStudents.map(s => `<tr><td>${escapeHtml(s.section)}</td><td>${escapeHtml(s.id)}</td><td>${escapeHtml(s.code)}</td><td>${escapeHtml(s.familyName)}</td><td>${escapeHtml(s.firstName)}</td><td class="${s.gender === 'ذكر' ? 'gender-male' : 'gender-female'}">${escapeHtml(s.gender)}</td><td>${escapeHtml(s.birthDate)}</td><td>${escapeHtml(s.birthPlace)}</td><td></td></tr>`).join('');
+    const rows = paginatedStudents
+        .map(
+            (s) =>
+                `<tr><td>${escapeHtml(s.section)}</td><td>${escapeHtml(s.id)}</td><td>${escapeHtml(s.code)}</td><td>${escapeHtml(s.familyName)}</td><td>${escapeHtml(s.firstName)}</td><td class="${s.gender === 'ذكر' ? 'gender-male' : 'gender-female'}">${escapeHtml(s.gender)}</td><td>${escapeHtml(s.birthDate)}</td><td>${escapeHtml(s.birthPlace)}</td><td></td></tr>`
+        )
+        .join('');
 
     // Generate pagination buttons
     let paginationHtml = '';
@@ -1126,8 +1486,6 @@ function clearSearch() {
     renderStudentsTable('', '', 'all', 1);
 }
 
-
-
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize database
@@ -1152,9 +1510,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 });
-
-
-
 
 function refreshDashboard() {
     const stats = calculateStats();
@@ -1228,12 +1583,12 @@ async function exportToExcel() {
         return;
     }
 
-    const exportData = studentsData.map(s => ({
-        'القسم': s.section,
-        'الرمز': s.code,
-        'النسب': s.familyName,
-        'الاسم': s.firstName,
-        'النوع': s.gender,
+    const exportData = studentsData.map((s) => ({
+        القسم: s.section,
+        الرمز: s.code,
+        النسب: s.familyName,
+        الاسم: s.firstName,
+        النوع: s.gender,
         'تاريخ الازدياد': s.birthDate,
         'مكان الازدياد': s.birthPlace
     }));
@@ -1254,7 +1609,9 @@ async function printChart(chartId, title) {
     try {
         const id = await window.api.reports.getIdentity();
         schoolName = id?.school_name || '';
-    } catch (_) { /* identity unavailable */ }
+    } catch (_) {
+        /* identity unavailable */
+    }
 
     const htmlContent = `
         <div class="print-header">

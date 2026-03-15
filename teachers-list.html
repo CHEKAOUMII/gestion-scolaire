@@ -1,822 +1,937 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بطاقات الأساتذة | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
-    <script src="js/utils.js" defer></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js" defer></script>
-    <script src="js/ux-enhancements.js" defer></script>
-    <style>
-        /* ─── Staff Page Specific Styles ─── */
-        .staff-stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .staff-stat-card {
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            padding: 16px;
-            text-align: center;
-            transition: var(--transition-fast);
-        }
-
-        .staff-stat-card:hover {
-            border-color: var(--color-primary-light);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-hover);
-        }
-
-        .staff-stat-card .stat-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--color-primary);
-            font-family: var(--font-display);
-        }
-
-        .staff-stat-card .stat-label {
-            font-size: 0.8rem;
-            color: var(--color-text-muted);
-            margin-top: 4px;
-        }
-
-        /* ─── Search & Filter Bar ─── */
-        .staff-toolbar {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-
-        .staff-toolbar .search-input {
-            flex: 1;
-            min-width: 200px;
-            padding: 10px 14px;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            background: var(--color-surface);
-            color: var(--color-text-main);
-            font-family: var(--font-main);
-            font-size: 14px;
-            transition: var(--transition-fast);
-        }
-
-        .staff-toolbar .search-input:focus {
-            outline: none;
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px var(--color-primary-mist);
-        }
-
-        .staff-toolbar select {
-            padding: 10px 14px;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            background: var(--color-surface);
-            color: var(--color-text-main);
-            font-family: var(--font-main);
-            font-size: 13px;
-            cursor: pointer;
-        }
-
-        .staff-counter {
-            font-size: 13px;
-            color: var(--color-text-muted);
-            margin-right: auto;
-            white-space: nowrap;
-        }
-
-        /* ─── Responsive Table ─── */
-        .staff-table-wrap {
-            overflow-x: auto;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-        }
-
-        .staff-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        .staff-table th {
-            position: sticky;
-            top: 0;
-            background: var(--color-surface-alt);
-            color: var(--color-text-muted);
-            font-weight: 600;
-            font-size: 12px;
-            padding: 10px 8px;
-            border-bottom: 2px solid var(--color-accent);
-            white-space: nowrap;
-            text-align: right;
-        }
-
-        .staff-table td {
-            padding: 10px 8px;
-            border-bottom: 1px solid var(--color-accent);
-            color: var(--color-text-main);
-            vertical-align: middle;
-        }
-
-        .staff-table tbody tr {
-            transition: background 0.15s ease;
-            cursor: pointer;
-        }
-
-        .staff-table tbody tr:hover {
-            background: var(--color-primary-mist);
-        }
-
-        .staff-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .staff-table .col-ppr {
-            font-family: 'IBM Plex Sans Arabic', monospace;
-            font-size: 12px;
-            direction: ltr;
-            text-align: center;
-            white-space: nowrap;
-        }
-
-        .staff-table .col-actions {
-            white-space: nowrap;
-            text-align: center;
-        }
-
-        .staff-table .col-actions .actions-row {
-            display: inline-flex;
-            gap: 4px;
-            align-items: center;
-        }
-
-        .staff-table .col-actions button {
-            padding: 4px 8px;
-            font-size: 12px;
-            margin: 0;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: var(--radius-full);
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .badge-cadre {
-            background: var(--color-primary-mist);
-            color: var(--color-primary);
-        }
-
-        .badge-grade {
-            background: rgba(46, 204, 113, 0.12);
-            color: var(--color-success);
-        }
-
-        .badge-source {
-            font-size: 10px;
-            padding: 1px 6px;
-        }
-
-        .badge-source-agent {
-            background: rgba(155, 89, 182, 0.12);
-            color: #8e44ad;
-        }
-
-        .badge-source-manual {
-            background: rgba(52, 152, 219, 0.12);
-            color: #2980b9;
-        }
-
-        .badge-source-fet {
-            background: rgba(230, 126, 34, 0.12);
-            color: #d35400;
-        }
-
-        [data-theme="dark"] .badge-source-agent { color: #c39bd3; }
-        [data-theme="dark"] .badge-source-manual { color: #85c1e9; }
-        [data-theme="dark"] .badge-source-fet { color: #f0b27a; }
-
-        /* ─── Detail Drawer (slide-in panel) ─── */
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes slideInFromRight {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-        }
-
-        .detail-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 1100;
-            background: rgba(0, 0, 0, 0.5);
-            animation: fadeIn 0.2s ease;
-        }
-
-        .detail-overlay.active {
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .detail-panel {
-            width: min(520px, 92vw);
-            height: 100vh;
-            background: var(--color-surface);
-            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
-            overflow-y: auto;
-            animation: slideInFromRight 0.3s ease;
-            padding: 0;
-        }
-
-        .detail-header {
-            background: var(--gradient-primary);
-            color: #fff;
-            padding: 24px 20px 20px;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
-
-        .detail-header .close-detail {
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            background: rgba(255,255,255,0.15);
-            border: none;
-            color: #fff;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            font-size: 15px;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .detail-header .close-detail:hover {
-            background: rgba(255,255,255,0.3);
-        }
-
-        .detail-header .teacher-avatar {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            margin-bottom: 10px;
-        }
-
-        .detail-header .teacher-main-name {
-            font-size: 1.2rem;
-            font-weight: 700;
-            font-family: var(--font-display);
-        }
-
-        .detail-header .teacher-sub-name {
-            font-size: 0.85rem;
-            opacity: 0.8;
-            margin-top: 2px;
-            direction: ltr;
-            text-align: right;
-        }
-
-        .detail-body {
-            padding: 20px;
-        }
-
-        .detail-section {
-            margin-bottom: 20px;
-        }
-
-        .detail-section h4 {
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: var(--color-primary);
-            margin-bottom: 10px;
-            padding-bottom: 6px;
-            border-bottom: 1px solid var(--color-accent);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .detail-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px 16px;
-        }
-
-        .detail-field {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .detail-field .field-label {
-            font-size: 11px;
-            color: var(--color-text-muted);
-            font-weight: 600;
-        }
-
-        .detail-field .field-value {
-            font-size: 13px;
-            color: var(--color-text-main);
-        }
-
-        .detail-field.full-width {
-            grid-column: 1 / -1;
-        }
-
-        /* ─── Add/Edit Form ─── */
-        .staff-form-section {
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            padding: 16px;
-            margin-bottom: 16px;
-        }
-
-        .staff-form-section h3 {
-            font-size: 0.95rem;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .staff-form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px;
-        }
-
-        .staff-form-grid input {
-            padding: 8px 12px;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-xs);
-            background: var(--color-surface);
-            color: var(--color-text-main);
-            font-family: var(--font-main);
-            font-size: 13px;
-        }
-
-        .staff-form-grid input:focus {
-            outline: none;
-            border-color: var(--color-primary);
-        }
-
-        .staff-form-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .empty-state {
-            padding: 40px;
-            text-align: center;
-            color: var(--color-text-muted);
-        }
-
-        .empty-state i {
-            font-size: 2.5rem;
-            margin-bottom: 12px;
-            opacity: 0.4;
-        }
-
-        .empty-state p {
-            font-size: 0.9rem;
-        }
-
-        /* ─── Responsive ─── */
-        @media (max-width: 1200px) {
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>بطاقات الأساتذة | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/design-system.css" />
+        <link rel="stylesheet" href="styles.css" />
+        <link rel="stylesheet" href="ux-enhancements.css" />
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+        <style>
+            /* ─── Staff Page Specific Styles ─── */
             .staff-stats-row {
-                grid-template-columns: repeat(4, 1fr);
-            }
-
-            .staff-toolbar {
-                gap: 8px;
-            }
-
-            .staff-toolbar select {
-                font-size: 12px;
-                padding: 8px 10px;
-            }
-        }
-
-        @media (max-width: 992px) {
-            .staff-stats-row {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .staff-toolbar {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .staff-toolbar .search-input {
-                min-width: unset;
-                width: 100%;
-            }
-
-            .staff-toolbar select {
-                width: 100%;
-            }
-
-            .staff-counter {
-                margin-right: 0;
-                text-align: center;
-            }
-
-            .staff-form-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .detail-panel {
-                width: min(460px, 94vw);
-            }
-
-            .detail-grid {
-                gap: 6px 12px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .staff-stats-row {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 12px;
+                margin-bottom: 20px;
             }
 
             .staff-stat-card {
-                padding: 12px;
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                padding: 16px;
+                text-align: center;
+                transition: var(--transition-fast);
+            }
+
+            .staff-stat-card:hover {
+                border-color: var(--color-primary-light);
+                transform: translateY(-2px);
+                box-shadow: var(--shadow-hover);
             }
 
             .staff-stat-card .stat-value {
-                font-size: 1.5rem;
-            }
-
-            .staff-form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .detail-panel {
-                width: 100vw;
-            }
-
-            .detail-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .staff-table th,
-            .staff-table td {
-                padding: 8px 6px;
-                font-size: 12px;
-            }
-
-            /* Hide less important columns on mobile */
-            .staff-table th:nth-child(5),
-            .staff-table td:nth-child(5),
-            .staff-table th:nth-child(6),
-            .staff-table td:nth-child(6),
-            .staff-table th:nth-child(7),
-            .staff-table td:nth-child(7),
-            .staff-table th:nth-child(8),
-            .staff-table td:nth-child(8) {
-                display: none;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .staff-stats-row {
-                grid-template-columns: 1fr 1fr;
-                gap: 6px;
-            }
-
-            .staff-stat-card .stat-value {
-                font-size: 1.3rem;
+                font-size: 1.8rem;
+                font-weight: 700;
+                color: var(--color-primary);
+                font-family: var(--font-display);
             }
 
             .staff-stat-card .stat-label {
-                font-size: 0.7rem;
+                font-size: 0.8rem;
+                color: var(--color-text-muted);
+                margin-top: 4px;
+            }
+
+            .staff-stat-card.surplus {
+                border-color: var(--color-warning, #f59e0b);
+                cursor: pointer;
+            }
+
+            .staff-stat-card.surplus .stat-value {
+                color: var(--color-warning, #f59e0b);
+            }
+
+            .staff-stat-card.surplus:hover {
+                border-color: #d97706;
+                box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
+            }
+
+            /* ─── Search & Filter Bar ─── */
+            .staff-toolbar {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: center;
+                margin-bottom: 16px;
+            }
+
+            .staff-toolbar .search-input {
+                flex: 1;
+                min-width: 200px;
+                padding: 10px 14px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                background: var(--color-surface);
+                color: var(--color-text-main);
+                font-family: var(--font-main);
+                font-size: 14px;
+                transition: var(--transition-fast);
+            }
+
+            .staff-toolbar .search-input:focus {
+                outline: none;
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px var(--color-primary-mist);
+            }
+
+            .staff-toolbar select {
+                padding: 10px 14px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                background: var(--color-surface);
+                color: var(--color-text-main);
+                font-family: var(--font-main);
+                font-size: 13px;
+                cursor: pointer;
+            }
+
+            .staff-counter {
+                font-size: 13px;
+                color: var(--color-text-muted);
+                margin-right: auto;
+                white-space: nowrap;
+            }
+
+            /* ─── Responsive Table ─── */
+            .staff-table-wrap {
+                overflow-x: auto;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+            }
+
+            .staff-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+
+            .staff-table th {
+                position: sticky;
+                top: 0;
+                background: var(--color-surface-alt);
+                color: var(--color-text-muted);
+                font-weight: 600;
+                font-size: 12px;
+                padding: 10px 8px;
+                border-bottom: 2px solid var(--color-accent);
+                white-space: nowrap;
+                text-align: right;
+            }
+
+            .staff-table td {
+                padding: 10px 8px;
+                border-bottom: 1px solid var(--color-accent);
+                color: var(--color-text-main);
+                vertical-align: middle;
+            }
+
+            .staff-table tbody tr {
+                transition: background 0.15s ease;
+                cursor: pointer;
+            }
+
+            .staff-table tbody tr:hover {
+                background: var(--color-primary-mist);
+            }
+
+            .staff-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+
+            .staff-table .col-ppr {
+                font-family: 'IBM Plex Sans Arabic', monospace;
+                font-size: 12px;
+                direction: ltr;
+                text-align: center;
+                white-space: nowrap;
+            }
+
+            .staff-table .col-actions {
+                white-space: nowrap;
+                text-align: center;
+            }
+
+            .staff-table .col-actions .actions-row {
+                display: inline-flex;
+                gap: 4px;
+                align-items: center;
+            }
+
+            .staff-table .col-actions button {
+                padding: 4px 8px;
+                font-size: 12px;
+                margin: 0;
+            }
+
+            .badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: var(--radius-full);
+                font-size: 11px;
+                font-weight: 600;
+            }
+
+            .badge-cadre {
+                background: var(--color-primary-mist);
+                color: var(--color-primary);
+            }
+
+            .badge-grade {
+                background: rgba(46, 204, 113, 0.12);
+                color: var(--color-success);
+            }
+
+            .badge-source {
+                font-size: 10px;
+                padding: 1px 6px;
+            }
+
+            .badge-source-agent {
+                background: rgba(155, 89, 182, 0.12);
+                color: #8e44ad;
+            }
+
+            .badge-source-manual {
+                background: rgba(52, 152, 219, 0.12);
+                color: #2980b9;
+            }
+
+            .badge-source-fet {
+                background: rgba(230, 126, 34, 0.12);
+                color: #d35400;
+            }
+
+            [data-theme='dark'] .badge-source-agent {
+                color: #c39bd3;
+            }
+            [data-theme='dark'] .badge-source-manual {
+                color: #85c1e9;
+            }
+            [data-theme='dark'] .badge-source-fet {
+                color: #f0b27a;
+            }
+
+            /* ─── Detail Drawer (slide-in panel) ─── */
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideInFromRight {
+                from {
+                    transform: translateX(100%);
+                }
+                to {
+                    transform: translateX(0);
+                }
+            }
+
+            .detail-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                z-index: 1100;
+                background: rgba(0, 0, 0, 0.5);
+                animation: fadeIn 0.2s ease;
+            }
+
+            .detail-overlay.active {
+                display: flex;
+                justify-content: flex-end;
+            }
+
+            .detail-panel {
+                width: min(520px, 92vw);
+                height: 100vh;
+                background: var(--color-surface);
+                box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
+                overflow-y: auto;
+                animation: slideInFromRight 0.3s ease;
+                padding: 0;
             }
 
             .detail-header {
-                padding: 20px 16px 16px;
+                background: var(--gradient-primary);
+                color: #fff;
+                padding: 24px 20px 20px;
+                position: sticky;
+                top: 0;
+                z-index: 2;
             }
 
-            .detail-body {
-                padding: 16px;
+            .detail-header .close-detail {
+                position: absolute;
+                top: 12px;
+                left: 12px;
+                background: rgba(255, 255, 255, 0.15);
+                border: none;
+                color: #fff;
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                font-size: 15px;
+                cursor: pointer;
+                transition: background 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .detail-header .close-detail:hover {
+                background: rgba(255, 255, 255, 0.3);
+            }
+
+            .detail-header .teacher-avatar {
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.2);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+                margin-bottom: 10px;
             }
 
             .detail-header .teacher-main-name {
-                font-size: 1rem;
+                font-size: 1.2rem;
+                font-weight: 700;
+                font-family: var(--font-display);
             }
 
-            /* Hide more columns on very small screens */
-            .staff-table th:nth-child(2),
-            .staff-table td:nth-child(2),
-            .staff-table th:nth-child(9),
-            .staff-table td:nth-child(9) {
-                display: none;
+            .detail-header .teacher-sub-name {
+                font-size: 0.85rem;
+                opacity: 0.8;
+                margin-top: 2px;
+                direction: ltr;
+                text-align: right;
             }
-        }
 
-        @media print {
-            .staff-toolbar, .staff-form-section, .col-actions, .detail-overlay, .sidebar, .header { display: none !important; }
-            .main-content { margin: 0 !important; padding: 10px !important; }
-            .staff-table { font-size: 11px; }
-        }
-    </style>
-</head>
+            .detail-body {
+                padding: 20px;
+            }
 
-<body>
-    <div class="toast-container" id="toast-container"></div>
+            .detail-section {
+                margin-bottom: 20px;
+            }
 
-    <aside class="sidebar" id="sidebar"></aside>
+            .detail-section h4 {
+                font-size: 0.85rem;
+                font-weight: 700;
+                color: var(--color-primary);
+                margin-bottom: 10px;
+                padding-bottom: 6px;
+                border-bottom: 1px solid var(--color-accent);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
 
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-id-card-alt"></i> بطاقات الأساتذة</h2>
-            </div>
-            <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-                <button class="btn btn-secondary" id="btn-print" title="طباعة" style="padding: 6px 12px;">
-                    <i class="fas fa-print"></i>
-                </button>
-            </div>
-        </header>
+            .detail-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px 16px;
+            }
 
-        <div class="grades-container">
+            .detail-field {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
 
-            <!-- Stats Row -->
-            <div class="staff-stats-row animate-in">
-                <div class="staff-stat-card">
-                    <div class="stat-value" id="stat-total">-</div>
-                    <div class="stat-label">مجموع الأساتذة</div>
-                </div>
-                <div class="staff-stat-card">
-                    <div class="stat-value" id="stat-agent">-</div>
-                    <div class="stat-label">من ملف الوزارة</div>
-                </div>
-                <div class="staff-stat-card">
-                    <div class="stat-value" id="stat-male">-</div>
-                    <div class="stat-label">ذكور</div>
-                </div>
-                <div class="staff-stat-card">
-                    <div class="stat-value" id="stat-female">-</div>
-                    <div class="stat-label">إناث</div>
-                </div>
-            </div>
+            .detail-field .field-label {
+                font-size: 11px;
+                color: var(--color-text-muted);
+                font-weight: 600;
+            }
 
-            <!-- Add/Edit Form -->
-            <div class="staff-form-section animate-in animate-in-delay-1">
-                <h3><i class="fas fa-plus-circle"></i> <span id="form-title">إضافة أستاذ</span></h3>
-                <form id="teacher-form">
-                    <input type="hidden" id="teacher-id">
-                    <div class="staff-form-grid">
-                        <input id="teacher-name" placeholder="الاسم الكامل *" required>
-                        <input id="teacher-subject" placeholder="المادة">
-                        <input id="teacher-phone" placeholder="الهاتف">
-                        <input id="teacher-email" placeholder="البريد الإلكتروني" type="email">
-                    </div>
-                    <div class="staff-form-actions">
-                        <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> حفظ</button>
-                        <button class="btn btn-secondary" type="button" id="cancel-edit" style="display:none;">إلغاء</button>
-                    </div>
-                </form>
-            </div>
+            .detail-field .field-value {
+                font-size: 13px;
+                color: var(--color-text-main);
+            }
 
-            <!-- Toolbar -->
-            <div class="students-results animate-in animate-in-delay-2">
-                <h3><i class="fas fa-table"></i> لائحة الأساتذة</h3>
-                <div class="staff-toolbar">
-                    <input type="text" class="search-input" id="search-input" placeholder="بحث بالاسم أو ر.ت أو المادة...">
-                    <select id="filter-gender">
-                        <option value="">كل الأنواع</option>
-                        <option value="ذكور">ذكور</option>
-                        <option value="إناث">إناث</option>
-                    </select>
-                    <select id="filter-subject">
-                        <option value="">كل التخصصات</option>
-                    </select>
-                    <select id="filter-cadre">
-                        <option value="">كل الأطر</option>
-                    </select>
-                    <select id="filter-source">
-                        <option value="">كل المصادر</option>
-                        <option value="agent_xml">ملف الوزارة</option>
-                        <option value="fet">FET</option>
-                        <option value="manual">يدوي</option>
-                    </select>
-                    <span class="staff-counter" id="staff-counter"></span>
-                </div>
+            .detail-field.full-width {
+                grid-column: 1 / -1;
+            }
 
-                <!-- Table -->
-                <div class="staff-table-wrap">
-                    <table class="staff-table" id="staff-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>ر.ت</th>
-                                <th>الاسم الكامل</th>
-                                <th>المادة</th>
-                                <th>الإطار</th>
-                                <th>الدرجة</th>
-                                <th>الرتبة</th>
-                                <th>الهاتف</th>
-                                <th>المصدر</th>
-                                <th class="col-actions">إجراء</th>
-                            </tr>
-                        </thead>
-                        <tbody id="teachers-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
+            /* ─── Add/Edit Form ─── */
+            .staff-form-section {
+                background: var(--color-surface);
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                padding: 16px;
+                margin-bottom: 16px;
+            }
 
-        </div>
-    </main>
+            .staff-form-section h3 {
+                font-size: 0.95rem;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
 
-    <!-- Detail Drawer -->
-    <div class="detail-overlay" id="detail-overlay">
-        <div class="detail-panel" id="detail-panel">
-            <div class="detail-header">
-                <button class="close-detail" id="close-detail" title="إغلاق"><i class="fas fa-times"></i></button>
-                <div class="teacher-avatar"><i class="fas fa-user"></i></div>
-                <div class="teacher-main-name" id="detail-name">-</div>
-                <div class="teacher-sub-name" id="detail-name-fr"></div>
-            </div>
-            <div class="detail-body" id="detail-body">
-                <!-- Filled by JS -->
-            </div>
-        </div>
-    </div>
+            .staff-form-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 10px;
+            }
 
-    <script src="js/data/ma-education-labels.js"></script>
-    <script src="js/utils.js"></script>
-    <script>
-        const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
-        let teachers = [];
-        let filtered = [];
+            .staff-form-grid input {
+                padding: 8px 12px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-xs);
+                background: var(--color-surface);
+                color: var(--color-text-main);
+                font-family: var(--font-main);
+                font-size: 13px;
+            }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await loadTeachers();
-            setupForm();
-            setupFilters();
-            setupDetailPanel();
-            document.getElementById('btn-print')?.addEventListener('click', () => window.print());
-        });
+            .staff-form-grid input:focus {
+                outline: none;
+                border-color: var(--color-primary);
+            }
 
-        async function loadTeachers() {
-            const result = await window.api.teachers.getAll(year);
-            console.log('[DEBUG] getSchoolYear:', year, 'getAll result:', result);
-            teachers = Array.isArray(result) ? result : [];
-            populateDropdowns();
-            applyFilters();
-            updateStats();
-        }
+            .staff-form-actions {
+                display: flex;
+                gap: 8px;
+                margin-top: 10px;
+            }
 
-        function updateStats() {
-            const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-            el('stat-total', teachers.length);
-            el('stat-agent', teachers.filter(t => t.source === 'agent_xml').length);
-            el('stat-male', teachers.filter(t => (t.gender || '').includes('1') || (t.gender || '').includes('ذكر')).length);
-            el('stat-female', teachers.filter(t => (t.gender || '').includes('2') || (t.gender || '').includes('أنثى')).length);
-        }
+            .empty-state {
+                padding: 40px;
+                text-align: center;
+                color: var(--color-text-muted);
+            }
 
-        function populateDropdowns() {
-            // Populate Cadre
-            const selectCadre = document.getElementById('filter-cadre');
-            const cadres = [...new Set(teachers.map(t => t.cadre).filter(Boolean))].sort();
-            selectCadre.innerHTML = '<option value="">كل الأطر</option>';
-            cadres.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = (typeof translateCadre === 'function') ? translateCadre(c) : c;
-                selectCadre.appendChild(opt);
-            });
+            .empty-state i {
+                font-size: 2.5rem;
+                margin-bottom: 12px;
+                opacity: 0.4;
+            }
 
-            // Populate Subject — prefer specialty_subject, fallback to subject
-            const selectSubject = document.getElementById('filter-subject');
-            const subjectSet = new Set();
-            teachers.forEach(t => {
-                const raw = t.specialty_subject || t.subject;
-                if (!raw) return;
-                const label = (typeof translateSubject === 'function') ? translateSubject(raw) : raw;
-                if (label) subjectSet.add(label);
-            });
-            const subjects = [...subjectSet].sort((a, b) => a.localeCompare(b, 'ar'));
-            selectSubject.innerHTML = '<option value="">كل التخصصات</option>';
-            subjects.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s; opt.textContent = s;
-                selectSubject.appendChild(opt);
-            });
-        }
+            .empty-state p {
+                font-size: 0.9rem;
+            }
 
-        function setupFilters() {
-            document.getElementById('search-input').addEventListener('input', applyFilters);
-            document.getElementById('filter-cadre').addEventListener('change', applyFilters);
-            document.getElementById('filter-source').addEventListener('change', applyFilters);
-            document.getElementById('filter-gender').addEventListener('change', applyFilters);
-            document.getElementById('filter-subject').addEventListener('change', applyFilters);
-        }
-
-        function applyFilters() {
-            const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
-            const cadre = document.getElementById('filter-cadre')?.value || '';
-            const source = document.getElementById('filter-source')?.value || '';
-            const genderVal = document.getElementById('filter-gender')?.value || '';
-            const subject = document.getElementById('filter-subject')?.value || '';
-
-            filtered = teachers.filter(t => {
-                if (q) {
-                    const haystack = [t.full_name, t.full_name_fr, t.ppr, t.subject,
-                                      t.specialty_subject, t.phone, t.cin].join(' ').toLowerCase();
-                    if (!haystack.includes(q)) return false;
+            /* ─── Responsive ─── */
+            @media (max-width: 1200px) {
+                .staff-stats-row {
+                    grid-template-columns: repeat(4, 1fr);
                 }
-                if (cadre && t.cadre !== cadre) return false;
-                if (source && t.source !== source) return false;
-                if (subject) {
-                    // Match against translated specialty_subject OR subject
+
+                .staff-toolbar {
+                    gap: 8px;
+                }
+
+                .staff-toolbar select {
+                    font-size: 12px;
+                    padding: 8px 10px;
+                }
+            }
+
+            @media (max-width: 992px) {
+                .staff-stats-row {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+
+                .staff-toolbar {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                .staff-toolbar .search-input {
+                    min-width: unset;
+                    width: 100%;
+                }
+
+                .staff-toolbar select {
+                    width: 100%;
+                }
+
+                .staff-counter {
+                    margin-right: 0;
+                    text-align: center;
+                }
+
+                .staff-form-grid {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+
+                .detail-panel {
+                    width: min(460px, 94vw);
+                }
+
+                .detail-grid {
+                    gap: 6px 12px;
+                }
+            }
+
+            @media (max-width: 768px) {
+                .staff-stats-row {
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 8px;
+                }
+
+                .staff-stat-card {
+                    padding: 12px;
+                }
+
+                .staff-stat-card .stat-value {
+                    font-size: 1.5rem;
+                }
+
+                .staff-form-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .detail-panel {
+                    width: 100vw;
+                }
+
+                .detail-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .staff-table th,
+                .staff-table td {
+                    padding: 8px 6px;
+                    font-size: 12px;
+                }
+
+                /* Hide less important columns on mobile */
+                .staff-table th:nth-child(5),
+                .staff-table td:nth-child(5),
+                .staff-table th:nth-child(6),
+                .staff-table td:nth-child(6),
+                .staff-table th:nth-child(7),
+                .staff-table td:nth-child(7),
+                .staff-table th:nth-child(8),
+                .staff-table td:nth-child(8) {
+                    display: none;
+                }
+            }
+
+            @media (max-width: 480px) {
+                .staff-stats-row {
+                    grid-template-columns: 1fr 1fr;
+                    gap: 6px;
+                }
+
+                .staff-stat-card .stat-value {
+                    font-size: 1.3rem;
+                }
+
+                .staff-stat-card .stat-label {
+                    font-size: 0.7rem;
+                }
+
+                .detail-header {
+                    padding: 20px 16px 16px;
+                }
+
+                .detail-body {
+                    padding: 16px;
+                }
+
+                .detail-header .teacher-main-name {
+                    font-size: 1rem;
+                }
+
+                /* Hide more columns on very small screens */
+                .staff-table th:nth-child(2),
+                .staff-table td:nth-child(2),
+                .staff-table th:nth-child(9),
+                .staff-table td:nth-child(9) {
+                    display: none;
+                }
+            }
+
+            @media print {
+                .staff-toolbar,
+                .staff-form-section,
+                .col-actions,
+                .detail-overlay,
+                .sidebar,
+                .header {
+                    display: none !important;
+                }
+                .main-content {
+                    margin: 0 !important;
+                    padding: 10px !important;
+                }
+                .staff-table {
+                    font-size: 11px;
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <h2 class="page-title"><i class="fas fa-id-card-alt"></i> بطاقات الأساتذة</h2>
+                </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="btn btn-secondary" id="btn-print" title="طباعة" style="padding: 6px 12px">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="grades-container">
+                <!-- Stats Row -->
+                <div class="staff-stats-row animate-in">
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-total">-</div>
+                        <div class="stat-label">مجموع الأساتذة</div>
+                    </div>
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-agent">-</div>
+                        <div class="stat-label">من ملف الوزارة</div>
+                    </div>
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-male">-</div>
+                        <div class="stat-label">ذكور</div>
+                    </div>
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-female">-</div>
+                        <div class="stat-label">إناث</div>
+                    </div>
+                    <div class="staff-stat-card surplus" id="stat-surplus-card" title="انقر لعرض الفائضين فقط">
+                        <div class="stat-value" id="stat-surplus">-</div>
+                        <div class="stat-label">⚠️ الفائضون</div>
+                    </div>
+                </div>
+
+                <!-- Add/Edit Form -->
+                <div class="staff-form-section animate-in animate-in-delay-1">
+                    <h3><i class="fas fa-plus-circle"></i> <span id="form-title">إضافة أستاذ</span></h3>
+                    <form id="teacher-form">
+                        <input type="hidden" id="teacher-id" />
+                        <div class="staff-form-grid">
+                            <input id="teacher-name" placeholder="الاسم الكامل *" required />
+                            <input id="teacher-subject" placeholder="المادة" />
+                            <input id="teacher-phone" placeholder="الهاتف" />
+                            <input id="teacher-email" placeholder="البريد الإلكتروني" type="email" />
+                        </div>
+                        <div class="staff-form-actions">
+                            <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> حفظ</button>
+                            <button class="btn btn-secondary" type="button" id="cancel-edit" style="display: none">
+                                إلغاء
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Toolbar -->
+                <div class="students-results animate-in animate-in-delay-2">
+                    <h3><i class="fas fa-table"></i> لائحة الأساتذة</h3>
+                    <div class="staff-toolbar">
+                        <input
+                            type="text"
+                            class="search-input"
+                            id="search-input"
+                            placeholder="بحث بالاسم أو ر.ت أو المادة..."
+                        />
+                        <select id="filter-gender">
+                            <option value="">كل الأنواع</option>
+                            <option value="ذكور">ذكور</option>
+                            <option value="إناث">إناث</option>
+                        </select>
+                        <select id="filter-subject">
+                            <option value="">كل التخصصات</option>
+                        </select>
+                        <select id="filter-cadre">
+                            <option value="">كل الأطر</option>
+                        </select>
+                        <select id="filter-source">
+                            <option value="">كل المصادر</option>
+                            <option value="agent_xml">ملف الوزارة</option>
+                            <option value="fet">FET</option>
+                            <option value="manual">يدوي</option>
+                        </select>
+                        <span class="staff-counter" id="staff-counter"></span>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="staff-table-wrap">
+                        <table class="staff-table" id="staff-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>ر.ت</th>
+                                    <th>الاسم الكامل</th>
+                                    <th>المادة</th>
+                                    <th>الإطار</th>
+                                    <th>الدرجة</th>
+                                    <th>الرتبة</th>
+                                    <th>الهاتف</th>
+                                    <th>المصدر</th>
+                                    <th class="col-actions">إجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teachers-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Detail Drawer -->
+        <div class="detail-overlay" id="detail-overlay">
+            <div class="detail-panel" id="detail-panel">
+                <div class="detail-header">
+                    <button class="close-detail" id="close-detail" title="إغلاق"><i class="fas fa-times"></i></button>
+                    <div class="teacher-avatar"><i class="fas fa-user"></i></div>
+                    <div class="teacher-main-name" id="detail-name">-</div>
+                    <div class="teacher-sub-name" id="detail-name-fr"></div>
+                </div>
+                <div class="detail-body" id="detail-body">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <script src="js/data/ma-education-labels.js"></script>
+        <script src="js/utils.js"></script>
+        <script>
+            const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+            let teachers = [];
+            let filtered = [];
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                await loadTeachers();
+                setupForm();
+                setupFilters();
+                setupDetailPanel();
+                document.getElementById('btn-print')?.addEventListener('click', () => window.print());
+            });
+
+            async function loadTeachers() {
+                const result = await window.api.teachers.getAll(year);
+                console.log('[DEBUG] getSchoolYear:', year, 'getAll result:', result);
+                teachers = Array.isArray(result) ? result : [];
+                // Debug: show unique position/statut values
+                const positions = [...new Set(teachers.map((t) => t.position).filter(Boolean))];
+                const statuts = [...new Set(teachers.map((t) => t.statut).filter(Boolean))];
+                console.log('[DEBUG-SURPLUS] Unique positions:', positions);
+                console.log('[DEBUG-SURPLUS] Unique statuts:', statuts);
+                console.log('[DEBUG-SURPLUS] Surplus count:', teachers.filter(isSurplusTeacher).length);
+                populateDropdowns();
+                applyFilters();
+                updateStats();
+            }
+
+            function isSurplusTeacher(t) {
+                if (Number(t.is_surplus) === 1) return true;
+                const pos = (t.position || '').toLowerCase();
+                const stat = (t.statut || '').toLowerCase();
+                const func = (t.function_title || '').toLowerCase();
+                const combined = `${pos} ${stat} ${func}`;
+                return (
+                    combined.includes('surnombre') ||
+                    combined.includes('excédentaire') ||
+                    combined.includes('excedentaire') ||
+                    combined.includes('فائض')
+                );
+            }
+
+            function updateStats() {
+                const el = (id, v) => {
+                    const e = document.getElementById(id);
+                    if (e) e.textContent = v;
+                };
+                el('stat-total', teachers.length);
+                el('stat-agent', teachers.filter((t) => t.source === 'agent_xml').length);
+                el(
+                    'stat-male',
+                    teachers.filter((t) => (t.gender || '').includes('1') || (t.gender || '').includes('ذكر')).length
+                );
+                el(
+                    'stat-female',
+                    teachers.filter((t) => (t.gender || '').includes('2') || (t.gender || '').includes('أنثى')).length
+                );
+                const surplusCount = teachers.filter(isSurplusTeacher).length;
+                el('stat-surplus', surplusCount);
+                // Wire click: show only surplus teachers
+                const surplusCard = document.getElementById('stat-surplus-card');
+                if (surplusCard) {
+                    surplusCard.onclick = () => {
+                        filtered = teachers.filter(isSurplusTeacher);
+                        renderTeachers();
+                        const counter = document.getElementById('staff-counter');
+                        if (counter) counter.textContent = `${filtered.length} / ${teachers.length} أستاذ (فائضون)`;
+                    };
+                }
+            }
+
+            function populateDropdowns() {
+                // Populate Cadre
+                const selectCadre = document.getElementById('filter-cadre');
+                const cadres = [...new Set(teachers.map((t) => t.cadre).filter(Boolean))].sort();
+                selectCadre.innerHTML = '<option value="">كل الأطر</option>';
+                cadres.forEach((c) => {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = typeof translateCadre === 'function' ? translateCadre(c) : c;
+                    selectCadre.appendChild(opt);
+                });
+
+                // Populate Subject — prefer specialty_subject, fallback to subject
+                const selectSubject = document.getElementById('filter-subject');
+                const subjectSet = new Set();
+                teachers.forEach((t) => {
                     const raw = t.specialty_subject || t.subject;
-                    const label = (typeof translateSubject === 'function') ? translateSubject(raw) : raw;
-                    if (label !== subject) return false;
-                }
-                if (genderVal) {
-                    const isMale = (t.gender || '').includes('ذكر') || (t.gender || '').includes('1');
-                    const isFemale = (t.gender || '').includes('أنثى') || (t.gender || '').includes('2');
-                    if (genderVal === 'ذكور' && !isMale) return false;
-                    if (genderVal === 'إناث' && !isFemale) return false;
-                }
-                return true;
-            });
+                    if (!raw) return;
+                    const label = typeof translateSubject === 'function' ? translateSubject(raw) : raw;
+                    if (label) subjectSet.add(label);
+                });
+                const subjects = [...subjectSet].sort(compareSubjects);
+                selectSubject.innerHTML = '<option value="">كل التخصصات</option>';
+                subjects.forEach((s) => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = s;
+                    selectSubject.appendChild(opt);
+                });
+            }
 
-            renderTeachers();
-            const counter = document.getElementById('staff-counter');
-            if (counter) counter.textContent = `${filtered.length} / ${teachers.length} أستاذ`;
-        }
+            function setupFilters() {
+                document.getElementById('search-input').addEventListener('input', applyFilters);
+                document.getElementById('filter-cadre').addEventListener('change', applyFilters);
+                document.getElementById('filter-source').addEventListener('change', applyFilters);
+                document.getElementById('filter-gender').addEventListener('change', applyFilters);
+                document.getElementById('filter-subject').addEventListener('change', applyFilters);
+            }
 
-        function esc(v) {
-            return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
+            function applyFilters() {
+                const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+                const cadre = document.getElementById('filter-cadre')?.value || '';
+                const source = document.getElementById('filter-source')?.value || '';
+                const genderVal = document.getElementById('filter-gender')?.value || '';
+                const subject = document.getElementById('filter-subject')?.value || '';
 
-        function sourceLabel(src) {
-            if (src === 'agent_xml') return '<span class="badge badge-source badge-source-agent">الوزارة</span>';
-            if (src === 'fet') return '<span class="badge badge-source badge-source-fet">FET</span>';
-            return '<span class="badge badge-source badge-source-manual">يدوي</span>';
-        }
+                filtered = teachers.filter((t) => {
+                    if (q) {
+                        const haystack = [
+                            t.full_name,
+                            t.full_name_fr,
+                            t.ppr,
+                            t.subject,
+                            t.specialty_subject,
+                            t.phone,
+                            t.cin
+                        ]
+                            .join(' ')
+                            .toLowerCase();
+                        if (!haystack.includes(q)) return false;
+                    }
+                    if (cadre && t.cadre !== cadre) return false;
+                    if (source && t.source !== source) return false;
+                    if (subject) {
+                        // Match against translated specialty_subject OR subject
+                        const raw = t.specialty_subject || t.subject;
+                        const label = typeof translateSubject === 'function' ? translateSubject(raw) : raw;
+                        if (label !== subject) return false;
+                    }
+                    if (genderVal) {
+                        const isMale = (t.gender || '').includes('ذكر') || (t.gender || '').includes('1');
+                        const isFemale = (t.gender || '').includes('أنثى') || (t.gender || '').includes('2');
+                        if (genderVal === 'ذكور' && !isMale) return false;
+                        if (genderVal === 'إناث' && !isFemale) return false;
+                    }
+                    return true;
+                });
 
-        function renderTeachers() {
-            const tbody = document.getElementById('teachers-tbody');
-            if (!filtered.length) {
-                tbody.innerHTML = `
+                renderTeachers();
+                const counter = document.getElementById('staff-counter');
+                if (counter) counter.textContent = `${filtered.length} / ${teachers.length} أستاذ`;
+            }
+
+            function esc(v) {
+                return String(v ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+
+            function sourceLabel(src) {
+                if (src === 'agent_xml') return '<span class="badge badge-source badge-source-agent">الوزارة</span>';
+                if (src === 'fet') return '<span class="badge badge-source badge-source-fet">FET</span>';
+                return '<span class="badge badge-source badge-source-manual">يدوي</span>';
+            }
+
+            function renderTeachers() {
+                const tbody = document.getElementById('teachers-tbody');
+                if (!filtered.length) {
+                    tbody.innerHTML = `
                     <tr><td colspan="10">
                         <div class="empty-state">
                             <i class="fas fa-users"></i>
                             <p>لا توجد بيانات بخصوص معايير البحث المحددة</p>
                         </div>
                     </td></tr>`;
-                return;
-            }
-            tbody.innerHTML = filtered.map((t, i) => {
-                // عرض مادة التخصص من DB أو ترجمتها مباشرةً
-                const specRaw = t.specialty_subject || t.subject;
-                const specDisplay = specRaw
-                    ? (typeof translateSubject === 'function' ? translateSubject(specRaw) : specRaw)
-                    : '-';
-                const cadreDisplay = t.cadre
-                    ? (typeof translateCadre === 'function' ? translateCadre(t.cadre) : t.cadre)
-                    : '-';
-                const gradeDisplay = t.grade
-                    ? (typeof translateGrade === 'function' ? translateGrade(t.grade) : t.grade)
-                    : '-';
-                const genderIcon = t.gender && (t.gender.includes('2') || t.gender.includes('أنثى'))
-                    ? '&nbsp;<i class="fas fa-venus" style="color:#e83e8c;font-size:0.8em;"></i>'
-                    : (t.gender ? '&nbsp;<i class="fas fa-mars" style="color:#0d6efd;font-size:0.8em;"></i>' : '');
-                return `
+                    return;
+                }
+                tbody.innerHTML = filtered
+                    .map((t, i) => {
+                        // عرض مادة التخصص من DB أو ترجمتها مباشرةً
+                        const specRaw = t.specialty_subject || t.subject;
+                        const specDisplay = specRaw
+                            ? typeof translateSubject === 'function'
+                                ? translateSubject(specRaw)
+                                : specRaw
+                            : '-';
+                        const cadreDisplay = t.cadre
+                            ? typeof translateCadre === 'function'
+                                ? translateCadre(t.cadre)
+                                : t.cadre
+                            : '-';
+                        const gradeDisplay = t.grade
+                            ? typeof translateGrade === 'function'
+                                ? translateGrade(t.grade)
+                                : t.grade
+                            : '-';
+                        const genderIcon =
+                            t.gender && (t.gender.includes('2') || t.gender.includes('أنثى'))
+                                ? '&nbsp;<i class="fas fa-venus" style="color:#e83e8c;font-size:0.8em;"></i>'
+                                : t.gender
+                                  ? '&nbsp;<i class="fas fa-mars" style="color:#0d6efd;font-size:0.8em;"></i>'
+                                  : '';
+                        return `
                 <tr onclick="showDetail(${t.id})" title="انقر لعرض التفاصيل" class="teacher-row">
                     <td>${i + 1}</td>
                     <td class="col-ppr">${esc(t.ppr) || '-'}</td>
@@ -834,42 +949,49 @@
                         </div>
                     </td>
                 </tr>`;
-            }).join('');
-        }
+                    })
+                    .join('');
+            }
 
-        /* ─── Detail Panel ─── */
-        function setupDetailPanel() {
-            document.getElementById('close-detail').addEventListener('click', closeDetail);
-            document.getElementById('detail-overlay').addEventListener('click', e => {
-                if (e.target === e.currentTarget) closeDetail();
-            });
-        }
+            /* ─── Detail Panel ─── */
+            function setupDetailPanel() {
+                document.getElementById('close-detail').addEventListener('click', closeDetail);
+                document.getElementById('detail-overlay').addEventListener('click', (e) => {
+                    if (e.target === e.currentTarget) closeDetail();
+                });
+            }
 
-        function closeDetail() {
-            document.getElementById('detail-overlay').classList.remove('active');
-        }
+            function closeDetail() {
+                document.getElementById('detail-overlay').classList.remove('active');
+            }
 
-        function showDetail(id) {
-            const t = teachers.find(x => x.id === id);
-            if (!t) return;
+            function showDetail(id) {
+                const t = teachers.find((x) => x.id === id);
+                if (!t) return;
 
-            document.getElementById('detail-name').textContent = t.full_name || '-';
-            document.getElementById('detail-name-fr').textContent = t.full_name_fr || '';
+                document.getElementById('detail-name').textContent = t.full_name || '-';
+                document.getElementById('detail-name-fr').textContent = t.full_name_fr || '';
 
-            const f = (label, value) => value ? `
+                const f = (label, value) =>
+                    value
+                        ? `
                 <div class="detail-field">
                     <span class="field-label">${label}</span>
                     <span class="field-value">${esc(value)}</span>
-                </div>` : '';
+                </div>`
+                        : '';
 
-            const fFull = (label, value) => value ? `
+                const fFull = (label, value) =>
+                    value
+                        ? `
                 <div class="detail-field full-width">
                     <span class="field-label">${label}</span>
                     <span class="field-value">${esc(value)}</span>
-                </div>` : '';
+                </div>`
+                        : '';
 
-            const body = document.getElementById('detail-body');
-            body.innerHTML = `
+                const body = document.getElementById('detail-body');
+                body.innerHTML = `
                 <div class="detail-section">
                     <h4><i class="fas fa-id-badge"></i> المعلومات الإدارية</h4>
                     <div class="detail-grid">
@@ -912,68 +1034,67 @@
                 </div>
             `;
 
-            document.getElementById('detail-overlay').classList.add('active');
-        }
+                document.getElementById('detail-overlay').classList.add('active');
+            }
 
-        /* ─── Form CRUD ─── */
-        function setupForm() {
-            document.getElementById('teacher-form').addEventListener('submit', async e => {
-                e.preventDefault();
-                const id = document.getElementById('teacher-id').value;
-                const payload = {
-                    full_name: document.getElementById('teacher-name').value.trim(),
-                    subject: document.getElementById('teacher-subject').value.trim(),
-                    phone: document.getElementById('teacher-phone').value.trim(),
-                    email: document.getElementById('teacher-email').value.trim(),
-                    school_year: year,
-                    active: 1
-                };
-                const res = id
-                    ? await window.api.teachers.update(Number(id), payload)
-                    : await window.api.teachers.add(payload);
+            /* ─── Form CRUD ─── */
+            function setupForm() {
+                document.getElementById('teacher-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const id = document.getElementById('teacher-id').value;
+                    const payload = {
+                        full_name: document.getElementById('teacher-name').value.trim(),
+                        subject: document.getElementById('teacher-subject').value.trim(),
+                        phone: document.getElementById('teacher-phone').value.trim(),
+                        email: document.getElementById('teacher-email').value.trim(),
+                        school_year: year,
+                        active: 1
+                    };
+                    const res = id
+                        ? await window.api.teachers.update(Number(id), payload)
+                        : await window.api.teachers.add(payload);
+                    if (!res || res.success === false) {
+                        showToast('خطأ: ' + (res?.error || 'فشل الحفظ'), 'error');
+                        return;
+                    }
+                    showToast(id ? 'تم التعديل' : 'تم الإضافة', 'success');
+                    clearForm();
+                    await loadTeachers();
+                });
+                document.getElementById('cancel-edit').addEventListener('click', clearForm);
+            }
+
+            function editTeacher(id) {
+                const t = teachers.find((x) => x.id === id);
+                if (!t) return;
+                document.getElementById('teacher-id').value = t.id;
+                document.getElementById('teacher-name').value = t.full_name || '';
+                document.getElementById('teacher-subject').value = t.subject || '';
+                document.getElementById('teacher-phone').value = t.phone || '';
+                document.getElementById('teacher-email').value = t.email || '';
+                document.getElementById('form-title').textContent = 'تعديل: ' + (t.full_name || '');
+                document.getElementById('cancel-edit').style.display = 'inline-flex';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            async function deleteTeacher(id) {
+                if (!confirm('هل تريد حذف هذا الأستاذ؟')) return;
+                const res = await window.api.teachers.delete(id);
                 if (!res || res.success === false) {
-                    showToast('خطأ: ' + (res?.error || 'فشل الحفظ'), 'error');
+                    showToast('فشل الحذف', 'error');
                     return;
                 }
-                showToast(id ? 'تم التعديل' : 'تم الإضافة', 'success');
-                clearForm();
+                showToast('تم الحذف', 'success');
+                closeDetail();
                 await loadTeachers();
-            });
-            document.getElementById('cancel-edit').addEventListener('click', clearForm);
-        }
-
-        function editTeacher(id) {
-            const t = teachers.find(x => x.id === id);
-            if (!t) return;
-            document.getElementById('teacher-id').value = t.id;
-            document.getElementById('teacher-name').value = t.full_name || '';
-            document.getElementById('teacher-subject').value = t.subject || '';
-            document.getElementById('teacher-phone').value = t.phone || '';
-            document.getElementById('teacher-email').value = t.email || '';
-            document.getElementById('form-title').textContent = 'تعديل: ' + (t.full_name || '');
-            document.getElementById('cancel-edit').style.display = 'inline-flex';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        async function deleteTeacher(id) {
-            if (!confirm('هل تريد حذف هذا الأستاذ؟')) return;
-            const res = await window.api.teachers.delete(id);
-            if (!res || res.success === false) {
-                showToast('فشل الحذف', 'error');
-                return;
             }
-            showToast('تم الحذف', 'success');
-            closeDetail();
-            await loadTeachers();
-        }
 
-        function clearForm() {
-            document.getElementById('teacher-form').reset();
-            document.getElementById('teacher-id').value = '';
-            document.getElementById('form-title').textContent = 'إضافة أستاذ';
-            document.getElementById('cancel-edit').style.display = 'none';
-        }
-    </script>
-</body>
-
+            function clearForm() {
+                document.getElementById('teacher-form').reset();
+                document.getElementById('teacher-id').value = '';
+                document.getElementById('form-title').textContent = 'إضافة أستاذ';
+                document.getElementById('cancel-edit').style.display = 'none';
+            }
+        </script>
+    </body>
 </html>

@@ -1,11 +1,15 @@
 const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear } = require('./ipc-helpers');
 const { requireFields, validateSchoolYear, validateRange } = require('./validation');
+const { normalizeSubjectName } = require('../../js/data/ma-education-labels');
+const { resolveTeacherIdentity } = require('../teachers/identity');
 
 function registerStudentsIpc(ipcMain) {
     // ── Read handlers (no auth required — app starts without login) ──
 
     handleRead(ipcMain, 'students:getAll', (db, schoolYear) => {
-        return db.prepare('SELECT * FROM students WHERE school_year = ? ORDER BY section, full_name').all(normalizeYear(schoolYear));
+        return db
+            .prepare('SELECT * FROM students WHERE school_year = ? ORDER BY section, full_name')
+            .all(normalizeYear(schoolYear));
     });
 
     handleRead(ipcMain, 'students:search', (db, name, className, code, schoolYear) => {
@@ -180,7 +184,7 @@ function registerStudentsIpc(ipcMain) {
             params.push(statusFilter);
         } else {
             // Show all non-active students
-            whereParts.push('s.status IN (\'dropout\', \'expelled\', \'not_enrolled\')');
+            whereParts.push("s.status IN ('dropout', 'expelled', 'not_enrolled')");
         }
 
         if (sectionFilter) {
@@ -189,7 +193,7 @@ function registerStudentsIpc(ipcMain) {
         }
 
         if (searchTerm) {
-            whereParts.push("(s.full_name LIKE ? OR s.code LIKE ?)");
+            whereParts.push('(s.full_name LIKE ? OR s.code LIKE ?)');
             const like = `%${searchTerm}%`;
             params.push(like, like);
         }
@@ -197,7 +201,9 @@ function registerStudentsIpc(ipcMain) {
         const whereSql = whereParts.join(' AND ');
 
         // Get rows with optional movement info
-        const rows = db.prepare(`
+        const rows = db
+            .prepare(
+                `
             SELECT s.*,
                    m.movement_date AS status_date,
                    m.notes AS status_notes
@@ -210,10 +216,14 @@ function registerStudentsIpc(ipcMain) {
             ) m ON m.student_id = s.id AND m.rn = 1
             WHERE ${whereSql}
             ORDER BY s.section, s.full_name
-        `).all(...params);
+        `
+            )
+            .all(...params);
 
         // Summary counts (always for full year, ignoring search/section filters)
-        const summary = db.prepare(`
+        const summary = db
+            .prepare(
+                `
             SELECT
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'dropout' THEN 1 ELSE 0 END) AS dropouts,
@@ -222,11 +232,11 @@ function registerStudentsIpc(ipcMain) {
             FROM students
             WHERE school_year = ?
               AND status IN ('dropout', 'expelled', 'not_enrolled')
-        `).get(year);
+        `
+            )
+            .get(year);
 
-        const totalStudents = db.prepare(
-            'SELECT COUNT(*) AS total FROM students WHERE school_year = ?'
-        ).get(year);
+        const totalStudents = db.prepare('SELECT COUNT(*) AS total FROM students WHERE school_year = ?').get(year);
 
         return {
             success: true,
@@ -373,7 +383,7 @@ function registerStudentsIpc(ipcMain) {
         try {
             const absenceCols = db.pragma('table_info(absences)').map((col) => col.name);
             canUseAbsences = absenceCols.includes('school_year') && absenceCols.includes('student_code');
-        } catch (_) {
+        } catch {
             canUseAbsences = false;
         }
 
@@ -460,18 +470,25 @@ function registerStudentsIpc(ipcMain) {
 
     handleWrite(ipcMain, 'grades:save', ['admin', 'staff'], (db, _event, grade) => {
         validateRange('grade', grade.grade, 0, 20);
+        const resolvedTeacher = resolveTeacherIdentity(db, {
+            teacher_id: grade.teacher_id,
+            teacher_name: grade.teacher_name,
+            school_year: grade.school_year,
+            source: 'grades:save'
+        });
         db.prepare(
             `
-                INSERT OR REPLACE INTO grades (student_id, student_code, subject, grade, semester, teacher_name, level, section, school_year)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO grades (student_id, student_code, teacher_id, subject, grade, semester, teacher_name, level, section, school_year)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
         ).run(
             grade.student_id,
             grade.student_code,
+            resolvedTeacher.teacher_id || null,
             grade.subject,
             grade.grade,
             grade.semester,
-            grade.teacher_name || '',
+            resolvedTeacher.teacher_name || grade.teacher_name || '',
             grade.level || '',
             grade.section || '',
             grade.school_year
@@ -488,20 +505,27 @@ function registerStudentsIpc(ipcMain) {
             return { success: false, error: 'Batch size exceeds maximum of 5000' };
         }
         const insert = db.prepare(`
-                INSERT OR REPLACE INTO grades (student_id, student_code, subject, grade, semester, teacher_name, level, section, school_year)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO grades (student_id, student_code, teacher_id, subject, grade, semester, teacher_name, level, section, school_year)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
         const insertMany = db.transaction((items) => {
             for (const grade of items) {
                 requireFields(grade, ['student_code', 'subject', 'semester', 'school_year']);
                 validateRange('grade', grade.grade, 0, 20);
+                const resolvedTeacher = resolveTeacherIdentity(db, {
+                    teacher_id: grade.teacher_id,
+                    teacher_name: grade.teacher_name,
+                    school_year: grade.school_year,
+                    source: 'grades:saveBulk'
+                });
                 insert.run(
                     grade.student_id,
                     grade.student_code,
+                    resolvedTeacher.teacher_id || null,
                     grade.subject,
                     grade.grade,
                     grade.semester,
-                    grade.teacher_name || '',
+                    resolvedTeacher.teacher_name || grade.teacher_name || '',
                     grade.level || '',
                     grade.section || '',
                     grade.school_year
@@ -510,6 +534,106 @@ function registerStudentsIpc(ipcMain) {
         });
         insertMany(grades);
         return { success: true, count: grades.length };
+    });
+
+    handleWriteSoftAuth(ipcMain, 'grades:reassignTeacherBulk', ['admin', 'staff'], (db, payload) => {
+        const year = normalizeYear(payload?.school_year || payload?.schoolYear);
+        const changes = Array.isArray(payload?.changes) ? payload.changes : [];
+
+        if (!year) {
+            return { success: false, error: 'Invalid school year' };
+        }
+        if (!changes.length) {
+            return { success: false, error: 'No changes to apply' };
+        }
+        if (changes.length > 1000) {
+            return { success: false, error: 'Too many changes in one request' };
+        }
+
+        const selectGradesBySection = db.prepare(
+            `
+                SELECT g.id, g.subject, g.teacher_id, g.teacher_name
+                FROM grades g
+                LEFT JOIN students s
+                    ON s.school_year = g.school_year
+                   AND (g.student_id = s.id OR g.student_code = s.code)
+                WHERE g.school_year = ?
+                  AND COALESCE(NULLIF(TRIM(g.section), ''), NULLIF(TRIM(s.section), ''), '') = ?
+            `
+        );
+        const updateGradeTeacher = db.prepare('UPDATE grades SET teacher_id = ?, teacher_name = ? WHERE id = ?');
+
+        const applyChanges = db.transaction((items) => {
+            const results = [];
+
+            for (const item of items) {
+                const section = String(item?.section || '').trim();
+                const subject = normalizeSubjectName(item?.subject || '');
+                if (!section || !subject) {
+                    throw new Error('Section and subject are required');
+                }
+
+                const resolvedTeacher = resolveTeacherIdentity(db, {
+                    teacher_id: item?.to_teacher_id,
+                    teacher_name: item?.to_teacher_name,
+                    school_year: year,
+                    source: 'grades:reassignTeacherBulk'
+                });
+
+                if (!resolvedTeacher.teacher_id && !resolvedTeacher.teacher_name) {
+                    throw new Error(`Unable to resolve target teacher for ${section} / ${subject}`);
+                }
+
+                const fromTeacherId = Number(item?.from_teacher_id) || null;
+                const fromTeacherName = String(item?.from_teacher_name || '').trim();
+                const normalizedFromTeacherName = fromTeacherName.toLowerCase();
+
+                const sectionRows = selectGradesBySection.all(year, section);
+                let updated = 0;
+
+                for (const row of sectionRows) {
+                    if (normalizeSubjectName(row.subject || '') !== subject) continue;
+
+                    if (fromTeacherId && Number(row.teacher_id) && Number(row.teacher_id) !== fromTeacherId) {
+                        continue;
+                    }
+
+                    if (
+                        !fromTeacherId &&
+                        normalizedFromTeacherName &&
+                        String(row.teacher_name || '')
+                            .trim()
+                            .toLowerCase() !== normalizedFromTeacherName
+                    ) {
+                        continue;
+                    }
+
+                    updateGradeTeacher.run(
+                        resolvedTeacher.teacher_id || null,
+                        resolvedTeacher.teacher_name || item?.to_teacher_name || '',
+                        row.id
+                    );
+                    updated += 1;
+                }
+
+                results.push({
+                    section,
+                    subject,
+                    updated,
+                    to_teacher_id: resolvedTeacher.teacher_id || null,
+                    to_teacher_name: resolvedTeacher.teacher_name || item?.to_teacher_name || ''
+                });
+            }
+
+            return results;
+        });
+
+        const results = applyChanges(changes);
+        return {
+            success: true,
+            count: results.reduce((sum, entry) => sum + Number(entry.updated || 0), 0),
+            results
+        };
     });
 
     // No auth: delete is used from settings-imports page which may be opened before login
@@ -589,62 +713,7 @@ function registerStudentsIpc(ipcMain) {
             )
             .all();
 
-        // Subject normalization — canonical source: js/utils.js
-        // Full version needed for French→Arabic translation (utils.js can't be require'd in Node.js).
-        // If you add new subjects, update BOTH here AND js/utils.js SUBJECT_FR_TO_AR.
-        const _SUBJECT_FR_TO_AR = {
-            'MATHEMATIQUES': 'الرياضيات', 'MATH': 'الرياضيات', 'MATHS': 'الرياضيات',
-            'SCIENCES MATHEMATIQUES': 'الرياضيات',
-            'PHYSIQUE CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE-CHIMIE': 'الفيزياء والكيمياء',
-            'PHYSIQUE ET CHIMIE': 'الفيزياء والكيمياء', 'PHYSIQUE': 'الفيزياء والكيمياء',
-            'SCIENCES DE LA VIE ET DE LA TERRE': 'علوم الحياة والأرض',
-            'SVT': 'علوم الحياة والأرض', 'SCIENCES NATURELLES': 'علوم الحياة والأرض',
-            'PHILOSOPHIE': 'الفلسفة', 'PHILO': 'الفلسفة',
-            'LANGUE ARABE': 'اللغة العربية', 'ARABE': 'اللغة العربية',
-            'LANGUE FRANCAISE': 'اللغة الفرنسية', 'FRANCAIS': 'اللغة الفرنسية',
-            'FRANCAISE': 'اللغة الفرنسية',
-            'LANGUE ANGLAISE': 'اللغة الإنجليزية', 'ANGLAIS': 'اللغة الإنجليزية',
-            'ANGLAISE': 'اللغة الإنجليزية', 'ENGLISH': 'اللغة الإنجليزية',
-            'ESPAGNOL': 'اللغة الإسبانية', 'ALLEMAND': 'اللغة الألمانية',
-            'EDUCATION ISLAMIQUE': 'التربية الإسلامية', 'ISLAMIQUE': 'التربية الإسلامية',
-            'EDUCATION PHYSIQUE ET SPORTIVE': 'التربية البدنية والرياضية',
-            'EDUCATION PHYSIQUE': 'التربية البدنية', 'EPS': 'التربية البدنية',
-            'HISTOIRE ET GEOGRAPHIE': 'التاريخ والجغرافيا',
-            'HISTOIRE GEOGRAPHIE': 'التاريخ والجغرافيا', 'HISTOIRE': 'التاريخ والجغرافيا',
-            'INFORMATIQUE': 'المعلوميات', 'INFORMATIQUE DE GESTION': 'معلوميات التدبير',
-            'ECONOMIE GENERALE': 'الاقتصاد العام والإحصاء',
-            'ECO GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
-            'ECONOMIE GENERALE ET STATISTIQUES': 'الاقتصاد العام والإحصاء',
-            'ECONOMIE ET ORGANISATION': 'الاقتصاد والتنظيم الإداري للمقاولات',
-            'ECO ET ORG ADMIN ENTREPRISE': 'الاقتصاد والتنظيم الإداري للمقاولات',
-            'ECONOMIE ET ORGANISATION ADMINISTRATIVE DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
-            'ECONOMIE ET ORGANISATION DES ENTREPRISES': 'الاقتصاد والتنظيم الإداري للمقاولات',
-            'COMPTABILITE ET MATHEMATIQUES FINANCIERES': 'المحاسبة والرياضيات المالية',
-            'COMPTABILITE': 'المحاسبة والرياضيات المالية',
-            'DROIT': 'القانون', 'TRADUCTION': 'الترجمة',
-            "SCIENCES DE L'INGENIEUR": 'علوم المهندس', 'SI': 'علوم المهندس',
-            'ARTS APPLIQUES': 'الفنون التطبيقية', 'DESSIN': 'الفنون التطبيقية',
-        };
-        const _FR_KEYS_DESC = Object.keys(_SUBJECT_FR_TO_AR).sort((a, b) => b.length - a.length);
-        const normalizeSubjectName = (subject) => {
-            const text = String(subject || '')
-                .replace(/\s*\(\s*فرض\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
-                .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
-                .trim();
-            if (!text) return text;
-            if (/[a-zA-Z]/.test(text)) {
-                const upper = text.toUpperCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .replace(/[_.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
-                if (_SUBJECT_FR_TO_AR[upper]) return _SUBJECT_FR_TO_AR[upper];
-                for (const key of _FR_KEYS_DESC) {
-                    if (key.length > 3 && (upper.includes(key) || key.includes(upper)))
-                        return _SUBJECT_FR_TO_AR[key];
-                }
-            }
-            return text;
-        };
-
+        // Subject normalization — uses normalizeSubjectName() from js/data/ma-education-labels.js
         const invalidSubjectNames = new Set(['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة']);
         const uniqueSubjects = new Set();
 
