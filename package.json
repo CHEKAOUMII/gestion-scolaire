@@ -4,8 +4,11 @@
   "description": "برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا",
   "main": "main.js",
   "scripts": {
-    "start": "set ELECTRON_RUN_AS_NODE=&& electron .",
-    "build": "electron-builder",
+    "css:build": "postcss css/tailwind-input.css -o css/tailwind-output.css",
+    "css:watch": "postcss css/tailwind-input.css -o css/tailwind-output.css --watch",
+    "start": "npm run css:build && set ELECTRON_RUN_AS_NODE=&& electron .",
+    "dev": "concurrently \"npm run css:watch\" \"set ELECTRON_RUN_AS_NODE=&& electron .\"",
+    "build": "npm run css:build && electron-builder",
     "lint": "eslint \"main/**/*.js\" \"preload.js\" \"js/backup.js\" \"js/pages/*.js\" \"tests/**/*.js\"",
     "format": "prettier --write \"main/**/*.js\" \"preload.js\" \"js/backup.js\" \"js/pages/*.js\" \"tests/**/*.js\" \".github/workflows/*.yml\" \"README.md\"",
     "test:smoke": "node tests/smoke.js",
@@ -15,11 +18,16 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "concurrently": "^9.2.1",
     "electron": "^35.0.0",
     "electron-builder": "^26.0.0",
     "eslint": "^9.0.0",
     "globals": "^16.0.0",
-    "prettier": "^3.8.1"
+    "postcss": "^8.5.8",
+    "postcss-cli": "^11.0.1",
+    "prettier": "^3.8.1",
+    "tailwindcss": "^4.2.1"
   },
   "dependencies": {
     "better-sqlite3": "^12.0.0",
@@ -44,7 +52,9 @@
     },
     "files": [
       "**/*",
-      ".env"
+      ".env",
+      "!postcss.config.js",
+      "!css/tailwind-input.css"
     ],
     "win": {
       "target": "nsis",

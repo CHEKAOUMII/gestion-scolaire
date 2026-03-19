@@ -56,7 +56,7 @@ function normalizeRole(value) {
     return ALLOWED_ROLES.has(role) ? role : 'staff';
 }
 
-function buildPublicSession(userRow) {
+function buildPublicSession(userRow, sessionState = {}) {
     if (!userRow) return null;
     return {
         userId: Number(userRow.id || 0),
@@ -64,7 +64,8 @@ function buildPublicSession(userRow) {
         email: normalizeEmail(userRow.email),
         role: normalizeRole(userRow.role),
         mustChangePassword: !!userRow.must_change_password,
-        authenticatedAt: new Date().toISOString()
+        authenticatedAt: new Date().toISOString(),
+        locked: !!sessionState.locked
     };
 }
 
@@ -83,10 +84,11 @@ function getSessionByEvent(event) {
     return SESSION_BY_SENDER.get(senderId) || null;
 }
 
-function setSessionForEvent(event, userRow) {
+function setSessionForEvent(event, userRow, options = {}) {
     const sender = event?.sender;
     if (!sender) return null;
-    const session = buildPublicSession(userRow);
+    const existingSession = options.preserveLockedState ? getSessionByEvent(event) : null;
+    const session = buildPublicSession(userRow, existingSession || {});
     if (!session) return null;
     SESSION_BY_SENDER.set(sender.id, session);
     bindSenderCleanup(sender);
@@ -105,10 +107,17 @@ function createAuthError(code, message) {
     return err;
 }
 
+function isSessionLocked(session) {
+    return !!session?.locked;
+}
+
 function requireAuth(event) {
     const session = getSessionByEvent(event);
     if (!session) {
-        throw createAuthError('UNAUTHENTICATED', 'الرجاء تسجيل الدخول أولاً');
+        throw createAuthError('UNAUTHENTICATED', 'Please sign in first');
+    }
+    if (isSessionLocked(session)) {
+        throw createAuthError('SESSION_LOCKED', 'Session is locked');
     }
     return session;
 }
@@ -240,7 +249,7 @@ function registerAuthIpc(ipcMain) {
                 return { success: true, authenticated: false };
             }
 
-            const refreshedSession = setSessionForEvent(event, user);
+            const refreshedSession = setSessionForEvent(event, user, { preserveLockedState: true });
             return {
                 success: true,
                 authenticated: true,
@@ -305,7 +314,7 @@ function registerAuthIpc(ipcMain) {
     // ── Change password (requires current password) ──
     ipcMain.handle('auth:changePassword', async (event, payload) => {
         try {
-            const session = getSessionByEvent(event);
+            const session = requireAuth(event);
             if (!session) {
                 return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
             }
@@ -343,7 +352,7 @@ function registerAuthIpc(ipcMain) {
     // ── PIN: setup (authenticated user sets or changes PIN) ──
     ipcMain.handle('auth:setupPin', async (event, payload) => {
         try {
-            const session = getSessionByEvent(event);
+            const session = requireAuth(event);
             if (!session) {
                 return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
             }

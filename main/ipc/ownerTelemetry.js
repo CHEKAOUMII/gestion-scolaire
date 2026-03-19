@@ -10,11 +10,12 @@ const {
 } = require('../licensing/ownerSync');
 
 function registerOwnerTelemetryIpc(ipcMain) {
-    ipcMain.handle('ownerTelemetry:getConfig', async () => {
+    ipcMain.handle('ownerTelemetry:getConfig', async (event) => {
         try {
+            requireRole(event, ['admin']);
             return getOwnerSyncConfig();
         } catch (err) {
-            return { success: false, code: 'INTERNAL_ERROR', error: err?.message || 'حدث خطأ داخلي' };
+            return authErrorResponse(err);
         }
     });
 

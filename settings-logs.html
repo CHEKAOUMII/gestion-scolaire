@@ -1,80 +1,93 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>سجل النشاطات | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+    </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سجل النشاطات | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
-    <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/ux-enhancements.js"></script>
-</head>
+    <body>
+        <div class="toast-container" id="toast-container"></div>
 
-<body>
-    <div class="toast-container" id="toast-container"></div>
+        <aside class="sidebar" id="sidebar"></aside>
 
-    <aside class="sidebar" id="sidebar"></aside>
-
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-history"></i> سجل النشاطات</h2>
-            </div>
-            <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
-
-        <div class="grades-container">
-            <div class="students-results">
-                <div class="search-form">
-                    <button class="btn btn-primary" id="refresh">تحديث</button>
-                    <button class="btn btn-secondary" id="seed">إضافة سجل تجريبي</button>
+        <main
+            class="main-content flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
+        >
+            <header class="header">
+                <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
+                    <button
+                        class="menu-toggle inline-flex h-[45px] w-[45px] items-center justify-center rounded-[var(--radius-sm)] border-0 bg-[var(--gradient-primary)] text-white transition-transform duration-300 hover:scale-105"
+                        id="menu-toggle"
+                    >
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h2
+                        class="page-title m-0 inline-flex items-center gap-2.5 whitespace-nowrap text-[clamp(1.1rem,1.8vw,1.5rem)] font-bold text-[var(--color-text-main)]"
+                    >
+                        <i class="fas fa-history"></i> سجل النشاطات
+                    </h2>
                 </div>
-                <table class="students-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>العملية</th>
-                            <th>النوع</th>
-                            <th>المعرف</th>
-                            <th>التفاصيل</th>
-                            <th>التاريخ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody"></tbody>
-                </table>
+                <div class="header-right flex min-w-0 shrink flex-wrap items-center gap-2">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="grades-container">
+                <div class="students-results">
+                    <div class="search-form">
+                        <button class="btn btn-primary" id="refresh">تحديث</button>
+                        <button class="btn btn-secondary" id="seed">إضافة سجل تجريبي</button>
+                    </div>
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>العملية</th>
+                                <th>النوع</th>
+                                <th>المعرف</th>
+                                <th>التفاصيل</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-    </main>
+        </main>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            await loadLogs();
-            document.getElementById('refresh').addEventListener('click', loadLogs);
-            document.getElementById('seed').addEventListener('click', seedLog);
-        });
-
-        async function seedLog() {
-            await window.api.systemLogs.add({
-                action: 'manual:test',
-                details: 'seed log from settings-logs',
-                entity_type: 'manual',
-                entity_id: 'seed'
+        <script>
+            document.addEventListener('DOMContentLoaded', async () => {
+                await loadLogs();
+                document.getElementById('refresh').addEventListener('click', loadLogs);
+                document.getElementById('seed').addEventListener('click', seedLog);
             });
-            await loadLogs();
-        }
 
-        async function loadLogs() {
-            const rows = await window.api.systemLogs.getAll(300) || [];
-            document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
+            async function seedLog() {
+                await window.api.systemLogs.add({
+                    action: 'manual:test',
+                    details: 'seed log from settings-logs',
+                    entity_type: 'manual',
+                    entity_id: 'seed'
+                });
+                await loadLogs();
+            }
+
+            async function loadLogs() {
+                const rows = (await window.api.systemLogs.getAll(300)) || [];
+                document.getElementById('tbody').innerHTML = rows.length
+                    ? rows
+                          .map(
+                              (r, i) => `
                 <tr>
                     <td>${i + 1}</td>
                     <td>${r.action || '-'}</td>
@@ -83,9 +96,11 @@
                     <td>${r.details || '-'}</td>
                     <td>${r.created_at || '-'}</td>
                 </tr>
-            `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد سجلات</td></tr>';
-        }
-    </script>
-</body>
-
+            `
+                          )
+                          .join('')
+                    : '<tr><td class="px-5 py-5 text-center" colspan="6">لا توجد سجلات</td></tr>';
+            }
+        </script>
+    </body>
 </html>

@@ -3,7 +3,10 @@
     "allow": [
       "Bash(node:*)",
       "Bash(npm run:*)",
-      "Bash(ls d:Pencil2/*.html)"
+      "Bash(ls d:Pencil2/*.html)",
+      "Bash(grep -rn '<style' /d/Pencil2/*.html)",
+      "Bash(ls d:/Pencil2/*.html)",
+      "Bash(ls d:/Pencil2/*.css)"
     ]
   }
 }

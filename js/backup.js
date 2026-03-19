@@ -205,24 +205,15 @@ const BackupManager = {
                     }
 
                     let restoredItems = 0;
+                    const previousLocalData = {};
 
                     if (hasLocalData) {
-                        // مسح البيانات الحالية (باستثناء الإعدادات)
-                        const keysToRemove = [];
                         for (let i = 0; i < localStorage.length; i++) {
                             const key = localStorage.key(i);
                             if (key !== this.SETTINGS_KEY && key !== this.HISTORY_KEY) {
-                                keysToRemove.push(key);
+                                previousLocalData[key] = localStorage.getItem(key);
                             }
                         }
-                        keysToRemove.forEach((key) => localStorage.removeItem(key));
-
-                        // استعادة البيانات المحلية
-                        Object.entries(backup.data).forEach(([key, value]) => {
-                            localStorage.setItem(key, value);
-                        });
-
-                        restoredItems = Object.keys(backup.data).length;
                     }
 
                     if (hasDbData) {
@@ -243,12 +234,45 @@ const BackupManager = {
                         }
                     }
 
+                    if (hasLocalData) {
+                        try {
+                            const keysToRemove = [];
+                            for (let i = 0; i < localStorage.length; i++) {
+                                const key = localStorage.key(i);
+                                if (key !== this.SETTINGS_KEY && key !== this.HISTORY_KEY) {
+                                    keysToRemove.push(key);
+                                }
+                            }
+                            keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+                            Object.entries(backup.data).forEach(([key, value]) => {
+                                localStorage.setItem(key, value);
+                            });
+
+                            restoredItems = Object.keys(backup.data).length;
+                        } catch (localError) {
+                            const keysToRemove = [];
+                            for (let i = 0; i < localStorage.length; i++) {
+                                const key = localStorage.key(i);
+                                if (key !== this.SETTINGS_KEY && key !== this.HISTORY_KEY) {
+                                    keysToRemove.push(key);
+                                }
+                            }
+                            keysToRemove.forEach((key) => localStorage.removeItem(key));
+                            Object.entries(previousLocalData).forEach(([key, value]) => {
+                                localStorage.setItem(key, value);
+                            });
+                            throw localError;
+                        }
+                    }
+
                     resolve({
                         success: true,
                         restoredItems,
                         dbRestored: !!hasDbData,
                         backupDate: backup.date
                     });
+                    return;
                 } catch (e) {
                     reject(new Error('فشل قراءة ملف النسخة الاحتياطية: ' + e.message));
                 }

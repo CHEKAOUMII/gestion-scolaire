@@ -1,6 +1,7 @@
-﻿const { BrowserWindow, dialog, shell } = require('electron');
+const { BrowserWindow, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 /**
  * Opens a hidden BrowserWindow, loads the page content with the ACTUAL app CSS,
@@ -30,13 +31,9 @@ async function printHTML(opts = {}) {
         skipAutoLetterhead = false
     } = opts;
 
-    // Read actual app CSS files from disk
+    // Read the compiled app CSS from disk
     const appRoot = path.join(__dirname, '..');
-    const cssFiles = [
-        path.join(appRoot, 'css', 'design-system.css'),
-        path.join(appRoot, 'styles.css'),
-        path.join(appRoot, 'ux-enhancements.css')
-    ];
+    const cssFiles = [path.join(appRoot, 'css', 'tailwind-output.css')];
 
     let appCSS = '';
     for (const cssPath of cssFiles) {
@@ -175,13 +172,17 @@ function _cleanupTmp(filePath) {
  * with print-specific overrides to hide sidebar/header/controls.
  */
 function buildPrintDocument(bodyHTML, title, appCSS, inlineStyles) {
+    const appRoot = path.join(__dirname, '..');
+    const vendorFontsHref = pathToFileURL(path.join(appRoot, 'vendor', 'fonts', 'google-fonts.css')).href;
+    const fontAwesomeHref = pathToFileURL(path.join(appRoot, 'vendor', 'fontawesome', 'css', 'all.min.css')).href;
+
     return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <title>${escapeHTML(title)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="${vendorFontsHref}">
+<link rel="stylesheet" href="${fontAwesomeHref}">
 <style>
 /* ===== App CSS (from disk) ===== */
 ${appCSS}

@@ -1,4 +1,4 @@
-const { handleRead, normalizeYear } = require('./ipc-helpers');
+const { handleRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { validateDate } = require('./validation');
 const { resolveTeacherIdentity } = require('../teachers/identity');
 
@@ -42,12 +42,12 @@ function registerStaffAttendanceIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleRead(ipcMain, 'staffAttendance:save', (db, payload) => {
+    handleWrite(ipcMain, 'staffAttendance:save', ['admin', 'staff'], (db, _event, payload) => {
         if (payload.attendance_date) {
             validateDate('attendance_date', payload.attendance_date);
         }
         const type = payload.type === 'late' ? 'late' : 'absence';
-        const year = normalizeYear(payload.school_year);
+        const year = requireSchoolYear(payload.school_year);
         const resolved = resolveTeacherIdentity(db, {
             teacher_id: payload.teacher_id,
             teacher_name: payload.teacher_name,
@@ -75,7 +75,7 @@ function registerStaffAttendanceIpc(ipcMain) {
         return { success: true };
     });
 
-    handleRead(ipcMain, 'staffAttendance:delete', (db, id) => {
+    handleWrite(ipcMain, 'staffAttendance:delete', ['admin', 'staff'], (db, _event, id) => {
         const recordId = Number(id);
         if (!Number.isFinite(recordId) || recordId <= 0) {
             return { success: false, error: 'Invalid ID' };

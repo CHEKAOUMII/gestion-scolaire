@@ -242,8 +242,10 @@ const MIGRATIONS = [
     },
     {
         version: '2026-03-019-students-unique-constraint-year',
+        recordsVersionInternally: true,
         up: () => {
             const db = getDb();
+            const recordMigration = db.prepare('INSERT INTO schema_migrations(version) VALUES(?)');
             // Check if we need to migrate (if code is UNIQUE)
             const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='students'").get();
             if (tableInfo && tableInfo.sql.includes('code TEXT UNIQUE')) {
@@ -278,10 +280,17 @@ const MIGRATIONS = [
 
                     db.exec('CREATE INDEX IF NOT EXISTS idx_students_year ON students(school_year);');
                     db.exec('CREATE INDEX IF NOT EXISTS idx_students_code_year ON students(code, school_year);');
+                    recordMigration.run('2026-03-019-students-unique-constraint-year');
                 });
-                txn();
-                db.exec('PRAGMA foreign_keys=on;');
+                try {
+                    txn();
+                } finally {
+                    db.exec('PRAGMA foreign_keys=on;');
+                }
+                return;
             }
+
+            recordMigration.run('2026-03-019-students-unique-constraint-year');
         }
     },
     {
@@ -566,6 +575,11 @@ function ensureMigrationsTable() {
 function runMigrations() {
     ensureMigrationsTable();
     const db = getDb();
+    const recordMigration = db.prepare('INSERT INTO schema_migrations(version) VALUES(?)');
+    const applyMigration = db.transaction((migration) => {
+        migration.up();
+        recordMigration.run(migration.version);
+    });
 
     const appliedRows = db.prepare('SELECT version FROM schema_migrations').all();
     const appliedVersions = new Set(appliedRows.map((r) => r.version));
@@ -573,8 +587,12 @@ function runMigrations() {
     for (const migration of MIGRATIONS) {
         if (appliedVersions.has(migration.version)) continue;
 
-        migration.up();
-        db.prepare('INSERT INTO schema_migrations(version) VALUES(?)').run(migration.version);
+        if (migration.recordsVersionInternally) {
+            migration.up();
+            continue;
+        }
+
+        applyMigration(migration);
     }
 }
 

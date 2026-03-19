@@ -5,17 +5,40 @@ const { runMigrations } = require('./migrations');
 
 function initDatabase() {
     const dbPath = getDbPath();
-    const db = new Database(dbPath);
+    let db = null;
 
-    // Enable WAL mode for better concurrent performance
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+    try {
+        db = new Database(dbPath);
 
-    setDb(db);
-    console.log('Database opened at:', dbPath);
+        // Enable WAL mode for better concurrent performance
+        db.pragma('journal_mode = WAL');
+        db.pragma('foreign_keys = ON');
 
-    createTables();
-    runMigrations();
+        setDb(db);
+        console.log('[db] Database opened at:', dbPath);
+
+        createTables();
+        runMigrations();
+        return db;
+    } catch (error) {
+        console.error('[db] Failed to initialize database at:', dbPath, error);
+
+        if (db) {
+            try {
+                db.close();
+            } catch (closeError) {
+                console.warn('[db] Failed to close database after init error:', closeError?.message || closeError);
+            }
+        }
+
+        try {
+            setDb(null);
+        } catch (_) {
+            // Ignore state reset failures during startup recovery.
+        }
+
+        throw error;
+    }
 }
 
 module.exports = { initDatabase };

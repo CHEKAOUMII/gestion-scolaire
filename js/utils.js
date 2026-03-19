@@ -2195,6 +2195,68 @@ function normalizeSubjectName(subject) {
     return result;
 }
 
+// ===== Unified Subject List Builder =====
+const INVALID_SUBJECT_NAMES = new Set([
+    'sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة'
+]);
+
+/**
+ * Build a normalized, sorted, deduplicated subject list from grade records.
+ * @param {Array} grades - array of grade objects with .subject property
+ * @param {Object} [options]
+ * @param {string} [options.level] - filter by level name
+ * @param {string} [options.section] - filter by section/class name
+ * @param {Function} [options.getLevelName] - function to derive level from section
+ * @returns {string[]} sorted normalized subject names
+ */
+function buildSubjectOptionsFromGrades(grades, options = {}) {
+    let filtered = grades;
+    if (options.section) {
+        filtered = filtered.filter(g => (g.section || '') === options.section);
+    } else if (options.level && typeof options.getLevelName === 'function') {
+        filtered = filtered.filter(g => options.getLevelName(g.section) === options.level);
+    }
+
+    const subjects = new Set();
+    filtered.forEach(g => {
+        if (g.subject) {
+            const normalized = normalizeSubjectName(g.subject);
+            if (normalized && !INVALID_SUBJECT_NAMES.has(normalized.toLowerCase())) {
+                subjects.add(normalized);
+            }
+        }
+    });
+
+    return Array.from(subjects).sort(
+        typeof compareSubjects === 'function'
+            ? compareSubjects
+            : (a, b) => String(a).localeCompare(String(b), 'ar')
+    );
+}
+
+/**
+ * Build a normalized, sorted, deduplicated subject list from a raw Set/Array of subject names.
+ * Used by timetable pages where subjects come from FET/XML imports (not grade records).
+ * @param {Set|Array} subjectCollection - Set or Array of raw subject name strings
+ * @returns {string[]} sorted normalized subject names
+ */
+function buildSubjectOptionsFromSet(subjectCollection) {
+    const raw = subjectCollection instanceof Set ? Array.from(subjectCollection) : subjectCollection || [];
+    const subjects = new Set();
+    raw.forEach(name => {
+        if (!name) return;
+        const normalized = typeof normalizeSubjectName === 'function' ? normalizeSubjectName(name) : name;
+        if (normalized && !INVALID_SUBJECT_NAMES.has(normalized.toLowerCase())) {
+            subjects.add(normalized);
+        }
+    });
+    return Array.from(subjects).sort(
+        typeof compareSubjects === 'function'
+            ? compareSubjects
+            : (a, b) => String(a).localeCompare(String(b), 'ar')
+    );
+}
+
 // ===== Dynamic School Year =====
 const SCHOOL_YEAR_KEY = 'gsl_current_school_year';
 

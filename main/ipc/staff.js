@@ -1,4 +1,4 @@
-const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear } = require('./ipc-helpers');
+const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { requireFields, validateDate } = require('./validation');
 const {
     ensureTeacherAlias,
@@ -82,6 +82,7 @@ function registerStaffIpc(ipcMain) {
 
     handleWrite(ipcMain, 'teachers:add', ['admin', 'staff'], (db, _event, teacher) => {
         requireFields(teacher, ['full_name', 'school_year']);
+        requireSchoolYear(teacher.school_year);
         const result = db
             .prepare(
                 `
@@ -178,6 +179,9 @@ function registerStaffIpc(ipcMain) {
         }
         const nextSchoolYear = data.school_year || current.school_year;
         const nextSource = data.source || current.source || 'manual';
+        if (Object.prototype.hasOwnProperty.call(data || {}, 'school_year')) {
+            requireSchoolYear(data.school_year);
+        }
         if (current.full_name) {
             ensureTeacherAlias(db, {
                 teacher_id: teacherId,
@@ -229,8 +233,7 @@ function registerStaffIpc(ipcMain) {
     });
 
     handleWriteSoftAuth(ipcMain, 'teachers:deleteByYear', ['admin'], (db, schoolYear) => {
-        const year = normalizeYear(schoolYear);
-        if (!year) return { success: false, error: 'Invalid school year' };
+        const year = requireSchoolYear(schoolYear);
         const teachers = db.prepare('SELECT id, full_name, school_year FROM teachers WHERE school_year = ?').all(year);
         const txn = db.transaction(() => {
             detachTeacherReferences(db, teachers);
@@ -241,11 +244,8 @@ function registerStaffIpc(ipcMain) {
     });
 
     handleWriteSoftAuth(ipcMain, 'teachers:saveTafwijAliases', ['admin', 'staff'], (db, payload) => {
-        const schoolYear = normalizeYear(payload?.school_year);
+        const schoolYear = requireSchoolYear(payload?.school_year);
         const aliases = Array.isArray(payload?.aliases) ? payload.aliases : [];
-        if (!schoolYear) {
-            return { success: false, error: 'Invalid school year' };
-        }
         if (!aliases.length) {
             return { success: false, error: 'No aliases to save' };
         }
@@ -387,6 +387,7 @@ function registerStaffIpc(ipcMain) {
         const txn = db.transaction(() => {
             for (const t of teachers) {
                 if (!t.full_name || !t.school_year) continue;
+                requireSchoolYear(t.school_year);
                 const row = {
                     ppr: t.ppr || null,
                     cin: t.cin || null,
@@ -471,6 +472,7 @@ function registerStaffIpc(ipcMain) {
         if (payload.absence_date) {
             validateDate('absence_date', payload.absence_date);
         }
+        requireSchoolYear(payload.school_year);
         db.prepare(
             `
                 INSERT INTO teacher_absences(teacher_id, absence_date, reason, replacement_teacher, school_year)
@@ -660,7 +662,7 @@ function registerStaffIpc(ipcMain) {
     handleWriteSoftAuth(ipcMain, 'schoolEvents:save', ['admin', 'staff'], (db, payload) => {
         const { id, event_date, event_type, details, event_time, school_year } = payload;
         requireFields(payload, ['event_date', 'event_type', 'school_year']);
-        const year = normalizeYear(school_year);
+        const year = requireSchoolYear(school_year);
 
         if (id) {
             db.prepare(
@@ -738,7 +740,7 @@ function registerStaffIpc(ipcMain) {
                     teacher_id: s.teacher_id,
                     teacher_name: s.teacher_name,
                     subject: s.subject,
-                    school_year: normalizeYear(s.school_year),
+                    school_year: requireSchoolYear(s.school_year),
                     source: 'compensation'
                 });
                 const result = stmt.run(
@@ -749,7 +751,7 @@ function registerStaffIpc(ipcMain) {
                     s.period_slot,
                     s.period_time || '',
                     resolved.subject || s.subject || '',
-                    normalizeYear(s.school_year)
+                    requireSchoolYear(s.school_year)
                 );
                 if (result.changes > 0) inserted++;
             }

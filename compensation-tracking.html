@@ -6,351 +6,14 @@
         <title>الحصص التعويضية | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
-        <link rel="stylesheet" href="css/design-system.css" />
-        <link rel="stylesheet" href="styles.css" />
-        <link rel="stylesheet" href="ux-enhancements.css" />
+        
+    <link rel="stylesheet" href="css/tailwind-output.css">
         <script src="js/data/ma-education-labels.js"></script>
         <script src="js/utils.js"></script>
         <script src="js/notifications.js"></script>
         <script src="js/sidebar.js"></script>
         <script src="js/ux-enhancements.js"></script>
-        <style>
-            /* ─── Filter Card ─── */
-            .filter-card {
-                background: var(--color-surface);
-                border: 1px solid var(--color-accent);
-                border-radius: var(--radius-md);
-                margin-bottom: 20px;
-                overflow: hidden;
-                animation: fadeInUp 0.4s ease-out both;
-            }
-
-            .filter-card-header {
-                padding: 14px 20px;
-                border-bottom: 1px solid var(--color-accent);
-                background: var(--color-surface-alt);
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-
-            .filter-card-header h3 {
-                margin: 0;
-                font-family: var(--font-display);
-                font-size: 15px;
-                font-weight: 700;
-                color: var(--color-text-main);
-            }
-
-            .filter-card-header i {
-                color: var(--color-primary);
-            }
-
-            .filter-card-body {
-                padding: 20px;
-            }
-
-            .filter-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                gap: 14px;
-                align-items: end;
-            }
-
-            .filter-group {
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-            }
-
-            .filter-group label {
-                font-family: var(--font-main);
-                font-size: 13px;
-                font-weight: 600;
-                color: var(--color-text-muted);
-            }
-
-            .filter-group select,
-            .filter-group input {
-                padding: 9px 14px;
-                border: 1px solid var(--color-accent);
-                border-radius: var(--radius-sm);
-                font-family: var(--font-main);
-                font-size: 14px;
-                background: var(--color-surface-alt);
-                color: var(--color-text-main);
-                transition: var(--transition-fast);
-                width: 100%;
-                box-sizing: border-box;
-            }
-
-            .filter-group select:focus,
-            .filter-group input:focus {
-                outline: none;
-                border-color: var(--color-primary);
-                box-shadow: 0 0 0 3px var(--color-primary-mist);
-            }
-
-            .filter-actions {
-                display: flex;
-                gap: 10px;
-                align-items: flex-end;
-            }
-
-            /* ─── Stat Cards ─── */
-            .comp-stats {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 16px;
-                margin-bottom: 24px;
-            }
-
-            .comp-stat-card {
-                background: var(--color-surface);
-                border: 1px solid var(--color-accent);
-                border-radius: var(--radius-md);
-                padding: 20px;
-                display: flex;
-                align-items: center;
-                gap: 16px;
-                transition: var(--transition-normal);
-                animation: fadeInUp 0.4s ease-out both;
-            }
-
-            .comp-stat-card:nth-child(1) {
-                animation-delay: 0.05s;
-            }
-            .comp-stat-card:nth-child(2) {
-                animation-delay: 0.1s;
-            }
-            .comp-stat-card:nth-child(3) {
-                animation-delay: 0.15s;
-            }
-
-            .comp-stat-card:hover {
-                transform: translateY(-3px);
-                box-shadow: var(--shadow-hover);
-                border-color: var(--color-primary-light);
-            }
-
-            .comp-stat-icon {
-                width: 52px;
-                height: 52px;
-                border-radius: var(--radius-sm);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 22px;
-                flex-shrink: 0;
-            }
-
-            .comp-stat-body h4 {
-                margin: 0;
-                font-family: var(--font-display);
-                font-size: 26px;
-                font-weight: 800;
-                color: var(--color-text-main);
-                line-height: 1;
-            }
-
-            .comp-stat-body p {
-                margin: 4px 0 0;
-                font-family: var(--font-main);
-                font-size: 13px;
-                color: var(--color-text-muted);
-                font-weight: 500;
-            }
-
-            /* ─── Main Table ─── */
-            .comp-section {
-                background: var(--color-surface);
-                border: 1px solid var(--color-accent);
-                border-radius: var(--radius-md);
-                margin-bottom: 20px;
-                overflow: hidden;
-                animation: fadeInUp 0.4s ease-out 0.2s both;
-            }
-
-            .comp-section-header {
-                padding: 14px 20px;
-                border-bottom: 1px solid var(--color-accent);
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                background: var(--color-surface-alt);
-            }
-
-            .comp-section-header h3 {
-                margin: 0;
-                font-family: var(--font-display);
-                font-size: 15px;
-                font-weight: 700;
-                color: var(--color-text-main);
-            }
-
-            .comp-section-header i {
-                color: var(--color-primary);
-                font-size: 16px;
-            }
-
-            .comp-section-header .badge-count {
-                background: var(--color-primary);
-                color: #fff;
-                font-size: 11px;
-                font-weight: 700;
-                padding: 2px 10px;
-                border-radius: var(--radius-full);
-            }
-
-            .comp-table {
-                width: 100%;
-                border-collapse: collapse;
-                font-family: var(--font-main);
-                font-size: 14px;
-            }
-
-            .comp-table th {
-                background: var(--color-surface-alt);
-                color: var(--color-text-muted);
-                padding: 10px 16px;
-                font-weight: 600;
-                text-align: right;
-                white-space: nowrap;
-                border-bottom: 1px solid var(--color-accent);
-                font-size: 13px;
-            }
-
-            .comp-table td {
-                padding: 10px 16px;
-                border-bottom: 1px solid var(--color-accent);
-                color: var(--color-text-main);
-                vertical-align: middle;
-            }
-
-            .comp-table tbody tr:last-child td {
-                border-bottom: none;
-            }
-
-            .comp-table tbody tr:hover td {
-                background: var(--color-primary-mist);
-            }
-
-            .comp-table .empty-row td {
-                text-align: center;
-                padding: 28px 16px;
-                color: var(--color-text-muted);
-                font-style: italic;
-            }
-
-            /* ─── Status Badges ─── */
-            .status-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-                padding: 4px 12px;
-                border-radius: var(--radius-full);
-                font-size: 12px;
-                font-weight: 600;
-            }
-
-            .status-badge.pending {
-                background: rgba(232, 93, 93, 0.12);
-                color: var(--color-danger);
-            }
-
-            .status-badge.done {
-                background: rgba(46, 204, 113, 0.12);
-                color: var(--color-success);
-            }
-
-            /* ─── Toggle Button ─── */
-            .comp-toggle {
-                background: none;
-                border: 1.5px solid var(--color-accent);
-                border-radius: var(--radius-full);
-                padding: 5px 14px;
-                cursor: pointer;
-                font-family: var(--font-main);
-                font-size: 12px;
-                font-weight: 600;
-                transition: var(--transition-fast);
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-            }
-
-            .comp-toggle.approve {
-                color: var(--color-success);
-                border-color: var(--color-success);
-            }
-
-            .comp-toggle.approve:hover {
-                background: rgba(46, 204, 113, 0.12);
-            }
-
-            .comp-toggle.undo {
-                color: var(--color-warning-bg);
-                border-color: var(--color-warning-bg);
-            }
-
-            .comp-toggle.undo:hover {
-                background: rgba(240, 173, 78, 0.12);
-            }
-
-            /* ─── Compensated row ─── */
-            .comp-table tbody tr.compensated td {
-                background: rgba(46, 204, 113, 0.04);
-            }
-
-            .section-tag {
-                display: inline-block;
-                background: var(--color-primary-mist);
-                color: var(--color-primary);
-                padding: 2px 10px;
-                border-radius: var(--radius-full);
-                font-size: 12px;
-                font-weight: 600;
-                margin: 2px;
-            }
-
-            /* ─── Empty State ─── */
-            .comp-empty-state {
-                text-align: center;
-                padding: 48px 20px;
-                color: var(--color-text-muted);
-            }
-
-            .comp-empty-state i {
-                font-size: 48px;
-                color: var(--color-primary-light);
-                display: block;
-                margin-bottom: 12px;
-                opacity: 0.6;
-            }
-
-            .comp-empty-state p {
-                font-size: 15px;
-                margin: 0;
-            }
-
-            /* ─── Print ─── */
-            @media print {
-                .comp-toggle {
-                    display: none !important;
-                }
-                .filter-card {
-                    display: none !important;
-                }
-            }
-
-            .ux-pp-body .comp-toggle {
-                display: none !important;
-            }
-            .ux-pp-body .filter-card {
-                display: none !important;
-            }
-        </style>
-    </head>
+        </head>
 
     <body>
         <div class="toast-container" id="toast-container"></div>
@@ -372,7 +35,7 @@
 
             <div class="grades-container">
                 <!-- Filters -->
-                <div class="filter-card">
+                <div class="filter-card no-print">
                     <div class="filter-card-header">
                         <i class="fas fa-filter"></i>
                         <h3>فلترة وبحث</h3>
@@ -400,6 +63,12 @@
                                 </select>
                             </div>
                             <div class="filter-group">
+                                <label for="filter-subject">المادة</label>
+                                <select id="filter-subject">
+                                    <option value="">الكل</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
                                 <label for="filter-status">الحالة</label>
                                 <select id="filter-status">
                                     <option value="">الكل</option>
@@ -407,20 +76,20 @@
                                     <option value="done">تم التعويض</option>
                                 </select>
                             </div>
-                            <div class="filter-actions">
-                                <button class="btn-primary" id="apply-filter-btn" type="button">
-                                    <i class="fas fa-search"></i> بحث
-                                </button>
-                                <button class="btn-secondary" id="print-btn" type="button">
-                                    <i class="fas fa-print"></i>
-                                </button>
-                            </div>
+                        </div>
+                        <div class="filter-actions" style="display: flex; gap: 10px; justify-content: center; padding-top: 14px; border-top: 1px solid var(--color-accent); margin-top: 14px;">
+                            <button class="btn-primary" id="apply-filter-btn" type="button" style="padding: 10px 24px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-search"></i> بحث
+                            </button>
+                            <button class="btn-secondary" id="print-btn" type="button" style="padding: 10px 24px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #0891b2, #0e7490); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; box-shadow: 0 3px 10px rgba(8,145,178,0.3);" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 5px 16px rgba(8,145,178,0.45)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 3px 10px rgba(8,145,178,0.3)'">
+                                <i class="fas fa-eye"></i> معاينة الطباعة
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Stat Cards -->
-                <div class="comp-stats" id="stat-cards">
+                <div class="comp-stats no-print" id="stat-cards">
                     <div class="comp-stat-card">
                         <div
                             class="comp-stat-icon"
@@ -458,6 +127,9 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Hidden date display for print preview header -->
+                <span id="date-display" style="display: none;"></span>
 
                 <!-- Tracking Table -->
                 <div class="comp-section">
@@ -554,6 +226,68 @@
                 h7: '16:00-17:00',
                 h8: '17:00-18:00'
             };
+
+            const CONSECUTIVE_NEXT = { h1: 'h2', h2: 'h3', h3: 'h4', h5: 'h6', h6: 'h7', h7: 'h8' };
+
+            function buildMergedRecord(run) {
+                const first = run[0];
+                if (run.length === 1) {
+                    return { ...first, ids: [first.id] };
+                }
+                const last = run[run.length - 1];
+                const slotLabels = run.map((r) => (r.period_slot || '').toUpperCase()).join(' ');
+                const firstTime = PERIOD_MAP[(first.period_slot || '').toLowerCase()] || first.period_time || '';
+                const lastTime = PERIOD_MAP[(last.period_slot || '').toLowerCase()] || last.period_time || '';
+                const startTime = firstTime.split('-')[0] || '';
+                const endTime = lastTime.split('-')[1] || '';
+                const combinedTime = startTime && endTime ? startTime + '-' + endTime : firstTime;
+                const allCompensated = run.every((r) => r.compensated);
+                return {
+                    ...first,
+                    period_slot: slotLabels,
+                    period_time: combinedTime,
+                    ids: run.map((r) => r.id),
+                    compensated: allCompensated ? 1 : 0
+                };
+            }
+
+            function mergeConsecutiveSessions(records) {
+                if (!records || records.length === 0) return [];
+                const groups = {};
+                for (const r of records) {
+                    const key =
+                        (r.absence_date || '') +
+                        '|' +
+                        (r.teacher_name || '') +
+                        '|' +
+                        (r.section || '') +
+                        '|' +
+                        (r.subject || '');
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(r);
+                }
+                const merged = [];
+                for (const groupRecords of Object.values(groups)) {
+                    groupRecords.sort((a, b) => {
+                        const numA = parseInt((a.period_slot || '').toLowerCase().replace('h', ''), 10) || 0;
+                        const numB = parseInt((b.period_slot || '').toLowerCase().replace('h', ''), 10) || 0;
+                        return numA - numB;
+                    });
+                    let run = [groupRecords[0]];
+                    for (let i = 1; i < groupRecords.length; i++) {
+                        const prevSlot = (run[run.length - 1].period_slot || '').toLowerCase();
+                        const currSlot = (groupRecords[i].period_slot || '').toLowerCase();
+                        if (CONSECUTIVE_NEXT[prevSlot] === currSlot) {
+                            run.push(groupRecords[i]);
+                        } else {
+                            merged.push(buildMergedRecord(run));
+                            run = [groupRecords[i]];
+                        }
+                    }
+                    merged.push(buildMergedRecord(run));
+                }
+                return merged;
+            }
 
             const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
             let allRecords = [];
@@ -772,7 +506,11 @@
 
                 document.getElementById('apply-filter-btn').addEventListener('click', loadTrackingData);
                 document.getElementById('print-btn').addEventListener('click', () => {
-                    openPrintPreview({ title: 'الحصص التعويضية', pageSize: 'A4' });
+                    if (typeof openPrintPreview === 'function') {
+                        openPrintPreview({ title: 'الحصص التعويضية', pageSize: 'A4' });
+                    } else {
+                        window.print();
+                    }
                 });
 
                 // Enter key on filters triggers full reload
@@ -832,6 +570,39 @@
                     });
                 } catch (e) {
                     console.warn('Could not load sections:', e);
+                }
+
+                // Populate subjects from timetable
+                try {
+                    const subjectSet = new Set();
+                    const raw = localStorage.getItem('timetableData');
+                    if (raw) {
+                        const ttData = JSON.parse(raw);
+                        if (ttData && ttData.timetables) {
+                            for (const teacher of Object.values(ttData.timetables)) {
+                                for (const day of Object.values(teacher)) {
+                                    if (!day || typeof day !== 'object') continue;
+                                    for (const period of Object.values(day)) {
+                                        if (!period || typeof period !== 'object') continue;
+                                        for (const lesson of Object.values(period)) {
+                                            if (lesson && lesson.subject) {
+                                                subjectSet.add(lesson.subject.trim());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    const subjectSelect = document.getElementById('filter-subject');
+                    [...subjectSet].sort((a, b) => a.localeCompare(b, 'ar')).forEach((s) => {
+                        const opt = document.createElement('option');
+                        opt.value = s;
+                        opt.textContent = s;
+                        subjectSelect.appendChild(opt);
+                    });
+                } catch (e) {
+                    console.warn('Could not load subjects:', e);
                 }
             }
 
@@ -912,6 +683,7 @@
                 const dateTo = document.getElementById('filter-date-to').value;
                 const section = document.getElementById('filter-section').value;
                 const teacher = document.getElementById('filter-teacher').value;
+                const subject = document.getElementById('filter-subject').value;
                 const status = document.getElementById('filter-status').value;
 
                 let statsRecords = Array.isArray(allRecords) ? [...allRecords] : [];
@@ -928,6 +700,9 @@
                 if (teacher) {
                     statsRecords = statsRecords.filter((r) => r.teacher_name === teacher);
                 }
+                if (subject) {
+                    statsRecords = statsRecords.filter((r) => r.subject === subject);
+                }
 
                 let tableRecords = [...statsRecords];
 
@@ -937,14 +712,17 @@
                     tableRecords = tableRecords.filter((r) => r.compensated);
                 }
 
+                // Merge consecutive periods for display, then sort
+                const mergedTableRecords = mergeConsecutiveSessions(tableRecords);
+
                 // Sort: pending first, then by date desc
-                tableRecords.sort((a, b) => {
+                mergedTableRecords.sort((a, b) => {
                     if (a.compensated !== b.compensated) return a.compensated - b.compensated;
                     return b.absence_date.localeCompare(a.absence_date);
                 });
 
                 renderStats(statsRecords);
-                renderTable(tableRecords);
+                renderTable(mergedTableRecords);
             }
 
             function renderStats(records) {
@@ -955,6 +733,14 @@
                 document.getElementById('stat-total').textContent = total;
                 document.getElementById('stat-pending').textContent = pending;
                 document.getElementById('stat-done').textContent = done;
+
+                // Update hidden date display for print preview
+                const dateFrom = document.getElementById('filter-date-from').value;
+                const dateTo = document.getElementById('filter-date-to').value;
+                const dateDisplay = document.getElementById('date-display');
+                if (dateDisplay && dateFrom && dateTo) {
+                    dateDisplay.textContent = `من ${dateFrom.split('-').reverse().join('/')} إلى ${dateTo.split('-').reverse().join('/')}`;
+                }
             }
 
             function renderTable(records) {
@@ -981,13 +767,14 @@
                             ? '<span class="status-badge done"><i class="fas fa-check-circle"></i> تم التعويض</span>'
                             : '<span class="status-badge pending"><i class="fas fa-hourglass-half"></i> في الانتظار</span>';
                         const actionHtml = isCompensated
-                            ? `<button class="comp-toggle undo" onclick="toggleComp(${r.id}, false)" title="التراجع">
+                            ? `<button class="comp-toggle undo" onclick="toggleComp([${r.ids.join(',')}], false)" title="التراجع">
                            <i class="fas fa-undo"></i> تراجع
                        </button>`
-                            : `<button class="comp-toggle approve" onclick="toggleComp(${r.id}, true)" title="تأكيد التعويض">
+                            : `<button class="comp-toggle approve" onclick="toggleComp([${r.ids.join(',')}], true)" title="تأكيد التعويض">
                            <i class="fas fa-check"></i> تعويض
                        </button>`;
-                        const periodDisplay = r.period_time || PERIOD_MAP[r.period_slot] || r.period_slot;
+                        const periodLabel = escapeHtml((r.period_slot || '').toUpperCase());
+                        const periodTime = escapeHtml(r.period_time || PERIOD_MAP[(r.period_slot || '').toLowerCase()] || '');
 
                         return `
                     <tr class="${isCompensated ? 'compensated' : ''}">
@@ -996,7 +783,7 @@
                         <td><strong>${escapeHtml(r.section)}</strong></td>
                         <td>${escapeHtml(r.teacher_name)}</td>
                         <td>${escapeHtml(r.subject || '—')}</td>
-                        <td><span class="section-tag" style="font-size: 11px;">${escapeHtml(periodDisplay)}</span></td>
+                        <td><span class="section-tag" style="font-size: 11px;">${periodLabel}</span></td>
                         <td>${statusHtml}</td>
                         <td class="no-print">${actionHtml}</td>
                     </tr>`;
@@ -1004,14 +791,18 @@
                     .join('');
             }
 
-            async function toggleComp(id, compensated) {
+            async function toggleComp(idOrIds, compensated) {
                 try {
-                    await window.api.compensation.toggleCompensated(id, compensated);
-                    // Update local record
-                    const rec = allRecords.find((r) => r.id === id);
-                    if (rec) {
-                        rec.compensated = compensated ? 1 : 0;
-                        rec.compensated_date = compensated ? todayStr() : null;
+                    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+                    for (const id of ids) {
+                        await window.api.compensation.toggleCompensated(id, compensated);
+                    }
+                    for (const id of ids) {
+                        const rec = allRecords.find((r) => r.id === id);
+                        if (rec) {
+                            rec.compensated = compensated ? 1 : 0;
+                            rec.compensated_date = compensated ? todayStr() : null;
+                        }
                     }
                     applyFilters();
                     showToast(compensated ? 'تم تأكيد التعويض' : 'تم التراجع عن التعويض', 'success');

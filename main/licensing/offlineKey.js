@@ -2,16 +2,14 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const { LICENSE_DEFAULTS } = require('./licenseDefaults');
-
 const KEY_PREFIX = 'GSLK-';
 const ALLOWED_PLANS = new Set(['basic', 'pro', 'business']);
 
 /**
  * Resolve the signing secret using a strict priority:
  *   1. GESTION_LICENSE_SECRET env var (set at build time or for the CLI script)
- *   2. Hardcoded app-wide secret from licenseDefaults.js (portable across machines)
- *   3. Per-installation persistent secret file in userData (legacy fallback)
+ *   2. Per-installation persistent secret file in userData
+ *   3. Generate and persist a new per-installation secret on first launch
  */
 let _cachedSecret = null;
 
@@ -39,21 +37,14 @@ function getSigningSecret() {
         return _cachedSecret;
     }
 
-    // Priority 2: Hardcoded app-wide secret (ensures serials work across all installations)
-    const defaultSecret = (LICENSE_DEFAULTS.signingSecret || '').trim();
-    if (defaultSecret.length >= 32) {
-        _cachedSecret = defaultSecret;
-        return _cachedSecret;
-    }
-
-    // Priority 3: Per-installation persistent secret file (legacy fallback)
+    // Priority 2: Per-installation persistent secret file
     const localSecret = _readPerInstallationSecret();
     if (localSecret) {
         _cachedSecret = localSecret;
         return _cachedSecret;
     }
 
-    // Priority 4: Generate a new per-installation secret (first launch, no defaults configured)
+    // Priority 3: Generate a new per-installation secret (first launch)
     try {
         const { app } = require('electron');
         const secretPath = path.join(app.getPath('userData'), '.license-secret');
@@ -64,7 +55,7 @@ function getSigningSecret() {
         return _cachedSecret;
     } catch (_err) {
         throw new Error(
-            'GESTION_LICENSE_SECRET environment variable must be set when running outside Electron.\n' +
+            'GESTION_LICENSE_SECRET must be set when running outside Electron.\n' +
                 'Example: set GESTION_LICENSE_SECRET=<your-secret>&& node scripts/generate-license-key.js ...'
         );
     }

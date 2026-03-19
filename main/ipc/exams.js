@@ -1,6 +1,6 @@
-const { handleRead, handleWrite, normalizeYear } = require('./ipc-helpers');
+const { handleRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { resolveTeacherIdentity } = require('../teachers/identity');
-const { requireFields, validateSchoolYear, validateDate } = require('./validation');
+const { requireFields, validateDate } = require('./validation');
 
 function registerExamsIpc(ipcMain) {
     // ── Read handlers (no auth required) ──
@@ -15,7 +15,7 @@ function registerExamsIpc(ipcMain) {
 
     handleWrite(ipcMain, 'exams:save', ['admin', 'staff'], (db, _event, payload) => {
         requireFields(payload, ['title', 'school_year']);
-        validateSchoolYear(payload.school_year);
+        requireSchoolYear(payload.school_year);
         if (payload.exam_date) {
             validateDate('exam_date', payload.exam_date);
         }
@@ -89,7 +89,7 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'examProctors:saveManual', ['admin', 'staff'], (db, _event, payload) => {
-        const year = normalizeYear(payload.school_year);
+        const year = requireSchoolYear(payload.school_year);
         const resolvedTeacher = resolveTeacherIdentity(db, {
             teacher_id: payload.teacher_id,
             teacher_name: payload.teacher_name,
@@ -112,7 +112,7 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'examProctors:generateRoundRobin', ['admin'], (db, _event, payload) => {
-        const year = normalizeYear(payload.school_year);
+        const year = requireSchoolYear(payload.school_year);
         const exams = db.prepare('SELECT id FROM exams WHERE school_year = ? ORDER BY exam_date, id').all(year);
         const teachers = db
             .prepare('SELECT id, full_name FROM teachers WHERE school_year = ? AND active = 1 ORDER BY id')
@@ -153,6 +153,7 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'examRooms:save', ['admin', 'staff'], (db, _event, payload) => {
+        const year = requireSchoolYear(payload.school_year);
         if (payload.id) {
             const safeId = Number(payload.id);
             if (!Number.isFinite(safeId) || safeId <= 0) {
@@ -166,9 +167,9 @@ function registerExamsIpc(ipcMain) {
                     payload.room_name,
                     payload.capacity || 0,
                     payload.equipment || null,
-                    payload.school_year,
+                    year,
                     safeId,
-                    payload.school_year
+                    year
                 );
             if (result.changes === 0) {
                 return { success: false, error: 'Record not found or school year mismatch' };
@@ -178,7 +179,7 @@ function registerExamsIpc(ipcMain) {
                 payload.room_name,
                 payload.capacity || 0,
                 payload.equipment || null,
-                payload.school_year
+                year
             );
         }
         return { success: true };
@@ -207,7 +208,7 @@ function registerExamsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'tests:save', ['admin', 'staff'], (db, _event, payload) => {
-        const year = normalizeYear(payload.school_year);
+        const year = requireSchoolYear(payload.school_year);
         const resolvedTeacher = resolveTeacherIdentity(db, {
             teacher_id: payload.teacher_id,
             teacher_name: payload.teacher_name,

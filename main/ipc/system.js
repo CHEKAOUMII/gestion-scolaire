@@ -228,8 +228,9 @@ function registerSystemIpc(ipcMain) {
         }
     });
 
-    ipcMain.handle('system:backupDb', async () => {
+    ipcMain.handle('system:backupDb', async (event) => {
         try {
+            requireRole(event, ['admin']);
             const fs = require('fs');
             const { getDbPath } = require('../db/context');
             const database = getDb();
@@ -249,6 +250,9 @@ function registerSystemIpc(ipcMain) {
                 }
             };
         } catch (err) {
+            if (err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN') {
+                return authErrorResponse(err);
+            }
             return { success: false, error: err.message };
         }
     });

@@ -209,8 +209,7 @@ contextBridge.exposeInMainWorld('api', {
         getAll: () => ipcRenderer.invoke('users:getAll'),
         add: (payload) => ipcRenderer.invoke('users:add', payload),
         updateRole: (id, role) => ipcRenderer.invoke('users:updateRole', id, role),
-        disable: (id, disabled) => ipcRenderer.invoke('users:disable', id, disabled),
-        resetAdminPassword: () => ipcRenderer.invoke('users:resetAdminPassword')
+        disable: (id, disabled) => ipcRenderer.invoke('users:disable', id, disabled)
     },
 
     // Licensing

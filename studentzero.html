@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -7,170 +7,12 @@
     <title>التلاميذ الحاصلون على صفر | برنامج التدبير المدرسي</title>
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
+    <link rel="stylesheet" href="css/tailwind-output.css">
     <script src="js/utils.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
-    <style>
-        .sz-search-form {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px;
-            align-items: stretch;
-        }
-
-        .sz-search-form .btn {
-            min-height: 46px;
-            margin: 0;
-            justify-content: center;
-        }
-
-        .sz-kpis {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
-            animation: fadeInUp 0.4s ease-out 0.03s both;
-        }
-
-        .sz-kpi-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: var(--radius-sm);
-            padding: 12px 14px;
-            box-shadow: var(--shadow-soft);
-        }
-
-        .sz-kpi-label {
-            color: var(--color-text-light);
-            font-size: 12px;
-            margin-bottom: 6px;
-            font-weight: 600;
-            font-family: var(--font-display);
-        }
-
-        .sz-kpi-value {
-            color: var(--color-primary);
-            font-size: 24px;
-            font-weight: 800;
-            line-height: 1;
-            font-family: var(--font-display);
-        }
-
-        .sz-results-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 12px;
-        }
-
-        .sz-results-head h3 {
-            margin-bottom: 0;
-        }
-
-        .sz-results-meta {
-            color: var(--color-text-muted);
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        @media (max-width: 768px) {
-            .sz-search-form {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        @media (max-width: 520px) {
-            .sz-search-form {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Print preview overrides */
-        .ux-pp-sheet .sz-kpis {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-        .ux-pp-sheet .sz-kpi-card {
-            padding: 8px 10px;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-        }
-
-        .ux-pp-sheet .sz-kpi-label {
-            font-size: 10px;
-            margin-bottom: 4px;
-            color: #555;
-        }
-
-        .ux-pp-sheet .sz-kpi-value {
-            font-size: 18px;
-            color: #3B6AC5;
-        }
-
-        .ux-pp-sheet .students-table {
-            width: 100%;
-            table-layout: fixed;
-            font-size: 11px;
-        }
-
-        .ux-pp-sheet .students-table th,
-        .ux-pp-sheet .students-table td {
-            padding: 5px 6px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .ux-pp-sheet .students-table th:nth-child(1),
-        .ux-pp-sheet .students-table td:nth-child(1) {
-            width: 30px;
-        }
-
-        .ux-pp-sheet .students-table th:nth-child(2),
-        .ux-pp-sheet .students-table td:nth-child(2) {
-            width: 90px;
-        }
-
-        .ux-pp-sheet .students-table th:nth-child(4),
-        .ux-pp-sheet .students-table td:nth-child(4) {
-            width: 75px;
-        }
-
-        .ux-pp-sheet .students-table th:nth-child(6),
-        .ux-pp-sheet .students-table td:nth-child(6) {
-            width: 50px;
-        }
-
-        .ux-pp-sheet .students-table th:nth-child(7),
-        .ux-pp-sheet .students-table td:nth-child(7) {
-            width: 65px;
-        }
-
-        .ux-pp-sheet .sz-results-head {
-            margin-bottom: 8px;
-        }
-
-        .ux-pp-sheet .sz-results-head h3 {
-            font-size: 13px;
-        }
-
-        .ux-pp-sheet .sz-results-meta {
-            font-size: 10px;
-        }
-
-        .ux-pp-sheet .table-responsive {
-            overflow: visible;
-        }
-    </style>
-</head>
+    </head>
 
 <body>
     <div class="toast-container" id="toast-container"></div>

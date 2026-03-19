@@ -1,390 +1,129 @@
-﻿<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>مركز التواصل | Communication Center</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مركز التواصل | Communication Center</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <style>
-        .comm-layout {
-            display: grid;
-            grid-template-columns: 320px 1fr;
-            gap: 25px;
-            height: calc(100vh - 140px);
-        }
+    <body>
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <ul>
+                    <li>
+                        <a href="index.html" class="nav-link"
+                            ><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a
+                        >
+                    </li>
+                    <li>
+                        <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>التلاميذ</span></a>
+                    </li>
+                    <li>
+                        <a href="#" class="nav-link active"><i class="fas fa-envelope"></i><span>التواصل</span></a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
 
-        .comm-sidebar {
-            background: var(--color-surface);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-card);
-            border: 1px solid var(--color-accent);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .comm-main {
-            background: var(--color-surface);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-card);
-            border: 1px solid var(--color-accent);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .comm-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--color-accent);
-            background: rgba(255, 255, 255, 0.5);
-        }
-
-        .comm-search {
-            margin-top: 15px;
-        }
-
-        .comm-search input {
-            width: 100%;
-            padding: 10px 15px;
-            border-radius: var(--radius-full);
-            border: 1px solid var(--color-accent);
-            background: var(--color-secondary);
-        }
-
-        .comm-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-        }
-
-        .comm-item {
-            display: flex;
-            gap: 15px;
-            padding: 15px;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            transition: var(--transition-fast);
-            margin-bottom: 5px;
-        }
-
-        .comm-item:hover {
-            background: var(--color-secondary);
-        }
-
-        .comm-item.active {
-            background: rgba(59, 106, 197, 0.1);
-            /* Primary light transparent */
-            border-right: 3px solid var(--color-primary);
-        }
-
-        .avatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: #ddd;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            color: white;
-            flex-shrink: 0;
-        }
-
-        .avatar.admin {
-            background: var(--color-primary);
-        }
-
-        .avatar.teacher {
-            background: var(--info);
-        }
-
-        .avatar.parent {
-            background: var(--warning);
-        }
-
-        .comm-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .comm-name {
-            font-weight: 700;
-            color: var(--color-text-main);
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-        }
-
-        .comm-time {
-            font-size: 11px;
-            color: var(--color-text-muted);
-            font-weight: 400;
-        }
-
-        .comm-preview {
-            font-size: 13px;
-            color: var(--color-text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .chat-header {
-            padding: 15px 25px;
-            border-bottom: 1px solid var(--color-accent);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(10px);
-        }
-
-        .chat-user {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .chat-user h3 {
-            margin: 0;
-            font-size: 16px;
-        }
-
-        .chat-user span {
-            font-size: 12px;
-            color: var(--color-success);
-        }
-
-        .chat-body {
-            flex: 1;
-            padding: 25px;
-            overflow-y: auto;
-            background: var(--color-secondary);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .message {
-            max-width: 70%;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .message.received {
-            align-self: flex-start;
-        }
-
-        .message.sent {
-            align-self: flex-end;
-            align-items: flex-end;
-        }
-
-        .msg-bubble {
-            padding: 12px 18px;
-            border-radius: 18px;
-            font-size: 14px;
-            line-height: 1.5;
-            position: relative;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-        }
-
-        .received .msg-bubble {
-            background: white;
-            color: var(--color-text-main);
-            border-top-right-radius: 4px;
-        }
-
-        .sent .msg-bubble {
-            background: var(--color-primary);
-            color: white;
-            border-top-left-radius: 4px;
-        }
-
-        .msg-time {
-            font-size: 11px;
-            color: var(--color-text-muted);
-            margin-top: 5px;
-            padding: 0 5px;
-        }
-
-        .chat-input-area {
-            padding: 20px;
-            background: white;
-            border-top: 1px solid var(--color-accent);
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .attachment-btn {
-            color: var(--color-text-muted);
-            cursor: pointer;
-            font-size: 20px;
-            transition: var(--color-transition);
-        }
-
-        .attachment-btn:hover {
-            color: var(--color-text-main);
-        }
-
-        .chat-input {
-            flex: 1;
-            padding: 12px 20px;
-            border-radius: var(--radius-full);
-            border: 1px solid var(--color-accent);
-            background: var(--color-secondary);
-            font-family: inherit;
-            resize: none;
-            height: 46px;
-            line-height: 20px;
-        }
-
-        .chat-input:focus {
-            outline: none;
-            border-color: var(--color-primary);
-            background: white;
-        }
-
-        .send-btn {
-            width: 46px;
-            height: 46px;
-            border-radius: 50%;
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: var(--transition-fast);
-            box-shadow: 0 4px 10px rgba(59, 106, 197, 0.3);
-        }
-
-        .send-btn:hover {
-            transform: scale(1.05);
-            background: var(--color-primary-dark);
-        }
-    </style>
-</head>
-
-<body>
-    <aside class="sidebar">
-
-        <nav class="sidebar-nav">
-            <ul>
-                <li><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a>
-                </li>
-                <li><a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>التلاميذ</span></a></li>
-                <li><a href="#" class="nav-link active"><i class="fas fa-envelope"></i><span>التواصل</span></a></li>
-            </ul>
-        </nav>
-    </aside>
-
-    <main class="main-content">
-        <header class="header unified-header">
-            <div class="header-left">
-                <button class="menu-toggle"><i class="fas fa-bars"></i></button>
-                <div class="page-title-row">
-                    <h2><i class="fas fa-comments"></i> مركز التواصل</h2>
-                </div>
-            </div>
-            <div class="header-right">
-                <button class="notification-btn"><i class="fas fa-bell"></i><span class="badge">5</span></button>
-                <div class="user-info">admin</div>
-            </div>
-        </header>
-
-        <div class="comm-layout">
-            <!-- Sidebar / Chat List -->
-            <div class="comm-sidebar">
-                <div class="comm-header">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3 style="margin:0;">الرسائل</h3>
-                        <button class="btn-glass" style="font-size: 12px;"><i class="fas fa-plus"></i> جديد</button>
-                    </div>
-                    <div class="comm-search">
-                        <input type="text" placeholder="بحث في المحادثات...">
+        <main class="main-content">
+            <header class="header unified-header">
+                <div class="header-left">
+                    <button class="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <div class="page-title-row">
+                        <h2><i class="fas fa-comments"></i> مركز التواصل</h2>
                     </div>
                 </div>
-                <div class="comm-list">
-                    <div class="comm-item active">
-                        <div class="avatar parent"><i class="fas fa-user"></i></div>
-                        <div class="comm-content">
-                            <div class="comm-name">أحمد العلوي <span class="comm-time">10:30</span></div>
-                            <div class="comm-preview">أريد استفسارا بخصوص غياب ابني محمد...</div>
+                <div class="header-right">
+                    <button class="notification-btn"><i class="fas fa-bell"></i><span class="badge">5</span></button>
+                    <div class="user-info">admin</div>
+                </div>
+            </header>
+
+            <div class="comm-layout">
+                <!-- Sidebar / Chat List -->
+                <div class="comm-sidebar">
+                    <div class="comm-header">
+                        <div style="display: flex; justify-content: space-between; align-items: center">
+                            <h3 style="margin: 0">الرسائل</h3>
+                            <button class="btn-glass" style="font-size: 12px"><i class="fas fa-plus"></i> جديد</button>
+                        </div>
+                        <div class="comm-search">
+                            <input type="text" placeholder="بحث في المحادثات..." />
                         </div>
                     </div>
-                    <div class="comm-item">
-                        <div class="avatar teacher"><i class="fas fa-chalkboard-teacher"></i></div>
-                        <div class="comm-content">
-                            <div class="comm-name">الأستاذ العمراني <span class="comm-time">أمس</span></div>
-                            <div class="comm-preview">تم إرسال نقط الفروض للمادة المرجو...</div>
+                    <div class="comm-list">
+                        <div class="comm-item active">
+                            <div class="avatar parent"><i class="fas fa-user"></i></div>
+                            <div class="comm-content">
+                                <div class="comm-name">أحمد العلوي <span class="comm-time">10:30</span></div>
+                                <div class="comm-preview">أريد استفسارا بخصوص غياب ابني محمد...</div>
+                            </div>
+                        </div>
+                        <div class="comm-item">
+                            <div class="avatar teacher"><i class="fas fa-chalkboard-teacher"></i></div>
+                            <div class="comm-content">
+                                <div class="comm-name">الأستاذ العمراني <span class="comm-time">أمس</span></div>
+                                <div class="comm-preview">تم إرسال نقط الفروض للمادة المرجو...</div>
+                            </div>
+                        </div>
+                        <div class="comm-item">
+                            <div class="avatar teacher"><i class="fas fa-chalkboard-teacher"></i></div>
+                            <div class="comm-content">
+                                <div class="comm-name">الأستاذة بناني <span class="comm-time">أمس</span></div>
+                                <div class="comm-preview">هل يمكن تغيير القاعة رقم 4 يوم...</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="comm-item">
-                        <div class="avatar teacher"><i class="fas fa-chalkboard-teacher"></i></div>
-                        <div class="comm-content">
-                            <div class="comm-name">الأستاذة بناني <span class="comm-time">أمس</span></div>
-                            <div class="comm-preview">هل يمكن تغيير القاعة رقم 4 يوم...</div>
+                </div>
+
+                <!-- Main Chat Area -->
+                <div class="comm-main">
+                    <div class="chat-header">
+                        <div class="chat-user">
+                            <div class="avatar parent"><i class="fas fa-user"></i></div>
+                            <div>
+                                <h3>أحمد العلوي</h3>
+                                <span>ولي أمر التلميذ: محمد العلوي (2 ب ع 1)</span>
+                            </div>
                         </div>
+                        <div class="chat-actions">
+                            <button class="home-btn"><i class="fas fa-phone"></i></button>
+                            <button class="home-btn"><i class="fas fa-ellipsis-v"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="chat-body">
+                        <div class="message received">
+                            <div class="msg-bubble">
+                                السلام عليكم، أريد استفسارا بخصوص غياب ابني محمد يوم أمس هل هو مبرر؟
+                            </div>
+                            <div class="msg-time">10:30 صباحا</div>
+                        </div>
+
+                        <div class="message sent">
+                            <div class="msg-bubble">
+                                وعليكم السلام، نعم سيدي، لقد توصلنا بالشهادة الطبية هذا الصباح وتم تسجيل الغياب كمبرر.
+                            </div>
+                            <div class="msg-time">10:35 صباحا</div>
+                        </div>
+
+                        <div class="message received">
+                            <div class="msg-bubble">شكرا جزيلا لكم على التفاعل السريع.</div>
+                            <div class="msg-time">10:36 صباحا</div>
+                        </div>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <i class="fas fa-paperclip attachment-btn"></i>
+                        <i class="fas fa-image attachment-btn"></i>
+                        <textarea class="chat-input" placeholder="اكتب رسالتك هنا..."></textarea>
+                        <button class="send-btn"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
             </div>
-
-            <!-- Main Chat Area -->
-            <div class="comm-main">
-                <div class="chat-header">
-                    <div class="chat-user">
-                        <div class="avatar parent"><i class="fas fa-user"></i></div>
-                        <div>
-                            <h3>أحمد العلوي</h3>
-                            <span>ولي أمر التلميذ: محمد العلوي (2 ب ع 1)</span>
-                        </div>
-                    </div>
-                    <div class="chat-actions">
-                        <button class="home-btn"><i class="fas fa-phone"></i></button>
-                        <button class="home-btn"><i class="fas fa-ellipsis-v"></i></button>
-                    </div>
-                </div>
-
-                <div class="chat-body">
-                    <div class="message received">
-                        <div class="msg-bubble">
-                            السلام عليكم، أريد استفسارا بخصوص غياب ابني محمد يوم أمس هل هو مبرر؟
-                        </div>
-                        <div class="msg-time">10:30 صباحا</div>
-                    </div>
-
-                    <div class="message sent">
-                        <div class="msg-bubble">
-                            وعليكم السلام، نعم سيدي، لقد توصلنا بالشهادة الطبية هذا الصباح وتم تسجيل الغياب كمبرر.
-                        </div>
-                        <div class="msg-time">10:35 صباحا</div>
-                    </div>
-
-                    <div class="message received">
-                        <div class="msg-bubble">
-                            شكرا جزيلا لكم على التفاعل السريع.
-                        </div>
-                        <div class="msg-time">10:36 صباحا</div>
-                    </div>
-                </div>
-
-                <div class="chat-input-area">
-                    <i class="fas fa-paperclip attachment-btn"></i>
-                    <i class="fas fa-image attachment-btn"></i>
-                    <textarea class="chat-input" placeholder="اكتب رسالتك هنا..."></textarea>
-                    <button class="send-btn"><i class="fas fa-paper-plane"></i></button>
-                </div>
-            </div>
-        </div>
-    </main>
-</body>
-
+        </main>
+    </body>
 </html>

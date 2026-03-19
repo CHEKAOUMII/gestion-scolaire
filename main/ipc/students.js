@@ -1,5 +1,5 @@
-const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear } = require('./ipc-helpers');
-const { requireFields, validateSchoolYear, validateRange } = require('./validation');
+const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { requireFields, validateRange } = require('./validation');
 const { normalizeSubjectName } = require('../../js/data/ma-education-labels');
 const { resolveTeacherIdentity } = require('../teachers/identity');
 
@@ -41,7 +41,7 @@ function registerStudentsIpc(ipcMain) {
 
     handleWrite(ipcMain, 'students:add', ['admin', 'staff'], (db, _event, student) => {
         requireFields(student, ['code', 'full_name', 'school_year']);
-        validateSchoolYear(student.school_year);
+        requireSchoolYear(student.school_year);
         db.prepare(
             `
                 INSERT INTO students(code, full_name, family_name, birth_date, birth_place, gender, section, school_year, status, registration_type)
@@ -86,6 +86,7 @@ function registerStudentsIpc(ipcMain) {
         const insertMany = db.transaction((items) => {
             for (const student of items) {
                 requireFields(student, ['code', 'full_name', 'school_year']);
+                requireSchoolYear(student.school_year);
                 insert.run(
                     student.code,
                     student.full_name,
@@ -131,6 +132,10 @@ function registerStudentsIpc(ipcMain) {
             return { success: false, error: 'No valid fields to update' };
         }
 
+        if (Object.prototype.hasOwnProperty.call(data || {}, 'school_year')) {
+            requireSchoolYear(data.school_year);
+        }
+
         const setClause = updates.map((item) => `${item.field} = ?`).join(', ');
         const values = updates.map((item) => item.value);
         values.push(studentId);
@@ -151,7 +156,7 @@ function registerStudentsIpc(ipcMain) {
 
     // No auth: delete is used from settings-imports page which may be opened before login
     handleWriteSoftAuth(ipcMain, 'students:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
-        const year = normalizeYear(schoolYear);
+        const year = requireSchoolYear(schoolYear);
         const runDelete = db.transaction((targetYear) => {
             db.prepare('DELETE FROM grades WHERE school_year = ?').run(targetYear);
             db.prepare('DELETE FROM absences WHERE school_year = ?').run(targetYear);
@@ -305,8 +310,8 @@ function registerStudentsIpc(ipcMain) {
 
     // No auth: allow changing the current school year without requiring admin session
     handleWriteSoftAuth(ipcMain, 'settings:setSchoolYear', ['admin', 'staff'], (db, year) => {
-        if (!year || typeof year !== 'string') return { success: false, error: 'Invalid year' };
-        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('currentSchoolYear', ?)").run(year);
+        const nextYear = requireSchoolYear(year);
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('currentSchoolYear', ?)").run(nextYear);
         return { success: true };
     });
 
@@ -470,6 +475,7 @@ function registerStudentsIpc(ipcMain) {
 
     handleWrite(ipcMain, 'grades:save', ['admin', 'staff'], (db, _event, grade) => {
         validateRange('grade', grade.grade, 0, 20);
+        requireSchoolYear(grade.school_year);
         const resolvedTeacher = resolveTeacherIdentity(db, {
             teacher_id: grade.teacher_id,
             teacher_name: grade.teacher_name,
@@ -511,6 +517,7 @@ function registerStudentsIpc(ipcMain) {
         const insertMany = db.transaction((items) => {
             for (const grade of items) {
                 requireFields(grade, ['student_code', 'subject', 'semester', 'school_year']);
+                requireSchoolYear(grade.school_year);
                 validateRange('grade', grade.grade, 0, 20);
                 const resolvedTeacher = resolveTeacherIdentity(db, {
                     teacher_id: grade.teacher_id,
@@ -537,12 +544,8 @@ function registerStudentsIpc(ipcMain) {
     });
 
     handleWriteSoftAuth(ipcMain, 'grades:reassignTeacherBulk', ['admin', 'staff'], (db, payload) => {
-        const year = normalizeYear(payload?.school_year || payload?.schoolYear);
+        const year = requireSchoolYear(payload?.school_year || payload?.schoolYear);
         const changes = Array.isArray(payload?.changes) ? payload.changes : [];
-
-        if (!year) {
-            return { success: false, error: 'Invalid school year' };
-        }
         if (!changes.length) {
             return { success: false, error: 'No changes to apply' };
         }
@@ -638,12 +641,12 @@ function registerStudentsIpc(ipcMain) {
 
     // No auth: delete is used from settings-imports page which may be opened before login
     handleWriteSoftAuth(ipcMain, 'grades:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
-        const info = db.prepare('DELETE FROM grades WHERE school_year = ?').run(normalizeYear(schoolYear));
+        const info = db.prepare('DELETE FROM grades WHERE school_year = ?').run(requireSchoolYear(schoolYear));
         return { success: true, count: info.changes };
     });
 
     handleWriteSoftAuth(ipcMain, 'grades:deleteBySemester', ['admin', 'staff'], (db, schoolYear, semester) => {
-        const year = normalizeYear(schoolYear);
+        const year = requireSchoolYear(schoolYear);
         const sem = parseInt(semester, 10) || 1;
         const info = db
             .prepare('DELETE FROM grades WHERE school_year = ? AND CAST(semester AS INTEGER) = ?')

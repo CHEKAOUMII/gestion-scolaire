@@ -237,10 +237,10 @@
             state.rows.map((row) => row.level),
             sortArabic
         );
-        const subjects = uniqueSorted(
-            state.rows.map((row) => row.subject),
-            typeof compareSubjects === 'function' ? compareSubjects : sortArabic
-        );
+        const rawSubjects = state.rows.map((row) => row.subject).filter(Boolean);
+        const subjects = typeof buildSubjectOptionsFromSet === 'function'
+            ? buildSubjectOptionsFromSet(rawSubjects)
+            : uniqueSorted(rawSubjects, typeof compareSubjects === 'function' ? compareSubjects : sortArabic);
 
         fillSelect(els.levelSelect, levelNames, 'كل المستويات');
         fillSelect(els.subjectSelect, subjects, 'كل المواد');
@@ -373,6 +373,8 @@
 
     function groupTeachersForSubject(subject) {
         const targetSubject = normalizeSubject(subject);
+        const filterSubject = normalizeSubject(state.lastAppliedFilters.subject || '');
+        const onlyMatchingSubject = Boolean(filterSubject);
         const matching = [];
         const subjectBuckets = new Map();
         const noSubject = [];
@@ -381,34 +383,40 @@
             const teacherSubject = normalizeSubject(teacher.specialty_subject || teacher.subject || '');
             if (teacherSubject && teacherSubject === targetSubject) {
                 matching.push(teacher);
-            } else if (teacherSubject) {
-                if (!subjectBuckets.has(teacherSubject)) {
-                    subjectBuckets.set(teacherSubject, []);
+            } else if (!onlyMatchingSubject) {
+                if (teacherSubject) {
+                    if (!subjectBuckets.has(teacherSubject)) {
+                        subjectBuckets.set(teacherSubject, []);
+                    }
+                    subjectBuckets.get(teacherSubject).push(teacher);
+                } else {
+                    noSubject.push(teacher);
                 }
-                subjectBuckets.get(teacherSubject).push(teacher);
-            } else {
-                noSubject.push(teacher);
             }
         });
 
         const sorter = (a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'ar');
         matching.sort(sorter);
-        noSubject.sort(sorter);
 
         const groups = [];
         if (matching.length) groups.push({ label: `نفس المادة: ${subject}`, items: matching });
 
-        const sortedSubjects = Array.from(subjectBuckets.keys()).sort(
-            typeof compareSubjects === 'function' ? compareSubjects : sortArabic
-        );
+        if (!onlyMatchingSubject) {
+            noSubject.sort(sorter);
 
-        sortedSubjects.forEach((subjectName) => {
-            const teachers = subjectBuckets.get(subjectName) || [];
-            teachers.sort(sorter);
-            groups.push({ label: subjectName, items: teachers });
-        });
+            const sortedSubjects = Array.from(subjectBuckets.keys()).sort(
+                typeof compareSubjects === 'function' ? compareSubjects : sortArabic
+            );
 
-        if (noSubject.length) groups.push({ label: 'بدون مادة محددة', items: noSubject });
+            sortedSubjects.forEach((subjectName) => {
+                const teachers = subjectBuckets.get(subjectName) || [];
+                teachers.sort(sorter);
+                groups.push({ label: subjectName, items: teachers });
+            });
+
+            if (noSubject.length) groups.push({ label: 'بدون مادة محددة', items: noSubject });
+        }
+
         return groups;
     }
 

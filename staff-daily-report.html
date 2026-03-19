@@ -6,497 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>التقرير اليومي | برنامج التدبير المدرسي</title>
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">    <link rel="stylesheet" href="css/tailwind-output.css">
     <script src="js/data/ma-education-labels.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/ux-enhancements.js"></script>
-    <style>
-        /* ─── Print-only header ─── */
-        .print-report-header {
-            display: none;
-            /* hidden on screen */
-        }
-
-        /* Print-specific overrides captured by openPrintPreview clone */
-        .print-report-header {
-            display: none;
-        }
-
-        .ux-pp-body .print-report-header {
-            display: flex !important;
-            align-items: baseline;
-            gap: 16px;
-            justify-content: center;
-            margin-bottom: 12px;
-            border-bottom: 2px solid #3B6AC5;
-            padding-bottom: 8px;
-        }
-
-        .ux-pp-body .print-report-header h2 {
-            font-size: 18px;
-            font-weight: 700;
-            color: #1a2332;
-            margin: 0;
-        }
-
-        .ux-pp-body .print-report-header .print-report-date {
-            font-size: 14px;
-            color: #555;
-            font-weight: 600;
-        }
-
-        .ux-pp-body .report-stats {
-            display: none !important;
-        }
-
-        .ux-pp-body .report-section-header i {
-            display: none !important;
-        }
-
-        .ux-pp-body #absences-section .report-section-header .badge-count,
-        .ux-pp-body #compensatory-section .report-section-header .badge-count,
-        .ux-pp-body #tardiness-section .report-section-header .badge-count {
-            display: none !important;
-        }
-
-        .ux-pp-body #affected-section {
-            display: none !important;
-        }
-
-        /* ─── Daily Report Page Styles ─── */
-        .report-controls {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-            padding: 16px 20px;
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
-        }
-
-        .report-controls label {
-            font-family: var(--font-main);
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--color-text-main);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .report-controls input[type="date"] {
-            padding: 8px 14px;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            font-family: var(--font-main);
-            font-size: 14px;
-            background: var(--color-surface-alt);
-            color: var(--color-text-main);
-            cursor: pointer;
-            transition: var(--transition-fast);
-        }
-
-        .report-controls input[type="date"]:focus {
-            outline: none;
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px var(--color-primary-mist);
-        }
-
-        .report-controls .report-date-display {
-            font-family: var(--font-display);
-            font-weight: 700;
-            font-size: 15px;
-            color: var(--color-primary);
-            margin-right: auto;
-        }
-
-        /* ─── Stat Cards ─── */
-        .report-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-
-        .report-stat-card {
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-md);
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            transition: var(--transition-normal);
-            animation: fadeInUp 0.4s ease-out both;
-        }
-
-        .report-stat-card:nth-child(1) {
-            animation-delay: 0.05s;
-        }
-
-        .report-stat-card:nth-child(2) {
-            animation-delay: 0.1s;
-        }
-
-        .report-stat-card:nth-child(3) {
-            animation-delay: 0.15s;
-        }
-
-        .report-stat-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-hover);
-            border-color: var(--color-primary-light);
-        }
-
-        .report-stat-icon {
-            width: 52px;
-            height: 52px;
-            border-radius: var(--radius-sm);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            flex-shrink: 0;
-        }
-
-        .report-stat-icon.danger {
-            background: rgba(232, 93, 93, 0.12);
-            color: var(--color-danger-bg);
-        }
-
-        .report-stat-icon.warning {
-            background: rgba(240, 173, 78, 0.12);
-            color: var(--color-warning-bg);
-        }
-
-        .report-stat-icon.info {
-            background: rgba(59, 106, 197, 0.10);
-            color: var(--color-primary);
-        }
-
-        .report-stat-body h4 {
-            margin: 0;
-            font-family: var(--font-display);
-            font-size: 26px;
-            font-weight: 800;
-            color: var(--color-text-main);
-            line-height: 1;
-        }
-
-        .report-stat-body p {
-            margin: 4px 0 0;
-            font-family: var(--font-main);
-            font-size: 13px;
-            color: var(--color-text-muted);
-            font-weight: 500;
-        }
-
-        /* ─── Tables ─── */
-        .report-section {
-            background: var(--color-surface);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-md);
-            margin-bottom: 20px;
-            overflow: hidden;
-            animation: fadeInUp 0.4s ease-out both;
-        }
-
-        .report-section:nth-of-type(1) {
-            animation-delay: 0.1s;
-        }
-
-        .report-section:nth-of-type(2) {
-            animation-delay: 0.15s;
-        }
-
-        .report-section:nth-of-type(3) {
-            animation-delay: 0.2s;
-        }
-
-        .report-section-header {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--color-accent);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--color-surface-alt);
-        }
-
-        .report-section-header h3 {
-            margin: 0;
-            font-family: var(--font-display);
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--color-text-main);
-        }
-
-        .report-section-header i {
-            color: var(--color-primary);
-            font-size: 16px;
-        }
-
-        .report-section-header .badge-count {
-            background: var(--color-primary);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 10px;
-            border-radius: var(--radius-full);
-            margin-right: auto;
-        }
-
-        .report-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-family: var(--font-main);
-            font-size: 14px;
-        }
-
-        .report-table th {
-            background: var(--color-surface-alt);
-            color: var(--color-text-muted);
-            padding: 10px 16px;
-            font-weight: 600;
-            text-align: right;
-            white-space: nowrap;
-            border-bottom: 1px solid var(--color-accent);
-            font-size: 13px;
-        }
-
-        .report-table td {
-            padding: 10px 16px;
-            border-bottom: 1px solid var(--color-accent);
-            color: var(--color-text-main);
-            vertical-align: middle;
-        }
-
-        .report-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .report-table tbody tr:hover td {
-            background: var(--color-primary-mist);
-        }
-
-        .report-table .empty-row td {
-            text-align: center;
-            padding: 28px 16px;
-            color: var(--color-text-muted);
-            font-style: italic;
-        }
-
-        .section-tag {
-            display: inline-block;
-            background: var(--color-primary-mist);
-            color: var(--color-primary);
-            padding: 2px 10px;
-            border-radius: var(--radius-full);
-            font-size: 12px;
-            font-weight: 600;
-            margin: 2px;
-        }
-
-        .justified-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 10px;
-            border-radius: var(--radius-full);
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .justified-badge.yes {
-            background: rgba(46, 204, 113, 0.12);
-            color: var(--color-success);
-        }
-
-        .justified-badge.no {
-            background: rgba(232, 93, 93, 0.12);
-            color: var(--color-danger);
-        }
-
-        /* ─── Affected Sections Grid ─── */
-        .affected-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 12px;
-            padding: 16px 20px;
-        }
-
-        .affected-item {
-            background: var(--color-surface-alt);
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            padding: 12px 16px;
-            transition: var(--transition-fast);
-        }
-
-        .affected-item:hover {
-            border-color: var(--color-primary-light);
-        }
-
-        .affected-item .teacher-name {
-            font-weight: 700;
-            font-size: 14px;
-            color: var(--color-text-main);
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .affected-item .teacher-name i {
-            color: var(--color-danger-bg);
-            font-size: 13px;
-        }
-
-        .affected-item .sections-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
-
-        /* ─── Empty State ─── */
-        .report-empty-state {
-            text-align: center;
-            padding: 48px 20px;
-            color: var(--color-text-muted);
-        }
-
-        .report-empty-state i {
-            font-size: 48px;
-            color: var(--color-primary-light);
-            display: block;
-            margin-bottom: 12px;
-            opacity: 0.6;
-        }
-
-        .report-empty-state p {
-            font-size: 15px;
-            margin: 0;
-        }
-
-        /* ─── Print Styles ─── */
-        @media print {
-            body {
-                background: #fff !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-
-            .sidebar,
-            .header,
-            .toast-container,
-            .report-controls .btn-primary,
-            .report-controls .btn-secondary,
-            #print-btn,
-            #pdf-btn {
-                display: none !important;
-            }
-
-            .main-content {
-                margin: 0 !important;
-                padding: 10px !important;
-            }
-
-            .report-stat-card:hover,
-            .report-section-header,
-            .affected-item:hover {
-                transform: none !important;
-                box-shadow: none !important;
-            }
-
-            .report-controls {
-                border: none;
-                padding: 0 0 10px;
-                margin-bottom: 10px;
-                border-bottom: 2px solid #333;
-            }
-
-            .report-controls .report-date-display {
-                font-size: 18px;
-                color: #000;
-            }
-
-            .report-table th {
-                background: #f0f0f0 !important;
-            }
-
-            .report-section {
-                break-inside: avoid;
-                margin-bottom: 12px;
-            }
-
-            .report-stat-card {
-                border: 1px solid #ccc;
-            }
-        }
-
-        /* ─── Events Section ─── */
-        .event-row select,
-        .event-row input[type="text"],
-        .event-row input[type="time"] {
-            padding: 6px 10px;
-            border: 1px solid var(--color-accent);
-            border-radius: var(--radius-sm);
-            font-family: var(--font-main);
-            font-size: 13px;
-            background: var(--color-surface);
-            color: var(--color-text-main);
-            width: 100%;
-        }
-
-        .event-row select {
-            width: auto;
-            min-width: 140px;
-            cursor: pointer;
-        }
-
-        .event-row input[type="text"]:focus,
-        .event-row input[type="time"]:focus,
-        .event-row select:focus {
-            outline: none;
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px var(--color-primary-mist);
-        }
-
-        .event-row .btn-delete-event {
-            background: none;
-            border: none;
-            color: var(--color-danger-bg);
-            cursor: pointer;
-            padding: 6px;
-            border-radius: var(--radius-sm);
-            transition: var(--transition-fast);
-            font-size: 14px;
-        }
-
-        .event-row .btn-delete-event:hover {
-            background: rgba(232, 93, 93, 0.12);
-        }
-
-        .ux-pp-body .event-row select,
-        .ux-pp-body .event-row input {
-            border: none;
-            background: transparent;
-            padding: 0;
-            font-weight: 600;
-        }
-
-        .ux-pp-body .no-print,
-        .ux-pp-body #add-event-btn {
-            display: none !important;
-        }
-    </style>
-</head>
+    </head>
 
 <body>
     <div class="toast-container" id="toast-container"></div>
@@ -522,19 +38,18 @@
                     تاريخ التقرير
                 </label>
                 <input type="date" id="report-date">
-                <button class="btn-primary" id="load-btn" type="button">
+                <button class="btn-primary" id="load-btn" type="button" style="padding: 10px 24px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
                     <i class="fas fa-sync-alt"></i> تحميل التقرير
                 </button>
                 <span class="report-date-display" id="date-display"></span>
-                <button class="btn-secondary" id="print-btn" type="button" style="margin-right: auto;">
-                    <i class="fas fa-print"></i> طباعة
+                <button id="print-btn" type="button" style="margin-right: auto; padding: 10px 24px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #0891b2, #0e7490); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; box-shadow: 0 3px 10px rgba(8,145,178,0.3);" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 5px 16px rgba(8,145,178,0.45)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 3px 10px rgba(8,145,178,0.3)'">
+                    <i class="fas fa-eye"></i> معاينة الطباعة
                 </button>
             </div>
 
             <!-- Print-only title + date (hidden on screen, visible in print) -->
             <div class="print-report-header" id="print-report-header">
-                <h2>التقرير اليومي</h2>
-                <span class="print-report-date" id="print-date-display"></span>
+                <h2>التقرير اليومي<br><span class="print-report-date" id="print-date-display" style="font-size: 14px; font-weight: 600; color: #555;"></span></h2>
             </div>
 
             <!-- Stat Cards -->
@@ -655,7 +170,7 @@
             </div>
 
             <!-- Compensatory Hours by Section -->
-            <div class="report-section" id="compensatory-section">
+            <div class="report-section no-print" id="compensatory-section">
                 <div class="report-section-header">
                     <i class="fas fa-redo-alt"></i>
                     <h3>الأقسام الأكثر احتياجاً لحصص تعويضية</h3>
@@ -684,7 +199,7 @@
                     <i class="fas fa-calendar-check"></i>
                     <h3>أحداث المؤسسة</h3>
                     <span class="badge-count" id="events-count">0</span>
-                    <button class="btn-primary" id="add-event-btn" type="button" style="margin-right: auto; padding: 4px 14px; font-size: 13px;">
+                    <button class="btn-primary no-print" id="add-event-btn" type="button" style="margin-right: auto; padding: 4px 14px; font-size: 13px;">
                         <i class="fas fa-plus"></i> إضافة حدث
                     </button>
                 </div>
@@ -767,14 +282,104 @@
 
         /**
          * Normalize a name for fuzzy matching:
-         * remove underscores, collapse whitespace, strip Arabic diacritics, trim
+         * remove underscores, collapse whitespace, strip Arabic diacritics, strip definite article, trim
          */
         function normalizeName(name) {
             return (name || '')
                 .replace(/_/g, ' ')
-                .replace(/[\u064B-\u065F\u0670]/g, '')
+                .replace(/[\u064B-\u065F\u0670]/g, '') // strip Arabic diacritics
+                .replace(/\bال/g, '') // strip Arabic definite article "ال"
                 .replace(/\s+/g, ' ')
-                .trim();
+                .trim()
+                .toLowerCase();
+        }
+
+        /**
+         * Resolve timetable keys for a teacher using robust multi-field matching.
+         * Consistent with staff-attendance.html's resolveTeacherTimetableKeys().
+         */
+        function resolveTeacherTimetableKeys(data, teacherId, teacherName) {
+            const targetId = Number(teacherId) || null;
+            const targetName = String(teacherName || '').trim();
+            const normalizedTarget = normalizeName(targetName);
+            if (!targetName && !targetId) return [];
+
+            // Build entries from all available metadata sources
+            const entriesByKey = new Map();
+
+            function normalizeEntry(key, entry) {
+                const sourceName = String(entry?.sourceName || key || '').trim();
+                const sourceDisplayName = String(entry?.sourceDisplayName || sourceName || '').trim();
+                const tName = String(entry?.teacherName || entry?.displayName || sourceDisplayName || sourceName || '').trim();
+                return {
+                    key: String(key || entry?.key || '').trim(),
+                    teacherId: Number(entry?.teacherId) || null,
+                    teacherName: tName,
+                    displayName: String(entry?.displayName || tName || sourceDisplayName || sourceName).trim(),
+                    sourceName,
+                    sourceDisplayName
+                };
+            }
+
+            Object.entries(data?.teacherMetaByKey || {}).forEach(([key, entry]) => {
+                entriesByKey.set(key, normalizeEntry(key, entry));
+            });
+
+            (Array.isArray(data?.teachers) ? data.teachers : []).forEach((entry) => {
+                const normalized = normalizeEntry(entry?.key || entry?.name, entry);
+                if (normalized.key && !entriesByKey.has(normalized.key)) {
+                    entriesByKey.set(normalized.key, normalized);
+                }
+            });
+
+            Object.keys(data?.timetables || {}).forEach((key) => {
+                if (!entriesByKey.has(key)) {
+                    entriesByKey.set(key, normalizeEntry(key, { key, sourceName: key, teacherName: key }));
+                }
+            });
+
+            const entries = Array.from(entriesByKey.values());
+            const matchedKeys = [];
+
+            const addMatches = (predicate) => {
+                entries.forEach((entry) => {
+                    if (entry.key && predicate(entry)) matchedKeys.push(entry.key);
+                });
+                return [...new Set(matchedKeys)];
+            };
+
+            // 1. Match by teacher ID
+            if (targetId) {
+                const byId = addMatches((entry) => entry.teacherId === targetId);
+                if (byId.length) return byId;
+            }
+
+            if (!targetName) return [];
+
+            const fieldsForEntry = (entry) => [
+                entry.teacherName, entry.displayName, entry.sourceDisplayName,
+                entry.sourceName, entry.key.replace(/^tafwij:/, '').replace(/_/g, ' ')
+            ];
+
+            // 2. Exact name match
+            const exact = addMatches((entry) =>
+                fieldsForEntry(entry).some((v) => String(v || '').trim() === targetName)
+            );
+            if (exact.length) return exact;
+
+            // 3. Normalized match
+            const normalized = addMatches((entry) =>
+                fieldsForEntry(entry).some((v) => normalizeName(v) === normalizedTarget)
+            );
+            if (normalized.length) return normalized;
+
+            // 4. Partial match
+            return addMatches((entry) =>
+                fieldsForEntry(entry).some((v) => {
+                    const nv = normalizeName(v);
+                    return nv && (nv.includes(normalizedTarget) || normalizedTarget.includes(nv));
+                })
+            );
         }
 
         /**
@@ -782,7 +387,7 @@
          * reading from the timetable stored in localStorage.
          * Falls back to the provided fallbackSections if timetable data is unavailable.
          */
-        function getSectionsForDay(teacherName, dateStr, fallbackSections) {
+        function getSectionsForDay(teacherName, dateStr, fallbackSections, teacherId) {
             try {
                 const raw = localStorage.getItem('timetableData');
                 if (!raw) return fallbackSections || [];
@@ -793,36 +398,24 @@
                 const dateObj = new Date(dateStr + 'T00:00:00');
                 const dayName = dayNames[dateObj.getDay()];
 
-                const normalizedTarget = normalizeName(teacherName);
-                const timetableTeachers = Object.keys(data.timetables);
-
-                // 1. Exact match  2. Normalized  3. Partial
-                let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === teacherName);
-                if (!teacherKey) {
-                    teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
-                }
-                if (!teacherKey) {
-                    teacherKey = timetableTeachers.find(k => {
-                        const nk = normalizeName(k);
-                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
-                    });
-                }
-                if (!teacherKey) return fallbackSections || [];
-
-                const dayData = data.timetables[teacherKey][dayName];
-                if (!dayData) return [];
+                const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
+                if (!teacherKeys.length) return fallbackSections || [];
 
                 const sections = new Set();
-                for (const [period, hours] of Object.entries(dayData)) {
-                    for (const [hour, lesson] of Object.entries(hours)) {
-                        const students = (lesson.students || '').trim();
-                        if (students) {
-                            const baseClass = students.replace(/:[Gg]\d+$/g, '').trim();
-                            if (baseClass) sections.add(baseClass);
+                teacherKeys.forEach(teacherKey => {
+                    const dayData = data.timetables?.[teacherKey]?.[dayName];
+                    if (!dayData) return;
+                    for (const hours of Object.values(dayData)) {
+                        for (const lesson of Object.values(hours || {})) {
+                            const students = (lesson.students || '').trim();
+                            if (students) {
+                                const baseClass = students.replace(/:[Gg]\d+$/g, '').trim();
+                                if (baseClass) sections.add(baseClass);
+                            }
                         }
                     }
-                }
-                return [...sections].sort();
+                });
+                return sections.size > 0 ? [...sections].sort() : (fallbackSections || []);
             } catch (e) {
                 console.warn('Error reading timetable for day filtering:', e);
                 return fallbackSections || [];
@@ -850,7 +443,7 @@
          * Get the scheduled time periods for a teacher on a specific date.
          * Returns an array of period strings, e.g. ['08:00-09:00', '10:00-11:00']
          */
-        function getScheduleForDay(teacherName, dateStr, fallback) {
+        function getScheduleForDay(teacherName, dateStr, fallback, teacherId) {
             try {
                 const raw = localStorage.getItem('timetableData');
                 if (!raw) return fallback || [];
@@ -861,23 +454,8 @@
                 const dateObj = new Date(dateStr + 'T00:00:00');
                 const dayName = dayNames[dateObj.getDay()];
 
-                const normalizedTarget = normalizeName(teacherName);
-                const timetableTeachers = Object.keys(data.timetables);
-
-                let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === teacherName);
-                if (!teacherKey) {
-                    teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
-                }
-                if (!teacherKey) {
-                    teacherKey = timetableTeachers.find(k => {
-                        const nk = normalizeName(k);
-                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
-                    });
-                }
-                if (!teacherKey) return fallback || [];
-
-                const dayData = data.timetables[teacherKey][dayName];
-                if (!dayData) return [];
+                const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
+                if (!teacherKeys.length) return fallback || [];
 
                 const periodMap = {
                     'h1': '08:00-09:00', 'h2': '09:00-10:00',
@@ -887,16 +465,20 @@
                 };
 
                 const periods = [];
-                for (const [periodType, hours] of Object.entries(dayData)) {
-                    if (!hours || typeof hours !== 'object') continue;
-                    const sortedKeys = Object.keys(hours).sort();
-                    for (const h of sortedKeys) {
-                        if (hours[h]) {
-                            periods.push(periodMap[h] || h);
+                teacherKeys.forEach(teacherKey => {
+                    const dayData = data.timetables?.[teacherKey]?.[dayName];
+                    if (!dayData) return;
+                    for (const [periodType, hours] of Object.entries(dayData)) {
+                        if (!hours || typeof hours !== 'object') continue;
+                        const sortedKeys = Object.keys(hours).sort();
+                        for (const h of sortedKeys) {
+                            if (hours[h]) {
+                                periods.push(periodMap[h] || h);
+                            }
                         }
                     }
-                }
-                return periods;
+                });
+                return [...new Set(periods)];
             } catch (e) {
                 console.warn('Error reading schedule:', e);
                 return fallback || [];
@@ -920,40 +502,35 @@
                 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
                 const dateObj = new Date(date + 'T00:00:00');
                 const dayName = dayNames[dateObj.getDay()];
-                const timetableTeachers = Object.keys(ttData.timetables);
 
                 for (const absence of uniqueAbsences) {
                     const name = absence.full_name;
                     if (!name) continue;
-                    const normalizedTarget = normalizeName(name);
-                    let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === name);
-                    if (!teacherKey) teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
-                    if (!teacherKey) teacherKey = timetableTeachers.find(k => {
-                        const nk = normalizeName(k);
-                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
-                    });
-                    if (!teacherKey) continue;
+                    const teacherKeys = resolveTeacherTimetableKeys(ttData, absence.teacher_id, name);
+                    if (!teacherKeys.length) continue;
 
-                    const dayData = ttData.timetables[teacherKey][dayName];
-                    if (!dayData) continue;
+                    teacherKeys.forEach(teacherKey => {
+                        const dayData = ttData.timetables?.[teacherKey]?.[dayName];
+                        if (!dayData) return;
 
-                    for (const [periodType, hours] of Object.entries(dayData)) {
-                        if (!hours || typeof hours !== 'object') continue;
-                        for (const [h, lesson] of Object.entries(hours)) {
-                            if (!lesson) continue;
-                            const sectionName = (lesson.students || '').trim();
-                            if (!sectionName) continue;
-                            sessions.push({
-                                absence_date: date,
-                                teacher_name: name,
-                                section: sectionName,
-                                period_slot: h,
-                                period_time: periodMap[h] || h,
-                                subject: lesson.subject || absence.subject || '',
-                                school_year: year
-                            });
+                        for (const [periodType, hours] of Object.entries(dayData)) {
+                            if (!hours || typeof hours !== 'object') continue;
+                            for (const [h, lesson] of Object.entries(hours)) {
+                                if (!lesson) continue;
+                                const sectionName = (lesson.students || '').trim();
+                                if (!sectionName) continue;
+                                sessions.push({
+                                    absence_date: date,
+                                    teacher_name: name,
+                                    section: sectionName,
+                                    period_slot: h,
+                                    period_time: periodMap[h] || h,
+                                    subject: lesson.subject || absence.subject || '',
+                                    school_year: year
+                                });
+                            }
                         }
-                    }
+                    });
                 }
             } catch (e) {
                 console.warn('Error extracting detailed sessions:', e);
@@ -1140,44 +717,34 @@
                             const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
                             const dateObj = new Date(date + 'T00:00:00');
                             const dayName = dayNames[dateObj.getDay()];
-                            const timetableTeachers = Object.keys(ttData.timetables);
 
                             for (const absence of uniqueAbsences) {
                                 const name = absence.full_name;
                                 if (!name) continue;
 
-                                // Find teacher key using fuzzy matching
-                                const normalizedTarget = normalizeName(name);
-                                let teacherKey = timetableTeachers.find(k => k.replace(/_/g, ' ') === name);
-                                if (!teacherKey) {
-                                    teacherKey = timetableTeachers.find(k => normalizeName(k) === normalizedTarget);
-                                }
-                                if (!teacherKey) {
-                                    teacherKey = timetableTeachers.find(k => {
-                                        const nk = normalizeName(k);
-                                        return nk.includes(normalizedTarget) || normalizedTarget.includes(nk);
-                                    });
-                                }
-                                if (!teacherKey) continue;
+                                const teacherKeys = resolveTeacherTimetableKeys(ttData, absence.teacher_id, name);
+                                if (!teacherKeys.length) continue;
 
-                                const dayData = ttData.timetables[teacherKey][dayName];
-                                if (!dayData) continue;
+                                teacherKeys.forEach(teacherKey => {
+                                    const dayData = ttData.timetables?.[teacherKey]?.[dayName];
+                                    if (!dayData) return;
 
-                                // Iterate each period type (morning, afternoon)
-                                for (const [periodType, hours] of Object.entries(dayData)) {
-                                    if (!hours || typeof hours !== 'object') continue;
-                                    for (const [h, lesson] of Object.entries(hours)) {
-                                        if (!lesson) continue;
-                                        const sectionName = lesson.students || '';
-                                        if (!sectionName) continue;
+                                    // Iterate each period type (morning, afternoon)
+                                    for (const [periodType, hours] of Object.entries(dayData)) {
+                                        if (!hours || typeof hours !== 'object') continue;
+                                        for (const [h, lesson] of Object.entries(hours)) {
+                                            if (!lesson) continue;
+                                            const sectionName = lesson.students || '';
+                                            if (!sectionName) continue;
 
-                                        if (!sectionHoursMap[sectionName]) {
-                                            sectionHoursMap[sectionName] = { hours: 0, teachers: new Set() };
+                                            if (!sectionHoursMap[sectionName]) {
+                                                sectionHoursMap[sectionName] = { hours: 0, teachers: new Set() };
+                                            }
+                                            sectionHoursMap[sectionName].hours += 1; // Each H = 1 hour
+                                            sectionHoursMap[sectionName].teachers.add(name);
                                         }
-                                        sectionHoursMap[sectionName].hours += 1; // Each H = 1 hour
-                                        sectionHoursMap[sectionName].teachers.add(name);
                                     }
-                                }
+                                });
                             }
                         }
                     }
@@ -1201,6 +768,9 @@
                     await window.api.compensation.saveBatch(detailedSessions);
                 } catch (e) {
                     console.warn('Error saving compensation sessions:', e);
+                    if (typeof showToast === 'function') {
+                        showToast('تعذر حفظ الحصص التعويضية تلقائيًا', 'warning');
+                    }
                 }
             }
             // Fetch compensation status for stat card

@@ -118,7 +118,7 @@ function initQuickNav() {
 
     // Dynamically populate quick-nav from sidebar links (single source of truth)
     if (pagesList && !pagesList.children.length) {
-        const sidebarLinks = document.querySelectorAll('.sidebar .nav-item a');
+        const sidebarLinks = document.querySelectorAll('.sidebar .sub-menu a, .sidebar .sidebar-nav > ul > li > a.nav-link[href]:not([href="#"])');
         sidebarLinks.forEach(link => {
             const href = link.getAttribute('href');
             if (!href || href === '#') return;
@@ -403,9 +403,9 @@ function openPrintPreview(options = {}) {
         // Restore original theme now that clone + canvas snapshots are done
         _restoreThemeAfterPrint();
 
-        // Build letterhead header (only when cloning raw page content, not custom contentSelector)
+        // Build letterhead header (skip only when explicitly disabled via noHeader)
         let headerHTML = '';
-        if (!options.contentSelector) {
+        if (!options.noHeader) {
             try {
                 const id = await window.api.reports.getIdentity();
                 if (id && (id.school_name || id.ministry)) {
@@ -433,12 +433,18 @@ function openPrintPreview(options = {}) {
                                 </td>
                             </tr>
                         </table>
-                        ${printTitle ? `
+                        ${printTitle ? (() => {
+                            const reportDate = document.getElementById('print-date-display')?.textContent?.trim()
+                                || document.getElementById('date-display')?.textContent?.trim()
+                                || '';
+                            return `
                         <div style="text-align: center; margin-top: 12px;">
                             <div style="display: inline-block; padding: 7px 30px; border: 2px solid #3B6AC5; border-radius: 8px;">
                                 <div style="font-size: 17px; font-weight: 800; color: #3B6AC5;">${_esc(printTitle)}</div>
+                                ${reportDate ? `<div style="font-size: 13px; font-weight: 600; color: #555; margin-top: 4px;">${_esc(reportDate)}</div>` : ''}
                             </div>
-                        </div>` : ''}
+                        </div>`;
+                        })() : ''}
                     </div>`;
                 }
             } catch (_) {

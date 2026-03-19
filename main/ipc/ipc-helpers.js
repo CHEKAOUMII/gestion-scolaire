@@ -3,6 +3,7 @@
 
 const { getDb } = require('../db/context');
 const { requireRole, getSessionByEvent } = require('./auth');
+const { validateSchoolYear } = require('./validation');
 
 function computeDefaultYear() {
     const now = new Date();
@@ -45,6 +46,14 @@ function normalizeYear(schoolYear) {
         return schoolYear;
     }
     return getDefaultYear();
+}
+
+/**
+ * Strict school year validation for mutating handlers.
+ * Unlike normalizeYear(), this never falls back to the current year.
+ */
+function requireSchoolYear(schoolYear) {
+    return validateSchoolYear(schoolYear);
 }
 
 /**
@@ -134,6 +143,7 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
 module.exports = {
     authErrorResponse,
     normalizeYear,
+    requireSchoolYear,
     handleRead,
     handleWrite,
     handleWriteSoftAuth,

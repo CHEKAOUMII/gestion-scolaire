@@ -1,5 +1,5 @@
-const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear } = require('./ipc-helpers');
-const { requireFields, validateDate, validateSchoolYear } = require('./validation');
+const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { requireFields, validateDate } = require('./validation');
 
 function registerAbsencesIpc(ipcMain) {
     // ── Read handlers (no auth required — app starts without login) ──
@@ -68,7 +68,7 @@ function registerAbsencesIpc(ipcMain) {
 
     handleWrite(ipcMain, 'absences:save', ['admin', 'staff'], (db, _event, absence) => {
         requireFields(absence, ['student_code', 'absence_date', 'school_year']);
-        validateSchoolYear(absence.school_year);
+        requireSchoolYear(absence.school_year);
         validateDate('absence_date', absence.absence_date);
         db.prepare(
             `
@@ -107,6 +107,7 @@ function registerAbsencesIpc(ipcMain) {
         const upsertMany = db.transaction((items) => {
             for (const absence of items) {
                 requireFields(absence, ['student_code', 'month', 'school_year']);
+                requireSchoolYear(absence.school_year);
                 upsert.run(
                     absence.student_id,
                     absence.student_code,
@@ -216,6 +217,7 @@ function registerAbsencesIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'correspondence:save', ['admin', 'staff'], (db, _event, letter) => {
+        requireSchoolYear(letter.school_year);
         const info = db
             .prepare(
                 `
@@ -249,7 +251,7 @@ function registerAbsencesIpc(ipcMain) {
 
     // No auth: delete is used from settings-imports page which may be opened before login
     handleWriteSoftAuth(ipcMain, 'absences:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
-        db.prepare('DELETE FROM absences WHERE school_year = ?').run(normalizeYear(schoolYear));
+        db.prepare('DELETE FROM absences WHERE school_year = ?').run(requireSchoolYear(schoolYear));
         return { success: true };
     });
 }

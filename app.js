@@ -366,15 +366,26 @@ function renderStatsCards(stats) {
     const levelsInfo = stats.levelsList.length <= 2 ? stats.levelsList.join(', ') : stats.levelsList[0] + '...';
     const femalesPct = stats.total > 0 ? ((stats.females / stats.total) * 100).toFixed(1) : 0;
     const malesPct = stats.total > 0 ? ((stats.males / stats.total) * 100).toFixed(1) : 0;
-    const html = `
-        <div class="stats-grid">
-            <div class="stat-card total"><div class="stat-icon"><i class="fas fa-users"></i></div><div class="stat-content"><h3>عدد التلاميذ</h3><p class="stat-number">${stats.total}</p></div><div class="stat-footer"><span class="percentage">${stats.sections} أقسام</span></div></div>
-            <div class="stat-card females"><div class="stat-icon"><i class="fas fa-female"></i></div><div class="stat-content"><h3>عدد الإناث</h3><p class="stat-number">${stats.females}</p></div><div class="stat-footer"><span class="percentage">${femalesPct}%</span></div></div>
-            <div class="stat-card males"><div class="stat-icon"><i class="fas fa-male"></i></div><div class="stat-content"><h3>عدد الذكور</h3><p class="stat-number">${stats.males}</p></div><div class="stat-footer"><span class="percentage">${malesPct}%</span></div></div>
-            <div class="stat-card sections"><div class="stat-icon"><i class="fas fa-chalkboard"></i></div><div class="stat-content"><h3>عدد الأقسام</h3><p class="stat-number">${stats.sections}</p></div><div class="stat-footer"><span>${escapeHtml(sectionsInfo)}</span></div></div>
-            <div class="stat-card levels"><div class="stat-icon"><i class="fas fa-layer-group"></i></div><div class="stat-content"><h3>عدد المستويات</h3><p class="stat-number">${stats.levels}</p></div><div class="stat-footer"><span>${escapeHtml(levelsInfo)}</span></div></div>
-            <div class="stat-card average"><div class="stat-icon"><i class="fas fa-calculator"></i></div><div class="stat-content"><h3>معدل القسم</h3><p class="stat-number">${stats.avgPerSection}</p></div><div class="stat-footer"><span>تلميذ/قسم</span></div></div>
+
+    function statCard(icon, label, value, footer, delay) {
+        return `<div class="stat-card" style="animation-delay:${delay}s">
+            <i class="fas fa-${icon}"></i>
+            <div class="stat-info">
+                <span class="stat-label">${label}</span>
+                <span class="stat-value">${value}</span>
+            </div>
+            <span class="stat-badge">${footer}</span>
         </div>`;
+    }
+
+    const html = `<div class="stats-grid">
+        ${statCard('users', 'عدد التلاميذ', stats.total, `${stats.sections} أقسام`, 0.0)}
+        ${statCard('female', 'عدد الإناث', stats.females, `${femalesPct}%`, 0.06)}
+        ${statCard('male', 'عدد الذكور', stats.males, `${malesPct}%`, 0.12)}
+        ${statCard('chalkboard', 'عدد الأقسام', stats.sections, escapeHtml(sectionsInfo), 0.18)}
+        ${statCard('layer-group', 'عدد المستويات', stats.levels, escapeHtml(levelsInfo), 0.24)}
+        ${statCard('calculator', 'معدل القسم', stats.avgPerSection, 'تلميذ/قسم', 0.30)}
+    </div>`;
     document.getElementById('stats-section').innerHTML = html;
 }
 
@@ -390,10 +401,10 @@ function renderOwnerSyncError(message) {
     if (!section) return;
     section.style.display = 'block';
     section.innerHTML = `
-        <div class="students-results" style="margin-bottom: 20px; border: 1px dashed #f59e0b; background: #fff8e8;">
+        <div class="students-results mb-5 border border-dashed border-[rgba(240,173,78,0.45)] bg-[rgba(240,173,78,0.08)] dark:border-[rgba(240,173,78,0.55)] dark:bg-[rgba(240,173,78,0.12)]">
             <h3><i class="fas fa-satellite-dish"></i> متابعة الأجهزة المثبّتة</h3>
-            <p style="margin: 10px 0; color: #7a4b0e;">${escapeHtml(message || 'تعذر تحميل بيانات الأجهزة')}</p>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <p class="my-2.5 text-[var(--color-warning)] dark:text-[#ffd18a]">${escapeHtml(message || 'تعذر تحميل بيانات الأجهزة')}</p>
+            <div class="flex flex-wrap gap-2.5">
                 <button type="button" class="btn btn-primary" id="owner-sync-refresh-btn"><i class="fas fa-sync-alt"></i> تحديث</button>
                 <button type="button" class="btn btn-warning" id="owner-sync-sync-btn"><i class="fas fa-cloud-upload-alt"></i> مزامنة الآن</button>
             </div>
@@ -436,16 +447,16 @@ async function renderOwnerSyncSection(force = false) {
 
         section.classList.remove('hidden');
         section.innerHTML = `
-            <div class="students-results" style="margin-bottom: 20px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <div class="students-results mb-5">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2.5">
                     <h3><i class="fas fa-satellite-dish"></i> متابعة الأجهزة المثبّتة</h3>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <div class="flex flex-wrap gap-2">
                         <button type="button" class="btn btn-primary" id="owner-sync-refresh-btn"><i class="fas fa-sync-alt"></i> تحديث</button>
                         <button type="button" class="btn btn-warning" id="owner-sync-sync-btn"><i class="fas fa-cloud-upload-alt"></i> مزامنة الآن</button>
                     </div>
                 </div>
 
-                <div class="stats-grid" style="margin-bottom: 10px;">
+                <div class="stats-grid mb-2.5">
                     <div class="stat-card total"><div class="stat-content"><h3>إجمالي الأجهزة</h3><p class="stat-number">${Number(summary.totalDevices || 0)}</p></div></div>
                     <div class="stat-card sections"><div class="stat-content"><h3>نشط آخر 24 ساعة</h3><p class="stat-number">${Number(summary.active24h || 0)}</p></div></div>
                     <div class="stat-card females"><div class="stat-content"><h3>أجهزة مفعلة</h3><p class="stat-number">${Number(summary.activatedDevices || 0)}</p></div></div>
@@ -477,7 +488,7 @@ async function renderOwnerSyncSection(force = false) {
                                 </tr>`
                                           )
                                           .join('')
-                                    : '<tr><td colspan="5" style="text-align:center;padding:18px;">لا توجد أجهزة بعد</td></tr>'
+                                    : '<tr><td class="px-4 py-[18px] text-center" colspan="5">لا توجد أجهزة بعد</td></tr>'
                             }
                         </tbody>
                     </table>

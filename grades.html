@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -7,436 +7,46 @@
     <title>النتائج والإحصائيات | برنامج التدبير المدرسي</title>
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
+    <link rel="stylesheet" href="css/tailwind-output.css">
+    <style>
+        /* Fix: reset btn contrast */
+        #reset-btn {
+            background: var(--color-surface) !important;
+            color: var(--color-text-main) !important;
+            border: 1px solid var(--color-accent) !important;
+        }
+        #reset-btn:hover {
+            background: var(--color-primary-mist) !important;
+            border-color: var(--color-primary) !important;
+            color: var(--color-primary) !important;
+        }
+        /* Fix: student detail modal centered (overrides conflicting .detail-overlay from other pages) */
+        #detail-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 2100;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+            align-items: center !important;
+            justify-content: center !important;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        #detail-overlay.active {
+            display: flex !important;
+            opacity: 1;
+            visibility: visible;
+            justify-content: center !important;
+        }
+    </style>
     <script src="js/utils.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js"></script>
-    <style>
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 15px;
-            padding: 20px;
-        }
-
-        .kpi-card {
-            color: white;
-            padding: 20px;
-            border-radius: 14px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-
-        .kpi-card:hover {
-            transform: translateY(-3px);
-        }
-
-        .kpi-value {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .kpi-label {
-            font-size: 13px;
-            opacity: 0.95;
-        }
-
-        .filter-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 12px;
-            align-items: end;
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .filter-group label {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--color-text-muted);
-        }
-
-        /* Clickable rows */
-        #tbody tr {
-            cursor: pointer;
-            transition: var(--transition-fast, 0.15s ease);
-        }
-
-        #tbody tr:hover {
-            background: var(--color-primary-mist, rgba(59, 106, 197, 0.08)) !important;
-        }
-
-        /* ===== Student Detail Modal ===== */
-        .detail-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            z-index: 2100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .detail-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .detail-modal {
-            background: var(--color-surface, #FFFEFB);
-            border-radius: var(--radius-lg, 24px);
-            width: 92%;
-            max-width: 820px;
-            max-height: 88vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
-            transform: scale(0.92) translateY(20px);
-            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .detail-overlay.active .detail-modal {
-            transform: scale(1) translateY(0);
-        }
-
-        /* Modal Header */
-        .detail-hero {
-            background: var(--gradient-primary, linear-gradient(135deg, #3B6AC5, #5B84D6));
-            color: white;
-            padding: 28px 30px 22px;
-            position: relative;
-        }
-
-        .detail-hero-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .detail-hero h2 {
-            font-family: var(--font-display, 'Noto Kufi Arabic', sans-serif);
-            font-size: 22px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .detail-hero .detail-sub {
-            opacity: 0.85;
-            font-size: 14px;
-            display: flex;
-            gap: 18px;
-            flex-wrap: wrap;
-            margin-top: 6px;
-        }
-
-        .detail-hero .detail-sub span {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .detail-close {
-            background: rgba(255, 255, 255, 0.15);
-            border: none;
-            color: white;
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
-            transition: 0.2s;
-            flex-shrink: 0;
-        }
-
-        .detail-close:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: rotate(90deg);
-        }
-
-        /* Summary KPIs inside modal */
-        .detail-kpis {
-            display: flex;
-            gap: 12px;
-            padding: 0 30px;
-            margin-top: -22px;
-            position: relative;
-            z-index: 2;
-            flex-wrap: wrap;
-        }
-
-        .detail-kpi {
-            flex: 1;
-            min-width: 100px;
-            background: var(--color-surface, #FFFEFB);
-            border-radius: var(--radius-sm, 10px);
-            padding: 14px 12px;
-            text-align: center;
-            box-shadow: var(--shadow-card, 0 1px 3px rgba(0, 0, 0, 0.04));
-            border: 1px solid var(--color-accent, #E8E8E8);
-        }
-
-        .detail-kpi .kpi-val {
-            font-size: 22px;
-            font-weight: 800;
-            color: var(--color-primary, #3B6AC5);
-        }
-
-        .detail-kpi .kpi-lbl {
-            font-size: 11px;
-            color: var(--color-text-muted, #6B7B72);
-            margin-top: 2px;
-        }
-
-        /* Subjects body */
-        .detail-body {
-            padding: 20px 30px 30px;
-            overflow-y: auto;
-            flex: 1;
-        }
-
-        .detail-body h3 {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--color-text-main, #111111);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .detail-body h3 i {
-            color: var(--color-primary, #3B6AC5);
-        }
-
-        /* Subject cards */
-        .subject-block {
-            background: var(--color-surface-alt, #F6F5F2);
-            border-radius: var(--radius-sm, 10px);
-            margin-bottom: 14px;
-            overflow: hidden;
-            border: 1px solid var(--color-accent, #E8E8E8);
-            transition: 0.2s;
-        }
-
-        .subject-block:hover {
-            border-color: var(--color-primary-light, #5B84D6);
-        }
-
-        .subject-block-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 18px;
-            cursor: pointer;
-        }
-
-        .subject-block-header .subj-name {
-            font-weight: 700;
-            font-size: 14px;
-            color: var(--color-text-main, #111111);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .subject-block-header .subj-name i {
-            color: var(--color-primary, #3B6AC5);
-            font-size: 16px;
-        }
-
-        .subject-block-header .subj-avg {
-            font-weight: 800;
-            font-size: 18px;
-            padding: 4px 14px;
-            border-radius: var(--radius-full, 9999px);
-            color: white;
-        }
-
-        .subject-block-body {
-            padding: 0 18px 16px;
-        }
-
-        /* Grades chips inside subject */
-        .grades-chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .grade-chip {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            background: var(--color-surface, #FFFEFB);
-            border: 1px solid var(--color-accent, #E8E8E8);
-            border-radius: var(--radius-xs, 6px);
-            padding: 10px 16px;
-            min-width: 80px;
-            transition: 0.2s;
-        }
-
-        .grade-chip:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-card, 0 2px 8px rgba(0, 0, 0, 0.06));
-        }
-
-        .grade-chip .chip-label {
-            font-size: 11px;
-            color: var(--color-text-muted, #6B7B72);
-            white-space: nowrap;
-        }
-
-        .grade-chip .chip-value {
-            font-size: 20px;
-            font-weight: 800;
-        }
-
-        .grade-chip .chip-bar {
-            width: 100%;
-            height: 4px;
-            background: var(--color-accent, #E8E8E8);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-
-        .grade-chip .chip-bar-fill {
-            height: 100%;
-            border-radius: 2px;
-            transition: width 0.4s ease;
-        }
-
-        /* Semester badge */
-        .semester-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 600;
-            background: var(--color-primary-mist, rgba(59, 106, 197, 0.08));
-            color: var(--color-primary, #3B6AC5);
-        }
-
-        /* Semesters side-by-side grid */
-        .semesters-grid {
-            display: flex;
-            gap: 12px;
-        }
-
-        .semester-col {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .semester-header {
-            text-align: center;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .semester-header::before,
-        .semester-header::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--color-accent, #E8E8E8);
-        }
-
-        .semester-header span {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--color-primary, #3B6AC5);
-            white-space: nowrap;
-            padding: 2px 10px;
-            background: var(--color-primary-mist, rgba(59, 106, 197, 0.08));
-            border-radius: 9999px;
-        }
-
-        /* Pagination */
-        .pagination-bar {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 6px;
-            padding: 16px 0 8px;
-            flex-wrap: wrap;
-        }
-
-        .pagination-bar button {
-            min-width: 36px;
-            height: 36px;
-            border: 1px solid var(--color-accent, #E8E8E8);
-            background: var(--color-surface, #FFFEFB);
-            color: var(--color-text-main, #111);
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 10px;
-        }
-
-        .pagination-bar button:hover:not(:disabled) {
-            background: var(--color-primary-mist, rgba(59, 106, 197, 0.08));
-            border-color: var(--color-primary, #3B6AC5);
-            color: var(--color-primary, #3B6AC5);
-        }
-
-        .pagination-bar button.active {
-            background: var(--gradient-primary, linear-gradient(135deg, #3B6AC5, #5B84D6));
-            color: white;
-            border-color: transparent;
-            pointer-events: none;
-        }
-
-        .pagination-bar button:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
-        .pagination-info {
-            font-size: 12px;
-            color: var(--color-text-muted, #6B7B72);
-            margin: 0 8px;
-        }
-
-        /* Empty state */
-        .detail-empty {
-            text-align: center;
-            padding: 40px;
-            color: var(--color-text-muted, #6B7B72);
-        }
-
-        .detail-empty i {
-            font-size: 48px;
-            margin-bottom: 12px;
-            opacity: 0.3;
-        }
-    </style>
-</head>
+    </head>
 
 <body>
     <div class="toast-container" id="toast-container"></div>
@@ -484,7 +94,7 @@
                     <button class="btn btn-primary" type="button" id="search-btn">
                         <i class="fas fa-search"></i> عرض
                     </button>
-                    <button class="btn btn-secondary" type="button" id="reset-btn">
+                    <button class="btn btn-secondary" type="button" id="reset-btn" style="background:var(--color-surface);color:var(--color-text-main);border:1px solid var(--color-accent);">
                         <i class="fas fa-redo"></i> إعادة
                     </button>
                 </form>
@@ -643,44 +253,20 @@
             const subjectSelect = document.getElementById('subject-select');
             subjectSelect.innerHTML = '<option value="">كل المواد</option>';
 
-            // Always start with all grades, then filter if needed
-            let filteredGrades = allGradesCache;
-
-            // Only filter if a specific class or level is selected
-            if (selectedClass) {
-                filteredGrades = filteredGrades.filter(g => (g.section || '') === selectedClass);
-            } else if (selectedLevel) {
-                filteredGrades = filteredGrades.filter(g => _getLocalLevelName(g.section) === selectedLevel);
-            }
-            // If neither is selected, use all grades (no filtering)
-
-            const subjects = new Set();
-            const invalidSubjectNames = ['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة'];
-            let ignoredGenericSubjects = 0;
-            filteredGrades.forEach(g => {
-                if (g.subject) {
-                    // Skip generic sheet names that aren't real subject names
-                    const normalized = String(g.subject).trim().toLowerCase();
-                    if (!invalidSubjectNames.includes(normalized)) {
-                        subjects.add(normalizeSubjectName(g.subject));
-                    } else {
-                        ignoredGenericSubjects++;
-                    }
-                }
+            const subjectList = buildSubjectOptionsFromGrades(allGradesCache, {
+                level: selectedLevel,
+                section: selectedClass,
+                getLevelName: _getLocalLevelName
             });
 
             debugGrades('renderSubjectOptions', {
                 selectedLevel,
                 selectedClass,
-                filteredGrades: filteredGrades.length,
-                subjectsCount: subjects.size,
-                ignoredGenericSubjects,
-                sampleSubjects: Array.from(subjects).slice(0, 20)
+                subjectsCount: subjectList.length,
+                sampleSubjects: subjectList.slice(0, 20)
             });
 
-            Array.from(subjects)
-                .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
-                .forEach(subject => {
+            subjectList.forEach(subject => {
                     const opt = document.createElement('option');
                     opt.value = subject;
                     opt.textContent = subject;

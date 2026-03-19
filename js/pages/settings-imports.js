@@ -18,6 +18,11 @@ const ACTION_LABELS = {
 const XLSX_CDN = 'vendor/xlsx.full.min.js';
 let xlsxLoaderPromise = null;
 
+function setElementHidden(element, hidden) {
+    if (!element) return;
+    element.classList.toggle('hidden', hidden);
+}
+
 function ensureXlsxLoaded() {
     if (window.XLSX) return Promise.resolve(window.XLSX);
     if (xlsxLoaderPromise) return xlsxLoaderPromise;
@@ -414,7 +419,7 @@ function showImportConfirm(action, files) {
         const safeFiles = Array.isArray(files) ? files : [];
         const semesterLabel =
             action === 'grades'
-                ? `<br><span style="color:var(--primary);font-weight:600;">📌 سيتم تحديد الدورة تلقائياً من الملف</span>`
+                ? '<br><span class="font-semibold text-[var(--color-primary)]">📌 سيتم تحديد الدورة تلقائياً من الملف</span>'
                 : '';
         if (safeFiles.length === 1) {
             const fileName = escapeConfirmText(safeFiles[0]?.name || 'الملف المحدد');
@@ -482,8 +487,8 @@ function showActionConfirm(messageText) {
 function hideTafwijMatchingPanel() {
     const panel = document.getElementById('tafwij-matching-panel');
     const banner = document.getElementById('tafwij-warning-banner');
-    if (panel) panel.style.display = 'none';
-    if (banner && !pendingTafwijImportState) banner.style.display = 'none';
+    setElementHidden(panel, true);
+    if (banner && !pendingTafwijImportState) setElementHidden(banner, true);
 }
 
 function renderTafwijWarningBanner() {
@@ -491,20 +496,20 @@ function renderTafwijWarningBanner() {
     if (!banner) return;
     const timetableRaw = localStorage.getItem('timetableData');
     if (!timetableRaw) {
-        banner.style.display = 'none';
+        setElementHidden(banner, true);
         return;
     }
     try {
         const parsed = JSON.parse(timetableRaw);
         const unresolvedCount = Array.isArray(parsed?.unresolvedTeacherKeys) ? parsed.unresolvedTeacherKeys.length : 0;
         if (!unresolvedCount) {
-            banner.style.display = 'none';
+            setElementHidden(banner, true);
             return;
         }
-        banner.style.display = 'block';
-        banner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> يوجد ${unresolvedCount} اسم من ملف tafwij لم تتم مطابقته بعد. يمكن متابعة العمل مؤقتاً، لكن بعض الربط مع الحصص أو الغياب قد يبقى غير مكتمل. <button type="button" id="tafwij-open-matching-btn" class="btn btn-secondary" style="margin-inline-start:10px;padding:6px 12px;">مراجعة الآن</button>`;
+        setElementHidden(banner, false);
+        banner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> يوجد ${unresolvedCount} اسم من ملف tafwij لم تتم مطابقته بعد. يمكن متابعة العمل مؤقتاً، لكن بعض الربط مع الحصص أو الغياب قد يبقى غير مكتمل. <button type="button" id="tafwij-open-matching-btn" class="btn btn-secondary ms-2.5 min-h-0 px-3 py-1.5 text-[13px]">مراجعة الآن</button>`;
     } catch {
-        banner.style.display = 'none';
+        setElementHidden(banner, true);
     }
 }
 
@@ -659,7 +664,7 @@ function buildTafwijStoragePayload(state, resolutionOverrides = new Map(), keepU
 
 function closeTafwijMatchingPanel() {
     const panel = document.getElementById('tafwij-matching-panel');
-    if (panel) panel.style.display = 'none';
+    setElementHidden(panel, true);
 }
 
 function buildTafwijTeacherOptions(entry, allTeachers) {
@@ -733,7 +738,7 @@ function renderTafwijMatchingPanel() {
 
     const state = pendingTafwijImportState;
     if (!state?.entries?.length) {
-        panel.style.display = 'none';
+        setElementHidden(panel, true);
         return;
     }
 
@@ -753,13 +758,13 @@ function renderTafwijMatchingPanel() {
                     <tr data-key="${escapeHtml(entry.key)}">
                         <td>
                             <strong>${escapeHtml(entry.sourceDisplayName)}</strong>
-                            <div style="color:var(--text-secondary);font-size:12px;">${escapeHtml(entry.sourceName)}</div>
+                            <div class="text-xs text-[var(--color-text-muted)]">${escapeHtml(entry.sourceName)}</div>
                         </td>
                         <td>${entry.candidates?.length > 1 ? 'متعدد' : 'غير مطابق'}</td>
                         <td>
-                            <div style="display:flex;flex-direction:column;gap:8px;">
-                                <div style="color:var(--text-secondary);font-size:12px;">${hint}</div>
-                                <div style="color:var(--text-secondary);font-size:12px;">${
+                            <div class="flex flex-col gap-2">
+                                <div class="text-xs text-[var(--color-text-muted)]">${hint}</div>
+                                <div class="text-xs text-[var(--color-text-muted)]">${
                                     subjectsHint
                                         ? `مواد الحصص: ${escapeHtml(subjectsHint)}`
                                         : 'المادة غير متاحة في الملف'
@@ -773,7 +778,7 @@ function renderTafwijMatchingPanel() {
               .join('')
         : '<tr><td colspan="3" class="loading-cell">كل الأسماء مطابقة بالفعل.</td></tr>';
 
-    panel.style.display = 'block';
+    setElementHidden(panel, false);
 }
 
 async function finalizePendingTafwijImport({ saveAliases = false, keepUnresolved = true } = {}) {
@@ -1359,32 +1364,32 @@ function checkYearMismatch(detectedYear, selectedYear) {
 
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
-        overlay.style.cssText =
-            'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;direction:rtl;';
+        overlay.className =
+            'fixed inset-0 z-[10000] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4 text-right';
 
         overlay.innerHTML = `
-        <div style="background:#1e293b;border:1px solid #f59e0b;border-radius:12px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,0.5);font-family:'Tajawal',sans-serif;color:#f1f5f9;">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                <i class="fas fa-exclamation-triangle" style="font-size:28px;color:#f59e0b;"></i>
-                <h3 style="margin:0;font-size:18px;color:#fde68a;">تحذير: تعارض في الموسم الدراسي</h3>
+        <div class="w-full max-w-[420px] rounded-xl border border-[#f59e0b] bg-[#1e293b] px-8 py-7 text-[#f1f5f9] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+            <div class="mb-4 flex items-center gap-3">
+                <i class="fas fa-exclamation-triangle text-[28px] text-[#f59e0b]"></i>
+                <h3 class="m-0 text-lg text-[#fde68a]">تحذير: تعارض في الموسم الدراسي</h3>
             </div>
-            <p style="margin:0 0 8px;line-height:1.7;color:#cbd5e1;">
+            <p class="mb-2 mt-0 leading-[1.7] text-[#cbd5e1]">
                 الملف المستورَد يبدو أنه يخص الموسم الدراسي:
-                <strong style="color:#fde68a;font-size:16px;"> ${detectedYear} </strong>
+                <strong class="text-base text-[#fde68a]"> ${detectedYear} </strong>
             </p>
-            <p style="margin:0 0 20px;line-height:1.7;color:#cbd5e1;">
+            <p class="mb-5 mt-0 leading-[1.7] text-[#cbd5e1]">
                 بينما الموسم المختار حالياً هو:
-                <strong style="color:#6ee7b7;font-size:16px;"> ${selectedYear} </strong>
+                <strong class="text-base text-[#6ee7b7]"> ${selectedYear} </strong>
             </p>
-            <p style="margin:0 0 24px;font-size:13px;color:#94a3b8;">
-                إذا واصلت، ستُخزَّن البيانات تحت الموسم <strong style="color:#6ee7b7;">${selectedYear}</strong>.
-                إذا أردت حفظها تحت <strong style="color:#fde68a;">${detectedYear}</strong>، ألغِ وغيّر الموسم أولاً.
+            <p class="mb-6 mt-0 text-[13px] text-[#94a3b8]">
+                إذا واصلت، ستُخَّزن البيانات تحت الموسم <strong class="text-[#6ee7b7]">${selectedYear}</strong>.
+                إذا أردت حفظها تحت <strong class="text-[#fde68a]">${detectedYear}</strong>، ألغِ وغيّر الموسم أولاً.
             </p>
-            <div style="display:flex;gap:12px;justify-content:flex-end;">
-                <button id="ym-cancel" style="padding:10px 20px;border:1px solid #475569;background:transparent;color:#94a3b8;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;transition:all 0.2s;">
+            <div class="flex justify-end gap-3">
+                <button id="ym-cancel" class="rounded-lg border border-[#475569] bg-transparent px-5 py-2.5 text-sm text-[#94a3b8] transition-all duration-200 hover:border-[#64748b] hover:text-[#e2e8f0]">
                     إلغاء — سأغير الموسم
                 </button>
-                <button id="ym-proceed" style="padding:10px 20px;border:none;background:#f59e0b;color:#1e293b;border-radius:8px;cursor:pointer;font-weight:bold;font-size:14px;font-family:inherit;transition:all 0.2s;">
+                <button id="ym-proceed" class="rounded-lg bg-[#f59e0b] px-5 py-2.5 text-sm font-bold text-[#1e293b] transition-all duration-200 hover:bg-[#fbbf24]">
                     واصل على أي حال
                 </button>
             </div>
@@ -1628,13 +1633,7 @@ async function handleImport(action, files) {
         let detectedSemester = null;
         let fetImportResult = null;
         const failedReasons = [];
-        if (action === 'absences') {
-            updateImportProgress(7, 'تجهيز استيراد الغياب: حذف السجلات القديمة لنفس السنة...');
-            const cleanRes = await window.api.absences.deleteByYear(year);
-            if (!cleanRes || cleanRes.success === false) {
-                throw new Error(cleanRes?.error || 'تعذر تهيئة استيراد الغياب');
-            }
-        }
+        const stagedAbsences = [];
 
         for (let i = 0; i < fileList.length; i++) {
             const file = fileList[i];
@@ -1674,7 +1673,9 @@ async function handleImport(action, files) {
                         totalImported = totalGradesImported;
                         if (gradeResult.semester) detectedSemester = gradeResult.semester;
                     } else if (action === 'absences') {
-                        totalImported += await importAbsences(workbook, year);
+                        const parsedAbsences = await importAbsences(workbook, year, { persist: false });
+                        stagedAbsences.push(...parsedAbsences);
+                        totalImported = stagedAbsences.length;
                     } else if (action === 'student-status') {
                         totalImported += await importStudentStatus(workbook, year);
                     }
@@ -1693,6 +1694,25 @@ async function handleImport(action, files) {
 
         if (!succeededFiles) {
             throw new Error(failedReasons[0] || 'تعذر استيراد جميع الملفات');
+        }
+
+        if (action === 'absences') {
+            if (failedFiles > 0) {
+                throw new Error(failedReasons[0] || 'تعذر التحقق من جميع ملفات الغياب قبل الحفظ');
+            }
+
+            updateImportProgress(88, 'جارٍ تطبيق سجلات الغياب...');
+            const cleanRes = await window.api.absences.deleteByYear(year);
+            if (!cleanRes || cleanRes.success === false) {
+                throw new Error(cleanRes?.error || 'تعذر تهيئة استيراد الغياب');
+            }
+
+            const saveRes = await window.api.absences.saveBulk(stagedAbsences);
+            if (!saveRes || saveRes.success === false) {
+                throw new Error(saveRes?.error || 'فشل حفظ سجلات الغياب');
+            }
+
+            totalImported = stagedAbsences.length;
         }
 
         const unit =
@@ -2156,7 +2176,7 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
     return { gradesCount: grades.length, studentsCount: studentCodes.length, studentCodes, semester: detectedSemester };
 }
 
-async function importAbsences(workbook, schoolYear) {
+async function importAbsences(workbook, schoolYear, options = {}) {
     const students = (await window.api.students.getAll(schoolYear)) || [];
     const validCodes = new Set(students.map((s) => normalizeStudentCode(s.code)).filter(Boolean));
     const studentByCode = new Map(students.map((s) => [normalizeStudentCode(s.code), s]).filter(([code]) => !!code));
@@ -2394,6 +2414,10 @@ async function importAbsences(workbook, schoolYear) {
     });
 
     if (!absences.length) throw new Error('لم يتم العثور على سجلات غياب صالحة');
+
+    if (options.persist === false) {
+        return absences;
+    }
 
     const res = await window.api.absences.saveBulk(absences);
     if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ الغياب');
@@ -2882,7 +2906,7 @@ async function loadLogs() {
         const tb = getImportLogsTbody();
         if (!tb) return;
         tb.innerHTML =
-            '<tr><td colspan="4" style="padding: 30px; text-align: center; color: #888;">تعذر تحميل السجل (API غير متاحة)</td></tr>';
+            '<tr><td class="px-[30px] py-[30px] text-center text-[#888]" colspan="4">تعذر تحميل السجل (API غير متاحة)</td></tr>';
         return;
     }
 
@@ -2922,7 +2946,7 @@ async function loadLogs() {
             `
               )
               .join('')
-        : '<tr><td colspan="4" style="padding: 30px; text-align: center; color: #888;"><i class="fas fa-inbox" style="font-size: 32px; display: block; margin-bottom: 10px;"></i>لا توجد عمليات بعد</td></tr>';
+        : '<tr><td class="px-[30px] py-[30px] text-center text-[#888]" colspan="4"><i class="fas fa-inbox mb-2.5 block text-[32px]"></i>لا توجد عمليات بعد</td></tr>';
 }
 
 // ─── Student Status Import ──────────────────────────────────────────────────

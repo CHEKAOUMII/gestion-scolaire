@@ -5,16 +5,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
+npm run css:build      # Compile css/tailwind-input.css -> css/tailwind-output.css
+npm run css:watch      # Watch and rebuild Tailwind CSS during development
+npm run dev            # Run css:watch and Electron together
 npm run start          # Launch the Electron app in development mode (Windows only)
 npm run build          # Package to Windows NSIS installer in dist/
 npm run lint           # ESLint on main/**/*.js, preload.js, js/backup.js, js/pages/*.js, tests/**/*.js
 npm run format         # Prettier --write on all JS, tests, workflows, and README
-npm run test:smoke     # Smoke test: IPC contract parity, module integrity, no CDN refs, migration uniqueness
+npm run test:smoke     # Smoke test: IPC parity, module integrity, no CDN refs, Tailwind output, legacy CSS cleanup
 npm run license:key    # Generate an offline license key (e.g. -- --plan=pro --days=365 --customer=SCHOOL-001)
 npm run owner:server   # Start the standalone telemetry HTTP server
 ```
 
-CI runs: `npm ci` → `npm run lint` → `npm run test:smoke`
+CI runs: `npm ci` → `npm run css:build` → `npm run lint` → `npm run test:smoke`
 
 ## Architecture
 
@@ -54,6 +57,7 @@ All renderer→main communication goes through `window.api`, which is the sole I
 ### IPC Pattern
 
 Adding a new feature requires touching three places:
+
 1. `main/ipc/[domain].js` — implement the handler using `getDb()` via `handleRead`/`handleWrite`/`handleWriteNoAuth` helpers
 2. `main/ipc/registerAll.js` — register the new module
 3. `preload.js` — expose the channel via `contextBridge`
@@ -71,17 +75,33 @@ The smoke test (`tests/smoke.js`) validates that channels declared in `preload.j
 - **Key constraint:** `grades` has `UNIQUE(student_code, subject, semester, school_year)`; `absences` has `UNIQUE(student_code, month, school_year, absence_type)` — NULLs in these columns must be coerced to empty strings/defaults before insert
 
 ### ESLint Config (flat config, v9)
+
 - `main/`, `preload.js`, `tests/`: Node globals, `no-unused-vars` warn (args `^_` exempt), `no-empty` error (empty catch allowed)
 - `js/`: Browser globals, relaxed (`no-unused-vars` off, `no-undef` off) — accommodates globals like `XLSX`, `Chart`, `BackupManager`, `setupSidebar`, `showToast`, `closeShortcutsModal`
 
 ### Code Style (Prettier)
+
 Single quotes, no trailing commas, 4-space indent, 120-char line width, semicolons.
 
+### CSS Architecture (Tailwind CSS v4)
+
+- **Source:** `css/tailwind-input.css` is the single source of truth for application CSS
+- **Build:** `npm run css:build` compiles via PostCSS into `css/tailwind-output.css`
+- **Watch/dev:** `npm run css:watch` rebuilds on change, and `npm run dev` runs CSS watch with Electron
+- **Dark mode:** `@variant dark` targets `[data-theme="dark"]` on the document
+- **Tokens:** design tokens live in the `@theme {}` block in `css/tailwind-input.css`
+- **Components:** reusable classes live in `@layer components {}`
+- **Carry-forward CSS:** legacy shared/page CSS that has not yet been re-expressed as utilities lives in documented carry-forward sections inside `css/tailwind-input.css`
+- **RTL:** prefer logical properties/utilities (`ps-*`, `pe-*`, `ms-*`, `me-*`, `start-*`) over physical left/right utilities
+
 ### Environment Variables
+
 `.env` is gitignored. Required values: `GH_TOKEN` (auto-updater GitHub Releases), `OWNER_SYNC_WRITE_TOKEN` / `OWNER_SYNC_READ_TOKEN` (telemetry server).
 
 ### Auto-updater
+
 `main/updater.js` uses `electron-updater` publishing to GitHub Releases under `CHEKAOUMII/project6.2`. Requires `GH_TOKEN` at build time.
 
 ### Telemetry Server
+
 `server/index.js` is a standalone Node.js HTTP server deployed separately (Railway/VPS) for tracking installed device heartbeats. Run independently of the Electron app.

@@ -20,7 +20,9 @@ function collectHandleChannels(ipcSources) {
     // Match both direct ipcMain.handle('channel') and helper patterns:
     // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'), handleWriteSoftAuth(ipcMain, 'channel')
     const directMatches = [...ipcSources.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((m) => m[1]);
-    const helperMatches = [...ipcSources.matchAll(/(?:handleRead|handleWrite|handleWriteSoftAuth)\(ipcMain,\s*'([^']+)'/g)].map((m) => m[1]);
+    const helperMatches = [
+        ...ipcSources.matchAll(/(?:handleRead|handleWrite|handleWriteSoftAuth)\(ipcMain,\s*'([^']+)'/g)
+    ].map((m) => m[1]);
     return unique([...directMatches, ...helperMatches]);
 }
 
@@ -177,6 +179,59 @@ function runNoCdnSmoke() {
     assert.ok(fs.existsSync(path.join(root, 'vendor', 'xlsx.full.min.js')), 'vendor/xlsx.full.min.js missing');
 
     console.log('[smoke] No-CDN policy OK (vendor files present)');
+}
+
+function runTailwindOutputSmoke() {
+    const tailwindOutput = path.join(root, 'css', 'tailwind-output.css');
+    assert.ok(fs.existsSync(tailwindOutput), 'css/tailwind-output.css must exist (run npm run css:build)');
+    const cssContent = fs.readFileSync(tailwindOutput, 'utf8');
+    assert.ok(cssContent.length > 1000, 'css/tailwind-output.css is too small — build may have failed');
+    assert.ok(
+        cssContent.includes('--color-primary'),
+        'css/tailwind-output.css should contain design token --color-primary'
+    );
+    console.log('[smoke] Tailwind CSS build output OK');
+}
+
+function runLegacyCssSmoke() {
+    const legacyFiles = [
+        'css/design-system.css',
+        'styles.css',
+        'ux-enhancements.css',
+        'css/modern-imports.css',
+        'css/teachers-performance.css'
+    ];
+
+    legacyFiles.forEach((file) => {
+        assert.strictEqual(fs.existsSync(path.join(root, file)), false, `Legacy CSS file still exists: ${file}`);
+    });
+
+    const htmlFiles = fs.readdirSync(root).filter((file) => file.endsWith('.html'));
+    const legacyRefs = [];
+    const inlineStyleHits = [];
+
+    htmlFiles.forEach((file) => {
+        const content = fs.readFileSync(path.join(root, file), 'utf8');
+        legacyFiles.forEach((cssFile) => {
+            if (content.includes(`href="${cssFile}"`)) {
+                legacyRefs.push(`${file} -> ${cssFile}`);
+            }
+        });
+
+        const styleMatches = content.match(/<style[\s>]/g);
+        if (styleMatches && styleMatches.length > 0) {
+            inlineStyleHits.push(`${file} (${styleMatches.length} <style> block(s))`);
+        }
+    });
+
+    assert.strictEqual(legacyRefs.length, 0, `HTML files still reference deleted CSS:\n  ${legacyRefs.join('\n  ')}`);
+    assert.strictEqual(
+        inlineStyleHits.length,
+        0,
+        `HTML files still have inline <style> blocks:\n  ${inlineStyleHits.join('\n  ')}`
+    );
+
+    console.log('[smoke] Legacy CSS cleanup complete (no legacy files, no stale refs, no inline styles)');
 }
 
 function runValidationTests() {
@@ -360,14 +415,14 @@ function runConsolidationSmoke() {
     // 1. No legacy channel aliases in preload.js
     const preloadSource = read('preload.js');
     const legacyPatterns = ['proctors:', 'rooms:', 'teacherAbsence:', 'absence:getByClass'];
-    const legacyHits = legacyPatterns.filter(p => preloadSource.includes(`'${p}`));
+    const legacyHits = legacyPatterns.filter((p) => preloadSource.includes(`'${p}`));
     assert.strictEqual(legacyHits.length, 0, `Legacy channels still in preload.js: ${legacyHits.join(', ')}`);
 
     // 2. No handleWriteNoAuth usage in IPC handler files
     const ipcDir = path.join(root, 'main', 'ipc');
-    const ipcFiles = fs.readdirSync(ipcDir).filter(f => f.endsWith('.js'));
+    const ipcFiles = fs.readdirSync(ipcDir).filter((f) => f.endsWith('.js'));
     const noAuthHits = [];
-    ipcFiles.forEach(file => {
+    ipcFiles.forEach((file) => {
         const source = read(path.join('main', 'ipc', file));
         if (source.includes('handleWriteNoAuth')) {
             noAuthHits.push(file);
@@ -395,6 +450,8 @@ function run() {
     runLazyLoadSmoke();
     runRestoreSafetySmoke();
     runNoCdnSmoke();
+    runTailwindOutputSmoke();
+    runLegacyCssSmoke();
     runConsolidationSmoke();
     runValidationTests();
     runAuthTests();

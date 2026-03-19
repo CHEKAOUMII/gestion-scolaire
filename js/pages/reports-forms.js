@@ -6,7 +6,7 @@
     const FORM_CONFIGS = {
         registration: {
             icon: 'fa-user-graduate',
-            color: 'var(--primary)',
+            iconClass: 'text-[var(--color-primary)]',
             title: 'استمارة تسجيل التلاميذ',
             description: 'استمارة التسجيل الأولي للتلاميذ الجدد',
             fields: [
@@ -19,12 +19,12 @@
                 { id: 'className', label: 'القسم', required: true },
                 { id: 'guardianName', label: 'اسم ولي الأمر', required: true },
                 { id: 'guardianPhone', label: 'هاتف ولي الأمر' },
-                { id: 'address', label: 'العنوان' },
-            ],
+                { id: 'address', label: 'العنوان' }
+            ]
         },
         transfer: {
             icon: 'fa-exchange-alt',
-            color: 'var(--success)',
+            iconClass: 'text-[var(--color-success-bg)]',
             title: 'استمارة الانتقال',
             description: 'طلب انتقال تلميذ من مؤسسة لأخرى',
             fields: [
@@ -35,12 +35,12 @@
                 { id: 'originSchool', label: 'المؤسسة الأصلية', required: true },
                 { id: 'destinationSchool', label: 'المؤسسة المستقبلة', required: true },
                 { id: 'reason', label: 'سبب الانتقال' },
-                { id: 'guardianName', label: 'اسم ولي الأمر', required: true },
-            ],
+                { id: 'guardianName', label: 'اسم ولي الأمر', required: true }
+            ]
         },
         dropout: {
             icon: 'fa-user-times',
-            color: 'var(--warning)',
+            iconClass: 'text-[var(--color-warning-bg)]',
             title: 'استمارة الانقطاع',
             description: 'تصريح بانقطاع تلميذ عن الدراسة',
             fields: [
@@ -50,12 +50,12 @@
                 { id: 'lastAttendanceDate', label: 'آخر يوم حضور', type: 'date', required: true },
                 { id: 'reason', label: 'سبب الانقطاع', required: true },
                 { id: 'guardianName', label: 'اسم ولي الأمر', required: true },
-                { id: 'guardianPhone', label: 'هاتف ولي الأمر' },
-            ],
+                { id: 'guardianPhone', label: 'هاتف ولي الأمر' }
+            ]
         },
         absence: {
             icon: 'fa-clipboard-check',
-            color: 'var(--info)',
+            iconClass: 'text-[var(--info)]',
             title: 'استمارة تبرير الغياب',
             description: 'نموذج تبرير غياب التلميذ',
             fields: [
@@ -67,9 +67,9 @@
                 { id: 'totalDays', label: 'عدد الأيام', type: 'number' },
                 { id: 'reason', label: 'سبب الغياب', required: true },
                 { id: 'guardianName', label: 'اسم ولي الأمر', required: true },
-                { id: 'guardianPhone', label: 'هاتف ولي الأمر' },
-            ],
-        },
+                { id: 'guardianPhone', label: 'هاتف ولي الأمر' }
+            ]
+        }
     };
 
     function getSchoolYear() {
@@ -79,12 +79,13 @@
     function buildFieldHTML(f, formType) {
         const name = `${formType}_${f.id}`;
         const req = f.required ? 'required' : '';
+        const label = `${f.label}${f.required ? ' *' : ''}`;
 
         if (f.type === 'select') {
             const opts = (f.options || []).map((o) => `<option value="${o}">${o}</option>`).join('');
             return `<div class="rf-field">
-                <label for="${name}">${f.label}${f.required ? ' *' : ''}</label>
-                <select id="${name}" class="form-control" ${req}>
+                <label class="mb-1 block text-xs font-semibold text-[var(--color-text-muted)]" for="${name}">${label}</label>
+                <select id="${name}" class="form-control w-full text-[13px]" ${req}>
                     <option value="">اختر...</option>${opts}
                 </select>
             </div>`;
@@ -93,8 +94,8 @@
         const type = f.type || 'text';
         const ph = f.placeholder ? `placeholder="${f.placeholder}"` : '';
         return `<div class="rf-field">
-            <label for="${name}">${f.label}${f.required ? ' *' : ''}</label>
-            <input type="${type}" id="${name}" class="form-control" ${ph} ${req}>
+            <label class="mb-1 block text-xs font-semibold text-[var(--color-text-muted)]" for="${name}">${label}</label>
+            <input type="${type}" id="${name}" class="form-control w-full text-[13px]" ${ph} ${req}>
         </div>`;
     }
 
@@ -105,21 +106,21 @@
         grid.innerHTML = Object.entries(FORM_CONFIGS)
             .map(
                 ([type, cfg]) => `
-            <div class="form-card" id="card-${type}">
-                <div class="form-card-header" onclick="toggleForm('${type}')">
-                    <i class="fas ${cfg.icon}" style="font-size: 36px; color: ${cfg.color};"></i>
-                    <h4>${cfg.title}</h4>
-                    <p>${cfg.description}</p>
-                    <button class="btn btn-primary btn-sm rf-toggle-btn" type="button">
+            <div class="form-card overflow-hidden rounded-xl bg-[var(--color-surface)] shadow-[0_2px_10px_rgba(0,0,0,0.1)] transition-shadow duration-200" id="card-${type}">
+                <div class="form-card-header cursor-pointer px-[25px] py-[25px] text-center" onclick="toggleForm('${type}')">
+                    <i class="fas ${cfg.icon} mb-4 text-4xl ${cfg.iconClass}"></i>
+                    <h4 class="text-lg font-bold text-[var(--color-text-main)]">${cfg.title}</h4>
+                    <p class="my-2.5 text-[var(--color-text-muted)]">${cfg.description}</p>
+                    <button class="btn btn-primary btn-sm rf-toggle-btn mt-2" type="button">
                         <i class="fas fa-chevron-down"></i> فتح الاستمارة
                     </button>
                 </div>
-                <div class="form-card-body" id="body-${type}" style="display: none;">
+                <div class="form-card-body hidden px-5 pb-5" id="body-${type}">
                     <form id="form-${type}" onsubmit="return handleSubmit(event, '${type}')">
-                        <div class="rf-fields-grid">
+                        <div class="rf-fields-grid grid grid-cols-1 gap-3 py-4 md:grid-cols-2 xl:grid-cols-3">
                             ${cfg.fields.map((f) => buildFieldHTML(f, type)).join('')}
                         </div>
-                        <div class="rf-actions">
+                        <div class="rf-actions mt-2 flex flex-wrap gap-2.5 border-t border-[var(--color-accent)] pt-3">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-file-pdf"></i> إنشاء PDF
                             </button>
@@ -138,13 +139,16 @@
     window.toggleForm = function (type) {
         const body = $(`body-${type}`);
         if (!body) return;
-        const isOpen = body.style.display !== 'none';
+        const card = $(`card-${type}`);
+        const isOpen = !body.classList.contains('hidden');
         // Close all
-        document.querySelectorAll('.form-card-body').forEach((b) => (b.style.display = 'none'));
-        document.querySelectorAll('.form-card').forEach((c) => c.classList.remove('active'));
+        document.querySelectorAll('.form-card-body').forEach((b) => b.classList.add('hidden'));
+        document.querySelectorAll('.form-card').forEach((c) => {
+            c.classList.remove('shadow-[0_4px_20px_rgba(59,106,197,0.2)]', 'ring-1', 'ring-[rgba(59,106,197,0.2)]');
+        });
         if (!isOpen) {
-            body.style.display = 'block';
-            $(`card-${type}`).classList.add('active');
+            body.classList.remove('hidden');
+            card?.classList.add('shadow-[0_4px_20px_rgba(59,106,197,0.2)]', 'ring-1', 'ring-[rgba(59,106,197,0.2)]');
         }
     };
 
@@ -171,7 +175,7 @@
             const result = await window.api.reports.generateAdminForm({
                 formType,
                 data,
-                mode: 'pdf',
+                mode: 'pdf'
             });
 
             if (result?.success) {

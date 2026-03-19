@@ -1,300 +1,219 @@
-﻿<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>الشواهد المدرسية | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+    </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الشواهد المدرسية | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
-    <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/ux-enhancements.js"></script>
-    <style>
-        /* --- Certificate Preview Card --- */
-        .cert-preview-card {
-            background: var(--card-bg, #fff);
-            border: 2px solid var(--primary, #3B6AC5);
-            border-radius: 14px;
-            max-width: 680px;
-            margin: 0 auto;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(59, 106, 197, 0.1);
-        }
+    <body>
+        <div class="toast-container" id="toast-container"></div>
 
-        .cert-preview-header {
-            background: linear-gradient(135deg, var(--primary, #3B6AC5), #5B84D6);
-            color: #fff;
-            padding: 16px 24px;
-            text-align: center;
-        }
+        <aside class="sidebar" id="sidebar"></aside>
 
-        .cert-preview-header h2 {
-            margin: 0;
-            font-size: 1.3rem;
-            font-weight: 700;
-        }
+        <main
+            class="main-content flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
+        >
+            <header class="header">
+                <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
+                    <button
+                        class="menu-toggle inline-flex h-[45px] w-[45px] items-center justify-center rounded-[var(--radius-sm)] border-0 bg-[var(--gradient-primary)] text-white transition-transform duration-300 hover:scale-105"
+                        id="menu-toggle"
+                    >
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h2
+                        class="page-title m-0 inline-flex items-center gap-2.5 whitespace-nowrap text-[clamp(1.1rem,1.8vw,1.5rem)] font-bold text-[var(--color-text-main)]"
+                    >
+                        <i class="fas fa-certificate"></i> الشواهد المدرسية
+                    </h2>
+                </div>
+                <div class="header-right flex min-w-0 shrink flex-wrap items-center gap-2">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
 
-        .cert-preview-header .cert-school-name {
-            font-size: 0.85rem;
-            opacity: 0.85;
-            margin-top: 4px;
-        }
+            <div class="grades-container">
+                <div class="search-section">
+                    <h3><i class="fas fa-pen"></i> توليد شهادة مدرسية</h3>
+                    <form id="form" class="search-form grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                        <input id="student-code" placeholder="رمز مسار التلميذ" required />
+                        <select id="cert-type">
+                            <option value="attendance">شهادة التمدرس</option>
+                            <option value="enrollment">شهادة التسجيل</option>
+                            <option value="withdrawal">شهادة المغادرة</option>
+                        </select>
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-print"></i> توليد</button>
+                    </form>
+                </div>
 
-        .cert-preview-body {
-            padding: 24px 28px;
-            direction: rtl;
-            text-align: right;
-            font-family: "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif;
-        }
-
-        .cert-preview-body .cert-field {
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-            padding: 10px 0;
-            border-bottom: 1px dashed var(--border-color, #e5e7eb);
-            font-size: 0.95rem;
-            color: var(--text-primary, #111111);
-        }
-
-        .cert-preview-body .cert-field:last-child {
-            border-bottom: none;
-        }
-
-        .cert-preview-body .cert-field strong {
-            color: var(--primary, #3B6AC5);
-            white-space: nowrap;
-            min-width: 120px;
-        }
-
-        .cert-preview-actions {
-            padding: 16px 28px 20px;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .cert-preview-actions .btn {
-            min-width: 140px;
-        }
-
-        .cert-preview-actions .btn i {
-            margin-left: 6px;
-        }
-
-        /* --- 2-copy indicator --- */
-        .cert-copies-note {
-            text-align: center;
-            font-size: 0.8rem;
-            color: var(--text-secondary, #6B7B72);
-            margin-top: 8px;
-        }
-
-        .cert-copies-note i {
-            margin-left: 4px;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="toast-container" id="toast-container"></div>
-
-    <aside class="sidebar" id="sidebar"></aside>
-
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-certificate"></i> الشواهد المدرسية</h2>
-            </div>
-            <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
-
-        <div class="grades-container">
-            <div class="search-section">
-                <h3><i class="fas fa-pen"></i> توليد شهادة مدرسية</h3>
-                <form id="form" class="search-form"
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-                    <input id="student-code" placeholder="رمز مسار التلميذ" required>
-                    <select id="cert-type">
-                        <option value="attendance">شهادة التمدرس</option>
-                        <option value="enrollment">شهادة التسجيل</option>
-                        <option value="withdrawal">شهادة المغادرة</option>
-                    </select>
-                    <button class="btn btn-primary" type="submit"><i class="fas fa-print"></i> توليد</button>
-                </form>
-            </div>
-
-            <div class="students-results">
-                <h3><i class="fas fa-eye"></i> الشهادات الصادرة</h3>
-                <div id="preview" class="page-empty-state">
-                    <i class="fas fa-file-alt"></i>
-                    <p>أدخل رمز مسار التلميذ واختر نوع الشهادة ثم اضغط "توليد"</p>
+                <div class="students-results">
+                    <h3><i class="fas fa-eye"></i> الشهادات الصادرة</h3>
+                    <div id="preview" class="page-empty-state">
+                        <i class="fas fa-file-alt"></i>
+                        <p>أدخل رمز مسار التلميذ واختر نوع الشهادة ثم اضغط "توليد"</p>
+                    </div>
                 </div>
             </div>
-        </div>
-    </main>
+        </main>
 
-    <script>
-        const CERT_TYPE_LABELS = {
-            'attendance': 'شهادة التمدرس',
-            'enrollment': 'شهادة التسجيل',
-            'withdrawal': 'شهادة المغادرة'
-        };
+        <script>
+            const CERT_TYPE_LABELS = {
+                attendance: 'شهادة التمدرس',
+                enrollment: 'شهادة التسجيل',
+                withdrawal: 'شهادة المغادرة'
+            };
 
-        const CERT_TYPE_BODY_TEXT = {
-            'attendance': 'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه يتابع/تتابع دراسته(ها) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
-            'enrollment': 'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه مسجل(ة) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
-            'withdrawal': 'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه قد غادر(ت) المؤسسة بانتظام خلال هذا الموسم.'
-        };
+            const CERT_TYPE_BODY_TEXT = {
+                attendance:
+                    'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه يتابع/تتابع دراسته(ها) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
+                enrollment:
+                    'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه مسجل(ة) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
+                withdrawal:
+                    'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه قد غادر(ت) المؤسسة بانتظام خلال هذا الموسم.'
+            };
 
-        let _currentStudent = null;
-        let _currentType = '';
+            let _currentStudent = null;
+            let _currentType = '';
 
-        document.getElementById('form').addEventListener('submit', async e => {
-            e.preventDefault();
-            const code = document.getElementById('student-code').value.trim();
-            const type = document.getElementById('cert-type').value;
-            const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
-            const students = await window.api.students.search('', '', '', year);
-            const student = (students || []).find(s => s.massar_code === code);
+            document.getElementById('form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const code = document.getElementById('student-code').value.trim();
+                const type = document.getElementById('cert-type').value;
+                const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+                const students = await window.api.students.search('', '', '', year);
+                const student = (students || []).find((s) => s.massar_code === code);
 
-            if (!student) {
-                showToast('لم يتم العثور على التلميذ', 'error');
-                return;
-            }
+                if (!student) {
+                    showToast('لم يتم العثور على التلميذ', 'error');
+                    return;
+                }
 
-            _currentStudent = student;
-            _currentType = type;
+                _currentStudent = student;
+                _currentType = type;
 
-            const schoolName = localStorage.getItem('schoolName') || 'المؤسسة التعليمية';
-            const dateStr = new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
-            const typeLabel = CERT_TYPE_LABELS[type];
+                const schoolName = localStorage.getItem('schoolName') || 'المؤسسة التعليمية';
+                const dateStr = new Date().toLocaleDateString('ar-MA', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                const typeLabel = CERT_TYPE_LABELS[type];
 
-            document.getElementById('preview').innerHTML = `
-                <div class="cert-preview-card">
-                    <div class="cert-preview-header">
-                        <div class="cert-school-name">${schoolName}</div>
-                        <h2>${typeLabel}</h2>
+                document.getElementById('preview').innerHTML = `
+                <div class="mx-auto max-w-[680px] overflow-hidden rounded-[14px] border-2 border-[var(--color-primary)] bg-[var(--color-surface)] shadow-[0_4px_20px_rgba(59,106,197,0.1)]">
+                    <div class="bg-[linear-gradient(135deg,var(--color-primary),#5B84D6)] px-6 py-4 text-center text-white">
+                        <div class="mt-1 text-[0.85rem] opacity-[0.85]">${schoolName}</div>
+                        <h2 class="m-0 text-[1.3rem] font-bold">${typeLabel}</h2>
                     </div>
-                    <div class="cert-preview-body">
-                        <div class="cert-field"><strong>الاسم الكامل:</strong> <span>${student.full_name || '-'}</span></div>
-                        <div class="cert-field"><strong>رمز مسار:</strong> <span>${student.massar_code || '-'}</span></div>
-                        <div class="cert-field"><strong>القسم:</strong> <span>${student.class_name || '-'}</span></div>
-                        <div class="cert-field"><strong>السنة الدراسية:</strong> <span>${year}</span></div>
-                        <div class="cert-field"><strong>تاريخ الإصدار:</strong> <span>${dateStr}</span></div>
+                    <div class="space-y-0 px-7 py-6 text-right text-[0.95rem] text-[var(--color-text-main)]">
+                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">الاسم الكامل:</strong> <span>${student.full_name || '-'}</span></div>
+                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">رمز مسار:</strong> <span>${student.massar_code || '-'}</span></div>
+                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">القسم:</strong> <span>${student.class_name || '-'}</span></div>
+                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">السنة الدراسية:</strong> <span>${year}</span></div>
+                        <div class="flex items-baseline gap-2 py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">تاريخ الإصدار:</strong> <span>${dateStr}</span></div>
                     </div>
-                    <div class="cert-preview-actions">
-                        <button class="btn btn-success" onclick="exportCertPDF()"><i class="fas fa-file-pdf"></i> تصدير PDF</button>
-                        <button class="btn btn-primary" onclick="printCert()"><i class="fas fa-print"></i> طباعة</button>
-                        <button class="btn btn-secondary" onclick="previewCert()"><i class="fas fa-eye"></i> معاينة</button>
+                    <div class="flex flex-wrap justify-center gap-2.5 px-7 pb-5 pt-4">
+                        <button class="btn btn-success min-w-[140px]" onclick="exportCertPDF()"><i class="fas fa-file-pdf"></i> تصدير PDF</button>
+                        <button class="btn btn-primary min-w-[140px]" onclick="printCert()"><i class="fas fa-print"></i> طباعة</button>
+                        <button class="btn btn-secondary min-w-[140px]" onclick="previewCert()"><i class="fas fa-eye"></i> معاينة</button>
                     </div>
-                    <div class="cert-copies-note"><i class="fas fa-info-circle"></i> سيتم طباعة نسختين في كل صفحة A4</div>
+                    <div class="flex items-center justify-center gap-1 pb-4 text-center text-[0.8rem] text-[var(--color-text-muted)]"><i class="fas fa-info-circle"></i> سيتم طباعة نسختين في كل صفحة A4</div>
                 </div>
             `;
-            showToast('تم توليد الشهادة', 'success');
-        });
+                showToast('تم توليد الشهادة', 'success');
+            });
 
-        /**
-         * Builds only the certificate body content (student table + body text).
-         * Letterhead, footer, seal, signature, and security bar are handled
-         * by the unified report engine on the main-process side.
-         */
-        function buildCertificateBody(student, type) {
-            const bodyText = CERT_TYPE_BODY_TEXT[type];
-            const year = getSchoolYear();
+            /**
+             * Builds only the certificate body content (student table + body text).
+             * Letterhead, footer, seal, signature, and security bar are handled
+             * by the unified report engine on the main-process side.
+             */
+            function buildCertificateBody(student, type) {
+                const bodyText = CERT_TYPE_BODY_TEXT[type];
+                const year = getSchoolYear();
 
-            return `
+                return `
                 <!-- Student info table -->
-                <table style="
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 6px;
-                    font-size: 12px;
-                ">
+                <table class="mt-1.5 w-full border-collapse text-xs">
                     <tr>
-                        <td style="padding: 6px 10px; font-weight: 700; color: #333; width: 140px; border-bottom: 1px solid #e5e7eb;">الاسم الكامل</td>
-                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.full_name || '-'}</td>
+                        <td class="w-[140px] border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">الاسم الكامل</td>
+                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${student.full_name || '-'}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">رمز مسار</td>
-                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.massar_code || '-'}</td>
+                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">رمز مسار</td>
+                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${student.massar_code || '-'}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">القسم</td>
-                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${student.class_name || '-'}</td>
+                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">القسم</td>
+                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${student.class_name || '-'}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 6px 10px; font-weight: 700; color: #333; border-bottom: 1px solid #e5e7eb;">السنة الدراسية</td>
-                        <td style="padding: 6px 10px; color: #111; border-bottom: 1px solid #e5e7eb;">${year}</td>
+                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">السنة الدراسية</td>
+                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${year}</td>
                     </tr>
                 </table>
 
                 <!-- Certificate body text -->
-                <div style="
-                    margin-top: 14px;
-                    padding: 10px 12px;
-                    background: #f8faf9;
-                    border-right: 3px solid #3B6AC5;
-                    border-radius: 0 6px 6px 0;
-                    font-size: 12px;
-                    line-height: 1.8;
-                    color: #222;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                ">${bodyText}</div>`;
-        }
-
-        /**
-         * Dispatches a certificate to the unified report engine.
-         * The engine handles: letterhead, footer (seal + signature), 2-copy layout, security bar.
-         */
-        async function dispatchCert(mode) {
-            if (!_currentStudent) return;
-            const bodyHTML = buildCertificateBody(_currentStudent, _currentType);
-            const typeLabel = CERT_TYPE_LABELS[_currentType];
-
-            if (window.api?.reports?.printDocument) {
-                if (mode === 'pdf') showToast('جاري تصدير PDF...', 'info');
-                const result = await window.api.reports.printDocument({
-                    documentType: 'certificate',
-                    documentTitle: typeLabel,
-                    bodyHTML,
-                    data: { studentName: _currentStudent.full_name || '' },
-                    options: {
-                        mode,
-                        copies: 2,
-                        bodyHeight: '148.5mm',
-                        showSeal: true,
-                        showSignature: true,
-                        showSecurity: true,
-                        defaultFileName: `${typeLabel}_${_currentStudent.massar_code || ''}`
-                    }
-                });
-                if (mode === 'pdf' && result?.success) {
-                    showToast('تم تصدير الشهادة بنجاح', 'success');
-                } else if (mode === 'pdf' && result?.error && result.error !== 'Cancelled by user') {
-                    showToast('خطأ في تصدير الشهادة: ' + result.error, 'error');
-                } else if (mode === 'print' && result?.success) {
-                    showToast('تمت الطباعة بنجاح', 'success');
-                }
-            } else {
-                openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
+                <div class="mt-3.5 rounded-s-[6px] rounded-e-none border-s-[3px] border-[var(--color-primary)] bg-[#f8faf9] px-3 py-2.5 text-xs leading-[1.8] text-[#222] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">${bodyText}</div>`;
             }
-        }
 
-        function exportCertPDF() { dispatchCert('pdf'); }
-        function printCert() { dispatchCert('print'); }
-        function previewCert() { dispatchCert('preview'); }
-    </script>
-</body>
+            /**
+             * Dispatches a certificate to the unified report engine.
+             * The engine handles: letterhead, footer (seal + signature), 2-copy layout, security bar.
+             */
+            async function dispatchCert(mode) {
+                if (!_currentStudent) return;
+                const bodyHTML = buildCertificateBody(_currentStudent, _currentType);
+                const typeLabel = CERT_TYPE_LABELS[_currentType];
 
+                if (window.api?.reports?.printDocument) {
+                    if (mode === 'pdf') showToast('جاري تصدير PDF...', 'info');
+                    const result = await window.api.reports.printDocument({
+                        documentType: 'certificate',
+                        documentTitle: typeLabel,
+                        bodyHTML,
+                        data: { studentName: _currentStudent.full_name || '' },
+                        options: {
+                            mode,
+                            copies: 2,
+                            bodyHeight: '148.5mm',
+                            showSeal: true,
+                            showSignature: true,
+                            showSecurity: true,
+                            defaultFileName: `${typeLabel}_${_currentStudent.massar_code || ''}`
+                        }
+                    });
+                    if (mode === 'pdf' && result?.success) {
+                        showToast('تم تصدير الشهادة بنجاح', 'success');
+                    } else if (mode === 'pdf' && result?.error && result.error !== 'Cancelled by user') {
+                        showToast('خطأ في تصدير الشهادة: ' + result.error, 'error');
+                    } else if (mode === 'print' && result?.success) {
+                        showToast('تمت الطباعة بنجاح', 'success');
+                    }
+                } else {
+                    openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
+                }
+            }
+
+            function exportCertPDF() {
+                dispatchCert('pdf');
+            }
+            function printCert() {
+                dispatchCert('print');
+            }
+            function previewCert() {
+                dispatchCert('preview');
+            }
+        </script>
+    </body>
 </html>

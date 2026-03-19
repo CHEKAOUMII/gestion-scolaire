@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const directory = '.';
-const cssToInject = '    <link rel="stylesheet" href="css/design-system.css">';
-const targetLine = '<link rel="stylesheet" href="styles.css">';
+const cssToInject = '    <link rel="stylesheet" href="css/tailwind-output.css">';
+const targetLine = '<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">';
 
 function processDirectory(dir) {
     fs.readdir(dir, (err, files) => {
@@ -12,7 +12,7 @@ function processDirectory(dir) {
             return;
         }
 
-        files.forEach(file => {
+        files.forEach((file) => {
             const filePath = path.join(dir, file);
             fs.stat(filePath, (err, stats) => {
                 if (err) {
@@ -22,7 +22,7 @@ function processDirectory(dir) {
 
                 if (stats.isDirectory() && file !== 'node_modules' && file !== '.git') {
                     // Recurse into subdirectories (though mostly likely everything is in root)
-                    // processDirectory(filePath); 
+                    // processDirectory(filePath);
                 } else if (path.extname(file) === '.html') {
                     injectCss(filePath);
                 }
@@ -38,7 +38,7 @@ function injectCss(filePath) {
             return;
         }
 
-        if (data.includes('css/design-system.css')) {
+        if (data.includes('css/tailwind-output.css')) {
             console.log(`Skipping ${filePath}: CSS already injected.`);
             return;
         }
@@ -53,7 +53,7 @@ function injectCss(filePath) {
                 }
             });
         } else {
-            console.log(`Skipping ${filePath}: styles.css not found.`);
+            console.log(`Skipping ${filePath}: fontawesome link not found.`);
         }
     });
 }

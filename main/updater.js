@@ -1,15 +1,19 @@
 /**
- * main/updater.js — Auto-Updater Module
+ * main/updater.js - Auto-Updater Module
  * Uses electron-updater to check GitHub Releases for new versions.
  */
 
 const { autoUpdater } = require('electron-updater');
 const { app } = require('electron');
 const path = require('path');
-const fs = require('fs');
 require('dotenv').config({ path: path.join(app.getAppPath(), '.env') });
 
 let _mainWindow = null;
+let _initialized = false;
+
+function bindUpdaterWindow(mainWindow) {
+    _mainWindow = mainWindow;
+}
 
 /**
  * Send a status event to the renderer process.
@@ -27,10 +31,16 @@ function sendToRenderer(channel, data) {
  * @param {Electron.BrowserWindow} mainWindow
  */
 function initAutoUpdater(mainWindow) {
-    _mainWindow = mainWindow;
+    bindUpdaterWindow(mainWindow);
+
+    if (_initialized) {
+        return;
+    }
+
+    _initialized = true;
 
     // Configure updater
-    autoUpdater.autoDownload = false; // Don't download automatically — let user decide
+    autoUpdater.autoDownload = false; // Don't download automatically - let user decide
     autoUpdater.autoInstallOnAppQuit = true; // Install update when user quits
     autoUpdater.allowPrerelease = false;
 
@@ -41,7 +51,7 @@ function initAutoUpdater(mainWindow) {
             provider: 'github',
             owner: 'CHEKAOUMII',
             repo: 'project6.2',
-            token: ghToken,   // Crucial: authenticates the request to releases.atom
+            token: ghToken, // Crucial: authenticates the request to releases.atom
             private: true
         });
         console.log('[updater] GitHub provider configured with authentication token.');
@@ -57,7 +67,7 @@ function initAutoUpdater(mainWindow) {
         debug: (...args) => console.log('[updater:debug]', ...args)
     };
 
-    // ─── Event Handlers ───
+    // --- Event Handlers ---
 
     autoUpdater.on('checking-for-update', () => {
         console.log('[updater] Checking for updates...');
@@ -150,6 +160,7 @@ function installUpdate() {
 }
 
 module.exports = {
+    bindUpdaterWindow,
     initAutoUpdater,
     checkForUpdates,
     downloadUpdate,

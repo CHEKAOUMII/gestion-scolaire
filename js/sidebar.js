@@ -7,16 +7,21 @@ function injectSidebar() {
 
     sidebar.innerHTML = `
         <div class="school-info">
-            <i class="fas fa-university"></i>
-            <div class="school-details">
+            <div class="school-icon">
+                <i class="fas fa-university"></i>
+            </div>
+            <div class="school-details min-w-0">
                 <h3 id="sidebar-school-type">المؤسسة التعليمية</h3>
                 <p id="sidebar-school-name">...</p>
             </div>
         </div>
-        <nav class="sidebar-nav">
-            <ul>
-                <li><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a></li>
-                <li class="expandable">
+        <nav class="sidebar-nav flex-1 min-h-0 overflow-y-auto">
+            <ul class="list-none">
+                <li class="my-[2px] mx-[10px]"><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a></li>
+
+                <li class="nav-section-label">إدارة الطلاب</li>
+
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>التلاميذ</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="students-list.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
@@ -27,7 +32,7 @@ function injectSidebar() {
                         <li><a href="students-status.html"><i class="fas fa-user-slash"></i> الوضعية الدراسية</a></li>
                     </ul>
                 </li>
-                <li class="expandable">
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-users-cog"></i><span>تدبير الموظفين</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="teachers-list.html"><i class="fas fa-users"></i> قائمة الأساتذة</a></li>
@@ -39,17 +44,20 @@ function injectSidebar() {
                         <li><a href="compensation-tracking.html"><i class="fas fa-exchange-alt"></i> الحصص التعويضية</a></li>
                     </ul>
                 </li>
-                <li class="expandable">
+
+                <li class="nav-section-label">التنظيم الدراسي</li>
+
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="timetable.html"><i class="fas fa-table"></i>جدول حصص الأساتذة</a></li>
                         <li><a href="timetable-students.html"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</a></li>
                         <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول حصص القاعات</a></li>
                         <li><a href="timetable-redistribution.html"><i class="fas fa-random"></i> إعادة توزيع الأقسام</a></li>
-                        <li><a href="timetable-teachers.html"><i class="fas fa-chalkboard-teacher"></i> جدول حصص الأساتذة</a></li>
+                        <li><a href="timetable-teachers.html"><i class="fas fa-chalkboard-teacher"></i> استعمال الزمن الأسبوعي</a></li>
                     </ul>
                 </li>
-                <li class="expandable">
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-chart-line"></i><span>التقويم والنتائج</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
@@ -60,7 +68,7 @@ function injectSidebar() {
                         <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> الدعم التربوي</a></li>
                     </ul>
                 </li>
-                <li class="expandable">
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-user-clock"></i><span>الغياب والمتابعة</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="absence-weekly.html"><i class="fas fa-calendar-week"></i> ورقة الغياب الأسبوعية</a></li>
@@ -69,7 +77,7 @@ function injectSidebar() {
                         <li><a href="absence-analytics.html"><i class="fas fa-chart-bar"></i> إحصائيات الغياب</a></li>
                     </ul>
                 </li>
-                <li class="expandable">
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-file-signature"></i><span>مركز الامتحانات</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="exams-schedule.html"><i class="fas fa-calendar-check"></i> برمجة الامتحانات</a></li>
@@ -78,7 +86,10 @@ function injectSidebar() {
                         <li><a href="exams-tests.html"><i class="fas fa-clipboard-list"></i> تدبير الفروض</a></li>
                     </ul>
                 </li>
-                <li class="expandable">
+
+                <li class="nav-section-label">التقارير والنظام</li>
+
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-file-alt"></i><span>التقارير والوثائق</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="reports-certificates.html"><i class="fas fa-certificate"></i> الشواهد المدرسية</a></li>
@@ -86,7 +97,7 @@ function injectSidebar() {
                         <li><a href="reports-semester.html"><i class="fas fa-chart-pie"></i> تقارير الفصل</a></li>
                     </ul>
                 </li>
-                <li class="expandable">
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-cog"></i><span>الإعدادات</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="settings-school.html"><i class="fas fa-school"></i> معلومات المؤسسة</a></li>
@@ -97,7 +108,7 @@ function injectSidebar() {
                     </ul>
                 </li>
                 <!-- Prototypes Links for Review -->
-                <li class="expandable">
+                <li class="expandable my-[2px] mx-[10px]">
                     <a href="#" class="nav-link"><i class="fas fa-paint-brush"></i><span>التصاميم الجديدة</span><i class="fas fa-chevron-down arrow"></i></a>
                     <ul class="sub-menu">
                         <li><a href="communication-center-prototype.html"><i class="fas fa-comments"></i> مركز التواصل (جديد)</a></li>
@@ -107,32 +118,32 @@ function injectSidebar() {
         </nav>
         <div class="sidebar-auth-section" id="sidebar-auth-section">
             <div class="sidebar-auth-user" id="sidebar-auth-user" style="display:none;">
-                <div class="sidebar-auth-avatar">
-                    <i class="fas fa-user-circle"></i>
+                <div class="sidebar-auth-avatar shrink-0">
+                    <i class="fas fa-user-circle text-[28px] text-[var(--color-primary)]"></i>
                 </div>
-                <div class="sidebar-auth-info">
+                <div class="sidebar-auth-info flex min-w-0 flex-col gap-0.5">
                     <span class="sidebar-auth-name" id="sidebar-auth-name">المستخدم</span>
                     <span class="sidebar-auth-role" id="sidebar-auth-role-badge">Staff</span>
                 </div>
             </div>
             <div class="sidebar-auth-actions" id="sidebar-auth-actions">
-                <button type="button" class="sidebar-auth-btn sidebar-auth-lock" id="sidebar-lock-btn" title="قفل الجلسة" style="display:none;">
+                <button type="button" class="sidebar-auth-btn sidebar-auth-lock group" id="sidebar-lock-btn" title="قفل الجلسة" style="display:none;">
                     <i class="fas fa-lock"></i>
                     <span>قفل الجلسة</span>
                 </button>
-                <button type="button" class="sidebar-auth-btn sidebar-auth-pin-setup" id="sidebar-pin-setup-btn" title="إعداد رمز PIN" style="display:none;">
+                <button type="button" class="sidebar-auth-btn sidebar-auth-pin-setup group" id="sidebar-pin-setup-btn" title="إعداد رمز PIN" style="display:none;">
                     <i class="fas fa-fingerprint"></i>
                     <span>إعداد رمز PIN</span>
                 </button>
-                <button type="button" class="sidebar-auth-btn sidebar-auth-change-pw" id="sidebar-change-pw-btn" title="تغيير كلمة المرور" style="display:none;">
+                <button type="button" class="sidebar-auth-btn sidebar-auth-change-pw group" id="sidebar-change-pw-btn" title="تغيير كلمة المرور" style="display:none;">
                     <i class="fas fa-key"></i>
                     <span>تغيير كلمة المرور</span>
                 </button>
-                <button type="button" class="sidebar-auth-btn sidebar-auth-activate" id="sidebar-activate-btn" title="تفعيل البرنامج" style="display:none;">
+                <button type="button" class="sidebar-auth-btn sidebar-auth-activate group" id="sidebar-activate-btn" title="تفعيل البرنامج" style="display:none;">
                     <i class="fas fa-key"></i>
                     <span>تفعيل البرنامج</span>
                 </button>
-                <button type="button" class="sidebar-auth-btn sidebar-auth-login" id="sidebar-login-btn">
+                <button type="button" class="sidebar-auth-btn sidebar-auth-login group" id="sidebar-login-btn">
                     <i class="fas fa-user-shield"></i>
                     <span>تسجيل الدخول أو إنشاء حساب</span>
                 </button>
@@ -160,7 +171,7 @@ function injectSidebar() {
                     ).trim();
                 if (loginBtn) {
                     loginBtn.innerHTML =
-                        '<i class="fas fa-sign-out-alt"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
+                        '<i class="fas fa-sign-out-alt w-[18px] text-center text-sm text-[var(--color-primary)] transition-colors group-hover:text-white"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
                     loginBtn.classList.remove('sidebar-auth-login');
                     loginBtn.classList.add('sidebar-auth-logout');
                 }

@@ -8,38 +8,25 @@
         <title>استيراد البيانات | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
-        <link rel="stylesheet" href="css/design-system.css" />
-        <link rel="stylesheet" href="styles.css" />
-        <link rel="stylesheet" href="ux-enhancements.css" />
-        <link rel="stylesheet" href="css/modern-imports.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js"></script>
         <script src="js/data/ma-education-labels.js"></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
-        <noscript>
-            <style>
-                body {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 100vh;
-                    background: #0f172a;
-                    color: #f1f5f9;
-                    font-family: 'Tajawal', sans-serif;
-                }
-            </style>
-            <div style="text-align: center; padding: 40px">
-                <i
-                    class="fas fa-exclamation-triangle"
-                    style="font-size: 3rem; color: #f59e0b; margin-bottom: 1rem; display: block"
-                ></i>
-                <h2>يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
-            </div>
-        </noscript>
     </head>
 
     <body>
+        <noscript>
+            <div
+                class="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-[#0f172a] p-10 text-center text-[#f1f5f9]"
+            >
+                <div>
+                    <i class="fas fa-exclamation-triangle mb-4 block text-5xl text-[#f59e0b]"></i>
+                    <h2 class="text-2xl font-bold">يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
+                </div>
+            </div>
+        </noscript>
         <div class="toast-container" id="toast-container"></div>
         <!-- Hidden file inputs for each import type -->
         <input
@@ -76,11 +63,13 @@
             <!-- Sidebar will be injected by sidebar.js -->
         </aside>
 
-        <main class="main-content standalone-page">
+        <main
+            class="main-content standalone-page flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
+        >
             <header class="header unified-header">
-                <div class="header-left">
+                <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
                     <button
-                        class="menu-toggle"
+                        class="menu-toggle inline-flex h-[45px] w-[45px] items-center justify-center rounded-[var(--radius-sm)] border-0 bg-[var(--gradient-primary)] text-white transition-transform duration-300 hover:scale-105"
                         id="menu-toggle"
                         type="button"
                         aria-label="فتح القائمة الجانبية"
@@ -88,12 +77,20 @@
                     >
                         <i class="fas fa-bars"></i>
                     </button>
-                    <div class="search-box" role="search">
-                        <input type="text" id="header-search" placeholder="ابحث عن صفحة..." aria-label="بحث" />
-                        <i class="fas fa-search"></i>
+                    <div class="search-box relative min-w-0 max-w-[500px] flex-1 basis-[160px]" role="search">
+                        <input
+                            class="w-full rounded-[var(--radius-full)] ps-5 pe-[45px]"
+                            type="text"
+                            id="header-search"
+                            placeholder="ابحث عن صفحة..."
+                            aria-label="بحث"
+                        />
+                        <i
+                            class="fas fa-search pointer-events-none absolute start-5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+                        ></i>
                     </div>
                 </div>
-                <div class="header-right">
+                <div class="header-right flex min-w-0 shrink flex-wrap items-center gap-2">
                     <button
                         class="theme-toggle"
                         id="theme-toggle"
@@ -112,19 +109,26 @@
                     >
                         <i class="fas fa-keyboard"></i>
                     </button>
-                    <label for="semester-select" class="visually-hidden">الدورة</label>
-                    <select id="semester-select" title="الدورة">
+                    <label for="semester-select" class="sr-only">الدورة</label>
+                    <select class="min-w-0 shrink-0" id="semester-select" title="الدورة">
                         <option value="1" selected>الدورة الأولى</option>
                         <option value="2">الدورة الثانية</option>
                     </select>
-                    <div class="user-info" id="user-info">
+                    <div
+                        class="user-info max-w-[10rem] overflow-hidden text-ellipsis whitespace-nowrap rounded-[10px] bg-[var(--color-primary-mist)] px-3 py-2 font-bold text-[var(--color-primary-dark)]"
+                        id="user-info"
+                    >
                         <span id="user-email">المستخدم</span>
                     </div>
                 </div>
             </header>
 
-            <div class="page-title-row">
-                <h2><i class="fas fa-file-import"></i> استيراد البيانات</h2>
+            <div class="page-title-row my-[10px] mb-3 px-1">
+                <h2
+                    class="page-title m-0 inline-flex items-center gap-2.5 whitespace-nowrap text-[clamp(1.1rem,1.8vw,1.5rem)] font-bold text-[var(--color-text-main)]"
+                >
+                    <i class="fas fa-file-import"></i> استيراد البيانات
+                </h2>
             </div>
 
             <div class="grades-container">
@@ -132,10 +136,7 @@
                 <div class="students-results data-stats-section">
                     <h3>
                         <i class="fas fa-database"></i> البيانات المخزنة
-                        <span
-                            id="stats-year-label"
-                            style="font-size: 13px; font-weight: normal; opacity: 0.7; margin-right: 6px"
-                        ></span>
+                        <span class="me-1.5 text-[13px] font-normal opacity-70" id="stats-year-label"></span>
                     </h3>
                     <div class="data-stats-grid">
                         <div class="stat-card-col">
@@ -147,7 +148,7 @@
                                 <div class="stat-card-label">تلميذ</div>
                             </div>
                             <button
-                                class="btn btn-danger-outline stat-card-delete"
+                                class="imports-danger-btn stat-card-delete"
                                 id="btn-clear-students"
                                 type="button"
                                 title="حذف جميع بيانات التلاميذ لهذه السنة"
@@ -164,7 +165,7 @@
                                 <div class="stat-card-label">نقطة</div>
                             </div>
                             <button
-                                class="btn btn-danger-outline stat-card-delete"
+                                class="imports-danger-btn stat-card-delete"
                                 id="btn-clear-grades"
                                 type="button"
                                 title="حذف جميع النقط لهذه السنة"
@@ -181,7 +182,7 @@
                                 <div class="stat-card-label">سجل غياب</div>
                             </div>
                             <button
-                                class="btn btn-danger-outline stat-card-delete"
+                                class="imports-danger-btn stat-card-delete"
                                 id="btn-clear-absences"
                                 type="button"
                                 title="حذف جميع سجلات الغياب لهذه السنة"
@@ -198,7 +199,7 @@
                                 <div class="stat-card-label">الجدول الزمني</div>
                             </div>
                             <button
-                                class="btn btn-danger-outline stat-card-delete"
+                                class="imports-danger-btn stat-card-delete"
                                 id="btn-clear-timetable"
                                 type="button"
                                 title="حذف بيانات الجدول الزمني"
@@ -215,7 +216,7 @@
                                 <div class="stat-card-label">وضعية دراسية</div>
                             </div>
                             <button
-                                class="btn btn-danger-outline stat-card-delete"
+                                class="imports-danger-btn stat-card-delete"
                                 id="btn-clear-status"
                                 type="button"
                                 title="إعادة جميع الوضعيات إلى نشط لهذه السنة"
@@ -232,7 +233,7 @@
                                 <div class="stat-card-label">أستاذ (الوزارة)</div>
                             </div>
                             <button
-                                class="btn btn-danger-outline stat-card-delete"
+                                class="imports-danger-btn stat-card-delete"
                                 id="btn-clear-teachers"
                                 type="button"
                                 title="حذف جميع بيانات الأساتذة لهذه السنة"
@@ -247,32 +248,32 @@
                 <div class="students-results">
                     <h3><i class="fas fa-cloud-upload-alt"></i> مركز الاستيراد</h3>
                     <div class="imports-grid">
-                        <button class="btn btn-primary" data-action="students" type="button">
+                        <button class="imports-action-card" data-action="students" type="button">
                             <i class="fas fa-user-graduate"></i>
                             <span>استيراد لائحة التلاميذ</span>
                             <small class="import-format-hint">.xlsx .xls .csv</small>
                         </button>
-                        <button class="btn btn-primary" data-action="grades" type="button">
+                        <button class="imports-action-card" data-action="grades" type="button">
                             <i class="fas fa-star"></i>
                             <span>استيراد النقط</span>
                             <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
                         </button>
-                        <button class="btn btn-primary" data-action="absences" type="button">
+                        <button class="imports-action-card" data-action="absences" type="button">
                             <i class="fas fa-user-clock"></i>
                             <span>استيراد الغياب</span>
                             <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
                         </button>
-                        <button class="btn btn-primary" data-action="fet" type="button">
+                        <button class="imports-action-card" data-action="fet" type="button">
                             <i class="fas fa-calendar-alt"></i>
                             <span>استيراد FET (XML)</span>
                             <small class="import-format-hint">.xml – ملف _teachers.xml</small>
                         </button>
-                        <button class="btn btn-primary" data-action="student-status" type="button">
+                        <button class="imports-action-card" data-action="student-status" type="button">
                             <i class="fas fa-user-slash"></i>
                             <span>استيراد الوضعيات الدراسية</span>
                             <small class="import-format-hint">.xlsx .xls .csv</small>
                         </button>
-                        <button class="btn btn-primary" data-action="agent-xml" type="button">
+                        <button class="imports-action-card" data-action="agent-xml" type="button">
                             <i class="fas fa-university"></i>
                             <span>استيراد ملف الوزارة</span>
                             <small class="import-format-hint">.xml – ملف بيانات الأساتذة</small>
@@ -312,47 +313,33 @@
 
                     <div
                         id="tafwij-warning-banner"
-                        class="validation-message warning"
-                        style="display: none; margin-top: 16px; padding: 14px 16px; border-radius: 12px"
+                        class="validation-message warning mt-4 hidden rounded-xl px-4 py-3.5"
                     ></div>
 
                     <div
                         id="tafwij-matching-panel"
-                        class="students-results"
-                        style="
-                            display: none;
-                            margin-top: 18px;
-                            padding: 18px;
-                            border: 1px solid rgba(245, 158, 11, 0.25);
-                            background: rgba(255, 248, 235, 0.9);
-                        "
+                        class="students-results mt-[18px] hidden border border-[rgba(245,158,11,0.25)] bg-[rgba(255,248,235,0.9)] p-[18px]"
                     >
-                        <div
-                            style="
-                                display: flex;
-                                justify-content: space-between;
-                                gap: 12px;
-                                align-items: flex-start;
-                                flex-wrap: wrap;
-                            "
-                        >
+                        <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <h4 style="margin: 0 0 6px"><i class="fas fa-link"></i> مطابقة أسماء أساتذة tafwij</h4>
-                                <p id="tafwij-matching-summary" style="margin: 0; color: var(--text-secondary)">-</p>
+                                <h4 class="mb-1.5 mt-0 font-bold text-[var(--color-text-main)]">
+                                    <i class="fas fa-link"></i> مطابقة أسماء أساتذة tafwij
+                                </h4>
+                                <p class="m-0 text-[var(--color-text-muted)]" id="tafwij-matching-summary">-</p>
                             </div>
-                            <div style="display: flex; gap: 10px; flex-wrap: wrap">
+                            <div class="flex flex-wrap gap-2.5">
                                 <button class="btn btn-primary" id="tafwij-save-mappings-btn" type="button">
                                     <i class="fas fa-save"></i> حفظ المطابقات
                                 </button>
                                 <button class="btn btn-secondary" id="tafwij-skip-mappings-btn" type="button">
                                     <i class="fas fa-forward"></i> تخطي مؤقت
                                 </button>
-                                <button class="btn btn-danger-outline" id="tafwij-cancel-mappings-btn" type="button">
+                                <button class="imports-danger-btn" id="tafwij-cancel-mappings-btn" type="button">
                                     <i class="fas fa-times"></i> إغلاق
                                 </button>
                             </div>
                         </div>
-                        <div class="table-responsive" style="margin-top: 14px; max-height: 420px; overflow: auto">
+                        <div class="table-responsive mt-3.5 max-h-[420px] overflow-auto">
                             <table class="students-table">
                                 <thead>
                                     <tr>
@@ -374,19 +361,19 @@
                 <!-- Backup Section -->
                 <div class="students-results">
                     <h3><i class="fas fa-shield-alt"></i> النسخ الاحتياطي</h3>
-                    <div style="padding: 2rem; text-align: center">
-                        <p style="margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 0.95rem">
+                    <div class="p-8 text-center">
+                        <p class="mb-6 text-[0.95rem] text-[var(--color-text-muted)]">
                             تصدير البيانات الحالية – استعادة نسخة احتياطية في حالة فقدان البيانات
                         </p>
-                        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap">
-                            <button class="btn btn-primary" id="create-backup-btn" type="button" style="gap: 10px">
+                        <div class="flex flex-wrap justify-center gap-4">
+                            <button class="btn btn-primary gap-2.5" id="create-backup-btn" type="button">
                                 <i class="fas fa-download"></i> إنشاء نسخة احتياطية
                             </button>
-                            <button class="btn btn-secondary" id="restore-backup-btn" type="button" style="gap: 10px">
+                            <button class="btn btn-secondary gap-2.5" id="restore-backup-btn" type="button">
                                 <i class="fas fa-upload"></i> استعادة نسخة سابقة
                             </button>
                         </div>
-                        <input type="file" id="backup-file-input" accept=".json" style="display: none" />
+                        <input type="file" id="backup-file-input" class="hidden" accept=".json" />
                     </div>
                 </div>
 
@@ -395,7 +382,7 @@
                     <h3><i class="fas fa-history"></i> عمليات الاستيراد الأخيرة</h3>
                     <div class="table-responsive">
                         <table class="students-table">
-                            <caption class="visually-hidden">
+                            <caption class="sr-only">
                                 سجل آخر عمليات استيراد البيانات
                             </caption>
                             <thead>
@@ -440,7 +427,7 @@
                 </button>
             </div>
             <div class="quick-nav-search">
-                <label for="quick-nav-search-input" class="visually-hidden">ابحث في صفحات التنقل السريع</label>
+                <label for="quick-nav-search-input" class="sr-only">ابحث في صفحات التنقل السريع</label>
                 <input type="text" id="quick-nav-search-input" placeholder="بحث..." />
             </div>
             <div class="quick-nav-list" id="quick-nav-pages-list">

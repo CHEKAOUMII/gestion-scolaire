@@ -1,112 +1,55 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>الاستمارات الإدارية | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+    </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الاستمارات الإدارية | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="ux-enhancements.css">
-    <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/ux-enhancements.js"></script>
-    <style>
-        .rf-fields-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-            padding: 16px 0;
-        }
-        .rf-field label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--color-text-muted);
-            margin-bottom: 4px;
-        }
-        .rf-field input,
-        .rf-field select {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1.5px solid var(--border-color, #ddd);
-            border-radius: 8px;
-            font-size: 13px;
-            font-family: inherit;
-            background: var(--card-bg, #fff);
-            color: var(--color-text, #222);
-        }
-        .rf-field input:focus,
-        .rf-field select:focus {
-            border-color: var(--primary);
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(59, 106, 197, 0.15);
-        }
-        .rf-actions {
-            display: flex;
-            gap: 10px;
-            padding-top: 12px;
-            border-top: 1px solid var(--border-color, #eee);
-            margin-top: 8px;
-        }
-        .form-card {
-            background: var(--card-bg, white);
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            transition: box-shadow 0.2s;
-        }
-        .form-card.active {
-            box-shadow: 0 4px 20px rgba(59, 106, 197, 0.2);
-        }
-        .form-card-header {
-            padding: 25px;
-            text-align: center;
-            cursor: pointer;
-        }
-        .form-card-header p {
-            color: var(--color-text-muted);
-            margin: 10px 0;
-        }
-        .form-card-body {
-            padding: 0 20px 20px;
-        }
-        .rf-toggle-btn {
-            margin-top: 8px;
-        }
-    </style>
-</head>
+    <body>
+        <div class="toast-container" id="toast-container"></div>
 
-<body>
-    <div class="toast-container" id="toast-container"></div>
+        <aside class="sidebar" id="sidebar"></aside>
 
-    <aside class="sidebar" id="sidebar"></aside>
+        <main
+            class="main-content flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
+        >
+            <header class="header">
+                <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
+                    <button
+                        class="menu-toggle inline-flex h-[45px] w-[45px] items-center justify-center rounded-[var(--radius-sm)] border-0 bg-[var(--gradient-primary)] text-white transition-transform duration-300 hover:scale-105"
+                        id="menu-toggle"
+                    >
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h2
+                        class="page-title m-0 inline-flex items-center gap-2.5 whitespace-nowrap text-[clamp(1.1rem,1.8vw,1.5rem)] font-bold text-[var(--color-text-main)]"
+                    >
+                        <i class="fas fa-file-invoice"></i> الاستمارات الإدارية
+                    </h2>
+                </div>
+                <div class="header-right flex min-w-0 shrink flex-wrap items-center gap-2">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
 
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-file-invoice"></i> الاستمارات الإدارية</h2>
-            </div>
-            <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
-
-        <div class="grades-container">
-            <div class="students-results">
-                <h3><i class="fas fa-file-alt"></i> الاستمارات المتاحة</h3>
-                <div id="forms-grid"
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 20px;">
+            <div class="grades-container">
+                <div class="students-results">
+                    <h3><i class="fas fa-file-alt"></i> الاستمارات المتاحة</h3>
+                    <div id="forms-grid" class="grid gap-5 p-5 md:grid-cols-2 xl:grid-cols-3"></div>
                 </div>
             </div>
-        </div>
-    </main>
+        </main>
 
-    <script src="js/pages/reports-forms.js"></script>
-</body>
-
+        <script src="js/pages/reports-forms.js"></script>
+    </body>
 </html>
