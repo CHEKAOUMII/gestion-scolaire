@@ -306,7 +306,7 @@ const MIGRATIONS = [
             // Add teacher_name column if staff_attendance table exists without it
             try {
                 db.exec(`ALTER TABLE staff_attendance ADD COLUMN teacher_name TEXT`);
-            } catch (_e) {
+            } catch {
                 // Column already exists or table doesn't exist yet
             }
         }
@@ -317,7 +317,7 @@ const MIGRATIONS = [
             const db = getDb();
             try {
                 db.exec(`ALTER TABLE staff_attendance ADD COLUMN subject TEXT`);
-            } catch (_e) {
+            } catch {
                 // Column already exists
             }
         }
@@ -571,6 +571,18 @@ const MIGRATIONS = [
         up: () => {
             const db = getDb();
             ensureSyncSchema(db);
+        }
+    },
+    {
+        version: '2026-03-031-push-engine-config',
+        up: () => {
+            ensureColumn('sync_config', 'auth_lambda_url', 'TEXT');
+            ensureColumn('sync_config', 'aws_region', "TEXT DEFAULT 'us-east-1'");
+            ensureColumn('sync_config', 'last_push_at', 'DATETIME');
+            ensureColumn('sync_config', 'last_push_error', 'TEXT');
+            ensureColumn('sync_config', 'push_batch_size', 'INTEGER DEFAULT 100');
+            ensureColumn('sync_config', 'max_retries', 'INTEGER DEFAULT 10');
+            ensureColumn('sync_config', 'school_id', 'TEXT');
         }
     }
 ];

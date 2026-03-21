@@ -84,6 +84,10 @@ function getSessionByEvent(event) {
     return SESSION_BY_SENDER.get(senderId) || null;
 }
 
+function getActiveSessions() {
+    return SESSION_BY_SENDER;
+}
+
 function setSessionForEvent(event, userRow, options = {}) {
     const sender = event?.sender;
     if (!sender) return null;
@@ -542,5 +546,6 @@ module.exports = {
     registerAuthIpc,
     requireAuth,
     requireRole,
-    getSessionByEvent
+    getSessionByEvent,
+    getActiveSessions
 };
