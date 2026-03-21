@@ -5781,6 +5781,55 @@ a.quick-nav-item {
    ============================================================================ */
 
 @layer components {
+    /* ── Sync Status Badge ── */
+    .sync-status-badge {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 9999px;
+        vertical-align: middle;
+        margin-inline-start: 6px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .sync-badge-connected {
+        background-color: var(--color-success-bg);
+        box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.2);
+    }
+
+    .sync-badge-syncing {
+        background-color: var(--color-success-bg);
+        animation: sync-pulse 1.5s ease-in-out infinite;
+    }
+
+    .sync-badge-offline {
+        background-color: var(--color-warning-bg);
+    }
+
+    .sync-badge-error {
+        background-color: var(--color-danger-bg);
+    }
+
+    .sync-badge-disabled {
+        background-color: var(--color-text-light);
+    }
+
+    @keyframes sync-pulse {
+        0%,
+        100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.4;
+        }
+    }
+
+    /* ── Sync Read-Only Mode ── */
+    .sync-readonly .admin-only {
+        display: none !important;
+    }
+
     .glass-panel {
         background: var(--glass-bg);
         backdrop-filter: var(--glass-blur);

@@ -776,6 +776,69 @@ function buildLetterheadHTML(id, year) {
 }
 window.buildLetterheadHTML = buildLetterheadHTML;
 
+// ==================== Sync Status Indicator (US5) ====================
+
+function initSyncIndicator() {
+    try {
+        const badge = document.getElementById('sidebar-sync-badge');
+        if (!badge || !window.api?.sync?.getStatus) return;
+
+        async function updateSyncBadge() {
+            try {
+                const status = await window.api.sync.getStatus();
+                // Derive state
+                let state = 'disabled';
+                if (status && status.enabled) {
+                    if (status.pushRunning || status.pullRunning || status.snapshotRunning) {
+                        state = 'syncing';
+                    } else if (!status.authenticated) {
+                        state = 'offline';
+                    } else if (status.lastPushError || status.lastPullError) {
+                        state = 'error';
+                    } else {
+                        state = 'connected';
+                    }
+                }
+
+                // Update badge classes
+                badge.classList.remove(
+                    'sync-badge-connected',
+                    'sync-badge-syncing',
+                    'sync-badge-offline',
+                    'sync-badge-error',
+                    'sync-badge-disabled'
+                );
+                badge.classList.add('sync-badge-' + state);
+
+                // Set tooltip
+                const labels = {
+                    connected: 'متصل',
+                    syncing: 'جاري المزامنة',
+                    offline: 'غير متصل',
+                    error: 'خطأ في المزامنة',
+                    disabled: 'المزامنة معطلة'
+                };
+                badge.title = labels[state] || '';
+            } catch (_) {
+                /* silent */
+            }
+        }
+
+        updateSyncBadge();
+        setInterval(updateSyncBadge, 15000);
+    } catch (_) {
+        /* silent — don't break other pages */
+    }
+}
+
+// Initialize sync indicator on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSyncIndicator);
+} else {
+    // Small delay to ensure sidebar is injected first
+    setTimeout(initSyncIndicator, 200);
+}
+
 window.UXEnhancements = {
     initTheme,
     toggleTheme,
@@ -788,5 +851,6 @@ window.UXEnhancements = {
     closePrintPreview: closePrintPreviewGlobal,
     forceLightThemeForPrint: _forceLightThemeForPrint,
     restoreThemeAfterPrint: _restoreThemeAfterPrint,
-    buildLetterheadHTML
+    buildLetterheadHTML,
+    initSyncIndicator
 };

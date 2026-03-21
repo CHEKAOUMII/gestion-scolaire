@@ -105,6 +105,7 @@ function injectSidebar() {
                         <li><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
                         <li><a href="settings-license.html"><i class="fas fa-key"></i> الترخيص والأجهزة</a></li>
                         <li><a href="settings-logs.html"><i class="fas fa-history"></i> سجل النشاطات</a></li>
+                        <li><a href="settings-sync.html"><i class="fas fa-cloud"></i> المزامنة السحابية <span class="sync-status-badge" id="sidebar-sync-badge"></span></a></li>
                     </ul>
                 </li>
                 <!-- Prototypes Links for Review -->
