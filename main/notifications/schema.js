@@ -4,14 +4,14 @@ const SEVERITY = Object.freeze({
     INFO: 'info',
     SUCCESS: 'success',
     WARNING: 'warning',
-    ERROR: 'error',
+    ERROR: 'error'
 });
 
 const CHANNELS = Object.freeze({
     TOAST: 'toast',
     CENTER: 'center',
     NATIVE: 'native',
-    EMAIL: 'email',
+    EMAIL: 'email'
 });
 
 const VALID_SEVERITIES = Object.values(SEVERITY);
@@ -40,8 +40,8 @@ function validateEvent(event) {
         sourceId: event.sourceId || null,
         channels: event.channels || null,
         targetPage: event.targetPage || null,
-        meta: event.meta || {},
+        meta: event.meta || {}
     };
 }
 
-module.exports = { validateEvent, SEVERITY, CHANNELS };
+module.exports = { validateEvent };

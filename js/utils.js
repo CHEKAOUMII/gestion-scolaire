@@ -6,7 +6,6 @@
 // ===== App Auth Guard =====
 const AUTH_SESSION_KEY = 'gsl_auth_session_v1';
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
-const AUTH_ALLOWED_ROLES = new Set(['admin', 'staff', 'viewer']);
 const ADMIN_ONLY_PAGES = new Set(['settings-users.html', 'settings-license.html']);
 const GUEST_ALLOWED_PAGES = new Set(['index.html', 'students-list.html', 'settings-imports.html', 'login.html']);
 const GUEST_ALLOWED_LINKS = new Set(['students-list.html', 'settings-imports.html']);

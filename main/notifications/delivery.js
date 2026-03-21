@@ -7,7 +7,7 @@ const adapters = {
     toast: toastAdapter,
     center: centerAdapter,
     native: nativeAdapter,
-    email: emailAdapter,
+    email: emailAdapter
 };
 
 function deliver(channels, rendered, event) {
@@ -28,4 +28,4 @@ function deliver(channels, rendered, event) {
     return results;
 }
 
-module.exports = { deliver, adapters };
+module.exports = { deliver };

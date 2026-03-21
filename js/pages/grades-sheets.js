@@ -176,33 +176,9 @@
     }
 
     // ─── Build inline letterhead HTML from identity ───
-    function buildLetterheadHTML(id, year) {
-        if (!id || (!id.school_name && !id.ministry)) return '';
-        const e = escapeHtml;
-        const logo = id.logo_base64
-            ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width: 300px; max-height: 300px;" alt="logo">`
-            : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>';
-
-        return `
-        <div class="gs-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px; margin-bottom: 14px;">
-            <table style="width: 100%; border-collapse: collapse;" role="presentation">
-                <tr>
-                    <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
-                        <div style="font-size: 11px; font-weight: 700; color: #222;">${e(id.country || '')}</div>
-                        <div style="font-size: 9.5px; color: #555; margin-top: 2px;">${e(id.ministry || '')}</div>
-                        ${id.academy ? `<div style="font-size: 9px; color: #666; margin-top: 2px;">${e(id.academy)}</div>` : ''}
-                        ${id.directorate ? `<div style="font-size: 9px; color: #666; margin-top: 1px;">${e(id.directorate)}</div>` : ''}
-                    </td>
-                    <td style="width: 10%; text-align: center; vertical-align: middle;">${logo}</td>
-                    <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
-                        <div style="font-size: 13px; font-weight: 800; color: #3B6AC5;">${e(id.school_name || '')}</div>
-                        ${id.school_code ? `<div style="font-size: 9px; color: #888; margin-top: 2px;">رمز المؤسسة: ${e(id.school_code)}</div>` : ''}
-                        ${id.commune ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">الجماعة: ${e(id.commune)}</div>` : ''}
-                        ${year ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${e(year)}</div>` : (id.school_year ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${e(id.school_year)}</div>` : '')}
-                    </td>
-                </tr>
-            </table>
-        </div>`;
+    // Uses shared buildLetterheadHTML() from ux-enhancements.js
+    function getLetterhead(id, year) {
+        return typeof window.buildLetterheadHTML === 'function' ? window.buildLetterheadHTML(id, year) : '';
     }
 
     // ─── Generate ───
@@ -243,7 +219,7 @@
                 day: '2-digit'
             }).format(now);
 
-            const letterheadHTML = buildLetterheadHTML(identity, year);
+            const letterheadHTML = getLetterhead(identity, year);
 
             const tableRows = students
                 .map(
@@ -360,7 +336,8 @@
         openPrintPreview({
             contentSelector: '#gs-sheet-content',
             title: 'ورقة التنقيط',
-            pageSize: 'A4'
+            pageSize: 'A4',
+            noHeader: true
         });
     }
 
@@ -390,31 +367,6 @@
         } catch (err) {
             console.warn('PDF export error:', err);
             if (typeof showToast === 'function') showToast('تعذر تصدير الملف', 'error');
-        }
-    }
-
-    // ─── Direct Print (via printHTML — auto-injects letterhead) ───
-    async function directPrint() {
-        if (!isGenerated || !currentStudents.length) {
-            if (typeof showToast === 'function') showToast('قم بتوليد ورقة التنقيط أولاً', 'warning');
-            return;
-        }
-        const sheetEl = document.getElementById('gs-sheet-content');
-        if (!sheetEl) return;
-
-        try {
-            const result = await window.api.system.printHTML({
-                htmlContent: sheetEl.outerHTML,
-                inlineStyles: getPageStyles(),
-                title: 'ورقة التنقيط',
-                pageSize: 'A4',
-                mode: 'print'
-            });
-            if (result?.success) {
-                if (typeof showToast === 'function') showToast('تم إرسال ورقة التنقيط للطباعة', 'success');
-            }
-        } catch (err) {
-            console.warn('Print error:', err);
         }
     }
 

@@ -18,12 +18,12 @@ const ROUTING_RULES = {
     'license.activated': ['toast', 'center'],
     'auth.login': ['toast'],
     'auth.logout': ['toast'],
-    'system.error': ['toast', 'center'],
+    'system.error': ['toast', 'center']
 };
 
 const SEVERITY_ESCALATION = {
     error: ['center', 'native'],
-    warning: ['center'],
+    warning: ['center']
 };
 
 function resolveChannels(type, severity) {
@@ -60,4 +60,4 @@ function resolveChannels(type, severity) {
     return channels;
 }
 
-module.exports = { resolveChannels, ROUTING_RULES };
+module.exports = { resolveChannels };

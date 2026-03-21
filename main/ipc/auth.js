@@ -296,13 +296,17 @@ function registerAuthIpc(ipcMain) {
                 return { success: false, code: 'EMAIL_EXISTS', error: 'هذا البريد الإلكتروني مستخدم بالفعل' };
             }
 
-            const result = db.prepare(
-                `INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
+            const result = db
+                .prepare(
+                    `INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
                  VALUES(?, ?, 'staff', ?, 0, 0)`
-            ).run(name, email, hashPassword(password));
+                )
+                .run(name, email, hashPassword(password));
 
             const userId = result.lastInsertRowid;
-            const userRow = db.prepare('SELECT id, name, email, role, disabled, must_change_password FROM users WHERE id = ?').get(userId);
+            const userRow = db
+                .prepare('SELECT id, name, email, role, disabled, must_change_password FROM users WHERE id = ?')
+                .get(userId);
             const session = setSessionForEvent(event, userRow);
 
             return {
@@ -319,9 +323,6 @@ function registerAuthIpc(ipcMain) {
     ipcMain.handle('auth:changePassword', async (event, payload) => {
         try {
             const session = requireAuth(event);
-            if (!session) {
-                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
-            }
 
             const currentPassword = String(payload?.currentPassword || '');
             const newPassword = String(payload?.newPassword || '');
@@ -330,7 +331,11 @@ function registerAuthIpc(ipcMain) {
                 return { success: false, code: 'MISSING_CURRENT', error: 'كلمة المرور الحالية مطلوبة' };
             }
             if (newPassword.length < 6) {
-                return { success: false, code: 'WEAK_PASSWORD', error: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' };
+                return {
+                    success: false,
+                    code: 'WEAK_PASSWORD',
+                    error: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل'
+                };
             }
 
             const db = getDb();
@@ -343,9 +348,10 @@ function registerAuthIpc(ipcMain) {
                 return { success: false, code: 'INVALID_CURRENT', error: 'كلمة المرور الحالية غير صحيحة' };
             }
 
-            db.prepare(
-                'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?'
-            ).run(hashPassword(newPassword), session.userId);
+            db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(
+                hashPassword(newPassword),
+                session.userId
+            );
 
             return { success: true };
         } catch (err) {
@@ -357,9 +363,6 @@ function registerAuthIpc(ipcMain) {
     ipcMain.handle('auth:setupPin', async (event, payload) => {
         try {
             const session = requireAuth(event);
-            if (!session) {
-                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
-            }
 
             const pin = String(payload?.pin || '');
             if (!/^\d{4,6}$/.test(pin)) {
@@ -367,9 +370,10 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            db.prepare(
-                'UPDATE users SET pin_hash = ?, pin_failed_attempts = 0 WHERE id = ?'
-            ).run(hashPassword(pin), session.userId);
+            db.prepare('UPDATE users SET pin_hash = ?, pin_failed_attempts = 0 WHERE id = ?').run(
+                hashPassword(pin),
+                session.userId
+            );
 
             return { success: true };
         } catch (err) {
@@ -391,9 +395,9 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db.prepare(
-                'SELECT id, pin_hash, pin_failed_attempts FROM users WHERE id = ?'
-            ).get(session.userId);
+            const user = db
+                .prepare('SELECT id, pin_hash, pin_failed_attempts FROM users WHERE id = ?')
+                .get(session.userId);
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
@@ -415,9 +419,7 @@ function registerAuthIpc(ipcMain) {
 
             if (!verifyPassword(pin, storedPinHash)) {
                 const newCount = failedAttempts + 1;
-                db.prepare(
-                    'UPDATE users SET pin_failed_attempts = ? WHERE id = ?'
-                ).run(newCount, session.userId);
+                db.prepare('UPDATE users SET pin_failed_attempts = ? WHERE id = ?').run(newCount, session.userId);
 
                 if (newCount >= MAX_PIN_ATTEMPTS) {
                     return {
@@ -438,9 +440,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             // Success — reset failed attempts and unlock
-            db.prepare(
-                'UPDATE users SET pin_failed_attempts = 0 WHERE id = ?'
-            ).run(session.userId);
+            db.prepare('UPDATE users SET pin_failed_attempts = 0 WHERE id = ?').run(session.userId);
             session.locked = false;
 
             return { success: true };
@@ -458,9 +458,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            db.prepare(
-                'UPDATE users SET pin_hash = NULL, pin_failed_attempts = 0 WHERE id = ?'
-            ).run(session.userId);
+            db.prepare('UPDATE users SET pin_hash = NULL, pin_failed_attempts = 0 WHERE id = ?').run(session.userId);
 
             return { success: true };
         } catch (err) {
@@ -477,9 +475,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db.prepare(
-                'SELECT pin_hash, pin_failed_attempts FROM users WHERE id = ?'
-            ).get(session.userId);
+            const user = db.prepare('SELECT pin_hash, pin_failed_attempts FROM users WHERE id = ?').get(session.userId);
 
             const hasPin = !!(user && String(user.pin_hash || '').trim());
             const pinLocked = hasPin && Number(user.pin_failed_attempts || 0) >= MAX_PIN_ATTEMPTS;
@@ -518,9 +514,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db.prepare(
-                'SELECT id, password_hash FROM users WHERE id = ?'
-            ).get(session.userId);
+            const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(session.userId);
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
@@ -530,9 +524,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             // Reset PIN failed attempts and unlock session
-            db.prepare(
-                'UPDATE users SET pin_failed_attempts = 0 WHERE id = ?'
-            ).run(session.userId);
+            db.prepare('UPDATE users SET pin_failed_attempts = 0 WHERE id = ?').run(session.userId);
             session.locked = false;
 
             return { success: true };

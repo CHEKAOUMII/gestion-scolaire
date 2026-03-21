@@ -32,7 +32,7 @@
                 </div>
             </header>
 
-            <div class="grades-container">
+            <div class="grades-container" style="padding-top: 18px;">
                 <!-- Stats Row -->
                 <div class="staff-stats-row animate-in">
                     <div class="staff-stat-card">
@@ -58,82 +58,99 @@
                 </div>
 
                 <!-- Add/Edit Form -->
-                <div class="staff-form-section animate-in animate-in-delay-1">
-                    <h3><i class="fas fa-plus-circle"></i> <span id="form-title">إضافة أستاذ</span></h3>
-                    <form id="teacher-form">
+                <div class="gs-form-section" style="animation-delay:0.05s;">
+                    <div class="gs-form-header">
+                        <i class="fas fa-plus-circle"></i> <span id="form-title">إضافة أستاذ</span>
+                    </div>
+                    <form id="teacher-form" class="gs-form-grid">
                         <input type="hidden" id="teacher-id" />
-                        <div class="staff-form-grid">
-                            <input id="teacher-name" placeholder="الاسم الكامل *" required />
-                            <input id="teacher-subject" placeholder="المادة" />
-                            <input id="teacher-phone" placeholder="الهاتف" />
-                            <input id="teacher-email" placeholder="البريد الإلكتروني" type="email" />
+                        <div class="gs-form-group">
+                            <label for="teacher-name">الاسم الكامل *</label>
+                            <input id="teacher-name" placeholder="الاسم الكامل" required
+                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
                         </div>
-                        <div class="staff-form-actions">
+                        <div class="gs-form-group">
+                            <label for="teacher-subject">المادة</label>
+                            <input id="teacher-subject" placeholder="المادة"
+                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="teacher-phone">الهاتف</label>
+                            <input id="teacher-phone" placeholder="الهاتف"
+                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="teacher-email">البريد الإلكتروني</label>
+                            <input id="teacher-email" placeholder="البريد الإلكتروني" type="email"
+                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
+                        </div>
+                        <div class="gs-form-actions">
                             <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> حفظ</button>
-                            <button class="btn btn-secondary" type="button" id="cancel-edit" style="display: none">
-                                إلغاء
-                            </button>
+                            <button class="btn btn-secondary" type="button" id="cancel-edit" style="display:none;">إلغاء</button>
                         </div>
                     </form>
                 </div>
 
-                <!-- Toolbar -->
-                <div class="students-results animate-in animate-in-delay-2">
-                    <h3><i class="fas fa-table"></i> لائحة الأساتذة</h3>
-                    <div class="staff-toolbar">
-                        <input
-                            type="text"
-                            class="search-input"
-                            id="search-input"
-                            placeholder="بحث بالاسم أو ر.ت أو المادة..."
-                        />
-                        <select id="filter-gender">
-                            <option value="">كل الأنواع</option>
-                            <option value="ذكور">ذكور</option>
-                            <option value="إناث">إناث</option>
-                        </select>
-                        <select id="filter-subject">
-                            <option value="">كل التخصصات</option>
-                        </select>
-                        <select id="filter-cadre">
-                            <option value="">كل الأطر</option>
-                        </select>
-                        <select id="filter-source">
-                            <option value="">كل المصادر</option>
-                            <option value="agent_xml">ملف الوزارة</option>
-                            <option value="fet">FET</option>
-                            <option value="manual">يدوي</option>
-                        </select>
-                        <select id="filter-fonction">
-                            <option value="">كل الوظائف</option>
-                            <option value="تدريس">تدريس</option>
-                            <option value="غير تدريس">غير تدريس</option>
-                        </select>
-                        <button class="btn btn-success" id="btn-print" title="معاينة الطباعة" style="padding: 8px 14px; white-space: nowrap;">
-                            <i class="fas fa-eye"></i> معاينة الطباعة
-                        </button>
-                        <span class="staff-counter" id="staff-counter"></span>
+                <!-- Teachers Table — gs-preview-section style -->
+                <div class="gs-preview-section" style="animation-delay:0.1s;">
+                    <div class="gs-preview-header" style="flex-wrap:wrap;gap:10px;">
+                        <h3 class="gs-preview-title">
+                            <i class="fas fa-table"></i>
+                            لائحة الأساتذة
+                            <span class="gs-count-badge" id="staff-counter">0</span>
+                        </h3>
+                        <div class="staff-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                            <input type="text" class="search-input" id="search-input"
+                                placeholder="بحث بالاسم أو ر.ت أو المادة..."
+                                style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;min-width:180px;" />
+                            <select id="filter-gender" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                                <option value="">كل الأنواع</option>
+                                <option value="ذكور">ذكور</option>
+                                <option value="إناث">إناث</option>
+                            </select>
+                            <select id="filter-subject" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                                <option value="">كل التخصصات</option>
+                            </select>
+                            <select id="filter-cadre" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                                <option value="">كل الأطر</option>
+                            </select>
+                            <select id="filter-source" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                                <option value="">كل المصادر</option>
+                                <option value="agent_xml">ملف الوزارة</option>
+                                <option value="fet">FET</option>
+                                <option value="manual">يدوي</option>
+                            </select>
+                            <select id="filter-fonction" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                                <option value="">كل الوظائف</option>
+                                <option value="تدريس">تدريس</option>
+                                <option value="غير تدريس">غير تدريس</option>
+                            </select>
+                            <button class="btn btn-success ux-print-preview-btn" id="btn-print" title="معاينة الطباعة" style="padding:8px 14px;white-space:nowrap;">
+                                <i class="fas fa-eye"></i> معاينة
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Table -->
-                    <div class="staff-table-wrap">
-                        <table class="staff-table" id="staff-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>ر.ت</th>
-                                    <th>الاسم الكامل</th>
-                                    <th>المادة</th>
-                                    <th>الإطار</th>
-                                    <th>الدرجة</th>
-                                    <th>الرتبة</th>
-                                    <th>الهاتف</th>
-                                    <th>المصدر</th>
-                                    <th class="col-actions">إجراء</th>
-                                </tr>
-                            </thead>
-                            <tbody id="teachers-tbody"></tbody>
-                        </table>
+                    <div class="gs-preview-body">
+                        <div class="staff-table-wrap">
+                            <table class="staff-table" id="staff-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>ر.ت</th>
+                                        <th>الاسم الكامل</th>
+                                        <th>المادة</th>
+                                        <th>الإطار</th>
+                                        <th>الدرجة</th>
+                                        <th>الرتبة</th>
+                                        <th>الهاتف</th>
+                                        <th>المصدر</th>
+                                        <th class="col-actions">إجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="teachers-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -166,8 +183,26 @@
                 setupForm();
                 setupFilters();
                 setupDetailPanel();
-                document.getElementById('btn-print')?.addEventListener('click', () => {
-                    // Build custom print content with simplified table
+                document.getElementById('btn-print')?.addEventListener('click', async () => {
+                    const list = filtered && filtered.length ? filtered : teachers;
+                    if (!list.length) { showToast('لا توجد بيانات للطباعة', 'warning'); return; }
+
+                    const dateStr = new Intl.DateTimeFormat('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+                    let identity = {};
+                    try { identity = await window.api.reports.getIdentity() || {}; } catch (_) {}
+                    const letterhead = (typeof window.buildLetterheadHTML === 'function') ? window.buildLetterheadHTML(identity, year) : '';
+
+                    let rows = '';
+                    list.forEach((t, i) => {
+                        rows += `<tr>
+                            <td style="text-align:center;font-weight:600;color:#666;">${i + 1}</td>
+                            <td style="text-align:center;">${esc(t.ppr || '')}</td>
+                            <td style="font-weight:600;">${esc(t.full_name || '')}</td>
+                            <td style="text-align:center;">${esc(t.phone || '-')}</td>
+                            <td style="min-width:110px;"></td>
+                        </tr>`;
+                    });
+
                     let printDiv = document.getElementById('teachers-print-content');
                     if (!printDiv) {
                         printDiv = document.createElement('div');
@@ -175,34 +210,37 @@
                         printDiv.style.display = 'none';
                         document.body.appendChild(printDiv);
                     }
-                    const list = filtered && filtered.length ? filtered : teachers;
-                    let rows = '';
-                    list.forEach((t, i) => {
-                        rows += `<tr>
-                            <td style="text-align:center; padding:8px 6px; border:1px solid #bbb;">${i + 1}</td>
-                            <td style="text-align:center; padding:8px 6px; border:1px solid #bbb;">${esc(t.ppr || '')}</td>
-                            <td style="padding:8px 10px; border:1px solid #bbb; font-weight:600;">${esc(t.full_name || '')}</td>
-                            <td style="text-align:center; padding:8px 6px; border:1px solid #bbb;">${esc(t.phone || '-')}</td>
-                            <td style="padding:8px 6px; border:1px solid #bbb; min-width:110px;"></td>
-                        </tr>`;
-                    });
                     printDiv.innerHTML = `
-                        <table style="width:100%; border-collapse:collapse; font-family:'Cairo','Segoe UI',sans-serif; font-size:13px; direction:rtl;">
-                            <thead>
-                                <tr style="background:#3B6AC5; color:#fff;">
-                                    <th style="padding:10px 6px; border:1px solid #3B6AC5; width:40px;">#</th>
-                                    <th style="padding:10px 6px; border:1px solid #3B6AC5; width:90px;">ر.ت</th>
-                                    <th style="padding:10px 6px; border:1px solid #3B6AC5;">الاسم الكامل</th>
-                                    <th style="padding:10px 6px; border:1px solid #3B6AC5; width:110px;">رقم الهاتف</th>
-                                    <th style="padding:10px 6px; border:1px solid #3B6AC5; width:120px;">التوقيع</th>
-                                </tr>
-                            </thead>
-                            <tbody>${rows}</tbody>
-                        </table>
+                        <div class="gs-sheet-wrapper">
+                            <div class="gs-sheet" id="tl-sheet-content">
+                                ${letterhead}
+                                <div class="gs-sheet-title">لائحة الإدارة التربوية</div>
+                                <div class="gs-sheet-meta">
+                                    <span><i class="fas fa-calendar-alt"></i> السنة الدراسية: ${year}</span>
+                                    <span><i class="fas fa-users"></i> العدد: ${list.length}</span>
+                                    <span><i class="fas fa-clock"></i> التاريخ: ${dateStr}</span>
+                                </div>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center;width:40px;">#</th>
+                                            <th style="text-align:center;width:90px;">ر.ت</th>
+                                            <th>الاسم الكامل</th>
+                                            <th style="text-align:center;width:110px;">رقم الهاتف</th>
+                                            <th style="text-align:center;width:120px;">التوقيع</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${rows}</tbody>
+                                </table>
+                                <div class="gs-footer">
+                                    <span>تاريخ الطباعة: ${dateStr}</span>
+                                    <span>برنامج التدبير المدرسي — ${year}</span>
+                                </div>
+                            </div>
+                        </div>
                     `;
                     printDiv.style.display = 'block';
-                    openPrintPreview({ contentSelector: '#teachers-print-content', title: 'لائحة الادارة التربوية', pageSize: 'A4' });
-                    // Hide after openPrintPreview clones it (300ms internal delay)
+                    openPrintPreview({ contentSelector: '#tl-sheet-content', title: 'لائحة الإدارة التربوية', pageSize: 'A4', noHeader: true });
                     setTimeout(() => { printDiv.style.display = 'none'; }, 500);
                 });
             });

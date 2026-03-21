@@ -1,7 +1,6 @@
 const { BrowserWindow } = require('electron');
 
 module.exports = {
-    name: 'center',
     send(rendered, event) {
         const wins = BrowserWindow.getAllWindows();
         for (const win of wins) {
@@ -14,9 +13,9 @@ module.exports = {
                 severity: event.severity,
                 timestamp: event.timestamp,
                 type: event.type,
-                read: false,
+                read: false
             });
         }
         return { success: true };
-    },
+    }
 };

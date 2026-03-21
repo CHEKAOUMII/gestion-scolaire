@@ -33,78 +33,90 @@
             </div>
         </header>
 
-        <div class="grades-container">
-            <!-- Search Section -->
-            <div class="sl-search-section">
-                <div class="sl-search-header">
+        <div class="grades-container" style="padding-top: 18px;">
+            <!-- Filter Section — gs-form-section style -->
+            <div class="gs-form-section">
+                <div class="gs-form-header">
                     <i class="fas fa-filter"></i> تصفية التلاميذ
                 </div>
-                <form id="search-form" class="sl-search-grid" role="search" aria-label="نموذج البحث عن التلاميذ">
-                    <label class="sr-only" for="search-query">البحث</label>
-                    <input id="search-query" name="search-query" type="text"
-                        placeholder="ابحث بالاسم أو رمز مسار أو تاريخ الازدياد..." autocomplete="off"
-                        style="grid-column: span 2;">
-                    <label class="sr-only" for="search-level">المستوى</label>
-                    <select id="search-level" name="search-level" aria-label="المستوى">
-                        <option value="">كل المستويات</option>
-                    </select>
-                    <label class="sr-only" for="search-class">القسم</label>
-                    <select id="search-class" name="search-class" aria-label="القسم">
-                        <option value="">كل الأقسام</option>
-                    </select>
-                    <label class="sr-only" for="search-gender">الجنس</label>
-                    <select id="search-gender" name="search-gender" aria-label="الجنس">
-                        <option value="">كل الأجناس</option>
-                        <option value="M">ذكر</option>
-                        <option value="F">أنثى</option>
-                    </select>
-                    <button class="btn btn-primary" type="submit"><i class="fas fa-search" aria-hidden="true"></i>
-                        بحث</button>
-                    <button class="btn btn-primary" type="button" id="print-preview-btn" disabled>
-                        <i class="fas fa-eye" aria-hidden="true"></i> معاينة
-                    </button>
+                <form id="search-form" class="gs-form-grid" role="search" aria-label="نموذج البحث عن التلاميذ">
+                    <div class="gs-form-group" style="grid-column: span 2;">
+                        <label for="search-query">البحث</label>
+                        <input id="search-query" name="search-query" type="text"
+                            placeholder="ابحث بالاسم أو رمز مسار أو تاريخ الازدياد..." autocomplete="off"
+                            style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;">
+                    </div>
+                    <div class="gs-form-group">
+                        <label for="search-level">المستوى</label>
+                        <select id="search-level" name="search-level" aria-label="المستوى">
+                            <option value="">كل المستويات</option>
+                        </select>
+                    </div>
+                    <div class="gs-form-group">
+                        <label for="search-class">القسم</label>
+                        <select id="search-class" name="search-class" aria-label="القسم">
+                            <option value="">كل الأقسام</option>
+                        </select>
+                    </div>
+                    <div class="gs-form-group">
+                        <label for="search-gender">الجنس</label>
+                        <select id="search-gender" name="search-gender" aria-label="الجنس">
+                            <option value="">كل الأجناس</option>
+                            <option value="M">ذكر</option>
+                            <option value="F">أنثى</option>
+                        </select>
+                    </div>
+                    <div class="gs-form-actions">
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-search" aria-hidden="true"></i>
+                            بحث</button>
+                        <button class="btn btn-success ux-print-preview-btn" type="button" id="print-preview-btn" disabled>
+                            <i class="fas fa-eye" aria-hidden="true"></i> معاينة
+                        </button>
+                    </div>
                 </form>
             </div>
 
-            <!-- Results Section -->
-            <div class="sl-results-section">
-                <div class="sl-results-header">
-                    <h3 class="sl-results-title">
+            <!-- Results Section — gs-preview-section style -->
+            <div class="gs-preview-section">
+                <div class="gs-preview-header">
+                    <h3 class="gs-preview-title">
                         <i class="fas fa-table-list"></i>
                         لائحة التلاميذ
-                        <span id="count-badge" class="sl-count-badge" aria-live="polite">0</span>
+                        <span id="count-badge" class="gs-count-badge" aria-live="polite">0</span>
                     </h3>
                 </div>
 
-                <div class="sl-table-wrapper">
-                    <table class="sl-table" id="students-table">
-                        <caption class="sr-only">جدول لوائح التلاميذ مرتب حسب القسم والاسم</caption>
-                        <thead>
-                            <tr>
-                                <th data-sort="index"># <i class="fas fa-sort sort-icon"></i></th>
-                                <th data-sort="massar_code">رمز مسار <i class="fas fa-sort sort-icon"></i></th>
-                                <th data-sort="full_name">الاسم الكامل <i class="fas fa-sort sort-icon"></i></th>
-                                <th data-sort="class_name">القسم <i class="fas fa-sort sort-icon"></i></th>
-                                <th data-sort="gender">الجنس <i class="fas fa-sort sort-icon"></i></th>
-                                <th data-sort="birth_date">تاريخ الازدياد <i class="fas fa-sort sort-icon"></i></th>
-                                <th>الإجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody id="students-tbody">
-                            <tr>
-                                <td colspan="7">
-                                    <div class="sl-loading-state">
-                                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                                        <span>جاري تحميل التلاميذ...</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <div class="gs-preview-body">
+                    <div class="sl-table-wrapper">
+                        <table class="sl-table" id="students-table">
+                            <caption class="sr-only">جدول لوائح التلاميذ مرتب حسب القسم والاسم</caption>
+                            <thead>
+                                <tr>
+                                    <th data-sort="index"># <i class="fas fa-sort sort-icon"></i></th>
+                                    <th data-sort="massar_code">رمز مسار <i class="fas fa-sort sort-icon"></i></th>
+                                    <th data-sort="full_name">الاسم الكامل <i class="fas fa-sort sort-icon"></i></th>
+                                    <th data-sort="class_name">القسم <i class="fas fa-sort sort-icon"></i></th>
+                                    <th data-sort="gender">الجنس <i class="fas fa-sort sort-icon"></i></th>
+                                    <th data-sort="birth_date">تاريخ الازدياد <i class="fas fa-sort sort-icon"></i></th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-tbody">
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="sl-loading-state">
+                                            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                                            <span>جاري تحميل التلاميذ...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-                <!-- Pagination -->
-                <div id="pagination" class="sl-pagination" style="display:none;"></div>
+                    <!-- Pagination -->
+                    <div id="pagination" class="sl-pagination" style="display:none;"></div>
+                </div>
             </div>
         </div>
     </main>

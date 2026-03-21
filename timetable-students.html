@@ -1,355 +1,434 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>جدول حصص التلاميذ | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+    </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>جدول حصص التلاميذ | برنامج التدبير المدرسي</title>
-  <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/tailwind-output.css">
-  <script src="js/utils.js"></script>
-  <script src="js/notifications.js"></script>
-  <script src="js/sidebar.js"></script>
-  <script src="js/ux-enhancements.js"></script>
-  </head>
+    <body>
+        <div class="toast-container" id="toast-container"></div>
 
-<body>
-  <div class="toast-container" id="toast-container"></div>
+        <aside class="sidebar" id="sidebar"></aside>
 
-  <aside class="sidebar" id="sidebar"></aside>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <h2 class="page-title"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</h2>
+                </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
 
-  <main class="main-content">
-    <header class="header">
-      <div class="header-left">
-        <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-        <h2 class="page-title"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</h2>
-      </div>
-      <div class="header-right">
-        <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-      </div>
-    </header>
+            <div class="grades-container">
+                <!-- Level & Class Selector -->
+                <div class="search-section">
+                    <h3><i class="fas fa-user-graduate"></i> اختيار القسم</h3>
+                    <form class="search-form" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+                        <select id="level-select" class="filter-select">
+                            <option value="">-- اختر المستوى --</option>
+                        </select>
+                        <select id="class-select" class="filter-select" disabled>
+                            <option value="">-- اختر القسم --</option>
+                        </select>
+                        <span
+                            id="class-count-badge"
+                            style="font-size: 0.85rem; color: #9ca8a0; font-weight: 500"
+                        ></span>
+                        <button
+                            type="button"
+                            class="btn btn-success"
+                            id="print-preview-btn"
+                            style="display: none; margin-right: auto"
+                        >
+                            <i class="fas fa-eye"></i> معاينة الطباعة
+                        </button>
+                    </form>
+                </div>
 
-    <div class="grades-container">
-      <!-- Level & Class Selector -->
-      <div class="search-section">
-        <h3><i class="fas fa-user-graduate"></i> اختيار القسم</h3>
-        <form class="search-form" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-          <select id="level-select" class="filter-select">
-            <option value="">-- اختر المستوى --</option>
-          </select>
-          <select id="class-select" class="filter-select" disabled>
-            <option value="">-- اختر القسم --</option>
-          </select>
-          <span id="class-count-badge" style="font-size: 0.85rem; color: #9ca8a0; font-weight: 500;"></span>
-          <button type="button" class="btn btn-success" id="print-preview-btn"
-            style="display:none; margin-right: auto;"><i class="fas fa-eye"></i> معاينة الطباعة</button>
-        </form>
-      </div>
+                <!-- Stats Cards -->
+                <div class="class-stats-grid" id="class-stats-grid">
+                    <div class="class-stat-card hours">
+                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                        <div class="stat-value" id="stat-hours">0</div>
+                        <div class="stat-label">حصة أسبوعية</div>
+                    </div>
+                    <div class="class-stat-card teachers">
+                        <div class="stat-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+                        <div class="stat-value" id="stat-teachers">0</div>
+                        <div class="stat-label">أستاذ (ة)</div>
+                    </div>
+                    <div class="class-stat-card subjects">
+                        <div class="stat-icon"><i class="fas fa-book"></i></div>
+                        <div class="stat-value" id="stat-subjects">0</div>
+                        <div class="stat-label">مادة دراسية</div>
+                    </div>
+                    <div class="class-stat-card rooms">
+                        <div class="stat-icon"><i class="fas fa-door-open"></i></div>
+                        <div class="stat-value" id="stat-rooms">0</div>
+                        <div class="stat-label">قاعة دراسية</div>
+                    </div>
+                </div>
 
-      <!-- Stats Cards -->
-      <div class="class-stats-grid" id="class-stats-grid">
-        <div class="class-stat-card hours">
-          <div class="stat-icon"><i class="fas fa-clock"></i></div>
-          <div class="stat-value" id="stat-hours">0</div>
-          <div class="stat-label">حصة أسبوعية</div>
-        </div>
-        <div class="class-stat-card teachers">
-          <div class="stat-icon"><i class="fas fa-chalkboard-teacher"></i></div>
-          <div class="stat-value" id="stat-teachers">0</div>
-          <div class="stat-label">أستاذ (ة)</div>
-        </div>
-        <div class="class-stat-card subjects">
-          <div class="stat-icon"><i class="fas fa-book"></i></div>
-          <div class="stat-value" id="stat-subjects">0</div>
-          <div class="stat-label">مادة دراسية</div>
-        </div>
-        <div class="class-stat-card rooms">
-          <div class="stat-icon"><i class="fas fa-door-open"></i></div>
-          <div class="stat-value" id="stat-rooms">0</div>
-          <div class="stat-label">قاعة دراسية</div>
-        </div>
-      </div>
+                <!-- Timetable Display -->
+                <div class="students-results">
+                    <h3 class="no-print" style="display: none"><i class="fas fa-calendar-alt"></i> جدول الحصص</h3>
+                    <div id="schedule">
+                        <div class="no-data-state">
+                            <i class="fas fa-user-graduate"></i>
+                            <h4>اختر المستوى ثم القسم لعرض جدول حصصه</h4>
+                            <p>سيتم عرض الجدول الأسبوعي مع معلومات المواد والأساتذة</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
 
-      <!-- Timetable Display -->
-      <div class="students-results">
-        <h3 class="no-print" style="display:none;"><i class="fas fa-calendar-alt"></i> جدول الحصص</h3>
-        <div id="schedule">
-          <div class="no-data-state">
-            <i class="fas fa-user-graduate"></i>
-            <h4>اختر المستوى ثم القسم لعرض جدول حصصه</h4>
-            <p>سيتم عرض الجدول الأسبوعي مع معلومات المواد والأساتذة</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </main>
+        <script>
+            const days = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
-  <script>
-    const days = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+            // Dynamically discovered from FET data
+            let discoveredMorningHours = [];
+            let discoveredAfternoonHours = [];
 
-    // Dynamically discovered from FET data
-    let discoveredMorningHours = [];
-    let discoveredAfternoonHours = [];
+            const defaultHourLabels = {
+                h1: '08:30-09:30',
+                h2: '09:30-10:30',
+                h3: '10:30-11:30',
+                h4: '11:30-12:30',
+                h5: '14:30-15:30',
+                h6: '15:30-16:30',
+                h7: '16:30-17:30',
+                h8: '17:30-18:30'
+            };
 
-    const defaultHourLabels = {
-      h1: '08:30-09:30', h2: '09:30-10:30', h3: '10:30-11:30', h4: '11:30-12:30',
-      h5: '14:30-15:30', h6: '15:30-16:30', h7: '16:30-17:30', h8: '17:30-18:30'
-    };
+            let timetableData = null;
+            let classesIndex = {}; // className -> [{teacher, day, period, hour, subject, room, group}]
+            let levelsMap = {};
+            let subjectColorMap = {};
 
-    let timetableData = null;
-    let classesIndex = {}; // className -> [{teacher, day, period, hour, subject, room, group}]
-    let levelsMap = {};
-    let subjectColorMap = {};
+            document.addEventListener('DOMContentLoaded', () => {
+                loadTimetableData();
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadTimetableData();
+                document.getElementById('level-select').addEventListener('change', (e) => {
+                    const level = e.target.value;
+                    const classSelect = document.getElementById('class-select');
+                    classSelect.innerHTML = '<option value="">-- اختر القسم --</option>';
 
-      document.getElementById('level-select').addEventListener('change', (e) => {
-        const level = e.target.value;
-        const classSelect = document.getElementById('class-select');
-        classSelect.innerHTML = '<option value="">-- اختر القسم --</option>';
+                    if (level && levelsMap[level]) {
+                        sortSectionNames(levelsMap[level]).forEach((name) => {
+                            const opt = document.createElement('option');
+                            opt.value = name;
+                            opt.textContent = name;
+                            classSelect.appendChild(opt);
+                        });
+                        classSelect.disabled = false;
+                    } else {
+                        classSelect.disabled = true;
+                    }
 
-        if (level && levelsMap[level]) {
-          sortSectionNames(levelsMap[level]).forEach(name => {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            classSelect.appendChild(opt);
-          });
-          classSelect.disabled = false;
-        } else {
-          classSelect.disabled = true;
-        }
-
-        hideStats();
-        document.getElementById('schedule').innerHTML = `
+                    hideStats();
+                    document.getElementById('schedule').innerHTML = `
           <div class="no-data-state">
             <i class="fas fa-user-graduate"></i>
             <h4>اختر القسم لعرض جدول حصصه</h4>
             <p>سيتم عرض الجدول الأسبوعي مع معلومات المواد والأساتذة</p>
           </div>`;
-      });
+                });
 
-      document.getElementById('class-select').addEventListener('change', (e) => {
-        if (e.target.value) {
-          showClassSchedule(e.target.value);
-        } else {
-          hideStats();
-          document.getElementById('schedule').innerHTML = `
+                document.getElementById('class-select').addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        showClassSchedule(e.target.value);
+                    } else {
+                        hideStats();
+                        document.getElementById('schedule').innerHTML = `
             <div class="no-data-state">
               <i class="fas fa-user-graduate"></i>
               <h4>اختر القسم لعرض جدول حصصه</h4>
               <p>سيتم عرض الجدول الأسبوعي مع معلومات المواد والأساتذة</p>
             </div>`;
-        }
-      });
-
-      document.getElementById('print-preview-btn').addEventListener('click', () => {
-        const className = document.getElementById('class-select')?.value || '';
-        const title = className ? `جدول حصص التلاميذ - ${className}` : 'جدول حصص التلاميذ';
-        electronPrint({ mode: 'preview', title, pageSize: 'A4', landscape: true });
-      });
-
-      // Re-render timetable on theme change so subject colors adapt
-      const themeObserver = new MutationObserver((mutations) => {
-        mutations.forEach((m) => {
-          if (m.attributeName === 'data-theme') {
-            const classSelect = document.getElementById('class-select');
-            if (classSelect?.value) {
-              showClassSchedule(classSelect.value);
-            }
-          }
-        });
-      });
-      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    });
-
-    function loadTimetableData() {
-      try {
-        const raw = localStorage.getItem('timetableData');
-        if (!raw) {
-          showNoImportState();
-          return;
-        }
-
-        timetableData = JSON.parse(raw);
-        if (!timetableData || !timetableData.timetables) {
-          showNoImportState();
-          return;
-        }
-
-        // Discover hours and build class index from all teacher timetables
-        const morningSet = new Set();
-        const afternoonSet = new Set();
-        classesIndex = {};
-
-        for (const [teacher, daysData] of Object.entries(timetableData.timetables)) {
-          for (const [day, periods] of Object.entries(daysData)) {
-            for (const [period, hours] of Object.entries(periods)) {
-              for (const [hour, lesson] of Object.entries(hours)) {
-                if (period === 'morning') morningSet.add(hour);
-                else if (period === 'afternoon') afternoonSet.add(hour);
-
-                const studentsName = (lesson.students || '').trim();
-                if (!studentsName) continue;
-
-                // Extract group info (e.g., :G1, :G2)
-                const groupMatch = studentsName.match(/:[Gg](\d+)$/);
-                const group = groupMatch ? `G${groupMatch[1]}` : null;
-
-                // Use the base class name (strip :G1 etc.)
-                const baseClass = studentsName.replace(/:[Gg]\d+$/g, '').trim();
-                if (!baseClass) continue;
-
-                if (!classesIndex[baseClass]) classesIndex[baseClass] = [];
-                classesIndex[baseClass].push({
-                  teacher: teacher.replace(/_/g, ' ').replace(/tafwij:/gi, '').trim(),
-                  day,
-                  period,
-                  hour,
-                  subject: lesson.subject || '',
-                  room: lesson.room || '',
-                  group: group
+                    }
                 });
-              }
+
+                document.getElementById('print-preview-btn').addEventListener('click', () => {
+                    const className = document.getElementById('class-select')?.value || '';
+                    const title = className ? `جدول حصص التلاميذ - ${className}` : 'جدول حصص التلاميذ';
+                    electronPrint({ mode: 'preview', title, pageSize: 'A4', landscape: true });
+                });
+
+                // Re-render timetable on theme change so subject colors adapt
+                const themeObserver = new MutationObserver((mutations) => {
+                    mutations.forEach((m) => {
+                        if (m.attributeName === 'data-theme') {
+                            const classSelect = document.getElementById('class-select');
+                            if (classSelect?.value) {
+                                showClassSchedule(classSelect.value);
+                            }
+                        }
+                    });
+                });
+                themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+            });
+
+            function loadTimetableData() {
+                try {
+                    const raw = localStorage.getItem('timetableData');
+                    if (!raw) {
+                        showNoImportState();
+                        return;
+                    }
+
+                    timetableData = JSON.parse(raw);
+                    if (!timetableData || !timetableData.timetables) {
+                        showNoImportState();
+                        return;
+                    }
+
+                    // Discover hours and build class index from all teacher timetables
+                    const morningSet = new Set();
+                    const afternoonSet = new Set();
+                    classesIndex = {};
+
+                    for (const [teacher, daysData] of Object.entries(timetableData.timetables)) {
+                        for (const [day, periods] of Object.entries(daysData)) {
+                            for (const [period, hours] of Object.entries(periods)) {
+                                for (const [hour, lesson] of Object.entries(hours)) {
+                                    if (period === 'morning') morningSet.add(hour);
+                                    else if (period === 'afternoon') afternoonSet.add(hour);
+
+                                    const studentsName = (lesson.students || '').trim();
+                                    if (!studentsName) continue;
+
+                                    // Extract group info (e.g., :G1, :G2)
+                                    const groupMatch = studentsName.match(/:[Gg](\d+)$/);
+                                    const group = groupMatch ? `G${groupMatch[1]}` : null;
+
+                                    // Use the base class name (strip :G1 etc.)
+                                    const baseClass = studentsName.replace(/:[Gg]\d+$/g, '').trim();
+                                    if (!baseClass) continue;
+
+                                    if (!classesIndex[baseClass]) classesIndex[baseClass] = [];
+                                    classesIndex[baseClass].push({
+                                        teacher: teacher
+                                            .replace(/_/g, ' ')
+                                            .replace(/tafwij:/gi, '')
+                                            .trim(),
+                                        day,
+                                        period,
+                                        hour,
+                                        subject: lesson.subject || '',
+                                        room: lesson.room || '',
+                                        group: group
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // Sort hours naturally
+                    const naturalSort = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                    discoveredMorningHours = [...morningSet].sort(naturalSort);
+                    discoveredAfternoonHours = [...afternoonSet].sort(naturalSort);
+
+                    // Extract levels from class names
+                    const classNames = sortSectionNames(Object.keys(classesIndex));
+                    levelsMap = extractLevels(classNames);
+
+                    populateLevelSelect(Object.keys(levelsMap));
+
+                    if (classNames.length > 0) {
+                        document.getElementById('class-count-badge').innerHTML =
+                            `<i class="fas fa-info-circle"></i> ${classNames.length} قسم متوفر`;
+                        showToast(`تم تحميل ${classNames.length} قسم من البيانات المحفوظة`, 'success');
+                    } else {
+                        showNoClassesState();
+                    }
+                } catch (e) {
+                    console.error('Error loading timetable data:', e);
+                    showNoImportState();
+                }
             }
-          }
-        }
 
-        // Sort hours naturally
-        const naturalSort = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-        discoveredMorningHours = [...morningSet].sort(naturalSort);
-        discoveredAfternoonHours = [...afternoonSet].sort(naturalSort);
+            function extractLevels(classNames) {
+                const levels = {};
+                classNames.forEach((name) => {
+                    const level = getLevelNameFromSection(name) || name.replace(/\d+$/, '').trim() || name;
+                    if (!levels[level]) levels[level] = [];
+                    levels[level].push(name);
+                });
+                return levels;
+            }
 
-        // Extract levels from class names
-        const classNames = sortSectionNames(Object.keys(classesIndex));
-        levelsMap = extractLevels(classNames);
+            function populateLevelSelect(levelNames) {
+                const select = document.getElementById('level-select');
+                select.innerHTML = '<option value="">-- اختر المستوى --</option>';
+                sortLevelNames(levelNames).forEach((name) => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = `${name} (${levelsMap[name].length})`;
+                    select.appendChild(opt);
+                });
+            }
 
-        populateLevelSelect(Object.keys(levelsMap));
+            function getHourLabel(hourKey) {
+                return defaultHourLabels[hourKey] || hourKey;
+            }
 
-        if (classNames.length > 0) {
-          document.getElementById('class-count-badge').innerHTML =
-            `<i class="fas fa-info-circle"></i> ${classNames.length} قسم متوفر`;
-          showToast(`تم تحميل ${classNames.length} قسم من البيانات المحفوظة`, 'success');
-        } else {
-          showNoClassesState();
-        }
+            // Theme-aware color palette � 20 vibrant, distinct hues
+            const subjectPalette = [
+                {
+                    light: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' },
+                    dark: { bg: 'rgba(59,130,246,0.15)', border: '#60a5fa', text: '#93c5fd' }
+                },
+                {
+                    light: { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' },
+                    dark: { bg: 'rgba(236,72,153,0.15)', border: '#f472b6', text: '#f9a8d4' }
+                },
+                {
+                    light: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
+                    dark: { bg: 'rgba(245,158,11,0.15)', border: '#fbbf24', text: '#fde68a' }
+                },
+                {
+                    light: { bg: '#e0e7ff', border: '#6366f1', text: '#4338ca' },
+                    dark: { bg: 'rgba(99,102,241,0.15)', border: '#818cf8', text: '#a5b4fc' }
+                },
+                {
+                    light: { bg: '#ccfbf1', border: '#14b8a6', text: '#115e59' },
+                    dark: { bg: 'rgba(20,184,166,0.15)', border: '#2dd4bf', text: '#5eead4' }
+                },
+                {
+                    light: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' },
+                    dark: { bg: 'rgba(239,68,68,0.15)', border: '#f87171', text: '#fca5a5' }
+                },
+                {
+                    light: { bg: '#f3e8ff', border: '#a855f7', text: '#7c3aed' },
+                    dark: { bg: 'rgba(168,85,247,0.15)', border: '#c084fc', text: '#d8b4fe' }
+                },
+                {
+                    light: { bg: '#cffafe', border: '#06b6d4', text: '#155e75' },
+                    dark: { bg: 'rgba(6,182,212,0.15)', border: '#22d3ee', text: '#67e8f9' }
+                },
+                {
+                    light: { bg: '#dcfce7', border: '#22c55e', text: '#166534' },
+                    dark: { bg: 'rgba(34,197,94,0.15)', border: '#4ade80', text: '#86efac' }
+                },
+                {
+                    light: { bg: '#fef9c3', border: '#eab308', text: '#854d0e' },
+                    dark: { bg: 'rgba(234,179,8,0.15)', border: '#facc15', text: '#fef08a' }
+                },
+                {
+                    light: { bg: '#ffe4e6', border: '#f43f5e', text: '#be123c' },
+                    dark: { bg: 'rgba(244,63,94,0.15)', border: '#fb7185', text: '#fda4af' }
+                },
+                {
+                    light: { bg: '#d1fae5', border: '#10b981', text: '#047857' },
+                    dark: { bg: 'rgba(16,185,129,0.15)', border: '#34d399', text: '#6ee7b7' }
+                },
+                {
+                    light: { bg: '#c7d2fe', border: '#8b5cf6', text: '#5b21b6' },
+                    dark: { bg: 'rgba(139,92,246,0.15)', border: '#a78bfa', text: '#c4b5fd' }
+                },
+                {
+                    light: { bg: '#fae8ff', border: '#d946ef', text: '#86198f' },
+                    dark: { bg: 'rgba(217,70,239,0.15)', border: '#e879f9', text: '#f0abfc' }
+                },
+                {
+                    light: { bg: '#ecfccb', border: '#84cc16', text: '#3f6212' },
+                    dark: { bg: 'rgba(132,204,22,0.15)', border: '#a3e635', text: '#bef264' }
+                },
+                {
+                    light: { bg: '#fed7aa', border: '#f97316', text: '#9a3412' },
+                    dark: { bg: 'rgba(249,115,22,0.15)', border: '#fb923c', text: '#fdba74' }
+                },
+                {
+                    light: { bg: '#bae6fd', border: '#0ea5e9', text: '#075985' },
+                    dark: { bg: 'rgba(14,165,233,0.15)', border: '#38bdf8', text: '#7dd3fc' }
+                },
+                {
+                    light: { bg: '#fda4af', border: '#fb7185', text: '#9f1239' },
+                    dark: { bg: 'rgba(251,113,133,0.12)', border: '#fda4af', text: '#fecdd3' }
+                },
+                {
+                    light: { bg: '#a5f3fc', border: '#22d3ee', text: '#0e7490' },
+                    dark: { bg: 'rgba(34,211,238,0.12)', border: '#67e8f9', text: '#a5f3fc' }
+                },
+                {
+                    light: { bg: '#bbf7d0', border: '#4ade80', text: '#15803d' },
+                    dark: { bg: 'rgba(74,222,128,0.12)', border: '#86efac', text: '#bbf7d0' }
+                }
+            ];
 
-      } catch (e) {
-        console.error('Error loading timetable data:', e);
-        showNoImportState();
-      }
-    }
+            function isDarkTheme() {
+                return document.documentElement.getAttribute('data-theme') === 'dark';
+            }
 
-    function extractLevels(classNames) {
-      const levels = {};
-      classNames.forEach(name => {
-        const level = getLevelNameFromSection(name) || name.replace(/\d+$/, '').trim() || name;
-        if (!levels[level]) levels[level] = [];
-        levels[level].push(name);
-      });
-      return levels;
-    }
+            function getSubjectColor(subject) {
+                if (!subjectColorMap[subject]) {
+                    const idx = Object.keys(subjectColorMap).length % subjectPalette.length;
+                    subjectColorMap[subject] = idx;
+                }
+                const idx = subjectColorMap[subject];
+                return isDarkTheme() ? subjectPalette[idx].dark : subjectPalette[idx].light;
+            }
 
-    function populateLevelSelect(levelNames) {
-      const select = document.getElementById('level-select');
-      select.innerHTML = '<option value="">-- اختر المستوى --</option>';
-      sortLevelNames(levelNames).forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = `${name} (${levelsMap[name].length})`;
-        select.appendChild(opt);
-      });
-    }
+            function showClassSchedule(className) {
+                const lessons = classesIndex[className] || [];
 
-    function getHourLabel(hourKey) {
-      return defaultHourLabels[hourKey] || hourKey;
-    }
+                // Calculate stats
+                const usedSlots = lessons.length;
+                const uniqueTeachers = new Set(lessons.map((l) => l.teacher));
+                const uniqueSubjects = new Set(lessons.map((l) => l.subject));
+                const uniqueRooms = new Set(lessons.map((l) => l.room).filter(Boolean));
 
-    // Theme-aware color palette � 20 vibrant, distinct hues
-    const subjectPalette = [
-      { light: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }, dark: { bg: 'rgba(59,130,246,0.15)', border: '#60a5fa', text: '#93c5fd' } },
-      { light: { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' }, dark: { bg: 'rgba(236,72,153,0.15)', border: '#f472b6', text: '#f9a8d4' } },
-      { light: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' }, dark: { bg: 'rgba(245,158,11,0.15)', border: '#fbbf24', text: '#fde68a' } },
-      { light: { bg: '#e0e7ff', border: '#6366f1', text: '#4338ca' }, dark: { bg: 'rgba(99,102,241,0.15)', border: '#818cf8', text: '#a5b4fc' } },
-      { light: { bg: '#ccfbf1', border: '#14b8a6', text: '#115e59' }, dark: { bg: 'rgba(20,184,166,0.15)', border: '#2dd4bf', text: '#5eead4' } },
-      { light: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' }, dark: { bg: 'rgba(239,68,68,0.15)', border: '#f87171', text: '#fca5a5' } },
-      { light: { bg: '#f3e8ff', border: '#a855f7', text: '#7c3aed' }, dark: { bg: 'rgba(168,85,247,0.15)', border: '#c084fc', text: '#d8b4fe' } },
-      { light: { bg: '#cffafe', border: '#06b6d4', text: '#155e75' }, dark: { bg: 'rgba(6,182,212,0.15)', border: '#22d3ee', text: '#67e8f9' } },
-      { light: { bg: '#dcfce7', border: '#22c55e', text: '#166534' }, dark: { bg: 'rgba(34,197,94,0.15)', border: '#4ade80', text: '#86efac' } },
-      { light: { bg: '#fef9c3', border: '#eab308', text: '#854d0e' }, dark: { bg: 'rgba(234,179,8,0.15)', border: '#facc15', text: '#fef08a' } },
-      { light: { bg: '#ffe4e6', border: '#f43f5e', text: '#be123c' }, dark: { bg: 'rgba(244,63,94,0.15)', border: '#fb7185', text: '#fda4af' } },
-      { light: { bg: '#d1fae5', border: '#10b981', text: '#047857' }, dark: { bg: 'rgba(16,185,129,0.15)', border: '#34d399', text: '#6ee7b7' } },
-      { light: { bg: '#c7d2fe', border: '#8b5cf6', text: '#5b21b6' }, dark: { bg: 'rgba(139,92,246,0.15)', border: '#a78bfa', text: '#c4b5fd' } },
-      { light: { bg: '#fae8ff', border: '#d946ef', text: '#86198f' }, dark: { bg: 'rgba(217,70,239,0.15)', border: '#e879f9', text: '#f0abfc' } },
-      { light: { bg: '#ecfccb', border: '#84cc16', text: '#3f6212' }, dark: { bg: 'rgba(132,204,22,0.15)', border: '#a3e635', text: '#bef264' } },
-      { light: { bg: '#fed7aa', border: '#f97316', text: '#9a3412' }, dark: { bg: 'rgba(249,115,22,0.15)', border: '#fb923c', text: '#fdba74' } },
-      { light: { bg: '#bae6fd', border: '#0ea5e9', text: '#075985' }, dark: { bg: 'rgba(14,165,233,0.15)', border: '#38bdf8', text: '#7dd3fc' } },
-      { light: { bg: '#fda4af', border: '#fb7185', text: '#9f1239' }, dark: { bg: 'rgba(251,113,133,0.12)', border: '#fda4af', text: '#fecdd3' } },
-      { light: { bg: '#a5f3fc', border: '#22d3ee', text: '#0e7490' }, dark: { bg: 'rgba(34,211,238,0.12)', border: '#67e8f9', text: '#a5f3fc' } },
-      { light: { bg: '#bbf7d0', border: '#4ade80', text: '#15803d' }, dark: { bg: 'rgba(74,222,128,0.12)', border: '#86efac', text: '#bbf7d0' } },
-    ];
+                // Update stat cards
+                document.getElementById('stat-hours').textContent = usedSlots;
+                document.getElementById('stat-teachers').textContent = uniqueTeachers.size;
+                document.getElementById('stat-subjects').textContent = uniqueSubjects.size;
+                document.getElementById('stat-rooms').textContent = uniqueRooms.size;
 
-    function isDarkTheme() {
-      return document.documentElement.getAttribute('data-theme') === 'dark';
-    }
+                // Show stats with animation
+                document.getElementById('class-stats-grid').classList.add('visible');
 
-    function getSubjectColor(subject) {
-      if (!subjectColorMap[subject]) {
-        const idx = Object.keys(subjectColorMap).length % subjectPalette.length;
-        subjectColorMap[subject] = idx;
-      }
-      const idx = subjectColorMap[subject];
-      return isDarkTheme() ? subjectPalette[idx].dark : subjectPalette[idx].light;
-    }
+                // Build lookup: day+period+hour -> lessons[]
+                const lookup = {};
+                lessons.forEach((l) => {
+                    const key = `${l.day}|${l.period}|${l.hour}`;
+                    if (lookup[key]) {
+                        lookup[key].push(l);
+                    } else {
+                        lookup[key] = [l];
+                    }
+                });
 
-    function showClassSchedule(className) {
-      const lessons = classesIndex[className] || [];
+                // Reset subject color map
+                subjectColorMap = {};
 
-      // Calculate stats
-      const usedSlots = lessons.length;
-      const uniqueTeachers = new Set(lessons.map(l => l.teacher));
-      const uniqueSubjects = new Set(lessons.map(l => l.subject));
-      const uniqueRooms = new Set(lessons.map(l => l.room).filter(Boolean));
+                // All hours in order
+                const allHoursOrdered = [];
+                discoveredMorningHours.forEach((h) => allHoursOrdered.push({ key: h, period: 'morning' }));
+                discoveredAfternoonHours.forEach((h) => allHoursOrdered.push({ key: h, period: 'afternoon' }));
 
-      // Update stat cards
-      document.getElementById('stat-hours').textContent = usedSlots;
-      document.getElementById('stat-teachers').textContent = uniqueTeachers.size;
-      document.getElementById('stat-subjects').textContent = uniqueSubjects.size;
-      document.getElementById('stat-rooms').textContent = uniqueRooms.size;
+                const separatorAfter =
+                    discoveredMorningHours.length > 0 && discoveredAfternoonHours.length > 0
+                        ? discoveredMorningHours.length
+                        : -1;
 
-      // Show stats with animation
-      document.getElementById('class-stats-grid').classList.add('visible');
+                // ===================================================================
+                // Build the table: Days as ROWS (vertical), Time slots as COLUMNS (horizontal)
+                // ===================================================================
 
-      // Build lookup: day+period+hour -> lessons[]
-      const lookup = {};
-      lessons.forEach(l => {
-        const key = `${l.day}|${l.period}|${l.hour}`;
-        if (lookup[key]) {
-          lookup[key].push(l);
-        } else {
-          lookup[key] = [l];
-        }
-      });
-
-      // Reset subject color map
-      subjectColorMap = {};
-
-      // All hours in order
-      const allHoursOrdered = [];
-      discoveredMorningHours.forEach(h => allHoursOrdered.push({ key: h, period: 'morning' }));
-      discoveredAfternoonHours.forEach(h => allHoursOrdered.push({ key: h, period: 'afternoon' }));
-
-      const separatorAfter = discoveredMorningHours.length > 0 && discoveredAfternoonHours.length > 0
-        ? discoveredMorningHours.length
-        : -1;
-
-      // ===================================================================
-      // Build the table: Days as ROWS (vertical), Time slots as COLUMNS (horizontal)
-      // ===================================================================
-
-      let html = `
+                let html = `
         <div class="class-info-bar">
           <div class="class-avatar"><i class="fas fa-users"></i></div>
           <div class="class-details">
@@ -371,123 +450,130 @@
                 </div>
               </th>`;
 
-      // Time slot headers (horizontal)
-      allHoursOrdered.forEach((h, i) => {
-        if (separatorAfter > 0 && i === separatorAfter) {
-          html += `<th style="width:4px; padding:0; background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1));"></th>`;
-        }
-        html += `<th>${getHourLabel(h.key)}</th>`;
-      });
+                // Time slot headers (horizontal)
+                allHoursOrdered.forEach((h, i) => {
+                    if (separatorAfter > 0 && i === separatorAfter) {
+                        html += `<th style="width:4px; padding:0; background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1));"></th>`;
+                    }
+                    html += `<th>${getHourLabel(h.key)}</th>`;
+                });
 
-      html += `</tr></thead><tbody>`;
+                html += `</tr></thead><tbody>`;
 
-      // Day rows (vertical, right side)
-      days.forEach(day => {
-        // Pre-process this day's row to find consecutive same-subject merges
-        const dayCells = []; // array of {hourIdx, period, hourKey, lessons, skip}
+                // Day rows (vertical, right side)
+                days.forEach((day) => {
+                    // Pre-process this day's row to find consecutive same-subject merges
+                    const dayCells = []; // array of {hourIdx, period, hourKey, lessons, skip}
 
-        allHoursOrdered.forEach((h, i) => {
-          dayCells.push({
-            hourIdx: i,
-            period: h.period,
-            hourKey: h.key,
-            lessons: lookup[`${day}|${h.period}|${h.key}`] || null,
-            skip: false,
-            colspan: 1
-          });
-        });
+                    allHoursOrdered.forEach((h, i) => {
+                        dayCells.push({
+                            hourIdx: i,
+                            period: h.period,
+                            hourKey: h.key,
+                            lessons: lookup[`${day}|${h.period}|${h.key}`] || null,
+                            skip: false,
+                            colspan: 1
+                        });
+                    });
 
-        // Detect consecutive hours with same subject (no group) for merging
-        for (let i = 0; i < dayCells.length - 1; i++) {
-          // Don't merge across morning/afternoon boundary
-          if (separatorAfter > 0 && i === separatorAfter - 1) continue;
+                    // Detect consecutive hours with same subject (no group) for merging
+                    for (let i = 0; i < dayCells.length - 1; i++) {
+                        // Don't merge across morning/afternoon boundary
+                        if (separatorAfter > 0 && i === separatorAfter - 1) continue;
 
-          const curr = dayCells[i];
-          const next = dayCells[i + 1];
+                        const curr = dayCells[i];
+                        const next = dayCells[i + 1];
 
-          if (curr.lessons && next.lessons &&
-            curr.lessons.length === 1 && next.lessons.length === 1 &&
-            !curr.lessons[0].group && !next.lessons[0].group &&
-            curr.lessons[0].subject === next.lessons[0].subject &&
-            curr.lessons[0].teacher === next.lessons[0].teacher &&
-            curr.period === next.period) {
-            // Merge: extend current, skip next
-            curr.colspan = 2;
-            next.skip = true;
-          }
-        }
+                        if (
+                            curr.lessons &&
+                            next.lessons &&
+                            curr.lessons.length === 1 &&
+                            next.lessons.length === 1 &&
+                            !curr.lessons[0].group &&
+                            !next.lessons[0].group &&
+                            curr.lessons[0].subject === next.lessons[0].subject &&
+                            curr.lessons[0].teacher === next.lessons[0].teacher &&
+                            curr.period === next.period
+                        ) {
+                            // Merge: extend current, skip next
+                            curr.colspan = 2;
+                            next.skip = true;
+                        }
+                    }
 
-        html += `<tr><td class="day-cell">${day}</td>`;
+                    html += `<tr><td class="day-cell">${day}</td>`;
 
-        dayCells.forEach((cell, i) => {
-          // Insert separator column
-          if (separatorAfter > 0 && i === separatorAfter) {
-            html += `<td style="width:4px; padding:0; background: linear-gradient(180deg, rgba(45,95,74,0.08), transparent); border: none;"></td>`;
-          }
+                    dayCells.forEach((cell, i) => {
+                        // Insert separator column
+                        if (separatorAfter > 0 && i === separatorAfter) {
+                            html += `<td style="width:4px; padding:0; background: linear-gradient(180deg, rgba(45,95,74,0.08), transparent); border: none;"></td>`;
+                        }
 
-          if (cell.skip) return;
+                        if (cell.skip) return;
 
-          const colspanAttr = cell.colspan > 1 ? ` colspan="${cell.colspan}" class="merged-cell"` : '';
+                        const colspanAttr = cell.colspan > 1 ? ` colspan="${cell.colspan}" class="merged-cell"` : '';
 
-          if (cell.lessons && cell.lessons.length > 0) {
-            const hasGroups = cell.lessons.some(l => l.group);
+                        if (cell.lessons && cell.lessons.length > 0) {
+                            const hasGroups = cell.lessons.some((l) => l.group);
 
-            if (hasGroups && cell.lessons.length > 1) {
-              // TAFWIJ: Multiple groups at same slot - show vertically split
-              const sortedGroups = [...cell.lessons].sort((a, b) =>
-                (a.group || '').localeCompare(b.group || '')
-              );
-              const groupContent = sortedGroups.map(lesson => {
-                const color = getSubjectColor(lesson.subject);
-                return `
+                            if (hasGroups && cell.lessons.length > 1) {
+                                // TAFWIJ: Multiple groups at same slot - show vertically split
+                                const sortedGroups = [...cell.lessons].sort((a, b) =>
+                                    (a.group || '').localeCompare(b.group || '')
+                                );
+                                const groupContent = sortedGroups
+                                    .map((lesson) => {
+                                        const color = getSubjectColor(lesson.subject);
+                                        return `
                   <div class="tafwij-group" style="background: ${color.bg}; color: ${color.text};">
                     <span class="group-label">${lesson.group || ''}</span>
                     <div class="subject-name" style="color: ${color.text};">${lesson.subject}${lesson.group ? ':' + lesson.group : ''}</div>
                     ${lesson.room ? `<div class="room-name" style="color: ${color.border};">${lesson.room}</div>` : ''}
                   </div>`;
-              }).join('');
-              html += `<td${colspanAttr}><div class="tafwij-cell">${groupContent}</div></td>`;
-            } else {
-              // Single lesson (or single group) — subject color fills the entire td
-              const lesson = cell.lessons[0];
-              const color = getSubjectColor(lesson.subject);
-              html += `<td${colspanAttr} style="background: ${color.bg};">
+                                    })
+                                    .join('');
+                                html += `<td${colspanAttr}><div class="tafwij-cell">${groupContent}</div></td>`;
+                            } else {
+                                // Single lesson (or single group) — subject color fills the entire td
+                                const lesson = cell.lessons[0];
+                                const color = getSubjectColor(lesson.subject);
+                                html += `<td${colspanAttr} style="background: ${color.bg};">
                 <div class="subject-cell" style="color: ${color.text};">
                   <div class="subject-name" style="color: ${color.text};">${lesson.subject}</div>
                   ${lesson.room ? `<div class="room-name" style="color: ${color.border};">${lesson.room}</div>` : ''}
                 </div>
               </td>`;
-            }
-          } else {
-            html += `<td${colspanAttr}><span class="empty-cell"></span></td>`;
-          }
-        });
+                            }
+                        } else {
+                            html += `<td${colspanAttr}><span class="empty-cell"></span></td>`;
+                        }
+                    });
 
-        html += '</tr>';
-      });
+                    html += '</tr>';
+                });
 
-      html += '</tbody></table></div>';
+                html += '</tbody></table></div>';
 
-      // ===================================================================
-      // Build the Subject-Teacher assignment table below the timetable
-      // ===================================================================
-      const subjectTeacherMap = {};
-      lessons.forEach(l => {
-        if (l.subject && l.teacher) {
-          if (!subjectTeacherMap[l.subject]) {
-            subjectTeacherMap[l.subject] = new Set();
-          }
-          subjectTeacherMap[l.subject].add(l.teacher);
-        }
-      });
+                // ===================================================================
+                // Build the Subject-Teacher assignment table below the timetable
+                // ===================================================================
+                const subjectTeacherMap = {};
+                lessons.forEach((l) => {
+                    if (l.subject && l.teacher) {
+                        if (!subjectTeacherMap[l.subject]) {
+                            subjectTeacherMap[l.subject] = new Set();
+                        }
+                        subjectTeacherMap[l.subject].add(l.teacher);
+                    }
+                });
 
-      const subjectTeacherEntries = Object.entries(subjectTeacherMap).map(([subject, teachers]) => ({
-        subject,
-        teacher: [...teachers].join(' / ')
-      }));
+                const subjectTeacherEntries = Object.entries(subjectTeacherMap).map(([subject, teachers]) => ({
+                    subject,
+                    teacher: [...teachers].join(' / ')
+                }));
 
-      if (subjectTeacherEntries.length > 0) {
-        html += `
+                if (subjectTeacherEntries.length > 0) {
+                    html += `
           <div class="subject-teacher-title" style="margin-top: 16px; text-align: center; font-weight: 700; font-size: 0.95rem; color: ${isDarkTheme() ? '#cbd5e1' : '#333'}; padding: 8px 0;">
             لائحة الأساتذة المسندين حسب المواد
           </div>
@@ -496,51 +582,51 @@
             <thead>
               <tr>`;
 
-        // Create column pairs (المادة + الأستاذ) — 3 columns per row
-        const cols = 3;
-        for (let c = 0; c < cols; c++) {
-          const thBg = isDarkTheme() ? '#1e293b' : '#e8e8e8';
-          const thFg = isDarkTheme() ? '#cbd5e1' : '#333';
-          html += `<th style="background: ${thBg}; color: ${thFg}; font-weight: 800;">المادة</th>`;
-          html += `<th style="background: ${thBg}; color: ${thFg}; font-weight: 800;">الأستاذ</th>`;
-        }
-        html += `</tr></thead><tbody>`;
+                    // Create column pairs (المادة + الأستاذ) — 3 columns per row
+                    const cols = 3;
+                    for (let c = 0; c < cols; c++) {
+                        const thBg = isDarkTheme() ? '#1e293b' : '#e8e8e8';
+                        const thFg = isDarkTheme() ? '#cbd5e1' : '#333';
+                        html += `<th style="background: ${thBg}; color: ${thFg}; font-weight: 800;">المادة</th>`;
+                        html += `<th style="background: ${thBg}; color: ${thFg}; font-weight: 800;">الأستاذ</th>`;
+                    }
+                    html += `</tr></thead><tbody>`;
 
-        const rows = Math.ceil(subjectTeacherEntries.length / cols);
-        for (let r = 0; r < rows; r++) {
-          html += '<tr>';
-          for (let c = 0; c < cols; c++) {
-            const idx = c * rows + r;
-            if (idx < subjectTeacherEntries.length) {
-              const entry = subjectTeacherEntries[idx];
-              const color = getSubjectColor(entry.subject);
-              const bdr = isDarkTheme() ? '#334155' : '#999';
-              html += `<td style="padding: 6px 10px; font-weight: 700; background: ${color.bg}; color: ${color.text}; border: 1px solid ${bdr};">${entry.subject}</td>`;
-              html += `<td style="padding: 6px 10px; border: 1px solid ${bdr}; color: ${isDarkTheme() ? '#e2e8f0' : 'inherit'};">${entry.teacher}</td>`;
-            } else {
-              const bdr = isDarkTheme() ? '#334155' : '#999';
-              html += `<td style="border: 1px solid ${bdr};"></td><td style="border: 1px solid ${bdr};"></td>`;
+                    const rows = Math.ceil(subjectTeacherEntries.length / cols);
+                    for (let r = 0; r < rows; r++) {
+                        html += '<tr>';
+                        for (let c = 0; c < cols; c++) {
+                            const idx = c * rows + r;
+                            if (idx < subjectTeacherEntries.length) {
+                                const entry = subjectTeacherEntries[idx];
+                                const color = getSubjectColor(entry.subject);
+                                const bdr = isDarkTheme() ? '#334155' : '#999';
+                                html += `<td style="padding: 6px 10px; font-weight: 700; background: ${color.bg}; color: ${color.text}; border: 1px solid ${bdr};">${entry.subject}</td>`;
+                                html += `<td style="padding: 6px 10px; border: 1px solid ${bdr}; color: ${isDarkTheme() ? '#e2e8f0' : 'inherit'};">${entry.teacher}</td>`;
+                            } else {
+                                const bdr = isDarkTheme() ? '#334155' : '#999';
+                                html += `<td style="border: 1px solid ${bdr};"></td><td style="border: 1px solid ${bdr};"></td>`;
+                            }
+                        }
+                        html += '</tr>';
+                    }
+
+                    html += '</tbody></table></div>';
+                }
+
+                document.getElementById('schedule').innerHTML = html;
+                document.getElementById('print-preview-btn').style.display = '';
             }
-          }
-          html += '</tr>';
-        }
 
-        html += '</tbody></table></div>';
-      }
+            function hideStats() {
+                document.getElementById('class-stats-grid').classList.remove('visible');
+                document.getElementById('print-preview-btn').style.display = 'none';
+            }
 
-      document.getElementById('schedule').innerHTML = html;
-      document.getElementById('print-preview-btn').style.display = '';
-    }
-
-    function hideStats() {
-      document.getElementById('class-stats-grid').classList.remove('visible');
-      document.getElementById('print-preview-btn').style.display = 'none';
-    }
-
-    function showNoImportState() {
-      document.getElementById('class-count-badge').innerHTML =
-        '<span style="color: #ef4444;"><i class="fas fa-exclamation-triangle"></i> لا توجد بيانات</span>';
-      document.getElementById('schedule').innerHTML = `
+            function showNoImportState() {
+                document.getElementById('class-count-badge').innerHTML =
+                    '<span style="color: #ef4444;"><i class="fas fa-exclamation-triangle"></i> لا توجد بيانات</span>';
+                document.getElementById('schedule').innerHTML = `
         <div class="no-data-state">
           <i class="fas fa-file-import"></i>
           <h4>لم يتم استيراد بيانات استعمال الزمن بعد</h4>
@@ -549,19 +635,18 @@
             <i class="fas fa-upload"></i> الانتقال لصفحة الاستيراد
           </a>
         </div>`;
-    }
+            }
 
-    function showNoClassesState() {
-      document.getElementById('class-count-badge').innerHTML =
-        '<span style="color: #f59e0b;"><i class="fas fa-info-circle"></i> لا توجد أقسام في البيانات</span>';
-      document.getElementById('schedule').innerHTML = `
+            function showNoClassesState() {
+                document.getElementById('class-count-badge').innerHTML =
+                    '<span style="color: #f59e0b;"><i class="fas fa-info-circle"></i> لا توجد أقسام في البيانات</span>';
+                document.getElementById('schedule').innerHTML = `
         <div class="no-data-state">
           <i class="fas fa-user-graduate"></i>
           <h4>لم يتم العثور على أقسام</h4>
           <p>ملف FET المستورد لا يحتوي على بيانات الأقسام</p>
         </div>`;
-    }
-  </script>
-</body>
-
+            }
+        </script>
+    </body>
 </html>

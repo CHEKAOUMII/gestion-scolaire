@@ -21,9 +21,7 @@ function getIdentity() {
  */
 function updateIdentity(updates) {
     const db = getDb();
-    const stmt = db.prepare(
-        'INSERT OR REPLACE INTO school_identity (key, value, updated_at) VALUES (?, ?, ?)'
-    );
+    const stmt = db.prepare('INSERT OR REPLACE INTO school_identity (key, value, updated_at) VALUES (?, ?, ?)');
     const now = Date.now();
     const txn = db.transaction(() => {
         for (const [key, value] of Object.entries(updates)) {

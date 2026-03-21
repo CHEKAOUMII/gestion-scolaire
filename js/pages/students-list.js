@@ -1,4 +1,4 @@
-﻿function getCurrentYear() {
+function getCurrentYear() {
     return getSchoolYear();
 }
 
@@ -135,20 +135,24 @@ async function loadClassesAndLevels() {
     const levelSelect = document.getElementById('search-level');
     try {
         const classes = (await window.api.classes.getAll(getCurrentYear())) || [];
-        allClasses = classes.map(c => c.name);
+        allClasses = classes.map((c) => c.name);
 
         // Build level mapping
         const mappingRaw = await window.api.settings.get('levelsMapping');
-        try { sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {}; } catch (_) { sectionToLevel = {}; }
+        try {
+            sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {};
+        } catch (_) {
+            sectionToLevel = {};
+        }
 
         const levels = new Set();
-        allClasses.forEach(name => {
+        allClasses.forEach((name) => {
             const level = _getLocalLevelName(name);
             if (level) levels.add(level);
         });
 
         // Populate levels
-        sortLevelNames(Array.from(levels)).forEach(level => {
+        sortLevelNames(Array.from(levels)).forEach((level) => {
             const opt = document.createElement('option');
             opt.value = level;
             opt.textContent = level;
@@ -175,10 +179,10 @@ function renderClassOptions(selectedLevel) {
     classSelect.innerHTML = '<option value="">\u0643\u0644 \u0627\u0644\u0623\u0642\u0633\u0627\u0645</option>';
 
     const list = selectedLevel
-        ? allClasses.filter(name => _getLocalLevelName(name) === selectedLevel)
+        ? allClasses.filter((name) => _getLocalLevelName(name) === selectedLevel)
         : allClasses.slice();
 
-    sortSectionNames(list).forEach(name => {
+    sortSectionNames(list).forEach((name) => {
         const opt = document.createElement('option');
         opt.value = name;
         opt.textContent = name;
@@ -186,7 +190,7 @@ function renderClassOptions(selectedLevel) {
     });
 
     // Restore previous value if still in list
-    if (previousValue && Array.from(classSelect.options).some(o => o.value === previousValue)) {
+    if (previousValue && Array.from(classSelect.options).some((o) => o.value === previousValue)) {
         classSelect.value = previousValue;
     }
 }
@@ -230,16 +234,16 @@ async function searchStudents() {
 
         // Level filter (client-side — depends on local mapping)
         if (levelName) {
-            students = students.filter(s => _getLocalLevelName(s.class_name || s.section || '') === levelName);
+            students = students.filter((s) => _getLocalLevelName(s.class_name || s.section || '') === levelName);
         }
 
         // Birth date filter (client-side — not covered by server search)
         if (query) {
-            const serverMatched = new Set(students.map(s => s.id));
+            const serverMatched = new Set(students.map((s) => s.id));
             if (!serverMatched.size) {
                 // Server returned nothing for name/code; try birth_date match
                 const allInClass = (await window.api.students.search('', className, '', getCurrentYear())) || [];
-                students = allInClass.filter(s => {
+                students = allInClass.filter((s) => {
                     const birth = (s.birth_date || '').toLowerCase();
                     return birth.includes(query);
                 });
@@ -491,7 +495,7 @@ function gradeColor(val) {
 
 // ─── View Student Modal ───
 async function viewStudent(code) {
-    const student = filteredStudents.find(s => (s.massar_code || s.id) === code);
+    const student = filteredStudents.find((s) => (s.massar_code || s.id) === code);
     if (!student) return;
 
     const name = student.full_name || '-';
@@ -602,7 +606,10 @@ async function viewStudent(code) {
         // Group by base subject (merging exams + activities)
         const bySubject = {};
         studentGrades.forEach((g) => {
-            const subj = (typeof ccBaseSubject === 'function' ? ccBaseSubject(normalizeSubjectName(g.subject)) : normalizeSubjectName(g.subject)) || 'غير محدد';
+            const subj =
+                (typeof ccBaseSubject === 'function'
+                    ? ccBaseSubject(normalizeSubjectName(g.subject))
+                    : normalizeSubjectName(g.subject)) || 'غير محدد';
             if (!bySubject[subj]) bySubject[subj] = [];
             bySubject[subj].push(g);
         });
@@ -610,17 +617,20 @@ async function viewStudent(code) {
         // Calculate KPIs using weighted averages
         const subjects = Object.keys(bySubject);
         const subjectAvgsArr = subjects.map((s) => {
-            const avg = typeof computeSubjectAverage === 'function'
-                ? computeSubjectAverage(s, bySubject[s])
-                : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
+            const avg =
+                typeof computeSubjectAverage === 'function'
+                    ? computeSubjectAverage(s, bySubject[s])
+                    : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
             return { subject: s, avg };
         });
-        const branch = typeof detectBranch === 'function'
-            ? detectBranch(student.section || student.class_name || '')
-            : null;
-        const generalAvg = typeof computeWeightedGeneralAverage === 'function'
-            ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
-            : (subjectAvgsArr.length ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length : 0);
+        const branch =
+            typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
+        const generalAvg =
+            typeof computeWeightedGeneralAverage === 'function'
+                ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
+                : subjectAvgsArr.length
+                  ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length
+                  : 0;
         const totalGrades = studentGrades.length;
         const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
         const minGrade = Math.min(...studentGrades.map((g) => g.grade));
@@ -652,13 +662,16 @@ async function viewStudent(code) {
         `;
 
         // Render subject blocks
-        const sortedSubjects = subjects.sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
+        const sortedSubjects = subjects.sort(
+            typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar')
+        );
         subjectsContainer.innerHTML = sortedSubjects
             .map((subj) => {
                 const grades = bySubject[subj];
-                const avg = typeof computeSubjectAverage === 'function'
-                    ? computeSubjectAverage(subj, grades)
-                    : grades.reduce((a, g) => a + g.grade, 0) / grades.length;
+                const avg =
+                    typeof computeSubjectAverage === 'function'
+                        ? computeSubjectAverage(subj, grades)
+                        : grades.reduce((a, g) => a + g.grade, 0) / grades.length;
                 const clr = gradeColor(avg);
 
                 // Group grades by semester and sort (semester 1 first, then 2)
@@ -669,46 +682,53 @@ async function viewStudent(code) {
                     bySemester[sem].push(g);
                 });
                 const semesterKeys = Object.keys(bySemester).sort((a, b) => Number(a) - Number(b));
-                const semesterNames = { '1': 'الدورة الأولى', '2': 'الدورة الثانية', '0': 'غير محددة' };
-                const hasMutipleSemesters = semesterKeys.length > 1 || (semesterKeys.length === 1 && semesterKeys[0] !== '0');
+                const semesterNames = { 1: 'الدورة الأولى', 2: 'الدورة الثانية', 0: 'غير محددة' };
+                const hasMutipleSemesters =
+                    semesterKeys.length > 1 || (semesterKeys.length === 1 && semesterKeys[0] !== '0');
 
                 let bodyHtml = '';
                 if (hasMutipleSemesters) {
                     // Grid layout: each semester is a column
-                    const cols = semesterKeys.map((sem) => {
-                        const semName = semesterNames[sem] || `الدورة ${sem}`;
-                        let examIdx = 0;
-                        const chips = bySemester[sem].map((g) => {
+                    const cols = semesterKeys
+                        .map((sem) => {
+                            const semName = semesterNames[sem] || `الدورة ${sem}`;
+                            let examIdx = 0;
+                            const chips = bySemester[sem]
+                                .map((g) => {
+                                    const gc = gradeColor(g.grade);
+                                    const pct = Math.min((g.grade / 20) * 100, 100);
+                                    const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
+                                    const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
+                                    return `<div class="sl-grade-chip">
+                                <span class="chip-label">${chipLabel}</span>
+                                <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
+                                <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                            </div>`;
+                                })
+                                .join('');
+                            return `<div class="sl-semester-col">
+                            <div class="sl-semester-header"><span>${semName}</span></div>
+                            <div class="sl-grades-chips">${chips}</div>
+                        </div>`;
+                        })
+                        .join('');
+                    bodyHtml = `<div class="sl-semesters-grid">${cols}</div>`;
+                } else {
+                    // Single semester or no semester — flat layout
+                    let examIdx = 0;
+                    const chips = grades
+                        .map((g) => {
                             const gc = gradeColor(g.grade);
                             const pct = Math.min((g.grade / 20) * 100, 100);
                             const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
                             const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
                             return `<div class="sl-grade-chip">
-                                <span class="chip-label">${chipLabel}</span>
-                                <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
-                                <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
-                            </div>`;
-                        }).join('');
-                        return `<div class="sl-semester-col">
-                            <div class="sl-semester-header"><span>${semName}</span></div>
-                            <div class="sl-grades-chips">${chips}</div>
-                        </div>`;
-                    }).join('');
-                    bodyHtml = `<div class="sl-semesters-grid">${cols}</div>`;
-                } else {
-                    // Single semester or no semester — flat layout
-                    let examIdx = 0;
-                    const chips = grades.map((g) => {
-                        const gc = gradeColor(g.grade);
-                        const pct = Math.min((g.grade / 20) * 100, 100);
-                        const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
-                        const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
-                        return `<div class="sl-grade-chip">
                             <span class="chip-label">${chipLabel}</span>
                             <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
                             <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
                         </div>`;
-                    }).join('');
+                        })
+                        .join('');
                     bodyHtml = `<div class="sl-grades-chips">${chips}</div>`;
                 }
 
@@ -739,67 +759,108 @@ function closeStudentModal() {
     modal.setAttribute('aria-hidden', 'true');
 }
 
-// ─── Print Preview (uses shared UX system) ───
-function openSlPrintPreview() {
+// ─── Print Preview (gs-sheet style with letterhead) ───
+async function openSlPrintPreview() {
     if (!filteredStudents.length) {
         showToast('لا توجد بيانات للطباعة', 'warning');
         return;
     }
 
     const classFilter = document.getElementById('search-class').value || 'كل الأقسام';
+    const year = getCurrentYear();
+    const dateStr = new Intl.DateTimeFormat('ar-MA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
 
-    // Save current table state
-    const tbody = document.getElementById('students-tbody');
-    const savedTbody = tbody.innerHTML;
-    const paginationEl = document.getElementById('pagination');
-    const savedPagination = paginationEl.innerHTML;
-    const savedPaginationDisplay = paginationEl.style.display;
+    // Fetch identity for letterhead
+    let identity = {};
+    try {
+        identity = (await window.api.reports.getIdentity()) || {};
+    } catch (_) {
+        /* skip */
+    }
 
-    // Render ALL students (not just current page) into the table
-    tbody.innerHTML = filteredStudents
+    const letterhead =
+        typeof window.buildLetterheadHTML === 'function' ? window.buildLetterheadHTML(identity, year) : '';
+
+    // Build table rows for ALL filtered students
+    const rows = filteredStudents
         .map(
             (s, i) => `
         <tr>
-            <td style="text-align:center">${i + 1}</td>
-            <td><code style="font-size:13px;color:var(--color-text-muted)">${escapeHtml(s.massar_code || '-')}</code></td>
-            <td>${escapeHtml(s.full_name || '-')}</td>
-            <td><span class="sl-class-badge">${escapeHtml(s.class_name || '-')}</span></td>
-            <td>${isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-'}</td>
-            <td>${escapeHtml(s.birth_date || '-')}</td>
-            <td></td>
+            <td style="text-align:center;font-weight:600;color:#666;">${i + 1}</td>
+            <td>${escapeHtml(s.massar_code || '-')}</td>
+            <td style="font-weight:600;">${escapeHtml(s.full_name || '-')}</td>
+            <td style="text-align:center;">${escapeHtml(s.class_name || '-')}</td>
+            <td style="text-align:center;">${isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-'}</td>
+            <td style="text-align:center;">${escapeHtml(s.birth_date || '-')}</td>
         </tr>
     `
         )
         .join('');
 
-    // Hide pagination for print
-    paginationEl.style.display = 'none';
-
-    // Update count badge text for print
-    const feedbackEl = document.getElementById('students-feedback');
-    const savedFeedback = feedbackEl ? feedbackEl.textContent : '';
-    if (feedbackEl) feedbackEl.textContent = `${classFilter} — السنة الدراسية ${getCurrentYear()} — العدد: ${filteredStudents.length}`;
-
-    // Use the shared print preview system (without contentSelector → letterhead auto-injected)
-    try {
-        const previewFn =
-            (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
-            (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
-
-        if (previewFn) {
-            previewFn({
-                title: 'لائحة التلاميذ',
-                pageSize: 'A4',
-                defaultFileName: `لائحة_التلاميذ_${getCurrentYear().replace('/', '-')}`
-            });
-        } else {
-            window.print();
-        }
-    } finally {
-        // Restore original table state
-        tbody.innerHTML = savedTbody;
-        paginationEl.innerHTML = savedPagination;
-        paginationEl.style.display = savedPaginationDisplay;
-        if (feedbackEl) feedbackEl.textContent = savedFeedback;
+    // Build the print-ready A4 sheet
+    let printDiv = document.getElementById('sl-print-content');
+    if (!printDiv) {
+        printDiv = document.createElement('div');
+        printDiv.id = 'sl-print-content';
+        printDiv.style.display = 'none';
+        document.body.appendChild(printDiv);
     }
+
+    printDiv.innerHTML = `
+        <div class="gs-sheet-wrapper">
+            <div class="gs-sheet" id="sl-sheet-content">
+                ${letterhead}
+                <div class="gs-sheet-title">لائحة التلاميذ</div>
+                <div class="gs-sheet-subtitle">${escapeHtml(classFilter)}</div>
+                <div class="gs-sheet-meta">
+                    <span><i class="fas fa-calendar-alt"></i> السنة الدراسية: ${year}</span>
+                    <span><i class="fas fa-users"></i> العدد: ${filteredStudents.length}</span>
+                    <span><i class="fas fa-clock"></i> التاريخ: ${dateStr}</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align:center;width:40px;">#</th>
+                            <th>رمز مسار</th>
+                            <th>الاسم الكامل</th>
+                            <th style="text-align:center;">القسم</th>
+                            <th style="text-align:center;width:60px;">الجنس</th>
+                            <th style="text-align:center;">تاريخ الازدياد</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div class="gs-footer">
+                    <span>تاريخ الطباعة: ${dateStr}</span>
+                    <span>برنامج التدبير المدرسي — ${year}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    printDiv.style.display = 'block';
+
+    const previewFn =
+        (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
+        (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
+
+    if (previewFn) {
+        previewFn({
+            contentSelector: '#sl-sheet-content',
+            title: 'لائحة التلاميذ',
+            pageSize: 'A4',
+            noHeader: true,
+            defaultFileName: `لائحة_التلاميذ_${year.replace('/', '-')}`
+        });
+    } else {
+        window.print();
+    }
+
+    // Hide after openPrintPreview clones it
+    setTimeout(() => {
+        printDiv.style.display = 'none';
+    }, 500);
 }

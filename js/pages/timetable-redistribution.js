@@ -238,9 +238,10 @@
             sortArabic
         );
         const rawSubjects = state.rows.map((row) => row.subject).filter(Boolean);
-        const subjects = typeof buildSubjectOptionsFromSet === 'function'
-            ? buildSubjectOptionsFromSet(rawSubjects)
-            : uniqueSorted(rawSubjects, typeof compareSubjects === 'function' ? compareSubjects : sortArabic);
+        const subjects =
+            typeof buildSubjectOptionsFromSet === 'function'
+                ? buildSubjectOptionsFromSet(rawSubjects)
+                : uniqueSorted(rawSubjects, typeof compareSubjects === 'function' ? compareSubjects : sortArabic);
 
         fillSelect(els.levelSelect, levelNames, 'كل المستويات');
         fillSelect(els.subjectSelect, subjects, 'كل المواد');

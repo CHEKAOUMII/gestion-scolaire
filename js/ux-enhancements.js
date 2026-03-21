@@ -305,11 +305,6 @@ function _ensurePrintPreviewModal() {
 
     document.body.appendChild(_printPreviewModal);
 
-    const dialog = _printPreviewModal.querySelector('.ux-pp-dialog');
-    const overlay = _printPreviewModal.querySelector('.ux-pp-overlay');
-    const page = _printPreviewModal.querySelector('.ux-pp-page');
-    const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
-
     _printPreviewModal.querySelector('.ux-pp-close')?.addEventListener('click', closePrintPreviewGlobal);
     _printPreviewModal.querySelector('.ux-pp-overlay')?.addEventListener('click', closePrintPreviewGlobal);
 
@@ -358,8 +353,9 @@ function openPrintPreview(options = {}) {
     // Force light theme BEFORE cloning so canvas images & colors are captured in light mode
     _forceLightThemeForPrint();
 
-    // Give charts ~300ms to repaint in light mode before snapshot
-    setTimeout(async () => {
+    // Give charts time to repaint in light mode before snapshot (skip delay if no canvases)
+    const _hasCanvases = !!sourceEl.querySelector('canvas');
+    const _doPreview = async () => {
         const clone = sourceEl.cloneNode(true);
 
         // When contentSelector is provided, the caller already prepared the content.
@@ -469,7 +465,8 @@ function openPrintPreview(options = {}) {
         document.body.classList.add('ux-preview-open');
 
         _updateOrientationUI();
-    }, 300); // end setTimeout — wait for charts to repaint
+    };
+    if (_hasCanvases) { setTimeout(_doPreview, 300); } else { _doPreview(); }
 }
 
 function closePrintPreviewGlobal() {
@@ -485,11 +482,22 @@ function closePrintPreviewGlobal() {
 function _updateOrientationUI() {
     if (!_printPreviewModal) return;
     const page = _printPreviewModal.querySelector('.ux-pp-page');
+    const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
     const btnL = _printPreviewModal.querySelector('.ux-pp-orient-landscape');
     const btnP = _printPreviewModal.querySelector('.ux-pp-orient-portrait');
     if (page) page.classList.toggle('landscape', _printPreviewLandscape);
     if (btnL) btnL.classList.toggle('active', _printPreviewLandscape);
     if (btnP) btnP.classList.toggle('active', !_printPreviewLandscape);
+    // Visually resize the A4 sheet in the preview
+    if (sheet) {
+        if (_printPreviewLandscape) {
+            sheet.style.width = '297mm';
+            sheet.style.minHeight = '210mm';
+        } else {
+            sheet.style.width = '210mm';
+            sheet.style.minHeight = '297mm';
+        }
+    }
 }
 
 function _captureSheetHTML() {
@@ -509,12 +517,25 @@ function _enablePrintMode(capturedHTML) {
     root.innerHTML = capturedHTML;
     document.body.classList.add('ux-printing-active');
     document.body.classList.toggle('ux-print-landscape', _printPreviewLandscape);
+
+    // Inject @page CSS rule so printToPDF / printCurrentWindow respects orientation
+    let pageStyle = document.getElementById('ux-print-page-rule');
+    if (!pageStyle) {
+        pageStyle = document.createElement('style');
+        pageStyle.id = 'ux-print-page-rule';
+        document.head.appendChild(pageStyle);
+    }
+    const pageSize = _printPreviewOptions.pageSize || 'A4';
+    const orient = _printPreviewLandscape ? 'landscape' : 'portrait';
+    pageStyle.textContent = `@page { size: ${pageSize} ${orient}; margin: 3mm 0; }`;
 }
 
 function _disablePrintMode() {
     document.body.classList.remove('ux-printing-active', 'ux-print-landscape');
     const root = document.getElementById('ux-print-root');
     if (root) root.innerHTML = '';
+    // Remove the injected @page rule
+    document.getElementById('ux-print-page-rule')?.remove();
     _restoreThemeAfterPrint();
 }
 
@@ -545,7 +566,7 @@ async function _exportPdfFromPreview() {
     if (!capturedHTML) return;
     closePrintPreviewGlobal();
     _enablePrintMode(capturedHTML);
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 50));
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
         if (window.api?.system?.printToPDF) {
@@ -719,6 +740,42 @@ if (document.readyState === 'loading') {
     setTimeout(initUpdaterUI, 100);
 }
 
+// ─── Shared Letterhead Builder ───
+// Used by grades-sheets, students-list, studentzero, teachers-list, etc.
+function buildLetterheadHTML(id, year) {
+    if (!id || (!id.school_name && !id.ministry)) return '';
+    const e = (v) => {
+        if (!v) return '';
+        const d = document.createElement('div');
+        d.textContent = v;
+        return d.innerHTML;
+    };
+    const logo = id.logo_base64
+        ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width:300px;max-height:300px;" alt="logo">`
+        : '<div style="width:52px;height:52px;border:1px dashed #ccc;border-radius:50%;margin:0 auto;"></div>';
+    return `
+    <div class="gs-letterhead" style="border-bottom:2.5px solid #3B6AC5;padding-bottom:10px;margin-bottom:14px;">
+        <table style="width:100%;border-collapse:collapse;" role="presentation">
+            <tr>
+                <td style="width:45%;vertical-align:middle;text-align:center;padding:0;">
+                    <div style="font-size:11px;font-weight:700;color:#222;">${e(id.country || '')}</div>
+                    <div style="font-size:9.5px;color:#555;margin-top:2px;">${e(id.ministry || '')}</div>
+                    ${id.academy ? `<div style="font-size:9px;color:#666;margin-top:2px;">${e(id.academy)}</div>` : ''}
+                    ${id.directorate ? `<div style="font-size:9px;color:#666;margin-top:1px;">${e(id.directorate)}</div>` : ''}
+                </td>
+                <td style="width:10%;text-align:center;vertical-align:middle;">${logo}</td>
+                <td style="width:45%;vertical-align:middle;text-align:center;padding:0;">
+                    <div style="font-size:13px;font-weight:800;color:#3B6AC5;">${e(id.school_name || '')}</div>
+                    ${id.school_code ? `<div style="font-size:9px;color:#888;margin-top:2px;">رمز المؤسسة: ${e(id.school_code)}</div>` : ''}
+                    ${id.commune ? `<div style="font-size:9px;color:#888;margin-top:1px;">الجماعة: ${e(id.commune)}</div>` : ''}
+                    ${year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(year)}</div>` : (id.school_year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(id.school_year)}</div>` : '')}
+                </td>
+            </tr>
+        </table>
+    </div>`;
+}
+window.buildLetterheadHTML = buildLetterheadHTML;
+
 window.UXEnhancements = {
     initTheme,
     toggleTheme,
@@ -730,5 +787,6 @@ window.UXEnhancements = {
     openPrintPreview,
     closePrintPreview: closePrintPreviewGlobal,
     forceLightThemeForPrint: _forceLightThemeForPrint,
-    restoreThemeAfterPrint: _restoreThemeAfterPrint
+    restoreThemeAfterPrint: _restoreThemeAfterPrint,
+    buildLetterheadHTML
 };

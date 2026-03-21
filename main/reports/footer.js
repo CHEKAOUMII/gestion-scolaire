@@ -16,9 +16,13 @@ function renderFooter(overrides = {}) {
     const signature = getAssetBase64('signature_base64');
     const showSeal = overrides.showSeal !== false;
     const showSignature = overrides.showSignature !== false;
-    const dateStr = overrides.date || new Date().toLocaleDateString('ar-MA', {
-        year: 'numeric', month: 'long', day: 'numeric'
-    });
+    const dateStr =
+        overrides.date ||
+        new Date().toLocaleDateString('ar-MA', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
 
     return `
     <div class="doc-footer" style="
@@ -39,19 +43,20 @@ function renderFooter(overrides = {}) {
 
                 <!-- Official seal -->
                 <td style="width: 34%; text-align: center; vertical-align: bottom; padding: 0;">
-                    ${showSeal && seal
-                        ? `<img src="data:image/png;base64,${seal}"
+                    ${
+                        showSeal && seal
+                            ? `<img src="data:image/png;base64,${seal}"
                              style="max-width: 72px; max-height: 72px; opacity: 0.85;"
                              alt="ختم المؤسسة">`
-                        : showSeal
-                            ? `<div style="
+                            : showSeal
+                              ? `<div style="
                                 width: 68px; height: 68px;
                                 border: 2px dashed #bbb; border-radius: 50%;
                                 margin: 0 auto;
                                 display: flex; align-items: center; justify-content: center;
                                 font-size: 8px; color: #bbb;
                             ">ختم</div>`
-                            : ''
+                              : ''
                     }
                 </td>
 
@@ -60,11 +65,12 @@ function renderFooter(overrides = {}) {
                     <div style="font-size: 10px; color: #555; margin-bottom: 4px;">
                         ${esc(id.director_title)}
                     </div>
-                    ${showSignature && signature
-                        ? `<img src="data:image/png;base64,${signature}"
+                    ${
+                        showSignature && signature
+                            ? `<img src="data:image/png;base64,${signature}"
                              style="max-width: 100px; max-height: 48px; margin-bottom: 4px;"
                              alt="التوقيع">`
-                        : '<div style="height: 32px;"></div>'
+                            : '<div style="height: 32px;"></div>'
                     }
                     <div style="
                         border-top: 1px solid #ccc;

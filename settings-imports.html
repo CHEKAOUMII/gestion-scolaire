@@ -356,9 +356,59 @@
                             </table>
                         </div>
                     </div>
-                </div>
 
-                <!-- Backup Section -->
+                    <div
+                        id="departed-students-panel"
+                        class="students-results mt-[18px] hidden border border-[rgba(239,68,68,0.25)] bg-[rgba(254,242,242,0.9)] p-[18px]"
+                    >
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h4 class="mb-1.5 mt-0 font-bold text-[var(--color-text-main)]">
+                                    <i class="fas fa-user-minus"></i> تلاميذ غائبون عن اللائحة المستوردة
+                                </h4>
+                                <p class="m-0 text-[var(--color-text-muted)]" id="departed-summary">-</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2.5">
+                                <select id="departed-bulk-status" class="min-w-0">
+                                    <option value="">-- إجراء جماعي --</option>
+                                    <option value="dropout">منقطع</option>
+                                    <option value="expelled">مفصول</option>
+                                    <option value="not_enrolled">غير ملتحق</option>
+                                </select>
+                                <button class="btn btn-primary" id="departed-apply-bulk" type="button">
+                                    <i class="fas fa-check-double"></i> تطبيق على المحددين
+                                </button>
+                                <button class="btn btn-secondary" id="departed-skip-btn" type="button">
+                                    <i class="fas fa-forward"></i> تخطي
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive mt-3.5 max-h-[420px] overflow-auto">
+                            <table class="students-table">
+                                <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="departed-select-all" /></th>
+                                        <th>#</th>
+                                        <th>رمز مسار</th>
+                                        <th>الاسم الكامل</th>
+                                        <th>القسم</th>
+                                        <th>الإجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="departed-tbody">
+                                    <tr>
+                                        <td colspan="6" class="loading-cell">لا توجد بيانات</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3.5 flex justify-end gap-2.5">
+                            <button class="btn btn-primary" id="departed-confirm-btn" type="button">
+                                <i class="fas fa-save"></i> حفظ التغييرات
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div class="students-results">
                     <h3><i class="fas fa-shield-alt"></i> النسخ الاحتياطي</h3>
                     <div class="p-8 text-center">

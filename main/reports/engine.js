@@ -18,13 +18,7 @@ const { getIdentity } = require('./identity');
  * @returns {Promise<{success: boolean, filePath?: string, ref?: string, error?: string}>}
  */
 async function printDocument(payload) {
-    const {
-        documentType,
-        documentTitle,
-        bodyHTML,
-        data = {},
-        options = {}
-    } = payload;
+    const { documentType, documentTitle, bodyHTML, data = {}, options = {} } = payload;
 
     const {
         mode = 'pdf',
@@ -48,15 +42,13 @@ async function printDocument(payload) {
         // 2. Render locked letterhead
         const letterheadHTML = showLetterhead
             ? renderLetterhead({
-                documentTitle,
-                documentRef: showSecurity ? documentRef : ''
-            })
+                  documentTitle,
+                  documentRef: showSecurity ? documentRef : ''
+              })
             : '';
 
         // 3. Render locked footer
-        const footerHTML = showFooter
-            ? renderFooter({ showSeal, showSignature })
-            : '';
+        const footerHTML = showFooter ? renderFooter({ showSeal, showSignature }) : '';
 
         // 4. Generate security bar (optional)
         let securityHTML = '';
@@ -72,9 +64,7 @@ async function printDocument(payload) {
 
         // 5. Watermark (optional)
         const identity = getIdentity();
-        const watermarkHTML = showWatermark
-            ? renderWatermark(identity.school_name || '')
-            : '';
+        const watermarkHTML = showWatermark ? renderWatermark(identity.school_name || '') : '';
 
         // 6. Assemble complete document
         const fullBodyHTML = assembleDocumentBody(
