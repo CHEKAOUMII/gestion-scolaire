@@ -1,5 +1,11 @@
 const { getDb } = require('./context');
-const { ensureColumn, ensureLicensingSchema, ensureOwnerSyncSchema, ensurePageVisibilitySchema } = require('./schema');
+const {
+    ensureColumn,
+    ensureLicensingSchema,
+    ensureOwnerSyncSchema,
+    ensurePageVisibilitySchema,
+    ensureSyncSchema
+} = require('./schema');
 const { generateRandomPassword, hashPassword } = require('../auth/password');
 const { normalizeTeacherName, seedTeacherAliases, resolveTeacherIdentity } = require('../teachers/identity');
 
@@ -558,6 +564,13 @@ const MIGRATIONS = [
                     ELSE COALESCE(is_surplus, 0)
                 END
             `);
+        }
+    },
+    {
+        version: '2026-03-030-sync-foundation',
+        up: () => {
+            const db = getDb();
+            ensureSyncSchema(db);
         }
     }
 ];

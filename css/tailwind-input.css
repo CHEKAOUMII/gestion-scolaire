@@ -24314,3 +24314,99 @@ body {
 .timetable-summary {
     display: none;
 }
+
+/* ============================================================================
+   Carry-Forward Page Fixes: grades + timetable views
+   ============================================================================ */
+
+#reset-btn {
+    background: var(--color-surface) !important;
+    color: var(--color-text-main) !important;
+    border: 1px solid var(--color-accent) !important;
+}
+
+#reset-btn:hover {
+    background: var(--color-primary-mist) !important;
+    border-color: var(--color-primary) !important;
+    color: var(--color-primary) !important;
+}
+
+#detail-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2100;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(6px);
+    align-items: center !important;
+    justify-content: center !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+#detail-overlay.active {
+    display: flex !important;
+    opacity: 1;
+    visibility: visible;
+    justify-content: center !important;
+}
+
+[data-theme='dark'] {
+    --color-warning-bg: #92400e;
+}
+
+[data-theme='dark'] .empty-cell,
+[data-theme='dark'] #room-count-badge,
+[data-theme='dark'] #class-count-badge {
+    color: #9ca8a0 !important;
+}
+
+[data-theme='dark'] .empty-state,
+[data-theme='dark'] .empty-state p {
+    color: #8fa898;
+}
+
+[data-theme='dark'] .unified-search input::placeholder {
+    color: #8fa898;
+}
+
+[data-theme='dark'] .tab-btn.active,
+[data-theme='dark'] .summary-item.modified {
+    color: #f8fafc;
+}
+
+[data-theme='dark'] .activity-cell .room {
+    color: #d4e8dc;
+}
+
+[data-theme='dark'] .activity-group .teacher-name {
+    color: #b8d4c4;
+}
+
+[data-theme='dark'] .toast.warning {
+    color: #111111;
+}
+
+[data-theme='dark'] .no-data-state p,
+[data-theme='dark'] .no-data-state span,
+[data-theme='dark'] .class-info-bar .class-details span,
+[data-theme='dark'] .no-data-state h4 {
+    color: #94a3b8;
+}
+
+[data-theme='dark'] .class-stat-card.hours .stat-value {
+    color: #a5b4fc;
+}
+
+[data-theme='dark'] .class-stat-card.teachers .stat-value {
+    color: #fbbf24;
+}
+
+[data-theme='dark'] .class-stat-card.subjects .stat-value {
+    color: #34d399;
+}
+
+[data-theme='dark'] .class-stat-card.rooms .stat-value {
+    color: #f472b6;
+}

@@ -47,6 +47,44 @@ function runContractSmoke() {
     console.log(`[smoke] IPC channels parity OK (${preloadChannels.length} channels)`);
 }
 
+function runSyncRegistryCompletenessSmoke() {
+    const { CHANNEL_REGISTRY } = require(path.join(root, 'main', 'sync', 'capture'));
+    const { writeChannels } = require(path.join(root, 'main', 'ipc', 'ipc-helpers'));
+    const { registerAllIpcHandlers } = require(path.join(root, 'main', 'ipc', 'registerAll'));
+
+    // The write channel set persists across requires, so clear it before using
+    // a stub ipcMain to rebuild the registration-derived channel inventory.
+    writeChannels.clear();
+
+    const stubIpcMain = {
+        handle() {}
+    };
+
+    registerAllIpcHandlers(stubIpcMain);
+
+    const unmapped = [];
+    for (const channel of writeChannels) {
+        if (!CHANNEL_REGISTRY[channel]) {
+            unmapped.push(channel);
+        }
+    }
+
+    assert.strictEqual(unmapped.length, 0, `Sync registry missing mappings for write channels: ${unmapped.join(', ')}`);
+
+    const registryChannels = Object.keys(CHANNEL_REGISTRY).filter((channel) => !CHANNEL_REGISTRY[channel].exclude);
+    const orphaned = registryChannels.filter((channel) => !writeChannels.has(channel));
+
+    assert.strictEqual(
+        orphaned.length,
+        0,
+        `Sync registry has entries for non-existent write channels: ${orphaned.join(', ')}`
+    );
+
+    console.log(
+        `  [smoke] Sync registry OK (${Object.keys(CHANNEL_REGISTRY).length} entries, ${writeChannels.size} write channels)`
+    );
+}
+
 function runModuleExportsSmoke() {
     const { initDatabase } = require(path.join(root, 'main', 'db', 'init'));
     const { registerAllIpcHandlers } = require(path.join(root, 'main', 'ipc', 'registerAll'));
@@ -444,6 +482,7 @@ function runConsolidationSmoke() {
 
 function run() {
     runContractSmoke();
+    runSyncRegistryCompletenessSmoke();
     runModuleExportsSmoke();
     runPageScriptExtractionSmoke();
     runMigrationSmoke();

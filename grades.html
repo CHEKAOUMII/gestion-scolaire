@@ -8,39 +8,6 @@
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind-output.css">
-    <style>
-        /* Fix: reset btn contrast */
-        #reset-btn {
-            background: var(--color-surface) !important;
-            color: var(--color-text-main) !important;
-            border: 1px solid var(--color-accent) !important;
-        }
-        #reset-btn:hover {
-            background: var(--color-primary-mist) !important;
-            border-color: var(--color-primary) !important;
-            color: var(--color-primary) !important;
-        }
-        /* Fix: student detail modal centered (overrides conflicting .detail-overlay from other pages) */
-        #detail-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 2100;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(6px);
-            align-items: center !important;
-            justify-content: center !important;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-        #detail-overlay.active {
-            display: flex !important;
-            opacity: 1;
-            visibility: visible;
-            justify-content: center !important;
-        }
-    </style>
     <script src="js/utils.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/sidebar.js"></script>

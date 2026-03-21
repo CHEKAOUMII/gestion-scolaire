@@ -12,6 +12,7 @@ const { registerUpdaterIpc } = require('./updater');
 const { registerPageVisibilityIpc } = require('./pageVisibility');
 const { registerNotificationsIpc } = require('./notifications');
 const { registerReportsIpc } = require('./reports');
+const { startOutboxCleanup } = require('../sync/capture');
 
 function registerAllIpcHandlers(ipcMain) {
     registerAuthIpc(ipcMain);
@@ -28,6 +29,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerPageVisibilityIpc(ipcMain);
     registerNotificationsIpc(ipcMain);
     registerReportsIpc(ipcMain);
+    startOutboxCleanup();
 }
 
 module.exports = { registerAllIpcHandlers };
