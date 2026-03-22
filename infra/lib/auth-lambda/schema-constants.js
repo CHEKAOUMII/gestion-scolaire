@@ -21,10 +21,14 @@ const ENTITY_SK_PREFIX = {
 const SCHOOL_PK_PREFIX = 'SCHOOL#';
 const GSI_NAME = 'SyncGSI';
 const TABLE_NAME = 'pencil2-sync';
+const OTP_PK_PREFIX = 'OTP#';
+const OTP_SK_ACTIVE = 'ACTIVE';
 
 module.exports = {
     ENTITY_SK_PREFIX,
     GSI_NAME,
+    OTP_PK_PREFIX,
+    OTP_SK_ACTIVE,
     SCHOOL_PK_PREFIX,
     TABLE_NAME
 };

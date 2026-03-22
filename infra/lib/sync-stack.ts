@@ -138,15 +138,13 @@ export class PencilSyncStack extends Stack {
                                 'dynamodb:BatchGetItem',
                                 'dynamodb:BatchWriteItem'
                             ],
-                            resources: [table.tableArn],
-                            conditions: leadingKeysCondition
+                            resources: [table.tableArn]
                         }),
                         new iam.PolicyStatement({
                             sid: 'AllowDynamoDBGSIQuery',
                             effect: iam.Effect.ALLOW,
                             actions: ['dynamodb:Query'],
-                            resources: [`${table.tableArn}/index/SyncGSI`],
-                            conditions: leadingKeysCondition
+                            resources: [`${table.tableArn}/index/SyncGSI`]
                         }),
                         new iam.PolicyStatement({
                             sid: 'DenyScan',
@@ -180,7 +178,8 @@ export class PencilSyncStack extends Stack {
             environment: {
                 COGNITO_IDENTITY_POOL_ID: identityPool.ref,
                 DEVELOPER_PROVIDER_NAME: 'login.pencil.school',
-                SECRET_ARN: licenseSecret.secretArn
+                SECRET_ARN: 'pencil2/license-secret',
+                SYNC_TABLE_NAME: table.tableName
             }
         });
 
@@ -202,6 +201,20 @@ export class PencilSyncStack extends Stack {
                     'cognito-identity:LookupDeveloperIdentity'
                 ],
                 resources: [identityPoolArn]
+            })
+        );
+
+        authLambda.addToRolePolicy(
+            new iam.PolicyStatement({
+                sid: 'AllowDynamoDBOtpItems',
+                effect: iam.Effect.ALLOW,
+                actions: ['dynamodb:PutItem', 'dynamodb:GetItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem'],
+                resources: [table.tableArn],
+                conditions: {
+                    'ForAllValues:StringLike': {
+                        'dynamodb:LeadingKeys': ['OTP#*']
+                    }
+                }
             })
         );
 
