@@ -1634,6 +1634,7 @@ async function handleImport(action, files) {
         let fetImportResult = null;
         const failedReasons = [];
         const stagedAbsences = [];
+        let pendingDeparted = [];
 
         for (let i = 0; i < fileList.length; i++) {
             const file = fileList[i];
@@ -1665,7 +1666,11 @@ async function handleImport(action, files) {
                     updateImportProgress(start + 28, `(${i + 1}/${fileList.length}) تمت القراءة، جاري الحفظ...`);
 
                     if (action === 'students') {
-                        totalImported += await importStudents(workbook, year);
+                        const studentsResult = await importStudents(workbook, year);
+                        totalImported += studentsResult.importedCount;
+                        if (studentsResult.departedStudents?.length) {
+                            pendingDeparted = studentsResult.departedStudents;
+                        }
                     } else if (action === 'grades') {
                         const gradeResult = await importGrades(workbook, year, file.name);
                         totalGradesImported += gradeResult.gradesCount;
@@ -1770,6 +1775,11 @@ async function handleImport(action, files) {
         } else {
             showToast(`${finalMessage} بنجاح`, 'success');
         }
+
+        // Show departed students panel if any were detected during student import
+        if (action === 'students' && pendingDeparted.length > 0) {
+            showDepartedPanel(pendingDeparted);
+        }
     } catch (error) {
         const fileWord = fileList.length === 1 ? 'ملف' : 'ملفات';
         await safeLogImport(action, `فشل الاستيراد (${fileList.length} ${fileWord}): ${error.message}`);
@@ -1786,6 +1796,112 @@ function isImportSummaryLog(details) {
     if (!text) return false;
     return /^استيراد\s+/i.test(text) || /^فشل الاستيراد\s*\(/i.test(text);
 }
+
+// ── Departed students panel ──────────────────────────────────
+
+function showDepartedPanel(students) {
+    const panel = document.getElementById('departed-students-panel');
+    const tbody = document.getElementById('departed-tbody');
+    const summary = document.getElementById('departed-summary');
+    const selectAll = document.getElementById('departed-select-all');
+    const bulkSelect = document.getElementById('departed-bulk-status');
+    const applyBulkBtn = document.getElementById('departed-apply-bulk');
+    const skipBtn = document.getElementById('departed-skip-btn');
+    const confirmBtn = document.getElementById('departed-confirm-btn');
+
+    if (!panel || !tbody) return;
+
+    summary.textContent = `${students.length} تلميذ(ة) موجود(ة) في قاعدة البيانات لكن غير موجود(ة) في الملف المستورد`;
+
+    tbody.innerHTML = students
+        .map(
+            (s, i) => `<tr>
+            <td><input type="checkbox" class="departed-cb" data-id="${s.id}" checked></td>
+            <td>${i + 1}</td>
+            <td>${s.code || '-'}</td>
+            <td>${s.full_name || '-'}</td>
+            <td>${s.section || '-'}</td>
+            <td>
+                <select class="departed-action-select" data-id="${s.id}">
+                    <option value="">تجاهل (إبقاء نشط)</option>
+                    <option value="dropout">منقطع</option>
+                    <option value="expelled">مفصول</option>
+                    <option value="not_enrolled">غير ملتحق</option>
+                </select>
+            </td>
+        </tr>`
+        )
+        .join('');
+
+    // Select-all checkbox
+    selectAll.checked = true;
+    selectAll.onchange = () => {
+        document.querySelectorAll('.departed-cb').forEach((cb) => {
+            cb.checked = selectAll.checked;
+        });
+    };
+
+    // Apply bulk action to checked rows
+    applyBulkBtn.onclick = () => {
+        const bulkValue = bulkSelect.value;
+        if (!bulkValue) {
+            showToast('اختر إجراءً جماعياً أولاً', 'error');
+            return;
+        }
+        document.querySelectorAll('.departed-cb:checked').forEach((cb) => {
+            const id = cb.dataset.id;
+            const sel = document.querySelector(`.departed-action-select[data-id="${id}"]`);
+            if (sel) sel.value = bulkValue;
+        });
+    };
+
+    // Skip button — hide panel
+    skipBtn.onclick = () => {
+        panel.classList.add('hidden');
+    };
+
+    // Confirm button — save status changes
+    confirmBtn.onclick = async () => {
+        const items = [];
+        document.querySelectorAll('.departed-action-select').forEach((sel) => {
+            const status = sel.value;
+            if (status) {
+                items.push({ student_id: Number(sel.dataset.id), status });
+            }
+        });
+
+        if (!items.length) {
+            panel.classList.add('hidden');
+            showToast('لم يتم تغيير أي وضعية', 'info');
+            return;
+        }
+
+        try {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+
+            const res = await window.api.students.updateStatusBulk(items);
+            if (res && res.success) {
+                showToast(`تم تحديث وضعية ${res.count} تلميذ(ة)`, 'success');
+            } else {
+                showToast(res?.error || 'فشل تحديث الوضعيات', 'error');
+            }
+        } catch (err) {
+            console.error('Departed status update failed:', err);
+            showToast('خطأ في تحديث الوضعيات', 'error');
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-save"></i> حفظ التغييرات';
+            panel.classList.add('hidden');
+            loadDataStats();
+        }
+    };
+
+    panel.classList.remove('hidden');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ── Student import ──────────────────────────────────────────
 
 async function importStudents(workbook, schoolYear) {
     const students = [];
@@ -1834,9 +1950,26 @@ async function importStudents(workbook, schoolYear) {
         deduped.push(s);
     });
 
+    // ── Reconciliation: compare with existing students ──
+    const existingStudents = (await window.api.students.getCodesByYear(schoolYear)) || [];
+    const existingCodes = new Set(existingStudents.map((s) => String(s.code || '').trim()));
+    const importedCodes = new Set(deduped.map((s) => s.code));
+
+    // Mark new students as "transferred_in" only if DB already has students for this year
+    if (existingStudents.length > 0) {
+        for (const student of deduped) {
+            if (!existingCodes.has(student.code)) {
+                student.registration_type = 'transferred_in';
+            }
+        }
+    }
+
+    // Identify departed students (in DB but not in import file)
+    const departedStudents = existingStudents.filter((s) => !importedCodes.has(String(s.code || '').trim()));
+
     const res = await window.api.students.addBulk(deduped);
     if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ بيانات التلاميذ');
-    return deduped.length;
+    return { importedCount: deduped.length, departedStudents };
 }
 
 async function importGrades(workbook, schoolYear, sourceFileName = '') {

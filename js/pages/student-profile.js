@@ -7,11 +7,15 @@ const SCHOOL_YEAR = getSchoolYear();
 
 // ─── Gender helpers (shared with students-list.js) ───
 function isMale(gender) {
-    const g = String(gender || '').trim().toLowerCase();
+    const g = String(gender || '')
+        .trim()
+        .toLowerCase();
     return g === 'm' || g === 'male' || g === 'ذكر';
 }
 function isFemale(gender) {
-    const g = String(gender || '').trim().toLowerCase();
+    const g = String(gender || '')
+        .trim()
+        .toLowerCase();
     return g === 'f' || g === 'female' || g === 'أنثى';
 }
 function getGenderLabel(gender) {
@@ -27,9 +31,21 @@ function getGenderIcon(gender) {
 
 // ─── Avatar helpers ───
 const avatarColors = [
-    '#3B6AC5', '#3C95D0', '#E67F22', '#9B59B6', '#E74C3C',
-    '#1ABC9C', '#2980B9', '#D35400', '#8E44AD', '#27AE60',
-    '#F39C12', '#C0392B', '#16A085', '#2C3E50', '#7F8C8D'
+    '#3B6AC5',
+    '#3C95D0',
+    '#E67F22',
+    '#9B59B6',
+    '#E74C3C',
+    '#1ABC9C',
+    '#2980B9',
+    '#D35400',
+    '#8E44AD',
+    '#27AE60',
+    '#F39C12',
+    '#C0392B',
+    '#16A085',
+    '#2C3E50',
+    '#7F8C8D'
 ];
 function getAvatarColor(name) {
     let hash = 0;
@@ -96,11 +112,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ─── Tab Switching ───
 function initTabs() {
     const tabBtns = document.querySelectorAll('.sp-tab-btn');
-    tabBtns.forEach(btn => {
+    tabBtns.forEach((btn) => {
         btn.addEventListener('click', () => {
             // Deactivate all
-            tabBtns.forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.sp-tab-content').forEach(c => c.classList.remove('active'));
+            tabBtns.forEach((b) => b.classList.remove('active'));
+            document.querySelectorAll('.sp-tab-content').forEach((c) => c.classList.remove('active'));
 
             // Activate clicked
             btn.classList.add('active');
@@ -134,7 +150,7 @@ async function loadStudentProfile(code) {
     try {
         // Fetch student data
         const students = (await window.api.students.search('', '', code, SCHOOL_YEAR)) || [];
-        const student = students.find(s => String(s.massar_code || '').trim() === code.trim());
+        const student = students.find((s) => String(s.massar_code || '').trim() === code.trim());
 
         if (!student) {
             showNoStudentState();
@@ -155,12 +171,11 @@ async function loadStudentProfile(code) {
         ]);
 
         const studentGrades = (allGrades || [])
-            .filter(g => String(g.student_code || g.student_id || '').trim() === code.trim())
-            .map(g => ({ ...g, grade: Number(g.grade) }))
-            .filter(g => Number.isFinite(g.grade));
+            .filter((g) => String(g.student_code || g.student_id || '').trim() === code.trim())
+            .map((g) => ({ ...g, grade: Number(g.grade) }))
+            .filter((g) => Number.isFinite(g.grade));
 
-        const studentAbsences = (allAbsences || [])
-            .filter(a => String(a.student_code || '').trim() === code.trim());
+        const studentAbsences = (allAbsences || []).filter((a) => String(a.student_code || '').trim() === code.trim());
 
         // Render grades tab
         renderGradesTab(student, studentGrades);
@@ -170,7 +185,6 @@ async function loadStudentProfile(code) {
 
         // Render mini stats
         renderMiniStats(studentGrades, studentAbsences, student);
-
     } catch (err) {
         console.error('Error loading student profile:', err);
         if (typeof showToast === 'function') showToast('خطأ في تحميل ملف التلميذ', 'error');
@@ -245,38 +259,44 @@ function renderPersonalInfo(student) {
 function renderMiniStats(grades, absences, student) {
     // Calculate general average
     const dedup = {};
-    grades.forEach(g => {
+    grades.forEach((g) => {
         const key = `${String(g.subject || '').trim()}||${g.semester || ''}`;
         dedup[key] = g;
     });
     const dedupedGrades = Object.values(dedup);
 
     const bySubject = {};
-    dedupedGrades.forEach(g => {
-        const subj = (typeof ccBaseSubject === 'function' ? ccBaseSubject(normalizeSubjectName(g.subject)) : normalizeSubjectName(g.subject)) || 'غير محدد';
+    dedupedGrades.forEach((g) => {
+        const subj =
+            (typeof ccBaseSubject === 'function'
+                ? ccBaseSubject(normalizeSubjectName(g.subject))
+                : normalizeSubjectName(g.subject)) || 'غير محدد';
         if (!bySubject[subj]) bySubject[subj] = [];
         bySubject[subj].push(g);
     });
 
     const subjects = Object.keys(bySubject);
-    const subjectAvgsArr = subjects.map(s => {
-        const avg = typeof computeSubjectAverage === 'function'
-            ? computeSubjectAverage(s, bySubject[s])
-            : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
+    const subjectAvgsArr = subjects.map((s) => {
+        const avg =
+            typeof computeSubjectAverage === 'function'
+                ? computeSubjectAverage(s, bySubject[s])
+                : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
         return { subject: s, avg };
     });
 
-    const branch = typeof detectBranch === 'function'
-        ? detectBranch(student.section || student.class_name || '')
-        : null;
-    const generalAvg = typeof computeWeightedGeneralAverage === 'function'
-        ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
-        : (subjectAvgsArr.length ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length : 0);
+    const branch =
+        typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
+    const generalAvg =
+        typeof computeWeightedGeneralAverage === 'function'
+            ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
+            : subjectAvgsArr.length
+              ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length
+              : 0;
 
     // Absence hours
     let justifiedHours = 0;
     let unjustifiedHours = 0;
-    absences.forEach(a => {
+    absences.forEach((a) => {
         const h = Number(a.hours) || 0;
         if (a.absence_type === 'justified') justifiedHours += h;
         else if (a.absence_type === 'unjustified') unjustifiedHours += h;
@@ -306,7 +326,7 @@ function renderGradesTab(student, rawGrades) {
 
     // Deduplicate
     const dedup = {};
-    rawGrades.forEach(g => {
+    rawGrades.forEach((g) => {
         const key = `${String(g.subject || '').trim()}||${g.semester || ''}`;
         dedup[key] = g;
     });
@@ -324,30 +344,38 @@ function renderGradesTab(student, rawGrades) {
 
     // Group by subject
     const bySubject = {};
-    studentGrades.forEach(g => {
-        const subj = (typeof ccBaseSubject === 'function' ? ccBaseSubject(normalizeSubjectName(g.subject)) : normalizeSubjectName(g.subject)) || 'غير محدد';
+    studentGrades.forEach((g) => {
+        const subj =
+            (typeof ccBaseSubject === 'function'
+                ? ccBaseSubject(normalizeSubjectName(g.subject))
+                : normalizeSubjectName(g.subject)) || 'غير محدد';
         if (!bySubject[subj]) bySubject[subj] = [];
         bySubject[subj].push(g);
     });
 
-    const subjects = Object.keys(bySubject).sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
+    const subjects = Object.keys(bySubject).sort(
+        typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar')
+    );
 
     // KPIs
-    const subjectAvgsArr = subjects.map(s => {
-        const avg = typeof computeSubjectAverage === 'function'
-            ? computeSubjectAverage(s, bySubject[s])
-            : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
+    const subjectAvgsArr = subjects.map((s) => {
+        const avg =
+            typeof computeSubjectAverage === 'function'
+                ? computeSubjectAverage(s, bySubject[s])
+                : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
         return { subject: s, avg };
     });
 
-    const branch = typeof detectBranch === 'function'
-        ? detectBranch(student.section || student.class_name || '')
-        : null;
-    const generalAvg = typeof computeWeightedGeneralAverage === 'function'
-        ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
-        : (subjectAvgsArr.length ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length : 0);
-    const maxGrade = Math.max(...studentGrades.map(g => g.grade));
-    const minGrade = Math.min(...studentGrades.map(g => g.grade));
+    const branch =
+        typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
+    const generalAvg =
+        typeof computeWeightedGeneralAverage === 'function'
+            ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
+            : subjectAvgsArr.length
+              ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length
+              : 0;
+    const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
+    const minGrade = Math.min(...studentGrades.map((g) => g.grade));
 
     let html = `
         <div class="sp-kpis-row">
@@ -393,59 +421,66 @@ function renderGradesTab(student, rawGrades) {
 
     // Subject detail blocks
     html += `<h4 class="sp-section-title"><i class="fas fa-book-open"></i> تفاصيل النقط حسب المادة</h4>`;
-    subjects.forEach(subj => {
+    subjects.forEach((subj) => {
         const grades = bySubject[subj];
-        const avg = typeof computeSubjectAverage === 'function'
-            ? computeSubjectAverage(subj, grades)
-            : grades.reduce((a, g) => a + g.grade, 0) / grades.length;
+        const avg =
+            typeof computeSubjectAverage === 'function'
+                ? computeSubjectAverage(subj, grades)
+                : grades.reduce((a, g) => a + g.grade, 0) / grades.length;
         const clr = gradeColor(avg);
 
         // Group by semester
         const bySemester = {};
-        grades.forEach(g => {
+        grades.forEach((g) => {
             const sem = g.semester || 0;
             if (!bySemester[sem]) bySemester[sem] = [];
             bySemester[sem].push(g);
         });
         const semesterKeys = Object.keys(bySemester).sort((a, b) => Number(a) - Number(b));
-        const semesterNames = { '1': 'الدورة الأولى', '2': 'الدورة الثانية', '0': 'غير محددة' };
+        const semesterNames = { 1: 'الدورة الأولى', 2: 'الدورة الثانية', 0: 'غير محددة' };
         const hasMultipleSemesters = semesterKeys.length > 1 || (semesterKeys.length === 1 && semesterKeys[0] !== '0');
 
         let bodyHtml = '';
         if (hasMultipleSemesters) {
-            const cols = semesterKeys.map(sem => {
-                const semName = semesterNames[sem] || `الدورة ${sem}`;
-                let examIdx = 0;
-                const chips = bySemester[sem].map(g => {
+            const cols = semesterKeys
+                .map((sem) => {
+                    const semName = semesterNames[sem] || `الدورة ${sem}`;
+                    let examIdx = 0;
+                    const chips = bySemester[sem]
+                        .map((g) => {
+                            const gc = gradeColor(g.grade);
+                            const pct = Math.min((g.grade / 20) * 100, 100);
+                            const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
+                            const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
+                            return `<div class="sp-grade-chip">
+                        <span class="chip-label">${chipLabel}</span>
+                        <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
+                        <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                    </div>`;
+                        })
+                        .join('');
+                    return `<div class="sp-semester-col">
+                    <div class="sp-semester-header"><span>${semName}</span></div>
+                    <div class="sp-grades-chips">${chips}</div>
+                </div>`;
+                })
+                .join('');
+            bodyHtml = `<div class="sp-semesters-grid">${cols}</div>`;
+        } else {
+            let examIdx = 0;
+            const chips = grades
+                .map((g) => {
                     const gc = gradeColor(g.grade);
                     const pct = Math.min((g.grade / 20) * 100, 100);
                     const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
                     const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
                     return `<div class="sp-grade-chip">
-                        <span class="chip-label">${chipLabel}</span>
-                        <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
-                        <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
-                    </div>`;
-                }).join('');
-                return `<div class="sp-semester-col">
-                    <div class="sp-semester-header"><span>${semName}</span></div>
-                    <div class="sp-grades-chips">${chips}</div>
-                </div>`;
-            }).join('');
-            bodyHtml = `<div class="sp-semesters-grid">${cols}</div>`;
-        } else {
-            let examIdx = 0;
-            const chips = grades.map(g => {
-                const gc = gradeColor(g.grade);
-                const pct = Math.min((g.grade / 20) * 100, 100);
-                const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
-                const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
-                return `<div class="sp-grade-chip">
                     <span class="chip-label">${chipLabel}</span>
                     <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
                     <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
                 </div>`;
-            }).join('');
+                })
+                .join('');
             bodyHtml = `<div class="sp-grades-chips">${chips}</div>`;
         }
 
@@ -482,7 +517,7 @@ function renderAbsenceTab(absences) {
     let unjustifiedHours = 0;
     const byMonth = {};
 
-    absences.forEach(a => {
+    absences.forEach((a) => {
         const h = Number(a.hours) || 0;
         if (a.absence_type === 'justified') justifiedHours += h;
         else if (a.absence_type === 'unjustified') unjustifiedHours += h;
@@ -532,16 +567,18 @@ function renderAbsenceTab(absences) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${months.map(m => {
-            const data = byMonth[m];
-            const total = data.justified + data.unjustified;
-            return `<tr>
+                        ${months
+                            .map((m) => {
+                                const data = byMonth[m];
+                                const total = data.justified + data.unjustified;
+                                return `<tr>
                                 <td><strong>${escapeHtml(m)}</strong></td>
                                 <td style="color: #2ECC71; font-weight: 700;">${data.justified}</td>
                                 <td style="color: #E85D5D; font-weight: 700;">${data.unjustified}</td>
                                 <td style="font-weight: 800;">${total}</td>
                             </tr>`;
-        }).join('')}
+                            })
+                            .join('')}
                     </tbody>
                 </table>
             </div>
@@ -552,12 +589,14 @@ function renderAbsenceTab(absences) {
     html += `
         <h4 class="sp-section-title"><i class="fas fa-list"></i> آخر حالات الغياب</h4>
         <div class="sp-absence-records">
-            ${absences.slice(0, 15).map(a => {
-        const isJustified = a.absence_type === 'justified';
-        const typeLabel = isJustified ? 'مبرر' : 'غير مبرر';
-        const typeColor = isJustified ? '#2ECC71' : '#E85D5D';
-        const hours = Number(a.hours) || 0;
-        return `
+            ${absences
+                .slice(0, 15)
+                .map((a) => {
+                    const isJustified = a.absence_type === 'justified';
+                    const typeLabel = isJustified ? 'مبرر' : 'غير مبرر';
+                    const typeColor = isJustified ? '#2ECC71' : '#E85D5D';
+                    const hours = Number(a.hours) || 0;
+                    return `
                     <div class="sp-absence-record">
                         <div class="sp-abs-type" style="color: ${typeColor}">
                             <i class="fas ${isJustified ? 'fa-check-circle' : 'fa-times-circle'}"></i>
@@ -567,7 +606,8 @@ function renderAbsenceTab(absences) {
                         <div class="sp-abs-date">${escapeHtml(a.absence_date || a.month || '-')}</div>
                     </div>
                 `;
-    }).join('')}
+                })
+                .join('')}
         </div>
     `;
 

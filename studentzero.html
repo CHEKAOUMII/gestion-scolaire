@@ -30,34 +30,50 @@
             </div>
         </header>
 
-        <div class="grades-container">
-            <div class="search-section">
-                <h3><i class="fas fa-filter"></i> تصفية النتائج</h3>
-                <form class="search-form sz-search-form" id="filters-form">
-                    <input id="search-input" type="text" placeholder="بحث بالاسم، رمز مسار أو المادة"
-                        autocomplete="off">
-                    <select id="class-select">
-                        <option value="">كل الأقسام</option>
-                    </select>
-                    <select id="semester-select">
-                        <option value="">كل الدورات</option>
-                        <option value="1">الدورة الأولى</option>
-                        <option value="2">الدورة الثانية</option>
-                    </select>
-                    <select id="page-size-select" aria-label="عدد النتائج في الصفحة">
-                        <option value="10">10 في الصفحة</option>
-                        <option value="25" selected>25 في الصفحة</option>
-                        <option value="50">50 في الصفحة</option>
-                        <option value="100">100 في الصفحة</option>
-                    </select>
-                    <button class="btn btn-primary" type="button" id="search-btn"><i class="fas fa-search"></i>
-                        بحث</button>
-                    <button class="btn btn-success ux-print-preview-btn" type="button" id="export-btn" disabled><i
-                            class="fas fa-eye"></i>
-                        معاينة الطباعة / PDF</button>
+        <div class="grades-container" style="padding-top: 18px;">
+            <!-- Filter Section — gs-form-section style -->
+            <div class="gs-form-section">
+                <div class="gs-form-header">
+                    <i class="fas fa-filter"></i> تصفية النتائج
+                </div>
+                <form class="gs-form-grid" id="filters-form">
+                    <div class="gs-form-group" style="grid-column: span 2;">
+                        <label for="search-input">البحث</label>
+                        <input id="search-input" type="text" placeholder="بحث بالاسم، رمز مسار أو المادة"
+                            autocomplete="off"
+                            style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;">
+                    </div>
+                    <div class="gs-form-group">
+                        <label for="class-select">القسم</label>
+                        <select id="class-select">
+                            <option value="">كل الأقسام</option>
+                        </select>
+                    </div>
+                    <div class="gs-form-group">
+                        <label for="semester-select">الدورة</label>
+                        <select id="semester-select">
+                            <option value="">كل الدورات</option>
+                            <option value="1">الدورة الأولى</option>
+                            <option value="2">الدورة الثانية</option>
+                        </select>
+                    </div>
+                    <div class="gs-form-group">
+                        <label for="page-size-select">عدد النتائج</label>
+                        <select id="page-size-select" aria-label="عدد النتائج في الصفحة">
+                            <option value="10">10 في الصفحة</option>
+                            <option value="25" selected>25 في الصفحة</option>
+                            <option value="50">50 في الصفحة</option>
+                            <option value="100">100 في الصفحة</option>
+                        </select>
+                    </div>
+                    <div class="gs-form-actions">
+                        <button class="btn btn-primary" type="button" id="search-btn"><i class="fas fa-search"></i> بحث</button>
+                        <button class="btn btn-success ux-print-preview-btn" type="button" id="export-btn" disabled><i class="fas fa-eye"></i> معاينة</button>
+                    </div>
                 </form>
             </div>
 
+            <!-- KPIs -->
             <div class="sz-kpis" aria-live="polite">
                 <div class="sz-kpi-card">
                     <div class="sz-kpi-label">حالات الصفر</div>
@@ -77,29 +93,36 @@
                 </div>
             </div>
 
-            <div class="students-results">
-                <div class="sz-results-head">
-                    <h3><i class="fas fa-list"></i> قائمة التلاميذ الحاصلين على صفر <span class="count-badge"
-                            id="results-count">0</span></h3>
-                    <div class="sz-results-meta" id="results-meta">-</div>
+            <!-- Results Section — gs-preview-section style -->
+            <div class="gs-preview-section">
+                <div class="gs-preview-header">
+                    <h3 class="gs-preview-title">
+                        <i class="fas fa-list"></i>
+                        قائمة التلاميذ الحاصلين على صفر
+                        <span id="results-count" class="gs-count-badge" aria-live="polite">0</span>
+                    </h3>
+                    <div class="sz-results-meta" id="results-meta" style="font-size:13px;color:var(--color-text-muted);">-</div>
                 </div>
-                <div class="table-responsive">
-                    <table class="students-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>رمز مسار</th>
-                                <th>الاسم الكامل</th>
-                                <th>القسم</th>
-                                <th>المادة</th>
-                                <th>الدورة</th>
-                                <th>السبب</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody"></tbody>
-                    </table>
+
+                <div class="gs-preview-body">
+                    <div class="table-responsive">
+                        <table class="students-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>رمز مسار</th>
+                                    <th>الاسم الكامل</th>
+                                    <th>القسم</th>
+                                    <th>المادة</th>
+                                    <th>الدورة</th>
+                                    <th>السبب</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="pagination" style="display:none;"></div>
                 </div>
-                <div class="pagination" id="pagination" style="display:none;"></div>
             </div>
         </div>
     </main>
@@ -416,7 +439,6 @@
             try {
                 showToast('جاري تحضير معاينة الطباعة...', 'info');
 
-                // Fetch ALL rows first so printable table is complete
                 const filters = getFilters();
                 const result = await fetchZeroStudents({
                     ...filters,
@@ -435,20 +457,79 @@
                     return;
                 }
 
-                // Temporarily fill the page table with all rows for the preview snapshot
-                const savedTbody = $('tbody').innerHTML;
-                const savedPagination = $('pagination').innerHTML;
-                const savedPaginationDisplay = $('pagination').style.display;
-                const savedMeta = $('results-meta').textContent;
+                const dateStr = new Intl.DateTimeFormat('ar-MA', {
+                    year: 'numeric', month: '2-digit', day: '2-digit'
+                }).format(new Date());
 
-                renderRows(rows, { page: 1, pageSize: rows.length });
-                $('pagination').style.display = 'none';
+                // Fetch identity for letterhead
+                let identity = {};
+                try { identity = await window.api.reports.getIdentity() || {}; } catch (_) {}
+
+                const letterhead = (typeof window.buildLetterheadHTML === 'function')
+                    ? window.buildLetterheadHTML(identity, year)
+                    : '';
 
                 const filtersText = [
-                    filters.className ? `القسم: ${filters.className}` : 'كل الأقسام',
-                    filters.semester ? `الدورة: ${semesterLabel(filters.semester)}` : 'كل الدورات'
-                ].join(' | ');
-                $('results-meta').textContent = `السنة الدراسية: ${year} | عدد السجلات: ${rows.length} | ${filtersText}`;
+                    filters.className ? filters.className : 'كل الأقسام',
+                    filters.semester ? semesterLabel(filters.semester) : 'كل الدورات'
+                ].join(' — ');
+
+                const tableRows = rows.map((row, idx) => {
+                    const reason = row.zero_reason || (Number(row.absence_count || 0) > 0 ? 'غياب' : 'تعثر دراسي');
+                    return `
+                        <tr>
+                            <td style="text-align:center;font-weight:600;color:#666;">${idx + 1}</td>
+                            <td>${escapeHtml(row.student_code || row.massar_code || '-')}</td>
+                            <td style="font-weight:600;">${escapeHtml(row.student_name || row.full_name || '-')}</td>
+                            <td style="text-align:center;">${escapeHtml(row.class_name || row.section || '-')}</td>
+                            <td style="text-align:center;">${escapeHtml(row.subject || '-')}</td>
+                            <td style="text-align:center;">${semesterLabel(row.semester)}</td>
+                            <td style="text-align:center;">${escapeHtml(reason)}</td>
+                        </tr>`;
+                }).join('');
+
+                // Build gs-sheet in a hidden div
+                let printDiv = document.getElementById('sz-print-content');
+                if (!printDiv) {
+                    printDiv = document.createElement('div');
+                    printDiv.id = 'sz-print-content';
+                    printDiv.style.display = 'none';
+                    document.body.appendChild(printDiv);
+                }
+
+                printDiv.innerHTML = `
+                    <div class="gs-sheet-wrapper">
+                        <div class="gs-sheet" id="sz-sheet-content">
+                            ${letterhead}
+                            <div class="gs-sheet-title">التلاميذ الحاصلون على صفر</div>
+                            <div class="gs-sheet-subtitle">${escapeHtml(filtersText)}</div>
+                            <div class="gs-sheet-meta">
+                                <span><i class="fas fa-calendar-alt"></i> السنة الدراسية: ${year}</span>
+                                <span><i class="fas fa-users"></i> العدد: ${rows.length}</span>
+                                <span><i class="fas fa-clock"></i> التاريخ: ${dateStr}</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="text-align:center;width:40px;">#</th>
+                                        <th>رمز مسار</th>
+                                        <th>الاسم الكامل</th>
+                                        <th style="text-align:center;">القسم</th>
+                                        <th style="text-align:center;">المادة</th>
+                                        <th style="text-align:center;width:60px;">الدورة</th>
+                                        <th style="text-align:center;">السبب</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${tableRows}</tbody>
+                            </table>
+                            <div class="gs-footer">
+                                <span>تاريخ الطباعة: ${dateStr}</span>
+                                <span>برنامج التدبير المدرسي — ${year}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                printDiv.style.display = 'block';
 
                 const previewFn =
                     (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
@@ -456,20 +537,17 @@
 
                 if (previewFn) {
                     previewFn({
+                        contentSelector: '#sz-sheet-content',
                         title: 'التلاميذ الحاصلون على صفر',
                         pageSize: 'A4',
+                        noHeader: true,
                         defaultFileName: `تلاميذ_الصفر_${year.replace('/', '-')}`
                     });
                 } else {
                     window.print();
                 }
 
-                // Restore original table state
-                $('tbody').innerHTML = savedTbody;
-                $('pagination').innerHTML = savedPagination;
-                $('pagination').style.display = savedPaginationDisplay;
-                $('results-meta').textContent = savedMeta;
-
+                setTimeout(() => { printDiv.style.display = 'none'; }, 500);
                 showToast(`تم تجهيز المعاينة (${rows.length} سجل)`, 'success');
             } catch (err) {
                 console.warn('Print preview error:', err);

@@ -280,6 +280,7 @@ function createTables() {
 
     ensureLicensingSchema(db);
     ensureOwnerSyncSchema(db);
+    ensureSyncSchema(db);
     ensurePageVisibilitySchema(db);
 
     // Initialize trial start date on first DB creation
@@ -475,6 +476,66 @@ function ensureOwnerSyncSchema(existingDb) {
     ).run();
 }
 
+function ensureSyncSchema(existingDb) {
+    const db = existingDb || getDb();
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS sync_outbox (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_name      TEXT    NOT NULL,
+            row_sync_id     TEXT    NOT NULL,
+            operation       TEXT    NOT NULL CHECK(operation IN ('PUT','DEL')),
+            row_data        TEXT,
+            school_year     TEXT,
+            status          TEXT    NOT NULL DEFAULT 'pending',
+            retries         INTEGER          DEFAULT 0,
+            last_attempt_at DATETIME,
+            sent_at         DATETIME,
+            last_error      TEXT,
+            created_at      DATETIME         DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sync_outbox_status_id
+        ON sync_outbox(status, id);
+
+        CREATE INDEX IF NOT EXISTS idx_sync_outbox_created_at
+        ON sync_outbox(created_at);
+
+        CREATE TABLE IF NOT EXISTS sync_id_map (
+            row_sync_id TEXT PRIMARY KEY,
+            table_name  TEXT    NOT NULL,
+            local_id    INTEGER NOT NULL,
+            UNIQUE(table_name, local_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_config (
+            id                      INTEGER PRIMARY KEY CHECK(id = 1),
+            enabled                 INTEGER  DEFAULT 0,
+            sync_interval_minutes   INTEGER  DEFAULT 10,
+            device_hash             TEXT,
+            device_name             TEXT,
+            school_id_hash          TEXT,
+            retention_days          INTEGER  DEFAULT 7,
+            last_capture_error      TEXT,
+            updated_at              DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_pull_state (
+            table_name      TEXT PRIMARY KEY,
+            last_pulled_at  TEXT,
+            last_pull_error TEXT,
+            updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    db.prepare(
+        `
+        INSERT OR IGNORE INTO sync_config(id, enabled, sync_interval_minutes, retention_days)
+        VALUES(1, 0, 10, 7)
+    `
+    ).run();
+}
+
 function ensurePageVisibilitySchema(existingDb) {
     const db = existingDb || getDb();
 
@@ -528,5 +589,6 @@ module.exports = {
     ensureColumn,
     ensureLicensingSchema,
     ensureOwnerSyncSchema,
+    ensureSyncSchema,
     ensurePageVisibilitySchema
 };

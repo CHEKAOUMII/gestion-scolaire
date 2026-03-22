@@ -34,10 +34,11 @@ function renderLetterhead(overrides = {}) {
 
                 <!-- Center column: Logo -->
                 <td style="width: 10%; text-align: center; vertical-align: middle;">
-                    ${logo
-            ? `<img src="data:image/png;base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
-            : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
-        }
+                    ${
+                        logo
+                            ? `<img src="data:image/png;base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+                            : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
+                    }
                 </td>
 
                 <!-- Left column: School identity -->
@@ -50,7 +51,9 @@ function renderLetterhead(overrides = {}) {
             </tr>
         </table>
 
-        ${documentTitle ? `
+        ${
+            documentTitle
+                ? `
         <div style="text-align: center; margin-top: 12px;">
             <div style="
                 display: inline-block;
@@ -60,7 +63,9 @@ function renderLetterhead(overrides = {}) {
             ">
                 <div style="font-size: 17px; font-weight: 800; color: #3B6AC5;">${esc(documentTitle)}</div>
             </div>
-        </div>` : ''}
+        </div>`
+                : ''
+        }
     </div>`;
 }
 

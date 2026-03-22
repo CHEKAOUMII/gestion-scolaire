@@ -324,7 +324,6 @@ const BackupManager = {
             console.log('Auto backup triggered');
             this.createBackup()
                 .then((backup) => {
-                    backup.type = 'auto';
                     if (typeof showToast === 'function') {
                         showToast('تم إنشاء نسخة احتياطية تلقائية', 'info');
                     }

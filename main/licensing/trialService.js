@@ -20,13 +20,11 @@ const DEFAULT_TRIAL_DURATION = '6months';
  */
 function ensureTrialStartDate(existingDb) {
     const db = existingDb || getDb();
-    db.prepare(
-        `INSERT OR IGNORE INTO settings(key, value) VALUES('trial_start_date', ?)`
-    ).run(new Date().toISOString());
+    db.prepare(`INSERT OR IGNORE INTO settings(key, value) VALUES('trial_start_date', ?)`).run(
+        new Date().toISOString()
+    );
 
-    db.prepare(
-        `INSERT OR IGNORE INTO settings(key, value) VALUES('trial_duration', ?)`
-    ).run(DEFAULT_TRIAL_DURATION);
+    db.prepare(`INSERT OR IGNORE INTO settings(key, value) VALUES('trial_duration', ?)`).run(DEFAULT_TRIAL_DURATION);
 }
 
 /**
@@ -98,8 +96,6 @@ function setTrialDuration(duration) {
 }
 
 module.exports = {
-    TRIAL_DURATIONS,
-    DEFAULT_TRIAL_DURATION,
     ensureTrialStartDate,
     getTrialStatus,
     setTrialDuration

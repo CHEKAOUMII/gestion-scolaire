@@ -91,6 +91,13 @@
                         <div class="stat-value" id="stat-not-enrolled">0</div>
                     </div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-icon transferred-in"><i class="fas fa-user-plus"></i></div>
+                    <div class="stat-info">
+                        <h4>الوافدون</h4>
+                        <div class="stat-value" id="stat-transferred-in">0</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Tabs + Table -->
@@ -119,6 +126,9 @@
                     </button>
                     <button class="status-tab" data-status="not_enrolled">
                         <i class="fas fa-user-minus"></i> غير الملتحقين <span class="tab-count" id="count-not-enrolled">0</span>
+                    </button>
+                    <button class="status-tab" data-status="transferred_in">
+                        <i class="fas fa-user-plus"></i> الوافدون <span class="tab-count" id="count-transferred-in">0</span>
                     </button>
                 </div>
 
@@ -166,6 +176,7 @@
                         <option value="dropout">منقطع عن الدراسة</option>
                         <option value="expelled">مفصول</option>
                         <option value="not_enrolled">غير ملتحق</option>
+                        <option value="transferred_in">وافد</option>
                     </select>
                 </div>
                 <div class="form-group">

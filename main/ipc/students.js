@@ -12,6 +12,17 @@ function registerStudentsIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
+    handleRead(ipcMain, 'students:getCodesByYear', (db, schoolYear) => {
+        return db
+            .prepare(
+                `SELECT id, code, full_name, section, status
+                 FROM students
+                 WHERE school_year = ? AND status = 'active'
+                 ORDER BY section, full_name`
+            )
+            .all(normalizeYear(schoolYear));
+    });
+
     handleRead(ipcMain, 'students:search', (db, name, className, code, schoolYear) => {
         const year = normalizeYear(schoolYear);
         const nameQ = String(name || '').trim();
@@ -179,7 +190,7 @@ function registerStudentsIpc(ipcMain) {
         const searchTerm = String(filters.searchTerm || '').trim();
 
         // Non-active statuses
-        const validStatuses = ['dropout', 'expelled', 'not_enrolled'];
+        const validStatuses = ['dropout', 'expelled', 'not_enrolled', 'transferred_in'];
 
         const whereParts = ['s.school_year = ?'];
         const params = [year];
@@ -189,7 +200,7 @@ function registerStudentsIpc(ipcMain) {
             params.push(statusFilter);
         } else {
             // Show all non-active students
-            whereParts.push("s.status IN ('dropout', 'expelled', 'not_enrolled')");
+            whereParts.push("s.status IN ('dropout', 'expelled', 'not_enrolled', 'transferred_in')");
         }
 
         if (sectionFilter) {
@@ -217,7 +228,7 @@ function registerStudentsIpc(ipcMain) {
                 SELECT student_id, movement_date, notes,
                        ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY created_at DESC) AS rn
                 FROM student_movements
-                WHERE movement_type IN ('dropout', 'expulsion', 'not_enrolled')
+                WHERE movement_type IN ('dropout', 'expulsion', 'not_enrolled', 'transferred_in')
             ) m ON m.student_id = s.id AND m.rn = 1
             WHERE ${whereSql}
             ORDER BY s.section, s.full_name
@@ -233,10 +244,11 @@ function registerStudentsIpc(ipcMain) {
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'dropout' THEN 1 ELSE 0 END) AS dropouts,
                 SUM(CASE WHEN status = 'expelled' THEN 1 ELSE 0 END) AS expelled,
-                SUM(CASE WHEN status = 'not_enrolled' THEN 1 ELSE 0 END) AS not_enrolled
+                SUM(CASE WHEN status = 'not_enrolled' THEN 1 ELSE 0 END) AS not_enrolled,
+                SUM(CASE WHEN status = 'transferred_in' THEN 1 ELSE 0 END) AS transferred_in
             FROM students
             WHERE school_year = ?
-              AND status IN ('dropout', 'expelled', 'not_enrolled')
+              AND status IN ('dropout', 'expelled', 'not_enrolled', 'transferred_in')
         `
             )
             .get(year);
@@ -251,6 +263,7 @@ function registerStudentsIpc(ipcMain) {
                 dropouts: Number(summary?.dropouts || 0),
                 expelled: Number(summary?.expelled || 0),
                 notEnrolled: Number(summary?.not_enrolled || 0),
+                transferredIn: Number(summary?.transferred_in || 0),
                 totalStudents: Number(totalStudents?.total || 0)
             }
         };
@@ -264,7 +277,7 @@ function registerStudentsIpc(ipcMain) {
             return { success: false, error: 'Batch size exceeds maximum of 500' };
         }
 
-        const validStatuses = ['active', 'dropout', 'expelled', 'not_enrolled'];
+        const validStatuses = ['active', 'dropout', 'expelled', 'not_enrolled', 'transferred_in'];
         const updateStmt = db.prepare('UPDATE students SET status = ? WHERE id = ?');
 
         const updateMany = db.transaction((entries) => {

@@ -8,6 +8,8 @@ const { initDatabase } = require('./main/db/init');
 const { getDb } = require('./main/db/context');
 const { registerAllIpcHandlers } = require('./main/ipc/registerAll');
 const { startOwnerSyncBackground } = require('./main/licensing/ownerSync');
+const { startSyncPushBackground, stopSyncPushBackground, startSyncPullBackground, stopSyncPullBackground } = require('./main/sync/engine');
+const { startSnapshotBackground, stopSnapshotBackground } = require('./main/sync/snapshot');
 const { bindUpdaterWindow, initAutoUpdater } = require('./main/updater');
 
 let mainWindow = null;
@@ -168,6 +170,9 @@ if (gotSingleInstanceLock) {
             initDatabase();
             registerAllIpcHandlers(ipcMain);
             startOwnerSyncBackground();
+            startSyncPushBackground();
+            startSyncPullBackground();
+            startSnapshotBackground();
             const window = createWindow();
             initAutoUpdater(window);
         } catch (error) {
@@ -191,6 +196,9 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+    stopSyncPushBackground();
+    stopSyncPullBackground();
+    stopSnapshotBackground();
     try {
         const db = getDb();
         db.close();

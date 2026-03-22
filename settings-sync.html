@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="صفحة إعدادات المزامنة السحابية" />
+        <meta name="theme-color" content="#0f172a" />
+        <title>المزامنة السحابية | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+    </head>
+
+    <body>
+        <noscript>
+            <div
+                class="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-[#0f172a] p-10 text-center text-[#f1f5f9]"
+            >
+                <div>
+                    <i class="fas fa-exclamation-triangle mb-4 block text-5xl text-[#f59e0b]"></i>
+                    <h2 class="text-2xl font-bold">يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
+                </div>
+            </div>
+        </noscript>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar">
+            <!-- Sidebar will be injected by sidebar.js -->
+        </aside>
+
+        <main
+            class="main-content standalone-page flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
+        >
+            <header class="header unified-header">
+                <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
+                    <button
+                        class="menu-toggle inline-flex h-[45px] w-[45px] items-center justify-center rounded-[var(--radius-sm)] border-0 bg-[var(--gradient-primary)] text-white transition-transform duration-300 hover:scale-105"
+                        id="menu-toggle"
+                        type="button"
+                        aria-label="فتح القائمة الجانبية"
+                        title="القائمة"
+                    >
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="search-box relative min-w-0 max-w-[500px] flex-1 basis-[160px]" role="search">
+                        <input
+                            class="w-full rounded-[var(--radius-full)] ps-5 pe-[45px]"
+                            type="text"
+                            id="header-search"
+                            placeholder="ابحث عن صفحة..."
+                            aria-label="بحث"
+                        />
+                        <i
+                            class="fas fa-search pointer-events-none absolute start-5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+                        ></i>
+                    </div>
+                </div>
+                <div class="header-right flex min-w-0 shrink flex-wrap items-center gap-2">
+                    <button
+                        class="theme-toggle"
+                        id="theme-toggle"
+                        type="button"
+                        aria-label="تبديل المظهر"
+                        title="تبديل المظهر"
+                    >
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button
+                        class="theme-toggle"
+                        id="shortcuts-btn"
+                        type="button"
+                        aria-label="عرض اختصارات لوحة المفاتيح"
+                        title="اختصارات لوحة المفاتيح (?)"
+                    >
+                        <i class="fas fa-keyboard"></i>
+                    </button>
+                    <div
+                        class="user-info max-w-[10rem] overflow-hidden text-ellipsis whitespace-nowrap rounded-[10px] bg-[var(--color-primary-mist)] px-3 py-2 font-bold text-[var(--color-primary-dark)]"
+                        id="user-info"
+                    >
+                        <span id="user-email">المستخدم</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-title-row my-[10px] mb-3 px-1">
+                <h2
+                    class="page-title m-0 inline-flex items-center gap-2.5 whitespace-nowrap text-[clamp(1.1rem,1.8vw,1.5rem)] font-bold text-[var(--color-text-main)]"
+                >
+                    <i class="fas fa-cloud"></i> المزامنة السحابية
+                </h2>
+            </div>
+
+            <div class="grades-container" id="sync-page-content">
+                <!-- US1: Status Section -->
+                <div class="students-results" id="sync-status-section">
+                    <h3><i class="fas fa-heartbeat"></i> حالة المزامنة</h3>
+                    <div id="sync-state-banner" class="mb-4 rounded-xl px-4 py-3.5 flex items-center gap-3 bg-[rgba(150,150,150,0.12)] text-[var(--color-text-muted)]">
+                        <i class="fas fa-pause-circle text-xl"></i>
+                        <span class="font-bold">جاري التحميل...</span>
+                    </div>
+                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" id="status-cards" aria-live="polite">
+                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
+                            <div class="text-sm text-[var(--color-text-muted)]">حالة الاتصال</div>
+                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-connection">—</div>
+                        </div>
+                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
+                            <div class="text-sm text-[var(--color-text-muted)]">آخر رفع</div>
+                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-last-push">—</div>
+                        </div>
+                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
+                            <div class="text-sm text-[var(--color-text-muted)]">آخر سحب</div>
+                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-last-pull">—</div>
+                        </div>
+                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
+                            <div class="text-sm text-[var(--color-text-muted)]">التغييرات المعلقة</div>
+                            <div class="text-lg font-bold text-[var(--color-success-bg)]" id="status-pending">—</div>
+                        </div>
+                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
+                            <div class="text-sm text-[var(--color-text-muted)]">العناصر الفاشلة</div>
+                            <div class="text-lg font-bold text-[var(--color-success-bg)]" id="status-failed">—</div>
+                        </div>
+                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
+                            <div class="text-sm text-[var(--color-text-muted)]">التعارضات</div>
+                            <div class="text-lg font-bold text-[var(--color-success-bg)]" id="status-conflicts">—</div>
+                        </div>
+                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
+                            <div class="text-sm text-[var(--color-text-muted)]">آخر فحص</div>
+                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-last-snapshot">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- US2: Configuration Section -->
+                <div class="students-results admin-only" id="sync-config-section">
+                    <h3><i class="fas fa-cog"></i> إعدادات المزامنة</h3>
+                    <form id="sync-config-form">
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="cfg-enabled" />
+                                <span class="font-semibold">تفعيل المزامنة</span>
+                            </label>
+                            <div></div>
+                            <div>
+                                <label for="cfg-school-id" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">معرف المؤسسة</label>
+                                <input type="text" id="cfg-school-id" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                            </div>
+                            <div>
+                                <label for="cfg-auth-url" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">رابط المصادقة</label>
+                                <input type="text" id="cfg-auth-url" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                            </div>
+                            <div>
+                                <label for="cfg-region" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">المنطقة (AWS Region)</label>
+                                <input type="text" id="cfg-region" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" value="us-east-1" />
+                            </div>
+                            <div>
+                                <label for="cfg-interval" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">فترة المزامنة (دقائق)</label>
+                                <input type="number" id="cfg-interval" min="1" max="30" value="10" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                            </div>
+                        </div>
+                        <details class="mt-4">
+                            <summary class="cursor-pointer font-semibold text-[var(--color-text-muted)]">
+                                <i class="fas fa-sliders-h"></i> إعدادات متقدمة
+                            </summary>
+                            <div class="mt-3 grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label for="cfg-batch-size" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">حجم الدفعة</label>
+                                    <input type="number" id="cfg-batch-size" value="100" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                </div>
+                                <div>
+                                    <label for="cfg-max-retries" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">أقصى محاولات</label>
+                                    <input type="number" id="cfg-max-retries" value="10" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                </div>
+                                <div>
+                                    <label for="cfg-retention" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">أيام الاحتفاظ</label>
+                                    <input type="number" id="cfg-retention" value="7" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                </div>
+                                <div>
+                                    <label for="cfg-snapshot-interval" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">فترة الفحص (دقائق)</label>
+                                    <input type="number" id="cfg-snapshot-interval" value="30" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                </div>
+                            </div>
+                        </details>
+                        <div id="config-validation" class="validation-message warning mt-4 hidden"></div>
+                        <button class="btn btn-primary mt-4" type="submit"><i class="fas fa-save"></i> حفظ الإعدادات</button>
+                    </form>
+                </div>
+
+                <!-- US3: Manual Sync Section -->
+                <div class="students-results admin-only" id="sync-trigger-section">
+                    <h3><i class="fas fa-bolt"></i> مزامنة يدوية</h3>
+                    <button class="btn btn-warning" id="btn-sync-now" type="button"><i class="fas fa-sync"></i> مزامنة الآن</button>
+                    <div id="sync-results" class="mt-4 hidden"></div>
+                </div>
+
+                <!-- US4: Conflict Log Section -->
+                <div class="students-results" id="sync-conflicts-section">
+                    <h3><i class="fas fa-code-branch"></i> سجل التعارضات <span class="badge" id="conflict-badge"></span></h3>
+                    <div class="flex items-center gap-3 mb-3">
+                        <label for="conflict-filter" class="sr-only">تصفية التعارضات</label>
+                        <select id="conflict-filter">
+                            <option value="all">الكل</option>
+                            <option value="unresolved" selected>غير محلولة</option>
+                            <option value="resolved">محلولة</option>
+                        </select>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="students-table">
+                            <caption class="sr-only">سجل تعارضات المزامنة</caption>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>النوع</th>
+                                    <th>المعرف</th>
+                                    <th>الحقول المتعارضة</th>
+                                    <th>الحالة</th>
+                                    <th>التاريخ</th>
+                                    <th class="admin-only">الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="conflict-tbody">
+                                <tr>
+                                    <td colspan="7" class="loading-cell">
+                                        <i class="fas fa-spinner fa-spin"></i> جاري التحميل...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex items-center justify-between mt-3" id="conflict-pagination">
+                        <button class="btn btn-secondary btn-sm conflict-prev-btn" type="button" disabled><i class="fas fa-chevron-right"></i> السابقة</button>
+                        <span class="conflict-page-info text-sm text-[var(--color-text-muted)]">صفحة 1</span>
+                        <button class="btn btn-secondary btn-sm conflict-next-btn" type="button"><i class="fas fa-chevron-left"></i> التالية</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Quick Navigation Panel -->
+        <div
+            class="quick-nav-panel"
+            id="quick-nav-panel"
+            role="navigation"
+            aria-label="التنقل السريع"
+            aria-hidden="true"
+        >
+            <div class="quick-nav-header">
+                <h3><i class="fas fa-compass"></i> التنقل السريع</h3>
+                <button
+                    class="quick-nav-close"
+                    id="quick-nav-close"
+                    type="button"
+                    aria-label="إغلاق لوحة التنقل السريع"
+                >
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="quick-nav-search">
+                <label for="quick-nav-search-input" class="sr-only">ابحث في صفحات التنقل السريع</label>
+                <input type="text" id="quick-nav-search-input" placeholder="بحث..." />
+            </div>
+            <div class="quick-nav-list" id="quick-nav-pages-list">
+            </div>
+        </div>
+        <button
+            class="quick-nav-toggle"
+            id="quick-nav-toggle"
+            type="button"
+            aria-label="فتح التنقل السريع"
+            aria-controls="quick-nav-panel"
+            aria-expanded="false"
+            title="التنقل السريع (Ctrl+K)"
+        >
+            <i class="fas fa-compass"></i>
+        </button>
+
+        <!-- Keyboard Shortcuts Modal -->
+        <div
+            class="shortcuts-modal"
+            id="shortcuts-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shortcuts-modal-title"
+            aria-hidden="true"
+        >
+            <div class="shortcuts-content" tabindex="-1">
+                <div class="modal-header">
+                    <h3 id="shortcuts-modal-title"><i class="fas fa-keyboard"></i> اختصارات لوحة المفاتيح</h3>
+                    <button class="close-modal" id="shortcuts-close" type="button" aria-label="إغلاق نافذة الاختصارات">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="shortcuts-grid">
+                        <div class="shortcut-item">
+                            <span>طباعة</span>
+                            <div class="shortcut-keys">
+                                <span class="shortcut-key">Ctrl</span><span class="shortcut-key">P</span>
+                            </div>
+                        </div>
+                        <div class="shortcut-item">
+                            <span>البحث</span>
+                            <div class="shortcut-keys"><span class="shortcut-key">/</span></div>
+                        </div>
+                        <div class="shortcut-item">
+                            <span>التنقل السريع</span>
+                            <div class="shortcut-keys">
+                                <span class="shortcut-key">Ctrl</span><span class="shortcut-key">K</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="js/pages/settings-sync.js" defer></script>
+    </body>
+</html>

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
     // Students
     students: {
         getAll: (schoolYear) => ipcRenderer.invoke('students:getAll', schoolYear),
+        getCodesByYear: (schoolYear) => ipcRenderer.invoke('students:getCodesByYear', schoolYear),
         search: (name, className, code, schoolYear) =>
             ipcRenderer.invoke('students:search', name, className, code, schoolYear),
         add: (student) => ipcRenderer.invoke('students:add', student),
@@ -132,13 +133,6 @@ contextBridge.exposeInMainWorld('api', {
         toggleCompensated: (id, compensated) => ipcRenderer.invoke('compensation:toggleCompensated', id, compensated)
     },
 
-    // Staff attendance (absences + tardiness)
-    staffAttendance: {
-        getAll: (schoolYear) => ipcRenderer.invoke('staffAttendance:getAll', schoolYear),
-        save: (payload) => ipcRenderer.invoke('staffAttendance:save', payload),
-        delete: (id) => ipcRenderer.invoke('staffAttendance:delete', id)
-    },
-
     // Exams
     exams: {
         getAll: (schoolYear) => ipcRenderer.invoke('exams:getAll', schoolYear),
@@ -209,7 +203,8 @@ contextBridge.exposeInMainWorld('api', {
         getAll: () => ipcRenderer.invoke('users:getAll'),
         add: (payload) => ipcRenderer.invoke('users:add', payload),
         updateRole: (id, role) => ipcRenderer.invoke('users:updateRole', id, role),
-        disable: (id, disabled) => ipcRenderer.invoke('users:disable', id, disabled)
+        disable: (id, disabled) => ipcRenderer.invoke('users:disable', id, disabled),
+        resetAdminPassword: () => ipcRenderer.invoke('users:resetAdminPassword')
     },
 
     // Licensing

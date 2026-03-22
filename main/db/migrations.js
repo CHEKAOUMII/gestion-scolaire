@@ -1,5 +1,11 @@
 const { getDb } = require('./context');
-const { ensureColumn, ensureLicensingSchema, ensureOwnerSyncSchema, ensurePageVisibilitySchema } = require('./schema');
+const {
+    ensureColumn,
+    ensureLicensingSchema,
+    ensureOwnerSyncSchema,
+    ensurePageVisibilitySchema,
+    ensureSyncSchema
+} = require('./schema');
 const { generateRandomPassword, hashPassword } = require('../auth/password');
 const { normalizeTeacherName, seedTeacherAliases, resolveTeacherIdentity } = require('../teachers/identity');
 
@@ -300,7 +306,7 @@ const MIGRATIONS = [
             // Add teacher_name column if staff_attendance table exists without it
             try {
                 db.exec(`ALTER TABLE staff_attendance ADD COLUMN teacher_name TEXT`);
-            } catch (_e) {
+            } catch {
                 // Column already exists or table doesn't exist yet
             }
         }
@@ -311,7 +317,7 @@ const MIGRATIONS = [
             const db = getDb();
             try {
                 db.exec(`ALTER TABLE staff_attendance ADD COLUMN subject TEXT`);
-            } catch (_e) {
+            } catch {
                 // Column already exists
             }
         }
@@ -558,6 +564,104 @@ const MIGRATIONS = [
                     ELSE COALESCE(is_surplus, 0)
                 END
             `);
+        }
+    },
+    {
+        version: '2026-03-030-sync-foundation',
+        up: () => {
+            const db = getDb();
+            ensureSyncSchema(db);
+        }
+    },
+    {
+        version: '2026-03-031-push-engine-config',
+        up: () => {
+            ensureColumn('sync_config', 'auth_lambda_url', 'TEXT');
+            ensureColumn('sync_config', 'aws_region', "TEXT DEFAULT 'us-east-1'");
+            ensureColumn('sync_config', 'last_push_at', 'DATETIME');
+            ensureColumn('sync_config', 'last_push_error', 'TEXT');
+            ensureColumn('sync_config', 'push_batch_size', 'INTEGER DEFAULT 100');
+            ensureColumn('sync_config', 'max_retries', 'INTEGER DEFAULT 10');
+            ensureColumn('sync_config', 'school_id', 'TEXT');
+        }
+    },
+    {
+        version: '2026-03-032-pull-engine',
+        up: () => {
+            const db = getDb();
+
+            // 1. Create sync_conflicts table
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS sync_conflicts (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    table_name        TEXT     NOT NULL,
+                    row_sync_id       TEXT     NOT NULL,
+                    entity_type       TEXT     NOT NULL,
+                    local_data        TEXT,
+                    remote_data       TEXT     NOT NULL,
+                    remote_version    INTEGER  NOT NULL,
+                    remote_device_hash TEXT    NOT NULL,
+                    local_outbox_id   INTEGER,
+                    status            TEXT     NOT NULL DEFAULT 'unresolved'
+                                      CHECK(status IN ('unresolved','resolved')),
+                    resolution        TEXT     CHECK(resolution IN ('local','remote','merged')),
+                    resolved_at       DATETIME,
+                    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_sync_conflicts_status ON sync_conflicts(status, created_at);
+                CREATE INDEX IF NOT EXISTS idx_sync_conflicts_row ON sync_conflicts(table_name, row_sync_id);
+            `);
+
+            // 2. Add pull-engine columns to sync_config
+            ensureColumn('sync_config', 'pull_cursor', 'TEXT');
+            ensureColumn('sync_config', 'last_pull_at', 'DATETIME');
+            ensureColumn('sync_config', 'last_pull_error', 'TEXT');
+
+            // 3. Add push-engine columns to sync_config (idempotent)
+            ensureColumn('sync_config', 'auth_lambda_url', 'TEXT');
+            ensureColumn('sync_config', 'aws_region', "TEXT DEFAULT 'us-east-1'");
+            ensureColumn('sync_config', 'last_push_at', 'DATETIME');
+            ensureColumn('sync_config', 'last_push_error', 'TEXT');
+            ensureColumn('sync_config', 'push_batch_size', 'INTEGER DEFAULT 100');
+            ensureColumn('sync_config', 'max_retries', 'INTEGER DEFAULT 10');
+            ensureColumn('sync_config', 'school_id', 'TEXT');
+
+            // 4. Add conflict detection index on sync_outbox
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_sync_outbox_conflict_check ON sync_outbox(status, table_name, row_sync_id);
+            `);
+        }
+    },
+    {
+        version: '2026-03-033-integrity-conflict-resolution',
+        up: () => {
+            const db = getDb();
+
+            // 1. Snapshot table for re-snapshot checker
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS sync_snapshots (
+                    row_sync_id TEXT PRIMARY KEY,
+                    table_name  TEXT NOT NULL,
+                    checksum    TEXT NOT NULL,
+                    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            db.exec('CREATE INDEX IF NOT EXISTS idx_sync_snapshots_table ON sync_snapshots(table_name)');
+
+            // 2. Enrich sync_conflicts with merge details
+            ensureColumn('sync_conflicts', 'ancestor_data', 'TEXT');
+            ensureColumn('sync_conflicts', 'conflicting_fields', 'TEXT');
+            ensureColumn('sync_conflicts', 'resolution_method', 'TEXT');
+            ensureColumn('sync_conflicts', 'resolved_data', 'TEXT');
+
+            // 3. Version tracking + ancestor in sync_id_map
+            ensureColumn('sync_id_map', 'version', 'INTEGER DEFAULT 0');
+            ensureColumn('sync_id_map', 'ancestor_data', 'TEXT');
+
+            // 4. Snapshot config
+            ensureColumn('sync_config', 'snapshot_interval_minutes', 'INTEGER DEFAULT 30');
+            ensureColumn('sync_config', 'last_snapshot_at', 'DATETIME');
+            ensureColumn('sync_config', 'last_snapshot_error', 'TEXT');
         }
     }
 ];

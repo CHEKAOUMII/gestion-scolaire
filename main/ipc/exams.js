@@ -163,14 +163,7 @@ function registerExamsIpc(ipcMain) {
                 .prepare(
                     'UPDATE exam_rooms SET room_name = ?, capacity = ?, equipment = ?, school_year = ? WHERE id = ? AND school_year = ?'
                 )
-                .run(
-                    payload.room_name,
-                    payload.capacity || 0,
-                    payload.equipment || null,
-                    year,
-                    safeId,
-                    year
-                );
+                .run(payload.room_name, payload.capacity || 0, payload.equipment || null, year, safeId, year);
             if (result.changes === 0) {
                 return { success: false, error: 'Record not found or school year mismatch' };
             }

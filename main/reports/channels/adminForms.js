@@ -12,13 +12,16 @@ function esc(s) {
         .replace(/"/g, '&quot;');
 }
 
-const fieldStyle = 'border-bottom: 1.5px dotted #999; min-width: 140px; display: inline-block; padding: 2px 6px; font-weight: 600; color: #222;';
+const fieldStyle =
+    'border-bottom: 1.5px dotted #999; min-width: 140px; display: inline-block; padding: 2px 6px; font-weight: 600; color: #222;';
 const labelStyle = 'font-size: 11px; color: #444; margin-left: 4px;';
 const sectionStyle = 'margin-bottom: 14px;';
 const rowStyle = 'display: flex; flex-wrap: wrap; gap: 8px 24px; margin-bottom: 10px; font-size: 11px; line-height: 2;';
-const headingStyle = 'font-size: 12px; font-weight: 700; color: #3B6AC5; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-bottom: 10px;';
+const headingStyle =
+    'font-size: 12px; font-weight: 700; color: #3B6AC5; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-bottom: 10px;';
 const signatureBoxStyle = 'display: inline-block; width: 180px; text-align: center; margin-top: 30px;';
-const signatureLineStyle = 'border-top: 1px solid #888; margin-top: 40px; padding-top: 4px; font-size: 10px; color: #555;';
+const signatureLineStyle =
+    'border-top: 1px solid #888; margin-top: 40px; padding-top: 4px; font-size: 10px; color: #555;';
 
 function field(label, value) {
     return `<span style="${labelStyle}">${esc(label)}:</span> <span style="${fieldStyle}">${esc(value)}</span>`;
@@ -214,15 +217,11 @@ function buildAbsenceJustificationHTML(d) {
 /** Map of form type keys to builder functions and default titles */
 const FORM_BUILDERS = {
     registration: { build: buildRegistrationFormHTML, title: 'استمارة تسجيل التلاميذ' },
-    transfer:     { build: buildTransferFormHTML,     title: 'استمارة الانتقال' },
-    dropout:      { build: buildDropoutFormHTML,      title: 'استمارة الانقطاع' },
-    absence:      { build: buildAbsenceJustificationHTML, title: 'استمارة تبرير الغياب' }
+    transfer: { build: buildTransferFormHTML, title: 'استمارة الانتقال' },
+    dropout: { build: buildDropoutFormHTML, title: 'استمارة الانقطاع' },
+    absence: { build: buildAbsenceJustificationHTML, title: 'استمارة تبرير الغياب' }
 };
 
 module.exports = {
-    FORM_BUILDERS,
-    buildRegistrationFormHTML,
-    buildTransferFormHTML,
-    buildDropoutFormHTML,
-    buildAbsenceJustificationHTML
+    FORM_BUILDERS
 };

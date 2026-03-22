@@ -1,9 +1,14 @@
 node_modules/
 dist/
+build/
+coverage/
 logs/
 timetables/
 .tmp.driveupload/
 .firebase/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 *.pdf
 *.xlsx
 *.xls

@@ -33,57 +33,50 @@
                 </div>
             </header>
 
-            <div class="grades-container">
-                <!-- Filters -->
-                <div class="filter-card no-print">
-                    <div class="filter-card-header">
-                        <i class="fas fa-filter"></i>
-                        <h3>فلترة وبحث</h3>
+            <div class="grades-container" style="padding-top: 18px;">
+                <!-- Filters — gs-form-section style -->
+                <div class="gs-form-section no-print">
+                    <div class="gs-form-header">
+                        <i class="fas fa-filter"></i> فلترة وبحث
                     </div>
-                    <div class="filter-card-body">
-                        <div class="filter-grid">
-                            <div class="filter-group">
-                                <label for="filter-date-from"><i class="fas fa-calendar-day"></i> من تاريخ</label>
-                                <input type="date" id="filter-date-from" />
-                            </div>
-                            <div class="filter-group">
-                                <label for="filter-date-to">إلى تاريخ</label>
-                                <input type="date" id="filter-date-to" />
-                            </div>
-                            <div class="filter-group">
-                                <label for="filter-section">القسم</label>
-                                <select id="filter-section">
-                                    <option value="">الكل</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label for="filter-teacher">الأستاذ(ة)</label>
-                                <select id="filter-teacher">
-                                    <option value="">الكل</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label for="filter-subject">المادة</label>
-                                <select id="filter-subject">
-                                    <option value="">الكل</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label for="filter-status">الحالة</label>
-                                <select id="filter-status">
-                                    <option value="">الكل</option>
-                                    <option value="pending" selected>في الانتظار</option>
-                                    <option value="done">تم التعويض</option>
-                                </select>
-                            </div>
+                    <div class="gs-form-grid">
+                        <div class="gs-form-group">
+                            <label for="filter-date-from"><i class="fas fa-calendar-day"></i> من تاريخ</label>
+                            <input type="date" id="filter-date-from" />
                         </div>
-                        <div class="filter-actions" style="display: flex; gap: 10px; justify-content: center; padding-top: 14px; border-top: 1px solid var(--color-accent); margin-top: 14px;">
-                            <button class="btn-primary" id="apply-filter-btn" type="button" style="padding: 10px 24px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
-                                <i class="fas fa-search"></i> بحث
-                            </button>
-                            <button class="btn-secondary" id="print-btn" type="button" style="padding: 10px 24px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #0891b2, #0e7490); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; box-shadow: 0 3px 10px rgba(8,145,178,0.3);" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 5px 16px rgba(8,145,178,0.45)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 3px 10px rgba(8,145,178,0.3)'">
-                                <i class="fas fa-eye"></i> معاينة الطباعة
-                            </button>
+                        <div class="gs-form-group">
+                            <label for="filter-date-to">إلى تاريخ</label>
+                            <input type="date" id="filter-date-to" />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="filter-section">القسم</label>
+                            <select id="filter-section">
+                                <option value="">الكل</option>
+                            </select>
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="filter-teacher">الأستاذ(ة)</label>
+                            <select id="filter-teacher">
+                                <option value="">الكل</option>
+                            </select>
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="filter-subject">المادة</label>
+                            <select id="filter-subject">
+                                <option value="">الكل</option>
+                            </select>
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="filter-status">الحالة</label>
+                            <select id="filter-status">
+                                <option value="">الكل</option>
+                                <option value="pending" selected>في الانتظار</option>
+                                <option value="done">تم التعويض</option>
+                            </select>
+                        </div>
+                        <div class="gs-form-actions">
+                            <button class="btn btn-primary" id="apply-filter-btn" type="button"><i class="fas fa-search"></i> بحث</button>
+                            <button class="btn btn-success ux-print-preview-btn" id="print-btn" type="button"><i class="fas fa-eye"></i> معاينة</button>
                         </div>
                     </div>
                 </div>
@@ -131,32 +124,36 @@
                 <!-- Hidden date display for print preview header -->
                 <span id="date-display" style="display: none;"></span>
 
-                <!-- Tracking Table -->
-                <div class="comp-section">
-                    <div class="comp-section-header">
-                        <i class="fas fa-list-check"></i>
-                        <h3>جدول تتبع الحصص التعويضية</h3>
-                        <span class="badge-count" id="table-count">0</span>
+                <!-- Tracking Table — gs-preview-section style -->
+                <div class="gs-preview-section">
+                    <div class="gs-preview-header">
+                        <h3 class="gs-preview-title">
+                            <i class="fas fa-list-check"></i>
+                            جدول تتبع الحصص التعويضية
+                            <span class="gs-count-badge" id="table-count">0</span>
+                        </h3>
                     </div>
-                    <table class="comp-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>التاريخ</th>
-                                <th>القسم</th>
-                                <th>الأستاذ(ة)</th>
-                                <th>المادة</th>
-                                <th>الحصة</th>
-                                <th>الحالة</th>
-                                <th class="no-print" style="width: 120px">إجراء</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tracking-tbody">
-                            <tr class="empty-row">
-                                <td colspan="8">جارٍ التحميل...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="gs-preview-body">
+                        <table class="comp-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>التاريخ</th>
+                                    <th>القسم</th>
+                                    <th>الأستاذ(ة)</th>
+                                    <th>المادة</th>
+                                    <th>الحصة</th>
+                                    <th>الحالة</th>
+                                    <th class="no-print" style="width: 120px">إجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tracking-tbody">
+                                <tr class="empty-row">
+                                    <td colspan="8">جارٍ التحميل...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </main>
@@ -505,12 +502,65 @@
                 loadTrackingData();
 
                 document.getElementById('apply-filter-btn').addEventListener('click', loadTrackingData);
-                document.getElementById('print-btn').addEventListener('click', () => {
-                    if (typeof openPrintPreview === 'function') {
-                        openPrintPreview({ title: 'الحصص التعويضية', pageSize: 'A4' });
-                    } else {
-                        window.print();
+                document.getElementById('print-btn').addEventListener('click', async () => {
+                    const tbody = document.getElementById('tracking-tbody');
+                    const rows = tbody?.querySelectorAll('tr:not(.empty-row)');
+                    if (!rows || !rows.length) { showToast('لا توجد بيانات للطباعة', 'warning'); return; }
+
+                    const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+                    const dateStr = new Intl.DateTimeFormat('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+                    let identity = {};
+                    try { identity = await window.api.reports.getIdentity() || {}; } catch (_) {}
+                    const letterhead = (typeof window.buildLetterheadHTML === 'function') ? window.buildLetterheadHTML(identity, year) : '';
+
+                    // Clone table rows without action column
+                    let tableRows = '';
+                    rows.forEach((row, i) => {
+                        const cells = row.querySelectorAll('td:not(.no-print)');
+                        tableRows += '<tr>' + Array.from(cells).map(td => `<td>${td.innerHTML}</td>`).join('') + '</tr>';
+                    });
+
+                    let printDiv = document.getElementById('comp-print-content');
+                    if (!printDiv) {
+                        printDiv = document.createElement('div');
+                        printDiv.id = 'comp-print-content';
+                        printDiv.style.display = 'none';
+                        document.body.appendChild(printDiv);
                     }
+                    printDiv.innerHTML = `
+                        <div class="gs-sheet-wrapper">
+                            <div class="gs-sheet" id="comp-sheet-content">
+                                ${letterhead}
+                                <div class="gs-sheet-title">الحصص التعويضية</div>
+                                <div class="gs-sheet-meta">
+                                    <span><i class="fas fa-calendar-alt"></i> السنة الدراسية: ${year}</span>
+                                    <span><i class="fas fa-list"></i> العدد: ${rows.length}</span>
+                                    <span><i class="fas fa-clock"></i> التاريخ: ${dateStr}</span>
+                                </div>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:center;width:40px;">#</th>
+                                            <th>التاريخ</th>
+                                            <th>القسم</th>
+                                            <th>الأستاذ(ة)</th>
+                                            <th>المادة</th>
+                                            <th>الحصة</th>
+                                            <th>الحالة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${tableRows}</tbody>
+                                </table>
+                                <div class="gs-footer">
+                                    <span>تاريخ الطباعة: ${dateStr}</span>
+                                    <span>برنامج التدبير المدرسي — ${year}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    printDiv.style.display = 'block';
+                    openPrintPreview({ contentSelector: '#comp-sheet-content', title: 'الحصص التعويضية', pageSize: 'A4', noHeader: true });
+                    setTimeout(() => { printDiv.style.display = 'none'; }, 500);
                 });
 
                 // Enter key on filters triggers full reload

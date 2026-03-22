@@ -8,6 +8,7 @@
         dropout: 'منقطع',
         expelled: 'مفصول',
         not_enrolled: 'غير ملتحق',
+        transferred_in: 'وافد',
         active: 'نشط'
     };
 
@@ -15,16 +16,17 @@
         dropout: 'badge-dropout',
         expelled: 'badge-expelled',
         not_enrolled: 'badge-not_enrolled',
+        transferred_in: 'badge-transferred_in',
         active: 'badge-active'
     };
 
     const GENDER_LABELS = {
-        'ذكر': 'ذكر',
-        'أنثى': 'أنثى',
-        'M': 'ذكر',
-        'F': 'أنثى',
-        'male': 'ذكر',
-        'female': 'أنثى'
+        ذكر: 'ذكر',
+        أنثى: 'أنثى',
+        M: 'ذكر',
+        F: 'أنثى',
+        male: 'ذكر',
+        female: 'أنثى'
     };
 
     let allRows = [];
@@ -49,12 +51,14 @@
     const statDropout = document.getElementById('stat-dropout');
     const statExpelled = document.getElementById('stat-expelled');
     const statNotEnrolled = document.getElementById('stat-not-enrolled');
+    const statTransferredIn = document.getElementById('stat-transferred-in');
 
     // Tab count elements
     const countAll = document.getElementById('count-all');
     const countDropout = document.getElementById('count-dropout');
     const countExpelled = document.getElementById('count-expelled');
     const countNotEnrolled = document.getElementById('count-not-enrolled');
+    const countTransferredIn = document.getElementById('count-transferred-in');
 
     // Modal refs
     const modalOverlay = document.getElementById('status-modal-overlay');
@@ -86,9 +90,9 @@
         sectionSelect.addEventListener('change', loadData);
 
         // Tab clicks
-        document.querySelectorAll('.status-tab').forEach(tab => {
+        document.querySelectorAll('.status-tab').forEach((tab) => {
             tab.addEventListener('click', () => {
-                document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.status-tab').forEach((t) => t.classList.remove('active'));
                 tab.classList.add('active');
                 currentTab = tab.dataset.status;
                 applyFilters();
@@ -101,7 +105,7 @@
         // Select all checkbox
         selectAllCb.addEventListener('change', () => {
             const checked = selectAllCb.checked;
-            document.querySelectorAll('.row-checkbox').forEach(cb => {
+            document.querySelectorAll('.row-checkbox').forEach((cb) => {
                 cb.checked = checked;
                 toggleSelection(Number(cb.dataset.id), checked);
             });
@@ -127,14 +131,15 @@
     async function loadSections() {
         try {
             const year = getSchoolYear();
-            allClasses = await window.api.classes.getAll(year) || [];
+            allClasses = (await window.api.classes.getAll(year)) || [];
 
             // Populate levels using getLevelFromSection (from utils.js)
             const levelMap = new Map(); // levelName → { name, order }
-            allClasses.forEach(c => {
-                const info = typeof getLevelFromSection === 'function'
-                    ? getLevelFromSection(c.name)
-                    : { name: c.name, order: 99 };
+            allClasses.forEach((c) => {
+                const info =
+                    typeof getLevelFromSection === 'function'
+                        ? getLevelFromSection(c.name)
+                        : { name: c.name, order: 99 };
                 if (!levelMap.has(info.name)) {
                     levelMap.set(info.name, info);
                 }
@@ -142,12 +147,10 @@
 
             // Sort levels by educational order
             const levelNames = Array.from(levelMap.keys());
-            const sortedLevels = typeof sortLevelNames === 'function'
-                ? sortLevelNames(levelNames)
-                : levelNames.sort();
+            const sortedLevels = typeof sortLevelNames === 'function' ? sortLevelNames(levelNames) : levelNames.sort();
 
             levelSelect.innerHTML = '<option value="">كل المستويات</option>';
-            sortedLevels.forEach(name => {
+            sortedLevels.forEach((name) => {
                 const opt = document.createElement('option');
                 opt.value = name;
                 opt.textContent = name;
@@ -155,12 +158,13 @@
             });
 
             // Populate all sections (sorted)
-            const sortedSections = typeof sortSectionNames === 'function'
-                ? sortSectionNames(allClasses.map(c => c.name))
-                : allClasses.map(c => c.name).sort();
+            const sortedSections =
+                typeof sortSectionNames === 'function'
+                    ? sortSectionNames(allClasses.map((c) => c.name))
+                    : allClasses.map((c) => c.name).sort();
 
             sectionSelect.innerHTML = '<option value="">كل الأقسام</option>';
-            sortedSections.forEach(name => {
+            sortedSections.forEach((name) => {
                 const opt = document.createElement('option');
                 opt.value = name;
                 opt.textContent = name;
@@ -177,19 +181,18 @@
 
         let filtered = allClasses;
         if (selectedLevel) {
-            filtered = allClasses.filter(c => {
-                const info = typeof getLevelFromSection === 'function'
-                    ? getLevelFromSection(c.name)
-                    : { name: c.name };
+            filtered = allClasses.filter((c) => {
+                const info = typeof getLevelFromSection === 'function' ? getLevelFromSection(c.name) : { name: c.name };
                 return info.name === selectedLevel;
             });
         }
 
-        const sortedSections = typeof sortSectionNames === 'function'
-            ? sortSectionNames(filtered.map(c => c.name))
-            : filtered.map(c => c.name).sort();
+        const sortedSections =
+            typeof sortSectionNames === 'function'
+                ? sortSectionNames(filtered.map((c) => c.name))
+                : filtered.map((c) => c.name).sort();
 
-        sortedSections.forEach(name => {
+        sortedSections.forEach((name) => {
             const opt = document.createElement('option');
             opt.value = name;
             opt.textContent = name;
@@ -217,23 +220,24 @@
             // Apply level filter on the client side if a level is selected but no specific section
             const selectedLevel = levelSelect.value;
             if (selectedLevel && !sectionSelect.value) {
-                allRows = allRows.filter(r => {
-                    const info = typeof getLevelFromSection === 'function'
-                        ? getLevelFromSection(r.section)
-                        : { name: r.section };
+                allRows = allRows.filter((r) => {
+                    const info =
+                        typeof getLevelFromSection === 'function'
+                            ? getLevelFromSection(r.section)
+                            : { name: r.section };
                     return info.name === selectedLevel;
                 });
             }
 
             updateStats({
                 total: allRows.length,
-                dropouts: allRows.filter(r => r.status === 'dropout').length,
-                expelled: allRows.filter(r => r.status === 'expelled').length,
-                notEnrolled: allRows.filter(r => r.status === 'not_enrolled').length
+                dropouts: allRows.filter((r) => r.status === 'dropout').length,
+                expelled: allRows.filter((r) => r.status === 'expelled').length,
+                notEnrolled: allRows.filter((r) => r.status === 'not_enrolled').length,
+                transferredIn: allRows.filter((r) => r.status === 'transferred_in').length
             });
             updateTabCounts();
             applyFilters();
-
         } catch (err) {
             console.error('Failed to load data:', err);
             showToast('خطأ في تحميل البيانات', 'error');
@@ -245,11 +249,12 @@
         statDropout.textContent = summary.dropouts;
         statExpelled.textContent = summary.expelled;
         statNotEnrolled.textContent = summary.notEnrolled;
+        statTransferredIn.textContent = summary.transferredIn;
     }
 
     function updateTabCounts() {
-        const counts = { all: 0, dropout: 0, expelled: 0, not_enrolled: 0 };
-        allRows.forEach(r => {
+        const counts = { all: 0, dropout: 0, expelled: 0, not_enrolled: 0, transferred_in: 0 };
+        allRows.forEach((r) => {
             counts.all++;
             if (counts[r.status] !== undefined) counts[r.status]++;
         });
@@ -257,6 +262,7 @@
         countDropout.textContent = counts.dropout;
         countExpelled.textContent = counts.expelled;
         countNotEnrolled.textContent = counts.not_enrolled;
+        countTransferredIn.textContent = counts.transferred_in;
     }
 
     // ── Filtering ──
@@ -264,7 +270,7 @@
         if (currentTab === 'all') {
             filteredRows = [...allRows];
         } else {
-            filteredRows = allRows.filter(r => r.status === currentTab);
+            filteredRows = allRows.filter((r) => r.status === currentTab);
         }
         applyQuickSearch();
     }
@@ -274,9 +280,8 @@
         let displayRows = filteredRows;
 
         if (term) {
-            displayRows = filteredRows.filter(r =>
-                (r.full_name || '').toLowerCase().includes(term) ||
-                (r.code || '').toLowerCase().includes(term)
+            displayRows = filteredRows.filter(
+                (r) => (r.full_name || '').toLowerCase().includes(term) || (r.code || '').toLowerCase().includes(term)
             );
         }
 
@@ -303,14 +308,15 @@
             return;
         }
 
-        tbody.innerHTML = rows.map((r, i) => {
-            const gender = GENDER_LABELS[r.gender] || r.gender || '-';
-            const statusLabel = STATUS_LABELS[r.status] || r.status;
-            const badgeClass = STATUS_BADGE_CLASS[r.status] || '';
-            const dateStr = r.status_date || '-';
-            const notes = r.status_notes || '-';
+        tbody.innerHTML = rows
+            .map((r, i) => {
+                const gender = GENDER_LABELS[r.gender] || r.gender || '-';
+                const statusLabel = STATUS_LABELS[r.status] || r.status;
+                const badgeClass = STATUS_BADGE_CLASS[r.status] || '';
+                const dateStr = r.status_date || '-';
+                const notes = r.status_notes || '-';
 
-            return `<tr>
+                return `<tr>
                 <td><input type="checkbox" class="row-checkbox" data-id="${r.id}" ${selectedIds.has(r.id) ? 'checked' : ''}></td>
                 <td>${i + 1}</td>
                 <td>${r.code || '-'}</td>
@@ -321,10 +327,11 @@
                 <td>${dateStr}</td>
                 <td>${notes}</td>
             </tr>`;
-        }).join('');
+            })
+            .join('');
 
         // Bind row checkboxes
-        document.querySelectorAll('.row-checkbox').forEach(cb => {
+        document.querySelectorAll('.row-checkbox').forEach((cb) => {
             cb.addEventListener('change', () => {
                 toggleSelection(Number(cb.dataset.id), cb.checked);
                 updateChangeButton();
@@ -375,7 +382,7 @@
             return;
         }
 
-        const items = Array.from(selectedIds).map(id => ({
+        const items = Array.from(selectedIds).map((id) => ({
             student_id: id,
             status: newStatus
         }));
@@ -389,7 +396,7 @@
             if (result && result.success) {
                 if (newStatus !== 'active' && typeof window.api.studentMovements?.add === 'function') {
                     for (const item of items) {
-                        const student = allRows.find(r => r.id === item.student_id);
+                        const student = allRows.find((r) => r.id === item.student_id);
                         if (student) {
                             try {
                                 await window.api.studentMovements.add({
@@ -399,7 +406,9 @@
                                     notes: reason,
                                     school_year: getSchoolYear()
                                 });
-                            } catch (_) { /* non-critical */ }
+                            } catch (_) {
+                                /* non-critical */
+                            }
                         }
                     }
                 }
@@ -441,18 +450,18 @@
                 '#': i + 1,
                 'رمز مسار': r.code || '',
                 'الاسم الكامل': r.full_name || '',
-                'القسم': r.section || '',
-                'الجنس': GENDER_LABELS[r.gender] || r.gender || '',
-                'الحالة': STATUS_LABELS[r.status] || r.status || '',
-                'التاريخ': r.status_date || '',
-                'الملاحظات': r.status_notes || ''
+                القسم: r.section || '',
+                الجنس: GENDER_LABELS[r.gender] || r.gender || '',
+                الحالة: STATUS_LABELS[r.status] || r.status || '',
+                التاريخ: r.status_date || '',
+                الملاحظات: r.status_notes || ''
             }));
 
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'الوضعية الدراسية');
 
-            const tabLabel = currentTab === 'all' ? 'الكل' : (STATUS_LABELS[currentTab] || currentTab);
+            const tabLabel = currentTab === 'all' ? 'الكل' : STATUS_LABELS[currentTab] || currentTab;
             const fileName = `الوضعية_الدراسية_${tabLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`;
             XLSX.writeFile(wb, fileName);
 

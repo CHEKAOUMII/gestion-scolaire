@@ -11,7 +11,7 @@ function requireFields(data, fields) {
     if (!data || typeof data !== 'object') {
         throw new Error('البيانات المطلوبة غير موجودة');
     }
-    const missing = fields.filter(f => {
+    const missing = fields.filter((f) => {
         const val = data[f];
         return val === undefined || val === null || (typeof val === 'string' && val.trim() === '');
     });

@@ -2,8 +2,11 @@
 // Shared IPC registration helpers — eliminates boilerplate across all handler files.
 
 const { getDb } = require('../db/context');
+const { wrapWithSyncCapture } = require('../sync/capture');
 const { requireRole, getSessionByEvent } = require('./auth');
 const { validateSchoolYear } = require('./validation');
+
+const _writeChannels = new Set();
 
 function computeDefaultYear() {
     const now = new Date();
@@ -85,7 +88,9 @@ function handleRead(ipcMain, channel, handler) {
  * @param {(db: any, event: any, ...args: any[]) => any} handler
  */
 function handleWrite(ipcMain, channel, roles, handler) {
-    ipcMain.handle(channel, async (event, ...args) => {
+    _writeChannels.add(channel);
+
+    const innerHandler = async (event, ...args) => {
         try {
             requireRole(event, roles);
             const db = getDb();
@@ -93,7 +98,9 @@ function handleWrite(ipcMain, channel, roles, handler) {
         } catch (err) {
             return authErrorResponse(err);
         }
-    });
+    };
+
+    ipcMain.handle(channel, wrapWithSyncCapture(channel, innerHandler));
 }
 
 /**
@@ -110,7 +117,9 @@ function handleWrite(ipcMain, channel, roles, handler) {
  * @param {(db: any, ...args: any[]) => any} handler
  */
 function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
-    ipcMain.handle(channel, async (event, ...args) => {
+    _writeChannels.add(channel);
+
+    const innerHandler = async (event, ...args) => {
         try {
             const session = getSessionByEvent(event);
             if (session) {
@@ -121,10 +130,11 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
                 try {
                     const db = getDb();
                     db.prepare(
-                        `INSERT INTO system_logs(action, entity, details, timestamp)
-                         VALUES(?, ?, ?, datetime('now'))`
+                        `INSERT INTO system_logs(action, entity_type, entity_id, details)
+                         VALUES(?, ?, ?, ?)`
                     ).run(
                         'UNAUTHENTICATED_WRITE',
+                        'ipc_channel',
                         channel,
                         `Unauthenticated write on channel "${channel}" — no active session`
                     );
@@ -137,16 +147,18 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
         } catch (err) {
             return authErrorResponse(err);
         }
-    });
+    };
+
+    ipcMain.handle(channel, wrapWithSyncCapture(channel, innerHandler));
 }
 
 module.exports = {
     authErrorResponse,
+    getDefaultYear,
     normalizeYear,
     requireSchoolYear,
     handleRead,
     handleWrite,
     handleWriteSoftAuth,
-    getDefaultYear
+    writeChannels: _writeChannels
 };
-

@@ -4,7 +4,6 @@ const lastSent = new Map();
 const THROTTLE_MS = 30_000; // max 1 native notification per type every 30s
 
 module.exports = {
-    name: 'native',
     send(rendered, event) {
         if (!Notification.isSupported()) {
             return { success: false, error: 'OS notifications not supported' };
@@ -20,9 +19,9 @@ module.exports = {
 
         const notif = new Notification({
             title: rendered.title || '',
-            body: rendered.body || '',
+            body: rendered.body || ''
         });
         notif.show();
         return { success: true };
-    },
+    }
 };

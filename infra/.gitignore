@@ -1,0 +1,6 @@
+node_modules/
+cdk.out/
+*.js
+!lib/auth-lambda/*.js
+!test/*.js
+*.d.ts

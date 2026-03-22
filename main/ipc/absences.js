@@ -27,9 +27,7 @@ function registerAbsencesIpc(ipcMain) {
             return { success: false, error: 'Invalid student ID' };
         }
         return db
-            .prepare(
-                'SELECT * FROM absences WHERE student_id = ? AND school_year = ? ORDER BY absence_date DESC'
-            )
+            .prepare('SELECT * FROM absences WHERE student_id = ? AND school_year = ? ORDER BY absence_date DESC')
             .all(safeId, normalizeYear(schoolYear));
     });
 

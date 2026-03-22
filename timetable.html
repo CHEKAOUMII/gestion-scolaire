@@ -12,37 +12,6 @@
         <script src="js/notifications.js"></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
-        <style>
-/* Dark theme contrast fixes */
-[data-theme='dark'] {
-    --color-warning-bg: #92400e;
-}
-[data-theme='dark'] .empty-cell {
-    color: #9ca8a0;
-}
-[data-theme='dark'] .empty-state,
-[data-theme='dark'] .empty-state p {
-    color: #8fa898;
-}
-[data-theme='dark'] .unified-search input::placeholder {
-    color: #8fa898;
-}
-[data-theme='dark'] .tab-btn.active {
-    color: #e2e8f0;
-}
-[data-theme='dark'] .activity-cell .room {
-    color: #d4e8dc;
-}
-[data-theme='dark'] .activity-group .teacher-name {
-    color: #b8d4c4;
-}
-[data-theme='dark'] .toast.warning {
-    color: #111111;
-}
-[data-theme='dark'] .summary-item.modified {
-    color: #f8fafc;
-}
-        </style>
     </head>
 
     <body>
@@ -183,7 +152,25 @@
                             <button class="btn btn-info" id="changelog-btn" style="display: none">
                                 <i class="fas fa-history"></i> سجل التعديلات
                             </button>
-                            <button class="btn btn-success" id="export-xml-btn" style="display: none; background: linear-gradient(135deg, #059669, #047857); border: none; color: #fff; box-shadow: 0 3px 10px rgba(5,150,105,0.3);" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 5px 16px rgba(5,150,105,0.45)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 3px 10px rgba(5,150,105,0.3)'">
+                            <button
+                                class="btn btn-success"
+                                id="export-xml-btn"
+                                style="
+                                    display: none;
+                                    background: linear-gradient(135deg, #059669, #047857);
+                                    border: none;
+                                    color: #fff;
+                                    box-shadow: 0 3px 10px rgba(5, 150, 105, 0.3);
+                                "
+                                onmouseenter="
+                                    this.style.transform = 'translateY(-2px)';
+                                    this.style.boxShadow = '0 5px 16px rgba(5,150,105,0.45)';
+                                "
+                                onmouseleave="
+                                    this.style.transform = '';
+                                    this.style.boxShadow = '0 3px 10px rgba(5,150,105,0.3)';
+                                "
+                            >
                                 <i class="fas fa-file-export"></i> تصدير XML
                             </button>
                         </div>
@@ -298,14 +285,22 @@
                     </div>
                     <div class="validation-message" id="validation-message" style="display: none"></div>
                 </div>
-                <div class="edit-modal-footer" style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
-                    <button class="btn btn-secondary" onclick="closeEditModal()" style="flex: 1; min-width: 0;">
+                <div
+                    class="edit-modal-footer"
+                    style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap"
+                >
+                    <button class="btn btn-secondary" onclick="closeEditModal()" style="flex: 1; min-width: 0">
                         <i class="fas fa-times"></i> إلغاء
                     </button>
-                    <button class="btn btn-warning" id="move-slot-btn" onclick="startMoveMode()" style="display: none; flex: 1; min-width: 0;">
+                    <button
+                        class="btn btn-warning"
+                        id="move-slot-btn"
+                        onclick="startMoveMode()"
+                        style="display: none; flex: 1; min-width: 0"
+                    >
                         <i class="fas fa-arrows-alt"></i> نقل الحصة
                     </button>
-                    <button class="btn btn-primary" onclick="confirmSlotEdit()" style="flex: 1; min-width: 0;">
+                    <button class="btn btn-primary" onclick="confirmSlotEdit()" style="flex: 1; min-width: 0">
                         <i class="fas fa-check"></i> تأكيد
                     </button>
                 </div>
@@ -2342,12 +2337,14 @@
                         });
                     });
                 });
-                Array.from(allRooms).sort().forEach((r) => {
-                    const opt = document.createElement('option');
-                    opt.value = r;
-                    opt.textContent = r;
-                    roomSelect.appendChild(opt);
-                });
+                Array.from(allRooms)
+                    .sort()
+                    .forEach((r) => {
+                        const opt = document.createElement('option');
+                        opt.value = r;
+                        opt.textContent = r;
+                        roomSelect.appendChild(opt);
+                    });
 
                 // Get current slot data using the correct periodType
                 const timetable = fetData.timetables[editMode.currentTeacher];
@@ -3613,12 +3610,18 @@
 
                 // Ordered list of XML Day keys (same order as original files)
                 const xmlDayKeys = [
-                    'lundi_m', 'lundi_s',
-                    'Mardi_m', 'Mardi_s',
-                    'Mercredi_m', 'Mercredi_s',
-                    'Jeudi_m', 'Jeudi_s',
-                    'Vendredi_m', 'Vendredi_s',
-                    'Samedi_m', 'Samedi_s'
+                    'lundi_m',
+                    'lundi_s',
+                    'Mardi_m',
+                    'Mardi_s',
+                    'Mercredi_m',
+                    'Mercredi_s',
+                    'Jeudi_m',
+                    'Jeudi_s',
+                    'Vendredi_m',
+                    'Vendredi_s',
+                    'Samedi_m',
+                    'Samedi_s'
                 ];
 
                 const xmlHourKeys = ['H1', 'H2', 'H3', 'H4'];

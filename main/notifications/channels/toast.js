@@ -1,7 +1,6 @@
 const { BrowserWindow } = require('electron');
 
 module.exports = {
-    name: 'toast',
     send(rendered, event) {
         const wins = BrowserWindow.getAllWindows();
         for (const win of wins) {
@@ -13,9 +12,9 @@ module.exports = {
             win.webContents.send('notification:toast', {
                 message: rendered.message,
                 type: event.severity,
-                duration: rendered.duration || 3000,
+                duration: rendered.duration || 3000
             });
         }
         return { success: true };
-    },
+    }
 };
