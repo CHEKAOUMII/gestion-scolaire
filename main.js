@@ -8,7 +8,12 @@ const { initDatabase } = require('./main/db/init');
 const { getDb } = require('./main/db/context');
 const { registerAllIpcHandlers } = require('./main/ipc/registerAll');
 const { startOwnerSyncBackground } = require('./main/licensing/ownerSync');
-const { startSyncPushBackground, stopSyncPushBackground, startSyncPullBackground, stopSyncPullBackground } = require('./main/sync/engine');
+const {
+    startSyncPushBackground,
+    stopSyncPushBackground,
+    startSyncPullBackground,
+    stopSyncPullBackground
+} = require('./main/sync/engine');
 const { startSnapshotBackground, stopSnapshotBackground } = require('./main/sync/snapshot');
 const { bindUpdaterWindow, initAutoUpdater } = require('./main/updater');
 
@@ -155,8 +160,20 @@ function createWindow() {
         }
     });
 
-    window.loadFile('index.html').catch((error) => {
-        console.error('[main] Failed to load index.html:', error);
+    const setupDb = getDb();
+    const inst = setupDb.prepare('SELECT setup_completed, massar_code FROM institution_config WHERE id = 1').get();
+    if (inst && inst.massar_code) {
+        setupDb
+            .prepare(
+                `UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = 1 AND (school_id IS NULL OR school_id != ?)`
+            )
+            .run(inst.massar_code, inst.massar_code);
+    }
+    const targetPage = !inst || !inst.setup_completed ? 'setup.html' : 'index.html';
+
+    window.loadFile(targetPage).catch((error) => {
+        console.error(`[main] Failed to load ${targetPage}:`, error);
     });
 
     // window.webContents.openDevTools();

@@ -15,7 +15,8 @@ const WRITER_AUTHORITY = {
     exam_rooms: ['admin'],
     tests: ['admin'],
     settings: ['admin'],
-    page_visibility: ['admin']
+    page_visibility: ['admin'],
+    device_revocation: ['admin']
 };
 
 const ENTITY_TYPE_REGISTRY = {
@@ -55,7 +56,8 @@ const ENTITY_TYPE_REGISTRY = {
     student_movements: { entityType: 'student_movement', skPrefix: 'STUDENT_MOVEMENT', keyFields: ['id'] },
     compensation_tracking: { entityType: 'compensation', skPrefix: 'COMPENSATION', keyFields: ['id'] },
     settings: { entityType: 'settings', skPrefix: 'SETTINGS', keyFields: ['key'] },
-    page_visibility: { entityType: 'page_visibility', skPrefix: 'PAGE_VISIBILITY', keyFields: ['key'] }
+    page_visibility: { entityType: 'page_visibility', skPrefix: 'PAGE_VISIBILITY', keyFields: ['key'] },
+    device_revocation: { entityType: 'device_revocation', skPrefix: 'REVOCATION', keyFields: ['revokedDeviceHash'] }
 };
 
 function canPush(tableName, role) {

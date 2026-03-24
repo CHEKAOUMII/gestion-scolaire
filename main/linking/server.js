@@ -3,18 +3,16 @@
 const crypto = require('crypto');
 const { hashPassword } = require('../auth/password');
 
-// Encryption constants (must match between Device 1 and Device 2)
 const HKDF_SALT = 'pencil2-link-v1';
 const HKDF_INFO = 'otp-payload-key';
 const HKDF_KEY_LENGTH = 32;
 const GCM_IV_LENGTH = 12;
 const MAX_PAYLOAD_BYTES = 300 * 1024;
 
+let activePublication = null;
+
 function deriveEncryptionKey(otpPlaintext) {
-    const keyMaterial = Buffer.from(
-        crypto.hkdfSync('sha256', String(otpPlaintext), HKDF_SALT, HKDF_INFO, HKDF_KEY_LENGTH)
-    );
-    return keyMaterial;
+    return Buffer.from(crypto.hkdfSync('sha256', String(otpPlaintext), HKDF_SALT, HKDF_INFO, HKDF_KEY_LENGTH));
 }
 
 function encryptPayload(key, plaintextObj) {
@@ -40,26 +38,66 @@ function decryptPayload(key, ciphertextBuf, ivBuf, authTagBuf) {
     return JSON.parse(decrypted.toString('utf8'));
 }
 
-async function publishOtpToServer(authLambdaUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload) {
+function clearPublishedOtpState() {
+    activePublication = null;
+}
+
+function getPublishedOtpStatus() {
+    if (!activePublication) {
+        return {
+            active: false,
+            expiresAt: null,
+            remainingSeconds: 0,
+            massarCode: null
+        };
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (activePublication.expiresAtSeconds <= nowSeconds) {
+        clearPublishedOtpState();
+        return {
+            active: false,
+            expiresAt: null,
+            remainingSeconds: 0,
+            massarCode: null
+        };
+    }
+
+    return {
+        active: true,
+        expiresAt: new Date(activePublication.expiresAtSeconds * 1000).toISOString(),
+        remainingSeconds: activePublication.expiresAtSeconds - nowSeconds,
+        massarCode: activePublication.massarCode
+    };
+}
+
+async function publishOtpInternal(
+    authLambdaUrl,
+    licenseKey,
+    deviceHash,
+    massar,
+    otpPlaintext,
+    configPayload,
+    rememberState
+) {
     try {
         const key = deriveEncryptionKey(otpPlaintext);
         const { ciphertext, iv, authTag } = encryptPayload(key, configPayload);
-
         const encPayloadBase64 = ciphertext.toString('base64');
         if (Buffer.byteLength(encPayloadBase64, 'utf8') > MAX_PAYLOAD_BYTES) {
             return { success: false, error: 'Config payload too large', code: 'PAYLOAD_TOO_LARGE' };
         }
 
         const otpHash = hashPassword(String(otpPlaintext));
-
-        const url = String(authLambdaUrl).replace(/\/+$/, '') + '/link/publish-otp';
-        const response = await fetch(url, {
+        const normalizedUrl = String(authLambdaUrl).trim().replace(/\/+$/, '');
+        const normalizedMassar = String(massar).trim().toUpperCase();
+        const response = await fetch(`${normalizedUrl}/link/publish-otp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 licenseKey,
                 deviceHash,
-                massar: String(massar).trim().toUpperCase(),
+                massar: normalizedMassar,
                 otpHash,
                 encryptedPayload: encPayloadBase64,
                 iv: iv.toString('base64'),
@@ -76,6 +114,16 @@ async function publishOtpToServer(authLambdaUrl, licenseKey, deviceHash, massar,
             };
         }
 
+        if (rememberState) {
+            activePublication = {
+                authLambdaUrl: normalizedUrl,
+                licenseKey,
+                deviceHash,
+                massarCode: normalizedMassar,
+                expiresAtSeconds: Number(data.expiresAt) || 0
+            };
+        }
+
         return { success: true, expiresAt: data.expiresAt };
     } catch (err) {
         return {
@@ -86,9 +134,38 @@ async function publishOtpToServer(authLambdaUrl, licenseKey, deviceHash, massar,
     }
 }
 
+async function publishOtpToServer(authLambdaUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload) {
+    return publishOtpInternal(authLambdaUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload, true);
+}
+
+async function cancelPublishedOtp() {
+    const publishedStatus = getPublishedOtpStatus();
+    if (!publishedStatus.active || !activePublication) {
+        return { success: true, cancelled: false };
+    }
+
+    const tombstoneSecret = `cancel-${crypto.randomBytes(12).toString('hex')}`;
+    const result = await publishOtpInternal(
+        activePublication.authLambdaUrl,
+        activePublication.licenseKey,
+        activePublication.deviceHash,
+        activePublication.massarCode,
+        tombstoneSecret,
+        { cancelled: true },
+        false
+    );
+
+    if (!result.success) {
+        return result;
+    }
+
+    clearPublishedOtpState();
+    return { success: true, cancelled: true };
+}
+
 async function verifyOtpViaServer(authLambdaUrl, massar, otpPlaintext) {
     try {
-        const url = String(authLambdaUrl).replace(/\/+$/, '') + '/link/verify-otp';
+        const url = String(authLambdaUrl).trim().replace(/\/+$/, '') + '/link/verify-otp';
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -112,8 +189,10 @@ async function verifyOtpViaServer(authLambdaUrl, massar, otpPlaintext) {
         const ivBuf = Buffer.from(data.iv, 'base64');
         const authTagBuf = Buffer.from(data.authTag, 'base64');
 
-        const configPayload = decryptPayload(key, ciphertextBuf, ivBuf, authTagBuf);
-        return { success: true, configPayload };
+        return {
+            success: true,
+            configPayload: decryptPayload(key, ciphertextBuf, ivBuf, authTagBuf)
+        };
     } catch (err) {
         return {
             success: false,
@@ -125,5 +204,7 @@ async function verifyOtpViaServer(authLambdaUrl, massar, otpPlaintext) {
 
 module.exports = {
     publishOtpToServer,
-    verifyOtpViaServer
+    verifyOtpViaServer,
+    getPublishedOtpStatus,
+    cancelPublishedOtp
 };

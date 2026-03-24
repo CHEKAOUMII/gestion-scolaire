@@ -63,6 +63,21 @@ function readSyncConfig(db) {
     return db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
 }
 
+function updateDeviceHeartbeat(db) {
+    try {
+        const deviceHash = getDeviceHash();
+        if (!deviceHash) {
+            return;
+        }
+
+        db.prepare(
+            'UPDATE linked_devices SET last_seen_at = CURRENT_TIMESTAMP WHERE device_hash = ? AND status = ?'
+        ).run(deviceHash, 'active');
+    } catch (err) {
+        console.warn('[sync] Heartbeat update failed:', err.message);
+    }
+}
+
 function getDynamoClient(region, credentials) {
     if (_dynamoClient && credentials.accessKeyId === _lastAccessKeyId) {
         return _dynamoClient;
@@ -251,6 +266,71 @@ async function writeItemWithCondition(docClient, item) {
             isAccessDenied
         };
     }
+}
+
+async function pushDeviceRevocations(db, docClient, schoolId, deviceHash) {
+    const result = {
+        sentCount: 0,
+        failedCount: 0,
+        lastError: null,
+        abort: false
+    };
+
+    try {
+        const revokedDevices = db
+            .prepare('SELECT device_hash, revoked_at FROM linked_devices WHERE status = ? AND revoked_at IS NOT NULL')
+            .all('revoked');
+
+        for (const revoked of revokedDevices) {
+            const revokedDeviceHash = String(revoked.device_hash || '').trim();
+            const revokedAt = revoked.revoked_at;
+            const sortKey = buildSortKey('device_revocation', { revokedDeviceHash });
+
+            if (!revokedDeviceHash || !revokedAt || !sortKey) {
+                continue;
+            }
+
+            const revocationItem = {
+                PK: `SCHOOL#${schoolId}`,
+                SK: sortKey,
+                GSI1PK: `SCHOOL#${schoolId}`,
+                GSI1SK: `${Math.floor(Date.now() / 1000)}#device_revocation#${revokedDeviceHash}`,
+                entityType: 'device_revocation',
+                revokedDeviceHash,
+                revokedAt,
+                revokedBy: String(deviceHash || '').substring(0, 16),
+                operation: 'PUT',
+                deviceHash: String(deviceHash || '').substring(0, 16),
+                version: 1,
+                expiresAt: Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60
+            };
+
+            const writeResult = await writeItemWithCondition(docClient, revocationItem);
+            if (writeResult.success) {
+                result.sentCount += 1;
+                continue;
+            }
+
+            if (writeResult.conflict) {
+                continue;
+            }
+
+            result.failedCount += 1;
+            result.lastError = writeResult.error || 'Failed to push device revocation';
+            console.error('[sync] Failed to push revocation for', revokedDeviceHash, result.lastError);
+
+            if (writeResult.isAccessDenied) {
+                result.abort = true;
+                break;
+            }
+        }
+    } catch (err) {
+        result.failedCount += 1;
+        result.lastError = err.message;
+        console.error('[sync] Revocation push failed:', err.message);
+    }
+
+    return result;
 }
 
 function markEntrySent(db, entryId) {
@@ -534,26 +614,14 @@ async function flushSyncOutbox(limit) {
         }
 
         const docClient = getDynamoClient(awsRegion, credentials);
-        const pendingRows = db
-            .prepare("SELECT * FROM sync_outbox WHERE status = 'pending' ORDER BY id ASC LIMIT ?")
-            .all(effectiveLimit);
-
-        if (!pendingRows.length) {
-            return {
-                success: true,
-                sentCount: 0,
-                failedCount: 0,
-                skippedCount: 0,
-                pendingCount: 0,
-                lastError: null
-            };
-        }
-
         let sentCount = 0;
         let failedCount = 0;
         let skippedCount = 0;
         let lastError = null;
         let batchBuffer = [];
+        const pendingRows = db
+            .prepare("SELECT * FROM sync_outbox WHERE status = 'pending' ORDER BY id ASC LIMIT ?")
+            .all(effectiveLimit);
 
         const flushBuffer = async () => {
             if (!batchBuffer.length) return false;
@@ -648,16 +716,33 @@ async function flushSyncOutbox(limit) {
             lastError = lastError || 'Access denied';
         }
 
-        updatePushMeta(db, sentCount > 0 ? new Date().toISOString() : null, lastError);
+        const revocationResult = await pushDeviceRevocations(db, docClient, schoolId, deviceHash);
+        failedCount += revocationResult.failedCount;
+        lastError = revocationResult.lastError || lastError;
+        updateDeviceHeartbeat(db);
+
+        updatePushMeta(
+            db,
+            sentCount > 0 || revocationResult.sentCount > 0 ? new Date().toISOString() : null,
+            lastError
+        );
 
         const pendingCount = db.prepare("SELECT COUNT(*) AS c FROM sync_outbox WHERE status = 'pending'").get().c || 0;
-        if (sentCount > 0) {
+        if (sentCount > 0 || revocationResult.sentCount > 0) {
             console.log(
-                `[sync:push] Pushed ${sentCount} entries, ${failedCount} failed, ${skippedCount} skipped, ${pendingCount} pending`
+                `[sync:push] Pushed ${sentCount} entries, ${revocationResult.sentCount} revocations, ${failedCount} failed, ${skippedCount} skipped, ${pendingCount} pending`
             );
         }
 
-        return { success: failedCount === 0, sentCount, failedCount, skippedCount, pendingCount, lastError };
+        return {
+            success: failedCount === 0,
+            sentCount,
+            failedCount,
+            skippedCount,
+            pendingCount,
+            lastError,
+            revocationCount: revocationResult.sentCount
+        };
     } finally {
         _flushRunning = false;
     }
@@ -755,7 +840,8 @@ async function pullRemoteChanges() {
 
         const region = config.aws_region || 'us-east-1';
         const cursor = config.pull_cursor || '0';
-        const localDeviceHash = getDeviceHash().substring(0, 16);
+        const currentDeviceHash = getDeviceHash();
+        const localDeviceHash = currentDeviceHash.substring(0, 16);
         const docClient = getDynamoClient(region, credentials);
 
         // Step 1: Query DynamoDB SyncGSI for changes since last cursor
@@ -783,6 +869,7 @@ async function pullRemoteChanges() {
             db.prepare(
                 'UPDATE sync_config SET last_pull_at = CURRENT_TIMESTAMP, last_pull_error = NULL WHERE id = 1'
             ).run();
+            updateDeviceHeartbeat(db);
             return {
                 success: true,
                 appliedCount: 0,
@@ -795,8 +882,38 @@ async function pullRemoteChanges() {
             };
         }
 
+        const selfRevocations = allItems.filter(
+            (item) => item.entityType === 'device_revocation' && item.revokedDeviceHash === currentDeviceHash
+        );
+        if (selfRevocations.length > 0) {
+            const localDevice = db
+                .prepare('SELECT status FROM linked_devices WHERE device_hash = ?')
+                .get(currentDeviceHash);
+            if (!localDevice || localDevice.status !== 'active') {
+                db.prepare('UPDATE sync_config SET enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run();
+                console.warn('[sync] Device revocation detected. Sync disabled.', {
+                    revokedAt: selfRevocations[0].revokedAt,
+                    revokedBy: selfRevocations[0].revokedBy
+                });
+                return {
+                    success: false,
+                    error: 'device_revoked',
+                    revokedAt: selfRevocations[0].revokedAt,
+                    appliedCount: 0,
+                    skippedCount: 0,
+                    conflictCount: 0,
+                    failedCount: 0,
+                    totalFetched: allItems.length,
+                    newCursor: cursor,
+                    lastError: 'تم إلغاء هذا الجهاز من قبل المسؤول'
+                };
+            }
+        }
+
         // Step 2: Filter out self-originated records
-        const remoteItems = allItems.filter((item) => item.deviceHash !== localDeviceHash);
+        const remoteItems = allItems.filter(
+            (item) => item.entityType !== 'device_revocation' && item.deviceHash !== localDeviceHash
+        );
         const skippedCount = allItems.length - remoteItems.length;
 
         // Step 3: Map DynamoDB items to internal format
@@ -1006,6 +1123,8 @@ async function pullRemoteChanges() {
         for (const table of affectedTables) {
             upsertPullState.run(table);
         }
+
+        updateDeviceHeartbeat(db);
 
         return {
             success: failedCount === 0,

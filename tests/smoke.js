@@ -13,15 +13,18 @@ function unique(values) {
 }
 
 function collectInvokeChannels(preloadSource) {
-    return unique([...preloadSource.matchAll(/ipcRenderer\.invoke\('([^']+)'/g)].map((m) => m[1]));
+    return unique([...preloadSource.matchAll(/ipcRenderer\.invoke\(\s*'([^']+)'/g)].map((m) => m[1]));
 }
 
 function collectHandleChannels(ipcSources) {
     // Match both direct ipcMain.handle('channel') and helper patterns:
-    // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'), handleWriteSoftAuth(ipcMain, 'channel')
+    // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'),
+    // handleWriteSoftAuth(ipcMain, 'channel'), registerProtectedRead(ipcMain, 'channel')
     const directMatches = [...ipcSources.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((m) => m[1]);
     const helperMatches = [
-        ...ipcSources.matchAll(/(?:handleRead|handleWrite|handleWriteSoftAuth)\(ipcMain,\s*'([^']+)'/g)
+        ...ipcSources.matchAll(
+            /(?:handleRead|handleWrite|handleWriteSoftAuth|registerProtectedRead)\(ipcMain,\s*'([^']+)'/g
+        )
     ].map((m) => m[1]);
     return unique([...directMatches, ...helperMatches]);
 }

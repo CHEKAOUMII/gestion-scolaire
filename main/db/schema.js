@@ -282,6 +282,7 @@ function createTables() {
     ensureOwnerSyncSchema(db);
     ensureSyncSchema(db);
     ensurePageVisibilitySchema(db);
+    ensureInstitutionSchema(db);
 
     // Initialize trial start date on first DB creation
     const { ensureTrialStartDate } = require('../licensing/trialService');
@@ -575,6 +576,53 @@ function ensurePageVisibilitySchema(existingDb) {
     }
 }
 
+function ensureInstitutionSchema(existingDb) {
+    const db = existingDb || getDb();
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS institution_config (
+            id                INTEGER PRIMARY KEY CHECK(id = 1),
+            massar_code       TEXT,
+            institution_name  TEXT,
+            setup_completed   INTEGER DEFAULT 0,
+            setup_mode        TEXT,
+            setup_device_hash TEXT,
+            created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS device_otp (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            otp_hash          TEXT    NOT NULL,
+            massar_code       TEXT    NOT NULL,
+            created_by_device TEXT,
+            expires_at        DATETIME NOT NULL,
+            used_by_device    TEXT,
+            used_at           DATETIME,
+            status            TEXT    DEFAULT 'active'
+        );
+
+        CREATE TABLE IF NOT EXISTS linked_devices (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_hash       TEXT    UNIQUE NOT NULL,
+            device_name       TEXT,
+            os_platform       TEXT,
+            app_version       TEXT,
+            linked_by         TEXT,
+            linked_at         DATETIME,
+            last_seen_at      DATETIME,
+            revoked_at        DATETIME,
+            status            TEXT    DEFAULT 'active'
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_device_otp_massar_status
+        ON device_otp(massar_code, status);
+
+        CREATE INDEX IF NOT EXISTS idx_linked_devices_status
+        ON linked_devices(status);
+    `);
+}
+
 function ensureColumn(table, column, definition) {
     const db = getDb();
     const columns = db.pragma(`table_info(${table})`);
@@ -587,6 +635,7 @@ function ensureColumn(table, column, definition) {
 module.exports = {
     createTables,
     ensureColumn,
+    ensureInstitutionSchema,
     ensureLicensingSchema,
     ensureOwnerSyncSchema,
     ensureSyncSchema,

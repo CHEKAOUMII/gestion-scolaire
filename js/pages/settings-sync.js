@@ -1,12 +1,69 @@
 /**
  * Sync Settings Page — js/pages/settings-sync.js
  * إعدادات المزامنة السحابية
+ * ⚠️ Sync config section restricted to role === 'developer'
  */
+
+// ── Hide sync config section for non-developers (page itself stays accessible) ──
+(function devSectionGuard() {
+    let isDeveloper = false;
+    try {
+        const rawSession = localStorage.getItem('gsl_auth_session_v1');
+        if (rawSession) {
+            const sess = JSON.parse(rawSession);
+            if (sess?.role === 'developer') isDeveloper = true;
+        }
+    } catch (_) { /* */ }
+    if (!isDeveloper) {
+        // Hide sync config section once DOM is ready
+        const hide = () => {
+            const configSection = document.getElementById('sync-config-section');
+            if (configSection) configSection.style.display = 'none';
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', hide);
+        } else {
+            hide();
+        }
+    }
+})();
+
+// ── Hardcoded sync defaults (so users don't have to enter these) ──
+const SYNC_HARDCODED_DEFAULTS = {
+    awsRegion: 'us-east-1',
+    // authLambdaUrl will be set once infra is deployed
+    // authLambdaUrl: 'https://xxxxx.lambda-url.us-east-1.on.aws'
+};
 
 let statusTimer = null;
 let isAdmin = false;
 let currentOffset = 0;
 const conflictPageSize = 50;
+let otpCountdownTimer = null;
+
+const OTP_SESSION_STORAGE_KEY = 'gsl_linking_active_otp_v1';
+const LINK_METHOD_LABELS = {
+    setup_new: 'إعداد جديد',
+    otp_lan: 'ربط محلي',
+    otp_server: 'ربط عبر السيرفر'
+};
+const DEVICE_STATUS_LABELS = {
+    active: 'نشط',
+    revoked: 'ملغى'
+};
+
+const deviceManagementState = {
+    initialized: false,
+    refreshPromise: null,
+    currentDevice: null,
+    institutionStatus: null,
+    otp: {
+        plaintext: '',
+        expiresAt: null,
+        countdownOnly: false
+    },
+    dom: {}
+};
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Check user role
@@ -30,12 +87,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadConfig();
     await refreshStatus();
     await loadConflicts();
+    await refreshDeviceManagement({ showLoading: true });
 
     // 4. Set up auto-refresh (every 10 seconds)
     statusTimer = setInterval(refreshStatus, 10000);
 
     // 5. Cleanup on page unload
-    window.addEventListener('beforeunload', () => clearInterval(statusTimer));
+    window.addEventListener('beforeunload', () => {
+        clearInterval(statusTimer);
+        clearOtpCountdown();
+    });
 });
 
 // ==================== Status Display (US1) ====================
@@ -256,6 +317,7 @@ async function loadConfig() {
         setVal('cfg-retention', config.retentionDays || 7);
         // snapshotIntervalMinutes comes from status, not config
         setVal('cfg-snapshot-interval', status?.snapshotIntervalMinutes || 30);
+        setVal('cfg-license-key', config.licenseKey || '');
     } catch (err) {
         console.warn('loadConfig error:', err);
     }
@@ -279,6 +341,7 @@ function initConfigForm() {
         const maxRetries = parseInt(document.getElementById('cfg-max-retries')?.value, 10);
         const retention = parseInt(document.getElementById('cfg-retention')?.value, 10);
         const snapshotInterval = parseInt(document.getElementById('cfg-snapshot-interval')?.value, 10);
+        const licenseKey = document.getElementById('cfg-license-key')?.value?.trim() || null;
 
         // Client-side validation
         const errors = [];
@@ -315,6 +378,7 @@ function initConfigForm() {
         if (!isNaN(maxRetries)) updates.maxRetries = maxRetries;
         if (!isNaN(retention)) updates.retentionDays = retention;
         if (!isNaN(snapshotInterval)) updates.snapshotIntervalMinutes = snapshotInterval;
+        if (licenseKey !== null) updates.licenseKey = licenseKey;
 
         try {
             const result = await window.api.sync.setConfig(updates);
@@ -328,6 +392,51 @@ function initConfigForm() {
         } catch (err) {
             console.error('setConfig error:', err);
             showToast('حدث خطأ أثناء الحفظ', 'error');
+        }
+    });
+}
+
+// ==================== Test Connection ====================
+
+function initTestConnection() {
+    const btn = document.getElementById('btn-test-connection');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        const resultDiv = document.getElementById('test-connection-result');
+        btn.disabled = true;
+        const origHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاختبار...';
+        if (resultDiv) {
+            resultDiv.classList.add('hidden');
+            resultDiv.textContent = '';
+        }
+
+        try {
+            const result = await window.api.sync.testConnection();
+            if (resultDiv) {
+                resultDiv.classList.remove('hidden');
+                if (result.success) {
+                    resultDiv.className =
+                        'mt-3 rounded-lg px-4 py-3 text-sm bg-[rgba(46,204,113,0.12)] text-[var(--color-success-bg)]';
+                    resultDiv.innerHTML = `<i class="fas fa-check-circle me-2"></i>الاتصال ناجح${result.schoolId ? ' — معرف المؤسسة: ' + result.schoolId : ''}`;
+                } else {
+                    const stepLabel = { lambda: 'Lambda', cognito: 'Cognito', dynamodb: 'DynamoDB' }[result.step] || '';
+                    resultDiv.className =
+                        'mt-3 rounded-lg px-4 py-3 text-sm bg-[rgba(232,93,93,0.12)] text-[var(--color-danger-bg)]';
+                    resultDiv.innerHTML = `<i class="fas fa-times-circle me-2"></i>${stepLabel ? stepLabel + ': ' : ''}${result.error || 'فشل الاتصال'}`;
+                }
+            }
+        } catch (err) {
+            if (resultDiv) {
+                resultDiv.classList.remove('hidden');
+                resultDiv.className =
+                    'mt-3 rounded-lg px-4 py-3 text-sm bg-[rgba(232,93,93,0.12)] text-[var(--color-danger-bg)]';
+                resultDiv.textContent = err.message || 'خطأ غير متوقع';
+            }
+        } finally {
+            btn.innerHTML = origHTML;
+            btn.disabled = false;
         }
     });
 }
@@ -642,17 +751,609 @@ function initConflictHandlers() {
     });
 }
 
+// ==================== Device Management (Phase 7.7) ====================
+
+function cacheDeviceManagementDom() {
+    deviceManagementState.dom = {
+        section: document.getElementById('device-management-section'),
+        loading: document.getElementById('device-management-loading'),
+        setupRequired: document.getElementById('device-management-setup-required'),
+        setupText: document.getElementById('device-management-setup-text'),
+        retryButtons: [
+            document.getElementById('device-management-retry-btn'),
+            document.getElementById('linked-devices-retry-btn')
+        ].filter(Boolean),
+        content: document.getElementById('device-management-content'),
+        currentDeviceName: document.getElementById('current-device-name'),
+        currentDeviceHash: document.getElementById('current-device-hash'),
+        currentDeviceMassar: document.getElementById('current-device-massar'),
+        currentDeviceInstitution: document.getElementById('current-device-institution'),
+        currentDeviceNote: document.getElementById('current-device-note'),
+        devicesCount: document.getElementById('linked-devices-count'),
+        devicesNote: document.getElementById('linked-devices-note'),
+        devicesError: document.getElementById('linked-devices-error'),
+        devicesTableWrap: document.getElementById('linked-devices-table-wrap'),
+        devicesTbody: document.getElementById('devices-tbody'),
+        otpPanel: document.getElementById('device-otp-panel'),
+        otpInitial: document.getElementById('device-otp-initial'),
+        otpActive: document.getElementById('device-otp-active'),
+        otpDigits: Array.from(document.querySelectorAll('[data-otp-digit]')),
+        otpCountdown: document.getElementById('device-otp-countdown'),
+        otpStatusText: document.getElementById('device-otp-status-text'),
+        otpRestoredNote: document.getElementById('device-otp-restored-note'),
+        otpIpNote: document.getElementById('device-otp-ip'),
+        generateOtpBtn: document.getElementById('generate-linking-otp-btn'),
+        cancelOtpBtn: document.getElementById('cancel-linking-otp-btn')
+    };
+
+    return deviceManagementState.dom;
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function clearOtpCountdown() {
+    if (otpCountdownTimer) {
+        clearInterval(otpCountdownTimer);
+        otpCountdownTimer = null;
+    }
+}
+
+function computeRemainingSeconds(expiresAt) {
+    const expiresAtMs = new Date(expiresAt || '').getTime();
+    if (!Number.isFinite(expiresAtMs)) {
+        return 0;
+    }
+    return Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+}
+
+function formatCountdown(seconds) {
+    const formatter = new Intl.NumberFormat('ar-EG', {
+        minimumIntegerDigits: 2,
+        useGrouping: false
+    });
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${formatter.format(minutes)}:${formatter.format(remainingSeconds)}`;
+}
+
+function readStoredOtp() {
+    try {
+        const raw = sessionStorage.getItem(OTP_SESSION_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') {
+            sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
+            return null;
+        }
+        if (!parsed.expiresAt || computeRemainingSeconds(parsed.expiresAt) <= 0) {
+            sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
+            return null;
+        }
+        const otp = String(parsed.otp || '').trim();
+        return otp ? { otp, expiresAt: parsed.expiresAt } : null;
+    } catch (_) {
+        try {
+            sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
+        } catch {
+            // ignore storage cleanup errors
+        }
+        return null;
+    }
+}
+
+function storeOtp(otp, expiresAt) {
+    const normalizedOtp = String(otp || '').trim();
+    deviceManagementState.otp.plaintext = normalizedOtp;
+    deviceManagementState.otp.expiresAt = expiresAt || null;
+    deviceManagementState.otp.countdownOnly = false;
+
+    if (!normalizedOtp || !expiresAt) {
+        return;
+    }
+
+    try {
+        sessionStorage.setItem(
+            OTP_SESSION_STORAGE_KEY,
+            JSON.stringify({
+                otp: normalizedOtp,
+                expiresAt
+            })
+        );
+    } catch {
+        // ignore storage quota/access errors
+    }
+}
+
+function clearStoredOtp() {
+    deviceManagementState.otp.plaintext = '';
+    deviceManagementState.otp.expiresAt = null;
+    deviceManagementState.otp.countdownOnly = false;
+    try {
+        sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
+    } catch {
+        // ignore storage cleanup errors
+    }
+}
+
+function showDeviceManagementLoading() {
+    const dom = deviceManagementState.dom.section ? deviceManagementState.dom : cacheDeviceManagementDom();
+    if (!dom.section) return;
+    dom.loading?.classList.remove('hidden');
+    dom.setupRequired?.classList.add('hidden');
+    dom.content?.classList.add('hidden');
+}
+
+function showDeviceManagementSetupRequired(message) {
+    const dom = deviceManagementState.dom.section ? deviceManagementState.dom : cacheDeviceManagementDom();
+    if (!dom.section) return;
+    if (dom.setupText) {
+        dom.setupText.textContent = message;
+    }
+    dom.loading?.classList.add('hidden');
+    dom.setupRequired?.classList.remove('hidden');
+    dom.content?.classList.add('hidden');
+}
+
+function showDeviceManagementContent() {
+    const dom = deviceManagementState.dom.section ? deviceManagementState.dom : cacheDeviceManagementDom();
+    if (!dom.section) return;
+    dom.loading?.classList.add('hidden');
+    dom.setupRequired?.classList.add('hidden');
+    dom.content?.classList.remove('hidden');
+}
+
+function setOtpDigits(otp, masked = false) {
+    const dom = deviceManagementState.dom;
+    const value = String(otp || '');
+    dom.otpDigits.forEach((digitEl, index) => {
+        const digit = value[index];
+        if (digit) {
+            digitEl.textContent = masked ? '•' : digit;
+            digitEl.classList.toggle('is-muted', masked);
+            return;
+        }
+
+        digitEl.textContent = masked ? '•' : '—';
+        digitEl.classList.add('is-muted');
+    });
+}
+
+function showOtpInitialState() {
+    const dom = deviceManagementState.dom;
+    if (!dom.otpPanel) return;
+
+    clearOtpCountdown();
+    dom.otpInitial?.classList.remove('hidden');
+    dom.otpActive?.classList.add('hidden');
+    if (dom.otpCountdown) {
+        dom.otpCountdown.textContent = '00:00';
+    }
+    if (dom.otpStatusText) {
+        dom.otpStatusText.textContent = 'لا يوجد كود نشط حالياً.';
+    }
+    if (dom.otpRestoredNote) {
+        dom.otpRestoredNote.textContent = '';
+        dom.otpRestoredNote.classList.add('hidden');
+    }
+    setOtpDigits('', false);
+}
+
+function startOtpCountdown(expiresAt) {
+    const dom = deviceManagementState.dom;
+    if (!dom.otpCountdown) return;
+
+    clearOtpCountdown();
+
+    const tick = () => {
+        const remainingSeconds = computeRemainingSeconds(expiresAt);
+        if (remainingSeconds <= 0) {
+            clearOtpCountdown();
+            clearStoredOtp();
+            showOtpInitialState();
+            showToast('انتهت صلاحية كود الربط', 'info');
+            return;
+        }
+
+        dom.otpCountdown.textContent = formatCountdown(remainingSeconds);
+    };
+
+    tick();
+    otpCountdownTimer = setInterval(tick, 1000);
+}
+
+function renderOtpState(statusResult) {
+    const dom = deviceManagementState.dom;
+    if (!dom.otpPanel || !isAdmin) return;
+
+    if (!statusResult?.success || !statusResult.active) {
+        clearStoredOtp();
+        showOtpInitialState();
+        return;
+    }
+
+    const storedOtp =
+        deviceManagementState.otp.plaintext && deviceManagementState.otp.expiresAt === statusResult.expiresAt
+            ? { otp: deviceManagementState.otp.plaintext, expiresAt: deviceManagementState.otp.expiresAt }
+            : readStoredOtp();
+    const plaintextOtp =
+        String(statusResult.otp || '').trim() || (storedOtp?.expiresAt === statusResult.expiresAt ? storedOtp.otp : '');
+    const countdownOnly = !plaintextOtp;
+
+    deviceManagementState.otp.expiresAt = statusResult.expiresAt || null;
+    deviceManagementState.otp.countdownOnly = countdownOnly;
+    if (plaintextOtp) {
+        storeOtp(plaintextOtp, statusResult.expiresAt);
+    } else {
+        deviceManagementState.otp.plaintext = '';
+    }
+
+    dom.otpInitial?.classList.add('hidden');
+    dom.otpActive?.classList.remove('hidden');
+    setOtpDigits(plaintextOtp, countdownOnly);
+
+    if (dom.otpStatusText) {
+        dom.otpStatusText.textContent = countdownOnly
+            ? 'الكود ما يزال نشطاً، لكن لا يمكن استعادة أرقامه في هذه الجلسة.'
+            : 'الكود صالح حالياً ويمكن استخدامه لربط جهاز جديد.';
+    }
+
+    if (dom.otpRestoredNote) {
+        let note = '';
+        if (statusResult.otp) {
+            note = '';
+        } else if (plaintextOtp) {
+            note = 'تمت استعادة الكود بعد العودة إلى صفحة المزامنة.';
+        } else {
+            note = 'تم العثور على كود نشط من جلسة سابقة، لكن التطبيق لا يخزن أرقامه بعد إعادة التشغيل.';
+        }
+
+        dom.otpRestoredNote.textContent = note;
+        dom.otpRestoredNote.classList.toggle('hidden', !note);
+    }
+
+    startOtpCountdown(statusResult.expiresAt);
+
+    // Show local IP addresses for manual connection
+    if (dom.otpIpNote) {
+        window.api.linking.getCurrentDevice().then(result => {
+            const ips = result?.allIps || (result?.ip ? [result.ip] : []);
+            if (ips.length > 0) {
+                dom.otpIpNote.textContent = 'IP: ' + ips.join(' / ');
+            } else {
+                dom.otpIpNote.textContent = 'IP: غير متوفر';
+            }
+        }).catch(() => {
+            dom.otpIpNote.textContent = 'IP: غير متوفر';
+        });
+    }
+}
+
+function renderCurrentDevice(currentResult, institutionStatus) {
+    const dom = deviceManagementState.dom;
+    if (!dom.currentDeviceName) return null;
+
+    if (!currentResult?.success) {
+        dom.currentDeviceName.textContent = 'تعذر التحميل';
+        dom.currentDeviceHash.textContent = '—';
+        dom.currentDeviceMassar.textContent = institutionStatus?.massarCode || '—';
+        dom.currentDeviceInstitution.textContent = institutionStatus?.institutionName || 'غير محدد';
+        dom.currentDeviceNote.textContent =
+            'تعذر تحميل بيانات الجهاز الحالي حالياً. يمكنك إعادة المحاولة من القسم نفسه.';
+        deviceManagementState.currentDevice = null;
+        return null;
+    }
+
+    const truncatedHash = String(currentResult.deviceHash || '').slice(0, 8) || '—';
+    const massarCode = currentResult.massarCode || institutionStatus?.massarCode || '—';
+    const institutionName = currentResult.institutionName || institutionStatus?.institutionName || 'غير محدد';
+
+    dom.currentDeviceName.textContent = currentResult.deviceName || 'جهاز بدون اسم';
+    dom.currentDeviceHash.textContent = truncatedHash;
+    dom.currentDeviceHash.title = currentResult.deviceHash || '';
+    dom.currentDeviceMassar.textContent = massarCode;
+    dom.currentDeviceInstitution.textContent = institutionName;
+    dom.currentDeviceNote.textContent = `المنصة: ${currentResult.platform || 'غير معروفة'} • الإصدار: ${currentResult.appVersion || 'غير محدد'}`;
+
+    deviceManagementState.currentDevice = currentResult;
+    return currentResult;
+}
+
+function renderLinkedDevices(devicesResult, currentDeviceHash) {
+    const dom = deviceManagementState.dom;
+    if (!dom.devicesTbody) return;
+
+    if (!devicesResult?.success) {
+        dom.devicesCount.textContent = '—';
+        dom.devicesNote.textContent = 'تعذر تحميل قائمة الأجهزة المرتبطة. حاول مرة أخرى.';
+        dom.devicesError?.classList.remove('hidden');
+        dom.devicesTableWrap?.classList.add('hidden');
+        dom.devicesTbody.innerHTML = '';
+        return;
+    }
+
+    const devices = Array.isArray(devicesResult.devices) ? devicesResult.devices : [];
+    dom.devicesError?.classList.add('hidden');
+    dom.devicesTableWrap?.classList.remove('hidden');
+    dom.devicesCount.textContent = String(devices.length);
+
+    if (!devices.length) {
+        dom.devicesNote.textContent = 'لا توجد أجهزة مرتبطة بهذه المؤسسة حالياً.';
+        dom.devicesTbody.innerHTML = `
+            <tr class="device-empty-row">
+                <td colspan="5">لا توجد أي أجهزة مرتبطة بالمؤسسة حالياً.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const hasOnlyCurrentDevice =
+        devices.length === 1 && (devices[0].isCurrentDevice || devices[0].deviceHash === currentDeviceHash);
+    dom.devicesNote.textContent = hasOnlyCurrentDevice
+        ? 'لا توجد أجهزة أخرى مرتبطة حالياً غير هذا الجهاز.'
+        : `عدد الأجهزة المرتبطة حالياً: ${devices.length}`;
+
+    dom.devicesTbody.innerHTML = devices
+        .map((device) => {
+            const isCurrentDevice = !!device.isCurrentDevice || device.deviceHash === currentDeviceHash;
+            const isRevoked = device.status === 'revoked';
+            const linkedByLabel = LINK_METHOD_LABELS[device.linkedBy] || 'غير معروف';
+            const statusLabel = DEVICE_STATUS_LABELS[device.status] || 'غير معروف';
+            const deviceName = escapeHtml(device.deviceName || 'جهاز بدون اسم');
+            const deviceHash = escapeHtml(String(device.deviceHash || '').slice(0, 8));
+            const lastSeen = device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'لم يسجل بعد';
+
+            let actionContent = '—';
+            if (isAdmin && !isCurrentDevice && !isRevoked) {
+                actionContent = `
+                    <button
+                        class="btn btn-danger btn-sm device-revoke-btn"
+                        type="button"
+                        data-device-hash="${escapeHtml(device.deviceHash)}"
+                        data-device-name="${deviceName}"
+                    >
+                        <i class="fas fa-user-slash"></i> إلغاء
+                    </button>
+                `;
+            } else if (isCurrentDevice) {
+                actionContent = '<span class="device-note">هذا هو الجهاز الحالي</span>';
+            }
+
+            return `
+                <tr class="${isCurrentDevice ? 'device-row-current ' : ''}${isRevoked ? 'device-row-revoked' : ''}">
+                    <td>
+                        <div class="device-name-stack">
+                            <span class="device-row-title">${deviceName}</span>
+                            <span class="device-row-subtitle"><bdi>${deviceHash || '—'}</bdi></span>
+                            ${isCurrentDevice ? '<span class="device-current-badge">هذا الجهاز</span>' : ''}
+                        </div>
+                    </td>
+                    <td><span class="device-method-badge">${linkedByLabel}</span></td>
+                    <td>${lastSeen}</td>
+                    <td>
+                        <span class="device-status-badge ${isRevoked ? 'is-revoked' : 'is-active'}">${statusLabel}</span>
+                    </td>
+                    <td class="admin-only device-action-cell">${actionContent}</td>
+                </tr>
+            `;
+        })
+        .join('');
+}
+
+async function getInstitutionStatus() {
+    if (window.api?.linking?.getInstitutionStatus) {
+        return window.api.linking.getInstitutionStatus();
+    }
+    if (window.api?.setup?.getInstitutionStatus) {
+        return window.api.setup.getInstitutionStatus();
+    }
+    return { success: false, error: 'تعذر الوصول إلى حالة المؤسسة' };
+}
+
+function normalizeSettledResult(result) {
+    if (result.status === 'fulfilled') {
+        return result.value;
+    }
+    return {
+        success: false,
+        error: result.reason?.message || 'حدث خطأ غير متوقع'
+    };
+}
+
+async function refreshDeviceManagement(options = {}) {
+    const { showLoading = false } = options;
+    const dom = cacheDeviceManagementDom();
+    if (!dom.section || !window.api?.linking) {
+        return;
+    }
+
+    if (deviceManagementState.refreshPromise) {
+        return deviceManagementState.refreshPromise;
+    }
+
+    if (showLoading) {
+        showDeviceManagementLoading();
+    }
+
+    deviceManagementState.refreshPromise = (async () => {
+        try {
+            const institutionStatus = await getInstitutionStatus();
+            deviceManagementState.institutionStatus = institutionStatus;
+
+            if (!institutionStatus?.success) {
+                clearStoredOtp();
+                showDeviceManagementSetupRequired('تعذر التحقق من حالة المؤسسة حالياً. حاول مرة أخرى.');
+                return;
+            }
+
+            if (!institutionStatus.setupCompleted) {
+                clearStoredOtp();
+                showDeviceManagementSetupRequired('يجب إتمام إعداد المؤسسة أولاً قبل إدارة الأجهزة المرتبطة.');
+                return;
+            }
+
+            showDeviceManagementContent();
+
+            const requests = [
+                window.api.linking.getCurrentDevice(),
+                window.api.linking.getLinkedDevices(),
+                isAdmin ? window.api.linking.getOtpStatus() : Promise.resolve({ success: true, active: false })
+            ];
+            const [currentResult, devicesResult, otpResult] = (await Promise.allSettled(requests)).map(
+                normalizeSettledResult
+            );
+            const currentDevice = renderCurrentDevice(currentResult, institutionStatus);
+            renderLinkedDevices(devicesResult, currentDevice?.deviceHash || null);
+            if (isAdmin) {
+                renderOtpState(otpResult);
+            } else {
+                showOtpInitialState();
+            }
+        } catch (err) {
+            console.warn('refreshDeviceManagement error:', err);
+            showDeviceManagementSetupRequired('تعذر تحميل إدارة الأجهزة حالياً. حاول مرة أخرى.');
+        } finally {
+            deviceManagementState.refreshPromise = null;
+        }
+    })();
+
+    return deviceManagementState.refreshPromise;
+}
+
+async function handleGenerateOtp() {
+    const dom = deviceManagementState.dom;
+    const button = dom.generateOtpBtn;
+    if (!button) return;
+
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التوليد...';
+
+    try {
+        const result = await window.api.linking.generateOtp();
+        if (!result?.success || !result.otp || !result.expiresAt) {
+            showToast(result?.error || 'تعذر توليد كود الربط', 'error');
+            return;
+        }
+
+        storeOtp(result.otp, result.expiresAt);
+        renderOtpState({
+            success: true,
+            active: true,
+            otp: result.otp,
+            expiresAt: result.expiresAt,
+            remainingSeconds: result.remainingSeconds
+        });
+        showToast('تم توليد كود الربط بنجاح', 'success');
+    } catch (err) {
+        console.error('generateOtp error:', err);
+        showToast('حدث خطأ أثناء توليد كود الربط', 'error');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+async function handleCancelOtp() {
+    const dom = deviceManagementState.dom;
+    const button = dom.cancelOtpBtn;
+    if (!button) return;
+
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإلغاء...';
+
+    try {
+        const result = await window.api.linking.cancelOtp();
+        if (!result?.success) {
+            showToast(result?.error || 'تعذر إلغاء الكود الحالي', 'error');
+            return;
+        }
+
+        clearStoredOtp();
+        showOtpInitialState();
+        showToast(result.message || 'تم إلغاء كود الربط', 'success');
+    } catch (err) {
+        console.error('cancelOtp error:', err);
+        showToast('حدث خطأ أثناء إلغاء الكود', 'error');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+async function handleDeviceRevoke(event) {
+    const button = event.target.closest('.device-revoke-btn');
+    if (!button) return;
+
+    const deviceHash = String(button.dataset.deviceHash || '').trim();
+    const deviceName = button.dataset.deviceName || 'هذا الجهاز';
+    if (!deviceHash) return;
+
+    const confirmed = window.confirm(`هل تريد تأكيد إلغاء ربط الجهاز "${deviceName}"؟`);
+    if (!confirmed) return;
+
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التنفيذ...';
+
+    try {
+        const result = await window.api.linking.revokeDevice(deviceHash);
+        if (!result?.success) {
+            showToast(result?.error || 'تعذر إلغاء الجهاز المحدد', 'error');
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+            return;
+        }
+
+        showToast(result.message || 'تم إلغاء الجهاز بنجاح', 'success');
+        await refreshDeviceManagement();
+    } catch (err) {
+        console.error('revokeDevice error:', err);
+        showToast('حدث خطأ أثناء إلغاء الجهاز', 'error');
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    }
+}
+
+function initDeviceManagement() {
+    const dom = cacheDeviceManagementDom();
+    if (!dom.section || deviceManagementState.initialized) return;
+
+    dom.retryButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            refreshDeviceManagement({ showLoading: true });
+        });
+    });
+    dom.generateOtpBtn?.addEventListener('click', handleGenerateOtp);
+    dom.cancelOtpBtn?.addEventListener('click', handleCancelOtp);
+    dom.devicesTbody?.addEventListener('click', handleDeviceRevoke);
+
+    showOtpInitialState();
+    deviceManagementState.initialized = true;
+}
+
 // ==================== Initialize (after DOM) ====================
 
 // These run after DOMContentLoaded fires (the listener above handles data loading)
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         initConfigForm();
+        initTestConnection();
         initSyncNow();
         initConflictHandlers();
+        initDeviceManagement();
     });
 } else {
     initConfigForm();
+    initTestConnection();
     initSyncNow();
     initConflictHandlers();
+    initDeviceManagement();
 }

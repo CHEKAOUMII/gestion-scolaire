@@ -432,7 +432,7 @@ function getCurrentAppRole() {
     const session = getAuthSessionData();
     if (!session || !isAuthSessionActive()) return null;
     const normalized = _normalizeRole(session.role || '');
-    if (['admin', 'staff', 'viewer'].includes(normalized)) return normalized;
+    if (['admin', 'staff', 'viewer', 'developer'].includes(normalized)) return normalized;
     return null;
 }
 

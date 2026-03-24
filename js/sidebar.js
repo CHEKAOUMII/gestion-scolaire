@@ -102,10 +102,10 @@ function injectSidebar() {
                     <ul class="sub-menu">
                         <li><a href="settings-school.html"><i class="fas fa-school"></i> معلومات المؤسسة</a></li>
                         <li><a href="settings-imports.html"><i class="fas fa-file-import"></i> استيراد البيانات</a></li>
-                        <li><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
-                        <li><a href="settings-license.html"><i class="fas fa-key"></i> الترخيص والأجهزة</a></li>
+                        <li id="sidebar-users-link" class="hidden" data-dev-only><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
                         <li><a href="settings-logs.html"><i class="fas fa-history"></i> سجل النشاطات</a></li>
-                        <li><a href="settings-sync.html"><i class="fas fa-cloud"></i> المزامنة السحابية <span class="sync-status-badge" id="sidebar-sync-badge"></span></a></li>
+                        <li id="sidebar-license-link" class="hidden" data-dev-only><a href="settings-license.html"><i class="fas fa-key"></i> الترخيص والأجهزة</a></li>
+                        <li id="sidebar-sync-link"><a href="settings-sync.html"><i class="fas fa-cloud"></i> المزامنة السحابية <span class="sync-status-badge" id="sidebar-sync-badge"></span></a></li>
                     </ul>
                 </li>
                 <!-- Prototypes Links for Review -->
@@ -160,7 +160,7 @@ function injectSidebar() {
         if (rawSession) {
             const sess = JSON.parse(rawSession);
             const role = String(sess?.role || '').toLowerCase();
-            if (['admin', 'staff', 'viewer'].includes(role)) {
+            if (['admin', 'staff', 'viewer', 'developer'].includes(role)) {
                 const userSection = document.getElementById('sidebar-auth-user');
                 const nameEl = document.getElementById('sidebar-auth-name');
                 const loginBtn = document.getElementById('sidebar-login-btn');
@@ -177,6 +177,13 @@ function injectSidebar() {
                     loginBtn.classList.add('sidebar-auth-logout');
                 }
                 if (changePwBtn) changePwBtn.style.display = '';
+                // Show developer-only links
+                if (role === 'developer') {
+                    const licenseLink = document.getElementById('sidebar-license-link');
+                    if (licenseLink) licenseLink.classList.remove('hidden');
+                    const usersLink = document.getElementById('sidebar-users-link');
+                    if (usersLink) usersLink.classList.remove('hidden');
+                }
             }
         }
     } catch (_) {

@@ -87,130 +87,263 @@
                 </div>
             </header>
 
-            <div class="page-title-row my-[10px] mb-3 px-1">
-                <h2
-                    class="page-title m-0 inline-flex items-center gap-2.5 whitespace-nowrap text-[clamp(1.1rem,1.8vw,1.5rem)] font-bold text-[var(--color-text-main)]"
-                >
-                    <i class="fas fa-cloud"></i> المزامنة السحابية
-                </h2>
+            <!-- Page Header with gradient accent -->
+            <div class="mb-6 px-1">
+                <div class="inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-l from-[#1e40af] via-[#3b82f6] to-[#0ea5e9] px-4 py-2.5 shadow-md">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                        <i class="fas fa-cloud text-sm text-white"></i>
+                    </div>
+                    <div>
+                        <h2 class="page-title m-0 text-[1rem] font-bold leading-tight text-white">المزامنة السحابية</h2>
+                        <p class="mt-0 text-[0.7rem] text-white/65">إدارة المزامنة والأجهزة المرتبطة</p>
+                    </div>
+                </div>
             </div>
 
-            <div class="grades-container" id="sync-page-content">
+            <div class="grades-container grid gap-6" id="sync-page-content">
                 <!-- US1: Status Section -->
-                <div class="students-results" id="sync-status-section">
-                    <h3><i class="fas fa-heartbeat"></i> حالة المزامنة</h3>
-                    <div id="sync-state-banner" class="mb-4 rounded-xl px-4 py-3.5 flex items-center gap-3 bg-[rgba(150,150,150,0.12)] text-[var(--color-text-muted)]">
-                        <i class="fas fa-pause-circle text-xl"></i>
-                        <span class="font-bold">جاري التحميل...</span>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" id="status-cards" aria-live="polite">
-                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
-                            <div class="text-sm text-[var(--color-text-muted)]">حالة الاتصال</div>
-                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-connection">—</div>
+                <div class="students-results overflow-hidden" id="sync-status-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-heartbeat"></i> حالة المزامنة</h3>
+                    <div class="px-6 pb-6">
+                        <div
+                            id="sync-state-banner"
+                            class="mb-5 flex items-center gap-3 rounded-xl border border-[var(--glass-border)] bg-gradient-to-l from-[rgba(59,130,246,0.08)] to-transparent px-5 py-4 transition-all duration-300"
+                        >
+                            <div class="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                                <span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-primary)] opacity-20"></span>
+                                <i class="fas fa-pause-circle text-xl text-[var(--color-primary)]"></i>
+                            </div>
+                            <span class="font-bold text-[var(--color-text-main)]">جاري التحميل...</span>
                         </div>
-                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
-                            <div class="text-sm text-[var(--color-text-muted)]">آخر رفع</div>
-                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-last-push">—</div>
-                        </div>
-                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
-                            <div class="text-sm text-[var(--color-text-muted)]">آخر سحب</div>
-                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-last-pull">—</div>
-                        </div>
-                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
-                            <div class="text-sm text-[var(--color-text-muted)]">التغييرات المعلقة</div>
-                            <div class="text-lg font-bold text-[var(--color-success-bg)]" id="status-pending">—</div>
-                        </div>
-                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
-                            <div class="text-sm text-[var(--color-text-muted)]">العناصر الفاشلة</div>
-                            <div class="text-lg font-bold text-[var(--color-success-bg)]" id="status-failed">—</div>
-                        </div>
-                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
-                            <div class="text-sm text-[var(--color-text-muted)]">التعارضات</div>
-                            <div class="text-lg font-bold text-[var(--color-success-bg)]" id="status-conflicts">—</div>
-                        </div>
-                        <div class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]">
-                            <div class="text-sm text-[var(--color-text-muted)]">آخر فحص</div>
-                            <div class="text-lg font-bold text-[var(--color-primary)]" id="status-last-snapshot">—</div>
+                        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="status-cards" aria-live="polite">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><i class="fas fa-wifi text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">حالة الاتصال</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-connection">—</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-emerald-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500"><i class="fas fa-cloud-upload-alt text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر رفع</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-push">—</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-cyan-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"><i class="fas fa-cloud-download-alt text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر سحب</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-pull">—</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-amber-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500"><i class="fas fa-hourglass-half text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">التغييرات المعلقة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-pending">—</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-rose-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500"><i class="fas fa-exclamation-triangle text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">العناصر الفاشلة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-failed">—</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-orange-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500"><i class="fas fa-code-branch text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">التعارضات</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-conflicts">—</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-violet-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500"><i class="fas fa-camera text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر فحص</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-snapshot">—</div></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- US2: Configuration Section -->
-                <div class="students-results admin-only" id="sync-config-section">
+                <div class="students-results admin-only overflow-hidden" id="sync-config-section">
                     <h3><i class="fas fa-cog"></i> إعدادات المزامنة</h3>
-                    <form id="sync-config-form">
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" id="cfg-enabled" />
-                                <span class="font-semibold">تفعيل المزامنة</span>
-                            </label>
-                            <div></div>
+                    <form id="sync-config-form" class="px-6 pb-6">
+                        <label class="mb-5 flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]">
+                            <input type="checkbox" id="cfg-enabled" class="h-4 w-4 accent-[var(--color-primary)]" />
+                            <span class="font-semibold text-[var(--color-text-main)]">تفعيل المزامنة</span>
+                        </label>
+                        <div class="grid gap-5 md:grid-cols-2">
                             <div>
-                                <label for="cfg-school-id" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">معرف المؤسسة</label>
-                                <input type="text" id="cfg-school-id" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                <label
+                                    for="cfg-school-id"
+                                    class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                    >معرف المؤسسة</label
+                                >
+                                <input
+                                    type="text"
+                                    id="cfg-school-id"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
                             </div>
                             <div>
-                                <label for="cfg-auth-url" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">رابط المصادقة</label>
-                                <input type="text" id="cfg-auth-url" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                <label
+                                    for="cfg-auth-url"
+                                    class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                    >رابط المصادقة</label
+                                >
+                                <input
+                                    type="text"
+                                    id="cfg-auth-url"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
                             </div>
                             <div>
-                                <label for="cfg-region" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">المنطقة (AWS Region)</label>
-                                <input type="text" id="cfg-region" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" value="us-east-1" />
+                                <label
+                                    for="cfg-license-key"
+                                    class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                    >مفتاح الترخيص</label
+                                >
+                                <input
+                                    type="text"
+                                    id="cfg-license-key"
+                                    placeholder="أدخل مفتاح الترخيص"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
                             </div>
                             <div>
-                                <label for="cfg-interval" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">فترة المزامنة (دقائق)</label>
-                                <input type="number" id="cfg-interval" min="1" max="30" value="10" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                <label
+                                    for="cfg-region"
+                                    class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                    >المنطقة (AWS Region)</label
+                                >
+                                <input
+                                    type="text"
+                                    id="cfg-region"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    value="us-east-1"
+                                />
+                            </div>
+                            <div>
+                                <label
+                                    for="cfg-interval"
+                                    class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                    >فترة المزامنة (دقائق)</label
+                                >
+                                <input
+                                    type="number"
+                                    id="cfg-interval"
+                                    min="1"
+                                    max="30"
+                                    value="10"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
                             </div>
                         </div>
-                        <details class="mt-4">
-                            <summary class="cursor-pointer font-semibold text-[var(--color-text-muted)]">
+                        <details class="mt-5">
+                            <summary class="cursor-pointer select-none rounded-lg px-3 py-2 font-semibold text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-primary-mist)] hover:text-[var(--color-primary)]">
                                 <i class="fas fa-sliders-h"></i> إعدادات متقدمة
                             </summary>
-                            <div class="mt-3 grid gap-4 md:grid-cols-2">
+                            <div class="mt-4 grid gap-5 md:grid-cols-2">
                                 <div>
-                                    <label for="cfg-batch-size" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">حجم الدفعة</label>
-                                    <input type="number" id="cfg-batch-size" value="100" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                    <label
+                                        for="cfg-batch-size"
+                                        class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                        >حجم الدفعة</label
+                                    >
+                                    <input
+                                        type="number"
+                                        id="cfg-batch-size"
+                                        value="100"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
                                 </div>
                                 <div>
-                                    <label for="cfg-max-retries" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">أقصى محاولات</label>
-                                    <input type="number" id="cfg-max-retries" value="10" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                    <label
+                                        for="cfg-max-retries"
+                                        class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                        >أقصى محاولات</label
+                                    >
+                                    <input
+                                        type="number"
+                                        id="cfg-max-retries"
+                                        value="10"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
                                 </div>
                                 <div>
-                                    <label for="cfg-retention" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">أيام الاحتفاظ</label>
-                                    <input type="number" id="cfg-retention" value="7" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                    <label
+                                        for="cfg-retention"
+                                        class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                        >أيام الاحتفاظ</label
+                                    >
+                                    <input
+                                        type="number"
+                                        id="cfg-retention"
+                                        value="7"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
                                 </div>
                                 <div>
-                                    <label for="cfg-snapshot-interval" class="mb-1 block text-sm font-semibold text-[var(--color-text-main)]">فترة الفحص (دقائق)</label>
-                                    <input type="number" id="cfg-snapshot-interval" value="30" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2" />
+                                    <label
+                                        for="cfg-snapshot-interval"
+                                        class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                        >فترة الفحص (دقائق)</label
+                                    >
+                                    <input
+                                        type="number"
+                                        id="cfg-snapshot-interval"
+                                        value="30"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
                                 </div>
                             </div>
                         </details>
                         <div id="config-validation" class="validation-message warning mt-4 hidden"></div>
-                        <button class="btn btn-primary mt-4" type="submit"><i class="fas fa-save"></i> حفظ الإعدادات</button>
+                        <div class="mt-5 flex flex-wrap gap-3 items-center border-t border-[var(--glass-border)] pt-5">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-save"></i> حفظ الإعدادات
+                            </button>
+                            <button class="btn btn-secondary admin-only" id="btn-test-connection" type="button">
+                                <i class="fas fa-plug"></i> اختبار الاتصال
+                            </button>
+                        </div>
+                        <div id="test-connection-result" class="mt-3 hidden rounded-lg px-4 py-3 text-sm"></div>
                     </form>
                 </div>
 
                 <!-- US3: Manual Sync Section -->
-                <div class="students-results admin-only" id="sync-trigger-section">
-                    <h3><i class="fas fa-bolt"></i> مزامنة يدوية</h3>
-                    <button class="btn btn-warning" id="btn-sync-now" type="button"><i class="fas fa-sync"></i> مزامنة الآن</button>
-                    <div id="sync-results" class="mt-4 hidden"></div>
+                <div class="students-results admin-only overflow-hidden" id="sync-trigger-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-bolt text-amber-500"></i> مزامنة يدوية</h3>
+                    <div class="px-6 pb-6">
+                        <div class="flex items-center gap-4">
+                            <button class="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-l from-amber-600 to-amber-500 px-5 py-3 font-bold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:brightness-110 active:scale-[0.98]" id="btn-sync-now" type="button">
+                                <i class="fas fa-sync transition-transform duration-300 group-hover:rotate-180"></i>
+                                <span>مزامنة الآن</span>
+                            </button>
+                            <span class="text-xs text-[var(--color-text-muted)]">تشغيل دورة مزامنة فورية مع السيرفر</span>
+                        </div>
+                        <div id="sync-results" class="mt-4 hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4"></div>
+                    </div>
                 </div>
 
                 <!-- US4: Conflict Log Section -->
-                <div class="students-results" id="sync-conflicts-section">
-                    <h3><i class="fas fa-code-branch"></i> سجل التعارضات <span class="badge" id="conflict-badge"></span></h3>
-                    <div class="flex items-center gap-3 mb-3">
-                        <label for="conflict-filter" class="sr-only">تصفية التعارضات</label>
-                        <select id="conflict-filter">
-                            <option value="all">الكل</option>
-                            <option value="unresolved" selected>غير محلولة</option>
-                            <option value="resolved">محلولة</option>
-                        </select>
+                <div class="students-results overflow-hidden" id="sync-conflicts-section">
+                    <h3>
+                        <i class="fas fa-code-branch"></i> سجل التعارضات <span class="badge" id="conflict-badge"></span>
+                    </h3>
+                    <div class="px-6 pb-5">
+                        <div class="flex items-center gap-3 mb-4">
+                            <label for="conflict-filter" class="sr-only">تصفية التعارضات</label>
+                            <select id="conflict-filter" class="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none">
+                                <option value="all">الكل</option>
+                                <option value="unresolved" selected>غير محلولة</option>
+                                <option value="resolved">محلولة</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table class="students-table">
-                            <caption class="sr-only">سجل تعارضات المزامنة</caption>
+                            <caption class="sr-only">
+                                سجل تعارضات المزامنة
+                            </caption>
                             <thead>
                                 <tr>
                                     <th>#</th>
@@ -231,10 +364,173 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="flex items-center justify-between mt-3" id="conflict-pagination">
-                        <button class="btn btn-secondary btn-sm conflict-prev-btn" type="button" disabled><i class="fas fa-chevron-right"></i> السابقة</button>
+                    <div class="flex items-center justify-between px-6 py-4" id="conflict-pagination">
+                        <button class="btn btn-secondary btn-sm conflict-prev-btn" type="button" disabled>
+                            <i class="fas fa-chevron-right"></i> السابقة
+                        </button>
                         <span class="conflict-page-info text-sm text-[var(--color-text-muted)]">صفحة 1</span>
-                        <button class="btn btn-secondary btn-sm conflict-next-btn" type="button"><i class="fas fa-chevron-left"></i> التالية</button>
+                        <button class="btn btn-secondary btn-sm conflict-next-btn" type="button">
+                            <i class="fas fa-chevron-left"></i> التالية
+                        </button>
+                    </div>
+                </div>
+
+                <div class="students-results overflow-hidden" id="device-management-section">
+                    <h3><i class="fas fa-laptop-house"></i> إدارة الأجهزة</h3>
+                    <div class="device-management-body">
+                        <div class="device-panel-state" id="device-management-loading" aria-live="polite">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>جاري تحميل بيانات الأجهزة المرتبطة...</p>
+                        </div>
+
+                        <div class="device-panel-state hidden" id="device-management-setup-required">
+                            <i class="fas fa-unlink"></i>
+                            <p id="device-management-setup-text">
+                                يجب إتمام إعداد المؤسسة أولاً قبل إدارة الأجهزة المرتبطة.
+                            </p>
+                            <button class="btn btn-secondary" id="device-management-retry-btn" type="button">
+                                <i class="fas fa-rotate"></i> إعادة المحاولة
+                            </button>
+                        </div>
+
+                        <div class="hidden" id="device-management-content">
+                            <div class="device-management-grid">
+                                <section
+                                    class="device-card device-card-current"
+                                    id="current-device-card"
+                                    aria-labelledby="current-device-title"
+                                >
+                                    <div class="device-card-header">
+                                        <h4 id="current-device-title"><i class="fas fa-desktop"></i> الجهاز الحالي</h4>
+                                        <span class="device-inline-badge">مرتبط</span>
+                                    </div>
+                                    <div class="device-field-list">
+                                        <div class="device-field-row">
+                                            <span class="device-field-label">اسم الجهاز</span>
+                                            <strong class="device-field-value" id="current-device-name">—</strong>
+                                        </div>
+                                        <div class="device-field-row">
+                                            <span class="device-field-label">بصمة الجهاز</span>
+                                            <strong class="device-field-value device-field-code"
+                                                ><bdi id="current-device-hash">—</bdi></strong
+                                            >
+                                        </div>
+                                        <div class="device-field-row">
+                                            <span class="device-field-label">رمز ماسار</span>
+                                            <strong class="device-field-value"
+                                                ><bdi id="current-device-massar">—</bdi></strong
+                                            >
+                                        </div>
+                                        <div class="device-field-row">
+                                            <span class="device-field-label">اسم المؤسسة</span>
+                                            <strong class="device-field-value" id="current-device-institution"
+                                                >—</strong
+                                            >
+                                        </div>
+                                    </div>
+                                    <p class="device-note" id="current-device-note">
+                                        تظهر هنا هوية هذا الجهاز والمؤسسة المرتبط بها.
+                                    </p>
+                                </section>
+
+                                <section
+                                    class="device-card device-card-otp admin-only"
+                                    id="device-otp-panel"
+                                    aria-labelledby="device-otp-title"
+                                >
+                                    <div class="device-card-header">
+                                        <h4 id="device-otp-title"><i class="fas fa-key"></i> كود ربط جهاز جديد</h4>
+                                        <span class="device-inline-badge">للمدير فقط</span>
+                                    </div>
+                                    <div id="device-otp-initial">
+                                        <p class="device-note">
+                                            ولّد كوداً مؤقتاً لمدة 10 دقائق لربط جهاز جديد بالمؤسسة الحالية.
+                                        </p>
+                                        <button class="btn btn-primary" id="generate-linking-otp-btn" type="button">
+                                            <i class="fas fa-bolt"></i> توليد كود ربط
+                                        </button>
+                                    </div>
+                                    <div class="hidden" id="device-otp-active">
+                                        <div class="otp-display" aria-live="polite" aria-label="كود الربط الحالي">
+                                            <span class="otp-digit" data-otp-digit="0">—</span>
+                                            <span class="otp-digit" data-otp-digit="1">—</span>
+                                            <span class="otp-digit" data-otp-digit="2">—</span>
+                                            <span class="otp-digit" data-otp-digit="3">—</span>
+                                            <span class="otp-digit" data-otp-digit="4">—</span>
+                                            <span class="otp-digit" data-otp-digit="5">—</span>
+                                        </div>
+                                        <div class="otp-meta-row">
+                                            <span class="otp-countdown-chip" id="device-otp-countdown"
+                                                ><bdi>00:00</bdi></span
+                                            >
+                                            <span class="device-note" id="device-otp-status-text"
+                                                >الكود صالح حالياً.</span
+                                            >
+                                        </div>
+                                        <p class="device-note hidden" id="device-otp-restored-note"></p>
+                                        <p class="device-note" id="device-otp-ip-note" style="direction:ltr; font-family: monospace; font-size: 0.78rem; color: var(--color-text-muted); margin-top: 4px;">
+                                            <i class="fas fa-network-wired"></i> <span id="device-otp-ip">—</span>
+                                        </p>
+                                        <div class="device-actions-row">
+                                            <button class="btn btn-secondary" id="cancel-linking-otp-btn" type="button">
+                                                <i class="fas fa-ban"></i> إلغاء الكود
+                                            </button>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+
+                            <section
+                                class="device-card"
+                                id="linked-devices-panel"
+                                aria-labelledby="linked-devices-title"
+                            >
+                                <div class="device-card-header">
+                                    <h4 id="linked-devices-title">
+                                        <i class="fas fa-network-wired"></i> الأجهزة المرتبطة
+                                    </h4>
+                                    <span class="device-inline-badge" id="linked-devices-count">0</span>
+                                </div>
+                                <p class="device-note" id="linked-devices-note">
+                                    يعرض هذا الجدول كل الأجهزة المربوطة بالمؤسسة الحالية.
+                                </p>
+
+                                <div class="hidden device-inline-error" id="linked-devices-error">
+                                    <span>تعذر تحميل قائمة الأجهزة حالياً.</span>
+                                    <button
+                                        class="btn btn-secondary btn-sm"
+                                        id="linked-devices-retry-btn"
+                                        type="button"
+                                    >
+                                        <i class="fas fa-rotate"></i> إعادة المحاولة
+                                    </button>
+                                </div>
+
+                                <div class="table-responsive" id="linked-devices-table-wrap">
+                                    <table class="students-table">
+                                        <caption class="sr-only">
+                                            جدول الأجهزة المرتبطة بالمؤسسة
+                                        </caption>
+                                        <thead>
+                                            <tr>
+                                                <th>اسم الجهاز</th>
+                                                <th>طريقة الربط</th>
+                                                <th>آخر ظهور</th>
+                                                <th>الحالة</th>
+                                                <th class="admin-only">الإجراءات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="devices-tbody">
+                                            <tr>
+                                                <td colspan="5" class="loading-cell">
+                                                    <i class="fas fa-spinner fa-spin"></i> جاري التحميل...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -263,8 +559,7 @@
                 <label for="quick-nav-search-input" class="sr-only">ابحث في صفحات التنقل السريع</label>
                 <input type="text" id="quick-nav-search-input" placeholder="بحث..." />
             </div>
-            <div class="quick-nav-list" id="quick-nav-pages-list">
-            </div>
+            <div class="quick-nav-list" id="quick-nav-pages-list"></div>
         </div>
         <button
             class="quick-nav-toggle"

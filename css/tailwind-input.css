@@ -492,12 +492,6 @@
     --transition: var(--transition-normal);
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
 body {
     font-family: var(--font-main);
     background-color: var(--color-secondary);
@@ -5687,6 +5681,12 @@ a.quick-nav-item {
    ============================================================================ */
 
 @layer base {
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
     html {
         transition:
             background-color 0.35s ease,
@@ -5790,7 +5790,9 @@ a.quick-nav-item {
         vertical-align: middle;
         margin-inline-start: 6px;
         cursor: pointer;
-        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+        transition:
+            background-color 0.3s ease,
+            box-shadow 0.3s ease;
     }
 
     .sync-badge-connected {
@@ -5828,6 +5830,302 @@ a.quick-nav-item {
     /* ── Sync Read-Only Mode ── */
     .sync-readonly .admin-only {
         display: none !important;
+    }
+
+    .device-management-body {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        padding: 1.5rem 2rem 2rem;
+    }
+
+    .device-management-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .device-card {
+        background: linear-gradient(180deg, rgba(59, 106, 197, 0.04), transparent 42%), var(--color-surface-alt);
+        border: 1px solid var(--color-accent);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-card);
+        padding: 1.25rem;
+        min-width: 0;
+    }
+
+    .device-card-current {
+        background:
+            radial-gradient(circle at top left, rgba(59, 106, 197, 0.12), transparent 42%), var(--color-surface-alt);
+    }
+
+    .device-card-otp {
+        background:
+            radial-gradient(circle at top right, rgba(46, 204, 113, 0.14), transparent 38%), var(--color-surface-alt);
+    }
+
+    .device-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .device-card-header h4 {
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        color: var(--color-text-main);
+        font-family: var(--font-display);
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .device-card-header h4 i {
+        color: var(--color-primary);
+    }
+
+    .device-inline-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 30px;
+        padding: 0.15rem 0.75rem;
+        border-radius: var(--radius-full);
+        background: rgba(59, 106, 197, 0.12);
+        color: var(--color-primary-dark);
+        font-size: 0.8rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .device-field-list {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .device-field-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .device-field-label {
+        color: var(--color-text-muted);
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+
+    .device-field-value {
+        color: var(--color-text-main);
+        font-size: 1rem;
+        font-weight: 700;
+        word-break: break-word;
+    }
+
+    .device-field-code {
+        direction: ltr;
+        unicode-bidi: isolate;
+        font-family: 'IBM Plex Sans Arabic', monospace;
+        letter-spacing: 0.08em;
+    }
+
+    .device-note {
+        margin: 0;
+        color: var(--color-text-muted);
+        font-size: 0.92rem;
+        line-height: 1.7;
+    }
+
+    .device-field-list + .device-note {
+        margin-top: 0.75rem;
+    }
+
+    .device-panel-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.85rem;
+        min-height: 200px;
+        padding: 2rem 1.5rem;
+        border: 1px dashed var(--color-accent);
+        border-radius: var(--radius-md);
+        background: var(--color-surface-alt);
+        text-align: center;
+    }
+
+    .device-panel-state i {
+        color: var(--color-primary);
+        font-size: 2rem;
+    }
+
+    .device-actions-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+
+    .otp-display {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 0.55rem;
+        direction: ltr;
+        margin-bottom: 0.85rem;
+    }
+
+    .otp-digit {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 58px;
+        border: 1px solid rgba(59, 106, 197, 0.18);
+        border-radius: 18px;
+        background: var(--color-surface);
+        color: var(--color-text-main);
+        font-family: 'IBM Plex Sans Arabic', monospace;
+        font-size: 1.65rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .otp-digit.is-muted {
+        color: var(--color-text-light);
+        border-style: dashed;
+    }
+
+    .otp-meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .otp-countdown-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 88px;
+        min-height: 34px;
+        padding: 0.25rem 0.75rem;
+        border-radius: var(--radius-full);
+        background: rgba(46, 204, 113, 0.14);
+        color: var(--color-success);
+        direction: ltr;
+        font-family: 'IBM Plex Sans Arabic', monospace;
+        font-size: 0.96rem;
+        font-weight: 700;
+    }
+
+    .device-inline-error {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding: 0.85rem 1rem;
+        border: 1px solid rgba(232, 93, 93, 0.2);
+        border-radius: var(--radius-sm);
+        background: rgba(232, 93, 93, 0.08);
+        color: var(--color-danger);
+    }
+
+    .device-name-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .device-row-title {
+        color: var(--color-text-main);
+        font-weight: 700;
+    }
+
+    .device-row-subtitle {
+        color: var(--color-text-muted);
+        font-size: 0.82rem;
+    }
+
+    .device-method-badge,
+    .device-status-badge,
+    .device-current-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.2rem 0.65rem;
+        border-radius: var(--radius-full);
+        font-size: 0.78rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .device-method-badge {
+        background: rgba(59, 106, 197, 0.1);
+        color: var(--color-primary-dark);
+    }
+
+    .device-status-badge.is-active {
+        background: rgba(46, 204, 113, 0.16);
+        color: var(--color-success);
+    }
+
+    .device-status-badge.is-revoked {
+        background: rgba(232, 93, 93, 0.14);
+        color: var(--color-danger);
+    }
+
+    .device-current-badge {
+        background: rgba(59, 106, 197, 0.14);
+        color: var(--color-primary-dark);
+    }
+
+    .device-row-current {
+        background: rgba(59, 106, 197, 0.06);
+    }
+
+    .device-row-revoked td {
+        opacity: 0.82;
+    }
+
+    .device-action-cell {
+        white-space: nowrap;
+    }
+
+    .device-empty-row td {
+        padding: 1.25rem !important;
+        text-align: center;
+        color: var(--color-text-muted);
+    }
+
+    .device-table-note {
+        margin-bottom: 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: var(--radius-sm);
+        background: rgba(59, 106, 197, 0.08);
+        color: var(--color-text-muted);
+    }
+
+    @media (max-width: 768px) {
+        .device-management-body {
+            padding: 1rem;
+        }
+
+        .device-management-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .otp-display {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .device-inline-error {
+            flex-direction: column;
+            align-items: stretch;
+        }
     }
 
     .glass-panel {
@@ -13088,11 +13386,6 @@ body {
 /* ============================================================================
    Extracted Inline CSS: login.html
    ============================================================================ */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
 
 body {
     font-family: var(--font-main);
@@ -24470,4 +24763,98 @@ body {
 
 [data-theme='dark'] .class-stat-card.rooms .stat-value {
     color: #f472b6;
+}
+
+[data-theme='dark'] .device-card {
+    background: linear-gradient(180deg, rgba(91, 132, 214, 0.08), transparent 42%), var(--color-surface-alt);
+    border-color: var(--glass-border);
+}
+
+[data-theme='dark'] .device-card-current {
+    background:
+        radial-gradient(circle at top left, rgba(91, 132, 214, 0.16), transparent 42%), var(--color-surface-alt);
+}
+
+[data-theme='dark'] .device-card-otp {
+    background:
+        radial-gradient(circle at top right, rgba(74, 222, 128, 0.12), transparent 38%), var(--color-surface-alt);
+}
+
+[data-theme='dark'] .device-inline-badge,
+[data-theme='dark'] .device-current-badge,
+[data-theme='dark'] .device-method-badge {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-main);
+}
+
+[data-theme='dark'] .device-panel-state {
+    background: var(--color-surface-alt);
+    border-color: var(--glass-border);
+}
+
+[data-theme='dark'] .otp-digit {
+    background: var(--color-surface);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+}
+
+[data-theme='dark'] .otp-countdown-chip {
+    background: rgba(74, 222, 128, 0.16);
+    color: #bbf7d0;
+}
+
+[data-theme='dark'] .device-inline-error {
+    background: rgba(248, 113, 113, 0.12);
+    border-color: rgba(248, 113, 113, 0.2);
+    color: #fca5a5;
+}
+
+[data-theme='dark'] .device-row-current {
+    background: rgba(91, 132, 214, 0.12);
+}
+
+/* ── Device Management Layout Fixes (unlayered to override @layer components) ── */
+.device-management-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.5rem 2rem 2rem;
+}
+
+#device-management-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.device-management-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.device-card {
+    min-width: 0;
+}
+
+.device-field-list + .device-note {
+    margin-top: 0.75rem;
+}
+
+#linked-devices-panel {
+    margin-top: 0.25rem;
+}
+
+#linked-devices-panel .table-responsive {
+    overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+    .device-management-body {
+        padding: 1rem;
+    }
+
+    .device-management-grid {
+        grid-template-columns: 1fr;
+    }
 }

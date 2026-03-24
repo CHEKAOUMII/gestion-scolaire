@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="theme-color" content="#3B6AC5" />
+        <title>إعداد المؤسسة</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/notifications.js"></script>
+        <style>
+            /* ── Setup Page Styles ── */
+            body.setup-body {
+                font-family: var(--font-main);
+                background: var(--color-secondary);
+                background-image:
+                    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 106, 197, 0.12) 0%, transparent 60%),
+                    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(91, 132, 214, 0.08) 0%, transparent 50%);
+                background-attachment: fixed;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                margin: 0;
+                color: var(--color-text-main);
+            }
+
+            /* ── Card Shell ── */
+            .setup-card {
+                background: var(--color-surface);
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-elevated);
+                padding: 40px 36px;
+                width: 100%;
+                max-width: 480px;
+                position: relative;
+                overflow: hidden;
+                animation: cardEnter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+            }
+            .setup-card::before {
+                content: '';
+                position: absolute;
+                top: 0; left: 0; right: 0;
+                height: 4px;
+                background: var(--gradient-primary);
+            }
+
+            /* ── Branding Header ── */
+            .setup-brand {
+                text-align: center;
+                margin-bottom: 32px;
+            }
+            .setup-brand-icon {
+                width: 72px; height: 72px;
+                border-radius: 20px;
+                background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 16px;
+                box-shadow: 0 8px 24px rgba(59, 106, 197, 0.3);
+                transform: rotate(-5deg);
+                transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+            .setup-brand-icon:hover {
+                transform: rotate(0deg) scale(1.05);
+            }
+            .setup-brand-icon i {
+                font-size: 30px;
+                color: white;
+            }
+            .setup-brand h1 {
+                font-family: var(--font-display);
+                font-size: 1.6rem;
+                font-weight: 800;
+                color: var(--color-text-main);
+                margin: 0 0 6px;
+                letter-spacing: -0.3px;
+            }
+            .setup-brand p {
+                font-size: 0.9rem;
+                color: var(--color-text-muted);
+                margin: 0;
+            }
+
+            /* ── Option Cards ── */
+            .setup-option {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                width: 100%;
+                padding: 20px;
+                border: 2px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                background: var(--color-surface);
+                cursor: pointer;
+                transition: all 0.25s ease;
+                text-align: start;
+                font-family: inherit;
+                color: var(--color-text-main);
+            }
+            .setup-option:hover {
+                border-color: var(--color-primary);
+                background: rgba(59, 106, 197, 0.04);
+                box-shadow: 0 4px 16px rgba(59, 106, 197, 0.12);
+                transform: translateY(-2px);
+            }
+            .setup-option:active {
+                transform: translateY(0);
+            }
+            .setup-option-icon {
+                flex-shrink: 0;
+                width: 52px; height: 52px;
+                border-radius: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 22px;
+            }
+            .setup-option-icon.green {
+                background: rgba(46, 204, 113, 0.12);
+                color: #16a34a;
+            }
+            .setup-option-icon.blue {
+                background: rgba(59, 106, 197, 0.1);
+                color: var(--color-primary);
+            }
+            .setup-option-text h2 {
+                font-size: 1.05rem;
+                font-weight: 700;
+                margin: 0 0 4px;
+            }
+            .setup-option-text p {
+                font-size: 0.82rem;
+                color: var(--color-text-muted);
+                margin: 0;
+                line-height: 1.5;
+            }
+            .setup-option-arrow {
+                margin-inline-start: auto;
+                color: var(--color-silver);
+                font-size: 14px;
+                transition: transform 0.2s ease, color 0.2s ease;
+            }
+            .setup-option:hover .setup-option-arrow {
+                color: var(--color-primary);
+                transform: translateX(-4px);
+            }
+            [dir="rtl"] .setup-option:hover .setup-option-arrow {
+                transform: translateX(4px);
+            }
+
+            /* ── Step Header ── */
+            .step-header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 28px;
+            }
+            .step-header-icon {
+                width: 44px; height: 44px;
+                border-radius: 12px;
+                background: rgba(59, 106, 197, 0.1);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--color-primary);
+                font-size: 18px;
+            }
+            .step-header h2 {
+                font-size: 1.2rem;
+                font-weight: 700;
+                margin: 0;
+            }
+            .step-header p {
+                font-size: 0.82rem;
+                color: var(--color-text-muted);
+                margin: 2px 0 0;
+            }
+
+            /* ── Back Button ── */
+            .btn-back {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 12px;
+                margin-bottom: 20px;
+                border-radius: var(--radius-sm);
+                font-size: 0.85rem;
+                font-weight: 600;
+                color: var(--color-text-muted);
+                cursor: pointer;
+                border: none;
+                background: transparent;
+                font-family: inherit;
+                transition: all 0.2s ease;
+            }
+            .btn-back:hover {
+                color: var(--color-primary);
+                background: rgba(59, 106, 197, 0.06);
+            }
+
+            /* ── Form Fields ── */
+            .setup-field {
+                margin-bottom: 20px;
+            }
+            .setup-field label {
+                display: block;
+                font-size: 0.85rem;
+                font-weight: 600;
+                margin-bottom: 6px;
+                color: var(--color-text-main);
+            }
+            .setup-field label .req {
+                color: var(--color-danger-bg);
+                margin-inline-start: 2px;
+            }
+            .setup-field label .optional {
+                font-weight: 400;
+                font-size: 0.75rem;
+                color: var(--color-text-muted);
+            }
+            .setup-input {
+                width: 100%;
+                padding: 12px 16px;
+                border: 1.5px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                background: var(--color-surface);
+                color: var(--color-text-main);
+                font-family: inherit;
+                font-size: 0.95rem;
+                transition: all 0.2s ease;
+                outline: none;
+            }
+            .setup-input::placeholder {
+                color: var(--color-text-light);
+            }
+            .setup-input:focus {
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.15);
+            }
+            .setup-input[dir="ltr"] {
+                text-align: left;
+                font-family: 'IBM Plex Sans Arabic', ui-monospace, monospace;
+                letter-spacing: 1px;
+            }
+            .field-error {
+                font-size: 0.78rem;
+                color: var(--color-danger-bg);
+                margin-top: 5px;
+                display: none;
+            }
+            .field-error.show, .field-error:not(.hidden) {
+                display: block;
+            }
+
+            /* ── Section Divider ── */
+            .setup-divider {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin: 24px 0;
+                color: var(--color-text-light);
+                font-size: 0.78rem;
+                font-weight: 600;
+            }
+            .setup-divider::before,
+            .setup-divider::after {
+                content: '';
+                flex: 1;
+                height: 1px;
+                background: var(--color-accent);
+            }
+
+            /* ── Submit Button ── */
+            .btn-setup-submit {
+                width: 100%;
+                padding: 14px 20px;
+                border-radius: var(--radius-sm);
+                background: var(--gradient-primary);
+                color: white;
+                font-family: inherit;
+                font-size: 1rem;
+                font-weight: 700;
+                border: none;
+                cursor: pointer;
+                transition: all 0.25s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 8px;
+                box-shadow: 0 4px 14px rgba(59, 106, 197, 0.3);
+            }
+            .btn-setup-submit:hover {
+                box-shadow: 0 6px 20px rgba(59, 106, 197, 0.4);
+                transform: translateY(-1px);
+            }
+            .btn-setup-submit:active {
+                transform: translateY(0);
+            }
+            .btn-setup-submit:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
+                transform: none;
+            }
+
+            /* ── OTP Inputs ── */
+            .otp-row {
+                display: flex;
+                justify-content: center;
+                gap: 10px;
+                direction: ltr;
+            }
+            .otp-digit {
+                width: 50px; height: 58px;
+                text-align: center;
+                font-size: 1.5rem;
+                font-weight: 700;
+                font-family: 'IBM Plex Sans Arabic', ui-monospace, monospace;
+                border: 2px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                background: var(--color-surface);
+                color: var(--color-text-main);
+                outline: none;
+                transition: all 0.2s ease;
+            }
+            .otp-digit:focus {
+                border-color: var(--color-primary);
+                box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.15);
+            }
+
+            /* ── Progress State ── */
+            .link-progress-bar {
+                text-align: center;
+                font-size: 0.85rem;
+                color: var(--color-text-muted);
+                padding: 12px 0;
+            }
+            .link-progress-bar i {
+                color: var(--color-primary);
+                margin-inline-end: 6px;
+            }
+
+            /* ── Animations ── */
+            @keyframes cardEnter {
+                from {
+                    opacity: 0;
+                    transform: translateY(24px) scale(0.97);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
+            @keyframes fadeSlide {
+                from {
+                    opacity: 0;
+                    transform: translateY(12px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .setup-card.animate-step {
+                animation: fadeSlide 0.35s ease-out both;
+            }
+
+            /* ── Hidden helper ── */
+            .hidden { display: none !important; }
+
+            /* ── Footer ── */
+            .setup-footer {
+                text-align: center;
+                margin-top: 20px;
+                font-size: 0.78rem;
+                color: var(--color-text-light);
+            }
+
+            /* ── Decorative shapes ── */
+            .deco-shape {
+                position: fixed;
+                border-radius: 50%;
+                opacity: 0.04;
+                pointer-events: none;
+                z-index: 0;
+            }
+            .deco-shape.s1 {
+                width: 400px; height: 400px;
+                background: var(--color-primary);
+                top: -120px; right: -80px;
+            }
+            .deco-shape.s2 {
+                width: 300px; height: 300px;
+                background: var(--color-primary-light);
+                bottom: -100px; left: -60px;
+            }
+            .deco-shape.s3 {
+                width: 200px; height: 200px;
+                background: var(--color-primary);
+                top: 50%; left: 50%;
+                transform: translate(-50%, -50%);
+                opacity: 0.02;
+            }
+
+            /* ── Options gap ── */
+            .options-stack {
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+        </style>
+    </head>
+
+    <body class="setup-body">
+        <!-- Decorative background shapes -->
+        <div class="deco-shape s1"></div>
+        <div class="deco-shape s2"></div>
+        <div class="deco-shape s3"></div>
+
+        <div id="toast-container" class="toast-container"></div>
+
+        <div id="setup-container" style="width: 100%; max-width: 480px; position: relative; z-index: 1;">
+
+            <!-- ╔══════════════════════════════════════════╗ -->
+            <!-- ║  STEP 1: Choose Mode                     ║ -->
+            <!-- ╚══════════════════════════════════════════╝ -->
+            <div id="step-mode-select" class="setup-card">
+                <div class="setup-brand">
+                    <div class="setup-brand-icon">
+                        <i class="fas fa-school"></i>
+                    </div>
+                    <h1>إعداد المؤسسة</h1>
+                    <p>اختر طريقة الإعداد للبدء</p>
+                </div>
+
+                <div class="options-stack">
+                    <button id="btn-mode-new" type="button" class="setup-option">
+                        <div class="setup-option-icon green">
+                            <i class="fas fa-plus-circle"></i>
+                        </div>
+                        <div class="setup-option-text">
+                            <h2>مؤسسة جديدة</h2>
+                            <p>أول جهاز في المؤسسة — إنشاء حساب جديد</p>
+                        </div>
+                        <i class="fas fa-chevron-left setup-option-arrow"></i>
+                    </button>
+
+                    <button id="btn-mode-link" type="button" class="setup-option">
+                        <div class="setup-option-icon blue">
+                            <i class="fas fa-link"></i>
+                        </div>
+                        <div class="setup-option-text">
+                            <h2>ربط بمؤسسة موجودة</h2>
+                            <p>ربط هذا الجهاز بمؤسسة تم إعدادها مسبقاً</p>
+                        </div>
+                        <i class="fas fa-chevron-left setup-option-arrow"></i>
+                    </button>
+                </div>
+
+                <div class="setup-footer">
+                    <i class="fas fa-lock" style="margin-inline-end: 4px;"></i>
+                    بياناتك محمية ومخزنة محلياً على هذا الجهاز
+                </div>
+            </div>
+
+            <!-- ╔══════════════════════════════════════════╗ -->
+            <!-- ║  STEP 2a: New Institution                ║ -->
+            <!-- ╚══════════════════════════════════════════╝ -->
+            <div id="step-new-institution" class="setup-card hidden">
+                <button id="btn-back-from-new" type="button" class="btn-back">
+                    <i class="fas fa-arrow-right"></i>
+                    <span>رجوع</span>
+                </button>
+
+                <div class="step-header">
+                    <div class="step-header-icon">
+                        <i class="fas fa-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h2>إعداد مؤسسة جديدة</h2>
+                        <p>أدخل معلومات المؤسسة وحساب المدير</p>
+                    </div>
+                </div>
+
+                <form id="form-new-institution" novalidate>
+                    <div class="setup-field">
+                        <label for="new-massar-code">رمز ماسار <span class="req">*</span></label>
+                        <input
+                            type="text"
+                            id="new-massar-code"
+                            class="setup-input"
+                            required
+                            autocomplete="off"
+                            placeholder="مثال: M320456"
+                            dir="ltr"
+                        />
+                        <p id="new-massar-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="new-institution-name">اسم المؤسسة <span class="optional">(اختياري)</span></label>
+                        <input
+                            type="text"
+                            id="new-institution-name"
+                            class="setup-input"
+                            placeholder="مثال: ثانوية الفارابي التأهيلية"
+                        />
+                    </div>
+
+                    <div class="setup-divider">
+                        <span>حساب المدير</span>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="new-admin-name">اسم المدير <span class="req">*</span></label>
+                        <input
+                            type="text"
+                            id="new-admin-name"
+                            class="setup-input"
+                            required
+                            autocomplete="name"
+                            placeholder="الاسم الكامل"
+                        />
+                        <p id="new-admin-name-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="new-admin-email">البريد الإلكتروني <span class="req">*</span></label>
+                        <input
+                            type="email"
+                            id="new-admin-email"
+                            class="setup-input"
+                            required
+                            autocomplete="email"
+                            placeholder="example@email.com"
+                            dir="ltr"
+                        />
+                        <p id="new-email-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="new-admin-password">كلمة المرور <span class="req">*</span></label>
+                        <input
+                            type="password"
+                            id="new-admin-password"
+                            class="setup-input"
+                            required
+                            autocomplete="new-password"
+                            placeholder="6 أحرف على الأقل"
+                        />
+                        <p id="new-password-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="new-admin-confirm">تأكيد كلمة المرور <span class="req">*</span></label>
+                        <input
+                            type="password"
+                            id="new-admin-confirm"
+                            class="setup-input"
+                            required
+                            autocomplete="new-password"
+                            placeholder="أعد إدخال كلمة المرور"
+                        />
+                        <p id="new-confirm-error" class="field-error hidden"></p>
+                    </div>
+
+                    <button type="submit" id="btn-submit-new" class="btn-setup-submit">
+                        <i class="fas fa-check-circle"></i>
+                        <span>إنشاء المؤسسة</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- ╔══════════════════════════════════════════╗ -->
+            <!-- ║  STEP 2b: Link to Existing               ║ -->
+            <!-- ╚══════════════════════════════════════════╝ -->
+            <div id="step-link-existing" class="setup-card hidden">
+                <button id="btn-back-from-link" type="button" class="btn-back">
+                    <i class="fas fa-arrow-right"></i>
+                    <span>رجوع</span>
+                </button>
+
+                <div class="step-header">
+                    <div class="step-header-icon">
+                        <i class="fas fa-link"></i>
+                    </div>
+                    <div>
+                        <h2>ربط بمؤسسة موجودة</h2>
+                        <p>أدخل رمز ماسار ورمز الربط من الجهاز الرئيسي</p>
+                    </div>
+                </div>
+
+                <form id="form-link-existing" novalidate>
+                    <div class="setup-field">
+                        <label for="link-massar-code">رمز ماسار <span class="req">*</span></label>
+                        <input
+                            type="text"
+                            id="link-massar-code"
+                            class="setup-input"
+                            required
+                            autocomplete="off"
+                            placeholder="مثال: M320456"
+                            dir="ltr"
+                        />
+                        <p id="link-massar-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-divider">
+                        <span>حساب المستخدم</span>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="link-user-role">الصفة <span class="req">*</span></label>
+                        <select id="link-user-role" class="setup-input">
+                            <option value="staff-nazir">ناظر</option>
+                            <option value="staff-harisaam">حارس عام</option>
+                            <option value="viewer">مساعد</option>
+                        </select>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="link-user-name">الاسم الكامل <span class="req">*</span></label>
+                        <input
+                            type="text"
+                            id="link-user-name"
+                            class="setup-input"
+                            required
+                            autocomplete="name"
+                            placeholder="الاسم الكامل"
+                        />
+                        <p id="link-name-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="link-user-email">البريد الإلكتروني <span class="req">*</span></label>
+                        <input
+                            type="email"
+                            id="link-user-email"
+                            class="setup-input"
+                            required
+                            autocomplete="email"
+                            placeholder="example@email.com"
+                            dir="ltr"
+                        />
+                        <p id="link-email-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="link-user-password">كلمة المرور <span class="req">*</span></label>
+                        <input
+                            type="password"
+                            id="link-user-password"
+                            class="setup-input"
+                            required
+                            autocomplete="new-password"
+                            placeholder="6 أحرف على الأقل"
+                        />
+                        <p id="link-password-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="link-user-confirm">تأكيد كلمة المرور <span class="req">*</span></label>
+                        <input
+                            type="password"
+                            id="link-user-confirm"
+                            class="setup-input"
+                            required
+                            autocomplete="new-password"
+                            placeholder="أعد إدخال كلمة المرور"
+                        />
+                        <p id="link-confirm-error" class="field-error hidden"></p>
+                    </div>
+
+                    <div class="setup-divider">
+                        <span>رمز الربط</span>
+                    </div>
+
+                    <div class="setup-field">
+                        <label>رمز الربط <span class="req">*</span></label>
+                        <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 10px;">أدخل الرمز المكون من 6 أرقام المعروض على الجهاز الرئيسي</p>
+                        <div id="otp-container" class="otp-row">
+                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="0" />
+                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="1" />
+                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="2" />
+                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="3" />
+                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="4" />
+                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="5" />
+                        </div>
+                        <p id="otp-error" class="field-error hidden" style="text-align: center;"></p>
+                    </div>
+
+                    <div class="setup-field">
+                        <label for="link-primary-ip">عنوان IP للجهاز الرئيسي <span class="optional">(اختياري — عند تعذر الاكتشاف التلقائي)</span></label>
+                        <input
+                            type="text"
+                            id="link-primary-ip"
+                            class="setup-input"
+                            autocomplete="off"
+                            placeholder="مثال: 192.168.1.10"
+                            dir="ltr"
+                        />
+                    </div>
+
+                    <div id="link-progress" class="link-progress-bar hidden">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span id="link-progress-text">جاري البحث في الشبكة المحلية...</span>
+                    </div>
+
+                    <button type="submit" id="btn-submit-link" class="btn-setup-submit">
+                        <i class="fas fa-link"></i>
+                        <span>ربط الجهاز</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <script src="js/pages/setup.js" defer></script>
+    </body>
+</html>

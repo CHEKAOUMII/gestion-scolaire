@@ -11,6 +11,16 @@
         <script src="js/notifications.js"></script>
         <script src="js/sidebar.js"></script>
         <script src="js/ux-enhancements.js"></script>
+        <script>
+            // Developer-only page guard
+            (function() {
+                try {
+                    var raw = localStorage.getItem('gsl_auth_session_v1');
+                    if (raw) { var s = JSON.parse(raw); if (s && s.role === 'developer') return; }
+                } catch(e) {}
+                window.location.replace('dashboard.html');
+            })();
+        </script>
     </head>
 
     <body>

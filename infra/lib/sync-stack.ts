@@ -170,7 +170,7 @@ export class PencilSyncStack extends Stack {
 
         const authLambda = new lambda.Function(this, 'AuthLambda', {
             functionName: 'pencil2-sync-auth',
-            runtime: lambda.Runtime.NODEJS_18_X,
+            runtime: lambda.Runtime.NODEJS_22_X,
             handler: 'index.handler',
             code: lambda.Code.fromAsset(path.join(__dirname, 'auth-lambda')),
             timeout: cdk.Duration.seconds(10),

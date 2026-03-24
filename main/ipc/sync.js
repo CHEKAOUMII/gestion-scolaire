@@ -9,8 +9,9 @@ const {
     isPushTimerRunning,
     isPullTimerRunning
 } = require('../sync/engine');
-const { isAuthenticated } = require('../sync/credentials');
+const { isAuthenticated, testConnection } = require('../sync/credentials');
 const { isSnapshotRunning, runSnapshotCycle, restartSnapshotBackground } = require('../sync/snapshot');
+const { getDeviceHash } = require('../sync/capture');
 
 function registerSyncIpc(ipcMain) {
     // ── Read channels (no auth required) ──
@@ -26,7 +27,8 @@ function registerSyncIpc(ipcMain) {
             schoolId: config.school_id || null,
             pushBatchSize: config.push_batch_size || 100,
             maxRetries: config.max_retries || 10,
-            retentionDays: config.retention_days || 7
+            retentionDays: config.retention_days || 7,
+            licenseKey: config.license_key || null
         };
     });
 
@@ -74,6 +76,14 @@ function registerSyncIpc(ipcMain) {
             }
         }
 
+        if (updates.enabled === 1 || updates.enabled === true) {
+            const deviceHash = getDeviceHash();
+            const deviceRow = db.prepare('SELECT status FROM linked_devices WHERE device_hash = ?').get(deviceHash);
+            if (deviceRow && deviceRow.status === 'revoked') {
+                return { success: false, error: 'تم إلغاء هذا الجهاز. يجب إعادة ربطه أولاً' };
+            }
+        }
+
         const fieldMap = {
             enabled: 'enabled',
             syncIntervalMinutes: 'sync_interval_minutes',
@@ -83,7 +93,8 @@ function registerSyncIpc(ipcMain) {
             pushBatchSize: 'push_batch_size',
             maxRetries: 'max_retries',
             retentionDays: 'retention_days',
-            snapshotIntervalMinutes: 'snapshot_interval_minutes'
+            snapshotIntervalMinutes: 'snapshot_interval_minutes',
+            licenseKey: 'license_key'
         };
 
         const setClauses = [];
@@ -258,6 +269,10 @@ function registerSyncIpc(ipcMain) {
         }
 
         return { success: true };
+    });
+
+    handleWrite(ipcMain, 'sync:testConnection', ['admin'], async (_db, _event) => {
+        return await testConnection();
     });
 }
 

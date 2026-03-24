@@ -48,5 +48,6 @@ server/owner-telemetry.json
 .tmp.driveupload/
 .agents/
 .agent/
+.opencode/
 .claude/
 testsprite_tests/

@@ -181,7 +181,24 @@ const CHANNEL_REGISTRY = {
     'users:getAll': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
 
     // === pageVisibility.js ===
-    'pageVisibility:setVisibility': { tables: ['page_visibility'], operation: 'PUT', idExtractor: 'argKey' }
+    'pageVisibility:setVisibility': { tables: ['page_visibility'], operation: 'PUT', idExtractor: 'argKey' },
+
+    // === sync.js ===
+    'sync:setConfig': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'sync:triggerNow': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'sync:resolveConflict': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'sync:testConnection': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+
+    // === linking.js ===
+    'linking:setup-new-institution': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'linking:verify-and-link': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'linking:generateOtp': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'linking:cancelOtp': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'linking:getOtpStatus': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'linking:getLinkedDevices': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'linking:revokeDevice': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'linking:getCurrentDevice': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    device_revocation: { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true }
 };
 
 const KNOWN_CAPTURE_TABLES = new Set(
