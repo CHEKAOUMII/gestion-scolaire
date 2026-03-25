@@ -298,6 +298,7 @@
             try {
                 const res = await window.api.auth.getSession();
                 if (res?.success && res?.authenticated && res.user?.role) {
+                    _saveLocalSession(res.user, res.user.email, res.user.name);
                     const nextPage = getSafeNextPage();
                     window.location.replace(`${nextPage}?loggedin=1`);
                 }

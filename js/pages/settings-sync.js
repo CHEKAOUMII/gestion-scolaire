@@ -1,20 +1,21 @@
 /**
  * Sync Settings Page — js/pages/settings-sync.js
  * إعدادات المزامنة السحابية
- * ⚠️ Sync config section restricted to role === 'developer'
+ * ⚠️ Sync config section restricted to role === 'admin' OR 'developer'
  */
 
-// ── Hide sync config section for non-developers (page itself stays accessible) ──
+// ── Hide sync config section for non-admin / non-developer users ──
 (function devSectionGuard() {
-    let isDeveloper = false;
+    let isPrivileged = false;
     try {
         const rawSession = localStorage.getItem('gsl_auth_session_v1');
         if (rawSession) {
             const sess = JSON.parse(rawSession);
-            if (sess?.role === 'developer') isDeveloper = true;
+            const role = String(sess?.role || '').toLowerCase();
+            if (role === 'developer' || role === 'admin') isPrivileged = true;
         }
     } catch (_) { /* */ }
-    if (!isDeveloper) {
+    if (!isPrivileged) {
         // Hide sync config section once DOM is ready
         const hide = () => {
             const configSection = document.getElementById('sync-config-section');
@@ -72,13 +73,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (rawSession) {
             const sess = JSON.parse(rawSession);
             const role = String(sess?.role || '').toLowerCase();
-            isAdmin = role === 'admin';
+            isAdmin = role === 'admin' || role === 'developer';
         }
     } catch (_) {
         /* ignore parse errors */
     }
 
-    // 2. Hide admin-only elements for non-admin users
+    // 2. Hide admin-only elements for non-privileged users (admin & developer can see all)
     if (!isAdmin) {
         document.body.classList.add('sync-readonly');
     }
@@ -798,6 +799,41 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function formatLanEndpointLabel(endpoint) {
+    const address = String(endpoint?.address || '').trim();
+    if (!address) return '';
+
+    const interfaceName = String(endpoint?.interfaceName || '').trim();
+    return interfaceName ? `${address} (${interfaceName})` : address;
+}
+
+function renderOtpLanEndpointNote(lanState) {
+    const dom = deviceManagementState.dom;
+    if (!dom.otpIpNote) return;
+
+    const lanEndpoints = Array.isArray(lanState?.lanEndpoints) ? lanState.lanEndpoints : [];
+    const preferredEndpoint =
+        lanEndpoints.find((endpoint) => endpoint.preferred) ||
+        (lanState?.preferredLanIp ? { address: lanState.preferredLanIp, interfaceName: '' } : null);
+
+    if (!preferredEndpoint) {
+        dom.otpIpNote.textContent = 'عنوان الربط الموصى به غير متوفر حالياً';
+        return;
+    }
+
+    const alternateLabels = lanEndpoints
+        .filter((endpoint) => endpoint.address && endpoint.address !== preferredEndpoint.address)
+        .map(formatLanEndpointLabel)
+        .filter(Boolean);
+
+    let text = 'الموصى به: ' + formatLanEndpointLabel(preferredEndpoint);
+    if (alternateLabels.length > 0) {
+        text += ' | عناوين أخرى: ' + alternateLabels.join(' / ');
+    }
+
+    dom.otpIpNote.textContent = text;
+}
+
 function clearOtpCountdown() {
     if (otpCountdownTimer) {
         clearInterval(otpCountdownTimer);
@@ -942,6 +978,9 @@ function showOtpInitialState() {
         dom.otpRestoredNote.textContent = '';
         dom.otpRestoredNote.classList.add('hidden');
     }
+    if (dom.otpIpNote) {
+        dom.otpIpNote.textContent = '—';
+    }
     setOtpDigits('', false);
 }
 
@@ -1020,18 +1059,19 @@ function renderOtpState(statusResult) {
 
     startOtpCountdown(statusResult.expiresAt);
 
-    // Show local IP addresses for manual connection
-    if (dom.otpIpNote) {
-        window.api.linking.getCurrentDevice().then(result => {
-            const ips = result?.allIps || (result?.ip ? [result.ip] : []);
-            if (ips.length > 0) {
-                dom.otpIpNote.textContent = 'IP: ' + ips.join(' / ');
-            } else {
-                dom.otpIpNote.textContent = 'IP: غير متوفر';
-            }
-        }).catch(() => {
-            dom.otpIpNote.textContent = 'IP: غير متوفر';
-        });
+    if (Array.isArray(statusResult.lanEndpoints) && statusResult.lanEndpoints.length > 0) {
+        renderOtpLanEndpointNote(statusResult);
+    } else {
+        window.api.linking
+            .getCurrentDevice()
+            .then((result) => {
+                renderOtpLanEndpointNote(result);
+            })
+            .catch(() => {
+                if (dom.otpIpNote) {
+                    dom.otpIpNote.textContent = 'عنوان الربط الموصى به غير متوفر حالياً';
+                }
+            });
     }
 }
 
@@ -1059,7 +1099,8 @@ function renderCurrentDevice(currentResult, institutionStatus) {
     dom.currentDeviceHash.title = currentResult.deviceHash || '';
     dom.currentDeviceMassar.textContent = massarCode;
     dom.currentDeviceInstitution.textContent = institutionName;
-    dom.currentDeviceNote.textContent = `المنصة: ${currentResult.platform || 'غير معروفة'} • الإصدار: ${currentResult.appVersion || 'غير محدد'}`;
+    const preferredIpText = currentResult.preferredLanIp ? ` • IP الربط الموصى به: ${currentResult.preferredLanIp}` : '';
+    dom.currentDeviceNote.textContent = `المنصة: ${currentResult.platform || 'غير معروفة'} • الإصدار: ${currentResult.appVersion || 'غير محدد'}${preferredIpText}`;
 
     deviceManagementState.currentDevice = currentResult;
     return currentResult;
@@ -1248,9 +1289,20 @@ async function handleGenerateOtp() {
             active: true,
             otp: result.otp,
             expiresAt: result.expiresAt,
-            remainingSeconds: result.remainingSeconds
+            remainingSeconds: result.remainingSeconds,
+            preferredLanIp: result.preferredLanIp,
+            lanEndpoints: result.lanEndpoints
         });
-        showToast('تم توليد كود الربط بنجاح', 'success');
+
+        if (result.lanServerStarted === false) {
+            const reason = result.lanServerError || 'سبب غير معروف';
+            showToast(
+                'تنبيه: تعذر تشغيل خادم الشبكة المحلية (' + reason + '). قد يحتاج الجهاز الثاني إلى إدخال عنوان Wi-Fi أو Ethernet المعروض هنا يدوياً.',
+                'warning'
+            );
+        } else {
+            showToast('تم توليد كود الربط بنجاح', 'success');
+        }
     } catch (err) {
         console.error('generateOtp error:', err);
         showToast('حدث خطأ أثناء توليد كود الربط', 'error');

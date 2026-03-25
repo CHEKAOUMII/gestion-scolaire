@@ -1,6 +1,7 @@
 'use strict';
 
 const { handleRead, handleWrite } = require('./ipc-helpers');
+const { applySyncDefaults } = require('../sync/defaults');
 const {
     flushSyncOutbox,
     pullRemoteChanges,
@@ -19,11 +20,12 @@ function registerSyncIpc(ipcMain) {
     handleRead(ipcMain, 'sync:getConfig', (db) => {
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
         if (!config) return null;
+        const syncDefaults = applySyncDefaults(config);
         return {
             enabled: !!config.enabled,
             syncIntervalMinutes: config.sync_interval_minutes || 10,
-            awsRegion: config.aws_region || 'us-east-1',
-            authLambdaUrl: config.auth_lambda_url || null,
+            awsRegion: syncDefaults.awsRegion,
+            authLambdaUrl: syncDefaults.authLambdaUrl,
             schoolId: config.school_id || null,
             pushBatchSize: config.push_batch_size || 100,
             maxRetries: config.max_retries || 10,

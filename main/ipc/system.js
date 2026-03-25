@@ -98,12 +98,18 @@ function registerSystemIpc(ipcMain) {
     ipcMain.handle('users:resetAdminPassword', async () => {
         try {
             const db = getDb();
-            const admin = db.prepare("SELECT id FROM users WHERE id = 1 AND lower(email) = 'admin@school.local'").get();
-            if (!admin) {
-                return { success: false, error: 'لم يتم العثور على حساب المشرف الافتراضي' };
-            }
+            let admin = db.prepare("SELECT id FROM users WHERE lower(email) = 'admin@school.local'").get();
             const newPassword = generateRandomPassword();
-            db.prepare('UPDATE users SET password_hash = ?, disabled = 0, must_change_password = 1 WHERE id = 1').run(
+            if (!admin) {
+                // Create the default developer account if it doesn't exist
+                db.prepare(`
+                    INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
+                    VALUES('المشرف', 'admin@school.local', 'developer', ?, 0, 0)
+                `).run(hashPassword(newPassword));
+                console.log('[RESET] Developer account created with password: ' + newPassword);
+                return { success: true, temporaryPassword: newPassword, created: true };
+            }
+            db.prepare("UPDATE users SET password_hash = ?, role = 'developer', disabled = 0, must_change_password = 0 WHERE lower(email) = 'admin@school.local'").run(
                 hashPassword(newPassword)
             );
             console.log('[RESET] Admin password has been reset to: ' + newPassword);

@@ -498,7 +498,7 @@ function registerLinkingIpc(ipcMain) {
             db.prepare(
                 `
                     UPDATE users
-                    SET name = ?, email = ?, password_hash = ?, must_change_password = 0, disabled = 0
+                    SET name = ?, email = ?, role = 'staff', password_hash = ?, must_change_password = 0, disabled = 0
                     WHERE id = 1
                 `
             ).run(adminName, adminEmail, passwordHash);

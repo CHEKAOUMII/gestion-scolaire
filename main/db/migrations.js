@@ -8,6 +8,7 @@ const {
     ensureSyncSchema
 } = require('./schema');
 const { generateRandomPassword, hashPassword } = require('../auth/password');
+const { seedSyncDefaults } = require('../sync/defaults');
 const { normalizeTeacherName, seedTeacherAliases, resolveTeacherIdentity } = require('../teachers/identity');
 
 const MIGRATIONS = [
@@ -693,6 +694,13 @@ const MIGRATIONS = [
                         updated_at = CURRENT_TIMESTAMP
                 `
             ).run(schoolId);
+        }
+    },
+    {
+        version: '2026-03-036-sync-app-defaults',
+        up: () => {
+            const db = getDb();
+            seedSyncDefaults(db);
         }
     },
     {

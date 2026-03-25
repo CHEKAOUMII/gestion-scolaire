@@ -1,7 +1,7 @@
 {
   "version": 1,
   "description": "Default page visibility settings. Hidden pages here will be hidden for all new installations.",
-  "updatedAt": "2026-03-19T20:52:59.307Z",
+  "updatedAt": "2026-03-25T01:26:22.456Z",
   "hiddenPages": [
     "absence-correspondence.html",
     "absence-weekly.html",

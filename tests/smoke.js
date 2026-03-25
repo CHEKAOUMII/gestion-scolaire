@@ -483,6 +483,54 @@ function runConsolidationSmoke() {
     console.log('[smoke] Consolidation checks OK (no legacy channels, no handleWriteNoAuth, validation module)');
 }
 
+function runLinkingNetworkSmoke() {
+    const { collectLanEndpoints, getLanEndpointSummary } = require(path.join(root, 'main', 'linking', 'network'));
+
+    const sampleInterfaces = {
+        'vEthernet (WSL)': [
+            { family: 'IPv4', internal: false, address: '172.22.192.1', netmask: '255.255.240.0' }
+        ],
+        'Local Area Connection* 10': [
+            { family: 'IPv4', internal: false, address: '192.168.137.1', netmask: '255.255.255.0' }
+        ],
+        'Wi-Fi': [{ family: 'IPv4', internal: false, address: '192.168.1.44', netmask: '255.255.255.0' }],
+        Loopback: [{ family: 'IPv4', internal: true, address: '127.0.0.1', netmask: '255.0.0.0' }]
+    };
+
+    const lanEndpoints = collectLanEndpoints(sampleInterfaces);
+    assert.strictEqual(lanEndpoints.length, 3, 'Expected only non-internal IPv4 LAN candidates');
+    assert.strictEqual(lanEndpoints[0].address, '192.168.1.44', 'Wi-Fi LAN IP should outrank virtual adapters');
+    assert.strictEqual(lanEndpoints[0].preferred, true, 'Top-ranked LAN IP should be marked preferred');
+
+    const wslEndpoint = lanEndpoints.find((endpoint) => endpoint.address === '172.22.192.1');
+    assert.ok(wslEndpoint, 'WSL endpoint should still be exposed as an alternate candidate');
+    assert.strictEqual(wslEndpoint.preferred, false, 'Virtual adapter IPs must not become the preferred default');
+
+    const summary = getLanEndpointSummary(sampleInterfaces);
+    assert.strictEqual(summary.preferredLanIp, '192.168.1.44', 'LAN summary should expose the preferred Wi-Fi IP');
+    assert.strictEqual(summary.lanEndpoints.length, 3, 'LAN summary should expose all ranked candidates');
+
+    console.log('[smoke] Linking LAN endpoint ranking OK');
+}
+
+function runSyncDefaultsSmoke() {
+    const { applySyncDefaults } = require(path.join(root, 'main', 'sync', 'defaults'));
+
+    const resolved = applySyncDefaults(
+        { auth_lambda_url: '', aws_region: '' },
+        { AUTH_LAMBDA_URL: 'https://example.lambda-url.on.aws/', AWS_REGION: 'eu-west-3' }
+    );
+
+    assert.strictEqual(
+        resolved.authLambdaUrl,
+        'https://example.lambda-url.on.aws',
+        'App sync defaults should trim trailing slashes from AUTH_LAMBDA_URL'
+    );
+    assert.strictEqual(resolved.awsRegion, 'eu-west-3', 'App sync defaults should fall back to environment region values');
+
+    console.log('[smoke] Sync default resolution OK');
+}
+
 function run() {
     runContractSmoke();
     runSyncRegistryCompletenessSmoke();
@@ -495,6 +543,8 @@ function run() {
     runTailwindOutputSmoke();
     runLegacyCssSmoke();
     runConsolidationSmoke();
+    runLinkingNetworkSmoke();
+    runSyncDefaultsSmoke();
     runValidationTests();
     runAuthTests();
     console.log('[smoke] All smoke checks passed');

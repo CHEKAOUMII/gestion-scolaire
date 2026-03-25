@@ -190,7 +190,7 @@ function _isPageVisibleByAdminConfig(pageName) {
 }
 
 function _isPageHiddenByAdminToggle(pageName, role) {
-    if (_isAdminRole(role)) return false;
+    if (_isDeveloperRole(role)) return false;
     const normalizedPage = _normalizePageKey(pageName);
     if (!normalizedPage) return false;
     return !_isPageVisibleByAdminConfig(normalizedPage);
@@ -199,9 +199,9 @@ function _isPageHiddenByAdminToggle(pageName, role) {
 function _canRoleOpenPage(pageName, authRole, accessState) {
     const normalizedPage = _normalizePageKey(pageName);
     if (!normalizedPage) return false;
-    if (_isAdminRole(authRole)) return true;
+    if (_isDeveloperRole(authRole)) return true;
     if (_isPageHiddenByAdminToggle(normalizedPage, authRole)) return false;
-    if (ADMIN_ONLY_PAGES.has(normalizedPage)) return false;
+    if (ADMIN_ONLY_PAGES.has(normalizedPage)) return _isAdminRole(authRole);
 
     // Authenticated users (any role) can access non-admin pages
     if (_isAuthenticatedRole(authRole)) return true;
@@ -253,13 +253,59 @@ function _setPageLinkElementHidden(node, hidden) {
 }
 
 function applyPageVisibilityToDocument(role) {
+    const isDev = _isDeveloperRole(role);
     const isAdmin = _isAdminRole(role);
     document.querySelectorAll('a[href], [onclick*="location.href"], [data-page-link]').forEach((node) => {
         const linkedPage = _extractLinkedPageFromElement(node);
         if (!linkedPage) return;
         const shouldHide =
-            !isAdmin && (ADMIN_ONLY_PAGES.has(linkedPage) || _isPageHiddenByAdminToggle(linkedPage, role));
+            !isDev && (
+                (ADMIN_ONLY_PAGES.has(linkedPage) && !isAdmin) ||
+                _isPageHiddenByAdminToggle(linkedPage, role)
+            );
         _setPageLinkElementHidden(node, shouldHide);
+    });
+
+    // Hide expandable menu groups where ALL sub-menu children are hidden
+    document.querySelectorAll('.sidebar-nav li.expandable').forEach((group) => {
+        const subLinks = group.querySelectorAll('.sub-menu > li');
+        if (!subLinks.length) return;
+        const allHidden = Array.from(subLinks).every(
+            (li) => li.style.display === 'none' || li.dataset.pageVisibilityHidden === '1'
+        );
+        if (allHidden && !isDev) {
+            group.style.display = 'none';
+            group.dataset.pageVisibilityHidden = '1';
+        } else {
+            group.style.display = '';
+            delete group.dataset.pageVisibilityHidden;
+        }
+    });
+
+    // Hide section labels whose following groups are all hidden
+    document.querySelectorAll('.sidebar-nav .nav-section-label').forEach((label) => {
+        let sibling = label.nextElementSibling;
+        let hasVisibleGroup = false;
+        while (sibling && !sibling.classList.contains('nav-section-label')) {
+            if (sibling.classList.contains('expandable') && sibling.style.display !== 'none') {
+                hasVisibleGroup = true;
+                break;
+            }
+            // Also check non-expandable direct links (e.g. لوحة التحكم)
+            if (!sibling.classList.contains('expandable') && !sibling.classList.contains('nav-section-label')
+                && sibling.style.display !== 'none') {
+                hasVisibleGroup = true;
+                break;
+            }
+            sibling = sibling.nextElementSibling;
+        }
+        if (!hasVisibleGroup && !isDev) {
+            label.style.display = 'none';
+            label.dataset.pageVisibilityHidden = '1';
+        } else {
+            label.style.display = '';
+            delete label.dataset.pageVisibilityHidden;
+        }
     });
 }
 
@@ -401,8 +447,12 @@ function _isAdminRole(role) {
     return String(role || '').toLowerCase() === 'admin';
 }
 
+function _isDeveloperRole(role) {
+    return String(role || '').toLowerCase() === 'developer';
+}
+
 function _isAuthenticatedRole(role) {
-    return ['admin', 'staff', 'viewer'].includes(String(role || '').toLowerCase());
+    return ['admin', 'staff', 'viewer', 'developer'].includes(String(role || '').toLowerCase());
 }
 
 function _deriveAuthRoleFromSession(session) {
@@ -465,7 +515,7 @@ function clearAuthSession() {
 }
 
 function _isSidebarLinkBlocked(href, authRole, accessState) {
-    if (_isAdminRole(authRole)) return false;
+    if (_isDeveloperRole(authRole)) return false;
     const normalizedHref = _normalizePageKey(href);
     if (!normalizedHref || normalizedHref === '#') return false;
 
@@ -473,9 +523,10 @@ function _isSidebarLinkBlocked(href, authRole, accessState) {
         return true;
     }
 
-    // Authenticated users can see everything except admin-only
+    // Admin can see admin-only pages; other authenticated users cannot
     if (_isAuthenticatedRole(authRole)) {
-        return ADMIN_ONLY_PAGES.has(normalizedHref);
+        if (ADMIN_ONLY_PAGES.has(normalizedHref)) return !_isAdminRole(authRole);
+        return false;
     }
 
     // Non-authenticated: licensed/trial can see non-admin pages
@@ -488,7 +539,7 @@ function _isSidebarLinkBlocked(href, authRole, accessState) {
 }
 
 function applyNavigationRestrictions(authRole, accessState) {
-    const isAdmin = _isAdminRole(authRole);
+    const isDev = _isDeveloperRole(authRole);
 
     document.querySelectorAll('.sidebar-nav a[href]').forEach((link) => {
         if (!link.dataset.limitedGuardBound) {
@@ -520,7 +571,9 @@ function applyNavigationRestrictions(authRole, accessState) {
         const blocked = _isSidebarLinkBlocked(link.getAttribute('href'), authRole, accessState);
         const listItem = link.closest('li');
 
-        if (!isAdmin && (isAdminOnlyPage || isHiddenByAdmin)) {
+        const isAdmin = _isAdminRole(authRole);
+
+        if (!isDev && ((isAdminOnlyPage && !isAdmin) || isHiddenByAdmin)) {
             if (listItem) listItem.style.display = 'none';
             return;
         } else if (isAdminOnlyPage || isHiddenByAdmin) {
@@ -599,9 +652,8 @@ function redirectToSafePage(authRole, accessState, blockedPage = '') {
 
 function enforcePageRoleOrRedirect(authRole, accessState) {
     const currentPage = _normalizePageKey(_getCurrentPageName());
-    const isAdmin = _isAdminRole(authRole);
 
-    if (isAdmin) return true;
+    if (_isDeveloperRole(authRole)) return true;
 
     if (_isPageHiddenByAdminToggle(currentPage, authRole)) {
         try {
@@ -613,9 +665,9 @@ function enforcePageRoleOrRedirect(authRole, accessState) {
         return false;
     }
 
-    // Authenticated non-admin users can access everything except admin-only
+    // Authenticated users can access everything; admin can also access admin-only pages
     if (_isAuthenticatedRole(authRole)) {
-        if (ADMIN_ONLY_PAGES.has(currentPage)) {
+        if (ADMIN_ONLY_PAGES.has(currentPage) && !_isAdminRole(authRole)) {
             try {
                 sessionStorage.setItem(BLOCKED_REDIRECT_NOTICE_KEY, currentPage);
             } catch (_err) {
@@ -1576,7 +1628,7 @@ function applyAppUi(authRole, accessState, session) {
         try {
             const authRes = await window.api.auth.getSession();
             const role = _normalizeRole(authRes?.user?.role || '');
-            const isAuth = ['admin', 'staff', 'viewer'].includes(role);
+            const isAuth = ['admin', 'staff', 'viewer', 'developer'].includes(role);
             if (authRes?.success && authRes?.authenticated && isAuth) {
                 session = authRes.user || {};
                 setAuthSession(session.email || '', session);

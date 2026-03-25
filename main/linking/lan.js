@@ -4,6 +4,8 @@ const dgram = require('dgram');
 const http = require('http');
 const os = require('os');
 const { verifyOtp, getActiveOtp, validateMassarCode } = require('./otp');
+const { getLanBroadcastAddresses } = require('./network');
+const { applySyncDefaults } = require('../sync/defaults');
 
 // -- Constants --
 const UDP_BROADCAST_PORT = 19877;
@@ -59,10 +61,11 @@ function buildLinkBootstrapPayload(db) {
     const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
     const instRow = db.prepare('SELECT massar_code, institution_name FROM institution_config WHERE id = 1').get();
     const licenseKey = readActiveLicenseKey(db);
+    const syncDefaults = applySyncDefaults(syncRow || {});
     const syncConfig = {
         schoolId: syncRow?.school_id || instRow?.massar_code || null,
-        awsRegion: syncRow?.aws_region || 'eu-west-1',
-        authLambdaUrl: syncRow?.auth_lambda_url || null,
+        awsRegion: syncDefaults.awsRegion,
+        authLambdaUrl: syncDefaults.authLambdaUrl,
         syncIntervalMinutes: syncRow?.sync_interval_minutes ?? 10,
         enabled: !!(syncRow?.enabled ?? 0),
         licenseKey
@@ -405,7 +408,10 @@ async function startLinkingServer(db) {
     const beaconBuffer = buildBeaconMessage(massarCode, HTTP_SERVER_PORT);
     broadcastTimer = setInterval(() => {
         try {
-            udpSocket.send(beaconBuffer, 0, beaconBuffer.length, UDP_BROADCAST_PORT, '255.255.255.255');
+            const broadcastAddrs = getLanBroadcastAddresses();
+            for (const addr of broadcastAddrs) {
+                udpSocket.send(beaconBuffer, 0, beaconBuffer.length, UDP_BROADCAST_PORT, addr);
+            }
         } catch {
             // Socket may have been closed - ignore
         }

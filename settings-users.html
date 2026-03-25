@@ -288,6 +288,19 @@
             pendingLabel.style.color = '#0f766e';
         }
 
+        function _groupVisibilitySummary(group) {
+            const groupPages = pageRows.filter((e) => e.group === group);
+            const total = groupPages.length;
+            const visible = groupPages.filter((e) => pageVisibilityDraftMap[e.page] !== false).length;
+            return { total, visible, allVisible: visible === total, noneVisible: visible === 0 };
+        }
+
+        function stageGroupVisibilityChange(group, isVisible) {
+            pageRows.filter((e) => e.group === group).forEach((e) => {
+                stagePageVisibilityChange(e.page, isVisible);
+            });
+        }
+
         function renderPageVisibilityRows() {
             const tbody = document.getElementById('page-visibility-tbody');
             if (!tbody) return;
@@ -297,20 +310,65 @@
                 return;
             }
 
-            tbody.innerHTML = pageRows.map((entry, index) => {
-                const visible = pageVisibilityDraftMap[entry.page] !== false;
-                const savedVisible = pageVisibilityMap[entry.page] !== false;
-                const isDirty = visible !== savedVisible;
-                const rowStyle = isDirty
-                    ? ' style="background:rgba(245,158,11,.12);"'
-                    : (!visible ? ' style="background:rgba(239,68,68,.06);"' : '');
-                const safeTitle = _safeText(entry.title || entry.page);
-                const safeGroup = _safeText(entry.group || '-');
+            // Group pages by their group field, preserving sort order
+            const groups = [];
+            const groupMap = {};
+            for (const entry of pageRows) {
+                const g = entry.group || '-';
+                if (!groupMap[g]) {
+                    groupMap[g] = [];
+                    groups.push(g);
+                }
+                groupMap[g].push(entry);
+            }
 
-                return `
+            let rowIndex = 0;
+            const html = groups.map((group) => {
+                const entries = groupMap[group];
+                const summary = _groupVisibilitySummary(group);
+                const safeGroup = _safeText(group);
+                const groupId = group.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_');
+
+                // Group header checkbox state
+                const groupChecked = summary.allVisible ? 'checked' : '';
+                const groupBg = summary.noneVisible
+                    ? 'background:rgba(239,68,68,.08);'
+                    : summary.allVisible
+                      ? 'background:rgba(16,185,129,.08);'
+                      : 'background:rgba(245,158,11,.08);';
+
+                const headerRow = `
+                    <tr style="${groupBg}border-bottom:2px solid var(--color-accent,#e5e7eb);">
+                        <td colspan="3" style="padding:10px 14px;font-weight:800;font-size:14px;">
+                            <i class="fas fa-layer-group" style="margin-left:6px;color:var(--color-primary,#1e40af);"></i>
+                            ${safeGroup}
+                            <span style="margin-right:10px;font-size:12px;font-weight:600;color:#6b7280;">(${summary.visible} / ${summary.total} مرئي)</span>
+                        </td>
+                        <td colspan="2"></td>
+                        <td style="padding:10px 14px;">
+                            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;">
+                                <input type="checkbox" ${groupChecked} id="group-toggle-${groupId}"
+                                    onchange="stageGroupVisibilityChange('${group}', this.checked)"
+                                    ${pageVisibilitySaving ? 'disabled' : ''}>
+                                <span>${summary.allVisible ? 'إخفاء الكل' : summary.noneVisible ? 'إظهار الكل' : 'تبديل الكل'}</span>
+                            </label>
+                        </td>
+                    </tr>`;
+
+                const pageRowsHtml = entries.map((entry) => {
+                    rowIndex++;
+                    const visible = pageVisibilityDraftMap[entry.page] !== false;
+                    const savedVisible = pageVisibilityMap[entry.page] !== false;
+                    const isDirty = visible !== savedVisible;
+                    const rowStyle = isDirty
+                        ? ' style="background:rgba(245,158,11,.12);"'
+                        : (!visible ? ' style="background:rgba(239,68,68,.06);"' : '');
+                    const safeTitle = _safeText(entry.title || entry.page);
+
+                    return `
                     <tr${rowStyle}>
-                        <td>${index + 1}</td>
-                        <td style="font-weight:600;">${safeTitle}<div style="font-size:12px;color:#6b7280;margin-top:2px;direction:ltr;">${entry.page}</div></td>
+                        <td>${rowIndex}</td>
+                        <td style="font-weight:600;padding-right:28px;">${safeTitle}<div style="font-size:12px;color:#6b7280;margin-top:2px;direction:ltr;">${entry.page}</div></td>
                         <td>${safeGroup}</td>
                         <td>${_statusBadge(visible)}${_pendingBadge(isDirty)}</td>
                         <td>${_completionBadge(entry.completed)}</td>
@@ -320,9 +378,23 @@
                                 <span>${visible ? 'مرئي' : 'مخفي'}</span>
                             </label>
                         </td>
-                    </tr>
-                `;
+                    </tr>`;
+                }).join('');
+
+                return headerRow + pageRowsHtml;
             }).join('');
+
+            tbody.innerHTML = html;
+
+            // Set indeterminate state for partially visible groups
+            for (const group of groups) {
+                const summary = _groupVisibilitySummary(group);
+                const groupId = group.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_');
+                const checkbox = document.getElementById('group-toggle-' + groupId);
+                if (checkbox && !summary.allVisible && !summary.noneVisible) {
+                    checkbox.indeterminate = true;
+                }
+            }
         }
 
         async function loadPageVisibilityRows(forceRefresh = false) {
@@ -436,6 +508,7 @@
         }
 
         window.stagePageVisibilityChange = stagePageVisibilityChange;
+        window.stageGroupVisibilityChange = stageGroupVisibilityChange;
     </script>
 </body>
 
