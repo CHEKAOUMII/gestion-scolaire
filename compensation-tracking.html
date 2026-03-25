@@ -55,14 +55,14 @@
                             </select>
                         </div>
                         <div class="gs-form-group">
-                            <label for="filter-teacher">الأستاذ(ة)</label>
-                            <select id="filter-teacher">
+                            <label for="filter-subject">المادة</label>
+                            <select id="filter-subject">
                                 <option value="">الكل</option>
                             </select>
                         </div>
                         <div class="gs-form-group">
-                            <label for="filter-subject">المادة</label>
-                            <select id="filter-subject">
+                            <label for="filter-teacher">الأستاذ(ة)</label>
+                            <select id="filter-teacher">
                                 <option value="">الكل</option>
                             </select>
                         </div>
@@ -117,6 +117,34 @@
                         <div class="comp-stat-body">
                             <h4 id="stat-done">0</h4>
                             <p>تم التعويض</p>
+                        </div>
+                    </div>
+                    <div class="comp-stat-card" style="min-width: 260px; flex: 1.5;">
+                        <div
+                            class="comp-stat-icon"
+                            style="background: rgba(255, 159, 67, 0.12); color: #ff9f43"
+                        >
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="comp-stat-body" style="width: 100%;">
+                            <p style="margin-bottom: 8px; font-weight: 600; font-size: 13px;">الأساتذة الأكثر حصصا للتعويض</p>
+                            <div id="top-teachers-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+                                <span style="color: var(--color-text-muted);">جارٍ التحميل...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="comp-stat-card" style="min-width: 260px; flex: 1.5;">
+                        <div
+                            class="comp-stat-icon"
+                            style="background: rgba(99, 179, 237, 0.12); color: #63b3ed"
+                        >
+                            <i class="fas fa-school"></i>
+                        </div>
+                        <div class="comp-stat-body" style="width: 100%;">
+                            <p style="margin-bottom: 8px; font-weight: 600; font-size: 13px;">الأقسام الأكثر تضررا</p>
+                            <div id="top-sections-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+                                <span style="color: var(--color-text-muted);">جارٍ التحميل...</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -288,6 +316,10 @@
 
             const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
             let allRecords = [];
+            let loadedTeachers = [];
+            const PAGE_SIZE = 20;
+            let currentPage = 1;
+            let lastPagedRecords = [];
 
             /** Normalize name: remove underscores, diacritics, collapse spaces */
             function normalizeName(name) {
@@ -574,17 +606,7 @@
 
             async function populateFilters() {
                 try {
-                    const teachers = await window.api.teachers.getAll(year);
-                    const teacherSelect = document.getElementById('filter-teacher');
-                    if (teachers && teachers.length) {
-                        teachers.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'ar'));
-                        teachers.forEach((t) => {
-                            const opt = document.createElement('option');
-                            opt.value = t.full_name;
-                            opt.textContent = t.full_name;
-                            teacherSelect.appendChild(opt);
-                        });
-                    }
+                    loadedTeachers = await window.api.teachers.getAll(year);
                 } catch (e) {
                     console.warn('Could not load teachers for filter:', e);
                 }
@@ -651,8 +673,100 @@
                         opt.textContent = s;
                         subjectSelect.appendChild(opt);
                     });
+                    
+                    subjectSelect.addEventListener('change', () => {
+                        updateTeacherDropdown(subjectSelect.value);
+                    });
                 } catch (e) {
                     console.warn('Could not load subjects:', e);
+                }
+                
+                // Initialize teachers dropdown
+                updateTeacherDropdown('');
+            }
+
+            function updateTeacherDropdown(selectedSubject) {
+                const teacherSelect = document.getElementById('filter-teacher');
+                const currentTeacher = teacherSelect.value;
+                teacherSelect.innerHTML = '<option value="">الكل</option>';
+                
+                let allowedTeacherNames = null;
+                
+                if (selectedSubject) {
+                    allowedTeacherNames = new Set();
+                    
+                    if (loadedTeachers && loadedTeachers.length) {
+                        loadedTeachers.forEach(t => {
+                            const s1 = (t.specialty_subject || '').trim();
+                            const s2 = (t.subject || '').trim();
+                            const tr1 = typeof translateSubject === 'function' ? translateSubject(s1) : s1;
+                            const tr2 = typeof translateSubject === 'function' ? translateSubject(s2) : s2;
+                            if (tr1 === selectedSubject || tr2 === selectedSubject || s1 === selectedSubject || s2 === selectedSubject) {
+                                allowedTeacherNames.add(t.full_name);
+                            }
+                        });
+                    }
+
+                    try {
+                        const raw = localStorage.getItem('timetableData');
+                        if (raw) {
+                            const ttData = JSON.parse(raw);
+                            if (ttData && ttData.timetables) {
+                                for (const [teacherKey, days] of Object.entries(ttData.timetables)) {
+                                    let teachesSubject = false;
+                                    for (const day of Object.values(days)) {
+                                        if (!day || typeof day !== 'object') continue;
+                                        for (const period of Object.values(day)) {
+                                            if (!period || typeof period !== 'object') continue;
+                                            for (const lesson of Object.values(period)) {
+                                                if (lesson && lesson.subject && lesson.subject.trim() === selectedSubject) {
+                                                    teachesSubject = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (teachesSubject) {
+                                        const entries = getStoredTimetableTeacherEntries(ttData);
+                                        const entry = entries.find(e => e.key === teacherKey);
+                                        if (entry && entry.teacherName) {
+                                            const matchedTeacher = (loadedTeachers || []).find(t => t.full_name === entry.teacherName || normalizeName(t.full_name) === normalizeName(entry.teacherName));
+                                            if (matchedTeacher) allowedTeacherNames.add(matchedTeacher.full_name);
+                                            else allowedTeacherNames.add(entry.teacherName);
+                                        } else {
+                                            allowedTeacherNames.add(teacherKey.replace(/^tafwij:/, '').replace(/_/g, ' '));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch(e){}
+                }
+
+                const teachersToRender = [];
+                if (allowedTeacherNames) {
+                    (loadedTeachers || []).forEach(t => {
+                        if (allowedTeacherNames.has(t.full_name)) teachersToRender.push(t);
+                    });
+                    allowedTeacherNames.forEach(name => {
+                        if (!teachersToRender.find(t => t.full_name === name)) {
+                            teachersToRender.push({ full_name: name });
+                        }
+                    });
+                } else {
+                    if (loadedTeachers && loadedTeachers.length) teachersToRender.push(...loadedTeachers);
+                }
+
+                teachersToRender.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'ar'));
+                
+                teachersToRender.forEach((t) => {
+                    const opt = document.createElement('option');
+                    opt.value = t.full_name;
+                    opt.textContent = t.full_name;
+                    teacherSelect.appendChild(opt);
+                });
+
+                if (currentTeacher && Array.from(teacherSelect.options).some(o => o.value === currentTeacher)) {
+                    teacherSelect.value = currentTeacher;
                 }
             }
 
@@ -771,6 +885,7 @@
                     return b.absence_date.localeCompare(a.absence_date);
                 });
 
+                currentPage = 1;
                 renderStats(statsRecords);
                 renderTable(mergedTableRecords);
             }
@@ -791,10 +906,66 @@
                 if (dateDisplay && dateFrom && dateTo) {
                     dateDisplay.textContent = `من ${dateFrom.split('-').reverse().join('/')} إلى ${dateTo.split('-').reverse().join('/')}`;
                 }
+
+                // Calculate top 3 teachers with most pending sessions
+                const pendingRecords = records.filter((r) => !r.compensated);
+                const teacherMap = {};
+                for (const r of pendingRecords) {
+                    const key = (r.teacher_name || '—') + '||' + (r.subject || '—');
+                    if (!teacherMap[key]) {
+                        teacherMap[key] = { name: r.teacher_name || '—', subject: r.subject || '—', count: 0 };
+                    }
+                    teacherMap[key].count++;
+                }
+                const topTeachers = Object.values(teacherMap)
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 3);
+
+                const medals = ['🥇', '🥈', '🥉'];
+                const topList = document.getElementById('top-teachers-list');
+                if (topTeachers.length === 0) {
+                    topList.innerHTML = '<span style="color: var(--color-text-muted);">لا توجد حصص في الانتظار</span>';
+                } else {
+                    topList.innerHTML = topTeachers.map((t, i) =>
+                        `<div style="display:flex; align-items:center; gap:6px; padding:3px 6px; border-radius:6px; background: var(--color-bg-secondary, rgba(0,0,0,0.03));">
+                            <span style="font-size:16px;">${medals[i]}</span>
+                            <strong style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.name)}</strong>
+                            <span style="color: var(--color-text-muted); font-size:11px; white-space:nowrap;">${escapeHtml(t.subject)}</span>
+                            <span style="background: var(--color-danger-bg, #e85d5d); color:#fff; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700;">${t.count}</span>
+                        </div>`
+                    ).join('');
+                }
+
+                // Calculate top 3 sections with most pending sessions
+                const sectionMap = {};
+                for (const r of pendingRecords) {
+                    const sec = r.section || '—';
+                    sectionMap[sec] = (sectionMap[sec] || 0) + 1;
+                }
+                const topSections = Object.entries(sectionMap)
+                    .map(([section, count]) => ({ section, count }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 3);
+
+                const topSectionsList = document.getElementById('top-sections-list');
+                if (topSections.length === 0) {
+                    topSectionsList.innerHTML = '<span style="color: var(--color-text-muted);">لا توجد حصص في الانتظار</span>';
+                } else {
+                    topSectionsList.innerHTML = topSections.map((s, i) =>
+                        `<div style="display:flex; align-items:center; gap:6px; padding:3px 6px; border-radius:6px; background: var(--color-bg-secondary, rgba(0,0,0,0.03));">
+                            <span style="font-size:16px;">${medals[i]}</span>
+                            <strong style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(s.section)}</strong>
+                            <span style="background: #63b3ed; color:#fff; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700;">${s.count}</span>
+                        </div>`
+                    ).join('');
+                }
             }
 
             function renderTable(records) {
+                lastPagedRecords = records;
                 const tbody = document.getElementById('tracking-tbody');
+                const totalPages = Math.max(1, Math.ceil(records.length / PAGE_SIZE));
+                currentPage = Math.min(currentPage, totalPages);
                 document.getElementById('table-count').textContent = records.length;
 
                 if (records.length === 0) {
@@ -807,10 +978,14 @@
                             </div>
                         </td>
                     </tr>`;
+                    renderPagination(0, 1);
                     return;
                 }
 
-                tbody.innerHTML = records
+                const start = (currentPage - 1) * PAGE_SIZE;
+                const pageRecords = records.slice(start, start + PAGE_SIZE);
+
+                tbody.innerHTML = pageRecords
                     .map((r, i) => {
                         const isCompensated = r.compensated;
                         const statusHtml = isCompensated
@@ -824,11 +999,10 @@
                            <i class="fas fa-check"></i> تعويض
                        </button>`;
                         const periodLabel = escapeHtml((r.period_slot || '').toUpperCase());
-                        const periodTime = escapeHtml(r.period_time || PERIOD_MAP[(r.period_slot || '').toLowerCase()] || '');
 
                         return `
                     <tr class="${isCompensated ? 'compensated' : ''}">
-                        <td>${i + 1}</td>
+                        <td>${start + i + 1}</td>
                         <td>${escapeHtml(formatDateAr(r.absence_date))}</td>
                         <td><strong>${escapeHtml(r.section)}</strong></td>
                         <td>${escapeHtml(r.teacher_name)}</td>
@@ -839,6 +1013,39 @@
                     </tr>`;
                     })
                     .join('');
+
+                renderPagination(records.length, totalPages);
+            }
+
+            function renderPagination(total, totalPages) {
+                let el = document.getElementById('comp-pagination');
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'comp-pagination';
+                    el.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0 4px;font-size:13px;';
+                    document.querySelector('.gs-preview-body').after(el);
+                }
+                if (total === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+                const from = (currentPage - 1) * PAGE_SIZE + 1;
+                const to = Math.min(currentPage * PAGE_SIZE, total);
+                el.innerHTML = `
+                    <button onclick="gotoPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}
+                        style="border:1px solid var(--color-border,#ddd);background:var(--color-bg-secondary,#f5f5f5);border-radius:6px;padding:4px 10px;cursor:pointer;">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <span style="color:var(--color-text-muted);">${from}–${to} من ${total}</span>
+                    <span style="font-weight:600;">صفحة ${currentPage} / ${totalPages}</span>
+                    <button onclick="gotoPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}
+                        style="border:1px solid var(--color-border,#ddd);background:var(--color-bg-secondary,#f5f5f5);border-radius:6px;padding:4px 10px;cursor:pointer;">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>`;
+            }
+
+            function gotoPage(page) {
+                const totalPages = Math.max(1, Math.ceil(lastPagedRecords.length / PAGE_SIZE));
+                currentPage = Math.max(1, Math.min(page, totalPages));
+                renderTable(lastPagedRecords);
+                document.querySelector('.gs-preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
             async function toggleComp(idOrIds, compensated) {

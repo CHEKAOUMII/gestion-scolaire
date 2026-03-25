@@ -12,6 +12,24 @@
         <script src="js/notifications.js"></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+        <style>
+            /* Force the detail overlay to behave as a side drawer instead of a centered modal */
+            #detail-overlay, #detail-overlay.active {
+                justify-content: flex-end !important;
+                align-items: stretch !important;
+            }
+            @keyframes slideInFromLeft {
+                from { transform: translateX(-100%); }
+                to { transform: translateX(0); }
+            }
+            .detail-panel {
+                height: 100vh !important;
+                max-height: 100vh !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+                animation: slideInFromLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            }
+        </style>
         </head>
 
     <body>
@@ -151,6 +169,7 @@
                                 <tbody id="teachers-tbody"></tbody>
                             </table>
                         </div>
+                        <div id="teachers-pagination" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0 4px;font-size:13px;"></div>
                     </div>
                 </div>
             </div>
@@ -177,6 +196,8 @@
             const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
             let teachers = [];
             let filtered = [];
+            const PAGE_SIZE = 20;
+            let currentPage = 1;
 
             document.addEventListener('DOMContentLoaded', async () => {
                 await loadTeachers();
@@ -402,6 +423,7 @@
                     return true;
                 });
 
+                currentPage = 1;
                 renderTeachers();
                 const counter = document.getElementById('staff-counter');
                 if (counter) counter.textContent = `${filtered.length} / ${teachers.length} أستاذ`;
@@ -423,6 +445,9 @@
 
             function renderTeachers() {
                 const tbody = document.getElementById('teachers-tbody');
+                const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+                currentPage = Math.min(currentPage, totalPages);
+
                 if (!filtered.length) {
                     tbody.innerHTML = `
                     <tr><td colspan="10">
@@ -431,11 +456,15 @@
                             <p>لا توجد بيانات بخصوص معايير البحث المحددة</p>
                         </div>
                     </td></tr>`;
+                    renderTeachersPagination(0, 1);
                     return;
                 }
-                tbody.innerHTML = filtered
+
+                const start = (currentPage - 1) * PAGE_SIZE;
+                const pageItems = filtered.slice(start, start + PAGE_SIZE);
+
+                tbody.innerHTML = pageItems
                     .map((t, i) => {
-                        // عرض مادة التخصص من DB أو ترجمتها مباشرةً
                         const specRaw = t.specialty_subject || t.subject;
                         const specDisplay = specRaw
                             ? typeof translateSubject === 'function'
@@ -460,7 +489,7 @@
                                   : '';
                         return `
                 <tr onclick="showDetail(${t.id})" title="انقر لعرض التفاصيل" class="teacher-row">
-                    <td>${i + 1}</td>
+                    <td>${start + i + 1}</td>
                     <td class="col-ppr">${esc(t.ppr) || '-'}</td>
                     <td><strong>${esc(t.full_name)}</strong>${genderIcon}</td>
                     <td>${esc(specDisplay)}</td>
@@ -478,6 +507,33 @@
                 </tr>`;
                     })
                     .join('');
+
+                renderTeachersPagination(filtered.length, totalPages);
+            }
+
+            function renderTeachersPagination(total, totalPages) {
+                const el = document.getElementById('teachers-pagination');
+                if (!el) return;
+                if (total === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+                const from = (currentPage - 1) * PAGE_SIZE + 1;
+                const to = Math.min(currentPage * PAGE_SIZE, total);
+                const btnStyle = 'border:1px solid var(--color-accent);background:var(--color-surface);border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--color-text-main);';
+                el.innerHTML = `
+                    <button onclick="teachersGotoPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} style="${btnStyle}">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <span style="color:var(--color-text-muted);">${from}–${to} من ${total}</span>
+                    <span style="font-weight:600;">صفحة ${currentPage} / ${totalPages}</span>
+                    <button onclick="teachersGotoPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} style="${btnStyle}">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>`;
+            }
+
+            function teachersGotoPage(page) {
+                const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+                currentPage = Math.max(1, Math.min(page, totalPages));
+                renderTeachers();
+                document.querySelector('.gs-preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
             /* ─── Detail Panel ─── */
