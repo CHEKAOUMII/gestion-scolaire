@@ -116,10 +116,14 @@ const BackupManager = {
      */
     async createBackup() {
         try {
+            console.log('[backup] createBackup: starting...');
             const backup = this.createLocalBackup();
+            console.log('[backup] createBackup: local backup created, items:', backup.itemsCount);
 
             if (window.api && window.api.system && typeof window.api.system.backupDb === 'function') {
+                console.log('[backup] createBackup: calling IPC backupDb...');
                 const dbResult = await window.api.system.backupDb();
+                console.log('[backup] createBackup: IPC result:', dbResult?.success, dbResult?.error || '');
                 if (!dbResult || dbResult.success === false) {
                     throw new Error(dbResult?.error || 'فشل أخذ نسخة من قاعدة البيانات');
                 }
@@ -131,11 +135,15 @@ const BackupManager = {
                         byteLength: Number(dbResult.data.byteLength || 0),
                         createdAt: dbResult.data.createdAt || new Date().toISOString()
                     };
+                    console.log('[backup] createBackup: DB included, size:', dbResult.data.byteLength, 'bytes');
                 }
+            } else {
+                console.warn('[backup] createBackup: backupDb API not available');
             }
 
             const backupString = JSON.stringify(backup);
             backup.size = new Blob([backupString]).size;
+            console.log('[backup] createBackup: total backup size:', backup.size, 'bytes');
 
             // تحديث الإعدادات
             const settings = this.getSettings();
@@ -152,9 +160,10 @@ const BackupManager = {
             };
             this.addToHistory(historyEntry);
 
+            console.log('[backup] createBackup: SUCCESS');
             return backup;
         } catch (e) {
-            console.error('Error creating backup:', e);
+            console.error('[backup] createBackup: FAILED —', e.message, e);
             throw new Error('فشل إنشاء النسخة الاحتياطية: ' + e.message);
         }
     },
@@ -225,10 +234,12 @@ const BackupManager = {
                             throw new Error('استعادة قاعدة البيانات غير مدعومة في هذه النسخة');
                         }
 
+                        console.log('[backup] restoreFromFile: calling IPC restoreDb, payload size:', backup.database.dbBase64.length);
                         const dbResult = await window.api.system.restoreDb({
                             dbBase64: backup.database.dbBase64,
                             expectedByteLength: Number(backup.database.byteLength || 0)
                         });
+                        console.log('[backup] restoreFromFile: IPC result:', dbResult?.success, dbResult?.error || '');
                         if (!dbResult || dbResult.success === false) {
                             throw new Error(dbResult?.error || 'فشل استعادة قاعدة البيانات');
                         }

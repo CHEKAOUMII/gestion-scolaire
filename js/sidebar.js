@@ -213,14 +213,19 @@ function injectSidebar() {
     }
     // Load page visibility state from DB before applying, to avoid race condition
     // where _pageVisibilityState is still null and falls back to hardcoded defaults.
+    // The delayed re-apply must also wait for DB state to be loaded first.
     if (typeof loadPageVisibilityState === 'function') {
-        loadPageVisibilityState().then(() => {
+        const visibilityReady = loadPageVisibilityState();
+        visibilityReady.then(() => {
             _reapplyRoleUi();
+            // Second pass after a short delay (auth state may arrive late),
+            // but only after DB visibility state is already loaded.
+            setTimeout(_reapplyRoleUi, 500);
         });
     } else {
         _reapplyRoleUi();
+        setTimeout(_reapplyRoleUi, 500);
     }
-    setTimeout(_reapplyRoleUi, 500);
 
     // Mark current page as active
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';

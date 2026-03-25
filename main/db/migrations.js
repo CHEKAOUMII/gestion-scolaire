@@ -716,6 +716,10 @@ const MIGRATIONS = [
             }
         },
         recordsVersionInternally: false
+    },
+    {
+        version: '2026-03-039-page-visibility-seed-all',
+        up: () => ensurePageVisibilitySchema()
     }
 ];
 

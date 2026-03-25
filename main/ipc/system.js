@@ -1,6 +1,6 @@
 const { getDb } = require('../db/context');
 const { printHTML } = require('../print-window');
-const { requireRole } = require('./auth');
+const { requireRole, getSessionByEvent } = require('./auth');
 const { hashPassword, generateRandomPassword } = require('../auth/password');
 const { authErrorResponse, handleWrite, handleRead } = require('./ipc-helpers');
 
@@ -238,16 +238,29 @@ function registerSystemIpc(ipcMain) {
 
     ipcMain.handle('system:backupDb', async (event) => {
         try {
-            requireRole(event, ['admin']);
+            console.log('[backup] backupDb: started');
+            // Soft auth: allow backup without login (settings-imports page is pre-login)
+            const session = getSessionByEvent(event);
+            if (session) {
+                requireRole(event, ['admin']);
+                console.log('[backup] backupDb: authenticated as', session.role);
+            } else {
+                console.log('[backup] backupDb: no session — proceeding without auth');
+            }
+
             const fs = require('fs');
             const { getDbPath } = require('../db/context');
             const database = getDb();
 
             // Checkpoint WAL to ensure all data is in the main file
+            console.log('[backup] backupDb: checkpointing WAL...');
             database.pragma('wal_checkpoint(TRUNCATE)');
 
             const dbPath = getDbPath();
+            console.log('[backup] backupDb: reading DB file from', dbPath);
             const fileBuffer = fs.readFileSync(dbPath);
+            console.log('[backup] backupDb: DB file size =', fileBuffer.length, 'bytes');
+
             return {
                 success: true,
                 data: {
@@ -258,6 +271,7 @@ function registerSystemIpc(ipcMain) {
                 }
             };
         } catch (err) {
+            console.error('[backup] backupDb: FAILED —', err.message);
             if (err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN') {
                 return authErrorResponse(err);
             }
@@ -267,11 +281,22 @@ function registerSystemIpc(ipcMain) {
 
     ipcMain.handle('system:restoreDb', async (event, payload) => {
         try {
-            requireRole(event, ['admin']);
+            console.log('[backup] restoreDb: started');
+            // Soft auth: allow restore without login (settings-imports page is pre-login)
+            const session = getSessionByEvent(event);
+            if (session) {
+                requireRole(event, ['admin']);
+                console.log('[backup] restoreDb: authenticated as', session.role);
+            } else {
+                console.log('[backup] restoreDb: no session — proceeding without auth');
+            }
+
             const dbBase64 = String(payload?.dbBase64 || '');
             if (!dbBase64) {
+                console.error('[backup] restoreDb: missing dbBase64 payload');
                 return { success: false, error: 'Missing backup payload' };
             }
+            console.log('[backup] restoreDb: base64 payload length =', dbBase64.length);
 
             const Database = require('better-sqlite3');
             const { setDb, getDbPath } = require('../db/context');
@@ -280,12 +305,14 @@ function registerSystemIpc(ipcMain) {
             const fs = require('fs');
 
             const buffer = Buffer.from(dbBase64, 'base64');
+            console.log('[backup] restoreDb: decoded buffer size =', buffer.length, 'bytes');
             if (!buffer.length) {
                 return { success: false, error: 'Invalid backup payload' };
             }
 
             const expectedByteLength = Number(payload?.expectedByteLength || 0);
             if (expectedByteLength > 0 && buffer.length !== expectedByteLength) {
+                console.error('[backup] restoreDb: size mismatch — expected', expectedByteLength, 'got', buffer.length);
                 return { success: false, error: 'Backup payload size mismatch' };
             }
 
@@ -296,10 +323,17 @@ function registerSystemIpc(ipcMain) {
                 const testDb = new Database(tempValidationPath, { readonly: true });
                 const quickCheck = testDb.pragma('quick_check');
                 const result = quickCheck[0]?.quick_check;
+                // Count tables in backup to verify it has data
+                const tables = testDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+                console.log('[backup] restoreDb: backup contains tables:', tables.map(t => t.name).join(', '));
+                const studentCount = (() => { try { return testDb.prepare('SELECT COUNT(*) as c FROM students').get()?.c; } catch { return 'N/A'; } })();
+                const teacherCount = (() => { try { return testDb.prepare('SELECT COUNT(*) as c FROM teachers').get()?.c; } catch { return 'N/A'; } })();
+                console.log('[backup] restoreDb: backup data — students:', studentCount, ', teachers:', teacherCount);
                 testDb.close();
                 if (result && result !== 'ok') {
                     throw new Error(`SQLite quick_check failed: ${result}`);
                 }
+                console.log('[backup] restoreDb: quick_check passed');
             } finally {
                 if (fs.existsSync(tempValidationPath)) fs.unlinkSync(tempValidationPath);
             }
@@ -314,17 +348,20 @@ function registerSystemIpc(ipcMain) {
             safeUnlink(rollbackPath);
 
             // Close current database before replacing the file
+            console.log('[backup] restoreDb: closing current database...');
             const currentDb = getDb();
             currentDb.close();
 
             const hadDbFile = fs.existsSync(dbPath);
             if (hadDbFile) {
                 fs.renameSync(dbPath, rollbackPath);
+                console.log('[backup] restoreDb: old DB backed up to', rollbackPath);
             }
             // Also remove WAL/SHM files from old database
             safeUnlink(dbPath + '-wal');
             safeUnlink(dbPath + '-shm');
 
+            console.log('[backup] restoreDb: writing restored DB to', dbPath);
             fs.writeFileSync(dbPath, buffer);
 
             try {
@@ -333,11 +370,21 @@ function registerSystemIpc(ipcMain) {
                 newDb.pragma('foreign_keys = ON');
                 setDb(newDb);
 
+                console.log('[backup] restoreDb: running createTables...');
                 createTables();
+                console.log('[backup] restoreDb: running runMigrations...');
                 runMigrations();
+
+                // Verify data after restore
+                const postStudents = (() => { try { return newDb.prepare('SELECT COUNT(*) as c FROM students').get()?.c; } catch { return 'N/A'; } })();
+                const postTeachers = (() => { try { return newDb.prepare('SELECT COUNT(*) as c FROM teachers').get()?.c; } catch { return 'N/A'; } })();
+                console.log('[backup] restoreDb: POST-RESTORE — students:', postStudents, ', teachers:', postTeachers);
+
                 safeUnlink(rollbackPath);
+                console.log('[backup] restoreDb: SUCCESS');
                 return { success: true };
             } catch (postRestoreError) {
+                console.error('[backup] restoreDb: post-restore FAILED —', postRestoreError.message);
                 // Rollback: restore old database
                 if (hadDbFile && fs.existsSync(rollbackPath)) {
                     safeUnlink(dbPath);
@@ -349,11 +396,13 @@ function registerSystemIpc(ipcMain) {
                     rollbackDb.pragma('journal_mode = WAL');
                     rollbackDb.pragma('foreign_keys = ON');
                     setDb(rollbackDb);
+                    console.log('[backup] restoreDb: rolled back to previous database');
                 }
 
                 throw postRestoreError;
             }
         } catch (err) {
+            console.error('[backup] restoreDb: FINAL ERROR —', err.message);
             if (err?.code) return authErrorResponse(err);
             return { success: false, error: err.message };
         }

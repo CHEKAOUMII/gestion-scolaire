@@ -326,7 +326,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             backupFileInput.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                if (!confirm('سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية. هل أنت متأكد؟')) {
+                const confirmed = await showActionConfirm('سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية. هل أنت متأكد؟');
+                if (!confirmed) {
                     backupFileInput.value = '';
                     return;
                 }

@@ -556,23 +556,25 @@ function ensurePageVisibilitySchema(existingDb) {
     // Read default hidden pages from the bundled config file
     const path = require('path');
     const fs = require('fs');
-    let hiddenPages = ['student-profile-prototype.html', 'communication-center-prototype.html'];
+    let hiddenPages = new Set(['student-profile-prototype.html', 'communication-center-prototype.html']);
     try {
         const defaultsPath = path.join(__dirname, '..', '..', 'page-visibility-defaults.json');
         if (fs.existsSync(defaultsPath)) {
             const parsed = JSON.parse(fs.readFileSync(defaultsPath, 'utf-8'));
             if (Array.isArray(parsed.hiddenPages) && parsed.hiddenPages.length > 0) {
-                hiddenPages = parsed.hiddenPages.filter((p) => typeof p === 'string' && p.endsWith('.html'));
+                hiddenPages = new Set(parsed.hiddenPages.filter((p) => typeof p === 'string' && p.endsWith('.html')));
             }
         }
     } catch {
         // fallback to hardcoded defaults above
     }
 
-    // Seed hidden pages with INSERT OR IGNORE (only on first creation)
-    const stmt = db.prepare('INSERT OR IGNORE INTO page_visibility(page_key, is_visible) VALUES(?, 0)');
-    for (const page of hiddenPages) {
-        stmt.run(page);
+    // Seed ALL managed pages with their default visibility.
+    // INSERT OR IGNORE ensures existing user choices are never overwritten.
+    const ALL_MANAGED_PAGES = require('./managed-pages');
+    const stmt = db.prepare('INSERT OR IGNORE INTO page_visibility(page_key, is_visible) VALUES(?, ?)');
+    for (const page of ALL_MANAGED_PAGES) {
+        stmt.run(page, hiddenPages.has(page) ? 0 : 1);
     }
 }
 
