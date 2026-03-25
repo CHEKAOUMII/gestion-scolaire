@@ -199,6 +199,10 @@ const BackupManager = {
      * استعادة نسخة احتياطية من ملف (localStorage + SQLite)
      */
     async restoreFromFile(file) {
+        const MAX_BACKUP_SIZE = 500 * 1024 * 1024; // 500 MB
+        if (file.size > MAX_BACKUP_SIZE) {
+            return Promise.reject(new Error('حجم ملف النسخة الاحتياطية كبير جداً (الحد الأقصى 500 ميغا)'));
+        }
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
 

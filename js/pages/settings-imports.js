@@ -378,7 +378,11 @@ function updateImportProgress(percent, message, title = 'جاري الاستير
     p.textContent = `${Math.round(normalizedPercent)}%`;
     track?.setAttribute('aria-valuenow', String(Math.round(normalizedPercent)));
     msg.textContent = message;
-    t.innerHTML = `<i class="fas fa-upload"></i> ${title}`;
+    t.textContent = '';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-upload';
+    t.appendChild(icon);
+    t.append(` ${title}`);
 }
 
 function hideImportProgress(delay = 0) {
@@ -393,15 +397,6 @@ function hideImportProgress(delay = 0) {
     };
     if (delay > 0) setTimeout(reset, delay);
     else reset();
-}
-
-function escapeConfirmText(text) {
-    return String(text || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
 }
 
 function showImportConfirm(action, files) {
@@ -423,12 +418,12 @@ function showImportConfirm(action, files) {
                 ? '<br><span class="font-semibold text-[var(--color-primary)]">📌 سيتم تحديد الدورة تلقائياً من الملف</span>'
                 : '';
         if (safeFiles.length === 1) {
-            const fileName = escapeConfirmText(safeFiles[0]?.name || 'الملف المحدد');
+            const fileName = escapeHtml(safeFiles[0]?.name || 'الملف المحدد');
             message.innerHTML = `هل تريد استيراد ${label} من الملف:<br><strong>${fileName}</strong>؟${semesterLabel}`;
         } else {
             const preview = safeFiles
                 .slice(0, 4)
-                .map((f) => escapeConfirmText(f.name))
+                .map((f) => escapeHtml(f.name))
                 .join('، ');
             const more = safeFiles.length > 4 ? ` ... (+${safeFiles.length - 4})` : '';
             message.innerHTML = `هل تريد استيراد ${label} بشكل جماعي من <strong>${safeFiles.length}</strong> ملفات؟<br>${preview}${more}${semesterLabel}`;
@@ -1819,9 +1814,9 @@ function showDepartedPanel(students) {
             (s, i) => `<tr>
             <td><input type="checkbox" class="departed-cb" data-id="${s.id}" checked></td>
             <td>${i + 1}</td>
-            <td>${s.code || '-'}</td>
-            <td>${s.full_name || '-'}</td>
-            <td>${s.section || '-'}</td>
+            <td>${escapeHtml(s.code || '-')}</td>
+            <td>${escapeHtml(s.full_name || '-')}</td>
+            <td>${escapeHtml(s.section || '-')}</td>
             <td>
                 <select class="departed-action-select" data-id="${s.id}">
                     <option value="">تجاهل (إبقاء نشط)</option>

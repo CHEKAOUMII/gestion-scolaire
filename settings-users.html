@@ -4,14 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="صفحة إدارة المستخدمين والصلاحيات">
+    <meta name="theme-color" content="#0f172a">
     <title>المستخدمون | برنامج التدبير المدرسي</title>
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind-output.css">
     <script src="js/utils.js"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/ux-enhancements.js"></script>
+    <script src="js/sidebar.js" defer></script>
+    <script src="js/ux-enhancements.js" defer></script>
         <script>
             // Developer-only page guard
             (function() {
@@ -25,6 +27,14 @@
 </head>
 
 <body>
+    <noscript>
+        <div class="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-[#0f172a] p-10 text-center text-[#f1f5f9]">
+            <div>
+                <i class="fas fa-exclamation-triangle mb-4 block text-5xl text-[#f59e0b]"></i>
+                <h2 class="text-2xl font-bold">يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
+            </div>
+        </div>
+    </noscript>
     <div class="toast-container" id="toast-container"></div>
 
     <aside class="sidebar" id="sidebar"></aside>
@@ -32,11 +42,11 @@
     <main class="main-content">
         <header class="header">
             <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                <button class="menu-toggle" id="menu-toggle" type="button" aria-label="فتح القائمة الجانبية" title="القائمة"><i class="fas fa-bars"></i></button>
                 <h2 class="page-title"><i class="fas fa-users-cog"></i> المستخدمون</h2>
             </div>
             <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
+                <button class="theme-toggle" id="theme-toggle" type="button" aria-label="تبديل المظهر" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
             </div>
         </header>
 
@@ -44,9 +54,13 @@
             <div class="search-section">
                 <form id="form" class="search-form"
                     style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                    <label for="name" class="sr-only">الاسم</label>
                     <input id="name" placeholder="الاسم" required>
+                    <label for="email" class="sr-only">البريد الإلكتروني</label>
                     <input id="email" type="email" placeholder="البريد" required>
-                    <input id="password" type="password" placeholder="كلمة المرور">
+                    <label for="password" class="sr-only">كلمة المرور</label>
+                    <input id="password" type="password" placeholder="كلمة المرور" autocomplete="new-password">
+                    <label for="role" class="sr-only">الدور</label>
                     <select id="role">
                         <option value="admin">admin</option>
                         <option value="staff">staff</option>
@@ -58,6 +72,7 @@
 
             <div class="students-results">
                 <table class="students-table">
+                    <caption class="sr-only">قائمة المستخدمين المسجلين</caption>
                     <thead>
                         <tr>
                             <th>#</th>
@@ -171,8 +186,8 @@
             document.getElementById('tbody').innerHTML = rows.length ? rows.map((u, i) => `
                 <tr>
                     <td>${i + 1}</td>
-                    <td>${u.name || '-'}</td>
-                    <td>${u.email || '-'}</td>
+                    <td>${_safeText(u.name || '-')}</td>
+                    <td>${_safeText(u.email || '-')}</td>
                     <td>
                         <select onchange="changeRole(${u.id}, this.value)">
                             <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
