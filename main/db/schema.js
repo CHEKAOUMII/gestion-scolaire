@@ -553,14 +553,24 @@ function ensurePageVisibilitySchema(existingDb) {
         ON page_visibility(is_visible);
     `);
 
-    // Read default hidden pages from the bundled config file
+    // Track the applied defaults version so developer changes propagate automatically
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS app_meta(
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+    `);
+
+    // Read default hidden pages and version from the bundled config file
     const path = require('path');
     const fs = require('fs');
     let hiddenPages = new Set(['student-profile-prototype.html', 'communication-center-prototype.html']);
+    let configVersion = 0;
     try {
         const defaultsPath = path.join(__dirname, '..', '..', 'page-visibility-defaults.json');
         if (fs.existsSync(defaultsPath)) {
             const parsed = JSON.parse(fs.readFileSync(defaultsPath, 'utf-8'));
+            configVersion = Number(parsed.version) || 0;
             if (Array.isArray(parsed.hiddenPages) && parsed.hiddenPages.length > 0) {
                 hiddenPages = new Set(parsed.hiddenPages.filter((p) => typeof p === 'string' && p.endsWith('.html')));
             }
@@ -569,12 +579,33 @@ function ensurePageVisibilitySchema(existingDb) {
         // fallback to hardcoded defaults above
     }
 
-    // Seed ALL managed pages with their default visibility.
-    // INSERT OR IGNORE ensures existing user choices are never overwritten.
+    // Check the last applied defaults version
+    const appliedRow = db.prepare("SELECT value FROM app_meta WHERE key = 'page_visibility_defaults_version'").get();
+    const appliedVersion = Number(appliedRow?.value) || 0;
+    const needsForceUpdate = configVersion > appliedVersion;
+
     const ALL_MANAGED_PAGES = require('./managed-pages');
-    const stmt = db.prepare('INSERT OR IGNORE INTO page_visibility(page_key, is_visible) VALUES(?, ?)');
-    for (const page of ALL_MANAGED_PAGES) {
-        stmt.run(page, hiddenPages.has(page) ? 0 : 1);
+
+    if (needsForceUpdate) {
+        // Developer bumped the version → force-update ALL pages to match new defaults
+        const upsert = db.prepare(`
+            INSERT INTO page_visibility(page_key, is_visible, updated_at)
+            VALUES(?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(page_key) DO UPDATE SET is_visible = excluded.is_visible, updated_at = CURRENT_TIMESTAMP
+        `);
+        for (const page of ALL_MANAGED_PAGES) {
+            upsert.run(page, hiddenPages.has(page) ? 0 : 1);
+        }
+        // Record the applied version
+        db.prepare("INSERT INTO app_meta(key, value) VALUES('page_visibility_defaults_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+            .run(String(configVersion));
+        console.log(`[schema] page_visibility: force-updated to defaults version ${configVersion}`);
+    } else {
+        // Same version → only seed missing pages (INSERT OR IGNORE)
+        const stmt = db.prepare('INSERT OR IGNORE INTO page_visibility(page_key, is_visible) VALUES(?, ?)');
+        for (const page of ALL_MANAGED_PAGES) {
+            stmt.run(page, hiddenPages.has(page) ? 0 : 1);
+        }
     }
 }
 

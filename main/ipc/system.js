@@ -252,13 +252,13 @@ function registerSystemIpc(ipcMain) {
             const { getDbPath } = require('../db/context');
             const database = getDb();
 
-            // Checkpoint WAL to ensure all data is in the main file
-            console.log('[backup] backupDb: checkpointing WAL...');
-            database.pragma('wal_checkpoint(TRUNCATE)');
-
-            const dbPath = getDbPath();
-            console.log('[backup] backupDb: reading DB file from', dbPath);
-            const fileBuffer = fs.readFileSync(dbPath);
+            // Use better-sqlite3's native backup API for safe, complete snapshots (includes WAL)
+            const backupTempPath = getDbPath() + '.backup.tmp';
+            console.log('[backup] backupDb: using native database.backup() to', backupTempPath);
+            await database.backup(backupTempPath);
+            
+            const fileBuffer = fs.readFileSync(backupTempPath);
+            fs.unlinkSync(backupTempPath);
             console.log('[backup] backupDb: DB file size =', fileBuffer.length, 'bytes');
 
             return {
@@ -271,6 +271,14 @@ function registerSystemIpc(ipcMain) {
                 }
             };
         } catch (err) {
+            // Clean up left-over temporary backup file if any error occurs
+            try {
+                const fs = require('fs');
+                const { getDbPath } = require('../db/context');
+                const tmpPath = getDbPath() + '.backup.tmp';
+                if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+            } catch (_) {}
+            
             console.error('[backup] backupDb: FAILED —', err.message);
             if (err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN') {
                 return authErrorResponse(err);

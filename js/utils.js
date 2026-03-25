@@ -200,8 +200,8 @@ function _canRoleOpenPage(pageName, authRole, accessState) {
     const normalizedPage = _normalizePageKey(pageName);
     if (!normalizedPage) return false;
     if (_isDeveloperRole(authRole)) return true;
-    if (_isPageHiddenByAdminToggle(normalizedPage, authRole)) return false;
     if (ADMIN_ONLY_PAGES.has(normalizedPage)) return _isAdminRole(authRole);
+    if (_isPageHiddenByAdminToggle(normalizedPage, authRole)) return false;
 
     // Authenticated users (any role) can access non-admin pages
     if (_isAuthenticatedRole(authRole)) return true;
@@ -258,10 +258,11 @@ function applyPageVisibilityToDocument(role) {
     document.querySelectorAll('a[href], [onclick*="location.href"], [data-page-link]').forEach((node) => {
         const linkedPage = _extractLinkedPageFromElement(node);
         if (!linkedPage) return;
+        const isAdmin = _isAdminRole(role);
         const shouldHide =
             !isDev && (
                 (ADMIN_ONLY_PAGES.has(linkedPage) && !isAdmin) ||
-                _isPageHiddenByAdminToggle(linkedPage, role)
+                (_isPageHiddenByAdminToggle(linkedPage, role) && !(ADMIN_ONLY_PAGES.has(linkedPage) && isAdmin))
             );
         _setPageLinkElementHidden(node, shouldHide);
     });
@@ -573,10 +574,13 @@ function applyNavigationRestrictions(authRole, accessState) {
 
         const isAdmin = _isAdminRole(authRole);
 
-        if (!isDev && ((isAdminOnlyPage && !isAdmin) || isHiddenByAdmin)) {
+        // Do not allow hiding admin-only pages from admins, else they can't manage settings
+        const effectivelyHiddenByAdmin = isHiddenByAdmin && !(isAdminOnlyPage && isAdmin);
+
+        if (!isDev && ((isAdminOnlyPage && !isAdmin) || effectivelyHiddenByAdmin)) {
             if (listItem) listItem.style.display = 'none';
             return;
-        } else if (isAdminOnlyPage || isHiddenByAdmin) {
+        } else if (isAdminOnlyPage || effectivelyHiddenByAdmin) {
             if (listItem) listItem.style.display = '';
         }
 
