@@ -409,6 +409,13 @@ function activateLicense({ licenseKey, deviceName } = {}) {
         license = db.prepare('SELECT * FROM licenses WHERE id = ?').get(license.id);
     }
 
+    // Save the license key for sync authentication
+    try {
+        db.prepare('UPDATE sync_config SET license_key = ? WHERE id = 1').run(decoded.normalizedKey);
+    } catch {
+        // sync_config table may not exist yet (pre-migration) — safe to ignore
+    }
+
     const activeRows = db
         .prepare(
             `
