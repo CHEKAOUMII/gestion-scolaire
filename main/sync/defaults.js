@@ -1,6 +1,7 @@
 'use strict';
 
-const DEFAULT_AWS_REGION = 'us-east-1';
+const DEFAULT_AWS_REGION = 'eu-west-1';
+const DEFAULT_AUTH_LAMBDA_URL = 'https://mntx5r4cijucr5p2cegkc34psi0afavh.lambda-url.eu-west-1.on.aws';
 
 function firstNonEmptyString(...values) {
     for (const value of values) {
@@ -20,7 +21,7 @@ function normalizeAuthLambdaUrl(value) {
 function getAppSyncDefaults(env = process.env) {
     return {
         authLambdaUrl: normalizeAuthLambdaUrl(
-            firstNonEmptyString(env.AUTH_LAMBDA_URL, env.SYNC_AUTH_LAMBDA_URL, env.GESTION_AUTH_LAMBDA_URL)
+            firstNonEmptyString(env.AUTH_LAMBDA_URL, env.SYNC_AUTH_LAMBDA_URL, env.GESTION_AUTH_LAMBDA_URL, DEFAULT_AUTH_LAMBDA_URL)
         ),
         awsRegion:
             firstNonEmptyString(env.AWS_REGION, env.AWS_DEFAULT_REGION, env.SYNC_AWS_REGION) || DEFAULT_AWS_REGION

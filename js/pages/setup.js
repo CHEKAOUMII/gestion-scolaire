@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function isValidMassarCode(code) {
-        return /^[A-Za-z]\d{4,8}$/.test(
+        return /^\d{3,8}[A-Za-z]{1,2}$/.test(
             String(code || '')
                 .trim()
                 .toUpperCase()
@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let hasError = false;
 
         if (!isValidMassarCode(massarCode)) {
-            showFieldError('new-massar-error', 'رمز ماسار غير صالح - يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام');
+            showFieldError('new-massar-error', 'رمز GRESA غير صالح - يجب أن يتكون من أرقام متبوعة بحرف أو حرفين (مثال: 14007Z)');
             hasError = true;
         }
         if (!adminName) {
@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let hasError = false;
         if (!isValidMassarCode(massarCode)) {
-            showFieldError('link-massar-error', 'رمز ماسار غير صالح - يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام');
+            showFieldError('link-massar-error', 'رمز GRESA غير صالح - يجب أن يتكون من أرقام متبوعة بحرف أو حرفين (مثال: 14007Z)');
             hasError = true;
         }
         if (!userName || userName.length < 2) {

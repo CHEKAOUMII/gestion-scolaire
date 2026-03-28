@@ -235,6 +235,7 @@ contextBridge.exposeInMainWorld('api', {
 
     // System backup/restore
     system: {
+        getAppVersion: () => ipcRenderer.invoke('system:getAppVersion'),
         printCurrentWindow: (options = {}) => ipcRenderer.invoke('system:printCurrentWindow', options),
         printToPDF: (options = {}) => ipcRenderer.invoke('system:printToPDF', options),
         printHTML: (payload = {}) => ipcRenderer.invoke('system:printHTML', payload),
@@ -287,6 +288,7 @@ contextBridge.exposeInMainWorld('api', {
         getConfig: () => ipcRenderer.invoke('sync:getConfig'),
         getStatus: () => ipcRenderer.invoke('sync:getStatus'),
         setConfig: (updates) => ipcRenderer.invoke('sync:setConfig', updates),
+        toggleEnabled: (enabled) => ipcRenderer.invoke('sync:toggleEnabled', enabled),
         triggerNow: () => ipcRenderer.invoke('sync:triggerNow'),
         getConflictLog: (options) => ipcRenderer.invoke('sync:getConflictLog', options),
         resolveConflict: (payload) => ipcRenderer.invoke('sync:resolveConflict', payload),

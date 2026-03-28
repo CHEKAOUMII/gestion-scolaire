@@ -185,6 +185,7 @@ const CHANNEL_REGISTRY = {
 
     // === sync.js ===
     'sync:setConfig': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'sync:toggleEnabled': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:triggerNow': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:resolveConflict': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:testConnection': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },

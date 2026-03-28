@@ -579,7 +579,7 @@ const MIGRATIONS = [
         version: '2026-03-031-push-engine-config',
         up: () => {
             ensureColumn('sync_config', 'auth_lambda_url', 'TEXT');
-            ensureColumn('sync_config', 'aws_region', "TEXT DEFAULT 'us-east-1'");
+            ensureColumn('sync_config', 'aws_region', "TEXT DEFAULT 'eu-west-1'");
             ensureColumn('sync_config', 'last_push_at', 'DATETIME');
             ensureColumn('sync_config', 'last_push_error', 'TEXT');
             ensureColumn('sync_config', 'push_batch_size', 'INTEGER DEFAULT 100');
@@ -621,7 +621,7 @@ const MIGRATIONS = [
 
             // 3. Add push-engine columns to sync_config (idempotent)
             ensureColumn('sync_config', 'auth_lambda_url', 'TEXT');
-            ensureColumn('sync_config', 'aws_region', "TEXT DEFAULT 'us-east-1'");
+            ensureColumn('sync_config', 'aws_region', "TEXT DEFAULT 'eu-west-1'");
             ensureColumn('sync_config', 'last_push_at', 'DATETIME');
             ensureColumn('sync_config', 'last_push_error', 'TEXT');
             ensureColumn('sync_config', 'push_batch_size', 'INTEGER DEFAULT 100');

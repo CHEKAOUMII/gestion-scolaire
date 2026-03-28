@@ -57,7 +57,8 @@ async function runSnapshotCycle() {
             };
         }
 
-        const tableNames = Object.keys(ENTITY_TYPE_REGISTRY);
+        const VIRTUAL_ENTITIES = new Set(['device_revocation']);
+        const tableNames = Object.keys(ENTITY_TYPE_REGISTRY).filter((t) => !VIRTUAL_ENTITIES.has(t));
 
         for (const tableName of tableNames) {
             try {

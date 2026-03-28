@@ -845,22 +845,25 @@ function _ensureActivationModal(forced = false) {
             return;
         }
 
-        const reqRes = await window.api.licensing.getActivationRequest();
-        const res = await window.api.licensing.activatePublic({
-            licenseKey,
-            deviceName: reqRes?.deviceName || ''
-        });
+        try {
+            const reqRes = await window.api.licensing.getActivationRequest();
+            const res = await window.api.licensing.activatePublic({
+                licenseKey,
+                deviceName: reqRes?.deviceName || ''
+            });
 
-        if (!res?.success) {
-            showToast(res?.error || 'فشل التفعيل', 'error');
-            return;
+            if (!res?.success) {
+                showToast(res?.error || 'فشل التفعيل', 'error');
+                return;
+            }
+
+            if (serialInput) serialInput.value = '';
+            showToast('تم تفعيل البرنامج بنجاح', 'success');
+            modal.style.display = 'none';
+            window.location.reload();
+        } catch (err) {
+            showToast(err?.message || 'حدث خطأ أثناء التفعيل', 'error');
         }
-
-        if (serialInput) serialInput.value = '';
-        showToast('تم تفعيل البرنامج بنجاح', 'success');
-        modal.style.display = 'none';
-        // Reload the page to apply licensed mode properly
-        window.location.reload();
     });
 
     return modal;

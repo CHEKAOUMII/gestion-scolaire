@@ -1,4 +1,17 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json)",
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)",
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/create-new-feature.ps1 \"Auto-generate trial sync key on app startup when trial is active and no key exists\" -Json -ShortName \"auto-sync-trial-key\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File .specify/scripts/powershell/create-new-feature.ps1 \"Hide License Key Field from Sync Settings UI\" -Json -ShortName \"hide-sync-license-field\")",
+      "Bash(powershell -File .specify/scripts/powershell/create-new-feature.ps1 \"Update sync_config.license_key automatically when license status changes \\(deactivation, expiration, reactivation\\)\" -Json -ShortName \"sync-key-license-change\")",
+      "Bash(powershell -File .specify/scripts/powershell/setup-plan.ps1 -Json)",
+      "Bash(powershell -File .specify/scripts/powershell/update-agent-context.ps1 -AgentType claude)",
+      "Bash(powershell -File .specify/scripts/powershell/check-prerequisites.ps1 -Json)",
+      "Bash(powershell -File .specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks)"
+    ]
+  },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,

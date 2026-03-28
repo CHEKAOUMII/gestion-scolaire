@@ -1,3 +1,4 @@
+const { app } = require('electron');
 const { getDb } = require('../db/context');
 const { printHTML } = require('../print-window');
 const { requireRole, getSessionByEvent } = require('./auth');
@@ -5,6 +6,9 @@ const { hashPassword, generateRandomPassword } = require('../auth/password');
 const { authErrorResponse, handleWrite, handleRead } = require('./ipc-helpers');
 
 function registerSystemIpc(ipcMain) {
+    ipcMain.handle('system:getAppVersion', async () => {
+        return { success: true, version: app.getVersion() };
+    });
     // IPC Handlers - System logs
     handleRead(ipcMain, 'systemLogs:getAll', (db, limit) => {
         return db

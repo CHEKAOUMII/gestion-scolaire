@@ -6,11 +6,13 @@ const KEY_PREFIX = 'GSLK-';
 const ALLOWED_PLANS = new Set(['basic', 'pro', 'business']);
 
 /**
- * Resolve the signing secret using a strict priority:
- *   1. GESTION_LICENSE_SECRET env var (set at build time or for the CLI script)
- *   2. Per-installation persistent secret file in userData
- *   3. Generate and persist a new per-installation secret on first launch
+ * Embedded master signing secret shared across all installations.
+ * This ensures serials generated on any machine can be verified by any other.
+ * Override with GESTION_LICENSE_SECRET env var for custom deployments.
  */
+const EMBEDDED_MASTER_SECRET =
+    'gslk_a7f3c9e1b4d6082f5a1e9c7d3b8f2054e6a9d1c4f7b3e8a2d5c0f6193e7b4a' +
+    '8d2f5e1c9a7b4063d8f2a5e1c7b9d4f6083a2e5c1d9b7f4a6e3c0821d5f9a7b4';
 let _cachedSecret = null;
 
 function _readPerInstallationSecret() {
@@ -37,28 +39,9 @@ function getSigningSecret() {
         return _cachedSecret;
     }
 
-    // Priority 2: Per-installation persistent secret file
-    const localSecret = _readPerInstallationSecret();
-    if (localSecret) {
-        _cachedSecret = localSecret;
-        return _cachedSecret;
-    }
-
-    // Priority 3: Generate a new per-installation secret (first launch)
-    try {
-        const { app } = require('electron');
-        const secretPath = path.join(app.getPath('userData'), '.license-secret');
-        const newSecret = crypto.randomBytes(64).toString('hex');
-        fs.mkdirSync(path.dirname(secretPath), { recursive: true });
-        fs.writeFileSync(secretPath, newSecret, { mode: 0o600 });
-        _cachedSecret = newSecret;
-        return _cachedSecret;
-    } catch (_err) {
-        throw new Error(
-            'GESTION_LICENSE_SECRET must be set when running outside Electron.\n' +
-                'Example: set GESTION_LICENSE_SECRET=<your-secret>&& node scripts/generate-license-key.js ...'
-        );
-    }
+    // Priority 2: Embedded master secret (shared across all installations)
+    _cachedSecret = EMBEDDED_MASTER_SECRET;
+    return _cachedSecret;
 }
 
 function normalizeLicenseKey(value) {

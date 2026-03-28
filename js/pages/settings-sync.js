@@ -31,9 +31,8 @@
 
 // ── Hardcoded sync defaults (so users don't have to enter these) ──
 const SYNC_HARDCODED_DEFAULTS = {
-    awsRegion: 'us-east-1',
-    // authLambdaUrl will be set once infra is deployed
-    // authLambdaUrl: 'https://xxxxx.lambda-url.us-east-1.on.aws'
+    awsRegion: 'eu-west-1',
+    authLambdaUrl: 'https://mntx5r4cijucr5p2cegkc34psi0afavh.lambda-url.eu-west-1.on.aws'
 };
 
 let statusTimer = null;
@@ -80,8 +79,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 2. Hide admin-only elements for non-privileged users (admin & developer can see all)
+    //    But allow staff to see OTP device linking panel
     if (!isAdmin) {
         document.body.classList.add('sync-readonly');
+    }
+
+    // Staff role can still access the OTP device linking feature
+    {
+        const rawSession = localStorage.getItem('gsl_auth_session_v1');
+        if (rawSession) {
+            try {
+                const sess = JSON.parse(rawSession);
+                const role = String(sess?.role || '').toLowerCase();
+                if (role === 'staff') {
+                    const otpPanel = document.getElementById('device-otp-panel');
+                    if (otpPanel) otpPanel.classList.remove('otp-role-gated');
+                }
+            } catch (_) { /* */ }
+        }
     }
 
     // 3. Load initial data
@@ -308,10 +323,13 @@ async function loadConfig() {
             if (el) el.checked = !!val;
         };
 
-        setChecked('cfg-enabled', config.enabled);
+        setChecked('cfg-enabled-toggle', config.enabled);
+        // Keep hidden cfg-enabled in sync for the admin form
+        const hiddenEnabled = document.getElementById('cfg-enabled');
+        if (hiddenEnabled) hiddenEnabled.value = config.enabled ? '1' : '0';
         setVal('cfg-school-id', config.schoolId || '');
         setVal('cfg-auth-url', config.authLambdaUrl || '');
-        setVal('cfg-region', config.awsRegion || 'us-east-1');
+        setVal('cfg-region', config.awsRegion || 'eu-west-1');
         setVal('cfg-interval', config.syncIntervalMinutes || 10);
         setVal('cfg-batch-size', config.pushBatchSize || 100);
         setVal('cfg-max-retries', config.maxRetries || 10);
@@ -333,7 +351,7 @@ function initConfigForm() {
 
         const validationDiv = document.getElementById('config-validation');
 
-        const enabled = document.getElementById('cfg-enabled')?.checked;
+        const enabled = document.getElementById('cfg-enabled-toggle')?.checked;
         const schoolId = document.getElementById('cfg-school-id')?.value?.trim();
         const authUrl = document.getElementById('cfg-auth-url')?.value?.trim();
         const region = document.getElementById('cfg-region')?.value?.trim();
@@ -342,7 +360,6 @@ function initConfigForm() {
         const maxRetries = parseInt(document.getElementById('cfg-max-retries')?.value, 10);
         const retention = parseInt(document.getElementById('cfg-retention')?.value, 10);
         const snapshotInterval = parseInt(document.getElementById('cfg-snapshot-interval')?.value, 10);
-        const licenseKey = document.getElementById('cfg-license-key')?.value?.trim() || null;
 
         // Client-side validation
         const errors = [];
@@ -379,7 +396,6 @@ function initConfigForm() {
         if (!isNaN(maxRetries)) updates.maxRetries = maxRetries;
         if (!isNaN(retention)) updates.retentionDays = retention;
         if (!isNaN(snapshotInterval)) updates.snapshotIntervalMinutes = snapshotInterval;
-        if (licenseKey !== null) updates.licenseKey = licenseKey;
 
         try {
             const result = await window.api.sync.setConfig(updates);
@@ -393,6 +409,37 @@ function initConfigForm() {
         } catch (err) {
             console.error('setConfig error:', err);
             showToast('حدث خطأ أثناء الحفظ', 'error');
+        }
+    });
+}
+
+// ==================== Standalone Sync Toggle (visible to all users) ====================
+
+function initSyncToggle() {
+    const toggle = document.getElementById('cfg-enabled-toggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('change', async () => {
+        // Admins use the full config form — don't double-save
+        if (isAdmin) return;
+
+        try {
+            const result = await window.api.sync.toggleEnabled(toggle.checked);
+            if (result.success) {
+                showToast(
+                    toggle.checked ? 'تم تفعيل المزامنة' : 'تم تعطيل المزامنة',
+                    'success'
+                );
+                await refreshStatus();
+            } else {
+                showToast(result.error || 'فشل تحديث حالة المزامنة', 'error');
+                // Revert the toggle on failure
+                toggle.checked = !toggle.checked;
+            }
+        } catch (err) {
+            console.error('sync toggle error:', err);
+            showToast('حدث خطأ أثناء تحديث حالة المزامنة', 'error');
+            toggle.checked = !toggle.checked;
         }
     });
 }
@@ -1396,6 +1443,7 @@ function initDeviceManagement() {
 // These run after DOMContentLoaded fires (the listener above handles data loading)
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+        initSyncToggle();
         initConfigForm();
         initTestConnection();
         initSyncNow();
@@ -1403,6 +1451,7 @@ if (document.readyState === 'loading') {
         initDeviceManagement();
     });
 } else {
+    initSyncToggle();
     initConfigForm();
     initTestConnection();
     initSyncNow();

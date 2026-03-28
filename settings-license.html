@@ -39,11 +39,6 @@
                     >
                         <i class="fas fa-bars"></i>
                     </button>
-                    <h2
-                        class="page-title m-0 inline-flex items-center gap-2.5 whitespace-nowrap text-[clamp(1.1rem,1.8vw,1.5rem)] font-bold text-[var(--color-text-main)]"
-                    >
-                        <i class="fas fa-key"></i> إدارة الترخيص
-                    </h2>
                 </div>
                 <div class="header-right flex min-w-0 shrink flex-wrap items-center gap-2">
                     <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
@@ -52,227 +47,293 @@
                 </div>
             </header>
 
-            <div class="grades-container">
-                <div class="search-section">
-                    <h3><i class="fas fa-plug"></i> تفعيل المفتاح</h3>
-                    <form
-                        id="activate-form"
-                        class="search-form grid items-center gap-2.5 md:grid-cols-2 xl:grid-cols-[2fr_1fr_auto]"
-                    >
-                        <input
-                            id="license-key"
-                            type="text"
-                            placeholder="ألصق مفتاح الترخيص هنا"
-                            required
-                            autocomplete="off"
-                        />
-                        <input id="device-name" type="text" placeholder="اسم الجهاز (اختياري)" />
-                        <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> تفعيل</button>
+            <!-- Page Header with gradient accent -->
+            <div class="mb-6 px-1">
+                <div class="inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-l from-[#0f766e] via-[#0d9488] to-[#14b8a6] px-4 py-2.5 shadow-md">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                        <i class="fas fa-key text-sm text-white"></i>
+                    </div>
+                    <div>
+                        <h2 class="page-title m-0 text-[1rem] font-bold leading-tight text-white">إدارة الترخيص</h2>
+                        <p class="mt-0 text-[0.7rem] text-white/65">تفعيل المفاتيح وإدارة أجهزة العملاء</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grades-container grid gap-6">
+                <!-- Section 1: License Status -->
+                <div class="students-results overflow-hidden" id="license-status-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-heartbeat"></i> حالة الترخيص</h3>
+                    <div class="px-6 pb-6">
+                        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-teal-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-500"><i class="fas fa-toggle-on text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">الحالة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-value">-</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><i class="fas fa-gem text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">الباقة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="plan-value">-</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-emerald-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500"><i class="fas fa-laptop text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">الأجهزة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="devices-value">0 / 0</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-amber-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500"><i class="fas fa-calendar-times text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">انتهاء الترخيص</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="expiry-value">-</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-rose-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500"><i class="fas fa-hourglass-half text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">المهلة دون إنترنت</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="grace-value">-</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-cyan-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"><i class="fas fa-shield-alt text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر تحقق</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="validated-value">-</div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--glass-border)] pt-5">
+                            <button class="btn btn-primary" type="button" id="refresh-btn">
+                                <i class="fas fa-sync-alt"></i> تحديث
+                            </button>
+                            <button class="btn btn-warning" type="button" id="revalidate-btn">
+                                <i class="fas fa-cloud-check"></i> تحديث التحقق
+                            </button>
+                            <button class="btn btn-secondary" type="button" id="deactivate-btn">
+                                <i class="fas fa-unlink"></i> تعطيل هذا الجهاز
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: License Activation -->
+                <div class="students-results overflow-hidden" id="license-activation-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-plug"></i> تفعيل المفتاح</h3>
+                    <form id="activate-form" class="px-6 pb-6">
+                        <div class="grid gap-5 md:grid-cols-2">
+                            <div>
+                                <label for="license-key" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">مفتاح الترخيص</label>
+                                <input
+                                    id="license-key"
+                                    type="text"
+                                    placeholder="ألصق مفتاح الترخيص هنا"
+                                    required
+                                    autocomplete="off"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
+                            </div>
+                            <div>
+                                <label for="device-name" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">اسم الجهاز (اختياري)</label>
+                                <input
+                                    id="device-name"
+                                    type="text"
+                                    placeholder="اسم الجهاز (اختياري)"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
+                            </div>
+                        </div>
+                        <p class="mt-3 text-xs text-[var(--color-text-muted)]">
+                            <i class="fas fa-info-circle"></i> Basic = 1 جهاز | Pro = 3 أجهزة | Business = 10 أجهزة
+                        </p>
+                        <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--glass-border)] pt-5">
+                            <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> تفعيل</button>
+                        </div>
                     </form>
-                    <p class="mt-2 text-xs font-semibold text-[var(--color-text-muted)]">
-                        Basic = 1 جهاز | Pro = 3 أجهزة | Business = 10 أجهزة
-                    </p>
                 </div>
 
-                <div class="search-section">
-                    <h3><i class="fas fa-magic"></i> مولد السيريال (Admin Tool)</h3>
-                    <form id="serial-form" class="search-form grid items-center gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-                        <select id="serial-plan" required>
-                            <option value="basic">Basic (1)</option>
-                            <option value="pro">Pro (3)</option>
-                            <option value="business">Business (10)</option>
-                        </select>
-                        <input id="serial-days" type="number" min="1" max="3650" value="365" placeholder="عدد الأيام" />
-                        <input id="serial-customer" type="text" placeholder="مرجع الزبون (اختياري)" />
-                        <input id="serial-device-code" type="text" placeholder="Device Code (64-hex, اختياري)" />
-                        <label class="flex items-center gap-2 text-[13px] font-semibold text-[var(--color-text-main)]">
-                            <input id="serial-online" type="checkbox" /> يتطلب تحقق إنترنت
-                        </label>
-                        <button class="btn btn-primary" type="submit"><i class="fas fa-key"></i> توليد</button>
+                <!-- Section 3: Serial Generator (Admin Tool) -->
+                <div class="students-results overflow-hidden" id="serial-generator-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-magic text-amber-500"></i> مولد السيريال (Admin Tool)</h3>
+                    <form id="serial-form" class="px-6 pb-6">
+                        <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                            <div>
+                                <label for="serial-plan" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">الباقة</label>
+                                <select id="serial-plan" required class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none">
+                                    <option value="basic">Basic (1)</option>
+                                    <option value="pro">Pro (3)</option>
+                                    <option value="business">Business (10)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="serial-days" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">عدد الأيام</label>
+                                <input id="serial-days" type="number" min="1" max="3650" value="365" placeholder="عدد الأيام" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]" />
+                            </div>
+                            <div>
+                                <label for="serial-customer" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">مرجع الزبون (اختياري)</label>
+                                <input id="serial-customer" type="text" placeholder="مرجع الزبون" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]" />
+                            </div>
+                            <div>
+                                <label for="serial-device-code" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">Device Code (64-hex, اختياري)</label>
+                                <input id="serial-device-code" type="text" placeholder="Device Code" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]" />
+                            </div>
+                            <div class="flex items-end">
+                                <label class="flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]">
+                                    <input id="serial-online" type="checkbox" class="h-4 w-4 accent-[var(--color-primary)]" />
+                                    <span class="font-semibold text-sm text-[var(--color-text-main)]">يتطلب تحقق إنترنت</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mt-5 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4">
+                            <label for="serial-output" class="mb-1.5 block text-xs font-semibold text-[var(--color-text-muted)]"><i class="fas fa-terminal"></i> السيريال المولّد</label>
+                            <textarea
+                                id="serial-output"
+                                class="min-h-[72px] w-full rounded-lg border border-[var(--glass-border)] bg-[var(--color-surface)] p-2.5 font-mono text-sm text-[var(--color-text-main)]"
+                                dir="ltr"
+                                readonly
+                                placeholder="سيظهر السيريال هنا"
+                            ></textarea>
+                            <div class="mt-2.5 flex items-center gap-2">
+                                <button id="copy-serial-btn" class="btn btn-secondary btn-sm" type="button">
+                                    <i class="fas fa-copy"></i> نسخ السيريال
+                                </button>
+                                <span class="text-xs text-[var(--color-text-muted)]">لربط السيريال بجهاز محدد، ألصق Device Code الذي يرسله العميل.</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--glass-border)] pt-5">
+                            <button class="btn btn-primary" type="submit"><i class="fas fa-key"></i> توليد</button>
+                        </div>
                     </form>
-
-                    <div class="mt-2.5 flex flex-wrap gap-2">
-                        <textarea
-                            id="serial-output"
-                            class="min-h-[84px] w-full rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--color-surface)] p-2.5 font-mono text-[var(--color-text-main)]"
-                            dir="ltr"
-                            readonly
-                            placeholder="سيظهر السيريال هنا"
-                        ></textarea>
-                        <button id="copy-serial-btn" class="btn btn-secondary" type="button">
-                            <i class="fas fa-copy"></i> نسخ السيريال
-                        </button>
-                    </div>
-                    <p class="mt-2 text-xs font-semibold text-[var(--color-text-muted)]">
-                        لربط السيريال بجهاز محدد، ألصق Device Code الذي يرسله العميل.
-                    </p>
                 </div>
 
-                <div class="search-section">
-                    <h3><i class="fas fa-satellite-dish"></i> مزامنة أجهزة العملاء (Owner Dashboard Sync)</h3>
-                    <form id="owner-sync-form" class="grid items-center gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-                        <input
-                            id="owner-sync-url"
-                            type="text"
-                            placeholder="رابط الخادم (مثال: https://my-server.com)"
-                        />
-                        <input id="owner-sync-write-token" type="text" placeholder="Write Token (للأجهزة المباعة)" />
-                        <input id="owner-sync-read-token" type="text" placeholder="Read Token (Dashboard admin)" />
-                        <input
-                            id="owner-sync-heartbeat"
-                            type="number"
-                            min="5"
-                            max="1440"
-                            placeholder="كل كم دقيقة؟"
-                            value="360"
-                        />
-                        <label class="flex items-center gap-2 text-[13px] font-semibold text-[var(--color-text-main)]">
-                            <input id="owner-sync-enabled" type="checkbox" /> تفعيل المزامنة
-                        </label>
-                        <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> حفظ الإعدادات</button>
-                        <button class="btn btn-secondary" id="owner-sync-test" type="button">
-                            <i class="fas fa-vial"></i> اختبار الاتصال
-                        </button>
-                        <button class="btn btn-warning" id="owner-sync-now" type="button">
-                            <i class="fas fa-cloud-upload-alt"></i> مزامنة الآن
-                        </button>
-                    </form>
+                <!-- Section 4: Owner Dashboard Sync -->
+                <div class="students-results overflow-hidden" id="owner-sync-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-satellite-dish"></i> مزامنة أجهزة العملاء (Owner Dashboard Sync)</h3>
+                    <div class="px-6 pb-6">
+                        <form id="owner-sync-form">
+                            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                                <div>
+                                    <label for="owner-sync-url" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">رابط الخادم</label>
+                                    <input
+                                        id="owner-sync-url"
+                                        type="text"
+                                        placeholder="https://my-server.com"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
+                                </div>
+                                <div>
+                                    <label for="owner-sync-write-token" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">Write Token (للأجهزة المباعة)</label>
+                                    <input id="owner-sync-write-token" type="text" placeholder="Write Token" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]" />
+                                </div>
+                                <div>
+                                    <label for="owner-sync-read-token" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">Read Token (Dashboard admin)</label>
+                                    <input id="owner-sync-read-token" type="text" placeholder="Read Token" class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]" />
+                                </div>
+                                <div>
+                                    <label for="owner-sync-heartbeat" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">فترة المزامنة (دقائق)</label>
+                                    <input
+                                        id="owner-sync-heartbeat"
+                                        type="number"
+                                        min="5"
+                                        max="1440"
+                                        value="360"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
+                                </div>
+                                <div class="flex items-end">
+                                    <label class="flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]">
+                                        <input id="owner-sync-enabled" type="checkbox" class="h-4 w-4 accent-[var(--color-primary)]" />
+                                        <span class="font-semibold text-sm text-[var(--color-text-main)]">تفعيل المزامنة</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <p class="mt-3 text-xs text-[var(--color-text-muted)]">
+                                <i class="fas fa-info-circle"></i> Write Token للأجهزة المباعة (إرسال فقط) و Read Token للأدمن (عرض الإحصاءات).
+                            </p>
+                            <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--glass-border)] pt-5">
+                                <button class="btn btn-primary" type="submit"><i class="fas fa-save"></i> حفظ الإعدادات</button>
+                                <button class="btn btn-secondary" id="owner-sync-test" type="button">
+                                    <i class="fas fa-vial"></i> اختبار الاتصال
+                                </button>
+                                <button class="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-l from-amber-600 to-amber-500 px-5 py-2.5 font-bold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:brightness-110 active:scale-[0.98]" id="owner-sync-now" type="button">
+                                    <i class="fas fa-sync transition-transform duration-300 group-hover:rotate-180"></i>
+                                    <span>مزامنة الآن</span>
+                                </button>
+                            </div>
+                        </form>
 
-                    <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                        <div
-                            class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                        >
-                            <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">
-                                إجمالي الأجهزة (الخادم)
+                        <div class="mt-6 grid gap-3 sm:grid-cols-3">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><i class="fas fa-server text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">إجمالي الأجهزة (الخادم)</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="owner-total-devices">0</div></div>
+                                </div>
                             </div>
-                            <div
-                                class="text-[19px] font-extrabold text-[var(--color-primary)]"
-                                id="owner-total-devices"
-                            >
-                                0
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-emerald-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500"><i class="fas fa-chart-line text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">نشط آخر 24 ساعة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="owner-active-24h">0</div></div>
+                                </div>
                             </div>
-                        </div>
-                        <div
-                            class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                        >
-                            <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">نشط آخر 24 ساعة</div>
-                            <div class="text-[19px] font-extrabold text-[var(--color-primary)]" id="owner-active-24h">
-                                0
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-teal-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-500"><i class="fas fa-check-circle text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">الأجهزة المفعلة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="owner-activated-devices">0</div></div>
+                                </div>
                             </div>
                         </div>
-                        <div
-                            class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                        >
-                            <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">الأجهزة المفعلة</div>
-                            <div
-                                class="text-[19px] font-extrabold text-[var(--color-primary)]"
-                                id="owner-activated-devices"
-                            >
-                                0
-                            </div>
-                        </div>
-                    </div>
 
-                    <div
-                        class="mt-2.5 max-h-60 overflow-auto rounded-[var(--radius-sm)] border border-[var(--glass-border)]"
-                    >
-                        <table class="students-table m-0">
-                            <thead>
-                                <tr>
-                                    <th>الجهاز</th>
-                                    <th>المنصة</th>
-                                    <th>الباقة</th>
-                                    <th>الحالة</th>
-                                    <th>آخر ظهور</th>
-                                </tr>
-                            </thead>
-                            <tbody id="owner-devices-tbody">
-                                <tr>
-                                    <td class="px-4 py-4 text-center" colspan="5">لا توجد بيانات بعد</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="mt-2 text-xs font-semibold text-[var(--color-text-muted)]">
-                        هذه البيانات تأتي من خادم مركزي وتظهر نفس الأجهزة في لوحة التحكم الرئيسية.
-                    </p>
-                    <p class="text-xs font-semibold text-[var(--color-text-muted)]">
-                        Write Token للأجهزة المباعة (إرسال فقط) و Read Token للأدمن (عرض الإحصاءات).
-                    </p>
-                </div>
-
-                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-live="polite">
-                    <div
-                        class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                    >
-                        <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">الحالة</div>
-                        <div class="text-[19px] font-extrabold text-[var(--color-primary)]" id="status-value">-</div>
-                    </div>
-                    <div
-                        class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                    >
-                        <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">الباقة</div>
-                        <div class="text-[19px] font-extrabold text-[var(--color-primary)]" id="plan-value">-</div>
-                    </div>
-                    <div
-                        class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                    >
-                        <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">الأجهزة</div>
-                        <div class="text-[19px] font-extrabold text-[var(--color-primary)]" id="devices-value">
-                            0 / 0
+                        <div class="mt-4 max-h-72 overflow-auto rounded-xl border border-[var(--glass-border)]">
+                            <table class="students-table m-0">
+                                <thead>
+                                    <tr>
+                                        <th>الجهاز</th>
+                                        <th>المنصة</th>
+                                        <th>الباقة</th>
+                                        <th>الحالة</th>
+                                        <th>آخر ظهور</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="owner-devices-tbody">
+                                    <tr>
+                                        <td class="px-4 py-4 text-center" colspan="5">لا توجد بيانات بعد</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
-                    <div
-                        class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                    >
-                        <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">انتهاء الترخيص</div>
-                        <div class="text-[19px] font-extrabold text-[var(--color-primary)]" id="expiry-value">-</div>
-                    </div>
-                    <div
-                        class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                    >
-                        <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">المهلة دون إنترنت</div>
-                        <div class="text-[19px] font-extrabold text-[var(--color-primary)]" id="grace-value">-</div>
-                    </div>
-                    <div
-                        class="rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-soft)]"
-                    >
-                        <div class="mb-1.5 text-xs font-bold text-[var(--color-text-light)]">آخر تحقق</div>
-                        <div class="text-[19px] font-extrabold text-[var(--color-primary)]" id="validated-value">-</div>
+                        <p class="mt-3 text-xs text-[var(--color-text-muted)]">
+                            <i class="fas fa-info-circle"></i> هذه البيانات تأتي من خادم مركزي وتظهر نفس الأجهزة في لوحة التحكم الرئيسية.
+                        </p>
                     </div>
                 </div>
 
-                <div class="students-results">
-                    <div class="mb-2.5 flex flex-wrap gap-2">
-                        <button class="btn btn-primary" type="button" id="refresh-btn">
-                            <i class="fas fa-sync-alt"></i> تحديث
-                        </button>
-                        <button class="btn btn-warning" type="button" id="revalidate-btn">
-                            <i class="fas fa-cloud-check"></i> تحديث التحقق
-                        </button>
-                        <button class="btn btn-secondary" type="button" id="deactivate-btn">
-                            <i class="fas fa-unlink"></i> تعطيل هذا الجهاز
-                        </button>
+                <!-- Section 5: Devices Management Table -->
+                <div class="students-results overflow-hidden" id="devices-management-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-laptop-house"></i> الأجهزة المفعلة</h3>
+                    <div class="px-6 pb-6">
+                        <p class="mb-4 text-xs text-[var(--color-text-muted)]">
+                            <i class="fas fa-shield-alt"></i>
+                            لوحة الإدارة: يمكنك تعطيل أي جهاز مفعّل من الجدول أدناه.
+                        </p>
+                        <div class="overflow-auto rounded-xl border border-[var(--glass-border)]">
+                            <table class="students-table m-0">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>الجهاز</th>
+                                        <th>النظام</th>
+                                        <th>آخر استخدام</th>
+                                        <th>هذه الآلة</th>
+                                        <th>نسبة التطابق</th>
+                                        <th>الإجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devices-tbody"></tbody>
+                            </table>
+                        </div>
                     </div>
-                    <p class="mb-2.5 text-xs font-semibold text-[var(--color-text-muted)]">
-                        <i class="fas fa-shield-alt"></i>
-                        لوحة الإدارة: يمكنك تعطيل أي جهاز مفعّل من الجدول أدناه.
-                    </p>
-
-                    <table class="students-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>الجهاز</th>
-                                <th>النظام</th>
-                                <th>آخر استخدام</th>
-                                <th>هذه الآلة</th>
-                                <th>نسبة التطابق</th>
-                                <th>الإجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody id="devices-tbody"></tbody>
-                    </table>
                 </div>
             </div>
         </main>
@@ -514,7 +575,6 @@
                 if (!window.api?.ownerTelemetry?.getConfig) return;
                 const res = await window.api.ownerTelemetry.getConfig();
                 if (!res?.success) {
-                    // Silently skip auth / config-missing errors — fields stay at defaults
                     if (
                         res?.code !== 'UNAUTHENTICATED' &&
                         res?.code !== 'FORBIDDEN' &&
@@ -537,7 +597,6 @@
                     el('owner-active-24h').textContent = '0';
                     el('owner-activated-devices').textContent = '0';
                     renderOwnerDevices([]);
-                    // Show toast only for unexpected errors, not for missing config or auth
                     if (
                         overviewRes?.code !== 'OWNER_SYNC_CONFIG_MISSING' &&
                         overviewRes?.code !== 'UNAUTHENTICATED' &&

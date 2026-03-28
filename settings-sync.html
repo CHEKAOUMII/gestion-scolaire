@@ -101,6 +101,18 @@
             </div>
 
             <div class="grades-container grid gap-6" id="sync-page-content">
+                <!-- Sync Enable Toggle — visible to ALL users -->
+                <div class="students-results overflow-hidden" id="sync-enable-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-toggle-on"></i> تفعيل المزامنة</h3>
+                    <div class="px-6 pb-6">
+                        <label class="flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]">
+                            <input type="checkbox" id="cfg-enabled-toggle" class="h-4 w-4 accent-[var(--color-primary)]" />
+                            <span class="font-semibold text-[var(--color-text-main)]">تفعيل المزامنة السحابية</span>
+                        </label>
+                        <p class="mt-3 text-xs text-[var(--color-text-muted)]">عند التفعيل، سيتم مزامنة البيانات تلقائياً مع السيرفر.</p>
+                    </div>
+                </div>
+
                 <!-- US1: Status Section -->
                 <div class="students-results overflow-hidden" id="sync-status-section">
                     <h3 class="flex items-center gap-2"><i class="fas fa-heartbeat"></i> حالة المزامنة</h3>
@@ -116,43 +128,43 @@
                             <span class="font-bold text-[var(--color-text-main)]">جاري التحميل...</span>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="status-cards" aria-live="polite">
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] dark:border-white/15 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30">
                                 <div class="flex items-start gap-3">
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><i class="fas fa-wifi text-lg"></i></div>
                                     <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">حالة الاتصال</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-connection">—</div></div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-emerald-500/30">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] dark:border-white/15 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-emerald-500/30">
                                 <div class="flex items-start gap-3">
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500"><i class="fas fa-cloud-upload-alt text-lg"></i></div>
                                     <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر رفع</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-push">—</div></div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-cyan-500/30">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] dark:border-white/15 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-cyan-500/30">
                                 <div class="flex items-start gap-3">
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"><i class="fas fa-cloud-download-alt text-lg"></i></div>
                                     <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر سحب</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-pull">—</div></div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-amber-500/30">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] dark:border-white/15 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-amber-500/30">
                                 <div class="flex items-start gap-3">
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500"><i class="fas fa-hourglass-half text-lg"></i></div>
                                     <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">التغييرات المعلقة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-pending">—</div></div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-rose-500/30">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] dark:border-white/15 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-rose-500/30">
                                 <div class="flex items-start gap-3">
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500"><i class="fas fa-exclamation-triangle text-lg"></i></div>
                                     <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">العناصر الفاشلة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-failed">—</div></div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-orange-500/30">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] dark:border-white/15 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-orange-500/30">
                                 <div class="flex items-start gap-3">
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500"><i class="fas fa-code-branch text-lg"></i></div>
                                     <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">التعارضات</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-conflicts">—</div></div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-violet-500/30">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] dark:border-white/15 bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-violet-500/30">
                                 <div class="flex items-start gap-3">
                                     <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500"><i class="fas fa-camera text-lg"></i></div>
                                     <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر فحص</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-snapshot">—</div></div>
@@ -166,10 +178,7 @@
                 <div class="students-results admin-only overflow-hidden" id="sync-config-section">
                     <h3><i class="fas fa-cog"></i> إعدادات المزامنة</h3>
                     <form id="sync-config-form" class="px-6 pb-6">
-                        <label class="mb-5 flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]">
-                            <input type="checkbox" id="cfg-enabled" class="h-4 w-4 accent-[var(--color-primary)]" />
-                            <span class="font-semibold text-[var(--color-text-main)]">تفعيل المزامنة</span>
-                        </label>
+                        <input type="hidden" id="cfg-enabled" />
                         <div class="grid gap-5 md:grid-cols-2">
                             <div>
                                 <label
@@ -195,7 +204,7 @@
                                     class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
                                 />
                             </div>
-                            <div>
+                            <div hidden>
                                 <label
                                     for="cfg-license-key"
                                     class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
@@ -218,7 +227,7 @@
                                     type="text"
                                     id="cfg-region"
                                     class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
-                                    value="us-east-1"
+                                    value="eu-west-1"
                                 />
                             </div>
                             <div>
@@ -434,13 +443,13 @@
                                 </section>
 
                                 <section
-                                    class="device-card device-card-otp admin-only"
+                                    class="device-card device-card-otp otp-role-gated"
                                     id="device-otp-panel"
                                     aria-labelledby="device-otp-title"
                                 >
                                     <div class="device-card-header">
                                         <h4 id="device-otp-title"><i class="fas fa-key"></i> كود ربط جهاز جديد</h4>
-                                        <span class="device-inline-badge">للمدير فقط</span>
+                                        <span class="device-inline-badge">للمدير والموظفين</span>
                                     </div>
                                     <div id="device-otp-initial">
                                         <p class="device-note">

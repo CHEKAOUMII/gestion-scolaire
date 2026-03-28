@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { app } = require('electron');
 
 const { getDb } = require('../db/context');
+const { readLicenseKey, clearSyncLicenseKey, clearCredentials } = require('../sync/credentials');
 const { getTrialStatus } = require('./trialService');
 const { createOfflineLicenseKey, decodeOfflineLicenseKey } = require('./offlineKey');
 const {
@@ -235,6 +236,17 @@ function getPublicActivationStatus() {
                 trialDuration: trial.trialDuration
             };
         }
+
+        // License/trial expired — clear sync key if still present
+        try {
+            const db = getDb();
+            if (readLicenseKey(db)) {
+                clearSyncLicenseKey(db);
+            }
+        } catch {
+            // safe to ignore
+        }
+
         // Trial expired and no license
         return {
             success: true,
@@ -412,6 +424,7 @@ function activateLicense({ licenseKey, deviceName } = {}) {
     // Save the license key for sync authentication
     try {
         db.prepare('UPDATE sync_config SET license_key = ? WHERE id = 1').run(decoded.normalizedKey);
+        clearCredentials();
     } catch {
         // sync_config table may not exist yet (pre-migration) — safe to ignore
     }
@@ -622,6 +635,9 @@ function deactivateCurrentDevice() {
         matchScore: match.score
     });
 
+    // Clear sync license key and invalidate cached credentials
+    clearSyncLicenseKey(db);
+
     return {
         success: true,
         message: 'Current device deactivated',
@@ -709,10 +725,36 @@ function getPlanLimits() {
     };
 }
 
+function ensureTrialSyncKey() {
+    try {
+        const db = getDb();
+        if (readLicenseKey(db)) {
+            return;
+        }
+
+        const status = getPublicActivationStatus();
+        if (status.status !== 'trial' || !status.trialActive) {
+            return;
+        }
+
+        const key = createOfflineLicenseKey({
+            planCode: 'basic',
+            expiresAt: status.trialEndDate,
+            customerRef: 'TRIAL',
+            requiresOnlineValidation: false
+        });
+
+        db.prepare('UPDATE sync_config SET license_key = ? WHERE id = 1').run(key);
+    } catch (err) {
+        console.error('ensureTrialSyncKey: failed to generate trial sync key', err);
+    }
+}
+
 module.exports = {
     activateLicense,
     adminRevokeDevice,
     deactivateCurrentDevice,
+    ensureTrialSyncKey,
     getActivationRequest,
     getLicenseStatus,
     getPublicActivationStatus,

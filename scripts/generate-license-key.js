@@ -16,17 +16,11 @@ function addDays(days) {
 }
 
 function run() {
-    // Pre-flight: this CLI runs outside Electron, so GESTION_LICENSE_SECRET is required
-    const secret = (process.env.GESTION_LICENSE_SECRET || '').trim();
-    if (!secret) {
-        console.error('ERROR: GESTION_LICENSE_SECRET environment variable is required.');
-        console.error('');
-        console.error('Usage:');
-        console.error('  set GESTION_LICENSE_SECRET=<your-secret>&& node scripts/generate-license-key.js --plan=basic --days=365');
-        console.error('');
-        console.error('The secret must match the one used by the Electron app (stored in userData/.license-secret).');
-        console.error('To use the same secret, copy it from: %APPDATA%/برنامج التدبير المدرسي/.license-secret');
-        process.exit(1);
+    // GESTION_LICENSE_SECRET env var is optional — embedded master secret is used by default
+    if (process.env.GESTION_LICENSE_SECRET) {
+        console.log('Using GESTION_LICENSE_SECRET env var for signing.');
+    } else {
+        console.log('Using embedded master secret for signing.');
     }
 
     const args = parseArgs(process.argv.slice(2));

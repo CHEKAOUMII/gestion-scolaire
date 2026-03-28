@@ -4,7 +4,7 @@ const { hashPassword, verifyPassword } = require('../auth/password');
 const OTP_TTL_MS = 10 * 60_000;
 const MAX_OTP_ATTEMPTS = 5;
 const OTP_ATTEMPT_WINDOW_MS = 10 * 60_000;
-const MASSAR_CODE_REGEX = /^[A-Z]\d{4,8}$/;
+const MASSAR_CODE_REGEX = /^\d{3,8}[A-Z]{1,2}$/;
 
 const OTP_ATTEMPTS = new Map();
 

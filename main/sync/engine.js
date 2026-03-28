@@ -375,6 +375,10 @@ function getCurrentRole() {
         }
 
         for (const session of sessions.values()) {
+            if (session.role === 'developer') return 'developer';
+        }
+
+        for (const session of sessions.values()) {
             if (session.role === 'staff') return 'staff';
         }
 
@@ -590,10 +594,16 @@ async function flushSyncOutbox(limit) {
     try {
         const db = getDb();
         const config = readSyncConfig(db);
-        if (!Number(config.enabled)) return { success: true, skipped: true, reason: 'disabled' };
+        if (!Number(config.enabled)) {
+            console.log('[sync:push] Skipped — sync is disabled');
+            return { success: true, skipped: true, reason: 'disabled' };
+        }
 
         const role = getCurrentRole();
-        if (!role) return { success: true, skipped: true, reason: 'no_active_session' };
+        if (!role) {
+            console.log('[sync:push] Skipped — no active admin/staff session');
+            return { success: true, skipped: true, reason: 'no_active_session' };
+        }
 
         const credentials = await getCredentials();
         if (!credentials) {
@@ -605,8 +615,8 @@ async function flushSyncOutbox(limit) {
         const maxRetries = Number(config.max_retries) || 10;
         const effectiveLimit = Number(limit) || batchSize;
         const deviceHash = getDeviceHash();
-        const schoolId = credentials.schoolId || config.school_id;
-        const awsRegion = config.aws_region || 'us-east-1';
+        const schoolId = config.school_id || credentials.schoolId;
+        const awsRegion = config.aws_region || 'eu-west-1';
 
         if (!schoolId) {
             updatePushMeta(db, null, 'Missing school identifier');
@@ -838,7 +848,7 @@ async function pullRemoteChanges() {
             };
         }
 
-        const region = config.aws_region || 'us-east-1';
+        const region = config.aws_region || 'eu-west-1';
         const cursor = config.pull_cursor || '0';
         const currentDeviceHash = getDeviceHash();
         const localDeviceHash = currentDeviceHash.substring(0, 16);

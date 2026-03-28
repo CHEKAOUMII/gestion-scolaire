@@ -64,9 +64,31 @@ function registerSyncIpc(ipcMain) {
         };
     });
 
+    // ── Write channels (all authenticated users) ──
+
+    handleWrite(ipcMain, 'sync:toggleEnabled', ['admin', 'developer', 'staff', 'viewer'], (db, _event, enabled) => {
+        const val = enabled ? 1 : 0;
+
+        if (val === 1) {
+            const deviceHash = getDeviceHash();
+            const deviceRow = db.prepare('SELECT status FROM linked_devices WHERE device_hash = ?').get(deviceHash);
+            if (deviceRow && deviceRow.status === 'revoked') {
+                return { success: false, error: 'تم إلغاء هذا الجهاز. يجب إعادة ربطه أولاً' };
+            }
+        }
+
+        db.prepare('UPDATE sync_config SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(val);
+
+        restartSyncPushBackground();
+        restartSyncPullBackground();
+        restartSnapshotBackground();
+
+        return { success: true };
+    });
+
     // ── Write channels (admin-only) ──
 
-    handleWrite(ipcMain, 'sync:setConfig', ['admin'], (db, _event, updates) => {
+    handleWrite(ipcMain, 'sync:setConfig', ['admin', 'developer'], (db, _event, updates) => {
         if (!updates || typeof updates !== 'object') {
             return { success: false, error: 'Invalid updates' };
         }
@@ -122,7 +144,7 @@ function registerSyncIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'sync:triggerNow', ['admin'], async (db, _event) => {
+    handleWrite(ipcMain, 'sync:triggerNow', ['admin', 'developer'], async (db, _event) => {
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
         if (!config || !config.enabled) {
             return { success: false, push: null, pull: null, snapshot: null, error: 'Sync is not enabled' };
@@ -222,7 +244,7 @@ function registerSyncIpc(ipcMain) {
         });
     });
 
-    handleWrite(ipcMain, 'sync:resolveConflict', ['admin'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'sync:resolveConflict', ['admin', 'developer'], (db, _event, payload) => {
         if (!payload || !payload.conflictId || !payload.resolution) {
             return { success: false, error: 'Missing conflictId or resolution' };
         }
@@ -273,7 +295,7 @@ function registerSyncIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'sync:testConnection', ['admin'], async (_db, _event) => {
+    handleWrite(ipcMain, 'sync:testConnection', ['admin', 'developer'], async (_db, _event) => {
         return await testConnection();
     });
 }

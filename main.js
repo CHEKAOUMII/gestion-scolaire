@@ -8,6 +8,8 @@ const { initDatabase } = require('./main/db/init');
 const { getDb } = require('./main/db/context');
 const { registerAllIpcHandlers } = require('./main/ipc/registerAll');
 const { startOwnerSyncBackground } = require('./main/licensing/ownerSync');
+const { ensureTrialSyncKey } = require('./main/licensing/service');
+const { seedSyncDefaults } = require('./main/sync/defaults');
 const {
     startSyncPushBackground,
     stopSyncPushBackground,
@@ -185,6 +187,8 @@ if (gotSingleInstanceLock) {
     app.whenReady().then(() => {
         try {
             initDatabase();
+            seedSyncDefaults(getDb());
+            ensureTrialSyncKey();
             registerAllIpcHandlers(ipcMain);
             startOwnerSyncBackground();
             startSyncPushBackground();

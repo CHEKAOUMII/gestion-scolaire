@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>حول التطبيق | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js"></script>
+        <script src="js/notifications.js"></script>
+        <script src="js/sidebar.js"></script>
+        <script src="js/ux-enhancements.js"></script>
+    </head>
+
+    <body>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main
+            class="main-content flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
+        >
+            <header class="header">
+                <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
+                    <button
+                        class="menu-toggle inline-flex h-[45px] w-[45px] items-center justify-center rounded-[var(--radius-sm)] border-0 bg-[var(--gradient-primary)] text-white transition-transform duration-300 hover:scale-105"
+                        id="menu-toggle"
+                    >
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+                <div class="header-right flex min-w-0 shrink flex-wrap items-center gap-2">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Page Header with gradient accent -->
+            <div class="mb-6 px-1">
+                <div class="inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-l from-[#0f766e] via-[#0d9488] to-[#14b8a6] px-4 py-2.5 shadow-md">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                        <i class="fas fa-info-circle text-sm text-white"></i>
+                    </div>
+                    <div>
+                        <h2 class="page-title m-0 text-[1rem] font-bold leading-tight text-white">حول التطبيق</h2>
+                        <p class="mt-0 text-[0.7rem] text-white/65">معلومات التطبيق وحالة التفعيل والتواصل</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grades-container grid gap-6">
+                <!-- Section 1: App Info -->
+                <div class="students-results overflow-hidden">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-laptop-code"></i> نبذة عن التطبيق</h3>
+                    <div class="px-6 pb-6">
+                        <div class="flex flex-col items-center gap-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-6 text-center shadow-[var(--shadow-soft)]">
+                            <div class="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 shadow-lg">
+                                <i class="fas fa-university text-3xl text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="m-0 text-xl font-bold text-[var(--color-text-main)]">برنامج التدبير المدرسي</h2>
+                                <p class="mt-1 text-sm text-[var(--color-text-muted)]">نظام متكامل لتدبير الشؤون الإدارية والتربوية للثانويات التأهيلية المغربية</p>
+                                <p class="mt-1 text-sm text-[var(--color-text-muted)]">يشمل تدبير التلاميذ، الأساتذة، الغياب، النتائج، الامتحانات، التقارير والوثائق الإدارية</p>
+                            </div>
+                            <div class="mt-1 inline-flex items-center gap-2 rounded-lg bg-teal-500/10 px-4 py-2">
+                                <i class="fas fa-code-branch text-teal-500"></i>
+                                <span class="text-sm font-bold text-teal-600 dark:text-teal-400" id="app-version">...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Activation Status -->
+                <div class="students-results overflow-hidden" id="activation-status-section">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-shield-alt"></i> حالة التفعيل</h3>
+                    <div class="px-6 pb-6">
+                        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-teal-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-500"><i class="fas fa-toggle-on text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">الحالة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="about-status-value">-</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><i class="fas fa-gem text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">الباقة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="about-plan-value">-</div></div>
+                                </div>
+                            </div>
+                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-emerald-500/30">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500"><i class="fas fa-laptop text-lg"></i></div>
+                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">الأجهزة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="about-devices-value">0 / 0</div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status banner -->
+                        <div class="mt-4 rounded-xl border p-4" id="about-status-banner">
+                            <div class="flex items-center gap-3">
+                                <i class="fas fa-spinner fa-spin text-lg text-[var(--color-text-muted)]" id="about-status-icon"></i>
+                                <div>
+                                    <div class="text-sm font-bold text-[var(--color-text-main)]" id="about-status-title">جارٍ التحقق...</div>
+                                    <div class="text-xs text-[var(--color-text-muted)]" id="about-status-subtitle"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Activation Form (conditional) -->
+                <div class="students-results overflow-hidden" id="activation-form-section" style="display: none;">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-plug"></i> تفعيل التطبيق</h3>
+                    <form id="about-activate-form" class="px-6 pb-6">
+                        <div class="grid gap-5 md:grid-cols-2">
+                            <div>
+                                <label for="about-license-key" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">مفتاح الترخيص</label>
+                                <input
+                                    id="about-license-key"
+                                    type="text"
+                                    placeholder="ألصق مفتاح الترخيص هنا"
+                                    required
+                                    autocomplete="off"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
+                            </div>
+                            <div>
+                                <label for="about-device-name" class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]">اسم الجهاز (اختياري)</label>
+                                <input
+                                    id="about-device-name"
+                                    type="text"
+                                    placeholder="اسم الجهاز (اختياري)"
+                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                />
+                            </div>
+                        </div>
+                        <p class="mt-3 text-xs text-[var(--color-text-muted)]">
+                            <i class="fas fa-info-circle"></i> Basic = 1 جهاز | Pro = 3 أجهزة | Business = 10 أجهزة
+                        </p>
+                        <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--glass-border)] pt-5">
+                            <button class="btn btn-success" type="submit"><i class="fas fa-check"></i> تفعيل</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Section 4: Contact Info -->
+                <div class="students-results overflow-hidden">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-headset"></i> التواصل والدعم</h3>
+                    <div class="px-6 pb-6">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <a href="tel:+212600000000" class="group flex items-center gap-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-teal-500/30 no-underline">
+                                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 transition-colors group-hover:bg-emerald-500/20">
+                                    <i class="fas fa-phone-alt text-xl"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-xs font-medium text-[var(--color-text-muted)]">الهاتف</div>
+                                    <div class="mt-0.5 text-base font-bold text-[var(--color-text-main)]" dir="ltr">+212 6 00 00 00 00</div>
+                                </div>
+                            </a>
+                            <a href="mailto:support@gestion-scolaire.ma" class="group flex items-center gap-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30 no-underline">
+                                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500 transition-colors group-hover:bg-blue-500/20">
+                                    <i class="fas fa-envelope text-xl"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-xs font-medium text-[var(--color-text-muted)]">البريد الإلكتروني</div>
+                                    <div class="mt-0.5 text-base font-bold text-[var(--color-text-main)]" dir="ltr">support@gestion-scolaire.ma</div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 5: External Links -->
+                <div class="students-results overflow-hidden">
+                    <h3 class="flex items-center gap-2"><i class="fas fa-external-link-alt"></i> روابط مفيدة</h3>
+                    <div class="px-6 pb-6">
+                        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            <a href="https://gestion-scolaire.ma" target="_blank" rel="noopener" class="group flex items-center gap-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-teal-500/30 no-underline">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-500"><i class="fas fa-globe text-lg"></i></div>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-bold text-[var(--color-text-main)]">الموقع الرسمي</div>
+                                    <div class="text-xs text-[var(--color-text-muted)]">gestion-scolaire.ma</div>
+                                </div>
+                            </a>
+                            <a href="https://facebook.com/gestion.scolaire.ma" target="_blank" rel="noopener" class="group flex items-center gap-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30 no-underline">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><i class="fab fa-facebook text-lg"></i></div>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-bold text-[var(--color-text-main)]">فيسبوك</div>
+                                    <div class="text-xs text-[var(--color-text-muted)]">صفحة الدعم والتحديثات</div>
+                                </div>
+                            </a>
+                            <a href="https://youtube.com/@gestion-scolaire" target="_blank" rel="noopener" class="group flex items-center gap-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-red-500/30 no-underline">
+                                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-500"><i class="fab fa-youtube text-lg"></i></div>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-bold text-[var(--color-text-main)]">يوتيوب</div>
+                                    <div class="text-xs text-[var(--color-text-muted)]">شروحات ودروس الاستخدام</div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script>
+            function el(id) {
+                return document.getElementById(id);
+            }
+
+            function updateStatusBanner(status, trialDaysLeft) {
+                const banner = el('about-status-banner');
+                const icon = el('about-status-icon');
+                const title = el('about-status-title');
+                const subtitle = el('about-status-subtitle');
+
+                icon.classList.remove('fa-spinner', 'fa-spin', 'fa-check-circle', 'fa-exclamation-triangle', 'fa-times-circle', 'fa-clock');
+
+                if (status === 'active' || status === 'grace_warning') {
+                    banner.className = 'mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4';
+                    icon.className = 'fas fa-check-circle text-lg text-emerald-500';
+                    title.textContent = 'التطبيق مفعّل';
+                    subtitle.textContent = 'يمكنك استخدام جميع المميزات بدون قيود';
+                } else if (status === 'trial') {
+                    banner.className = 'mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4';
+                    icon.className = 'fas fa-clock text-lg text-amber-500';
+                    title.textContent = 'وضع تجريبي';
+                    subtitle.textContent = trialDaysLeft != null
+                        ? 'متبقي ' + trialDaysLeft + ' يوم من الفترة التجريبية'
+                        : 'أدخل مفتاح الترخيص للتفعيل الكامل';
+                } else if (status === 'trial_expired') {
+                    banner.className = 'mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4';
+                    icon.className = 'fas fa-times-circle text-lg text-red-500';
+                    title.textContent = 'انتهت الفترة التجريبية';
+                    subtitle.textContent = 'يرجى إدخال مفتاح الترخيص لاستعادة الوصول الكامل';
+                } else if (status === 'expired') {
+                    banner.className = 'mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4';
+                    icon.className = 'fas fa-exclamation-triangle text-lg text-red-500';
+                    title.textContent = 'الترخيص منتهي';
+                    subtitle.textContent = 'يرجى تجديد الترخيص للاستمرار في استخدام البرنامج';
+                } else {
+                    banner.className = 'mt-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4';
+                    icon.className = 'fas fa-exclamation-triangle text-lg text-[var(--color-text-muted)]';
+                    title.textContent = 'غير مفعّل';
+                    subtitle.textContent = 'أدخل مفتاح الترخيص لتفعيل البرنامج';
+                }
+            }
+
+            function statusLabel(status) {
+                var labels = {
+                    not_activated: 'غير مفعّل',
+                    active: 'مفعّل',
+                    trial: 'تجريبي',
+                    trial_expired: 'انتهت التجربة',
+                    grace_warning: 'مفعّل (تحذير)',
+                    grace_expired: 'المهلة منتهية',
+                    expired: 'منتهي',
+                    suspended: 'موقوف',
+                    inactive: 'غير نشط',
+                    revoked: 'ملغى',
+                    device_not_activated: 'الجهاز غير مفعّل'
+                };
+                return labels[status] || status || '-';
+            }
+
+            async function loadActivationStatus() {
+                try {
+                    if (!window.api?.licensing?.getPublicStatus) return;
+
+                    var res = await window.api.licensing.getPublicStatus();
+                    if (!res?.success) {
+                        updateStatusBanner('not_activated', null);
+                        return;
+                    }
+
+                    var status = res.status;
+                    var trialDaysLeft = res.trialDaysLeft != null ? res.trialDaysLeft : null;
+
+                    el('about-status-value').textContent = statusLabel(status);
+
+                    // Color the status value
+                    var statusEl = el('about-status-value');
+                    if (status === 'active' || status === 'grace_warning') {
+                        statusEl.className = 'mt-1 text-base font-bold text-emerald-500';
+                    } else if (status === 'trial') {
+                        statusEl.className = 'mt-1 text-base font-bold text-amber-500';
+                    } else {
+                        statusEl.className = 'mt-1 text-base font-bold text-red-500';
+                    }
+
+                    // Try to get detailed status for plan/devices info
+                    if (window.api?.licensing?.getStatus) {
+                        try {
+                            var detailed = await window.api.licensing.getStatus();
+                            if (detailed?.success) {
+                                el('about-plan-value').textContent = (detailed.planName || detailed.planCode || '-').toUpperCase();
+                                el('about-devices-value').textContent =
+                                    Number(detailed.activeDevices || 0) + ' / ' + Number(detailed.maxDevices || 0);
+                            }
+                        } catch (_) {
+                            // Detailed status not available for non-developer roles — that's fine
+                        }
+                    }
+
+                    updateStatusBanner(status, trialDaysLeft);
+
+                    // Show activation form if not fully activated
+                    var showActivation = !res.activated || status === 'trial' || status === 'trial_expired';
+                    el('activation-form-section').style.display = showActivation ? '' : 'none';
+                } catch (err) {
+                    updateStatusBanner('not_activated', null);
+                }
+            }
+
+            async function loadAppVersion() {
+                try {
+                    if (!window.api?.system?.getAppVersion) {
+                        el('app-version').textContent = '-';
+                        return;
+                    }
+                    var res = await window.api.system.getAppVersion();
+                    el('app-version').textContent = res?.version ? 'v' + res.version : '-';
+                } catch (_) {
+                    el('app-version').textContent = '-';
+                }
+            }
+
+            async function onActivate(event) {
+                event.preventDefault();
+                var licenseKey = el('about-license-key').value.trim();
+                var deviceName = el('about-device-name').value.trim();
+                if (!licenseKey) return;
+
+                try {
+                    // Use public activation (no auth required)
+                    if (window.api?.licensing?.activatePublic) {
+                        var reqRes = await window.api.licensing.getActivationRequest();
+                        var res = await window.api.licensing.activatePublic({
+                            licenseKey: licenseKey,
+                            deviceName: deviceName || (reqRes?.deviceName || '')
+                        });
+                    } else if (window.api?.licensing?.activate) {
+                        var res = await window.api.licensing.activate({ licenseKey: licenseKey, deviceName: deviceName });
+                    } else {
+                        showToast('لا تتوفر وظيفة التفعيل', 'error');
+                        return;
+                    }
+
+                    if (!res?.success) {
+                        showToast(res?.error || 'فشل تفعيل المفتاح', 'error');
+                        return;
+                    }
+
+                    showToast('تم تفعيل الترخيص بنجاح', 'success');
+                    el('about-license-key').value = '';
+                    el('about-device-name').value = '';
+                    await loadActivationStatus();
+                } catch (err) {
+                    showToast(err?.message || 'حدث خطأ أثناء التفعيل', 'error');
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                el('about-activate-form').addEventListener('submit', onActivate);
+                await Promise.all([loadAppVersion(), loadActivationStatus()]);
+            });
+        </script>
+    </body>
+</html>

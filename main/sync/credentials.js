@@ -21,7 +21,7 @@ async function refreshCredentials() {
         const authLambdaUrl = String(config.auth_lambda_url || '')
             .trim()
             .replace(/\/+$/, '');
-        const awsRegion = String(config.aws_region || 'us-east-1').trim() || 'us-east-1';
+        const awsRegion = String(config.aws_region || 'eu-west-1').trim() || 'eu-west-1';
 
         if (!authLambdaUrl) {
             return null;
@@ -84,6 +84,27 @@ async function refreshCredentials() {
 }
 
 async function getCredentials() {
+    // Check license status before refreshing — clear key if expired/blocked
+    try {
+        const { getPublicActivationStatus } = require('../licensing/service');
+        const licenseStatus = getPublicActivationStatus();
+        const syncBlockingStatuses = new Set([
+            'expired',
+            'grace_expired',
+            'suspended',
+            'inactive',
+            'revoked',
+            'trial_expired',
+            'device_not_activated'
+        ]);
+        if (licenseStatus?.status && syncBlockingStatuses.has(licenseStatus.status)) {
+            clearSyncLicenseKey(getDb());
+            return null;
+        }
+    } catch {
+        // Fall through to normal credential refresh on any error
+    }
+
     if (_cachedCredentials && _cachedCredentials.expiresAt - Math.floor(Date.now() / 1000) > 600) {
         return _cachedCredentials;
     }
@@ -106,6 +127,15 @@ function clearCredentials() {
     _refreshPromise = null;
 }
 
+function clearSyncLicenseKey(db) {
+    try {
+        db.prepare('UPDATE sync_config SET license_key = NULL WHERE id = 1').run();
+        clearCredentials();
+    } catch {
+        // sync_config table may not exist yet (pre-migration) — safe to ignore
+    }
+}
+
 function isAuthenticated() {
     return _cachedCredentials !== null && _cachedCredentials.expiresAt - Math.floor(Date.now() / 1000) > 600;
 }
@@ -117,7 +147,7 @@ async function testConnection() {
     const authLambdaUrl = String(config.auth_lambda_url || '')
         .trim()
         .replace(/\/+$/, '');
-    const awsRegion = String(config.aws_region || 'us-east-1').trim() || 'us-east-1';
+    const awsRegion = String(config.aws_region || 'eu-west-1').trim() || 'eu-west-1';
     const licenseKey = readLicenseKey(db);
 
     if (!authLambdaUrl) {
@@ -173,6 +203,7 @@ async function testConnection() {
     }
 
     // Step 3: DynamoDB ping — use Query (allowed by IAM) instead of ListTables (not allowed)
+    const effectiveSchoolId = String(config.school_id || '').trim() || schoolId;
     try {
         const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
         const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
@@ -182,14 +213,22 @@ async function testConnection() {
         await dynamo.send(new QueryCommand({
             TableName: 'pencil2-sync',
             KeyConditionExpression: 'PK = :pk',
-            ExpressionAttributeValues: { ':pk': `SCHOOL#${schoolId}` },
+            ExpressionAttributeValues: { ':pk': `SCHOOL#${effectiveSchoolId}` },
             Limit: 1
         }));
     } catch (err) {
         return { success: false, step: 'dynamodb', error: err.message };
     }
 
-    return { success: true, schoolId };
+    return { success: true, schoolId: effectiveSchoolId };
 }
 
-module.exports = { getCredentials, clearCredentials, isAuthenticated, testConnection };
+module.exports = {
+    getCredentials,
+    clearCredentials,
+    clearSyncLicenseKey,
+    isAuthenticated,
+    testConnection,
+    readLicenseKey,
+    readSyncConfig
+};
