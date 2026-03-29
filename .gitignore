@@ -51,3 +51,4 @@ server/owner-telemetry.json
 .opencode/
 .claude/
 testsprite_tests/
+.worktrees
