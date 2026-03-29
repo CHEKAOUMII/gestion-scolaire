@@ -27,13 +27,61 @@ function updateThemeIcon(theme) {
     const toggle = document.getElementById('theme-toggle');
     if (toggle) {
         const isDark = theme === 'dark';
-        toggle.innerHTML = isDark
-            ? '<i class="fas fa-sun" aria-hidden="true"></i>'
-            : '<i class="fas fa-moon" aria-hidden="true"></i>';
+        const label = toggle.querySelector('span');
+        const icon = toggle.querySelector('i');
+        if (label) {
+            label.textContent = isDark ? 'السمة الفاتحة' : 'السمة الداكنة';
+        }
+        if (icon) {
+            icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+            icon.setAttribute('aria-hidden', 'true');
+        } else {
+            toggle.innerHTML = isDark
+                ? '<span>السمة الفاتحة</span><i class="fas fa-sun" aria-hidden="true"></i>'
+                : '<span>السمة الداكنة</span><i class="fas fa-moon" aria-hidden="true"></i>';
+        }
         toggle.setAttribute('aria-pressed', String(isDark));
         toggle.setAttribute('aria-label', isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن');
         toggle.setAttribute('title', isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن');
     }
+}
+
+function applySharedAccessibleNames(root = document) {
+    if (!root?.querySelectorAll) return;
+
+    root.querySelectorAll('button[title]:not([aria-label]), [role="button"][title]:not([aria-label])').forEach(
+        (element) => {
+            const title = element.getAttribute('title')?.trim();
+            if (title) {
+                element.setAttribute('aria-label', title);
+            }
+        }
+    );
+
+    const selectorLabels = [
+        ['.menu-toggle', 'فتح القائمة الجانبية'],
+        ['#theme-toggle', 'تبديل السمة'],
+        ['#shortcuts-btn', 'اختصارات لوحة المفاتيح'],
+        ['#backup-btn', 'إدارة النسخة الاحتياطية'],
+        ['#quick-nav-toggle', 'فتح لوحة التنقل السريع'],
+        ['#header-undo-btn', 'تراجع'],
+        ['#header-redo-btn', 'إعادة'],
+        ['.close-modal', 'إغلاق'],
+        ['.close-btn', 'إغلاق'],
+        ['.detail-close', 'إغلاق التفاصيل']
+    ];
+
+    selectorLabels.forEach(([selector, label]) => {
+        root.querySelectorAll(`${selector}:not([aria-label])`).forEach((element) => {
+            element.setAttribute('aria-label', label);
+        });
+    });
+
+    root.querySelectorAll('button i, [role="button"] i').forEach((icon) => {
+        if (!icon.hasAttribute('aria-hidden')) {
+            icon.setAttribute('aria-hidden', 'true');
+        }
+    });
 }
 
 const DIALOG_FOCUSABLE_SELECTOR = [
@@ -247,6 +295,8 @@ function initQuickNav() {
     const close = document.getElementById('quick-nav-close');
     const searchInput = document.getElementById('quick-nav-search-input');
     const pagesList = document.getElementById('quick-nav-pages-list');
+    const tabs = Array.from(document.querySelectorAll('.quick-nav-tab'));
+    const lists = Array.from(document.querySelectorAll('.quick-nav-list'));
 
     // Dynamically populate quick-nav from sidebar links (single source of truth)
     if (pagesList && !pagesList.children.length) {
@@ -284,18 +334,18 @@ function initQuickNav() {
     }
 
     // Tab switching
-    document.querySelectorAll('.quick-nav-tab').forEach((tab) => {
+    tabs.forEach((tab) => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.quick-nav-tab').forEach((t) => t.classList.remove('active'));
+            tabs.forEach((t) => t.classList.remove('active'));
             tab.classList.add('active');
 
             const targetList = tab.dataset.navTab;
-            document.querySelectorAll('.quick-nav-list').forEach((list) => {
-                list.style.display = 'none';
+            lists.forEach((list) => {
+                list.hidden = true;
             });
             const targetElement = document.getElementById('quick-nav-' + targetList);
             if (targetElement) {
-                targetElement.style.display = 'block';
+                targetElement.hidden = false;
             }
         });
     });
@@ -343,19 +393,40 @@ function initUXEnhancements() {
     initTheme();
     initKeyboardShortcuts();
     initQuickNav();
+    applySharedAccessibleNames();
 
     // Theme toggle click handler (Event Delegation for robustness)
     document.addEventListener('click', (e) => {
         const toggle = e.target.closest('#theme-toggle');
+        const headerTools = document.querySelector('.header-tools');
+        const headerToolsAction = e.target.closest('.header-tools-btn');
         if (toggle) {
             toggleTheme();
+            if (headerTools instanceof HTMLDetailsElement) {
+                headerTools.open = false;
+            }
+            return;
+        }
+
+        if (headerToolsAction && headerTools instanceof HTMLDetailsElement) {
+            headerTools.open = false;
+        }
+
+        if (headerTools instanceof HTMLDetailsElement && !e.target.closest('.header-tools')) {
+            headerTools.open = false;
         }
     });
 
     // Shortcuts button click handler
 
     // Shortcuts button click handler
-    document.getElementById('shortcuts-btn')?.addEventListener('click', openShortcutsModal);
+    document.getElementById('shortcuts-btn')?.addEventListener('click', () => {
+        const headerTools = document.querySelector('.header-tools');
+        if (headerTools instanceof HTMLDetailsElement) {
+            headerTools.open = false;
+        }
+        openShortcutsModal();
+    });
     document.getElementById('shortcuts-close')?.addEventListener('click', closeShortcutsModal);
 
     // Click outside shortcuts modal to close
@@ -564,25 +635,25 @@ function openPrintPreview(options = {}) {
                             .replace(/>/g, '&gt;');
                     const logo = id.logo_base64
                         ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width: 300px; max-height: 300px;" alt="logo">`
-                        : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>';
+                        : '<div style="width: 52px; height: 52px; border: 1px dashed var(--color-accent); border-radius: 50%; margin: 0 auto;"></div>';
                     const printTitle =
                         options.title || document.querySelector('.page-title h1')?.textContent || document.title || '';
                     headerHTML = `
-                    <div class="ux-pp-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px; margin-bottom: 14px;">
+                    <div class="ux-pp-letterhead" style="border-bottom: 2.5px solid var(--color-primary); padding-bottom: 10px; margin-bottom: 14px;">
                         <table style="width: 100%; border-collapse: collapse;" role="presentation">
                             <tr>
                                 <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
-                                    <div style="font-size: 11px; font-weight: 700; color: #222;">${_esc(id.country)}</div>
-                                    <div style="font-size: 9.5px; color: #555; margin-top: 2px;">${_esc(id.ministry)}</div>
-                                    ${id.academy ? `<div style="font-size: 9px; color: #666; margin-top: 2px;">${_esc(id.academy)}</div>` : ''}
-                                    ${id.directorate ? `<div style="font-size: 9px; color: #666; margin-top: 1px;">${_esc(id.directorate)}</div>` : ''}
+                                    <div style="font-size: 11px; font-weight: 700; color: var(--color-text-main);">${_esc(id.country)}</div>
+                                    <div style="font-size: 9.5px; color: var(--color-text-muted); margin-top: 2px;">${_esc(id.ministry)}</div>
+                                    ${id.academy ? `<div style="font-size: 9px; color: var(--color-text-light); margin-top: 2px;">${_esc(id.academy)}</div>` : ''}
+                                    ${id.directorate ? `<div style="font-size: 9px; color: var(--color-text-light); margin-top: 1px;">${_esc(id.directorate)}</div>` : ''}
                                 </td>
                                 <td style="width: 10%; text-align: center; vertical-align: middle;">${logo}</td>
                                 <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
-                                    <div style="font-size: 13px; font-weight: 800; color: #3B6AC5;">${_esc(id.school_name)}</div>
-                                    ${id.school_code ? `<div style="font-size: 9px; color: #888; margin-top: 2px;">رمز المؤسسة: ${_esc(id.school_code)}</div>` : ''}
-                                    ${id.commune ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">الجماعة: ${_esc(id.commune)}</div>` : ''}
-                                    ${document.getElementById('school-year')?.value || id.school_year ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${_esc(document.getElementById('school-year')?.value || id.school_year)}</div>` : ''}
+                                    <div style="font-size: 13px; font-weight: 800; color: var(--color-primary);">${_esc(id.school_name)}</div>
+                                    ${id.school_code ? `<div style="font-size: 9px; color: var(--color-text-light); margin-top: 2px;">رمز المؤسسة: ${_esc(id.school_code)}</div>` : ''}
+                                    ${id.commune ? `<div style="font-size: 9px; color: var(--color-text-light); margin-top: 1px;">الجماعة: ${_esc(id.commune)}</div>` : ''}
+                                    ${document.getElementById('school-year')?.value || id.school_year ? `<div style="font-size: 9px; color: var(--color-text-light); margin-top: 1px;">السنة الدراسية: ${_esc(document.getElementById('school-year')?.value || id.school_year)}</div>` : ''}
                                 </td>
                             </tr>
                         </table>
@@ -595,9 +666,9 @@ function openPrintPreview(options = {}) {
                                           '';
                                       return `
                         <div style="text-align: center; margin-top: 12px;">
-                            <div style="display: inline-block; padding: 7px 30px; border: 2px solid #3B6AC5; border-radius: 8px;">
-                                <div style="font-size: 17px; font-weight: 800; color: #3B6AC5;">${_esc(printTitle)}</div>
-                                ${reportDate ? `<div style="font-size: 13px; font-weight: 600; color: #555; margin-top: 4px;">${_esc(reportDate)}</div>` : ''}
+                            <div style="display: inline-block; padding: 7px 30px; border: 2px solid var(--color-primary); border-radius: 8px; background: var(--color-primary-mist);">
+                                <div style="font-size: 17px; font-weight: 800; color: var(--color-primary);">${_esc(printTitle)}</div>
+                                ${reportDate ? `<div style="font-size: 13px; font-weight: 600; color: var(--color-text-muted); margin-top: 4px;">${_esc(reportDate)}</div>` : ''}
                             </div>
                         </div>`;
                                   })()
@@ -620,7 +691,12 @@ function openPrintPreview(options = {}) {
         const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
         // Force sheet to use light theme for the preview
         sheet.setAttribute('data-theme', 'light');
-        sheet.innerHTML = headerHTML;
+        sheet.replaceChildren();
+        if (headerHTML) {
+            const template = document.createElement('template');
+            template.innerHTML = headerHTML;
+            sheet.appendChild(template.content);
+        }
         sheet.appendChild(clone);
         _printPreviewModal.classList.add('active');
         _printPreviewModal.style.display = 'flex';
@@ -640,7 +716,7 @@ function closePrintPreviewGlobal() {
         _printPreviewModal.classList.remove('active');
         _printPreviewModal.style.display = 'none';
         const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
-        if (sheet) sheet.innerHTML = '';
+        if (sheet) sheet.replaceChildren();
     }
     document.body.classList.remove('ux-preview-open');
 }
@@ -666,13 +742,13 @@ function _updateOrientationUI() {
     }
 }
 
-function _captureSheetHTML() {
+function _captureSheetContent() {
     if (!_printPreviewModal) return null;
     const sheet = _printPreviewModal.querySelector('.ux-pp-sheet');
-    return sheet ? sheet.innerHTML : null;
+    return sheet ? sheet.cloneNode(true) : null;
 }
 
-function _enablePrintMode(capturedHTML) {
+function _enablePrintMode(capturedSheet) {
     _forceLightThemeForPrint();
     let root = document.getElementById('ux-print-root');
     if (!root) {
@@ -680,7 +756,12 @@ function _enablePrintMode(capturedHTML) {
         root.id = 'ux-print-root';
         document.body.appendChild(root);
     }
-    root.innerHTML = capturedHTML;
+    root.replaceChildren();
+    if (capturedSheet) {
+        Array.from(capturedSheet.childNodes).forEach((node) => {
+            root.appendChild(node.cloneNode(true));
+        });
+    }
     document.body.classList.add('ux-printing-active');
     document.body.classList.toggle('ux-print-landscape', _printPreviewLandscape);
 
@@ -699,17 +780,17 @@ function _enablePrintMode(capturedHTML) {
 function _disablePrintMode() {
     document.body.classList.remove('ux-printing-active', 'ux-print-landscape');
     const root = document.getElementById('ux-print-root');
-    if (root) root.innerHTML = '';
+    if (root) root.replaceChildren();
     // Remove the injected @page rule
     document.getElementById('ux-print-page-rule')?.remove();
     _restoreThemeAfterPrint();
 }
 
 async function _executePrintFromPreview() {
-    const capturedHTML = _captureSheetHTML();
-    if (!capturedHTML) return;
+    const capturedSheet = _captureSheetContent();
+    if (!capturedSheet) return;
     closePrintPreviewGlobal();
-    _enablePrintMode(capturedHTML);
+    _enablePrintMode(capturedSheet);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
         if (window.api?.system?.printCurrentWindow) {
@@ -728,10 +809,10 @@ async function _executePrintFromPreview() {
 }
 
 async function _exportPdfFromPreview() {
-    const capturedHTML = _captureSheetHTML();
-    if (!capturedHTML) return;
+    const capturedSheet = _captureSheetContent();
+    if (!capturedSheet) return;
     closePrintPreviewGlobal();
-    _enablePrintMode(capturedHTML);
+    _enablePrintMode(capturedSheet);
     await new Promise((r) => setTimeout(r, 50));
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
@@ -918,27 +999,192 @@ function buildLetterheadHTML(id, year) {
     };
     const logo = id.logo_base64
         ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width:300px;max-height:300px;" alt="logo">`
-        : '<div style="width:52px;height:52px;border:1px dashed #ccc;border-radius:50%;margin:0 auto;"></div>';
+        : '<div style="width:52px;height:52px;border:1px dashed var(--color-accent);border-radius:50%;margin:0 auto;"></div>';
     return `
-    <div class="gs-letterhead" style="border-bottom:2.5px solid #3B6AC5;padding-bottom:10px;margin-bottom:14px;">
+    <div class="gs-letterhead" style="border-bottom:2.5px solid var(--color-primary);padding-bottom:10px;margin-bottom:14px;">
         <table style="width:100%;border-collapse:collapse;" role="presentation">
             <tr>
                 <td style="width:45%;vertical-align:middle;text-align:center;padding:0;">
-                    <div style="font-size:11px;font-weight:700;color:#222;">${e(id.country || '')}</div>
-                    <div style="font-size:9.5px;color:#555;margin-top:2px;">${e(id.ministry || '')}</div>
-                    ${id.academy ? `<div style="font-size:9px;color:#666;margin-top:2px;">${e(id.academy)}</div>` : ''}
-                    ${id.directorate ? `<div style="font-size:9px;color:#666;margin-top:1px;">${e(id.directorate)}</div>` : ''}
+                    <div style="font-size:11px;font-weight:700;color:var(--color-text-main);">${e(id.country || '')}</div>
+                    <div style="font-size:9.5px;color:var(--color-text-muted);margin-top:2px;">${e(id.ministry || '')}</div>
+                    ${id.academy ? `<div style="font-size:9px;color:var(--color-text-light);margin-top:2px;">${e(id.academy)}</div>` : ''}
+                    ${id.directorate ? `<div style="font-size:9px;color:var(--color-text-light);margin-top:1px;">${e(id.directorate)}</div>` : ''}
                 </td>
                 <td style="width:10%;text-align:center;vertical-align:middle;">${logo}</td>
                 <td style="width:45%;vertical-align:middle;text-align:center;padding:0;">
-                    <div style="font-size:13px;font-weight:800;color:#3B6AC5;">${e(id.school_name || '')}</div>
-                    ${id.school_code ? `<div style="font-size:9px;color:#888;margin-top:2px;">رمز المؤسسة: ${e(id.school_code)}</div>` : ''}
-                    ${id.commune ? `<div style="font-size:9px;color:#888;margin-top:1px;">الجماعة: ${e(id.commune)}</div>` : ''}
-                    ${year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(year)}</div>` : id.school_year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(id.school_year)}</div>` : ''}
+                    <div style="font-size:13px;font-weight:800;color:var(--color-primary);">${e(id.school_name || '')}</div>
+                    ${id.school_code ? `<div style="font-size:9px;color:var(--color-text-light);margin-top:2px;">رمز المؤسسة: ${e(id.school_code)}</div>` : ''}
+                    ${id.commune ? `<div style="font-size:9px;color:var(--color-text-light);margin-top:1px;">الجماعة: ${e(id.commune)}</div>` : ''}
+                    ${year ? `<div style="font-size:9px;color:var(--color-text-light);margin-top:1px;">السنة الدراسية: ${e(year)}</div>` : id.school_year ? `<div style="font-size:9px;color:var(--color-text-light);margin-top:1px;">السنة الدراسية: ${e(id.school_year)}</div>` : ''}
                 </td>
             </tr>
         </table>
     </div>`;
+}
+
+function buildSharedPaletteEntry(
+    lightBg,
+    lightBorder,
+    lightText,
+    darkBg,
+    darkBorder = lightBorder,
+    darkText = lightText
+) {
+    return {
+        light: { bg: lightBg, border: lightBorder, text: lightText },
+        dark: { bg: darkBg, border: darkBorder, text: darkText }
+    };
+}
+
+function getSharedSubjectPalette() {
+    return [
+        buildSharedPaletteEntry(
+            'var(--color-primary-mist)',
+            'var(--color-primary-light)',
+            'var(--color-primary-dark)',
+            'var(--color-primary-mist)',
+            'var(--color-primary-light)',
+            'var(--color-info-text)'
+        ),
+        buildSharedPaletteEntry(
+            'var(--color-info-surface)',
+            'var(--color-info-border)',
+            'var(--color-info-text)',
+            'var(--color-info-surface)'
+        ),
+        buildSharedPaletteEntry(
+            'var(--color-warning-surface)',
+            'var(--color-warning-border)',
+            'var(--color-warning-text)',
+            'var(--color-warning-surface)'
+        ),
+        buildSharedPaletteEntry(
+            'var(--color-success-surface)',
+            'var(--color-success-border)',
+            'var(--color-success-text)',
+            'var(--color-success-surface)'
+        ),
+        buildSharedPaletteEntry(
+            'var(--color-danger-surface)',
+            'var(--color-danger-border)',
+            'var(--color-danger-text)',
+            'var(--color-danger-surface)'
+        ),
+        buildSharedPaletteEntry(
+            'var(--color-neutral-surface)',
+            'var(--color-neutral-border)',
+            'var(--color-text-main)',
+            'var(--color-neutral-surface)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--avatar-color-2) 16%, transparent)',
+            'var(--avatar-color-2)',
+            'var(--color-primary-dark)',
+            'color-mix(in srgb, var(--avatar-color-2) 20%, transparent)',
+            'var(--avatar-color-2)',
+            'var(--color-info-text)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--avatar-color-3) 16%, transparent)',
+            'var(--avatar-color-3)',
+            'var(--avatar-color-3)',
+            'color-mix(in srgb, var(--avatar-color-3) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--avatar-color-4) 16%, transparent)',
+            'var(--avatar-color-4)',
+            'var(--avatar-color-4)',
+            'color-mix(in srgb, var(--avatar-color-4) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--avatar-color-5) 16%, transparent)',
+            'var(--avatar-color-5)',
+            'var(--avatar-color-5)',
+            'color-mix(in srgb, var(--avatar-color-5) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--avatar-color-6) 16%, transparent)',
+            'var(--avatar-color-6)',
+            'var(--avatar-color-6)',
+            'color-mix(in srgb, var(--avatar-color-6) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--avatar-color-7) 16%, transparent)',
+            'var(--avatar-color-7)',
+            'var(--avatar-color-7)',
+            'color-mix(in srgb, var(--avatar-color-7) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--avatar-color-8) 16%, transparent)',
+            'var(--avatar-color-8)',
+            'var(--avatar-color-8)',
+            'color-mix(in srgb, var(--avatar-color-8) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--color-female) 16%, transparent)',
+            'var(--color-female)',
+            'var(--color-female)',
+            'color-mix(in srgb, var(--color-female) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--color-male) 16%, transparent)',
+            'var(--color-male)',
+            'var(--color-male)',
+            'color-mix(in srgb, var(--color-male) 20%, transparent)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--color-grade-average) 16%, transparent)',
+            'var(--color-grade-average)',
+            'var(--color-warning-text)',
+            'color-mix(in srgb, var(--color-grade-average) 20%, transparent)',
+            'var(--color-grade-average)',
+            'var(--color-warning-text)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--color-grade-good) 16%, transparent)',
+            'var(--color-grade-good)',
+            'var(--color-success-text)',
+            'color-mix(in srgb, var(--color-grade-good) 20%, transparent)',
+            'var(--color-grade-good)',
+            'var(--color-success-text)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--color-grade-excellent) 16%, transparent)',
+            'var(--color-grade-excellent)',
+            'var(--color-success-text)',
+            'color-mix(in srgb, var(--color-grade-excellent) 20%, transparent)',
+            'var(--color-grade-excellent)',
+            'var(--color-success-text)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--color-grade-poor) 16%, transparent)',
+            'var(--color-grade-poor)',
+            'var(--color-danger-text)',
+            'color-mix(in srgb, var(--color-grade-poor) 20%, transparent)',
+            'var(--color-grade-poor)',
+            'var(--color-danger-text)'
+        ),
+        buildSharedPaletteEntry(
+            'color-mix(in srgb, var(--color-total) 16%, transparent)',
+            'var(--color-total)',
+            'var(--color-primary-dark)',
+            'color-mix(in srgb, var(--color-total) 20%, transparent)',
+            'var(--color-total)',
+            'var(--color-info-text)'
+        )
+    ];
+}
+
+function getSharedChartPalette() {
+    return [
+        'var(--color-primary)',
+        'var(--color-info)',
+        'var(--color-warning)',
+        'var(--avatar-color-3)',
+        'var(--color-danger)',
+        'var(--color-success)',
+        'var(--avatar-color-4)'
+    ];
 }
 window.buildLetterheadHTML = buildLetterheadHTML;
 
@@ -1008,6 +1254,7 @@ if (document.readyState === 'loading') {
 window.UXEnhancements = {
     initTheme,
     toggleTheme,
+    applySharedAccessibleNames,
     openDialog,
     closeDialog,
     openShortcutsModal,
@@ -1020,5 +1267,7 @@ window.UXEnhancements = {
     forceLightThemeForPrint: _forceLightThemeForPrint,
     restoreThemeAfterPrint: _restoreThemeAfterPrint,
     buildLetterheadHTML,
+    getSharedSubjectPalette,
+    getSharedChartPalette,
     initSyncIndicator
 };

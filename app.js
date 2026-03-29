@@ -10,6 +10,7 @@ const EXTERNAL_LIBS = {
 
 let chartLibPromise = null;
 let xlsxLibPromise = null;
+let dashboardLastRefreshAt = null;
 
 function loadExternalScriptOnce(src, globalName) {
     if (globalName && window[globalName]) {
@@ -57,6 +58,44 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = String(text);
     return div.innerHTML;
+}
+
+function formatDashboardTimestamp(value) {
+    if (!value) return 'لم يتم التحديث بعد';
+    try {
+        return new Intl.DateTimeFormat('ar-MA', {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+        }).format(value instanceof Date ? value : new Date(value));
+    } catch {
+        return String(value);
+    }
+}
+
+function updateDashboardContext(stats) {
+    const yearEl = document.getElementById('dashboard-school-year');
+    const scopeEl = document.getElementById('dashboard-data-scope');
+    const refreshEl = document.getElementById('dashboard-last-refresh');
+
+    if (yearEl) {
+        yearEl.textContent = currentSchoolYear || 'غير محدد';
+    }
+
+    if (scopeEl) {
+        const total = Number(stats?.total || 0);
+        const sections = Number(stats?.sections || 0);
+        if (total > 0) {
+            scopeEl.textContent = `${total} تلميذا موزعين على ${sections} ${sections === 1 ? 'قسم' : 'أقسام'}`;
+        } else if (isDbReady) {
+            scopeEl.textContent = 'لا توجد معطيات تلاميذ في هذا الموسم الدراسي حاليا';
+        } else {
+            scopeEl.textContent = 'جار تحديد السجلات المتاحة...';
+        }
+    }
+
+    if (refreshEl) {
+        refreshEl.textContent = formatDashboardTimestamp(dashboardLastRefreshAt);
+    }
 }
 
 // Initialize data from SQLite
@@ -378,13 +417,24 @@ function renderStatsCards(stats) {
         </div>`;
     }
 
-    const html = `<div class="stats-grid">
+    function sectionIntro(kicker, title, description) {
+        return `<div class="dashboard-section-intro">
+            <div>
+                <p class="dashboard-section-kicker">${kicker}</p>
+                <h2>${title}</h2>
+            </div>
+            <p>${description}</p>
+        </div>`;
+    }
+
+    const html = `${sectionIntro('الخطوة الأولى', 'المؤشرات الأساسية', 'قراءة سريعة لأهم الأرقام قبل الانتقال إلى التحليل البصري.')}
+        <div class="stats-grid">
         ${statCard('users', 'عدد التلاميذ', stats.total, `${stats.sections} أقسام`, 0.0)}
         ${statCard('female', 'عدد الإناث', stats.females, `${femalesPct}%`, 0.06)}
         ${statCard('male', 'عدد الذكور', stats.males, `${malesPct}%`, 0.12)}
         ${statCard('chalkboard', 'عدد الأقسام', stats.sections, escapeHtml(sectionsInfo), 0.18)}
         ${statCard('layer-group', 'عدد المستويات', stats.levels, escapeHtml(levelsInfo), 0.24)}
-        ${statCard('calculator', 'معدل القسم', stats.avgPerSection, 'تلميذ/قسم', 0.30)}
+        ${statCard('calculator', 'معدل القسم', stats.avgPerSection, 'تلميذ/قسم', 0.3)}
     </div>`;
     document.getElementById('stats-section').innerHTML = html;
 }
@@ -736,7 +786,14 @@ async function renderCharts(filterSection = 'all', stats) {
         )
         .join('');
 
-    const html = `<div class="charts-grid">
+    const html = `<div class="dashboard-section-intro">
+        <div>
+            <p class="dashboard-section-kicker">الخطوة الثانية</p>
+            <h2>الرسوم البيانية الأساسية</h2>
+        </div>
+        <p>تفصيل بصري يساعد على فهم التوزيع العام بسرعة قبل مراجعة الحالات الخاصة.</p>
+    </div>
+    <div class="charts-grid">
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب السن</h3><div class="chart-controls"><select id="age-section-filter"><option value="all" ${filterSection === 'all' ? 'selected' : ''}>جميع الأقسام</option>${sectionsOptions}</select><button><i class="fas fa-print"></i> طباعة</button></div></div><div class="chart-body"><canvas id="ageChart"></canvas></div></div>
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-pie-chart"></i> توزيع التلاميذ حسب الجنس</h3></div><div class="chart-body"><canvas id="genderChart"></canvas></div></div>
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب المستويات</h3></div><div class="chart-body"><canvas id="levelsChart"></canvas></div></div>
@@ -1045,7 +1102,14 @@ async function renderExtraCharts() {
     const surplusFemales = surplusTeachers.filter((t) => t.gender === '\u0623\u0646\u062b\u0649').length;
 
     // Build HTML
-    const html = `<div class="charts-grid">
+    const html = `<div class="dashboard-section-intro">
+        <div>
+            <p class="dashboard-section-kicker">الخطوة الثالثة</p>
+            <h2>متابعة وضعيات التلاميذ والأطر</h2>
+        </div>
+        <p>عرض مكمل لرصد الحالات التي تستحق انتباها إداريا قبل الانتقال إلى الحركية.</p>
+    </div>
+    <div class="charts-grid">
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chalkboard-teacher"></i> توزيع الأساتذة حسب التخصص</h3></div><div class="chart-body"><canvas id="teacherSubjectChart"></canvas></div></div>
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-venus-mars"></i> توزيع الأساتذة حسب الجنس</h3></div><div class="chart-body"><canvas id="teacherGenderChart"></canvas></div></div>
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-birthday-cake"></i> توزيع الأساتذة حسب الفئة العمرية</h3></div><div class="chart-body"><canvas id="teacherAgeChart"></canvas></div></div>
@@ -1308,6 +1372,13 @@ async function renderMovement(stats) {
     const activeStudents = Math.max(stats.total - dropouts - notEnrolled - expelled, 0);
 
     document.getElementById('movement-section').innerHTML = `
+        <div class="dashboard-section-intro">
+            <div>
+                <p class="dashboard-section-kicker">الخطوة الأخيرة</p>
+                <h2>حركية التلاميذ</h2>
+            </div>
+            <p>مراجعة المغادرين والوافدين والحالات الدراسية النهائية في مكان واحد.</p>
+        </div>
         <div class="movement-header"><h3><i class="fas fa-exchange-alt"></i> حركية التلاميذ</h3><div class="movement-filters"><select><option>جميع الأقسام</option></select><select><option>الوضعية الحالية</option></select><button class="btn-apply"><i class="fas fa-check"></i> تحيين</button></div></div>
         <div class="movement-stats">
             <div class="movement-stat registered"><span class="stat-value">${stats.total}</span><span class="stat-label"><i class="fas fa-users"></i> المسجلون</span></div>
@@ -1523,7 +1594,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function refreshDashboard() {
+    dashboardLastRefreshAt = new Date();
     const stats = calculateStats();
+    updateDashboardContext(stats);
     renderStatsCards(stats);
     renderCharts('all', stats);
     void renderExtraCharts();

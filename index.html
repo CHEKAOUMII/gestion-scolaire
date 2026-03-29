@@ -32,28 +32,6 @@
                     </div>
                 </div>
                 <div class="header-right">
-                    <!-- Theme Toggle -->
-                    <button class="theme-toggle" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة">
-                        <i class="fas fa-moon" aria-hidden="true"></i>
-                    </button>
-                    <!-- Keyboard Shortcuts -->
-                    <button
-                        class="theme-toggle"
-                        id="shortcuts-btn"
-                        title="اختصارات لوحة المفاتيح (?)"
-                        aria-label="اختصارات لوحة المفاتيح"
-                    >
-                        <i class="fas fa-keyboard" aria-hidden="true"></i>
-                    </button>
-                    <!-- Backup Button -->
-                    <button
-                        class="theme-toggle"
-                        id="backup-btn"
-                        title="إدارة النسخة الاحتياطية"
-                        aria-label="إدارة النسخة الاحتياطية"
-                    >
-                        <i class="fas fa-database" aria-hidden="true"></i>
-                    </button>
                     <button class="notification-btn" aria-label="الإشعارات">
                         <i class="fas fa-bell" aria-hidden="true"></i>
                         <span class="badge" id="notification-badge" style="display: none">0</span>
@@ -61,72 +39,144 @@
                     <div class="user-info" id="user-info">
                         <span id="user-email">المستخدم</span>
                     </div>
+                    <details class="header-tools">
+                        <summary class="header-tools-summary" aria-label="أدوات إضافية">
+                            <span>الأدوات</span>
+                            <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                        </summary>
+                        <div class="header-tools-panel">
+                            <button
+                                class="theme-toggle header-tools-btn"
+                                id="shortcuts-btn"
+                                title="اختصارات لوحة المفاتيح (?)"
+                                aria-label="اختصارات لوحة المفاتيح"
+                            >
+                                <span>الاختصارات</span>
+                                <i class="fas fa-keyboard" aria-hidden="true"></i>
+                            </button>
+                            <button
+                                class="theme-toggle header-tools-btn"
+                                id="backup-btn"
+                                title="إدارة النسخة الاحتياطية"
+                                aria-label="إدارة النسخة الاحتياطية"
+                            >
+                                <span>النسخة الاحتياطية</span>
+                                <i class="fas fa-database" aria-hidden="true"></i>
+                            </button>
+                            <button
+                                class="theme-toggle header-tools-btn"
+                                id="theme-toggle"
+                                title="تبديل السمة"
+                                aria-label="تبديل السمة"
+                            >
+                                <span>السمة</span>
+                                <i class="fas fa-moon" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </details>
                 </div>
             </header>
 
             <h1 class="sr-only">لوحة التحكم — الثانوية التأهيلية ابن سينا</h1>
 
+            <section class="dashboard-hero" aria-labelledby="dashboard-title">
+                <div class="dashboard-hero-main">
+                    <p class="dashboard-eyebrow">لوحة التحكم الرئيسية</p>
+                    <h2 class="dashboard-title" id="dashboard-title">متابعة سريعة لوضع المؤسسة خلال اليوم</h2>
+                    <p class="dashboard-description">
+                        ابدأ بالمؤشرات العامة، ثم راجع الرسوم البيانية، وبعدها انتقل إلى حركية التلاميذ لإنهاء المتابعة
+                        اليومية بسرعة.
+                    </p>
+                    <div class="dashboard-meta" aria-label="سياق البيانات الحالية">
+                        <div class="dashboard-meta-card">
+                            <span class="dashboard-meta-label">الموسم الدراسي</span>
+                            <strong id="dashboard-school-year">قيد التحديث...</strong>
+                        </div>
+                        <div class="dashboard-meta-card">
+                            <span class="dashboard-meta-label">نطاق البيانات</span>
+                            <strong id="dashboard-data-scope">جار تحديد السجلات المتاحة...</strong>
+                        </div>
+                        <div class="dashboard-meta-card">
+                            <span class="dashboard-meta-label">آخر تحديث</span>
+                            <strong id="dashboard-last-refresh">لم يتم التحديث بعد</strong>
+                        </div>
+                    </div>
+                    <div class="dashboard-context-list" aria-label="ملخص الواجهة">
+                        <span class="dashboard-context-pill"
+                            ><i class="fas fa-school" aria-hidden="true"></i> عرض موحد لبيانات المؤسسة</span
+                        >
+                        <span class="dashboard-context-pill"
+                            ><i class="fas fa-clock" aria-hidden="true"></i> مناسب للمراجعة اليومية السريعة</span
+                        >
+                    </div>
+                </div>
+                <nav class="dashboard-hero-nav" aria-label="أقسام لوحة التحكم">
+                    <a href="#stats-section" class="dashboard-hero-link">
+                        <span>المؤشرات الأساسية</span>
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    </a>
+                    <a href="#charts-section" class="dashboard-hero-link">
+                        <span>الرسوم البيانية</span>
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    </a>
+                    <a href="#movement-section" class="dashboard-hero-link">
+                        <span>حركية التلاميذ</span>
+                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    </a>
+                </nav>
+            </section>
+
             <!-- Stats Section with Skeleton -->
             <section class="stats-section" id="stats-section">
+                <div class="dashboard-section-intro">
+                    <div>
+                        <p class="dashboard-section-kicker">الخطوة الأولى</p>
+                        <h2>المؤشرات الأساسية</h2>
+                    </div>
+                    <p>قراءة سريعة لأهم الأرقام قبل التعمق في التفاصيل.</p>
+                </div>
+                <p class="dashboard-loading-note" aria-live="polite">جار تحضير المؤشرات الأساسية...</p>
                 <div class="stats-grid skeleton-grid">
-                    <div class="stat-card skeleton-card">
-                        <div
-                            class="skeleton-pulse"
-                            style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0"
-                        ></div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
-                            <div class="skeleton-pulse" style="width: 60%; height: 12px; border-radius: 6px"></div>
-                            <div class="skeleton-pulse" style="width: 40%; height: 18px; border-radius: 6px"></div>
+                    <div class="stat-card skeleton-card skeleton-stat-card">
+                        <div class="skeleton-pulse skeleton-stat-media"></div>
+                        <div class="skeleton-stat-copy">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
                         </div>
                     </div>
-                    <div class="stat-card skeleton-card">
-                        <div
-                            class="skeleton-pulse"
-                            style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0"
-                        ></div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
-                            <div class="skeleton-pulse" style="width: 60%; height: 12px; border-radius: 6px"></div>
-                            <div class="skeleton-pulse" style="width: 40%; height: 18px; border-radius: 6px"></div>
+                    <div class="stat-card skeleton-card skeleton-stat-card">
+                        <div class="skeleton-pulse skeleton-stat-media"></div>
+                        <div class="skeleton-stat-copy">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
                         </div>
                     </div>
-                    <div class="stat-card skeleton-card">
-                        <div
-                            class="skeleton-pulse"
-                            style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0"
-                        ></div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
-                            <div class="skeleton-pulse" style="width: 60%; height: 12px; border-radius: 6px"></div>
-                            <div class="skeleton-pulse" style="width: 40%; height: 18px; border-radius: 6px"></div>
+                    <div class="stat-card skeleton-card skeleton-stat-card">
+                        <div class="skeleton-pulse skeleton-stat-media"></div>
+                        <div class="skeleton-stat-copy">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
                         </div>
                     </div>
-                    <div class="stat-card skeleton-card">
-                        <div
-                            class="skeleton-pulse"
-                            style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0"
-                        ></div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
-                            <div class="skeleton-pulse" style="width: 60%; height: 12px; border-radius: 6px"></div>
-                            <div class="skeleton-pulse" style="width: 40%; height: 18px; border-radius: 6px"></div>
+                    <div class="stat-card skeleton-card skeleton-stat-card">
+                        <div class="skeleton-pulse skeleton-stat-media"></div>
+                        <div class="skeleton-stat-copy">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
                         </div>
                     </div>
-                    <div class="stat-card skeleton-card">
-                        <div
-                            class="skeleton-pulse"
-                            style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0"
-                        ></div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
-                            <div class="skeleton-pulse" style="width: 60%; height: 12px; border-radius: 6px"></div>
-                            <div class="skeleton-pulse" style="width: 40%; height: 18px; border-radius: 6px"></div>
+                    <div class="stat-card skeleton-card skeleton-stat-card">
+                        <div class="skeleton-pulse skeleton-stat-media"></div>
+                        <div class="skeleton-stat-copy">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
                         </div>
                     </div>
-                    <div class="stat-card skeleton-card">
-                        <div
-                            class="skeleton-pulse"
-                            style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0"
-                        ></div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
-                            <div class="skeleton-pulse" style="width: 60%; height: 12px; border-radius: 6px"></div>
-                            <div class="skeleton-pulse" style="width: 40%; height: 18px; border-radius: 6px"></div>
+                    <div class="stat-card skeleton-card skeleton-stat-card">
+                        <div class="skeleton-pulse skeleton-stat-media"></div>
+                        <div class="skeleton-stat-copy">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
                         </div>
                     </div>
                 </div>
@@ -136,17 +186,41 @@
 
             <!-- Charts Section with Skeleton -->
             <section class="charts-section" id="charts-section">
+                <div class="dashboard-section-intro">
+                    <div>
+                        <p class="dashboard-section-kicker">الخطوة الثانية</p>
+                        <h2>الرسوم البيانية الأساسية</h2>
+                    </div>
+                    <p>فهم الاتجاهات العامة والتوزيع بسرعة من خلال العرض البصري.</p>
+                </div>
+                <p class="dashboard-loading-note" aria-live="polite">جار إعداد الرسوم البيانية الأساسية...</p>
                 <div class="charts-grid skeleton-grid">
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
                 </div>
@@ -154,23 +228,67 @@
 
             <!-- Teacher & Student Status Charts Section with Skeleton -->
             <section class="charts-section" id="extra-charts-section">
+                <div class="dashboard-section-intro">
+                    <div>
+                        <p class="dashboard-section-kicker">الخطوة الثالثة</p>
+                        <h2>متابعة وضعيات التلاميذ والأطر</h2>
+                    </div>
+                    <p>قسم مكمل لمراقبة التخصصات والوضعيات التي تحتاج انتباها.</p>
+                </div>
+                <p class="dashboard-loading-note" aria-live="polite">جار تحميل البيانات المكملة...</p>
                 <div class="charts-grid skeleton-grid">
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
-                    <div class="chart-card skeleton-card">
+                    <div class="chart-card skeleton-card skeleton-chart-card">
+                        <div class="skeleton-chart-top">
+                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                        </div>
                         <div class="skeleton-pulse skeleton-chart"></div>
                     </div>
                 </div>
             </section>
 
-            <section class="movement-section" id="movement-section"></section>
+            <section class="movement-section" id="movement-section">
+                <div class="dashboard-section-intro">
+                    <div>
+                        <p class="dashboard-section-kicker">الخطوة الأخيرة</p>
+                        <h2>حركية التلاميذ</h2>
+                    </div>
+                    <p>مراجعة الوصولات والمغادرات والحالات الخاصة في نهاية القراءة.</p>
+                </div>
+                <div class="movement-skeleton skeleton-card" aria-hidden="true">
+                    <div class="skeleton-chart-top">
+                        <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
+                        <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
+                    </div>
+                    <div class="stats-grid skeleton-grid">
+                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
+                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
+                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
+                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <!-- Backup Modal -->
@@ -193,8 +311,36 @@
                 </div>
                 <div class="modal-body backup-modal-body">
                     <p class="backup-modal-description">
-                        يمكنك إنشاء نسخة احتياطية من قاعدة البيانات أو استعادة نسخة سابقة.
+                        أنشئ نسخة حديثة قبل أي تغيير كبير. عند الاستعادة سيتم استبدال البيانات الحالية ببيانات الملف
+                        المختار.
                     </p>
+                    <div class="backup-status-card" aria-live="polite">
+                        <div class="backup-status-row">
+                            <span class="backup-status-label">آخر نسخة مسجلة</span>
+                            <strong id="backup-last-run">لا توجد نسخة مسجلة بعد</strong>
+                        </div>
+                        <div class="backup-status-row">
+                            <span class="backup-status-label">آخر حجم معروف</span>
+                            <strong id="backup-last-size">—</strong>
+                        </div>
+                        <div class="backup-status-row">
+                            <span class="backup-status-label">محتوى النسخة</span>
+                            <strong id="backup-last-contents">إعدادات محلية وقاعدة البيانات عند توفرها</strong>
+                        </div>
+                    </div>
+                    <div class="backup-safety-note" role="note">
+                        <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                        <p>يفضل إنشاء نسخة جديدة الآن والاحتفاظ بها خارج الجهاز قبل تنفيذ أي استعادة.</p>
+                    </div>
+                    <div class="backup-file-summary hidden" id="backup-file-summary" aria-live="polite">
+                        <span class="backup-file-summary-label">الملف المحدد للاستعادة</span>
+                        <strong id="backup-file-name">—</strong>
+                        <span id="backup-file-meta">JSON / BAK حتى 500MB</span>
+                    </div>
+                    <label class="backup-restore-check">
+                        <input type="checkbox" id="restore-backup-confirm" />
+                        <span>أفهم أن الاستعادة ستستبدل البيانات الحالية ويجب أن أحتفظ بنسخة حديثة قبل المتابعة.</span>
+                    </label>
                     <div class="backup-modal-actions">
                         <button class="btn-apply" id="create-backup-btn">
                             <i class="fas fa-download" aria-hidden="true"></i> إنشاء نسخة احتياطية

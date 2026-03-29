@@ -2014,6 +2014,8 @@ function setupUnifiedHeader() {
     const titleText = existingTitle ? existingTitle.textContent.replace(/\s+/g, ' ').trim() : '';
     const titleIcon = existingTitle?.querySelector('i')?.className || '';
     const hasSidebar = !!document.getElementById('sidebar');
+    const hasShortcutsModal = !!document.getElementById('shortcuts-modal');
+    const hasBackupModal = !!document.getElementById('backup-modal');
 
     // Build year options dynamically
     const currentYear = new Date().getFullYear();
@@ -2024,34 +2026,49 @@ function setupUnifiedHeader() {
         yearOptions.push(`<option value="${yStr}"${yStr === activeYear ? ' selected' : ''}>${yStr}</option>`);
     }
 
+    const utilityButtons = [
+        hasShortcutsModal
+            ? `<button class="theme-toggle header-tools-btn" id="shortcuts-btn" title="اختصارات لوحة المفاتيح" aria-label="اختصارات لوحة المفاتيح"><span>الاختصارات</span><i class="fas fa-keyboard" aria-hidden="true"></i></button>`
+            : '',
+        hasBackupModal
+            ? `<button class="theme-toggle header-tools-btn" id="backup-btn" title="إدارة النسخة الاحتياطية" aria-label="إدارة النسخة الاحتياطية"><span>النسخة الاحتياطية</span><i class="fas fa-database" aria-hidden="true"></i></button>`
+            : '',
+        `<button class="theme-toggle header-tools-btn" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة"><span>السمة</span><i class="fas fa-moon" aria-hidden="true"></i></button>`
+    ]
+        .filter(Boolean)
+        .join('');
+
     header.classList.add('unified-header');
     header.innerHTML = `
         <div class="header-left">
-            <div class="user-info" id="user-info">
-                <span id="user-email">المستخدم</span>
-            </div>
-            <button class="notification-btn" title="الإشعارات">
-                <i class="fas fa-bell"></i>
-                <span class="badge">3</span>
-            </button>
-            <button class="backup-btn" id="backup-btn" title="النسخ الاحتياطي">
-                <i class="fas fa-database"></i>
-            </button>
-            <select id="school-year" title="الموسم الدراسي">
-                ${yearOptions.join('')}
-            </select>
-            <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
-                <i class="fas fa-moon"></i>
-            </button>
-        </div>
-        <div class="header-right">
-            <div class="search-box">
-                <input type="text" placeholder="بحث...">
-                <i class="fas fa-search"></i>
-            </div>
             <button class="menu-toggle" id="menu-toggle" title="${hasSidebar ? 'القائمة' : 'الصفحة الرئيسية'}">
                 <i class="fas fa-bars"></i>
             </button>
+            <div class="search-box" role="search">
+                <input type="text" placeholder="ابحث داخل الصفحة..." aria-label="بحث داخل الصفحة">
+                <i class="fas fa-search"></i>
+            </div>
+        </div>
+        <div class="header-right">
+            <select id="school-year" title="الموسم الدراسي" aria-label="الموسم الدراسي">
+                ${yearOptions.join('')}
+            </select>
+            <button class="notification-btn" title="الإشعارات" aria-label="الإشعارات">
+                <i class="fas fa-bell"></i>
+                <span class="badge" style="display:none">0</span>
+            </button>
+            <div class="user-info" id="user-info">
+                <span id="user-email">المستخدم</span>
+            </div>
+            <details class="header-tools">
+                <summary class="header-tools-summary" aria-label="أدوات الإدارة">
+                    <span>أدوات الإدارة</span>
+                    <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                </summary>
+                <div class="header-tools-panel">
+                    ${utilityButtons}
+                </div>
+            </details>
         </div>
     `;
     header.dataset.unifiedHeader = 'true';
