@@ -1,0 +1,13 @@
+(function enforceDeveloperSession() {
+    try {
+        const raw = localStorage.getItem('gsl_auth_session_v1');
+        if (raw) {
+            const session = JSON.parse(raw);
+            if (session && session.role === 'developer') {
+                return;
+            }
+        }
+    } catch {}
+
+    window.location.replace('dashboard.html');
+})();

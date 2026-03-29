@@ -26,7 +26,13 @@ function toggleTheme() {
 function updateThemeIcon(theme) {
     const toggle = document.getElementById('theme-toggle');
     if (toggle) {
-        toggle.innerHTML = theme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+        const isDark = theme === 'dark';
+        toggle.innerHTML = isDark
+            ? '<i class="fas fa-sun" aria-hidden="true"></i>'
+            : '<i class="fas fa-moon" aria-hidden="true"></i>';
+        toggle.setAttribute('aria-pressed', String(isDark));
+        toggle.setAttribute('aria-label', isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن');
+        toggle.setAttribute('title', isDark ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن');
     }
 }
 

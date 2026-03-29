@@ -23,6 +23,31 @@ function registerStudentsIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
+    handleRead(ipcMain, 'students:getByCode', (db, code, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        const codeQ = String(code || '').trim();
+        if (!codeQ) return null;
+
+        const row = db
+            .prepare(
+                `
+            SELECT *
+            FROM students
+            WHERE school_year = ? AND code = ?
+            LIMIT 1
+        `
+            )
+            .get(year, codeQ);
+
+        if (!row) return null;
+
+        return {
+            ...row,
+            massar_code: row.code,
+            class_name: row.section
+        };
+    });
+
     handleRead(ipcMain, 'students:search', (db, name, className, code, schoolYear) => {
         const year = normalizeYear(schoolYear);
         const nameQ = String(name || '').trim();

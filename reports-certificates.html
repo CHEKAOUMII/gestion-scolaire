@@ -7,10 +7,10 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
-        <script src="js/utils.js"></script>
-        <script src="js/notifications.js"></script>
-        <script src="js/sidebar.js"></script>
-        <script src="js/ux-enhancements.js"></script>
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
     </head>
 
     <body>
@@ -44,13 +44,27 @@
                 <div class="search-section">
                     <h3><i class="fas fa-pen"></i> توليد شهادة مدرسية</h3>
                     <form id="form" class="search-form grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-                        <input id="student-code" placeholder="رمز مسار التلميذ" required />
-                        <select id="cert-type">
-                            <option value="attendance">شهادة التمدرس</option>
-                            <option value="enrollment">شهادة التسجيل</option>
-                            <option value="withdrawal">شهادة المغادرة</option>
-                        </select>
-                        <button class="btn btn-primary" type="submit"><i class="fas fa-print"></i> توليد</button>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="student-code" class="text-sm font-semibold text-[var(--color-text-main)]"
+                                >رمز مسار التلميذ</label
+                            >
+                            <input id="student-code" placeholder="رمز مسار التلميذ" required />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="cert-type" class="text-sm font-semibold text-[var(--color-text-main)]"
+                                >نوع الشهادة</label
+                            >
+                            <select id="cert-type">
+                                <option value="attendance">شهادة التمدرس</option>
+                                <option value="enrollment">شهادة التسجيل</option>
+                                <option value="withdrawal">شهادة المغادرة</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button class="btn btn-primary w-full justify-center" type="submit">
+                                <i class="fas fa-print"></i> توليد
+                            </button>
+                        </div>
                     </form>
                 </div>
 
@@ -64,154 +78,6 @@
             </div>
         </main>
 
-        <script>
-            const CERT_TYPE_LABELS = {
-                attendance: 'شهادة التمدرس',
-                enrollment: 'شهادة التسجيل',
-                withdrawal: 'شهادة المغادرة'
-            };
-
-            const CERT_TYPE_BODY_TEXT = {
-                attendance:
-                    'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه يتابع/تتابع دراسته(ها) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
-                enrollment:
-                    'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه مسجل(ة) بالقسم المذكور برسم الموسم الدراسي الحالي بانتظام.',
-                withdrawal:
-                    'يشهد مدير المؤسسة أن التلميذ(ة) المسمى(اة) أعلاه قد غادر(ت) المؤسسة بانتظام خلال هذا الموسم.'
-            };
-
-            let _currentStudent = null;
-            let _currentType = '';
-
-            document.getElementById('form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const code = document.getElementById('student-code').value.trim();
-                const type = document.getElementById('cert-type').value;
-                const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
-                const students = await window.api.students.search('', '', '', year);
-                const student = (students || []).find((s) => s.massar_code === code);
-
-                if (!student) {
-                    showToast('لم يتم العثور على التلميذ', 'error');
-                    return;
-                }
-
-                _currentStudent = student;
-                _currentType = type;
-
-                const schoolName = localStorage.getItem('schoolName') || 'المؤسسة التعليمية';
-                const dateStr = new Date().toLocaleDateString('ar-MA', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
-                const typeLabel = CERT_TYPE_LABELS[type];
-
-                document.getElementById('preview').innerHTML = `
-                <div class="mx-auto max-w-[680px] overflow-hidden rounded-[14px] border-2 border-[var(--color-primary)] bg-[var(--color-surface)] shadow-[0_4px_20px_rgba(59,106,197,0.1)]">
-                    <div class="bg-[linear-gradient(135deg,var(--color-primary),#5B84D6)] px-6 py-4 text-center text-white">
-                        <div class="mt-1 text-[0.85rem] opacity-[0.85]">${schoolName}</div>
-                        <h2 class="m-0 text-[1.3rem] font-bold">${typeLabel}</h2>
-                    </div>
-                    <div class="space-y-0 px-7 py-6 text-right text-[0.95rem] text-[var(--color-text-main)]">
-                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">الاسم الكامل:</strong> <span>${student.full_name || '-'}</span></div>
-                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">رمز مسار:</strong> <span>${student.massar_code || '-'}</span></div>
-                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">القسم:</strong> <span>${student.class_name || '-'}</span></div>
-                        <div class="flex items-baseline gap-2 border-b border-dashed border-[var(--color-accent)] py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">السنة الدراسية:</strong> <span>${year}</span></div>
-                        <div class="flex items-baseline gap-2 py-2.5"><strong class="min-w-[120px] whitespace-nowrap text-[var(--color-primary)]">تاريخ الإصدار:</strong> <span>${dateStr}</span></div>
-                    </div>
-                    <div class="flex flex-wrap justify-center gap-2.5 px-7 pb-5 pt-4">
-                        <button class="btn btn-success min-w-[140px]" onclick="exportCertPDF()"><i class="fas fa-file-pdf"></i> تصدير PDF</button>
-                        <button class="btn btn-primary min-w-[140px]" onclick="printCert()"><i class="fas fa-print"></i> طباعة</button>
-                        <button class="btn btn-secondary min-w-[140px]" onclick="previewCert()"><i class="fas fa-eye"></i> معاينة</button>
-                    </div>
-                    <div class="flex items-center justify-center gap-1 pb-4 text-center text-[0.8rem] text-[var(--color-text-muted)]"><i class="fas fa-info-circle"></i> سيتم طباعة نسختين في كل صفحة A4</div>
-                </div>
-            `;
-                showToast('تم توليد الشهادة', 'success');
-            });
-
-            /**
-             * Builds only the certificate body content (student table + body text).
-             * Letterhead, footer, seal, signature, and security bar are handled
-             * by the unified report engine on the main-process side.
-             */
-            function buildCertificateBody(student, type) {
-                const bodyText = CERT_TYPE_BODY_TEXT[type];
-                const year = getSchoolYear();
-
-                return `
-                <!-- Student info table -->
-                <table class="mt-1.5 w-full border-collapse text-xs">
-                    <tr>
-                        <td class="w-[140px] border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">الاسم الكامل</td>
-                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${student.full_name || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">رمز مسار</td>
-                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${student.massar_code || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">القسم</td>
-                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${student.class_name || '-'}</td>
-                    </tr>
-                    <tr>
-                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">السنة الدراسية</td>
-                        <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${year}</td>
-                    </tr>
-                </table>
-
-                <!-- Certificate body text -->
-                <div class="mt-3.5 rounded-s-[6px] rounded-e-none border-s-[3px] border-[var(--color-primary)] bg-[#f8faf9] px-3 py-2.5 text-xs leading-[1.8] text-[#222] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">${bodyText}</div>`;
-            }
-
-            /**
-             * Dispatches a certificate to the unified report engine.
-             * The engine handles: letterhead, footer (seal + signature), 2-copy layout, security bar.
-             */
-            async function dispatchCert(mode) {
-                if (!_currentStudent) return;
-                const bodyHTML = buildCertificateBody(_currentStudent, _currentType);
-                const typeLabel = CERT_TYPE_LABELS[_currentType];
-
-                if (window.api?.reports?.printDocument) {
-                    if (mode === 'pdf') showToast('جاري تصدير PDF...', 'info');
-                    const result = await window.api.reports.printDocument({
-                        documentType: 'certificate',
-                        documentTitle: typeLabel,
-                        bodyHTML,
-                        data: { studentName: _currentStudent.full_name || '' },
-                        options: {
-                            mode,
-                            copies: 2,
-                            bodyHeight: '148.5mm',
-                            showSeal: true,
-                            showSignature: true,
-                            showSecurity: true,
-                            defaultFileName: `${typeLabel}_${_currentStudent.massar_code || ''}`
-                        }
-                    });
-                    if (mode === 'pdf' && result?.success) {
-                        showToast('تم تصدير الشهادة بنجاح', 'success');
-                    } else if (mode === 'pdf' && result?.error && result.error !== 'Cancelled by user') {
-                        showToast('خطأ في تصدير الشهادة: ' + result.error, 'error');
-                    } else if (mode === 'print' && result?.success) {
-                        showToast('تمت الطباعة بنجاح', 'success');
-                    }
-                } else {
-                    openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
-                }
-            }
-
-            function exportCertPDF() {
-                dispatchCert('pdf');
-            }
-            function printCert() {
-                dispatchCert('print');
-            }
-            function previewCert() {
-                dispatchCert('preview');
-            }
-        </script>
+        <script src="js/pages/reports-certificates.js" defer></script>
     </body>
 </html>

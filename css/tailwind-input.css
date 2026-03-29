@@ -128,8 +128,13 @@
     --sidebar-collapsed-width: clamp(60px, 4vw, 80px);
 
     /* Motion */
-    --transition-fast: 0.15s ease;
-    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast:
+        color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease,
+        transform 0.15s ease, opacity 0.15s ease;
+    --transition-normal:
+        color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
     /* Gradients */
@@ -517,7 +522,13 @@ body {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition-fast, all 0.15s ease);
+    transition:
+        color 0.15s ease,
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.15s ease,
+        opacity 0.15s ease;
 }
 
 .sidebar-auth-btn:hover {
@@ -3245,7 +3256,13 @@ body.ux-preview-open {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
 }
 
 .ux-pp-close:hover {
@@ -3278,7 +3295,13 @@ body.ux-preview-open {
     font-weight: 600;
     cursor: pointer;
     color: #6b7280;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     font-family: inherit;
 }
 
@@ -4931,7 +4954,13 @@ body.ux-printing-active #ux-print-root .page-title-row {
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     white-space: nowrap;
 }
 
@@ -4972,7 +5001,13 @@ body.ux-printing-active #ux-print-root .page-title-row {
     align-items: center;
     justify-content: center;
     border-radius: 6px;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
 }
 
 .ux-update-close:hover {
@@ -7666,7 +7701,13 @@ body {
     font-weight: 700;
     font-size: 1rem !important;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition:
+        color 0.25s ease,
+        background-color 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        transform 0.25s ease,
+        opacity 0.25s ease;
     border: 1px solid transparent;
     font-family: inherit;
     box-shadow: none;
@@ -7717,7 +7758,13 @@ body {
     width: 100%;
     color: var(--color-text-muted) !important;
     border-radius: var(--radius-sm) !important;
-    transition: all 0.2s ease !important;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease !important;
 }
 
 .quick-nav-item:hover {
@@ -7921,7 +7968,13 @@ body {
     color: var(--color-text-light);
     margin-bottom: 0.75rem;
     display: block;
-    transition: all 0.35s ease;
+    transition:
+        color 0.35s ease,
+        background-color 0.35s ease,
+        border-color 0.35s ease,
+        box-shadow 0.35s ease,
+        transform 0.35s ease,
+        opacity 0.35s ease;
 }
 
 .drop-zone-content p {
@@ -7963,7 +8016,13 @@ body {
     margin-top: 0.5rem;
     z-index: 1;
     opacity: 0.7;
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
     letter-spacing: 0.02em;
 }
 
@@ -8132,7 +8191,13 @@ body {
     box-shadow: var(--shadow-card);
     position: relative;
     overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     animation: fadeInUp 0.5s ease-out both;
 }
 
@@ -8865,7 +8930,13 @@ body {
     font-size: 14px;
     background: var(--color-surface, #fff);
     color: var(--color-text-main, inherit);
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
     cursor: pointer;
 }
 
@@ -8895,7 +8966,13 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
 }
 
 .btn-filter:hover {
@@ -8918,7 +8995,13 @@ body {
     position: relative;
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid transparent;
 }
 
@@ -9087,7 +9170,13 @@ body {
     padding: 16px;
     background: var(--color-surface-alt, #f8fafc);
     border-radius: 12px;
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
     border: 1px solid transparent;
 }
 
@@ -9315,7 +9404,13 @@ body {
     font-weight: 600;
     font-size: 14px;
     border: 2px solid transparent;
-    transition: all 0.2s;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     cursor: default;
 }
 
@@ -9697,7 +9792,13 @@ body {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     color: var(--color-text-main, inherit);
 }
 
@@ -10261,7 +10362,13 @@ body {
     border-radius: var(--radius-md);
     padding: 22px 20px;
     box-shadow: var(--shadow-card);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     animation: fadeInUp 0.5s ease-out both;
 }
@@ -11288,6 +11395,188 @@ body {
 .status-badge.done {
     background: rgba(46, 204, 113, 0.12);
     color: var(--color-success);
+}
+
+.settings-user-state {
+    font-weight: 700;
+}
+
+.settings-user-state--active {
+    color: var(--color-success);
+}
+
+.settings-user-state--disabled {
+    color: var(--color-danger);
+}
+
+.settings-users-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.settings-visibility-panel {
+    margin-top: 18px;
+}
+
+.settings-visibility-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.settings-visibility-title {
+    margin: 0;
+}
+
+.settings-visibility-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.settings-table-message {
+    padding: 20px;
+    text-align: center;
+}
+
+.settings-visibility-help {
+    margin: 0 0 12px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+.settings-visibility-pending {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+}
+
+.settings-visibility-pending[data-state='saving'] {
+    color: var(--color-info);
+}
+
+.settings-visibility-pending[data-state='dirty'] {
+    color: var(--color-warning);
+}
+
+.settings-visibility-pending[data-state='clean'] {
+    color: var(--color-success);
+}
+
+.settings-visibility-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    border: 1px solid transparent;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.settings-visibility-badge--visible {
+    background: var(--color-success-surface);
+    border-color: var(--color-success-border);
+    color: var(--color-success);
+}
+
+.settings-visibility-badge--hidden {
+    background: var(--color-danger-surface);
+    border-color: var(--color-danger-border);
+    color: var(--color-danger);
+}
+
+.settings-visibility-text {
+    font-weight: 700;
+}
+
+.settings-visibility-text--success {
+    color: var(--color-success);
+}
+
+.settings-visibility-text--warning {
+    color: var(--color-warning);
+}
+
+.settings-visibility-note {
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-warning);
+}
+
+.settings-visibility-group-row {
+    border-bottom: 2px solid var(--color-accent);
+}
+
+.settings-visibility-group-row--visible {
+    background: var(--color-success-surface);
+}
+
+.settings-visibility-group-row--hidden {
+    background: var(--color-danger-surface);
+}
+
+.settings-visibility-group-row--mixed {
+    background: var(--color-warning-surface);
+}
+
+.settings-visibility-group-cell,
+.settings-visibility-group-action {
+    padding: 10px 14px;
+}
+
+.settings-visibility-group-cell {
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.settings-visibility-group-icon {
+    margin-left: 6px;
+    color: var(--color-primary);
+}
+
+.settings-visibility-summary {
+    margin-right: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.settings-visibility-row--dirty {
+    background: var(--color-warning-surface);
+}
+
+.settings-visibility-row--hidden {
+    background: var(--color-danger-surface);
+}
+
+.settings-visibility-page-title {
+    padding-right: 28px;
+    font-weight: 600;
+}
+
+.settings-visibility-page-path {
+    margin-top: 2px;
+    direction: ltr;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.settings-visibility-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.settings-visibility-toggle--strong {
+    font-weight: 700;
 }
 
 /* ─── Toggle Button ─── */
@@ -13236,7 +13525,13 @@ body {
     justify-content: center;
     opacity: 0;
     visibility: hidden;
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
 }
 
 .detail-overlay.active {
@@ -13539,7 +13834,13 @@ body {
     cursor: pointer;
     font-size: 13px;
     font-weight: 600;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -13768,7 +14069,13 @@ body {
     color: var(--color-text-muted);
     cursor: pointer;
     border-radius: calc(var(--radius-md) - 4px);
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -13851,7 +14158,13 @@ body {
     border-radius: var(--radius-sm);
     font-size: 15px;
     font-family: inherit;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     background: rgba(255, 255, 255, 0.8);
 }
 
@@ -13915,7 +14228,13 @@ body {
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -13961,8 +14280,9 @@ body {
 
 /* ── Error message ── */
 .error-message {
-    background: #fed7d7;
-    color: #c53030;
+    background: var(--color-danger-surface);
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger-border);
     padding: 10px 14px;
     border-radius: var(--radius-sm);
     margin-bottom: 16px;
@@ -13978,8 +14298,9 @@ body {
 
 /* ── Success message ── */
 .success-message {
-    background: #c6f6d5;
-    color: #22543d;
+    background: var(--color-success-surface);
+    color: var(--color-success);
+    border: 1px solid var(--color-success-border);
     padding: 10px 14px;
     border-radius: var(--radius-sm);
     margin-bottom: 16px;
@@ -13991,6 +14312,105 @@ body {
 
 .success-message.show {
     display: flex;
+}
+
+.pin-prompt-hero {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.pin-prompt-shell {
+    animation: slideUp 0.4s ease-out;
+}
+
+.pin-prompt-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: var(--color-primary-mist);
+    color: var(--color-primary);
+}
+
+.pin-prompt-icon i {
+    font-size: 28px;
+}
+
+.pin-prompt-message {
+    margin-bottom: 14px;
+}
+
+.pin-prompt-title {
+    margin: 0 0 8px;
+    color: var(--color-text-main);
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.pin-prompt-copy {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+.pin-prompt-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pin-prompt-field {
+    margin-bottom: 0;
+}
+
+.pin-prompt-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.pin-prompt-input {
+    width: 100%;
+    padding: 13px;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    direction: ltr;
+    font-family: ui-monospace, monospace;
+    font-size: 20px;
+    text-align: center;
+    letter-spacing: 10px;
+}
+
+.pin-prompt-submit {
+    margin-top: 4px;
+}
+
+.pin-prompt-skip {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    transition:
+        border-color 0.2s ease,
+        color 0.2s ease,
+        background 0.2s ease;
+}
+
+.pin-prompt-skip:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-mist);
 }
 
 /* ── Footer ── */
@@ -14025,7 +14445,13 @@ body {
     font-family: inherit;
     cursor: pointer;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
 }
 
 .btn-back:hover {
@@ -14040,7 +14466,7 @@ body {
     margin-top: 6px;
     height: 3px;
     border-radius: 3px;
-    background: #e5e7eb;
+    background: var(--color-surface-alt);
     overflow: hidden;
 }
 
@@ -14058,6 +14484,44 @@ body {
     margin-top: 4px;
     color: var(--color-text-muted);
     font-weight: 600;
+}
+
+.password-strength-bar[data-strength='empty'] {
+    background: transparent;
+}
+
+.password-strength-bar[data-strength='weak'] {
+    background: var(--color-danger-solid);
+}
+
+.password-strength-bar[data-strength='fair'] {
+    background: var(--color-warning-solid);
+}
+
+.password-strength-bar[data-strength='medium'] {
+    background: var(--color-info-solid);
+}
+
+.password-strength-bar[data-strength='good'],
+.password-strength-bar[data-strength='strong'] {
+    background: var(--color-success-solid);
+}
+
+.password-strength-label[data-strength='weak'] {
+    color: var(--color-danger);
+}
+
+.password-strength-label[data-strength='fair'] {
+    color: var(--color-warning);
+}
+
+.password-strength-label[data-strength='medium'] {
+    color: var(--color-info);
+}
+
+.password-strength-label[data-strength='good'],
+.password-strength-label[data-strength='strong'] {
+    color: var(--color-success);
 }
 
 /* ── Responsive ── */
@@ -14127,7 +14591,13 @@ body {
     border-radius: var(--radius-md);
     padding: 22px 20px;
     box-shadow: var(--shadow-card);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
     animation: fadeInUp 0.5s ease-out both;
 }
@@ -15374,6 +15844,7 @@ body {
 }
 
 .logo-preview {
+    appearance: none;
     width: 88px;
     height: 88px;
     border: 2px dashed var(--color-accent);
@@ -15384,6 +15855,7 @@ body {
     cursor: pointer;
     overflow: hidden;
     flex-shrink: 0;
+    padding: 0;
     background: var(--color-surface-alt);
     transition:
         border-color var(--transition-fast),
@@ -17293,7 +17765,13 @@ body {
     font-family: inherit;
     font-size: 13px;
     font-weight: 600;
-    transition: all 0.2s;
+    transition:
+        color 0.2s,
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s,
+        opacity 0.2s;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -18896,7 +19374,13 @@ body {
     font-family: inherit;
     font-size: 13px;
     font-weight: 600;
-    transition: all 0.2s;
+    transition:
+        color 0.2s,
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s,
+        opacity 0.2s;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -21206,7 +21690,13 @@ button.staff-stat-card:focus-visible {
     font-family: inherit;
     font-size: 0.95rem;
     font-weight: 500;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
     background: white;
     cursor: pointer;
     min-width: 200px;
@@ -21725,7 +22215,13 @@ button.staff-stat-card:focus-visible {
 .teacher-timetable .subject-cell {
     border-radius: 10px;
     padding: 8px 6px;
-    transition: all 0.2s;
+    transition:
+        color 0.2s,
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s,
+        opacity 0.2s;
     cursor: default;
     display: flex;
     flex-direction: column;
@@ -21864,7 +22360,13 @@ button.staff-stat-card:focus-visible {
     font-family: inherit;
     font-size: 0.95rem;
     font-weight: 500;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
     background: white;
     cursor: pointer;
     min-width: 250px;
@@ -22716,7 +23218,13 @@ button.staff-stat-card:focus-visible {
     cursor: pointer;
     font-size: 1.2rem;
     color: var(--text-secondary, #607d8b);
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -22784,7 +23292,13 @@ button.staff-stat-card:focus-visible {
     height: 35px;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
 }
 
 .quick-nav-close:hover {
@@ -22804,7 +23318,13 @@ button.staff-stat-card:focus-visible {
     border-radius: 10px;
     font-family: inherit;
     font-size: 14px;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
 }
 
 .quick-nav-search input:focus {
@@ -22828,7 +23348,13 @@ button.staff-stat-card:focus-visible {
     font-weight: 500;
     color: var(--text-secondary, #607d8b);
     cursor: pointer;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -22856,11 +23382,23 @@ button.staff-stat-card:focus-visible {
     padding: 12px 15px;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition:
+        color 0.2s,
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s,
+        opacity 0.2s;
     display: flex;
     align-items: center;
     gap: 10px;
     margin-bottom: 4px;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: inherit;
+    color: inherit;
+    font: inherit;
 }
 
 .quick-nav-item:hover {
@@ -22910,7 +23448,13 @@ button.staff-stat-card:focus-visible {
     cursor: pointer;
     box-shadow: 0 4px 20px rgba(59, 106, 197, 0.3);
     z-index: 998;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -22939,7 +23483,13 @@ button.staff-stat-card:focus-visible {
     border-radius: 12px;
     font-family: inherit;
     font-size: 14px;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
     background: white;
 }
 
@@ -23026,7 +23576,19 @@ button.staff-stat-card:focus-visible {
     display: flex;
     align-items: center;
     gap: 10px;
-    transition: all 0.2s;
+    transition:
+        color 0.2s,
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s,
+        opacity 0.2s;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: inherit;
+    color: inherit;
+    font: inherit;
 }
 
 .search-result-item:hover {
@@ -23146,7 +23708,13 @@ button.staff-stat-card:focus-visible {
     cursor: pointer;
     font-size: 1.1rem;
     color: var(--text-secondary, #607d8b);
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -23213,7 +23781,13 @@ button.staff-stat-card:focus-visible {
     cursor: pointer;
     font-size: 1rem;
     color: var(--text-secondary, #607d8b);
-    transition: all 0.2s;
+    transition:
+        color 0.2s,
+        background-color 0.2s,
+        border-color 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s,
+        opacity 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -23379,7 +23953,13 @@ button.staff-stat-card:focus-visible {
 
 /* Enhanced hover effects */
 .stat-card {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .stat-card:hover {
@@ -23387,7 +23967,13 @@ button.staff-stat-card:focus-visible {
 }
 
 .timetable-tabs .tab-btn {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .timetable-tabs .tab-btn:hover {
@@ -23436,7 +24022,13 @@ button.staff-stat-card:focus-visible {
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
 }
 
 .btn-primary {
@@ -23483,7 +24075,13 @@ button.staff-stat-card:focus-visible {
     border-radius: 12px;
     padding: 40px;
     text-align: center;
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
     cursor: pointer;
 }
 
@@ -23572,7 +24170,13 @@ button.staff-stat-card:focus-visible {
     font-size: 0.92rem;
     min-width: 200px;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition:
+        color 0.25s ease,
+        background-color 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        transform 0.25s ease,
+        opacity 0.25s ease;
     appearance: none;
     -webkit-appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233B6AC5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -24324,7 +24928,13 @@ button.staff-stat-card:focus-visible {
     font-weight: 500;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition:
+        color 0.3s ease,
+        background-color 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease,
+        opacity 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -24444,7 +25054,13 @@ button.staff-stat-card:focus-visible {
 .edit-mode-active .timetable td {
     cursor: pointer;
     position: relative;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
 }
 
 .edit-mode-active .timetable td:hover {
@@ -24609,7 +25225,13 @@ button.staff-stat-card:focus-visible {
     font-size: 1.5rem;
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
 }
 
 .modal-header .close-modal:hover {
@@ -24640,7 +25262,13 @@ button.staff-stat-card:focus-visible {
     border-radius: 10px;
     font-family: inherit;
     font-size: 14px;
-    transition: all 0.3s;
+    transition:
+        color 0.3s,
+        background-color 0.3s,
+        border-color 0.3s,
+        box-shadow 0.3s,
+        transform 0.3s,
+        opacity 0.3s;
 }
 
 .form-group select:focus,
@@ -24818,7 +25446,13 @@ button.staff-stat-card:focus-visible {
         0 0 24px rgba(34, 197, 94, 0.5),
         inset 0 0 8px rgba(34, 197, 94, 0.15);
     transform: scale(1.03);
-    transition: all 0.15s;
+    transition:
+        color 0.15s,
+        background-color 0.15s,
+        border-color 0.15s,
+        box-shadow 0.15s,
+        transform 0.15s,
+        opacity 0.15s;
 }
 
 /* Second (and beyond) cells highlighted during a multi-period drag */
@@ -24828,7 +25462,13 @@ button.staff-stat-card:focus-visible {
     box-shadow:
         0 0 16px rgba(34, 197, 94, 0.4),
         inset 0 0 6px rgba(34, 197, 94, 0.1);
-    transition: all 0.15s;
+    transition:
+        color 0.15s,
+        background-color 0.15s,
+        border-color 0.15s,
+        box-shadow 0.15s,
+        transform 0.15s,
+        opacity 0.15s;
 }
 
 /* Source cell while being dragged */

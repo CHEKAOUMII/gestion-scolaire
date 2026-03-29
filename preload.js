@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
     students: {
         getAll: (schoolYear) => ipcRenderer.invoke('students:getAll', schoolYear),
         getCodesByYear: (schoolYear) => ipcRenderer.invoke('students:getCodesByYear', schoolYear),
+        getByCode: (code, schoolYear) => ipcRenderer.invoke('students:getByCode', code, schoolYear),
         search: (name, className, code, schoolYear) =>
             ipcRenderer.invoke('students:search', name, className, code, schoolYear),
         add: (student) => ipcRenderer.invoke('students:add', student),

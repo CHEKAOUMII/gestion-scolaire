@@ -1,385 +1,237 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>معلومات المؤسسة | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/tailwind-output.css">
-    <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/ux-enhancements.js"></script>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>معلومات المؤسسة | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
     </head>
 
-<body>
-    <div class="toast-container" id="toast-container"></div>
+    <body>
+        <div class="toast-container" id="toast-container"></div>
 
-    <aside class="sidebar" id="sidebar"></aside>
+        <aside class="sidebar" id="sidebar"></aside>
 
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-school"></i> معلومات المؤسسة</h2>
-            </div>
-            <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
-
-        <div class="grades-container">
-
-            <!-- Section 1: Ministry hierarchy (right column of letterhead) -->
-            <div class="identity-section">
-                <div class="section-title"><i class="fas fa-landmark"></i> الجهة الوصية</div>
-                <div class="identity-form">
-                    <div class="form-group">
-                        <label>الدولة</label>
-                        <input id="id-country" placeholder="المملكة المغربية">
-                    </div>
-                    <div class="form-group">
-                        <label>الوزارة</label>
-                        <input id="id-ministry" placeholder="وزارة التربية الوطنية والتعليم الأولي والرياضة">
-                    </div>
-                    <div class="form-group">
-                        <label>الأكاديمية الجهوية</label>
-                        <input id="id-academy" placeholder="الأكاديمية الجهوية للتربية والتكوين">
-                    </div>
-                    <div class="form-group">
-                        <label>المديرية الإقليمية</label>
-                        <input id="id-directorate" placeholder="المديرية الإقليمية">
-                    </div>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <h2 class="page-title"><i class="fas fa-school"></i> معلومات المؤسسة</h2>
                 </div>
-            </div>
-
-            <!-- Section 2: School identity (left column of letterhead) -->
-            <div class="identity-section">
-                <div class="section-title"><i class="fas fa-building"></i> معلومات المؤسسة</div>
-                <div class="identity-form">
-                    <div class="form-group">
-                        <label>اسم المؤسسة</label>
-                        <input id="id-school-name" placeholder="اسم المؤسسة التعليمية">
-                    </div>
-                    <div class="form-group">
-                        <label>رمز المؤسسة</label>
-                        <input id="id-school-code" placeholder="رمز المؤسسة">
-                    </div>
-                    <div class="form-group">
-                        <label>المدينة</label>
-                        <input id="id-city" placeholder="المدينة">
-                    </div>
-                    <div class="form-group">
-                        <label>الجماعة</label>
-                        <input id="id-commune" placeholder="الجماعة الترابية">
-                    </div>
-                    <div class="form-group">
-                        <label>الموسم الدراسي</label>
-                        <input id="id-school-year" placeholder="2025/2026">
-                    </div>
-                    <div class="form-group">
-                        <label>اسم المدير(ة)</label>
-                        <input id="id-director-name" placeholder="الاسم الكامل للمدير(ة)">
-                    </div>
-                    <div class="form-group">
-                        <label>صفة المدير(ة)</label>
-                        <input id="id-director-title" placeholder="مدير(ة) المؤسسة">
-                    </div>
-                    <div class="form-group full-width">
-                        <label>نص التذييل (أسفل الوثائق)</label>
-                        <textarea id="id-footer-text" placeholder="سلمت هذه الوثيقة للمعني(ة) بالأمر..."
-                            style="min-height: 60px;"></textarea>
-                    </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
                 </div>
-            </div>
+            </header>
 
-            <!-- Sections 3-5: Logo, Seal, Signature (side by side) -->
-            <div class="assets-row">
-                <!-- Section 3: Logo (center column of letterhead) -->
+            <div class="grades-container">
+                <!-- Section 1: Ministry hierarchy (right column of letterhead) -->
                 <div class="identity-section">
-                    <div class="section-title"><i class="fas fa-image"></i> شعار المؤسسة</div>
-                    <div class="logo-upload-area">
-                        <div class="logo-preview" id="logo-preview" title="اضغط لاختيار شعار">
-                            <i class="fas fa-camera placeholder-icon" id="logo-placeholder"></i>
-                            <img id="logo-img" style="display:none;" alt="شعار المؤسسة">
+                    <div class="section-title"><i class="fas fa-landmark"></i> الجهة الوصية</div>
+                    <div class="identity-form">
+                        <div class="form-group">
+                            <label for="id-country">الدولة</label>
+                            <input id="id-country" placeholder="المملكة المغربية" />
                         </div>
-                        <div class="logo-actions">
-                            <button class="btn btn-primary btn-sm" type="button" id="btn-upload-logo">
-                                <i class="fas fa-upload"></i> اختيار صورة
-                            </button>
-                            <button class="btn btn-outline btn-sm" type="button" id="btn-remove-logo"
-                                style="display:none;">
-                                <i class="fas fa-trash"></i> حذف الشعار
-                            </button>
-                            <span style="font-size: 11px; color: var(--color-text-light, #999);">PNG أو JPG — حد أقصى
-                                200
-                                كيلوبايت</span>
+                        <div class="form-group">
+                            <label for="id-ministry">الوزارة</label>
+                            <input id="id-ministry" placeholder="وزارة التربية الوطنية والتعليم الأولي والرياضة" />
+                        </div>
+                        <div class="form-group">
+                            <label for="id-academy">الأكاديمية الجهوية</label>
+                            <input id="id-academy" placeholder="الأكاديمية الجهوية للتربية والتكوين" />
+                        </div>
+                        <div class="form-group">
+                            <label for="id-directorate">المديرية الإقليمية</label>
+                            <input id="id-directorate" placeholder="المديرية الإقليمية" />
                         </div>
                     </div>
-                    <input type="file" id="logo-file-input" accept="image/png,image/jpeg" style="display:none;">
                 </div>
 
-                <!-- Section 4: Official Seal -->
+                <!-- Section 2: School identity (left column of letterhead) -->
                 <div class="identity-section">
-                    <div class="section-title"><i class="fas fa-stamp"></i> ختم المؤسسة</div>
-                    <div class="logo-upload-area">
-                        <div class="logo-preview" id="seal-preview" title="اضغط لاختيار ختم">
-                            <i class="fas fa-stamp placeholder-icon" id="seal-placeholder"></i>
-                            <img id="seal-img" style="display:none;" alt="ختم المؤسسة">
+                    <div class="section-title"><i class="fas fa-building"></i> معلومات المؤسسة</div>
+                    <div class="identity-form">
+                        <div class="form-group">
+                            <label for="id-school-name">اسم المؤسسة</label>
+                            <input id="id-school-name" placeholder="اسم المؤسسة التعليمية" />
                         </div>
-                        <div class="logo-actions">
-                            <button class="btn btn-primary btn-sm" type="button" id="btn-upload-seal">
-                                <i class="fas fa-upload"></i> اختيار صورة
-                            </button>
-                            <button class="btn btn-outline btn-sm" type="button" id="btn-remove-seal"
-                                style="display:none;">
-                                <i class="fas fa-trash"></i> حذف الختم
-                            </button>
-                            <span style="font-size: 11px; color: var(--color-text-light, #999);">PNG أو JPG — حد أقصى
-                                200
-                                كيلوبايت</span>
+                        <div class="form-group">
+                            <label for="id-school-code">رمز المؤسسة</label>
+                            <input id="id-school-code" placeholder="رمز المؤسسة" />
                         </div>
-                    </div>
-                    <input type="file" id="seal-file-input" accept="image/png,image/jpeg" style="display:none;">
-                </div>
-
-                <!-- Section 5: Director Signature -->
-                <div class="identity-section">
-                    <div class="section-title"><i class="fas fa-signature"></i> توقيع المدير(ة)</div>
-                    <div class="logo-upload-area">
-                        <div class="logo-preview" id="signature-preview" title="اضغط لاختيار توقيع"
-                            style="width:120px;height:60px;">
-                            <i class="fas fa-pen-nib placeholder-icon" id="signature-placeholder"></i>
-                            <img id="signature-img" style="display:none;" alt="توقيع المدير(ة)">
+                        <div class="form-group">
+                            <label for="id-city">المدينة</label>
+                            <input id="id-city" placeholder="المدينة" />
                         </div>
-                        <div class="logo-actions">
-                            <button class="btn btn-primary btn-sm" type="button" id="btn-upload-signature">
-                                <i class="fas fa-upload"></i> اختيار صورة
-                            </button>
-                            <button class="btn btn-outline btn-sm" type="button" id="btn-remove-signature"
-                                style="display:none;">
-                                <i class="fas fa-trash"></i> حذف التوقيع
-                            </button>
-                            <span style="font-size: 11px; color: var(--color-text-light, #999);">PNG أو JPG — حد أقصى
-                                200
-                                كيلوبايت — يُفضّل صورة بخلفية شفافة</span>
+                        <div class="form-group">
+                            <label for="id-commune">الجماعة</label>
+                            <input id="id-commune" placeholder="الجماعة الترابية" />
+                        </div>
+                        <div class="form-group">
+                            <label for="id-school-year">الموسم الدراسي</label>
+                            <input id="id-school-year" placeholder="2025/2026" />
+                        </div>
+                        <div class="form-group">
+                            <label for="id-director-name">اسم المدير(ة)</label>
+                            <input id="id-director-name" placeholder="الاسم الكامل للمدير(ة)" />
+                        </div>
+                        <div class="form-group">
+                            <label for="id-director-title">صفة المدير(ة)</label>
+                            <input id="id-director-title" placeholder="مدير(ة) المؤسسة" />
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="id-footer-text">نص التذييل (أسفل الوثائق)</label>
+                            <textarea
+                                id="id-footer-text"
+                                placeholder="سلمت هذه الوثيقة للمعني(ة) بالأمر..."
+                                style="min-height: 60px"
+                            ></textarea>
                         </div>
                     </div>
-                    <input type="file" id="signature-file-input" accept="image/png,image/jpeg" style="display:none;">
+                </div>
+
+                <!-- Sections 3-5: Logo, Seal, Signature (side by side) -->
+                <div class="assets-row">
+                    <!-- Section 3: Logo (center column of letterhead) -->
+                    <div class="identity-section">
+                        <div class="section-title"><i class="fas fa-image"></i> شعار المؤسسة</div>
+                        <div class="logo-upload-area">
+                            <button
+                                class="logo-preview"
+                                id="logo-preview"
+                                type="button"
+                                aria-controls="logo-file-input"
+                                aria-label="اختيار شعار المؤسسة"
+                                title="اختيار شعار المؤسسة"
+                            >
+                                <i class="fas fa-camera placeholder-icon" id="logo-placeholder"></i>
+                                <img id="logo-img" style="display: none" alt="شعار المؤسسة" />
+                            </button>
+                            <div class="logo-actions">
+                                <button class="btn btn-primary btn-sm" type="button" id="btn-upload-logo">
+                                    <i class="fas fa-upload"></i> اختيار صورة
+                                </button>
+                                <button
+                                    class="btn btn-outline btn-sm"
+                                    type="button"
+                                    id="btn-remove-logo"
+                                    style="display: none"
+                                >
+                                    <i class="fas fa-trash"></i> حذف الشعار
+                                </button>
+                                <span style="font-size: 11px; color: var(--color-text-light, #999)"
+                                    >PNG أو JPG — حد أقصى 200 كيلوبايت</span
+                                >
+                            </div>
+                        </div>
+                        <input type="file" id="logo-file-input" accept="image/png,image/jpeg" style="display: none" />
+                    </div>
+
+                    <!-- Section 4: Official Seal -->
+                    <div class="identity-section">
+                        <div class="section-title"><i class="fas fa-stamp"></i> ختم المؤسسة</div>
+                        <div class="logo-upload-area">
+                            <button
+                                class="logo-preview"
+                                id="seal-preview"
+                                type="button"
+                                aria-controls="seal-file-input"
+                                aria-label="اختيار ختم المؤسسة"
+                                title="اختيار ختم المؤسسة"
+                            >
+                                <i class="fas fa-stamp placeholder-icon" id="seal-placeholder"></i>
+                                <img id="seal-img" style="display: none" alt="ختم المؤسسة" />
+                            </button>
+                            <div class="logo-actions">
+                                <button class="btn btn-primary btn-sm" type="button" id="btn-upload-seal">
+                                    <i class="fas fa-upload"></i> اختيار صورة
+                                </button>
+                                <button
+                                    class="btn btn-outline btn-sm"
+                                    type="button"
+                                    id="btn-remove-seal"
+                                    style="display: none"
+                                >
+                                    <i class="fas fa-trash"></i> حذف الختم
+                                </button>
+                                <span style="font-size: 11px; color: var(--color-text-light, #999)"
+                                    >PNG أو JPG — حد أقصى 200 كيلوبايت</span
+                                >
+                            </div>
+                        </div>
+                        <input type="file" id="seal-file-input" accept="image/png,image/jpeg" style="display: none" />
+                    </div>
+
+                    <!-- Section 5: Director Signature -->
+                    <div class="identity-section">
+                        <div class="section-title"><i class="fas fa-signature"></i> توقيع المدير(ة)</div>
+                        <div class="logo-upload-area">
+                            <button
+                                class="logo-preview"
+                                id="signature-preview"
+                                type="button"
+                                aria-controls="signature-file-input"
+                                aria-label="اختيار توقيع المدير(ة)"
+                                title="اختيار توقيع المدير(ة)"
+                                style="width: 120px; height: 60px"
+                            >
+                                <i class="fas fa-pen-nib placeholder-icon" id="signature-placeholder"></i>
+                                <img id="signature-img" style="display: none" alt="توقيع المدير(ة)" />
+                            </button>
+                            <div class="logo-actions">
+                                <button class="btn btn-primary btn-sm" type="button" id="btn-upload-signature">
+                                    <i class="fas fa-upload"></i> اختيار صورة
+                                </button>
+                                <button
+                                    class="btn btn-outline btn-sm"
+                                    type="button"
+                                    id="btn-remove-signature"
+                                    style="display: none"
+                                >
+                                    <i class="fas fa-trash"></i> حذف التوقيع
+                                </button>
+                                <span style="font-size: 11px; color: var(--color-text-light, #999)"
+                                    >PNG أو JPG — حد أقصى 200 كيلوبايت — يُفضّل صورة بخلفية شفافة</span
+                                >
+                            </div>
+                        </div>
+                        <input
+                            type="file"
+                            id="signature-file-input"
+                            accept="image/png,image/jpeg"
+                            style="display: none"
+                        />
+                    </div>
+                </div>
+
+                <!-- Save + Preview -->
+                <div class="form-actions">
+                    <button class="btn btn-success" id="btn-save">
+                        <i class="fas fa-save"></i> حفظ جميع المعلومات
+                    </button>
+                    <button class="btn btn-primary" id="btn-preview">
+                        <i class="fas fa-eye"></i> معاينة رأس الوثيقة
+                    </button>
+                </div>
+
+                <!-- Live letterhead preview -->
+                <div class="identity-section" id="preview-section" style="display: none; margin-top: 18px">
+                    <div class="section-title">
+                        <i class="fas fa-print"></i> معاينة رأس الوثيقة كما سيظهر عند الطباعة
+                    </div>
+                    <div class="letterhead-preview-container" id="letterhead-preview"></div>
                 </div>
             </div>
+        </main>
 
-            <!-- Save + Preview -->
-            <div class="form-actions">
-                <button class="btn btn-success" id="btn-save"><i class="fas fa-save"></i> حفظ جميع المعلومات</button>
-                <button class="btn btn-primary" id="btn-preview"><i class="fas fa-eye"></i> معاينة رأس الوثيقة</button>
-            </div>
-
-            <!-- Live letterhead preview -->
-            <div class="identity-section" id="preview-section" style="display:none; margin-top: 18px;">
-                <div class="section-title"><i class="fas fa-print"></i> معاينة رأس الوثيقة كما سيظهر عند الطباعة</div>
-                <div class="letterhead-preview-container" id="letterhead-preview"></div>
-            </div>
-
-        </div>
-    </main>
-
-    <script>
-        // Field map: identity key → DOM id
-        const FIELDS = {
-            country: 'id-country',
-            ministry: 'id-ministry',
-            academy: 'id-academy',
-            directorate: 'id-directorate',
-            school_name: 'id-school-name',
-            school_code: 'id-school-code',
-            city: 'id-city',
-            commune: 'id-commune',
-            school_year: 'id-school-year',
-            director_name: 'id-director-name',
-            director_title: 'id-director-title',
-            footer_text: 'id-footer-text'
-        };
-
-        let currentLogoBase64 = '';
-        let currentSealBase64 = '';
-        let currentSignatureBase64 = '';
-
-        // ── Load identity ──
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const identity = await window.api.reports.getIdentity();
-                for (const [key, domId] of Object.entries(FIELDS)) {
-                    const el = document.getElementById(domId);
-                    if (el && identity[key]) el.value = identity[key];
-                }
-                if (identity.logo_base64) {
-                    currentLogoBase64 = identity.logo_base64;
-                    showLogoPreview(currentLogoBase64);
-                }
-                if (identity.seal_base64) {
-                    currentSealBase64 = identity.seal_base64;
-                    showAssetPreview('seal', currentSealBase64);
-                }
-                if (identity.signature_base64) {
-                    currentSignatureBase64 = identity.signature_base64;
-                    showAssetPreview('signature', currentSignatureBase64);
-                }
-            } catch (_) { }
-        });
-
-        // ── Save identity ──
-        document.getElementById('btn-save').addEventListener('click', async () => {
-            const updates = {};
-            for (const [key, domId] of Object.entries(FIELDS)) {
-                updates[key] = document.getElementById(domId).value.trim();
-            }
-            updates.logo_base64 = currentLogoBase64;
-            updates.seal_base64 = currentSealBase64;
-            updates.signature_base64 = currentSignatureBase64;
-
-            try {
-                await window.api.reports.updateIdentity(updates);
-
-                // Also sync back to legacy school_info setting for backward compat
-                const legacyPayload = {
-                    name: updates.school_name,
-                    code: updates.school_code,
-                    city: updates.city,
-                    address: ''
-                };
-                await window.api.settings.set('school_info', JSON.stringify(legacyPayload));
-
-                showToast('تم حفظ معلومات المؤسسة بنجاح', 'success');
-            } catch (err) {
-                showToast('فشل الحفظ: ' + (err.message || err), 'error');
-            }
-        });
-
-        // ── Logo upload ──
-        const fileInput = document.getElementById('logo-file-input');
-        document.getElementById('btn-upload-logo').addEventListener('click', () => fileInput.click());
-        document.getElementById('logo-preview').addEventListener('click', () => fileInput.click());
-
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            if (file.size > 200 * 1024) {
-                showToast('حجم الصورة يتجاوز 200 كيلوبايت', 'error');
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = () => {
-                // Extract base64 without the data URI prefix
-                const base64 = reader.result.split(',')[1];
-                currentLogoBase64 = base64;
-                showLogoPreview(base64);
-            };
-            reader.readAsDataURL(file);
-        });
-
-        document.getElementById('btn-remove-logo').addEventListener('click', () => {
-            currentLogoBase64 = '';
-            document.getElementById('logo-img').style.display = 'none';
-            document.getElementById('logo-placeholder').style.display = '';
-            document.getElementById('btn-remove-logo').style.display = 'none';
-        });
-
-        function showLogoPreview(base64) {
-            const img = document.getElementById('logo-img');
-            img.src = 'data:image/png;base64,' + base64;
-            img.style.display = 'block';
-            document.getElementById('logo-placeholder').style.display = 'none';
-            document.getElementById('btn-remove-logo').style.display = '';
-        }
-
-        // ── Generic asset preview helper (seal, signature) ──
-        function showAssetPreview(type, base64) {
-            const img = document.getElementById(type + '-img');
-            img.src = 'data:image/png;base64,' + base64;
-            img.style.display = 'block';
-            document.getElementById(type + '-placeholder').style.display = 'none';
-            document.getElementById('btn-remove-' + type).style.display = '';
-        }
-
-        function setupAssetUpload(type, stateGetter, stateSetter) {
-            const fileInput = document.getElementById(type + '-file-input');
-            document.getElementById('btn-upload-' + type).addEventListener('click', () => fileInput.click());
-            document.getElementById(type + '-preview').addEventListener('click', () => fileInput.click());
-
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                if (file.size > 200 * 1024) {
-                    showToast('حجم الصورة يتجاوز 200 كيلوبايت', 'error');
-                    return;
-                }
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const base64 = reader.result.split(',')[1];
-                    stateSetter(base64);
-                    showAssetPreview(type, base64);
-                };
-                reader.readAsDataURL(file);
-            });
-
-            document.getElementById('btn-remove-' + type).addEventListener('click', () => {
-                stateSetter('');
-                document.getElementById(type + '-img').style.display = 'none';
-                document.getElementById(type + '-placeholder').style.display = '';
-                document.getElementById('btn-remove-' + type).style.display = 'none';
-            });
-        }
-
-        // ── Seal upload ──
-        setupAssetUpload('seal', () => currentSealBase64, (v) => { currentSealBase64 = v; });
-
-        // ── Signature upload ──
-        setupAssetUpload('signature', () => currentSignatureBase64, (v) => { currentSignatureBase64 = v; });
-
-        // ── Preview letterhead ──
-        document.getElementById('btn-preview').addEventListener('click', () => {
-            const get = (id) => document.getElementById(id).value.trim();
-            const esc = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-            const country = get('id-country');
-            const ministry = get('id-ministry');
-            const academy = get('id-academy');
-            const directorate = get('id-directorate');
-            const schoolName = get('id-school-name');
-            const schoolCode = get('id-school-code');
-            const logo = currentLogoBase64;
-
-            const html = `
-            <div class="doc-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px;">
-                <table style="width: 100%; border-collapse: collapse;" role="presentation">
-                    <tr>
-                        <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
-                            <div style="font-size: 13px; font-weight: 700; color: #222;">${esc(country)}</div>
-                            <div style="font-size: 11px; color: #555; margin-top: 2px;">${esc(ministry)}</div>
-                            ${academy ? `<div style="font-size: 10px; color: #666; margin-top: 2px;">${esc(academy)}</div>` : ''}
-                            ${directorate ? `<div style="font-size: 10px; color: #666; margin-top: 1px;">${esc(directorate)}</div>` : ''}
-                        </td>
-                        <td style="width: 10%; text-align: center; vertical-align: middle;">
-                            ${logo
-                    ? `<img src="data:image/png;base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
-                    : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
-                }
-                        </td>
-                        <td style="width: 45%; vertical-align: middle; text-align: center; padding: 0;">
-                            <div style="font-size: 14px; font-weight: 800; color: #3B6AC5;">${esc(schoolName)}</div>
-                            ${schoolCode ? `<div style="font-size: 10px; color: #888; margin-top: 2px;">رمز المؤسسة: ${esc(schoolCode)}</div>` : ''}
-                        </td>
-                    </tr>
-                </table>
-            </div>`;
-
-            document.getElementById('letterhead-preview').innerHTML = html;
-            document.getElementById('preview-section').style.display = '';
-        });
-    </script>
-</body>
-
+        <script src="js/pages/settings-school.js" defer></script>
+    </body>
 </html>

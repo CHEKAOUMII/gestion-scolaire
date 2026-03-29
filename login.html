@@ -1,532 +1,215 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تسجيل الدخول | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/tailwind-output.css">
-    <script src="js/ux-enhancements.js"></script>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>تسجيل الدخول | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/ux-enhancements.js"></script>
     </head>
 
-<body>
-    <div class="login-split">
-        <!-- Right: Branding Panel -->
-        <div class="login-brand-panel">
-            <a href="index.html" class="btn-back">
-                <i class="fas fa-arrow-right"></i>
-                رجوع
-            </a>
-            <div class="brand-shape s1"></div>
-            <div class="brand-shape s2"></div>
-            <div class="brand-shape s3"></div>
-            <div class="brand-content">
-                <div class="brand-logo">
-                    <i class="fas fa-graduation-cap"></i>
+    <body>
+        <div class="login-split">
+            <!-- Right: Branding Panel -->
+            <div class="login-brand-panel">
+                <a href="index.html" class="btn-back">
+                    <i class="fas fa-arrow-right"></i>
+                    رجوع
+                </a>
+                <div class="brand-shape s1"></div>
+                <div class="brand-shape s2"></div>
+                <div class="brand-shape s3"></div>
+                <div class="brand-content">
+                    <div class="brand-logo">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <h1>برنامج التدبير المدرسي</h1>
+                    <p>نظام متكامل لإدارة شؤون المؤسسة التعليمية والتلاميذ والأساتذة</p>
+                    <div class="brand-features">
+                        <div class="brand-feature">
+                            <i class="fas fa-chart-line"></i>
+                            <span>إحصائيات ونتائج فورية</span>
+                        </div>
+                        <div class="brand-feature">
+                            <i class="fas fa-user-graduate"></i>
+                            <span>إدارة شاملة للتلاميذ</span>
+                        </div>
+                        <div class="brand-feature">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>أمان وحماية البيانات</span>
+                        </div>
+                    </div>
                 </div>
-                <h1>برنامج التدبير المدرسي</h1>
-                <p>نظام متكامل لإدارة شؤون المؤسسة التعليمية والتلاميذ والأساتذة</p>
-                <div class="brand-features">
-                    <div class="brand-feature">
-                        <i class="fas fa-chart-line"></i>
-                        <span>إحصائيات ونتائج فورية</span>
+            </div>
+
+            <!-- Left: Form Panel -->
+            <div class="login-form-panel">
+                <div class="login-container">
+                    <!-- Tabs -->
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" data-tab="login" id="tab-login">
+                            <i class="fas fa-sign-in-alt"></i>
+                            تسجيل الدخول
+                        </button>
+                        <button class="auth-tab hidden" data-tab="register" id="tab-register" disabled>
+                            <i class="fas fa-user-plus"></i>
+                            إنشاء حساب
+                        </button>
                     </div>
-                    <div class="brand-feature">
-                        <i class="fas fa-user-graduate"></i>
-                        <span>إدارة شاملة للتلاميذ</span>
-                    </div>
-                    <div class="brand-feature">
-                        <i class="fas fa-shield-alt"></i>
-                        <span>أمان وحماية البيانات</span>
+
+                    <div class="login-card">
+                        <!-- ── Login Form ── -->
+                        <div class="auth-form active" id="form-login">
+                            <div class="error-message" id="login-error">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <span id="login-error-text"></span>
+                            </div>
+
+                            <form id="login-form">
+                                <div class="form-group">
+                                    <label for="login-email">البريد الإلكتروني</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-envelope"></i>
+                                        <input type="email" id="login-email" placeholder="example@email.com" required />
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="login-password">كلمة المرور</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock"></i>
+                                        <input type="password" id="login-password" placeholder="••••••••" required />
+                                        <button
+                                            type="button"
+                                            class="password-toggle"
+                                            data-target="login-password"
+                                            aria-controls="login-password"
+                                            aria-pressed="false"
+                                            aria-label="إظهار كلمة المرور"
+                                            title="إظهار كلمة المرور"
+                                        >
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="remember-row">
+                                    <input type="checkbox" id="remember-me" />
+                                    <label for="remember-me">تذكرني</label>
+                                </div>
+
+                                <button type="submit" class="btn-login" id="btn-login">
+                                    <div class="spinner"></div>
+                                    <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- ── Register Form ── -->
+                        <div class="auth-form" id="form-register">
+                            <div class="error-message" id="register-error">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <span id="register-error-text"></span>
+                            </div>
+                            <div class="success-message" id="register-success">
+                                <i class="fas fa-check-circle"></i>
+                                <span id="register-success-text"></span>
+                            </div>
+
+                            <form id="register-form">
+                                <div class="form-group">
+                                    <label for="reg-name">الاسم الكامل</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-user"></i>
+                                        <input
+                                            type="text"
+                                            id="reg-name"
+                                            placeholder="أحمد محمد"
+                                            required
+                                            minlength="2"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="reg-email">البريد الإلكتروني</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-envelope"></i>
+                                        <input type="email" id="reg-email" placeholder="example@email.com" required />
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="reg-password">كلمة المرور</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock"></i>
+                                        <input
+                                            type="password"
+                                            id="reg-password"
+                                            placeholder="6 أحرف على الأقل"
+                                            required
+                                            minlength="6"
+                                        />
+                                        <button
+                                            type="button"
+                                            class="password-toggle"
+                                            data-target="reg-password"
+                                            aria-controls="reg-password"
+                                            aria-pressed="false"
+                                            aria-label="إظهار كلمة المرور"
+                                            title="إظهار كلمة المرور"
+                                        >
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <div class="password-strength" id="pw-strength">
+                                        <div class="password-strength-bar" id="pw-strength-bar"></div>
+                                    </div>
+                                    <div class="password-strength-label" id="pw-strength-label"></div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="reg-password-confirm">تأكيد كلمة المرور</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock"></i>
+                                        <input
+                                            type="password"
+                                            id="reg-password-confirm"
+                                            placeholder="أعد كتابة كلمة المرور"
+                                            required
+                                            minlength="6"
+                                        />
+                                        <button
+                                            type="button"
+                                            class="password-toggle"
+                                            data-target="reg-password-confirm"
+                                            aria-controls="reg-password-confirm"
+                                            aria-pressed="false"
+                                            aria-label="إظهار كلمة المرور"
+                                            title="إظهار كلمة المرور"
+                                        >
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn-login" id="btn-register">
+                                    <div class="spinner"></div>
+                                    <span><i class="fas fa-user-plus"></i> إنشاء حساب</span>
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="login-footer">
+                            <p>© 2026 جميع الحقوق محفوظة</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Left: Form Panel -->
-        <div class="login-form-panel">
-            <div class="login-container">
-                <!-- Tabs -->
-                <div class="auth-tabs">
-                    <button class="auth-tab active" data-tab="login" id="tab-login">
-                        <i class="fas fa-sign-in-alt"></i>
-                        تسجيل الدخول
-                    </button>
-                    <button class="auth-tab" data-tab="register" id="tab-register" disabled style="display:none;">
-                        <i class="fas fa-user-plus"></i>
-                        إنشاء حساب
-                    </button>
-                </div>
-
-                <div class="login-card">
-                    <!-- ── Login Form ── -->
-                    <div class="auth-form active" id="form-login">
-                        <div class="error-message" id="login-error">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <span id="login-error-text"></span>
-                        </div>
-
-                        <form id="login-form">
-                            <div class="form-group">
-                                <label for="login-email">البريد الإلكتروني</label>
-                                <div class="input-wrapper">
-                                    <i class="fas fa-envelope"></i>
-                                    <input type="email" id="login-email" placeholder="example@email.com" required>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="login-password">كلمة المرور</label>
-                                <div class="input-wrapper">
-                                    <i class="fas fa-lock"></i>
-                                    <input type="password" id="login-password" placeholder="••••••••" required>
-                                    <button type="button" class="password-toggle" data-target="login-password"
-                                        aria-label="إظهار كلمة المرور">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="remember-row">
-                                <input type="checkbox" id="remember-me">
-                                <label for="remember-me">تذكرني</label>
-                            </div>
-
-                            <button type="submit" class="btn-login" id="btn-login">
-                                <div class="spinner"></div>
-                                <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- ── Register Form ── -->
-                    <div class="auth-form" id="form-register">
-                        <div class="error-message" id="register-error">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <span id="register-error-text"></span>
-                        </div>
-                        <div class="success-message" id="register-success">
-                            <i class="fas fa-check-circle"></i>
-                            <span id="register-success-text"></span>
-                        </div>
-
-                        <form id="register-form">
-                            <div class="form-group">
-                                <label for="reg-name">الاسم الكامل</label>
-                                <div class="input-wrapper">
-                                    <i class="fas fa-user"></i>
-                                    <input type="text" id="reg-name" placeholder="أحمد محمد" required minlength="2">
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="reg-email">البريد الإلكتروني</label>
-                                <div class="input-wrapper">
-                                    <i class="fas fa-envelope"></i>
-                                    <input type="email" id="reg-email" placeholder="example@email.com" required>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="reg-password">كلمة المرور</label>
-                                <div class="input-wrapper">
-                                    <i class="fas fa-lock"></i>
-                                    <input type="password" id="reg-password" placeholder="6 أحرف على الأقل" required
-                                        minlength="6">
-                                    <button type="button" class="password-toggle" data-target="reg-password"
-                                        aria-label="إظهار كلمة المرور">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                <div class="password-strength" id="pw-strength">
-                                    <div class="password-strength-bar" id="pw-strength-bar"></div>
-                                </div>
-                                <div class="password-strength-label" id="pw-strength-label"></div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="reg-password-confirm">تأكيد كلمة المرور</label>
-                                <div class="input-wrapper">
-                                    <i class="fas fa-lock"></i>
-                                    <input type="password" id="reg-password-confirm" placeholder="أعد كتابة كلمة المرور"
-                                        required minlength="6">
-                                    <button type="button" class="password-toggle" data-target="reg-password-confirm"
-                                        aria-label="إظهار كلمة المرور">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn-login" id="btn-register">
-                                <div class="spinner"></div>
-                                <span><i class="fas fa-user-plus"></i> إنشاء حساب</span>
-                            </button>
-                        </form>
-                    </div>
-
-                    <div class="login-footer">
-                        <p>© 2026 جميع الحقوق محفوظة</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // ── Shared session hash (single definition) ──
-        function _computeSessionHash(data) {
-            const payload = [data.userId, data.role, data.loggedAt].join('|');
-            let hash = 0;
-            const key = 'gsl_session_integrity_2024';
-            const combined = key + ':' + payload;
-            for (let i = 0; i < combined.length; i++) {
-                const char = combined.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return hash.toString(36);
-        }
-
-        function _saveLocalSession(sessionUser, fallbackEmail, fallbackName) {
-            const sessionData = {
-                userId: Number(sessionUser.userId || 0),
-                name: String(sessionUser.name || fallbackName || ''),
-                email: String(sessionUser.email || fallbackEmail || '').trim().toLowerCase(),
-                role: String(sessionUser.role || 'staff'),
-                loggedAt: Date.now(),
-                source: 'sqlite'
-            };
-            sessionData._h = _computeSessionHash(sessionData);
-            localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
-        }
-
-        // ── DOM refs ──
-        const loginForm = document.getElementById('login-form');
-        const registerForm = document.getElementById('register-form');
-        const btnLogin = document.getElementById('btn-login');
-        const btnRegister = document.getElementById('btn-register');
-        const loginError = document.getElementById('login-error');
-        const loginErrorText = document.getElementById('login-error-text');
-        const registerError = document.getElementById('register-error');
-        const registerErrorText = document.getElementById('register-error-text');
-        const registerSuccess = document.getElementById('register-success');
-        const registerSuccessText = document.getElementById('register-success-text');
-
-        // ── Tabs ──
-        document.querySelectorAll('.auth-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const target = tab.dataset.tab;
-                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById(`form-${target}`).classList.add('active');
-                // Clear errors
-                loginError.classList.remove('show');
-                registerError.classList.remove('show');
-                registerSuccess.classList.remove('show');
-            });
-        });
-
-        // ── Show/hide password toggle ──
-        document.querySelectorAll('.password-toggle').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetId = btn.dataset.target;
-                const input = document.getElementById(targetId);
-                if (!input) return;
-                const isPassword = input.type === 'password';
-                input.type = isPassword ? 'text' : 'password';
-                const icon = btn.querySelector('i');
-                icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
-            });
-        });
-
-        // ── Password strength ──
-        const regPassword = document.getElementById('reg-password');
-        const strengthBar = document.getElementById('pw-strength-bar');
-        const strengthLabel = document.getElementById('pw-strength-label');
-
-        regPassword.addEventListener('input', () => {
-            const pw = regPassword.value;
-            let score = 0;
-            if (pw.length >= 6) score++;
-            if (pw.length >= 8) score++;
-            if (/[A-Z]/.test(pw)) score++;
-            if (/[0-9]/.test(pw)) score++;
-            if (/[^A-Za-z0-9]/.test(pw)) score++;
-
-            const levels = [
-                { width: '0%', color: '#e5e7eb', label: '' },
-                { width: '20%', color: '#EF4444', label: 'ضعيفة' },
-                { width: '40%', color: '#F59E0B', label: 'مقبولة' },
-                { width: '60%', color: '#3B82F6', label: 'متوسطة' },
-                { width: '80%', color: '#10B981', label: 'جيدة' },
-                { width: '100%', color: '#059669', label: 'قوية' }
-            ];
-
-            const level = levels[Math.min(score, levels.length - 1)];
-            strengthBar.style.width = level.width;
-            strengthBar.style.background = level.color;
-            strengthLabel.textContent = pw.length > 0 ? level.label : '';
-            strengthLabel.style.color = level.color;
-        });
-
-        // ── Remember me ──
-        const REMEMBER_KEY = 'gsl_remember_email';
-        const loginEmail = document.getElementById('login-email');
-        const rememberMe = document.getElementById('remember-me');
-
-        try {
-            const savedEmail = localStorage.getItem(REMEMBER_KEY);
-            if (savedEmail) {
-                loginEmail.value = savedEmail;
-                rememberMe.checked = true;
-            }
-        } catch (_) { }
-
-        // ── Helpers ──
-        function getSafeNextPage() {
-            const params = new URLSearchParams(window.location.search);
-            const next = String(params.get('next') || '').trim();
-            if (/^[a-zA-Z0-9._-]+\.html$/.test(next)) return next;
-            return 'index.html';
-        }
-
-        async function checkExistingAdminSession() {
-            if (!window.api?.auth?.getSession) return;
-            try {
-                const res = await window.api.auth.getSession();
-                if (res?.success && res?.authenticated && res.user?.role) {
-                    _saveLocalSession(res.user, res.user.email, res.user.name);
-                    const nextPage = getSafeNextPage();
-                    window.location.replace(`${nextPage}?loggedin=1`);
-                }
-            } catch (_err) { }
-        }
-
-        function clearLocalSession() {
-            try { localStorage.removeItem('gsl_auth_session_v1'); } catch (_) { }
-        }
-
-        function saveRememberMe(email) {
-            try {
-                if (rememberMe.checked) {
-                    localStorage.setItem(REMEMBER_KEY, email);
-                } else {
-                    localStorage.removeItem(REMEMBER_KEY);
-                }
-            } catch (_) { }
-        }
-
-        // ── Login ──
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = loginEmail.value;
-            const password = document.getElementById('login-password').value;
-
-            btnLogin.classList.add('loading');
-            btnLogin.disabled = true;
-            loginError.classList.remove('show');
-
-            try {
-                if (!window.api?.auth?.login) {
-                    throw new Error('تعذر تهيئة جلسة التطبيق');
-                }
-
-                const appSessionRes = await window.api.auth.login({ email, password });
-                if (!appSessionRes?.success || !appSessionRes?.authenticated) {
-                    clearLocalSession();
-                    loginErrorText.textContent = appSessionRes?.error || 'فشل تسجيل الدخول';
-                    loginError.classList.add('show');
-                    btnLogin.classList.remove('loading');
-                    btnLogin.disabled = false;
-                    return;
-                }
-
-                const sessionUser = appSessionRes.user || {};
-                const userRole = String(sessionUser.role || 'staff').toLowerCase();
-
-                // Save remember-me
-                saveRememberMe(email);
-
-                _saveLocalSession(sessionUser, email, '');
-
-                const nextPage = getSafeNextPage();
-                window.location.replace(`${nextPage}?loggedin=1`);
-            } catch (error) {
-                let message = 'حدث خطأ أثناء تسجيل الدخول';
-                switch (error.code) {
-                    case 'USER_NOT_FOUND': message = 'البريد الإلكتروني غير مسجل'; break;
-                    case 'INVALID_CREDENTIALS': message = 'كلمة المرور غير صحيحة'; break;
-                    case 'INVALID_EMAIL': message = 'البريد الإلكتروني غير صالح'; break;
-                    case 'INVALID_PASSWORD': message = 'كلمة المرور مطلوبة'; break;
-                    case 'PASSWORD_NOT_SET': message = 'لم يتم إعداد كلمة مرور لهذا المستخدم'; break;
-                    case 'USER_DISABLED': message = 'هذا المستخدم معطّل من طرف الإدارة'; break;
-                }
-                loginErrorText.textContent = message;
-                loginError.classList.add('show');
-                btnLogin.classList.remove('loading');
-                btnLogin.disabled = false;
-            }
-        });
-
-        // ── Register ──
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('reg-name').value.trim();
-            const email = document.getElementById('reg-email').value.trim();
-            const password = document.getElementById('reg-password').value;
-            const confirmPassword = document.getElementById('reg-password-confirm').value;
-
-            registerError.classList.remove('show');
-            registerSuccess.classList.remove('show');
-
-            if (password !== confirmPassword) {
-                registerErrorText.textContent = 'كلمتا المرور غير متطابقتين';
-                registerError.classList.add('show');
-                return;
-            }
-
-            if (password.length < 6) {
-                registerErrorText.textContent = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
-                registerError.classList.add('show');
-                return;
-            }
-
-            btnRegister.classList.add('loading');
-            btnRegister.disabled = true;
-
-            try {
-                if (!window.api?.auth?.register) {
-                    throw new Error('تعذر تهيئة جلسة التطبيق');
-                }
-
-                const res = await window.api.auth.register({ name, email, password });
-                if (!res?.success) {
-                    registerErrorText.textContent = res?.error || 'فشل إنشاء الحساب';
-                    registerError.classList.add('show');
-                    btnRegister.classList.remove('loading');
-                    btnRegister.disabled = false;
-                    return;
-                }
-
-                // Registration successful
-                registerSuccessText.textContent = 'تم إنشاء حسابك بنجاح!';
-                registerSuccess.classList.add('show');
-
-                // Store session for the staff user
-                const sessionUser = res.user || {};
-                _saveLocalSession(sessionUser, email, name);
-
-                // Offer PIN setup after registration
-                _showPinSetupPrompt();
-            } catch (error) {
-                registerErrorText.textContent = error.message || 'حدث خطأ أثناء إنشاء الحساب';
-                registerError.classList.add('show');
-                btnRegister.classList.remove('loading');
-                btnRegister.disabled = false;
-            }
-        });
-
-        // ── PIN setup prompt after registration ──
-        function _showPinSetupPrompt() {
-            const card = document.querySelector('.login-card');
-            if (!card) {
-                window.location.replace('index.html');
-                return;
-            }
-
-            // Hide current forms and tabs
-            document.querySelectorAll('.auth-form').forEach(f => f.style.display = 'none');
-            document.querySelector('.auth-tabs').style.display = 'none';
-
-            const pinPrompt = document.createElement('div');
-            pinPrompt.style.cssText = 'animation:slideUp 0.4s ease-out;';
-            pinPrompt.innerHTML = `
-                <div style="text-align:center;margin-bottom:20px;">
-                    <div style="width:64px;height:64px;border-radius:50%;background:#EBF4FF;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-                        <i class="fas fa-fingerprint" style="font-size:28px;color:#1E40AF;"></i>
-                    </div>
-                    <h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:var(--color-text-main);">إعداد رمز PIN</h3>
-                    <p style="margin:0;font-size:13px;color:var(--color-text-muted);">رمز PIN يتيح لك قفل وفتح الجلسة بسرعة دون كلمة المرور.</p>
-                </div>
-                <div id="pin-prompt-error" style="display:none;background:#FED7D7;color:#C53030;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>
-                <div id="pin-prompt-success" style="display:none;background:#C6F6D5;color:#22543D;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px;"></div>
-                <form id="pin-prompt-form" style="display:flex;flex-direction:column;gap:14px;">
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">رمز PIN (4-6 أرقام)</label>
-                        <input type="password" id="pin-prompt-new" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6"
-                            style="width:100%;padding:13px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);font-size:20px;text-align:center;letter-spacing:10px;direction:ltr;font-family:ui-monospace,monospace;">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label style="display:block;margin-bottom:4px;font-size:13px;font-weight:600;">تأكيد رمز PIN</label>
-                        <input type="password" id="pin-prompt-confirm" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6"
-                            style="width:100%;padding:13px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);font-size:20px;text-align:center;letter-spacing:10px;direction:ltr;font-family:ui-monospace,monospace;">
-                    </div>
-                    <button type="submit" class="btn-login" style="margin-top:4px;">
-                        <span><i class="fas fa-lock"></i> حفظ رمز PIN</span>
-                    </button>
-                </form>
-                <button type="button" id="pin-prompt-skip" style="width:100%;margin-top:10px;padding:12px;background:transparent;border:1px solid var(--color-accent);border-radius:var(--radius-sm);font-size:14px;font-weight:600;color:var(--color-text-muted);cursor:pointer;font-family:inherit;transition:all 0.2s;">
-                    تخطي — يمكنك إعداده لاحقاً
-                </button>
-            `;
-            card.appendChild(pinPrompt);
-
-            // Skip → go to app
-            pinPrompt.querySelector('#pin-prompt-skip').addEventListener('click', () => {
-                window.location.replace('index.html');
-            });
-
-            // Save PIN
-            pinPrompt.querySelector('#pin-prompt-form').addEventListener('submit', async (ev) => {
-                ev.preventDefault();
-                const errorEl = pinPrompt.querySelector('#pin-prompt-error');
-                const successEl = pinPrompt.querySelector('#pin-prompt-success');
-                errorEl.style.display = 'none';
-                successEl.style.display = 'none';
-
-                const pin = pinPrompt.querySelector('#pin-prompt-new').value;
-                const confirmPin = pinPrompt.querySelector('#pin-prompt-confirm').value;
-
-                if (!/^\d{4,6}$/.test(pin)) {
-                    errorEl.textContent = 'رمز PIN يجب أن يكون من 4 إلى 6 أرقام';
-                    errorEl.style.display = 'block';
-                    return;
-                }
-                if (pin !== confirmPin) {
-                    errorEl.textContent = 'رمزا PIN غير متطابقين';
-                    errorEl.style.display = 'block';
-                    return;
-                }
-
-                try {
-                    const res = await window.api.auth.setupPin({ pin });
-                    if (!res?.success) {
-                        errorEl.textContent = res?.error || 'فشل حفظ رمز PIN';
-                        errorEl.style.display = 'block';
-                        return;
-                    }
-                    successEl.textContent = 'تم حفظ رمز PIN بنجاح! جاري التحويل...';
-                    successEl.style.display = 'block';
-                    setTimeout(() => {
-                        window.location.replace('index.html');
-                    }, 1200);
-                } catch (err) {
-                    errorEl.textContent = err.message || 'حدث خطأ';
-                    errorEl.style.display = 'block';
-                }
-            });
-
-            // Focus the first PIN input
-            setTimeout(() => {
-                pinPrompt.querySelector('#pin-prompt-new')?.focus();
-            }, 100);
-        }
-
-        checkExistingAdminSession();
-    </script>
-</body>
-
+        <script src="js/pages/login.js" defer></script>
+    </body>
 </html>
