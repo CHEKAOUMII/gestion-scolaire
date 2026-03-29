@@ -445,7 +445,7 @@ async function flushPreparedItems(db, docClient, preparedItems, maxRetries) {
                         prepared.entryId,
                         ancestorMapping?.ancestor_data || null
                     );
-                } catch (_conflictErr) {
+                } catch {
                     // Non-critical — don't fail the push over conflict logging
                 }
             }
@@ -966,7 +966,7 @@ async function pullRemoteChanges() {
                         let ancestor = null;
                         try {
                             ancestor = ancestorRow?.ancestor_data ? JSON.parse(ancestorRow.ancestor_data) : null;
-                        } catch (_) {
+                        } catch {
                             /* no ancestor */
                         }
 
@@ -974,7 +974,7 @@ async function pullRemoteChanges() {
                         let localData = {};
                         try {
                             localData = pending.rowData ? JSON.parse(pending.rowData) : {};
-                        } catch (_) {
+                        } catch {
                             /* empty */
                         }
 
@@ -1039,7 +1039,7 @@ async function pullRemoteChanges() {
                                     db.prepare(`UPDATE "${item.tableName}" SET ${setClause} WHERE id = ?`).run(
                                         ...values
                                     );
-                                } catch (_updateErr) {
+                                } catch {
                                     failedCount++;
                                     continue;
                                 }
@@ -1057,7 +1057,7 @@ async function pullRemoteChanges() {
                                             `INSERT INTO "${item.tableName}" (${colNames}) VALUES (${placeholders})`
                                         )
                                         .run(...values);
-                                } catch (_insertErr) {
+                                } catch {
                                     failedCount++;
                                     continue;
                                 }
@@ -1081,14 +1081,14 @@ async function pullRemoteChanges() {
                                 ON CONFLICT(row_sync_id) DO UPDATE SET checksum = ?, updated_at = CURRENT_TIMESTAMP
                             `
                             ).run(item.rowSyncId, item.tableName, checksum, checksum);
-                        } catch (_) {
+                        } catch {
                             /* non-critical */
                         }
                     } else if (item.operation === 'DEL') {
                         if (mapping) {
                             try {
                                 db.prepare(`DELETE FROM "${item.tableName}" WHERE id = ?`).run(mapping.local_id);
-                            } catch (_delErr) {
+                            } catch {
                                 failedCount++;
                                 continue;
                             }
@@ -1097,7 +1097,7 @@ async function pullRemoteChanges() {
                             appliedCount++;
                         }
                     }
-                } catch (_err) {
+                } catch {
                     failedCount++;
                 }
             }
@@ -1142,7 +1142,7 @@ async function pullRemoteChanges() {
             db.prepare('UPDATE sync_config SET last_pull_error = ?, last_pull_at = CURRENT_TIMESTAMP WHERE id = 1').run(
                 err.message
             );
-        } catch (_) {
+        } catch {
             /* ignore */
         }
 

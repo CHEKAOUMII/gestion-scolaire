@@ -23,7 +23,7 @@ function getDefaultYear() {
         const db = getDb();
         const row = db.prepare("SELECT value FROM settings WHERE key = 'currentSchoolYear'").get();
         return row ? row.value : computeDefaultYear();
-    } catch (e) {
+    } catch {
         return computeDefaultYear();
     }
 }
@@ -138,7 +138,7 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
                         channel,
                         `Unauthenticated write on channel "${channel}" — no active session`
                     );
-                } catch (_logErr) {
+                } catch {
                     // Logging failure should not block the operation
                 }
             }

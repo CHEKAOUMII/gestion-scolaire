@@ -66,6 +66,7 @@ function injectSidebar() {
                         <li><a href="grades-results.html"><i class="fas fa-file-invoice"></i> بيان النتائج</a></li>
                         <li><a href="studentzero.html"><i class="fas fa-exclamation-circle"></i> التلاميذ الحاصلون على صفر</a></li>
                         <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> الدعم التربوي</a></li>
+                        <li><a href="support-sessions.html"><i class="fas fa-chalkboard"></i> تتبع حصص الدعم</a></li>
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">
@@ -304,14 +305,39 @@ function injectSidebar() {
         if (!sidebar.classList.contains('collapsed')) {
             reopenActiveSubmenu();
         }
+
+        syncMenuToggleState();
+    }
+
+    function syncMenuToggleState() {
+        if (!menuToggle) return;
+
+        const isMobile = mobileSidebarMedia.matches;
+        const isExpanded = isMobile
+            ? sidebar.classList.contains('mobile-open')
+            : !sidebar.classList.contains('collapsed');
+        const label = isMobile
+            ? isExpanded
+                ? 'إغلاق القائمة الجانبية'
+                : 'فتح القائمة الجانبية'
+            : isExpanded
+              ? 'طي القائمة الجانبية'
+              : 'توسيع القائمة الجانبية';
+
+        menuToggle.setAttribute('aria-controls', 'sidebar');
+        menuToggle.setAttribute('aria-expanded', String(isExpanded));
+        menuToggle.setAttribute('aria-label', label);
+        menuToggle.setAttribute('title', label);
     }
 
     if (menuToggle) {
         menuToggle.dataset.toggleBound = 'true';
+        syncMenuToggleState();
         menuToggle.addEventListener('click', () => {
             if (mobileSidebarMedia.matches) {
                 const isOpen = sidebar.classList.toggle('mobile-open');
                 document.body.classList.toggle('sidebar-mobile-open', isOpen);
+                syncMenuToggleState();
                 return;
             }
 
@@ -330,6 +356,8 @@ function injectSidebar() {
             } else {
                 reopenActiveSubmenu();
             }
+
+            syncMenuToggleState();
         });
     }
 
@@ -344,6 +372,10 @@ function injectSidebar() {
 
     window.addEventListener('resize', syncSidebarViewportState);
     syncSidebarViewportState();
+
+    if (window.UXEnhancements?.applySharedAccessibleNames) {
+        window.UXEnhancements.applySharedAccessibleNames();
+    }
 }
 
 /**

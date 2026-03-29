@@ -1,193 +1,232 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>مؤشرات أداء الأساتذة | برنامج التدبير المدرسي</title>
+        <meta
+            name="description"
+            content="تحليل شامل لمؤشرات أداء الأساتذة: مقارنة المعدلات، نسب النجاح، التصنيف، والمقارنة بين الدورات"
+        />
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/data/ma-education-labels.js"></script>
+        <script src="js/pages/teachers-performance.js" defer></script>
+    </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مؤشرات أداء الأساتذة | برنامج التدبير المدرسي</title>
-    <meta name="description"
-        content="تحليل شامل لمؤشرات أداء الأساتذة: مقارنة المعدلات، نسب النجاح، التصنيف، والمقارنة بين الدورات">
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/tailwind-output.css">
-    <script src="js/utils.js" defer></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js" defer></script>
-    <script src="js/ux-enhancements.js" defer></script>
-    <script src="js/data/ma-education-labels.js"></script>
-    <script src="js/pages/teachers-performance.js" defer></script>
-</head>
-
-<body>
-    <div class="toast-container" id="toast-container"></div>
-    <div class="tp-loading-overlay" id="tp-loading-overlay">
-        <div class="tp-loading-spinner"></div>
-        <span class="tp-loading-text">جاري التحليل...</span>
-    </div>
-
-    <aside class="sidebar" id="sidebar"></aside>
-
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="tp-header-title"><i class="fas fa-ranking-star"></i> مؤشرات أداء الأساتذة</h2>
-            </div>
-            <div class="header-right">
-                <button class="btn btn-secondary" id="tp-export-btn" title="تصدير التقرير">
-                    <i class="fas fa-file-export"></i> تصدير
-                </button>
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
-
-        <div class="grades-container">
-            <!-- Filters -->
-            <div class="search-section">
-                <h3><i class="fas fa-filter"></i> فلترة التحليل</h3>
-                <form id="teacher-performance-form" class="search-form tp-filters-grid">
-                    <select id="tp-level-filter">
-                        <option value="">كل المستويات</option>
-                    </select>
-                    <select id="tp-class-filter">
-                        <option value="">كل الأقسام</option>
-                    </select>
-                    <select id="tp-subject-filter">
-                        <option value="">كل المواد</option>
-                    </select>
-                    <select id="tp-semester-filter">
-                        <option value="">كل الدورات</option>
-                    </select>
-                    <select id="tp-teacher-filter">
-                        <option value="">كل الأساتذة</option>
-                    </select>
-                    <div class="tp-filters-actions">
-                        <button type="button" class="btn btn-primary" id="tp-analyze-btn"><i
-                                class="fas fa-chart-column"></i>
-                            تحليل</button>
-                        <button type="button" class="btn btn-secondary" id="tp-reset-btn"><i class="fas fa-rotate"></i>
-                            إعادة</button>
-                    </div>
-                </form>
-                <div id="tp-state-line" class="tp-state-line">جاري تحميل المعطيات...</div>
-            </div>
-
-            <!-- KPI Cards -->
-            <div id="tp-kpis" class="tp-kpis"></div>
-
-            <!-- Block 1: Comparison & Absence -->
-            <details class="tp-block" open>
-                <summary><i class="fas fa-users-viewfinder"></i> المقارنة العامة وغيابات التلاميذ</summary>
-                <div class="tp-block-body">
-                    <div class="tp-grid-two">
-                        <section class="tp-panel">
-                            <h3><i class="fas fa-chart-bar"></i> مقارنة الأساتذة حسب النسبة</h3>
-                            <p id="tp-comparison-meta" class="tp-panel-note">-</p>
-                            <div class="tp-chart-wrap">
-                                <canvas id="tp-teacher-compare-chart"></canvas>
-                            </div>
-                        </section>
-                        <section class="tp-panel">
-                            <h3><i class="fas fa-user-clock"></i> غيابات التلاميذ حسب الأستاذ</h3>
-                            <p id="tp-absence-meta" class="tp-panel-note">-</p>
-                            <div class="tp-chart-wrap">
-                                <canvas id="tp-absence-by-teacher-chart"></canvas>
-                            </div>
-                        </section>
-                    </div>
-                </div>
-            </details>
-
-            <!-- Block 2: Detailed Table -->
-            <details class="tp-block" open>
-                <summary><i class="fas fa-table"></i> الجدول التفصيلي للأساتذة</summary>
-                <div class="tp-block-body">
-                    <div class="tp-table-wrap">
-                        <table class="tp-table">
-                            <thead>
-                                <tr>
-                                    <th data-sort-key="teacher">الأستاذ <span id="sort-teacher"
-                                            class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="subject">المادة <span id="sort-subject"
-                                            class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="sectionsCount">الأقسام <span id="sort-sectionsCount"
-                                            class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="studentCount">التلاميذ <span id="sort-studentCount"
-                                            class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="avg">المعدل <span id="sort-avg" class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="passRate">النجاح <span id="sort-passRate"
-                                            class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="rating">التصنيف <span id="sort-rating"
-                                            class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="semesterDiff">التطور <span id="sort-semesterDiff"
-                                            class="tp-sort-ind"></span></th>
-                                    <th data-sort-key="lastImportedMs">آخر استيراد <span id="sort-lastImportedMs"
-                                            class="tp-sort-ind"></span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="tp-table-body"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </details>
-
-            <!-- Block 3: Teacher Detail Card -->
-            <details class="tp-block" open>
-                <summary><i class="fas fa-user-check"></i> بطاقة الأستاذ المختار</summary>
-                <div class="tp-block-body">
-                    <div id="tp-teacher-card" class="tp-teacher-card">
-                        <div id="tp-teacher-name" class="tp-teacher-name">-</div>
-                        <div id="tp-teacher-meta" class="tp-teacher-meta"></div>
-                        <div id="tp-teacher-benchmark" class="tp-benchmark-bar"></div>
-                    </div>
-                    <div class="tp-grid-three">
-                        <div class="tp-panel">
-                            <h3><i class="fas fa-school"></i> الأداء حسب الأقسام</h3>
-                            <div class="tp-chart-wrap tp-chart-short">
-                                <canvas id="tp-section-chart"></canvas>
-                            </div>
-                        </div>
-                        <div class="tp-panel">
-                            <h3><i class="fas fa-chart-pie"></i> توزيع نقط الأستاذ</h3>
-                            <div class="tp-chart-wrap tp-chart-short">
-                                <canvas id="tp-distribution-chart"></canvas>
-                            </div>
-                        </div>
-                        <div class="tp-panel">
-                            <h3><i class="fas fa-wave-square"></i> تطور الأداء بين الفروض</h3>
-                            <p id="tp-trend-note" class="tp-panel-note">-</p>
-                            <div class="tp-chart-wrap tp-chart-short">
-                                <canvas id="tp-trend-chart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </details>
-
-            <!-- Block 4: Semester Comparison & Radar -->
-            <details class="tp-block" open>
-                <summary><i class="fas fa-arrow-right-arrow-left"></i> مقارنة الدورات والتصنيف العام</summary>
-                <div class="tp-block-body">
-                    <div class="tp-grid-two">
-                        <section class="tp-panel">
-                            <h3><i class="fas fa-scale-balanced"></i> مقارنة الدورة 1 و الدورة 2</h3>
-                            <p id="tp-semester-compare-note" class="tp-panel-note">-</p>
-                            <div class="tp-chart-wrap tp-chart-medium">
-                                <canvas id="tp-semester-compare-chart"></canvas>
-                            </div>
-                        </section>
-                        <section class="tp-panel">
-                            <h3><i class="fas fa-crosshairs"></i> ملف الأداء الشامل</h3>
-                            <p id="tp-radar-note" class="tp-panel-note">-</p>
-                            <div class="tp-chart-wrap tp-chart-medium">
-                                <canvas id="tp-radar-chart"></canvas>
-                            </div>
-                        </section>
-                    </div>
-                </div>
-            </details>
+    <body>
+        <div class="toast-container" id="toast-container"></div>
+        <div class="tp-loading-overlay" id="tp-loading-overlay">
+            <div class="tp-loading-spinner"></div>
+            <span class="tp-loading-text">جاري التحليل...</span>
         </div>
-    </main>
-</body>
 
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
+                    <h2 class="tp-header-title"><i class="fas fa-ranking-star"></i> مؤشرات أداء الأساتذة</h2>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-secondary" id="tp-export-btn" title="تصدير التقرير">
+                        <i class="fas fa-file-export"></i> تصدير
+                    </button>
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="grades-container">
+                <!-- Filters -->
+                <div class="search-section">
+                    <h3><i class="fas fa-filter"></i> فلترة التحليل</h3>
+                    <form id="teacher-performance-form" class="search-form tp-filters-grid">
+                        <select id="tp-level-filter">
+                            <option value="">كل المستويات</option>
+                        </select>
+                        <select id="tp-class-filter">
+                            <option value="">كل الأقسام</option>
+                        </select>
+                        <select id="tp-subject-filter">
+                            <option value="">كل المواد</option>
+                        </select>
+                        <select id="tp-semester-filter">
+                            <option value="">كل الدورات</option>
+                        </select>
+                        <select id="tp-teacher-filter">
+                            <option value="">كل الأساتذة</option>
+                        </select>
+                        <div class="tp-filters-actions">
+                            <button type="button" class="btn btn-primary" id="tp-analyze-btn">
+                                <i class="fas fa-chart-column"></i> تحليل
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="tp-reset-btn">
+                                <i class="fas fa-rotate"></i> إعادة
+                            </button>
+                        </div>
+                    </form>
+                    <div id="tp-state-line" class="tp-state-line">جاري تحميل المعطيات...</div>
+                </div>
+
+                <!-- KPI Cards -->
+                <div id="tp-kpis" class="tp-kpis"></div>
+
+                <!-- Block 1: Comparison & Absence -->
+                <details class="tp-block" open>
+                    <summary><i class="fas fa-users-viewfinder"></i> المقارنة العامة وغيابات التلاميذ</summary>
+                    <div class="tp-block-body">
+                        <div class="tp-grid-two">
+                            <section class="tp-panel">
+                                <h3><i class="fas fa-chart-bar"></i> مقارنة الأساتذة حسب النسبة</h3>
+                                <p id="tp-comparison-meta" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap">
+                                    <canvas
+                                        id="tp-teacher-compare-chart"
+                                        role="img"
+                                        aria-describedby="tp-comparison-meta"
+                                    ></canvas>
+                                </div>
+                            </section>
+                            <section class="tp-panel">
+                                <h3><i class="fas fa-user-clock"></i> غيابات التلاميذ حسب الأستاذ</h3>
+                                <p id="tp-absence-meta" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap">
+                                    <canvas
+                                        id="tp-absence-by-teacher-chart"
+                                        role="img"
+                                        aria-describedby="tp-absence-meta"
+                                    ></canvas>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Block 2: Detailed Table -->
+                <details class="tp-block" open>
+                    <summary><i class="fas fa-table"></i> الجدول التفصيلي للأساتذة</summary>
+                    <div class="tp-block-body">
+                        <div class="tp-table-wrap">
+                            <table class="tp-table">
+                                <thead>
+                                    <tr>
+                                        <th data-sort-key="teacher">
+                                            الأستاذ <span id="sort-teacher" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="subject">
+                                            المادة <span id="sort-subject" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="sectionsCount">
+                                            الأقسام <span id="sort-sectionsCount" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="studentCount">
+                                            التلاميذ <span id="sort-studentCount" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="avg">
+                                            المعدل <span id="sort-avg" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="passRate">
+                                            النجاح <span id="sort-passRate" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="rating">
+                                            التصنيف <span id="sort-rating" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="semesterDiff">
+                                            التطور <span id="sort-semesterDiff" class="tp-sort-ind"></span>
+                                        </th>
+                                        <th data-sort-key="lastImportedMs">
+                                            آخر استيراد <span id="sort-lastImportedMs" class="tp-sort-ind"></span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tp-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Block 3: Teacher Detail Card -->
+                <details class="tp-block" open>
+                    <summary><i class="fas fa-user-check"></i> بطاقة الأستاذ المختار</summary>
+                    <div class="tp-block-body">
+                        <div id="tp-teacher-card" class="tp-teacher-card">
+                            <div id="tp-teacher-name" class="tp-teacher-name">-</div>
+                            <div id="tp-teacher-meta" class="tp-teacher-meta"></div>
+                            <div id="tp-teacher-benchmark" class="tp-benchmark-bar"></div>
+                        </div>
+                        <div class="tp-grid-three">
+                            <div class="tp-panel">
+                                <h3><i class="fas fa-school"></i> الأداء حسب الأقسام</h3>
+                                <p id="tp-section-note" class="tp-panel-note sr-only">
+                                    لا توجد بيانات للرسم البياني بعد.
+                                </p>
+                                <div class="tp-chart-wrap tp-chart-short">
+                                    <canvas
+                                        id="tp-section-chart"
+                                        role="img"
+                                        aria-describedby="tp-section-note"
+                                    ></canvas>
+                                </div>
+                            </div>
+                            <div class="tp-panel">
+                                <h3><i class="fas fa-chart-pie"></i> توزيع نقط الأستاذ</h3>
+                                <p id="tp-distribution-note" class="tp-panel-note sr-only">
+                                    لا توجد بيانات للرسم البياني بعد.
+                                </p>
+                                <div class="tp-chart-wrap tp-chart-short">
+                                    <canvas
+                                        id="tp-distribution-chart"
+                                        role="img"
+                                        aria-describedby="tp-distribution-note"
+                                    ></canvas>
+                                </div>
+                            </div>
+                            <div class="tp-panel">
+                                <h3><i class="fas fa-wave-square"></i> تطور الأداء بين الفروض</h3>
+                                <p id="tp-trend-note" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap tp-chart-short">
+                                    <canvas id="tp-trend-chart" role="img" aria-describedby="tp-trend-note"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Block 4: Semester Comparison & Radar -->
+                <details class="tp-block" open>
+                    <summary><i class="fas fa-arrow-right-arrow-left"></i> مقارنة الدورات والتصنيف العام</summary>
+                    <div class="tp-block-body">
+                        <div class="tp-grid-two">
+                            <section class="tp-panel">
+                                <h3><i class="fas fa-scale-balanced"></i> مقارنة الدورة 1 و الدورة 2</h3>
+                                <p id="tp-semester-compare-note" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap tp-chart-medium">
+                                    <canvas
+                                        id="tp-semester-compare-chart"
+                                        role="img"
+                                        aria-describedby="tp-semester-compare-note"
+                                    ></canvas>
+                                </div>
+                            </section>
+                            <section class="tp-panel">
+                                <h3><i class="fas fa-crosshairs"></i> ملف الأداء الشامل</h3>
+                                <p id="tp-radar-note" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap tp-chart-medium">
+                                    <canvas id="tp-radar-chart" role="img" aria-describedby="tp-radar-note"></canvas>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </main>
+    </body>
 </html>

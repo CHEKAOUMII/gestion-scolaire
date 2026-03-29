@@ -317,15 +317,15 @@
                 const notes = r.status_notes || '-';
 
                 return `<tr>
-                <td><input type="checkbox" class="row-checkbox" data-id="${r.id}" ${selectedIds.has(r.id) ? 'checked' : ''}></td>
-                <td>${i + 1}</td>
-                <td>${r.code || '-'}</td>
-                <td>${r.full_name || '-'}</td>
-                <td>${r.section || '-'}</td>
-                <td>${gender}</td>
-                <td><span class="badge ${badgeClass}">${statusLabel}</span></td>
-                <td>${dateStr}</td>
-                <td>${notes}</td>
+                <td data-label="تحديد"><input type="checkbox" class="row-checkbox" data-id="${r.id}" ${selectedIds.has(r.id) ? 'checked' : ''}></td>
+                <td data-label="#">${i + 1}</td>
+                <td data-label="رمز مسار">${r.code || '-'}</td>
+                <td data-label="الاسم الكامل">${r.full_name || '-'}</td>
+                <td data-label="القسم">${r.section || '-'}</td>
+                <td data-label="الجنس">${gender}</td>
+                <td data-label="الحالة"><span class="badge ${badgeClass}">${statusLabel}</span></td>
+                <td data-label="التاريخ">${dateStr}</td>
+                <td data-label="الملاحظات">${notes}</td>
             </tr>`;
             })
             .join('');

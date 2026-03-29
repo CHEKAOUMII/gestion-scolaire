@@ -7,10 +7,10 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
-        <script src="js/utils.js"></script>
-        <script src="js/notifications.js"></script>
-        <script src="js/sidebar.js"></script>
-        <script src="js/ux-enhancements.js"></script>
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
     </head>
 
     <body>
@@ -21,7 +21,16 @@
         <main class="main-content">
             <header class="header">
                 <div class="header-left">
-                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <button
+                        class="menu-toggle"
+                        id="menu-toggle"
+                        type="button"
+                        aria-controls="sidebar"
+                        aria-expanded="false"
+                        aria-label="فتح القائمة الجانبية"
+                    >
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
                     <h2 class="page-title"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</h2>
                 </div>
                 <div class="header-right">
@@ -44,7 +53,7 @@
                         </select>
                         <span
                             id="class-count-badge"
-                            style="font-size: 0.85rem; color: #9ca8a0; font-weight: 500"
+                            style="font-size: 0.85rem; color: var(--color-text-muted); font-weight: 500"
                         ></span>
                         <button
                             type="button"
@@ -285,89 +294,8 @@
                 return defaultHourLabels[hourKey] || hourKey;
             }
 
-            // Theme-aware color palette � 20 vibrant, distinct hues
-            const subjectPalette = [
-                {
-                    light: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' },
-                    dark: { bg: 'rgba(59,130,246,0.15)', border: '#60a5fa', text: '#93c5fd' }
-                },
-                {
-                    light: { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' },
-                    dark: { bg: 'rgba(236,72,153,0.15)', border: '#f472b6', text: '#f9a8d4' }
-                },
-                {
-                    light: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e' },
-                    dark: { bg: 'rgba(245,158,11,0.15)', border: '#fbbf24', text: '#fde68a' }
-                },
-                {
-                    light: { bg: '#e0e7ff', border: '#6366f1', text: '#4338ca' },
-                    dark: { bg: 'rgba(99,102,241,0.15)', border: '#818cf8', text: '#a5b4fc' }
-                },
-                {
-                    light: { bg: '#ccfbf1', border: '#14b8a6', text: '#115e59' },
-                    dark: { bg: 'rgba(20,184,166,0.15)', border: '#2dd4bf', text: '#5eead4' }
-                },
-                {
-                    light: { bg: '#fee2e2', border: '#ef4444', text: '#991b1b' },
-                    dark: { bg: 'rgba(239,68,68,0.15)', border: '#f87171', text: '#fca5a5' }
-                },
-                {
-                    light: { bg: '#f3e8ff', border: '#a855f7', text: '#7c3aed' },
-                    dark: { bg: 'rgba(168,85,247,0.15)', border: '#c084fc', text: '#d8b4fe' }
-                },
-                {
-                    light: { bg: '#cffafe', border: '#06b6d4', text: '#155e75' },
-                    dark: { bg: 'rgba(6,182,212,0.15)', border: '#22d3ee', text: '#67e8f9' }
-                },
-                {
-                    light: { bg: '#dcfce7', border: '#22c55e', text: '#166534' },
-                    dark: { bg: 'rgba(34,197,94,0.15)', border: '#4ade80', text: '#86efac' }
-                },
-                {
-                    light: { bg: '#fef9c3', border: '#eab308', text: '#854d0e' },
-                    dark: { bg: 'rgba(234,179,8,0.15)', border: '#facc15', text: '#fef08a' }
-                },
-                {
-                    light: { bg: '#ffe4e6', border: '#f43f5e', text: '#be123c' },
-                    dark: { bg: 'rgba(244,63,94,0.15)', border: '#fb7185', text: '#fda4af' }
-                },
-                {
-                    light: { bg: '#d1fae5', border: '#10b981', text: '#047857' },
-                    dark: { bg: 'rgba(16,185,129,0.15)', border: '#34d399', text: '#6ee7b7' }
-                },
-                {
-                    light: { bg: '#c7d2fe', border: '#8b5cf6', text: '#5b21b6' },
-                    dark: { bg: 'rgba(139,92,246,0.15)', border: '#a78bfa', text: '#c4b5fd' }
-                },
-                {
-                    light: { bg: '#fae8ff', border: '#d946ef', text: '#86198f' },
-                    dark: { bg: 'rgba(217,70,239,0.15)', border: '#e879f9', text: '#f0abfc' }
-                },
-                {
-                    light: { bg: '#ecfccb', border: '#84cc16', text: '#3f6212' },
-                    dark: { bg: 'rgba(132,204,22,0.15)', border: '#a3e635', text: '#bef264' }
-                },
-                {
-                    light: { bg: '#fed7aa', border: '#f97316', text: '#9a3412' },
-                    dark: { bg: 'rgba(249,115,22,0.15)', border: '#fb923c', text: '#fdba74' }
-                },
-                {
-                    light: { bg: '#bae6fd', border: '#0ea5e9', text: '#075985' },
-                    dark: { bg: 'rgba(14,165,233,0.15)', border: '#38bdf8', text: '#7dd3fc' }
-                },
-                {
-                    light: { bg: '#fda4af', border: '#fb7185', text: '#9f1239' },
-                    dark: { bg: 'rgba(251,113,133,0.12)', border: '#fda4af', text: '#fecdd3' }
-                },
-                {
-                    light: { bg: '#a5f3fc', border: '#22d3ee', text: '#0e7490' },
-                    dark: { bg: 'rgba(34,211,238,0.12)', border: '#67e8f9', text: '#a5f3fc' }
-                },
-                {
-                    light: { bg: '#bbf7d0', border: '#4ade80', text: '#15803d' },
-                    dark: { bg: 'rgba(74,222,128,0.12)', border: '#86efac', text: '#bbf7d0' }
-                }
-            ];
+            // Theme-aware palette aligned with shared design tokens
+            const subjectPalette = window.UXEnhancements?.getSharedSubjectPalette?.() || [];
 
             function isDarkTheme() {
                 return document.documentElement.getAttribute('data-theme') === 'dark';
@@ -453,7 +381,7 @@
                 // Time slot headers (horizontal)
                 allHoursOrdered.forEach((h, i) => {
                     if (separatorAfter > 0 && i === separatorAfter) {
-                        html += `<th style="width:4px; padding:0; background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1));"></th>`;
+                        html += `<th style="width:4px; padding:0; background: var(--gradient-glass);"></th>`;
                     }
                     html += `<th>${getHourLabel(h.key)}</th>`;
                 });
@@ -506,7 +434,7 @@
                     dayCells.forEach((cell, i) => {
                         // Insert separator column
                         if (separatorAfter > 0 && i === separatorAfter) {
-                            html += `<td style="width:4px; padding:0; background: linear-gradient(180deg, rgba(45,95,74,0.08), transparent); border: none;"></td>`;
+                            html += `<td style="width:4px; padding:0; background: var(--color-primary-mist); border: none;"></td>`;
                         }
 
                         if (cell.skip) return;
@@ -574,7 +502,7 @@
 
                 if (subjectTeacherEntries.length > 0) {
                     html += `
-          <div class="subject-teacher-title" style="margin-top: 16px; text-align: center; font-weight: 700; font-size: 0.95rem; color: ${isDarkTheme() ? '#cbd5e1' : '#333'}; padding: 8px 0;">
+          <div class="subject-teacher-title" style="margin-top: 16px; text-align: center; font-weight: 700; font-size: 0.95rem; color: var(--color-text-main); padding: 8px 0;">
             لائحة الأساتذة المسندين حسب المواد
           </div>
           <div class="class-timetable-wrapper" style="border-width: 1px;">
@@ -585,8 +513,8 @@
                     // Create column pairs (المادة + الأستاذ) — 3 columns per row
                     const cols = 3;
                     for (let c = 0; c < cols; c++) {
-                        const thBg = isDarkTheme() ? '#1e293b' : '#e8e8e8';
-                        const thFg = isDarkTheme() ? '#cbd5e1' : '#333';
+                        const thBg = 'var(--color-surface-alt)';
+                        const thFg = 'var(--color-text-main)';
                         html += `<th style="background: ${thBg}; color: ${thFg}; font-weight: 800;">المادة</th>`;
                         html += `<th style="background: ${thBg}; color: ${thFg}; font-weight: 800;">الأستاذ</th>`;
                     }
@@ -600,11 +528,11 @@
                             if (idx < subjectTeacherEntries.length) {
                                 const entry = subjectTeacherEntries[idx];
                                 const color = getSubjectColor(entry.subject);
-                                const bdr = isDarkTheme() ? '#334155' : '#999';
+                                const bdr = 'var(--color-accent)';
                                 html += `<td style="padding: 6px 10px; font-weight: 700; background: ${color.bg}; color: ${color.text}; border: 1px solid ${bdr};">${entry.subject}</td>`;
-                                html += `<td style="padding: 6px 10px; border: 1px solid ${bdr}; color: ${isDarkTheme() ? '#e2e8f0' : 'inherit'};">${entry.teacher}</td>`;
+                                html += `<td style="padding: 6px 10px; border: 1px solid ${bdr}; color: var(--color-text-main);">${entry.teacher}</td>`;
                             } else {
-                                const bdr = isDarkTheme() ? '#334155' : '#999';
+                                const bdr = 'var(--color-accent)';
                                 html += `<td style="border: 1px solid ${bdr};"></td><td style="border: 1px solid ${bdr};"></td>`;
                             }
                         }
@@ -625,7 +553,7 @@
 
             function showNoImportState() {
                 document.getElementById('class-count-badge').innerHTML =
-                    '<span style="color: #ef4444;"><i class="fas fa-exclamation-triangle"></i> لا توجد بيانات</span>';
+                    '<span style="color: var(--color-danger);"><i class="fas fa-exclamation-triangle"></i> لا توجد بيانات</span>';
                 document.getElementById('schedule').innerHTML = `
         <div class="no-data-state">
           <i class="fas fa-file-import"></i>
@@ -639,7 +567,7 @@
 
             function showNoClassesState() {
                 document.getElementById('class-count-badge').innerHTML =
-                    '<span style="color: #f59e0b;"><i class="fas fa-info-circle"></i> لا توجد أقسام في البيانات</span>';
+                    '<span style="color: var(--color-warning);"><i class="fas fa-info-circle"></i> لا توجد أقسام في البيانات</span>';
                 document.getElementById('schedule').innerHTML = `
         <div class="no-data-state">
           <i class="fas fa-user-graduate"></i>

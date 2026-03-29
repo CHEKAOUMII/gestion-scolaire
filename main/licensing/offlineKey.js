@@ -21,7 +21,7 @@ function _readPerInstallationSecret() {
             const stored = fs.readFileSync(secretPath, 'utf8').trim();
             if (stored.length >= 32) return stored;
         }
-    } catch (_) {
+    } catch {
         /* outside Electron */
     }
     return null;
@@ -53,7 +53,7 @@ function getSigningSecret() {
         fs.writeFileSync(secretPath, newSecret, { mode: 0o600 });
         _cachedSecret = newSecret;
         return _cachedSecret;
-    } catch (_err) {
+    } catch {
         throw new Error(
             'GESTION_LICENSE_SECRET must be set when running outside Electron.\n' +
                 'Example: set GESTION_LICENSE_SECRET=<your-secret>&& node scripts/generate-license-key.js ...'
@@ -147,7 +147,7 @@ function decodeOfflineLicenseKey(rawKey) {
     try {
         const payloadText = Buffer.from(payloadBase64, 'base64url').toString('utf8');
         payload = JSON.parse(payloadText);
-    } catch (_err) {
+    } catch {
         return { ok: false, error: 'Invalid license payload' };
     }
 

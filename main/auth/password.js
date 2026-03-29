@@ -35,7 +35,7 @@ function verifyPassword(password, storedHash) {
     let computedHex;
     try {
         computedHex = crypto.scryptSync(String(password || ''), salt, HASH_KEY_LENGTH).toString('hex');
-    } catch (_err) {
+    } catch {
         return false;
     }
 

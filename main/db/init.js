@@ -33,7 +33,7 @@ function initDatabase() {
 
         try {
             setDb(null);
-        } catch (_) {
+        } catch {
             // Ignore state reset failures during startup recovery.
         }
 

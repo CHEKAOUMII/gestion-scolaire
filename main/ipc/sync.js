@@ -183,21 +183,21 @@ function registerSyncIpc(ipcMain) {
             let ancestorData = null;
             try {
                 ancestorData = row.ancestor_data ? JSON.parse(row.ancestor_data) : null;
-            } catch (_) {
+            } catch {
                 ancestorData = row.ancestor_data;
             }
 
             let conflictingFields = [];
             try {
                 conflictingFields = row.conflicting_fields ? JSON.parse(row.conflicting_fields) : [];
-            } catch (_) {
+            } catch {
                 conflictingFields = [];
             }
 
             let resolvedData = null;
             try {
                 resolvedData = row.resolved_data ? JSON.parse(row.resolved_data) : null;
-            } catch (_) {
+            } catch {
                 resolvedData = row.resolved_data;
             }
 

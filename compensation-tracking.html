@@ -6,14 +6,14 @@
         <title>الحصص التعويضية | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
-        
-    <link rel="stylesheet" href="css/tailwind-output.css">
+
+        <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/data/ma-education-labels.js"></script>
-        <script src="js/utils.js"></script>
-        <script src="js/notifications.js"></script>
-        <script src="js/sidebar.js"></script>
-        <script src="js/ux-enhancements.js"></script>
-        </head>
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+    </head>
 
     <body>
         <div class="toast-container" id="toast-container"></div>
@@ -23,7 +23,7 @@
         <main class="main-content">
             <header class="header">
                 <div class="header-left">
-                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
                     <h2 class="page-title"><i class="fas fa-exchange-alt"></i> الحصص التعويضية</h2>
                 </div>
                 <div class="header-right">
@@ -33,12 +33,10 @@
                 </div>
             </header>
 
-            <div class="grades-container" style="padding-top: 18px;">
+            <div class="grades-container" style="padding-top: 18px">
                 <!-- Filters — gs-form-section style -->
                 <div class="gs-form-section no-print">
-                    <div class="gs-form-header">
-                        <i class="fas fa-filter"></i> فلترة وبحث
-                    </div>
+                    <div class="gs-form-header"><i class="fas fa-filter"></i> فلترة وبحث</div>
                     <div class="gs-form-grid">
                         <div class="gs-form-group">
                             <label for="filter-date-from"><i class="fas fa-calendar-day"></i> من تاريخ</label>
@@ -75,8 +73,12 @@
                             </select>
                         </div>
                         <div class="gs-form-actions">
-                            <button class="btn btn-primary" id="apply-filter-btn" type="button"><i class="fas fa-search"></i> بحث</button>
-                            <button class="btn btn-success ux-print-preview-btn" id="print-btn" type="button"><i class="fas fa-eye"></i> معاينة</button>
+                            <button class="btn btn-primary" id="apply-filter-btn" type="button">
+                                <i class="fas fa-search"></i> بحث
+                            </button>
+                            <button class="btn btn-success ux-print-preview-btn" id="print-btn" type="button">
+                                <i class="fas fa-eye"></i> معاينة
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -86,7 +88,7 @@
                     <div class="comp-stat-card">
                         <div
                             class="comp-stat-icon"
-                            style="background: rgba(232, 93, 93, 0.12); color: var(--color-danger-bg)"
+                            style="background: var(--color-danger-surface); color: var(--color-danger)"
                         >
                             <i class="fas fa-times-circle"></i>
                         </div>
@@ -98,7 +100,7 @@
                     <div class="comp-stat-card">
                         <div
                             class="comp-stat-icon"
-                            style="background: rgba(240, 173, 78, 0.12); color: var(--color-warning-bg)"
+                            style="background: var(--color-warning-surface); color: var(--color-warning)"
                         >
                             <i class="fas fa-hourglass-half"></i>
                         </div>
@@ -110,7 +112,7 @@
                     <div class="comp-stat-card">
                         <div
                             class="comp-stat-icon"
-                            style="background: rgba(46, 204, 113, 0.12); color: var(--color-success)"
+                            style="background: var(--color-success-surface); color: var(--color-success)"
                         >
                             <i class="fas fa-check-double"></i>
                         </div>
@@ -119,38 +121,46 @@
                             <p>تم التعويض</p>
                         </div>
                     </div>
-                    <div class="comp-stat-card" style="min-width: 260px; flex: 1.5;">
+                    <div class="comp-stat-card" style="min-width: 260px; flex: 1.5">
                         <div
                             class="comp-stat-icon"
-                            style="background: rgba(255, 159, 67, 0.12); color: #ff9f43"
+                            style="background: var(--color-warning-surface); color: var(--color-warning)"
                         >
                             <i class="fas fa-trophy"></i>
                         </div>
-                        <div class="comp-stat-body" style="width: 100%;">
-                            <p style="margin-bottom: 8px; font-weight: 600; font-size: 13px;">الأساتذة الأكثر حصصا للتعويض</p>
-                            <div id="top-teachers-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
-                                <span style="color: var(--color-text-muted);">جارٍ التحميل...</span>
+                        <div class="comp-stat-body" style="width: 100%">
+                            <p style="margin-bottom: 8px; font-weight: 600; font-size: 13px">
+                                الأساتذة الأكثر حصصا للتعويض
+                            </p>
+                            <div
+                                id="top-teachers-list"
+                                style="display: flex; flex-direction: column; gap: 6px; font-size: 12px"
+                            >
+                                <span style="color: var(--color-text-muted)">جارٍ التحميل...</span>
                             </div>
                         </div>
                     </div>
-                    <div class="comp-stat-card" style="min-width: 260px; flex: 1.5;">
+                    <div class="comp-stat-card" style="min-width: 260px; flex: 1.5">
                         <div
                             class="comp-stat-icon"
-                            style="background: rgba(99, 179, 237, 0.12); color: #63b3ed"
+                            style="background: var(--color-info-surface); color: var(--color-info)"
                         >
                             <i class="fas fa-school"></i>
                         </div>
-                        <div class="comp-stat-body" style="width: 100%;">
-                            <p style="margin-bottom: 8px; font-weight: 600; font-size: 13px;">الأقسام الأكثر تضررا</p>
-                            <div id="top-sections-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
-                                <span style="color: var(--color-text-muted);">جارٍ التحميل...</span>
+                        <div class="comp-stat-body" style="width: 100%">
+                            <p style="margin-bottom: 8px; font-weight: 600; font-size: 13px">الأقسام الأكثر تضررا</p>
+                            <div
+                                id="top-sections-list"
+                                style="display: flex; flex-direction: column; gap: 6px; font-size: 12px"
+                            >
+                                <span style="color: var(--color-text-muted)">جارٍ التحميل...</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Hidden date display for print preview header -->
-                <span id="date-display" style="display: none;"></span>
+                <span id="date-display" style="display: none"></span>
 
                 <!-- Tracking Table — gs-preview-section style -->
                 <div class="gs-preview-section">
@@ -162,7 +172,7 @@
                         </h3>
                     </div>
                     <div class="gs-preview-body">
-                        <table class="comp-table">
+                        <table class="comp-table comp-table-card">
                             <thead>
                                 <tr>
                                     <th>#</th>
@@ -253,6 +263,29 @@
             };
 
             const CONSECUTIVE_NEXT = { h1: 'h2', h2: 'h3', h3: 'h4', h5: 'h6', h6: 'h7', h7: 'h8' };
+
+            function renderTopList(container, items, options) {
+                if (!container) return;
+
+                if (!items.length) {
+                    container.innerHTML =
+                        '<span style="color: var(--color-text-muted);">لا توجد حصص في الانتظار</span>';
+                    return;
+                }
+
+                const { medals, getTitle, getMeta, getBadgeValue, badgeBg } = options;
+                container.innerHTML = items
+                    .map(
+                        (item, i) =>
+                            `<div style="display:flex; align-items:center; gap:6px; padding:3px 6px; border-radius:6px; background: var(--color-neutral-surface);">
+                                <span style="font-size:16px;">${medals[i]}</span>
+                                <strong style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color: var(--color-text-main);">${getTitle(item)}</strong>
+                                ${getMeta(item) ? `<span style="color: var(--color-text-muted); font-size:11px; white-space:nowrap;">${getMeta(item)}</span>` : ''}
+                                <span style="background: ${badgeBg}; color: var(--color-surface); border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700;">${getBadgeValue(item)}</span>
+                            </div>`
+                    )
+                    .join('');
+            }
 
             function buildMergedRecord(run) {
                 const first = run[0];
@@ -537,19 +570,36 @@
                 document.getElementById('print-btn').addEventListener('click', async () => {
                     const tbody = document.getElementById('tracking-tbody');
                     const rows = tbody?.querySelectorAll('tr:not(.empty-row)');
-                    if (!rows || !rows.length) { showToast('لا توجد بيانات للطباعة', 'warning'); return; }
+                    if (!rows || !rows.length) {
+                        showToast('لا توجد بيانات للطباعة', 'warning');
+                        return;
+                    }
 
                     const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
-                    const dateStr = new Intl.DateTimeFormat('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+                    const dateStr = new Intl.DateTimeFormat('ar-MA', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    }).format(new Date());
                     let identity = {};
-                    try { identity = await window.api.reports.getIdentity() || {}; } catch (_) {}
-                    const letterhead = (typeof window.buildLetterheadHTML === 'function') ? window.buildLetterheadHTML(identity, year) : '';
+                    try {
+                        identity = (await window.api.reports.getIdentity()) || {};
+                    } catch (_) {}
+                    const letterhead =
+                        typeof window.buildLetterheadHTML === 'function'
+                            ? window.buildLetterheadHTML(identity, year)
+                            : '';
 
                     // Clone table rows without action column
                     let tableRows = '';
                     rows.forEach((row, i) => {
                         const cells = row.querySelectorAll('td:not(.no-print)');
-                        tableRows += '<tr>' + Array.from(cells).map(td => `<td>${td.innerHTML}</td>`).join('') + '</tr>';
+                        tableRows +=
+                            '<tr>' +
+                            Array.from(cells)
+                                .map((td) => `<td>${td.innerHTML}</td>`)
+                                .join('') +
+                            '</tr>';
                     });
 
                     let printDiv = document.getElementById('comp-print-content');
@@ -591,8 +641,15 @@
                         </div>
                     `;
                     printDiv.style.display = 'block';
-                    openPrintPreview({ contentSelector: '#comp-sheet-content', title: 'الحصص التعويضية', pageSize: 'A4', noHeader: true });
-                    setTimeout(() => { printDiv.style.display = 'none'; }, 500);
+                    openPrintPreview({
+                        contentSelector: '#comp-sheet-content',
+                        title: 'الحصص التعويضية',
+                        pageSize: 'A4',
+                        noHeader: true
+                    });
+                    setTimeout(() => {
+                        printDiv.style.display = 'none';
+                    }, 500);
                 });
 
                 // Enter key on filters triggers full reload
@@ -667,20 +724,22 @@
                         }
                     }
                     const subjectSelect = document.getElementById('filter-subject');
-                    [...subjectSet].sort((a, b) => a.localeCompare(b, 'ar')).forEach((s) => {
-                        const opt = document.createElement('option');
-                        opt.value = s;
-                        opt.textContent = s;
-                        subjectSelect.appendChild(opt);
-                    });
-                    
+                    [...subjectSet]
+                        .sort((a, b) => a.localeCompare(b, 'ar'))
+                        .forEach((s) => {
+                            const opt = document.createElement('option');
+                            opt.value = s;
+                            opt.textContent = s;
+                            subjectSelect.appendChild(opt);
+                        });
+
                     subjectSelect.addEventListener('change', () => {
                         updateTeacherDropdown(subjectSelect.value);
                     });
                 } catch (e) {
                     console.warn('Could not load subjects:', e);
                 }
-                
+
                 // Initialize teachers dropdown
                 updateTeacherDropdown('');
             }
@@ -689,19 +748,24 @@
                 const teacherSelect = document.getElementById('filter-teacher');
                 const currentTeacher = teacherSelect.value;
                 teacherSelect.innerHTML = '<option value="">الكل</option>';
-                
+
                 let allowedTeacherNames = null;
-                
+
                 if (selectedSubject) {
                     allowedTeacherNames = new Set();
-                    
+
                     if (loadedTeachers && loadedTeachers.length) {
-                        loadedTeachers.forEach(t => {
+                        loadedTeachers.forEach((t) => {
                             const s1 = (t.specialty_subject || '').trim();
                             const s2 = (t.subject || '').trim();
                             const tr1 = typeof translateSubject === 'function' ? translateSubject(s1) : s1;
                             const tr2 = typeof translateSubject === 'function' ? translateSubject(s2) : s2;
-                            if (tr1 === selectedSubject || tr2 === selectedSubject || s1 === selectedSubject || s2 === selectedSubject) {
+                            if (
+                                tr1 === selectedSubject ||
+                                tr2 === selectedSubject ||
+                                s1 === selectedSubject ||
+                                s2 === selectedSubject
+                            ) {
                                 allowedTeacherNames.add(t.full_name);
                             }
                         });
@@ -719,7 +783,11 @@
                                         for (const period of Object.values(day)) {
                                             if (!period || typeof period !== 'object') continue;
                                             for (const lesson of Object.values(period)) {
-                                                if (lesson && lesson.subject && lesson.subject.trim() === selectedSubject) {
+                                                if (
+                                                    lesson &&
+                                                    lesson.subject &&
+                                                    lesson.subject.trim() === selectedSubject
+                                                ) {
                                                     teachesSubject = true;
                                                 }
                                             }
@@ -727,28 +795,34 @@
                                     }
                                     if (teachesSubject) {
                                         const entries = getStoredTimetableTeacherEntries(ttData);
-                                        const entry = entries.find(e => e.key === teacherKey);
+                                        const entry = entries.find((e) => e.key === teacherKey);
                                         if (entry && entry.teacherName) {
-                                            const matchedTeacher = (loadedTeachers || []).find(t => t.full_name === entry.teacherName || normalizeName(t.full_name) === normalizeName(entry.teacherName));
+                                            const matchedTeacher = (loadedTeachers || []).find(
+                                                (t) =>
+                                                    t.full_name === entry.teacherName ||
+                                                    normalizeName(t.full_name) === normalizeName(entry.teacherName)
+                                            );
                                             if (matchedTeacher) allowedTeacherNames.add(matchedTeacher.full_name);
                                             else allowedTeacherNames.add(entry.teacherName);
                                         } else {
-                                            allowedTeacherNames.add(teacherKey.replace(/^tafwij:/, '').replace(/_/g, ' '));
+                                            allowedTeacherNames.add(
+                                                teacherKey.replace(/^tafwij:/, '').replace(/_/g, ' ')
+                                            );
                                         }
                                     }
                                 }
                             }
                         }
-                    } catch(e){}
+                    } catch (e) {}
                 }
 
                 const teachersToRender = [];
                 if (allowedTeacherNames) {
-                    (loadedTeachers || []).forEach(t => {
+                    (loadedTeachers || []).forEach((t) => {
                         if (allowedTeacherNames.has(t.full_name)) teachersToRender.push(t);
                     });
-                    allowedTeacherNames.forEach(name => {
-                        if (!teachersToRender.find(t => t.full_name === name)) {
+                    allowedTeacherNames.forEach((name) => {
+                        if (!teachersToRender.find((t) => t.full_name === name)) {
                             teachersToRender.push({ full_name: name });
                         }
                     });
@@ -757,7 +831,7 @@
                 }
 
                 teachersToRender.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'ar'));
-                
+
                 teachersToRender.forEach((t) => {
                     const opt = document.createElement('option');
                     opt.value = t.full_name;
@@ -765,7 +839,7 @@
                     teacherSelect.appendChild(opt);
                 });
 
-                if (currentTeacher && Array.from(teacherSelect.options).some(o => o.value === currentTeacher)) {
+                if (currentTeacher && Array.from(teacherSelect.options).some((o) => o.value === currentTeacher)) {
                     teacherSelect.value = currentTeacher;
                 }
             }
@@ -923,18 +997,13 @@
 
                 const medals = ['🥇', '🥈', '🥉'];
                 const topList = document.getElementById('top-teachers-list');
-                if (topTeachers.length === 0) {
-                    topList.innerHTML = '<span style="color: var(--color-text-muted);">لا توجد حصص في الانتظار</span>';
-                } else {
-                    topList.innerHTML = topTeachers.map((t, i) =>
-                        `<div style="display:flex; align-items:center; gap:6px; padding:3px 6px; border-radius:6px; background: var(--color-bg-secondary, rgba(0,0,0,0.03));">
-                            <span style="font-size:16px;">${medals[i]}</span>
-                            <strong style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(t.name)}</strong>
-                            <span style="color: var(--color-text-muted); font-size:11px; white-space:nowrap;">${escapeHtml(t.subject)}</span>
-                            <span style="background: var(--color-danger-bg, #e85d5d); color:#fff; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700;">${t.count}</span>
-                        </div>`
-                    ).join('');
-                }
+                renderTopList(topList, topTeachers, {
+                    medals,
+                    badgeBg: 'var(--color-danger-solid)',
+                    getTitle: (t) => escapeHtml(t.name),
+                    getMeta: (t) => escapeHtml(t.subject),
+                    getBadgeValue: (t) => t.count
+                });
 
                 // Calculate top 3 sections with most pending sessions
                 const sectionMap = {};
@@ -948,17 +1017,13 @@
                     .slice(0, 3);
 
                 const topSectionsList = document.getElementById('top-sections-list');
-                if (topSections.length === 0) {
-                    topSectionsList.innerHTML = '<span style="color: var(--color-text-muted);">لا توجد حصص في الانتظار</span>';
-                } else {
-                    topSectionsList.innerHTML = topSections.map((s, i) =>
-                        `<div style="display:flex; align-items:center; gap:6px; padding:3px 6px; border-radius:6px; background: var(--color-bg-secondary, rgba(0,0,0,0.03));">
-                            <span style="font-size:16px;">${medals[i]}</span>
-                            <strong style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(s.section)}</strong>
-                            <span style="background: #63b3ed; color:#fff; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700;">${s.count}</span>
-                        </div>`
-                    ).join('');
-                }
+                renderTopList(topSectionsList, topSections, {
+                    medals,
+                    badgeBg: 'var(--color-info-solid)',
+                    getTitle: (s) => escapeHtml(s.section),
+                    getMeta: () => '',
+                    getBadgeValue: (s) => s.count
+                });
             }
 
             function renderTable(records) {
@@ -1002,14 +1067,14 @@
 
                         return `
                     <tr class="${isCompensated ? 'compensated' : ''}">
-                        <td>${start + i + 1}</td>
-                        <td>${escapeHtml(formatDateAr(r.absence_date))}</td>
-                        <td><strong>${escapeHtml(r.section)}</strong></td>
-                        <td>${escapeHtml(r.teacher_name)}</td>
-                        <td>${escapeHtml(r.subject || '—')}</td>
-                        <td><span class="section-tag" style="font-size: 11px;">${periodLabel}</span></td>
-                        <td>${statusHtml}</td>
-                        <td class="no-print">${actionHtml}</td>
+                        <td data-label="#">${start + i + 1}</td>
+                        <td data-label="التاريخ">${escapeHtml(formatDateAr(r.absence_date))}</td>
+                        <td data-label="القسم"><strong>${escapeHtml(r.section)}</strong></td>
+                        <td data-label="الأستاذ(ة)">${escapeHtml(r.teacher_name)}</td>
+                        <td data-label="المادة">${escapeHtml(r.subject || '—')}</td>
+                        <td data-label="الحصة"><span class="section-tag" style="font-size: 11px;">${periodLabel}</span></td>
+                        <td data-label="الحالة">${statusHtml}</td>
+                        <td data-label="إجراء" class="no-print">${actionHtml}</td>
                     </tr>`;
                     })
                     .join('');
@@ -1022,21 +1087,25 @@
                 if (!el) {
                     el = document.createElement('div');
                     el.id = 'comp-pagination';
-                    el.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0 4px;font-size:13px;';
+                    el.style.cssText =
+                        'display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0 4px;font-size:13px;';
                     document.querySelector('.gs-preview-body').after(el);
                 }
-                if (total === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+                if (total === 0 || totalPages <= 1) {
+                    el.innerHTML = '';
+                    return;
+                }
                 const from = (currentPage - 1) * PAGE_SIZE + 1;
                 const to = Math.min(currentPage * PAGE_SIZE, total);
                 el.innerHTML = `
                     <button onclick="gotoPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}
-                        style="border:1px solid var(--color-border,#ddd);background:var(--color-bg-secondary,#f5f5f5);border-radius:6px;padding:4px 10px;cursor:pointer;">
+                        style="border:1px solid var(--color-accent);background:var(--color-surface-alt);border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--color-text-main);box-shadow:var(--shadow-card);">
                         <i class="fas fa-chevron-right"></i>
                     </button>
                     <span style="color:var(--color-text-muted);">${from}–${to} من ${total}</span>
                     <span style="font-weight:600;">صفحة ${currentPage} / ${totalPages}</span>
                     <button onclick="gotoPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}
-                        style="border:1px solid var(--color-border,#ddd);background:var(--color-bg-secondary,#f5f5f5);border-radius:6px;padding:4px 10px;cursor:pointer;">
+                        style="border:1px solid var(--color-accent);background:var(--color-surface-alt);border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--color-text-main);box-shadow:var(--shadow-card);">
                         <i class="fas fa-chevron-left"></i>
                     </button>`;
             }

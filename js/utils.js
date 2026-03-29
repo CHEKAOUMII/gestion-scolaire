@@ -35,6 +35,7 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'grades-sheets.html', title: 'أوراق التنقيط', group: 'التقويم والنتائج', completed: true },
     { page: 'studentzero.html', title: 'التلاميذ الحاصلون على صفر', group: 'التقويم والنتائج', completed: true },
     { page: 'student-support.html', title: 'الدعم التربوي', group: 'التقويم والنتائج', completed: true },
+    { page: 'support-sessions.html', title: 'تتبع حصص الدعم', group: 'التقويم والنتائج', completed: true },
     { page: 'absence-weekly.html', title: 'ورقة الغياب الأسبوعية', group: 'الغياب والمتابعة', completed: true },
     { page: 'absence-students.html', title: 'غياب التلاميذ', group: 'الغياب والمتابعة', completed: true },
     { page: 'absence-correspondence.html', title: 'مراسلة الأولياء', group: 'الغياب والمتابعة', completed: true },

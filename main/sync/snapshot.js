@@ -139,7 +139,7 @@ async function runSnapshotCycle() {
         try {
             const db = getDb();
             db.prepare('UPDATE sync_config SET last_snapshot_error = ? WHERE id = 1').run(err.message);
-        } catch (_) {
+        } catch {
             /* ignore */
         }
         return { success: false, tablesChecked, changesDetected, enqueued, pruned: 0, lastError: err.message };

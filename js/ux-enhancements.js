@@ -4,10 +4,18 @@
  */
 
 // ==================== Theme Management ====================
+function updateThemeColor(theme) {
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (!themeMeta) return;
+
+    themeMeta.setAttribute('content', theme === 'dark' ? '#1b211e' : '#3b6ac5');
+}
+
 function initTheme() {
     const savedTheme = localStorage.getItem('app-theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
     updateThemeIcon(savedTheme);
+    updateThemeColor(savedTheme);
 }
 
 function toggleTheme() {
@@ -16,6 +24,7 @@ function toggleTheme() {
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('app-theme', newTheme);
     updateThemeIcon(newTheme);
+    updateThemeColor(newTheme);
 
     // Show toast if available
     if (typeof showToast === 'function') {
@@ -384,6 +393,39 @@ function filterQuickNavItems(query) {
     });
 }
 
+const DASHBOARD_ONBOARDING_DISMISSED_KEY = 'dashboard_onboarding_dismissed_v1';
+
+function initDashboardOnboarding() {
+    const callout = document.getElementById('dashboard-onboarding-callout');
+    if (!callout) return;
+
+    const dismissed = localStorage.getItem(DASHBOARD_ONBOARDING_DISMISSED_KEY) === 'true';
+    if (!dismissed) {
+        callout.classList.remove('hidden');
+    }
+
+    const dismiss = () => {
+        callout.classList.add('hidden');
+        localStorage.setItem(DASHBOARD_ONBOARDING_DISMISSED_KEY, 'true');
+    };
+
+    document.getElementById('dashboard-onboarding-dismiss')?.addEventListener('click', dismiss, { once: true });
+
+    document.getElementById('dashboard-onboarding-shortcuts')?.addEventListener('click', () => {
+        dismiss();
+        openShortcutsModal();
+    });
+
+    document.getElementById('shortcuts-btn')?.addEventListener(
+        'click',
+        () => {
+            localStorage.setItem(DASHBOARD_ONBOARDING_DISMISSED_KEY, 'true');
+            callout.classList.add('hidden');
+        },
+        { once: true }
+    );
+}
+
 // ==================== Initialize All UX Enhancements ====================
 
 function initUXEnhancements() {
@@ -394,6 +436,7 @@ function initUXEnhancements() {
     initKeyboardShortcuts();
     initQuickNav();
     applySharedAccessibleNames();
+    initDashboardOnboarding();
 
     // Theme toggle click handler (Event Delegation for robustness)
     document.addEventListener('click', (e) => {

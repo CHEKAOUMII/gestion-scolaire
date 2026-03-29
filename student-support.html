@@ -1,682 +1,837 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الدعم التربوي | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/tailwind-output.css">
-    <script src="js/data/ma-education-labels.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/cc-rules.js"></script>
-    <script src="js/ux-enhancements.js"></script>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>الدعم التربوي | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/data/ma-education-labels.js"></script>
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/cc-rules.js"></script>
+        <script src="js/ux-enhancements.js" defer></script>
     </head>
 
-<body>
-    <div class="toast-container" id="toast-container"></div>
+    <body>
+        <div class="toast-container" id="toast-container"></div>
 
-    <aside class="sidebar" id="sidebar"></aside>
+        <aside class="sidebar" id="sidebar"></aside>
 
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-hands-helping"></i> الدعم التربوي</h2>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
+                    <h2 class="page-title"><i class="fas fa-hands-helping"></i> الدعم التربوي</h2>
+                </div>
+                <div class="header-right" style="display: flex; gap: 10px; flex-wrap: wrap">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="print-header" id="print-header">
+                <h1><i class="fas fa-hands-helping"></i> لائحة التلاميذ المحتاجين للدعم التربوي</h1>
+                <p id="print-date"></p>
+                <p id="print-filters"></p>
             </div>
-            <div class="header-right" style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
 
-        <div class="print-header" id="print-header">
-            <h1><i class="fas fa-hands-helping"></i> لائحة التلاميذ المحتاجين للدعم التربوي</h1>
-            <p id="print-date"></p>
-            <p id="print-filters"></p>
+            <div class="grades-container">
+                <div class="search-section">
+                    <h3>تحديد التلاميذ المحتاجين للدعم</h3>
+                    <form
+                        class="search-form"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"
+                    >
+                        <select id="level-select">
+                            <option value="">كل المستويات</option>
+                        </select>
+                        <select id="class-select">
+                            <option value="">كل الأقسام</option>
+                        </select>
+                        <select id="subject-select">
+                            <option value="">كل المواد</option>
+                        </select>
+                        <input
+                            type="number"
+                            id="threshold"
+                            placeholder="الحد الأقصى للنقطة"
+                            value="10"
+                            min="0"
+                            max="20"
+                        />
+                        <div style="display: flex; gap: 8px">
+                            <button
+                                class="btn btn-primary"
+                                type="button"
+                                id="search-btn"
+                                style="
+                                    flex: 1;
+                                    padding: 12px 20px;
+                                    font-size: 14px;
+                                    border-radius: 10px;
+                                    margin: 0;
+                                    justify-content: center;
+                                "
+                            >
+                                <i class="fas fa-search"></i> بحث
+                            </button>
+                            <button
+                                class="btn btn-success ux-print-preview-btn"
+                                type="button"
+                                id="print-btn"
+                                style="
+                                    padding: 12px 16px;
+                                    font-size: 14px;
+                                    border-radius: 10px;
+                                    margin: 0;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <i class="fas fa-eye"></i> معاينة الطباعة
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="support-stats" id="support-stats" style="display: none">
+                    <div class="stat-card">
+                        <div class="stat-icon total"><i class="fas fa-users"></i></div>
+                        <div class="stat-info">
+                            <h4>عدد المتعثرين</h4>
+                            <div class="stat-value" id="stat-total">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon percent"><i class="fas fa-percentage"></i></div>
+                        <div class="stat-info">
+                            <h4>النسبة من المجموع</h4>
+                            <div class="stat-value" id="stat-percent">0%</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon critical"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-info">
+                            <h4>حالات حرجة (&lt;5)</h4>
+                            <div class="stat-value" id="stat-critical">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon subject"><i class="fas fa-book"></i></div>
+                        <div class="stat-info">
+                            <h4>المادة الأكثر تعثراً</h4>
+                            <div class="stat-value" id="stat-subject" style="font-size: 16px">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="chart-section" id="chart-section">
+                    <h3><i class="fas fa-chart-bar"></i> تحليل بياني</h3>
+                    <div class="chart-wrapper chart-wrapper--triple">
+                        <div class="chart-box">
+                            <h4>توزيع حسب المادة</h4>
+                            <canvas
+                                id="chart-by-subject"
+                                role="img"
+                                aria-label="رسم بياني يوضح توزيع التلاميذ المتعثرين حسب المادة"
+                                aria-describedby="chart-by-subject-summary"
+                            ></canvas>
+                            <p id="chart-by-subject-summary" class="sr-only">لا توجد بيانات للرسم البياني بعد.</p>
+                        </div>
+                        <div class="chart-box">
+                            <h4>توزيع حسب الفئة</h4>
+                            <canvas
+                                id="chart-by-level"
+                                role="img"
+                                aria-label="رسم بياني يوضح توزيع التلاميذ المتعثرين حسب مستوى التعثر"
+                                aria-describedby="chart-by-level-summary"
+                            ></canvas>
+                            <p id="chart-by-level-summary" class="sr-only">لا توجد بيانات للرسم البياني بعد.</p>
+                        </div>
+                        <div class="chart-box">
+                            <h4>مقارنة بين الأقسام</h4>
+                            <canvas
+                                id="chart-by-section"
+                                role="img"
+                                aria-label="رسم بياني يوضح أكثر الأقسام احتياجاً للدعم"
+                                aria-describedby="chart-by-section-summary"
+                            ></canvas>
+                            <p id="chart-by-section-summary" class="sr-only">لا توجد بيانات للرسم البياني بعد.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="students-results">
+                    <div class="results-action-bar">
+                        <h3 style="margin: 0">التلاميذ المحتاجين للدعم</h3>
+                    </div>
+                    <div class="level-filter-tabs" id="level-tabs" style="display: none">
+                        <button class="level-tab active" data-level="all">
+                            <i class="fas fa-list"></i> الكل <span class="tab-count" id="count-all">0</span>
+                        </button>
+                        <button class="level-tab" data-level="critical">
+                            <i class="fas fa-exclamation-circle"></i> حرج (0-5)
+                            <span class="tab-count" id="count-critical">0</span>
+                        </button>
+                        <button class="level-tab" data-level="medium">
+                            <i class="fas fa-minus-circle"></i> متوسط (5-8)
+                            <span class="tab-count" id="count-medium">0</span>
+                        </button>
+                        <button class="level-tab" data-level="near">
+                            <i class="fas fa-arrow-circle-up"></i> قريب (8-10)
+                            <span class="tab-count" id="count-near">0</span>
+                        </button>
+                    </div>
+                    <div class="table-quick-search" id="table-quick-search">
+                        <i class="fas fa-filter" style="color: var(--color-text-muted, #999)"></i>
+                        <input type="text" id="quick-search-input" placeholder="بحث سريع بالاسم أو رمز مسار..." />
+                        <span class="search-count" id="search-count"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="students-table students-table-card">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th class="sortable" data-sort="code" aria-sort="none">
+                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب رمز مسار">
+                                            <span>رمز مسار</span>
+                                            <i class="fas fa-sort sort-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </th>
+                                    <th class="sortable" data-sort="name" aria-sort="none">
+                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب الاسم الكامل">
+                                            <span>الاسم الكامل</span>
+                                            <i class="fas fa-sort sort-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </th>
+                                    <th class="sortable" data-sort="section" aria-sort="none">
+                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب القسم">
+                                            <span>القسم</span>
+                                            <i class="fas fa-sort sort-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </th>
+                                    <th class="sortable" data-sort="subject" aria-sort="none">
+                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب المادة">
+                                            <span>المادة</span>
+                                            <i class="fas fa-sort sort-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </th>
+                                    <th class="sortable" data-sort="grade" aria-sort="ascending">
+                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب النقطة">
+                                            <span>النقطة</span>
+                                            <i class="fas fa-sort sort-icon" aria-hidden="true"></i>
+                                        </button>
+                                    </th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="pagination" style="display: none"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Student Detail Modal -->
+        <div
+            class="student-modal-overlay"
+            id="student-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="modal-student-name"
+        >
+            <div class="student-modal">
+                <div class="student-modal-header">
+                    <h3><i class="fas fa-user-graduate"></i> <span id="modal-student-name"></span></h3>
+                    <button class="close-btn" id="close-student-modal" type="button" aria-label="إغلاق تفاصيل التلميذ">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="student-modal-body" id="modal-body"></div>
+            </div>
         </div>
 
-        <div class="grades-container">
-            <div class="search-section">
-                <h3>تحديد التلاميذ المحتاجين للدعم</h3>
-                <form class="search-form"
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
-                    <select id="level-select">
-                        <option value="">كل المستويات</option>
-                    </select>
-                    <select id="class-select">
-                        <option value="">كل الأقسام</option>
-                    </select>
-                    <select id="subject-select">
-                        <option value="">كل المواد</option>
-                    </select>
-                    <input type="number" id="threshold" placeholder="الحد الأقصى للنقطة" value="10" min="0" max="20">
-                    <div style="display:flex;gap:8px;">
-                        <button class="btn btn-primary" type="button" id="search-btn"
-                            style="flex:1;padding:12px 20px;font-size:14px;border-radius:10px;margin:0;justify-content:center;"><i
-                                class="fas fa-search"></i>
-                            بحث</button>
-                        <button class="btn btn-success ux-print-preview-btn" type="button" id="print-btn"
-                            style="padding:12px 16px;font-size:14px;border-radius:10px;margin:0;white-space:nowrap;"><i
-                                class="fas fa-eye"></i> معاينة الطباعة</button>
-                    </div>
-                </form>
-            </div>
+        <script>
+            const year = getSchoolYear();
+            const CHART_JS_CDN = 'vendor/chart.min.js';
+            let allSections = [];
+            let allGradesCache = [];
+            let allStudentsCache = [];
+            let sectionToLevel = {};
+            let lastFiltered = [];
+            let chartInstances = {};
+            let chartLoaderPromise = null;
+            let activeLevel = 'all';
+            let currentPage = 1;
+            const PAGE_SIZE = 20;
+            let sortColumn = 'grade';
+            let sortDir = 'asc';
+            let quickSearchTerm = '';
 
-            <!-- Stats Cards -->
-            <div class="support-stats" id="support-stats" style="display:none;">
-                <div class="stat-card">
-                    <div class="stat-icon total"><i class="fas fa-users"></i></div>
-                    <div class="stat-info">
-                        <h4>عدد المتعثرين</h4>
-                        <div class="stat-value" id="stat-total">0</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon percent"><i class="fas fa-percentage"></i></div>
-                    <div class="stat-info">
-                        <h4>النسبة من المجموع</h4>
-                        <div class="stat-value" id="stat-percent">0%</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon critical"><i class="fas fa-exclamation-triangle"></i></div>
-                    <div class="stat-info">
-                        <h4>حالات حرجة (&lt;5)</h4>
-                        <div class="stat-value" id="stat-critical">0</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon subject"><i class="fas fa-book"></i></div>
-                    <div class="stat-info">
-                        <h4>المادة الأكثر تعثراً</h4>
-                        <div class="stat-value" id="stat-subject" style="font-size:16px;">-</div>
-                    </div>
-                </div>
-            </div>
+            function updateSortableHeaders() {
+                document.querySelectorAll('.students-table th.sortable').forEach((th) => {
+                    const isActive = th.dataset.sort === sortColumn;
+                    const direction = isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+                    const label = th.querySelector('.sort-trigger span')?.textContent?.trim() || 'هذا العمود';
+                    const button = th.querySelector('.sort-trigger');
 
-            <!-- Charts -->
-            <div class="chart-section" id="chart-section">
-                <h3><i class="fas fa-chart-bar"></i> تحليل بياني</h3>
-                <div class="chart-wrapper" style="grid-template-columns: 1fr 1fr 1fr;">
-                    <div class="chart-box">
-                        <h4>توزيع حسب المادة</h4>
-                        <canvas id="chart-by-subject"></canvas>
-                    </div>
-                    <div class="chart-box">
-                        <h4>توزيع حسب الفئة</h4>
-                        <canvas id="chart-by-level"></canvas>
-                    </div>
-                    <div class="chart-box">
-                        <h4>مقارنة بين الأقسام</h4>
-                        <canvas id="chart-by-section"></canvas>
-                    </div>
-                </div>
-            </div>
+                    th.setAttribute('aria-sort', direction);
+                    th.classList.toggle('sort-asc', isActive && sortDir === 'asc');
+                    th.classList.toggle('sort-desc', isActive && sortDir === 'desc');
 
-            <div class="students-results">
-                <div class="results-action-bar">
-                    <h3 style="margin:0;">التلاميذ المحتاجين للدعم</h3>
-                </div>
-                <div class="level-filter-tabs" id="level-tabs" style="display:none;">
-                    <button class="level-tab active" data-level="all"><i class="fas fa-list"></i> الكل <span
-                            class="tab-count" id="count-all">0</span></button>
-                    <button class="level-tab" data-level="critical"><i class="fas fa-exclamation-circle"></i> حرج (0-5)
-                        <span class="tab-count" id="count-critical">0</span></button>
-                    <button class="level-tab" data-level="medium"><i class="fas fa-minus-circle"></i> متوسط (5-8) <span
-                            class="tab-count" id="count-medium">0</span></button>
-                    <button class="level-tab" data-level="near"><i class="fas fa-arrow-circle-up"></i> قريب (8-10) <span
-                            class="tab-count" id="count-near">0</span></button>
-                </div>
-                <div class="table-quick-search" id="table-quick-search">
-                    <i class="fas fa-filter" style="color:var(--color-text-muted,#999)"></i>
-                    <input type="text" id="quick-search-input" placeholder="بحث سريع بالاسم أو رمز مسار...">
-                    <span class="search-count" id="search-count"></span>
-                </div>
-                <div class="table-responsive">
-                    <table class="students-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th class="sortable" data-sort="code">رمز مسار <i class="fas fa-sort sort-icon"></i>
-                                </th>
-                                <th class="sortable" data-sort="name">الاسم الكامل <i class="fas fa-sort sort-icon"></i>
-                                </th>
-                                <th class="sortable" data-sort="section">القسم <i class="fas fa-sort sort-icon"></i>
-                                </th>
-                                <th class="sortable" data-sort="subject">المادة <i class="fas fa-sort sort-icon"></i>
-                                </th>
-                                <th class="sortable" data-sort="grade">النقطة <i class="fas fa-sort sort-icon"></i></th>
-                                <th>الحالة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody"></tbody>
-                    </table>
-                </div>
-                <div class="pagination" id="pagination" style="display:none;"></div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Student Detail Modal -->
-    <div class="student-modal-overlay" id="student-modal-overlay">
-        <div class="student-modal">
-            <div class="student-modal-header">
-                <h3><i class="fas fa-user-graduate"></i> <span id="modal-student-name"></span></h3>
-                <button class="close-btn" id="close-student-modal"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="student-modal-body" id="modal-body"></div>
-        </div>
-    </div>
-
-    <script>
-        const year = getSchoolYear();
-        const CHART_JS_CDN = 'vendor/chart.min.js';
-        let allSections = [];
-        let allGradesCache = [];
-        let allStudentsCache = [];
-        let sectionToLevel = {};
-        let lastFiltered = [];
-        let chartInstances = {};
-        let chartLoaderPromise = null;
-        let activeLevel = 'all';
-        let currentPage = 1;
-        const PAGE_SIZE = 20;
-        let sortColumn = 'grade';
-        let sortDir = 'asc';
-        let quickSearchTerm = '';
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            document.getElementById('print-btn').addEventListener('click', exportPdf);
-
-            await loadFilters();
-
-            document.getElementById('level-select').addEventListener('change', () => {
-                const level = document.getElementById('level-select').value;
-                renderClassOptions(level);
-                renderSubjectOptions(level, '');
-            });
-
-            document.getElementById('class-select').addEventListener('change', () => {
-                const level = document.getElementById('level-select').value;
-                const className = document.getElementById('class-select').value;
-                renderSubjectOptions(level, className);
-            });
-
-            document.getElementById('search-btn').addEventListener('click', search);
-
-
-            // Level filter tabs
-            document.querySelectorAll('.level-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    document.querySelectorAll('.level-tab').forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                    activeLevel = tab.dataset.level;
-                    currentPage = 1;
-                    renderTable(lastFiltered);
-                });
-            });
-
-            // Sortable columns
-            document.querySelectorAll('.students-table th.sortable').forEach(th => {
-                th.addEventListener('click', () => {
-                    const col = th.dataset.sort;
-                    if (sortColumn === col) {
-                        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-                    } else {
-                        sortColumn = col;
-                        sortDir = 'asc';
+                    if (button) {
+                        const nextDirection = isActive && sortDir === 'asc' ? 'تنازلي' : 'تصاعدي';
+                        button.setAttribute('aria-label', `ترتيب حسب ${label} (${nextDirection})`);
                     }
-                    document.querySelectorAll('.students-table th.sortable').forEach(h => {
-                        h.classList.remove('sort-asc', 'sort-desc');
-                        h.querySelector('.sort-icon').className = 'fas fa-sort sort-icon';
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                document.getElementById('print-btn').addEventListener('click', exportPdf);
+
+                await loadFilters();
+
+                document.getElementById('level-select').addEventListener('change', () => {
+                    const level = document.getElementById('level-select').value;
+                    renderClassOptions(level);
+                    renderSubjectOptions(level, '');
+                });
+
+                document.getElementById('class-select').addEventListener('change', () => {
+                    const level = document.getElementById('level-select').value;
+                    const className = document.getElementById('class-select').value;
+                    renderSubjectOptions(level, className);
+                });
+
+                document.getElementById('search-btn').addEventListener('click', search);
+
+                // Level filter tabs
+                document.querySelectorAll('.level-tab').forEach((tab) => {
+                    tab.addEventListener('click', () => {
+                        document.querySelectorAll('.level-tab').forEach((t) => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        activeLevel = tab.dataset.level;
+                        currentPage = 1;
+                        renderTable(lastFiltered);
                     });
-                    th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
-                    th.querySelector('.sort-icon').className = `fas fa-sort-${sortDir === 'asc' ? 'up' : 'down'} sort-icon`;
+                });
+
+                // Sortable columns
+                document.querySelectorAll('.students-table .sort-trigger').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const th = button.closest('th.sortable');
+                        if (!th) return;
+                        const col = th.dataset.sort;
+                        if (sortColumn === col) {
+                            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            sortColumn = col;
+                            sortDir = 'asc';
+                        }
+                        document.querySelectorAll('.students-table th.sortable .sort-icon').forEach((icon) => {
+                            icon.className = 'fas fa-sort sort-icon';
+                        });
+                        th.querySelector('.sort-icon').className =
+                            `fas fa-sort-${sortDir === 'asc' ? 'up' : 'down'} sort-icon`;
+                        updateSortableHeaders();
+                        currentPage = 1;
+                        renderTable(lastFiltered);
+                    });
+                });
+
+                updateSortableHeaders();
+
+                // Quick search
+                document.getElementById('quick-search-input').addEventListener('input', (e) => {
+                    quickSearchTerm = e.target.value.trim().toLowerCase();
                     currentPage = 1;
                     renderTable(lastFiltered);
                 });
+
+                // Student modal close
+                document.getElementById('close-student-modal').addEventListener('click', closeStudentModal);
+                document.getElementById('student-modal-overlay').addEventListener('click', (e) => {
+                    if (e.target === e.currentTarget) closeStudentModal();
+                });
             });
 
-            // Quick search
-            document.getElementById('quick-search-input').addEventListener('input', (e) => {
-                quickSearchTerm = e.target.value.trim().toLowerCase();
-                currentPage = 1;
-                renderTable(lastFiltered);
-            });
-
-            // Student modal close
-            document.getElementById('close-student-modal').addEventListener('click', closeStudentModal);
-            document.getElementById('student-modal-overlay').addEventListener('click', (e) => {
-                if (e.target === e.currentTarget) closeStudentModal();
-            });
-        });
-
-        // ─── Chart.js loader ───
-        function ensureChartJs() {
-            if (window.Chart) return Promise.resolve(window.Chart);
-            if (chartLoaderPromise) return chartLoaderPromise;
-            chartLoaderPromise = new Promise((resolve, reject) => {
-                const s = document.createElement('script');
-                s.src = CHART_JS_CDN;
-                s.onload = () => resolve(window.Chart);
-                s.onerror = reject;
-                document.head.appendChild(s);
-            });
-            return chartLoaderPromise;
-        }
-
-        function destroyCharts() {
-            Object.values(chartInstances).forEach(c => c.destroy());
-            chartInstances = {};
-        }
-
-        function makeChart(id, config) {
-            if (chartInstances[id]) chartInstances[id].destroy();
-            const ctx = document.getElementById(id);
-            if (!ctx) return null;
-            chartInstances[id] = new Chart(ctx, config);
-            return chartInstances[id];
-        }
-
-        // ─── Support level helpers ───
-        function getSupportLevel(grade) {
-            if (grade < 5) return 'critical';
-            if (grade < 8) return 'medium';
-            return 'near';
-        }
-
-        function getSupportLabel(level) {
-            if (level === 'critical') return { text: 'حرج', bg: '#fef2f2', color: '#dc2626' };
-            if (level === 'medium') return { text: 'متوسط', bg: '#fffbeb', color: '#f59e0b' };
-            return { text: 'قريب من المعدل', bg: '#eff6ff', color: '#3b82f6' };
-        }
-
-        function getGradeColor(grade) {
-            if (grade < 5) return '#dc2626';
-            if (grade < 8) return '#f59e0b';
-            return '#3b82f6';
-        }
-
-        // ─── Existing helpers ───
-        // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
-        function _getLocalLevelName(section) {
-            const s = String(section || '').trim();
-            if (!s) return '';
-            if (sectionToLevel[s]) return sectionToLevel[s];
-            return getLevelNameFromSection(s);
-        }
-
-        // normalizeSubjectName() — provided by js/utils.js
-
-        function renderClassOptions(selectedLevel = '') {
-            const classSelect = document.getElementById('class-select');
-            classSelect.innerHTML = '<option value="">كل الأقسام</option>';
-
-            const list = selectedLevel
-                ? allSections.filter(section => _getLocalLevelName(section) === selectedLevel)
-                : allSections.slice();
-
-            sortSectionNames(list).forEach(section => {
-                const opt = document.createElement('option');
-                opt.value = section;
-                opt.textContent = section;
-                classSelect.appendChild(opt);
-            });
-        }
-
-        function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
-            const subjectSelect = document.getElementById('subject-select');
-            subjectSelect.innerHTML = '<option value="">كل المواد</option>';
-
-            let filteredGrades = allGradesCache;
-            if (selectedClass) {
-                filteredGrades = filteredGrades.filter(g => (g.section || '') === selectedClass);
-            } else if (selectedLevel) {
-                filteredGrades = filteredGrades.filter(g => _getLocalLevelName(g.section) === selectedLevel);
+            // ─── Chart.js loader ───
+            function ensureChartJs() {
+                if (window.Chart) return Promise.resolve(window.Chart);
+                if (chartLoaderPromise) return chartLoaderPromise;
+                chartLoaderPromise = new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = CHART_JS_CDN;
+                    s.onload = () => resolve(window.Chart);
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+                return chartLoaderPromise;
             }
 
-            const subjects = new Set();
-            const invalidSubjectNames = ['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة'];
-            filteredGrades.forEach(g => {
-                if (g.subject) {
-                    const normalized = normalizeSubjectName(g.subject);
-                    if (normalized && !invalidSubjectNames.includes(normalized.toLowerCase())) {
-                        subjects.add(normalized);
-                    }
-                }
-            });
+            function destroyCharts() {
+                Object.values(chartInstances).forEach((c) => c.destroy());
+                chartInstances = {};
+            }
 
-            Array.from(subjects)
-                .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
-                .forEach(subject => {
+            function updateChartSummary(canvasId, summaryText) {
+                const summary = document.getElementById(`${canvasId}-summary`);
+                if (summary) summary.textContent = summaryText;
+            }
+
+            function makeChart(id, config) {
+                if (chartInstances[id]) chartInstances[id].destroy();
+                const ctx = document.getElementById(id);
+                if (!ctx) return null;
+                chartInstances[id] = new Chart(ctx, config);
+                return chartInstances[id];
+            }
+
+            // ─── Support level helpers ───
+            function getSupportLevel(grade) {
+                if (grade < 5) return 'critical';
+                if (grade < 8) return 'medium';
+                return 'near';
+            }
+
+            function getSupportLabel(level) {
+                if (level === 'critical') return { text: 'حرج', bg: '#fef2f2', color: '#dc2626' };
+                if (level === 'medium') return { text: 'متوسط', bg: '#fffbeb', color: '#f59e0b' };
+                return { text: 'قريب من المعدل', bg: '#eff6ff', color: '#3b82f6' };
+            }
+
+            function getGradeColor(grade) {
+                if (grade < 5) return '#dc2626';
+                if (grade < 8) return '#f59e0b';
+                return '#3b82f6';
+            }
+
+            // ─── Existing helpers ───
+            // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
+            function _getLocalLevelName(section) {
+                const s = String(section || '').trim();
+                if (!s) return '';
+                if (sectionToLevel[s]) return sectionToLevel[s];
+                return getLevelNameFromSection(s);
+            }
+
+            // normalizeSubjectName() — provided by js/utils.js
+
+            function renderClassOptions(selectedLevel = '') {
+                const classSelect = document.getElementById('class-select');
+                classSelect.innerHTML = '<option value="">كل الأقسام</option>';
+
+                const list = selectedLevel
+                    ? allSections.filter((section) => _getLocalLevelName(section) === selectedLevel)
+                    : allSections.slice();
+
+                sortSectionNames(list).forEach((section) => {
                     const opt = document.createElement('option');
-                    opt.value = subject;
-                    opt.textContent = subject;
-                    subjectSelect.appendChild(opt);
-                });
-        }
-
-        async function loadFilters() {
-            const levelSelect = document.getElementById('level-select');
-            const students = await window.api.students.getAll(year) || [];
-            const grades = await window.api.grades.getAll(year) || [];
-            allGradesCache = grades;
-            allStudentsCache = students;
-
-            const mappingRaw = await window.api.settings.get('levelsMapping');
-            try { sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {}; } catch (_) { sectionToLevel = {}; }
-
-            const sections = new Set();
-            const levels = new Set();
-            students.forEach(s => { if (s.section) sections.add(s.section); });
-            grades.forEach(g => { if (g.section) sections.add(g.section); });
-            allSections = Array.from(sections);
-
-            sections.forEach(section => {
-                const level = _getLocalLevelName(section);
-                if (level) levels.add(level);
-            });
-
-            sortLevelNames(Array.from(levels)).forEach(level => {
-                const opt = document.createElement('option');
-                opt.value = level;
-                opt.textContent = level;
-                levelSelect.appendChild(opt);
-            });
-
-            renderClassOptions('');
-            renderSubjectOptions('', '');
-        }
-
-        // ─── Sort helper ───
-        function getSortValue(g, col) {
-            if (col === 'code') return (g.massar_code || g.student_code || '').toLowerCase();
-            if (col === 'name') return (g.student_name || g.full_name || '').toLowerCase();
-            if (col === 'section') return (g.section || g.class_name || '').toLowerCase();
-            if (col === 'subject') return normalizeSubjectName(g.subject).toLowerCase();
-            if (col === 'grade') return g.grade || 0;
-            return '';
-        }
-
-        // ─── Render table with level filtering + sorting + quick search + pagination ───
-        function renderTable(filtered) {
-            let display = activeLevel === 'all'
-                ? filtered.slice()
-                : filtered.filter(g => getSupportLevel(g.grade) === activeLevel);
-
-            // Quick search filter
-            if (quickSearchTerm) {
-                display = display.filter(g => {
-                    const name = (g.student_name || g.full_name || '').toLowerCase();
-                    const code = (g.massar_code || g.student_code || '').toLowerCase();
-                    return name.includes(quickSearchTerm) || code.includes(quickSearchTerm);
+                    opt.value = section;
+                    opt.textContent = section;
+                    classSelect.appendChild(opt);
                 });
             }
 
-            // Sort
-            display.sort((a, b) => {
-                const va = getSortValue(a, sortColumn);
-                const vb = getSortValue(b, sortColumn);
-                let cmp = 0;
-                if (typeof va === 'number') cmp = va - vb;
-                else cmp = String(va).localeCompare(String(vb), 'ar');
-                return sortDir === 'desc' ? -cmp : cmp;
-            });
+            function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
+                const subjectSelect = document.getElementById('subject-select');
+                subjectSelect.innerHTML = '<option value="">كل المواد</option>';
 
-            // Update search count
-            const searchCountEl = document.getElementById('search-count');
-            if (quickSearchTerm) {
-                searchCountEl.textContent = `${display.length} نتيجة`;
-            } else {
-                searchCountEl.textContent = '';
-            }
-
-            const totalPages = Math.max(1, Math.ceil(display.length / PAGE_SIZE));
-            if (currentPage > totalPages) currentPage = totalPages;
-
-            const start = (currentPage - 1) * PAGE_SIZE;
-            const pageData = display.slice(start, start + PAGE_SIZE);
-
-            const tbody = document.getElementById('tbody');
-            tbody.innerHTML = pageData.length ? pageData.map((g, i) => {
-                const lvl = getSupportLabel(getSupportLevel(g.grade));
-                const code = g.massar_code || g.student_code || '-';
-                const name = g.student_name || g.full_name || '-';
-                return `
-                <tr>
-                    <td>${start + i + 1}</td>
-                    <td>${code}</td>
-                    <td><span class="student-name-link" onclick="openStudentModal('${code.replace(/'/g, "\\'")}','${name.replace(/'/g, "\\'")}')">${name}</span></td>
-                    <td>${g.section || g.class_name || '-'}</td>
-                    <td>${normalizeSubjectName(g.subject) || '-'}</td>
-                    <td style="color: ${getGradeColor(g.grade)}; font-weight: bold;">${g.grade}</td>
-                    <td><span style="background: ${lvl.bg}; color: ${lvl.color}; padding: 3px 8px; border-radius: 8px; font-size:12px;">${lvl.text}</span></td>
-                </tr>`;
-            }).join('') : '<tr><td colspan="7" style="padding: 20px; text-align: center;">لا يوجد تلاميذ في هذه الفئة</td></tr>';
-
-            renderPagination(display.length, totalPages);
-        }
-
-        function renderPagination(totalItems, totalPages) {
-            const pag = document.getElementById('pagination');
-            if (totalItems <= PAGE_SIZE) {
-                pag.style.display = 'none';
-                return;
-            }
-            pag.style.display = '';
-
-            let html = `<button class="nav-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">السابق <i class="fas fa-chevron-right"></i></button>`;
-            html += '<div class="page-numbers">';
-
-            const maxVisible = 5;
-            let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-            if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
-
-            if (startPage > 1) {
-                html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
-                if (startPage > 2) html += '<span class="ellipsis">...</span>';
-            }
-
-            for (let p = startPage; p <= endPage; p++) {
-                html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goToPage(${p})">${p}</button>`;
-            }
-
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) html += '<span class="ellipsis">...</span>';
-                html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
-            }
-
-            html += '</div>';
-            html += `<span class="page-info">${currentPage} / ${totalPages} (المجموع: ${totalItems})</span>`;
-            html += `<button class="nav-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})"><i class="fas fa-chevron-left"></i> التالي</button>`;
-
-            pag.innerHTML = html;
-        }
-
-        function goToPage(page) {
-            currentPage = page;
-            renderTable(lastFiltered);
-            document.querySelector('.students-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        // ─── Update stats cards ───
-        function updateStats(filtered) {
-            const total = filtered.length;
-            const critical = filtered.filter(g => g.grade < 5).length;
-            const medium = filtered.filter(g => g.grade >= 5 && g.grade < 8).length;
-            const near = filtered.filter(g => g.grade >= 8).length;
-
-            // Count unique struggling students for percentage
-            const uniqueStudents = new Set(filtered.map(g => g.massar_code || g.student_code || '')).size;
-            const totalStudents = allStudentsCache.length || allGradesCache.length;
-            const percent = totalStudents > 0 ? ((uniqueStudents / totalStudents) * 100).toFixed(1) : '0';
-
-            // Most struggling subject
-            const subjectCount = {};
-            filtered.forEach(g => {
-                const subj = normalizeSubjectName(g.subject);
-                if (subj) subjectCount[subj] = (subjectCount[subj] || 0) + 1;
-            });
-            const topSubject = Object.entries(subjectCount).sort((a, b) => b[1] - a[1])[0];
-
-            document.getElementById('stat-total').textContent = total;
-            document.getElementById('stat-percent').textContent = percent + '%';
-            document.getElementById('stat-critical').textContent = critical;
-            document.getElementById('stat-subject').textContent = topSubject ? topSubject[0] : '-';
-            document.getElementById('support-stats').style.display = '';
-
-            // Update tab counts
-            document.getElementById('count-all').textContent = total;
-            document.getElementById('count-critical').textContent = critical;
-            document.getElementById('count-medium').textContent = medium;
-            document.getElementById('count-near').textContent = near;
-            document.getElementById('level-tabs').style.display = total > 0 ? '' : 'none';
-
-            document.getElementById('table-quick-search').classList.toggle('visible', total > 0);
-            document.getElementById('quick-search-input').value = '';
-            quickSearchTerm = '';
-        }
-
-        // ─── Render charts ───
-        async function renderCharts(filtered) {
-            if (!filtered.length) {
-                document.getElementById('chart-section').classList.remove('visible');
-                return;
-            }
-
-            try {
-                await ensureChartJs();
-            } catch (e) {
-                console.warn('Chart.js failed to load', e);
-                return;
-            }
-
-            destroyCharts();
-            document.getElementById('chart-section').classList.add('visible');
-
-            // Chart 1: By subject
-            const subjectCount = {};
-            filtered.forEach(g => {
-                const subj = normalizeSubjectName(g.subject);
-                if (subj) subjectCount[subj] = (subjectCount[subj] || 0) + 1;
-            });
-            const sortedSubjects = Object.entries(subjectCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
-            const subjectColors = sortedSubjects.map((_, i) => {
-                const hues = [210, 340, 45, 160, 270, 30, 190, 0, 120, 300];
-                return `hsla(${hues[i % hues.length]}, 70%, 55%, 0.85)`;
-            });
-
-            makeChart('chart-by-subject', {
-                type: 'bar',
-                data: {
-                    labels: sortedSubjects.map(s => s[0]),
-                    datasets: [{
-                        label: 'عدد المتعثرين',
-                        data: sortedSubjects.map(s => s[1]),
-                        backgroundColor: subjectColors,
-                        borderRadius: 6,
-                        borderSkipped: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { precision: 0 } },
-                        x: { ticks: { font: { size: 11 } } }
-                    }
+                let filteredGrades = allGradesCache;
+                if (selectedClass) {
+                    filteredGrades = filteredGrades.filter((g) => (g.section || '') === selectedClass);
+                } else if (selectedLevel) {
+                    filteredGrades = filteredGrades.filter((g) => _getLocalLevelName(g.section) === selectedLevel);
                 }
-            });
 
-            // Chart 2: By level (doughnut)
-            const critical = filtered.filter(g => g.grade < 5).length;
-            const medium = filtered.filter(g => g.grade >= 5 && g.grade < 8).length;
-            const near = filtered.filter(g => g.grade >= 8).length;
-
-            makeChart('chart-by-level', {
-                type: 'doughnut',
-                data: {
-                    labels: ['حرج (0-5)', 'متوسط (5-8)', 'قريب من المعدل (8-10)'],
-                    datasets: [{
-                        data: [critical, medium, near],
-                        backgroundColor: ['#dc2626', '#f59e0b', '#3b82f6'],
-                        borderWidth: 2,
-                        borderColor: '#fff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { padding: 15, font: { size: 12 } }
+                const subjects = new Set();
+                const invalidSubjectNames = ['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة'];
+                filteredGrades.forEach((g) => {
+                    if (g.subject) {
+                        const normalized = normalizeSubjectName(g.subject);
+                        if (normalized && !invalidSubjectNames.includes(normalized.toLowerCase())) {
+                            subjects.add(normalized);
                         }
                     }
-                }
-            });
+                });
 
-            // Chart 3: By section (comparison)
-            const sectionCount = {};
-            filtered.forEach(g => {
-                const sec = g.section || g.class_name || '';
-                if (sec) sectionCount[sec] = (sectionCount[sec] || 0) + 1;
-            });
-            const sortedSections = Object.entries(sectionCount).sort((a, b) => b[1] - a[1]).slice(0, 12);
-
-            makeChart('chart-by-section', {
-                type: 'bar',
-                data: {
-                    labels: sortedSections.map(s => s[0]),
-                    datasets: [{
-                        label: 'عدد المتعثرين',
-                        data: sortedSections.map(s => s[1]),
-                        backgroundColor: 'rgba(59, 106, 197, 0.7)',
-                        borderRadius: 6,
-                        borderSkipped: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: 'y',
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { beginAtZero: true, ticks: { precision: 0 } },
-                        y: { ticks: { font: { size: 10 } } }
-                    }
-                }
-            });
-        }
-
-        // ─── Student Modal ───
-        function openStudentModal(code, name) {
-            const threshold = parseFloat(document.getElementById('threshold').value) || 10;
-            // Find ALL grades for this student (by code) below threshold
-            const studentGrades = allGradesCache.filter(g =>
-                (g.massar_code || g.student_code || '') === code && (g.grade || 0) < threshold
-            );
-
-            document.getElementById('modal-student-name').textContent = name;
-
-            if (!studentGrades.length) {
-                document.getElementById('modal-body').innerHTML = '<p style="text-align:center;color:#999;padding:20px;">لا توجد بيانات لهذا التلميذ</p>';
-                document.getElementById('student-modal-overlay').classList.add('active');
-                return;
+                Array.from(subjects)
+                    .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
+                    .forEach((subject) => {
+                        const opt = document.createElement('option');
+                        opt.value = subject;
+                        opt.textContent = subject;
+                        subjectSelect.appendChild(opt);
+                    });
             }
 
-            const grades = studentGrades.map(g => g.grade || 0);
-            const avg = (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2);
-            const min = Math.min(...grades).toFixed(2);
-            const section = studentGrades[0].section || studentGrades[0].class_name || '-';
-            const criticalCount = grades.filter(g => g < 5).length;
+            async function loadFilters() {
+                const levelSelect = document.getElementById('level-select');
+                const students = (await window.api.students.getAll(year)) || [];
+                const grades = (await window.api.grades.getAll(year)) || [];
+                allGradesCache = grades;
+                allStudentsCache = students;
 
-            let html = `
+                const mappingRaw = await window.api.settings.get('levelsMapping');
+                try {
+                    sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {};
+                } catch (_) {
+                    sectionToLevel = {};
+                }
+
+                const sections = new Set();
+                const levels = new Set();
+                students.forEach((s) => {
+                    if (s.section) sections.add(s.section);
+                });
+                grades.forEach((g) => {
+                    if (g.section) sections.add(g.section);
+                });
+                allSections = Array.from(sections);
+
+                sections.forEach((section) => {
+                    const level = _getLocalLevelName(section);
+                    if (level) levels.add(level);
+                });
+
+                sortLevelNames(Array.from(levels)).forEach((level) => {
+                    const opt = document.createElement('option');
+                    opt.value = level;
+                    opt.textContent = level;
+                    levelSelect.appendChild(opt);
+                });
+
+                renderClassOptions('');
+                renderSubjectOptions('', '');
+            }
+
+            // ─── Sort helper ───
+            function getSortValue(g, col) {
+                if (col === 'code') return (g.massar_code || g.student_code || '').toLowerCase();
+                if (col === 'name') return (g.student_name || g.full_name || '').toLowerCase();
+                if (col === 'section') return (g.section || g.class_name || '').toLowerCase();
+                if (col === 'subject') return normalizeSubjectName(g.subject).toLowerCase();
+                if (col === 'grade') return g.grade || 0;
+                return '';
+            }
+
+            // ─── Render table with level filtering + sorting + quick search + pagination ───
+            function renderTable(filtered) {
+                let display =
+                    activeLevel === 'all'
+                        ? filtered.slice()
+                        : filtered.filter((g) => getSupportLevel(g.grade) === activeLevel);
+
+                // Quick search filter
+                if (quickSearchTerm) {
+                    display = display.filter((g) => {
+                        const name = (g.student_name || g.full_name || '').toLowerCase();
+                        const code = (g.massar_code || g.student_code || '').toLowerCase();
+                        return name.includes(quickSearchTerm) || code.includes(quickSearchTerm);
+                    });
+                }
+
+                // Sort
+                display.sort((a, b) => {
+                    const va = getSortValue(a, sortColumn);
+                    const vb = getSortValue(b, sortColumn);
+                    let cmp = 0;
+                    if (typeof va === 'number') cmp = va - vb;
+                    else cmp = String(va).localeCompare(String(vb), 'ar');
+                    return sortDir === 'desc' ? -cmp : cmp;
+                });
+
+                // Update search count
+                const searchCountEl = document.getElementById('search-count');
+                if (quickSearchTerm) {
+                    searchCountEl.textContent = `${display.length} نتيجة`;
+                } else {
+                    searchCountEl.textContent = '';
+                }
+
+                const totalPages = Math.max(1, Math.ceil(display.length / PAGE_SIZE));
+                if (currentPage > totalPages) currentPage = totalPages;
+
+                const start = (currentPage - 1) * PAGE_SIZE;
+                const pageData = display.slice(start, start + PAGE_SIZE);
+
+                const tbody = document.getElementById('tbody');
+                tbody.innerHTML = pageData.length
+                    ? pageData
+                          .map((g, i) => {
+                              const lvl = getSupportLabel(getSupportLevel(g.grade));
+                              const code = g.massar_code || g.student_code || '-';
+                              const name = g.student_name || g.full_name || '-';
+                              return `
+                <tr>
+                    <td data-label="#">${start + i + 1}</td>
+                    <td data-label="رمز مسار">${code}</td>
+                    <td data-label="الاسم الكامل"><span class="student-name-link" onclick="openStudentModal('${code.replace(/'/g, "\\'")}','${name.replace(/'/g, "\\'")}')">${name}</span></td>
+                    <td data-label="القسم">${g.section || g.class_name || '-'}</td>
+                    <td data-label="المادة">${normalizeSubjectName(g.subject) || '-'}</td>
+                    <td data-label="النقطة" style="color: ${getGradeColor(g.grade)}; font-weight: bold;">${g.grade}</td>
+                    <td data-label="الحالة"><span style="background: ${lvl.bg}; color: ${lvl.color}; padding: 3px 8px; border-radius: 8px; font-size:12px;">${lvl.text}</span></td>
+                </tr>`;
+                          })
+                          .join('')
+                    : '<tr><td colspan="7" style="padding: 20px; text-align: center;">لا يوجد تلاميذ في هذه الفئة</td></tr>';
+
+                renderPagination(display.length, totalPages);
+            }
+
+            function renderPagination(totalItems, totalPages) {
+                const pag = document.getElementById('pagination');
+                if (totalItems <= PAGE_SIZE) {
+                    pag.style.display = 'none';
+                    return;
+                }
+                pag.style.display = '';
+
+                let html = `<button class="nav-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">السابق <i class="fas fa-chevron-right"></i></button>`;
+                html += '<div class="page-numbers">';
+
+                const maxVisible = 5;
+                let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
+
+                if (startPage > 1) {
+                    html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+                    if (startPage > 2) html += '<span class="ellipsis">...</span>';
+                }
+
+                for (let p = startPage; p <= endPage; p++) {
+                    html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goToPage(${p})">${p}</button>`;
+                }
+
+                if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) html += '<span class="ellipsis">...</span>';
+                    html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+                }
+
+                html += '</div>';
+                html += `<span class="page-info">${currentPage} / ${totalPages} (المجموع: ${totalItems})</span>`;
+                html += `<button class="nav-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})"><i class="fas fa-chevron-left"></i> التالي</button>`;
+
+                pag.innerHTML = html;
+            }
+
+            function goToPage(page) {
+                currentPage = page;
+                renderTable(lastFiltered);
+                document.querySelector('.students-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            // ─── Update stats cards ───
+            function updateStats(filtered) {
+                const total = filtered.length;
+                const critical = filtered.filter((g) => g.grade < 5).length;
+                const medium = filtered.filter((g) => g.grade >= 5 && g.grade < 8).length;
+                const near = filtered.filter((g) => g.grade >= 8).length;
+
+                // Count unique struggling students for percentage
+                const uniqueStudents = new Set(filtered.map((g) => g.massar_code || g.student_code || '')).size;
+                const totalStudents = allStudentsCache.length || allGradesCache.length;
+                const percent = totalStudents > 0 ? ((uniqueStudents / totalStudents) * 100).toFixed(1) : '0';
+
+                // Most struggling subject
+                const subjectCount = {};
+                filtered.forEach((g) => {
+                    const subj = normalizeSubjectName(g.subject);
+                    if (subj) subjectCount[subj] = (subjectCount[subj] || 0) + 1;
+                });
+                const topSubject = Object.entries(subjectCount).sort((a, b) => b[1] - a[1])[0];
+
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-percent').textContent = percent + '%';
+                document.getElementById('stat-critical').textContent = critical;
+                document.getElementById('stat-subject').textContent = topSubject ? topSubject[0] : '-';
+                document.getElementById('support-stats').style.display = '';
+
+                // Update tab counts
+                document.getElementById('count-all').textContent = total;
+                document.getElementById('count-critical').textContent = critical;
+                document.getElementById('count-medium').textContent = medium;
+                document.getElementById('count-near').textContent = near;
+                document.getElementById('level-tabs').style.display = total > 0 ? '' : 'none';
+
+                document.getElementById('table-quick-search').classList.toggle('visible', total > 0);
+                document.getElementById('quick-search-input').value = '';
+                quickSearchTerm = '';
+            }
+
+            // ─── Render charts ───
+            async function renderCharts(filtered) {
+                if (!filtered.length) {
+                    document.getElementById('chart-section').classList.remove('visible');
+                    return;
+                }
+
+                try {
+                    await ensureChartJs();
+                } catch (e) {
+                    console.warn('Chart.js failed to load', e);
+                    return;
+                }
+
+                destroyCharts();
+                document.getElementById('chart-section').classList.add('visible');
+
+                // Chart 1: By subject
+                const subjectCount = {};
+                filtered.forEach((g) => {
+                    const subj = normalizeSubjectName(g.subject);
+                    if (subj) subjectCount[subj] = (subjectCount[subj] || 0) + 1;
+                });
+                const sortedSubjects = Object.entries(subjectCount)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10);
+                const subjectColors = sortedSubjects.map((_, i) => {
+                    const hues = [210, 340, 45, 160, 270, 30, 190, 0, 120, 300];
+                    return `hsla(${hues[i % hues.length]}, 70%, 55%, 0.85)`;
+                });
+
+                makeChart('chart-by-subject', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedSubjects.map((s) => s[0]),
+                        datasets: [
+                            {
+                                label: 'عدد المتعثرين',
+                                data: sortedSubjects.map((s) => s[1]),
+                                backgroundColor: subjectColors,
+                                borderRadius: 6,
+                                borderSkipped: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { precision: 0 } },
+                            x: { ticks: { font: { size: 11 } } }
+                        }
+                    }
+                });
+                updateChartSummary(
+                    'chart-by-subject',
+                    sortedSubjects.length
+                        ? `أكثر المواد تعثراً هي ${sortedSubjects[0][0]} بعدد ${sortedSubjects[0][1]} تلميذ. يعرض الرسم أعلى ${sortedSubjects.length} مواد.`
+                        : 'لا توجد مواد لعرضها في الرسم البياني.'
+                );
+
+                // Chart 2: By level (doughnut)
+                const critical = filtered.filter((g) => g.grade < 5).length;
+                const medium = filtered.filter((g) => g.grade >= 5 && g.grade < 8).length;
+                const near = filtered.filter((g) => g.grade >= 8).length;
+
+                makeChart('chart-by-level', {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['حرج (0-5)', 'متوسط (5-8)', 'قريب من المعدل (8-10)'],
+                        datasets: [
+                            {
+                                data: [critical, medium, near],
+                                backgroundColor: ['#dc2626', '#f59e0b', '#3b82f6'],
+                                borderWidth: 2,
+                                borderColor: '#fff'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { padding: 15, font: { size: 12 } }
+                            }
+                        }
+                    }
+                });
+                updateChartSummary(
+                    'chart-by-level',
+                    `التوزيع الحالي: ${critical} حالات حرجة، ${medium} حالات متوسطة، و${near} حالات قريبة من المعدل.`
+                );
+
+                // Chart 3: By section (comparison)
+                const sectionCount = {};
+                filtered.forEach((g) => {
+                    const sec = g.section || g.class_name || '';
+                    if (sec) sectionCount[sec] = (sectionCount[sec] || 0) + 1;
+                });
+                const sortedSections = Object.entries(sectionCount)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 12);
+
+                makeChart('chart-by-section', {
+                    type: 'bar',
+                    data: {
+                        labels: sortedSections.map((s) => s[0]),
+                        datasets: [
+                            {
+                                label: 'عدد المتعثرين',
+                                data: sortedSections.map((s) => s[1]),
+                                backgroundColor: 'rgba(59, 106, 197, 0.7)',
+                                borderRadius: 6,
+                                borderSkipped: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { beginAtZero: true, ticks: { precision: 0 } },
+                            y: { ticks: { font: { size: 10 } } }
+                        }
+                    }
+                });
+                updateChartSummary(
+                    'chart-by-section',
+                    sortedSections.length
+                        ? `القسم الأكثر احتياجاً للدعم هو ${sortedSections[0][0]} بعدد ${sortedSections[0][1]} تلميذ. يعرض الرسم أعلى ${sortedSections.length} أقسام.`
+                        : 'لا توجد أقسام لعرضها في الرسم البياني.'
+                );
+            }
+
+            // ─── Student Modal ───
+            function openStudentModal(code, name) {
+                const threshold = parseFloat(document.getElementById('threshold').value) || 10;
+                // Find ALL grades for this student (by code) below threshold
+                const studentGrades = allGradesCache.filter(
+                    (g) => (g.massar_code || g.student_code || '') === code && (g.grade || 0) < threshold
+                );
+
+                document.getElementById('modal-student-name').textContent = name;
+
+                if (!studentGrades.length) {
+                    document.getElementById('modal-body').innerHTML =
+                        '<p style="text-align:center;color:#999;padding:20px;">لا توجد بيانات لهذا التلميذ</p>';
+                    const modal = document.getElementById('student-modal-overlay');
+                    modal.classList.add('active');
+                    modal.setAttribute('aria-hidden', 'false');
+                    return;
+                }
+
+                const grades = studentGrades.map((g) => g.grade || 0);
+                const avg = (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2);
+                const min = Math.min(...grades).toFixed(2);
+                const section = studentGrades[0].section || studentGrades[0].class_name || '-';
+                const criticalCount = grades.filter((g) => g < 5).length;
+
+                let html = `
                 <div class="student-summary">
                     <div class="student-summary-item">
                         <div class="label">القسم</div>
@@ -698,122 +853,132 @@
                 <table>
                     <thead><tr><th>المادة</th><th>النقطة</th><th>الحالة</th></tr></thead>
                     <tbody>
-                        ${studentGrades.sort((a, b) => a.grade - b.grade).map(g => {
-                const lvl = getSupportLabel(getSupportLevel(g.grade));
-                return `<tr>
+                        ${studentGrades
+                            .sort((a, b) => a.grade - b.grade)
+                            .map((g) => {
+                                const lvl = getSupportLabel(getSupportLevel(g.grade));
+                                return `<tr>
                                 <td>${normalizeSubjectName(g.subject) || '-'}</td>
                                 <td style="color:${getGradeColor(g.grade)};font-weight:bold;">${g.grade}</td>
                                 <td><span style="background:${lvl.bg};color:${lvl.color};padding:2px 8px;border-radius:8px;font-size:12px;">${lvl.text}</span></td>
                             </tr>`;
-            }).join('')}
+                            })
+                            .join('')}
                     </tbody>
                 </table>`;
 
-            document.getElementById('modal-body').innerHTML = html;
-            document.getElementById('student-modal-overlay').classList.add('active');
-        }
-
-        function closeStudentModal() {
-            document.getElementById('student-modal-overlay').classList.remove('active');
-        }
-
-        // ─── Main search ───
-        async function search() {
-            const level = document.getElementById('level-select').value;
-            const className = document.getElementById('class-select').value;
-            const subject = document.getElementById('subject-select').value;
-            const threshold = parseFloat(document.getElementById('threshold').value) || 10;
-
-            // Step 1: Filter by class/level/subject (before threshold)
-            let relevantGrades = allGradesCache.slice();
-
-            if (className) {
-                relevantGrades = relevantGrades.filter(g => (g.section || '') === className);
-            } else if (level) {
-                relevantGrades = relevantGrades.filter(g => _getLocalLevelName(g.section) === level);
+                document.getElementById('modal-body').innerHTML = html;
+                const modal = document.getElementById('student-modal-overlay');
+                modal.classList.add('active');
+                modal.setAttribute('aria-hidden', 'false');
             }
 
-            if (subject) {
-                relevantGrades = relevantGrades.filter(g => normalizeSubjectName(g.subject) === subject);
+            function closeStudentModal() {
+                const modal = document.getElementById('student-modal-overlay');
+                modal.classList.remove('active');
+                modal.setAttribute('aria-hidden', 'true');
             }
 
-            // Step 2: Group by (student code + base subject) to get subject average
-            const grouped = {};
-            relevantGrades.forEach(g => {
-                const code = g.massar_code || g.student_code || '';
-                const baseSubj = typeof ccBaseSubject === 'function'
-                    ? ccBaseSubject(normalizeSubjectName(g.subject))
-                    : normalizeSubjectName(g.subject);
-                if (!code || !baseSubj) return;
-                const key = code + '|||' + baseSubj;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        massar_code: g.massar_code,
-                        student_code: g.student_code,
-                        student_name: g.student_name || g.full_name,
-                        full_name: g.full_name || g.student_name,
-                        section: g.section,
-                        class_name: g.class_name,
-                        subject: baseSubj,
-                        _rawGrades: [g]
-                    };
-                } else {
-                    grouped[key]._rawGrades.push(g);
+            // ─── Main search ───
+            async function search() {
+                const level = document.getElementById('level-select').value;
+                const className = document.getElementById('class-select').value;
+                const subject = document.getElementById('subject-select').value;
+                const threshold = parseFloat(document.getElementById('threshold').value) || 10;
+
+                // Step 1: Filter by class/level/subject (before threshold)
+                let relevantGrades = allGradesCache.slice();
+
+                if (className) {
+                    relevantGrades = relevantGrades.filter((g) => (g.section || '') === className);
+                } else if (level) {
+                    relevantGrades = relevantGrades.filter((g) => _getLocalLevelName(g.section) === level);
                 }
-            });
 
-            // Step 3: Compute weighted subject average and filter by threshold
-            let filtered = Object.values(grouped)
-                .map(entry => {
-                    const avg = typeof computeSubjectAverage === 'function'
-                        ? computeSubjectAverage(entry.subject, entry._rawGrades)
-                        : entry._rawGrades.reduce((a, g) => a + (g.grade || 0), 0) / entry._rawGrades.length;
-                    const { _rawGrades, ...rest } = entry;
-                    return { ...rest, grade: parseFloat(avg.toFixed(2)) };
-                })
-                .filter(entry => entry.grade < threshold);
+                if (subject) {
+                    relevantGrades = relevantGrades.filter((g) => normalizeSubjectName(g.subject) === subject);
+                }
 
-            filtered.sort((a, b) => (a.grade || 0) - (b.grade || 0));
-            lastFiltered = filtered;
+                // Step 2: Group by (student code + base subject) to get subject average
+                const grouped = {};
+                relevantGrades.forEach((g) => {
+                    const code = g.massar_code || g.student_code || '';
+                    const baseSubj =
+                        typeof ccBaseSubject === 'function'
+                            ? ccBaseSubject(normalizeSubjectName(g.subject))
+                            : normalizeSubjectName(g.subject);
+                    if (!code || !baseSubj) return;
+                    const key = code + '|||' + baseSubj;
+                    if (!grouped[key]) {
+                        grouped[key] = {
+                            massar_code: g.massar_code,
+                            student_code: g.student_code,
+                            student_name: g.student_name || g.full_name,
+                            full_name: g.full_name || g.student_name,
+                            section: g.section,
+                            class_name: g.class_name,
+                            subject: baseSubj,
+                            _rawGrades: [g]
+                        };
+                    } else {
+                        grouped[key]._rawGrades.push(g);
+                    }
+                });
 
-            // Reset level filter and page
-            activeLevel = 'all';
-            currentPage = 1;
-            document.querySelectorAll('.level-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector('.level-tab[data-level="all"]').classList.add('active');
+                // Step 3: Compute weighted subject average and filter by threshold
+                let filtered = Object.values(grouped)
+                    .map((entry) => {
+                        const avg =
+                            typeof computeSubjectAverage === 'function'
+                                ? computeSubjectAverage(entry.subject, entry._rawGrades)
+                                : entry._rawGrades.reduce((a, g) => a + (g.grade || 0), 0) / entry._rawGrades.length;
+                        const { _rawGrades, ...rest } = entry;
+                        return { ...rest, grade: parseFloat(avg.toFixed(2)) };
+                    })
+                    .filter((entry) => entry.grade < threshold);
 
-            updateStats(filtered);
-            renderTable(filtered);
-            renderCharts(filtered);
-        }
+                filtered.sort((a, b) => (a.grade || 0) - (b.grade || 0));
+                lastFiltered = filtered;
 
+                // Reset level filter and page
+                activeLevel = 'all';
+                currentPage = 1;
+                document.querySelectorAll('.level-tab').forEach((t) => t.classList.remove('active'));
+                document.querySelector('.level-tab[data-level="all"]').classList.add('active');
 
-
-        // ─── Print preview ───
-        function exportPdf() {
-            let display = activeLevel === 'all'
-                ? lastFiltered.slice()
-                : lastFiltered.filter(g => getSupportLevel(g.grade) === activeLevel);
-
-            if (!display.length) {
-                if (typeof showToast === 'function') showToast('لا توجد بيانات للتصدير. قم بالبحث أولاً', 'warning');
-                return;
+                updateStats(filtered);
+                renderTable(filtered);
+                renderCharts(filtered);
             }
 
-            // Sort by class name (section), then by grade within each class
-            display.sort((a, b) => {
-                const secA = (a.section || a.class_name || '').toLowerCase();
-                const secB = (b.section || b.class_name || '').toLowerCase();
-                const secCmp = secA.localeCompare(secB, 'ar');
-                if (secCmp !== 0) return secCmp;
-                return (a.grade || 0) - (b.grade || 0);
-            });
+            // ─── Print preview ───
+            function exportPdf() {
+                let display =
+                    activeLevel === 'all'
+                        ? lastFiltered.slice()
+                        : lastFiltered.filter((g) => getSupportLevel(g.grade) === activeLevel);
 
-            // Temporarily render ALL rows for print
-            const tbody = document.getElementById('tbody');
-            tbody.innerHTML = display.map((g, i) => {
-                const lvl = getSupportLabel(getSupportLevel(g.grade));
-                return `
+                if (!display.length) {
+                    if (typeof showToast === 'function')
+                        showToast('لا توجد بيانات للتصدير. قم بالبحث أولاً', 'warning');
+                    return;
+                }
+
+                // Sort by class name (section), then by grade within each class
+                display.sort((a, b) => {
+                    const secA = (a.section || a.class_name || '').toLowerCase();
+                    const secB = (b.section || b.class_name || '').toLowerCase();
+                    const secCmp = secA.localeCompare(secB, 'ar');
+                    if (secCmp !== 0) return secCmp;
+                    return (a.grade || 0) - (b.grade || 0);
+                });
+
+                // Temporarily render ALL rows for print
+                const tbody = document.getElementById('tbody');
+                tbody.innerHTML = display
+                    .map((g, i) => {
+                        const lvl = getSupportLabel(getSupportLevel(g.grade));
+                        return `
                 <tr>
                     <td>${i + 1}</td>
                     <td>${g.massar_code || g.student_code || '-'}</td>
@@ -823,35 +988,36 @@
                     <td style="color: ${getGradeColor(g.grade)}; font-weight: bold;">${g.grade}</td>
                     <td><span style="background: ${lvl.bg}; color: ${lvl.color}; padding: 3px 8px; border-radius: 8px; font-size:12px;">${lvl.text}</span></td>
                 </tr>`;
-            }).join('');
+                    })
+                    .join('');
 
-            // Hide pagination for the clone
-            const pag = document.getElementById('pagination');
-            pag.style.display = 'none';
+                // Hide pagination for the clone
+                const pag = document.getElementById('pagination');
+                pag.style.display = 'none';
 
-            const level = document.getElementById('level-select');
-            const cls = document.getElementById('class-select');
-            const subj = document.getElementById('subject-select');
-            const threshold = document.getElementById('threshold').value || '10';
+                const level = document.getElementById('level-select');
+                const cls = document.getElementById('class-select');
+                const subj = document.getElementById('subject-select');
+                const threshold = document.getElementById('threshold').value || '10';
 
-            const parts = [];
-            if (level.value) parts.push('المستوى: ' + level.options[level.selectedIndex].text);
-            if (cls.value) parts.push('القسم: ' + cls.options[cls.selectedIndex].text);
-            if (subj.value) parts.push('المادة: ' + subj.options[subj.selectedIndex].text);
-            parts.push('الحد الأقصى: ' + threshold);
-            parts.push('عدد التلاميذ: ' + display.length);
+                const parts = [];
+                if (level.value) parts.push('المستوى: ' + level.options[level.selectedIndex].text);
+                if (cls.value) parts.push('القسم: ' + cls.options[cls.selectedIndex].text);
+                if (subj.value) parts.push('المادة: ' + subj.options[subj.selectedIndex].text);
+                parts.push('الحد الأقصى: ' + threshold);
+                parts.push('عدد التلاميذ: ' + display.length);
 
-            document.getElementById('print-date').textContent =
-                'تاريخ التصدير: ' + new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
-            document.getElementById('print-filters').textContent = parts.join(' | ');
+                document.getElementById('print-date').textContent =
+                    'تاريخ التصدير: ' +
+                    new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById('print-filters').textContent = parts.join(' | ');
 
-            openPrintPreview({ title: 'الدعم التربوي', pageSize: 'A4', landscape: false });
+                openPrintPreview({ title: 'الدعم التربوي', pageSize: 'A4', landscape: false });
 
-            // openPrintPreview clones content after ~300ms (charts/theme capture).
-            // Keep full rows a bit longer so preview captures every page.
-            setTimeout(() => renderTable(lastFiltered), 700);
-        }
-    </script>
-</body>
-
+                // openPrintPreview clones content after ~300ms (charts/theme capture).
+                // Keep full rows a bit longer so preview captures every page.
+                setTimeout(() => renderTable(lastFiltered), 700);
+            }
+        </script>
+    </body>
 </html>

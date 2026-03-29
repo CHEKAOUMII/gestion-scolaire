@@ -24,7 +24,7 @@ function nowIso() {
 function parseJson(value, fallback = {}) {
     try {
         return JSON.parse(value);
-    } catch (_err) {
+    } catch {
         return fallback;
     }
 }

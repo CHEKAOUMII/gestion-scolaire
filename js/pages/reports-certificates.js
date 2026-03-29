@@ -44,8 +44,8 @@ function renderPreview(student, type, year) {
     const typeLabel = CERT_TYPE_LABELS[type];
 
     preview.innerHTML = `
-        <div class="mx-auto max-w-[680px] overflow-hidden rounded-[14px] border-2 border-[var(--color-primary)] bg-[var(--color-surface)] shadow-[0_4px_20px_rgba(59,106,197,0.1)]">
-            <div class="bg-[linear-gradient(135deg,var(--color-primary),#5B84D6)] px-6 py-4 text-center text-white">
+        <div class="mx-auto max-w-[680px] overflow-hidden rounded-[14px] border-2 border-[var(--color-primary)] bg-[var(--color-surface)] shadow-[var(--shadow-hover)]">
+            <div class="bg-[var(--gradient-primary)] px-6 py-4 text-center text-[var(--color-surface)]">
                 <div class="mt-1 text-[0.85rem] opacity-[0.85]">${safeText(schoolName)}</div>
                 <h2 class="m-0 text-[1.3rem] font-bold">${safeText(typeLabel)}</h2>
             </div>
@@ -73,23 +73,23 @@ function buildCertificateBody(student, type) {
     return `
         <table class="mt-1.5 w-full border-collapse text-xs">
             <tr>
-                <td class="w-[140px] border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">الاسم الكامل</td>
-                <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${safeText(student.full_name || '-')}</td>
+                <td class="w-[140px] border-b border-[var(--color-accent)] px-2.5 py-1.5 font-bold text-[var(--color-text-muted)]">الاسم الكامل</td>
+                <td class="border-b border-[var(--color-accent)] px-2.5 py-1.5 text-[var(--color-text-main)]">${safeText(student.full_name || '-')}</td>
             </tr>
             <tr>
-                <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">رمز مسار</td>
-                <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${safeText(student.massar_code || '-')}</td>
+                <td class="border-b border-[var(--color-accent)] px-2.5 py-1.5 font-bold text-[var(--color-text-muted)]">رمز مسار</td>
+                <td class="border-b border-[var(--color-accent)] px-2.5 py-1.5 text-[var(--color-text-main)]">${safeText(student.massar_code || '-')}</td>
             </tr>
             <tr>
-                <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">القسم</td>
-                <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${safeText(student.class_name || '-')}</td>
+                <td class="border-b border-[var(--color-accent)] px-2.5 py-1.5 font-bold text-[var(--color-text-muted)]">القسم</td>
+                <td class="border-b border-[var(--color-accent)] px-2.5 py-1.5 text-[var(--color-text-main)]">${safeText(student.class_name || '-')}</td>
             </tr>
             <tr>
-                <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 font-bold text-[#333]">السنة الدراسية</td>
-                <td class="border-b border-[#e5e7eb] px-2.5 py-1.5 text-[#111]">${safeText(year)}</td>
+                <td class="border-b border-[var(--color-accent)] px-2.5 py-1.5 font-bold text-[var(--color-text-muted)]">السنة الدراسية</td>
+                <td class="border-b border-[var(--color-accent)] px-2.5 py-1.5 text-[var(--color-text-main)]">${safeText(year)}</td>
             </tr>
         </table>
-        <div class="mt-3.5 rounded-s-[6px] rounded-e-none border-s-[3px] border-[var(--color-primary)] bg-[#f8faf9] px-3 py-2.5 text-xs leading-[1.8] text-[#222] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">${safeText(bodyText)}</div>`;
+        <div class="mt-3.5 rounded-s-[6px] rounded-e-none border-s-[3px] border-[var(--color-primary)] bg-[var(--color-secondary)] px-3 py-2.5 text-xs leading-[1.8] text-[var(--color-text-main)] [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">${safeText(bodyText)}</div>`;
 }
 
 async function dispatchCertificate(mode) {

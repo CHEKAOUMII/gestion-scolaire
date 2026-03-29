@@ -9,10 +9,10 @@
         
     <link rel="stylesheet" href="css/tailwind-output.css">
         <script src="js/data/ma-education-labels.js"></script>
-        <script src="js/utils.js"></script>
-        <script src="js/notifications.js"></script>
-        <script src="js/sidebar.js"></script>
-        <script src="js/ux-enhancements.js"></script>
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
         </head>
 
     <body>
@@ -23,7 +23,7 @@
         <main class="main-content">
             <header class="header">
                 <div class="header-left">
-                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
                     <h2 class="page-title"><i class="fas fa-random"></i> إعادة توزيع أقسام المادة</h2>
                 </div>
                 <div class="header-right" style="display: flex; gap: 10px; flex-wrap: wrap">

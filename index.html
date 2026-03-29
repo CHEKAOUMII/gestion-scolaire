@@ -41,7 +41,10 @@
                     </div>
                     <details class="header-tools">
                         <summary class="header-tools-summary" aria-label="أدوات إضافية">
-                            <span>الأدوات</span>
+                            <span class="header-tools-summary-copy">
+                                <strong>أدوات سريعة</strong>
+                                <small>اختصارات، نسخ احتياطي، سمة</small>
+                            </span>
                             <i class="fas fa-sliders-h" aria-hidden="true"></i>
                         </summary>
                         <div class="header-tools-panel">
@@ -79,22 +82,48 @@
 
             <h1 class="sr-only">لوحة التحكم — الثانوية التأهيلية ابن سينا</h1>
 
+            <section
+                class="dashboard-onboarding-callout hidden"
+                id="dashboard-onboarding-callout"
+                aria-label="مساعدة سريعة للبدء"
+            >
+                <div class="dashboard-onboarding-copy">
+                    <strong>بدء سريع</strong>
+                    <p>
+                        ابدأ من المؤشرات الأساسية، ثم الرسوم البيانية، ثم حركية التلاميذ. ويمكنك فتح الأدوات السريعة
+                        للاختصارات والنسخة الاحتياطية وتبديل السمة عند الحاجة.
+                    </p>
+                </div>
+                <div class="dashboard-onboarding-actions">
+                    <button
+                        class="btn-apply dashboard-onboarding-btn"
+                        id="dashboard-onboarding-shortcuts"
+                        type="button"
+                    >
+                        عرض الاختصارات
+                    </button>
+                    <button class="dashboard-onboarding-dismiss" id="dashboard-onboarding-dismiss" type="button">
+                        فهمت
+                    </button>
+                </div>
+            </section>
+
             <section class="dashboard-hero" aria-labelledby="dashboard-title">
                 <div class="dashboard-hero-main">
                     <p class="dashboard-eyebrow">لوحة التحكم الرئيسية</p>
                     <h2 class="dashboard-title" id="dashboard-title">متابعة سريعة لوضع المؤسسة خلال اليوم</h2>
                     <p class="dashboard-description">
-                        ابدأ بالمؤشرات العامة، ثم راجع الرسوم البيانية، وبعدها انتقل إلى حركية التلاميذ لإنهاء المتابعة
-                        اليومية بسرعة.
+                        ابدأ بالمؤشرات الأساسية لتكوين صورة عامة، ثم راجع الرسوم البيانية، واختم بحركية التلاميذ لمتابعة
+                        أهم التغييرات اليومية بخطوات واضحة.
                     </p>
                     <div class="dashboard-meta" aria-label="سياق البيانات الحالية">
                         <div class="dashboard-meta-card">
                             <span class="dashboard-meta-label">الموسم الدراسي</span>
-                            <strong id="dashboard-school-year">قيد التحديث...</strong>
+                            <strong id="dashboard-school-year">جار جلب بيانات الموسم الدراسي...</strong>
                         </div>
                         <div class="dashboard-meta-card">
                             <span class="dashboard-meta-label">نطاق البيانات</span>
-                            <strong id="dashboard-data-scope">جار تحديد السجلات المتاحة...</strong>
+                            <strong id="dashboard-data-scope">جار تحديد السجلات التي ستظهر في اللوحة...</strong>
                         </div>
                         <div class="dashboard-meta-card">
                             <span class="dashboard-meta-label">آخر تحديث</span>
@@ -103,10 +132,11 @@
                     </div>
                     <div class="dashboard-context-list" aria-label="ملخص الواجهة">
                         <span class="dashboard-context-pill"
-                            ><i class="fas fa-school" aria-hidden="true"></i> عرض موحد لبيانات المؤسسة</span
+                            ><i class="fas fa-school" aria-hidden="true"></i> عرض موحد لأهم بيانات المؤسسة</span
                         >
                         <span class="dashboard-context-pill"
-                            ><i class="fas fa-clock" aria-hidden="true"></i> مناسب للمراجعة اليومية السريعة</span
+                            ><i class="fas fa-clock" aria-hidden="true"></i> مناسب للمراجعة اليومية واتخاذ القرار
+                            بسرعة</span
                         >
                     </div>
                 </div>
@@ -133,9 +163,11 @@
                         <p class="dashboard-section-kicker">الخطوة الأولى</p>
                         <h2>المؤشرات الأساسية</h2>
                     </div>
-                    <p>قراءة سريعة لأهم الأرقام قبل التعمق في التفاصيل.</p>
+                    <p>راجع أهم الأرقام أولاً لمعرفة الوضع العام قبل الانتقال إلى التفاصيل.</p>
                 </div>
-                <p class="dashboard-loading-note" aria-live="polite">جار تحضير المؤشرات الأساسية...</p>
+                <p class="dashboard-loading-note" aria-live="polite">
+                    جار تحميل المؤشرات الأساسية. ستظهر البطاقات فور اكتمال القراءة.
+                </p>
                 <div class="stats-grid skeleton-grid">
                     <div class="stat-card skeleton-card skeleton-stat-card">
                         <div class="skeleton-pulse skeleton-stat-media"></div>
@@ -191,9 +223,11 @@
                         <p class="dashboard-section-kicker">الخطوة الثانية</p>
                         <h2>الرسوم البيانية الأساسية</h2>
                     </div>
-                    <p>فهم الاتجاهات العامة والتوزيع بسرعة من خلال العرض البصري.</p>
+                    <p>استخدم العرض البصري لفهم الاتجاهات العامة ومجالات التفاوت بسرعة.</p>
                 </div>
-                <p class="dashboard-loading-note" aria-live="polite">جار إعداد الرسوم البيانية الأساسية...</p>
+                <p class="dashboard-loading-note" aria-live="polite">
+                    جار إعداد الرسوم البيانية الأساسية. قد يستغرق ذلك لحظات حسب حجم البيانات.
+                </p>
                 <div class="charts-grid skeleton-grid">
                     <div class="chart-card skeleton-card skeleton-chart-card">
                         <div class="skeleton-chart-top">
@@ -233,9 +267,11 @@
                         <p class="dashboard-section-kicker">الخطوة الثالثة</p>
                         <h2>متابعة وضعيات التلاميذ والأطر</h2>
                     </div>
-                    <p>قسم مكمل لمراقبة التخصصات والوضعيات التي تحتاج انتباها.</p>
+                    <p>راجع هذا القسم لاكتشاف الوضعيات التي تحتاج متابعة أو تدخلاً سريعاً.</p>
                 </div>
-                <p class="dashboard-loading-note" aria-live="polite">جار تحميل البيانات المكملة...</p>
+                <p class="dashboard-loading-note" aria-live="polite">
+                    جار تحميل البيانات المكملة لإبراز الحالات التي تستحق الانتباه.
+                </p>
                 <div class="charts-grid skeleton-grid">
                     <div class="chart-card skeleton-card skeleton-chart-card">
                         <div class="skeleton-chart-top">
@@ -274,7 +310,7 @@
                         <p class="dashboard-section-kicker">الخطوة الأخيرة</p>
                         <h2>حركية التلاميذ</h2>
                     </div>
-                    <p>مراجعة الوصولات والمغادرات والحالات الخاصة في نهاية القراءة.</p>
+                    <p>اختم المراجعة بمتابعة الوصولات والمغادرات والحالات الخاصة المسجلة خلال اليوم.</p>
                 </div>
                 <div class="movement-skeleton skeleton-card" aria-hidden="true">
                     <div class="skeleton-chart-top">
@@ -311,8 +347,8 @@
                 </div>
                 <div class="modal-body backup-modal-body">
                     <p class="backup-modal-description">
-                        أنشئ نسخة حديثة قبل أي تغيير كبير. عند الاستعادة سيتم استبدال البيانات الحالية ببيانات الملف
-                        المختار.
+                        أنشئ نسخة حديثة قبل أي تعديل مهم. وعند الاستعادة، ستستبدل بيانات الملف المختار البيانات الحالية
+                        مباشرة.
                     </p>
                     <div class="backup-status-card" aria-live="polite">
                         <div class="backup-status-row">
@@ -330,7 +366,7 @@
                     </div>
                     <div class="backup-safety-note" role="note">
                         <i class="fas fa-shield-alt" aria-hidden="true"></i>
-                        <p>يفضل إنشاء نسخة جديدة الآن والاحتفاظ بها خارج الجهاز قبل تنفيذ أي استعادة.</p>
+                        <p>لحماية البيانات، أنشئ نسخة جديدة الآن واحتفظ بها خارج هذا الجهاز قبل تنفيذ الاستعادة.</p>
                     </div>
                     <div class="backup-file-summary hidden" id="backup-file-summary" aria-live="polite">
                         <span class="backup-file-summary-label">الملف المحدد للاستعادة</span>
@@ -339,7 +375,7 @@
                     </div>
                     <label class="backup-restore-check">
                         <input type="checkbox" id="restore-backup-confirm" />
-                        <span>أفهم أن الاستعادة ستستبدل البيانات الحالية ويجب أن أحتفظ بنسخة حديثة قبل المتابعة.</span>
+                        <span>أؤكد أنني أحتفظ بنسخة حديثة، وأفهم أن الاستعادة ستستبدل البيانات الحالية فوراً.</span>
                     </label>
                     <div class="backup-modal-actions">
                         <button class="btn-apply" id="create-backup-btn">

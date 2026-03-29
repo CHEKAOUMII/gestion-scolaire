@@ -22,7 +22,15 @@
         <main class="main-content">
             <header class="header">
                 <div class="header-left">
-                    <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
+                    <button
+                        class="menu-toggle"
+                        id="menu-toggle"
+                        type="button"
+                        aria-controls="sidebar"
+                        aria-expanded="false"
+                    >
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
                     <div class="page-title">
                         <i class="fas fa-table"></i>
                         <h1>جداول الحصص</h1>
@@ -69,22 +77,28 @@
                     </button>
 
                     <!-- Theme Toggle -->
-                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
-                        <i class="fas fa-moon"></i>
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر" type="button">
+                        <i class="fas fa-moon" aria-hidden="true"></i>
                     </button>
 
                     <!-- Shortcuts -->
-                    <button class="theme-toggle" id="shortcuts-btn" title="اختصارات لوحة المفاتيح (?)">
-                        <i class="fas fa-keyboard"></i>
+                    <button class="theme-toggle" id="shortcuts-btn" title="اختصارات لوحة المفاتيح (?)" type="button">
+                        <i class="fas fa-keyboard" aria-hidden="true"></i>
                     </button>
 
                     <!-- Undo/Redo -->
                     <div class="header-undo-redo" id="header-undo-redo" style="display: none">
-                        <button class="theme-toggle" id="header-undo-btn" title="تراجع (Ctrl+Z)" disabled>
-                            <i class="fas fa-undo"></i>
+                        <button class="theme-toggle" id="header-undo-btn" title="تراجع (Ctrl+Z)" type="button" disabled>
+                            <i class="fas fa-undo" aria-hidden="true"></i>
                         </button>
-                        <button class="theme-toggle" id="header-redo-btn" title="إعادة (Ctrl+Shift+Z)" disabled>
-                            <i class="fas fa-redo"></i>
+                        <button
+                            class="theme-toggle"
+                            id="header-redo-btn"
+                            title="إعادة (Ctrl+Shift+Z)"
+                            type="button"
+                            disabled
+                        >
+                            <i class="fas fa-redo" aria-hidden="true"></i>
                         </button>
                     </div>
 
@@ -165,25 +179,7 @@
                             <button class="btn btn-info" id="changelog-btn" style="display: none">
                                 <i class="fas fa-history"></i> سجل التعديلات
                             </button>
-                            <button
-                                class="btn btn-success"
-                                id="export-xml-btn"
-                                style="
-                                    display: none;
-                                    background: linear-gradient(135deg, #059669, #047857);
-                                    border: none;
-                                    color: #fff;
-                                    box-shadow: 0 3px 10px rgba(5, 150, 105, 0.3);
-                                "
-                                onmouseenter="
-                                    this.style.transform = 'translateY(-2px)';
-                                    this.style.boxShadow = '0 5px 16px rgba(5,150,105,0.45)';
-                                "
-                                onmouseleave="
-                                    this.style.transform = '';
-                                    this.style.boxShadow = '0 3px 10px rgba(5,150,105,0.3)';
-                                "
-                            >
+                            <button class="btn btn-success" id="export-xml-btn" style="display: none">
                                 <i class="fas fa-file-export"></i> تصدير XML
                             </button>
                         </div>
@@ -242,11 +238,18 @@
         </main>
 
         <!-- Quick Navigation Panel -->
-        <div class="quick-nav-panel" id="quick-nav-panel" aria-hidden="true">
+        <div
+            class="quick-nav-panel"
+            id="quick-nav-panel"
+            role="dialog"
+            aria-modal="false"
+            aria-hidden="true"
+            aria-labelledby="quick-nav-title"
+        >
             <div class="quick-nav-header">
-                <h4><i class="fas fa-compass"></i> التنقل السريع</h4>
+                <h4 id="quick-nav-title"><i class="fas fa-compass" aria-hidden="true"></i> التنقل السريع</h4>
                 <button class="quick-nav-close" id="quick-nav-close" type="button" aria-label="إغلاق التنقل السريع">
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
             </div>
             <div class="quick-nav-search">
@@ -266,12 +269,24 @@
         </div>
 
         <!-- Edit Modal -->
-        <div class="edit-modal" id="edit-modal">
+        <div
+            class="edit-modal"
+            id="edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="edit-modal-title"
+        >
             <div class="edit-modal-content">
                 <div class="edit-modal-header">
-                    <h3><i class="fas fa-edit"></i> تعديل الحصة</h3>
-                    <button class="close-modal" id="edit-modal-close" type="button">
-                        <i class="fas fa-times"></i>
+                    <h3 id="edit-modal-title"><i class="fas fa-edit" aria-hidden="true"></i> تعديل الحصة</h3>
+                    <button
+                        class="close-modal"
+                        id="edit-modal-close"
+                        type="button"
+                        aria-label="إغلاق نافذة تعديل الحصة"
+                    >
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
                 <div class="edit-modal-body">
@@ -328,10 +343,17 @@
         </div>
 
         <!-- Change Log Modal -->
-        <div class="changelog-modal" id="changelog-modal">
+        <div
+            class="changelog-modal"
+            id="changelog-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="changelog-title"
+        >
             <div class="changelog-content">
                 <div class="changelog-header">
-                    <h3><i class="fas fa-history"></i> سجل التعديلات</h3>
+                    <h3 id="changelog-title"><i class="fas fa-history" aria-hidden="true"></i> سجل التعديلات</h3>
                     <div class="changelog-actions">
                         <button class="btn btn-sm btn-primary" id="changelog-export-csv" type="button">
                             <i class="fas fa-download"></i> تصدير CSV
@@ -339,8 +361,8 @@
                         <button class="btn btn-sm btn-info" id="changelog-export-json" type="button">
                             <i class="fas fa-file-code"></i> تصدير JSON
                         </button>
-                        <button class="close-modal" id="changelog-close" type="button">
-                            <i class="fas fa-times"></i>
+                        <button class="close-modal" id="changelog-close" type="button" aria-label="إغلاق سجل التعديلات">
+                            <i class="fas fa-times" aria-hidden="true"></i>
                         </button>
                     </div>
                 </div>
@@ -364,12 +386,26 @@
         </div>
 
         <!-- Keyboard Shortcuts Modal -->
-        <div class="shortcuts-modal" id="shortcuts-modal">
+        <div
+            class="shortcuts-modal"
+            id="shortcuts-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="shortcuts-title"
+        >
             <div class="shortcuts-content">
                 <div class="shortcuts-header">
-                    <h3><i class="fas fa-keyboard"></i> اختصارات لوحة المفاتيح</h3>
-                    <button class="close-modal" id="shortcuts-close" type="button">
-                        <i class="fas fa-times"></i>
+                    <h3 id="shortcuts-title">
+                        <i class="fas fa-keyboard" aria-hidden="true"></i> اختصارات لوحة المفاتيح
+                    </h3>
+                    <button
+                        class="close-modal"
+                        id="shortcuts-close"
+                        type="button"
+                        aria-label="إغلاق اختصارات لوحة المفاتيح"
+                    >
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
                 <div class="shortcuts-body">
@@ -445,7 +481,7 @@
         </div>
 
         <div class="toast" id="toast"></div>
-        <script src="js/data/ma-education-labels.js"></script>
-        <script src="js/pages/timetable.js"></script>
+        <script src="js/data/ma-education-labels.js" defer></script>
+        <script src="js/pages/timetable.js" defer></script>
     </body>
 </html>

@@ -18,7 +18,7 @@ function safeExec(command) {
             stdio: ['ignore', 'pipe', 'ignore'],
             timeout: 1500
         }).trim();
-    } catch (_err) {
+    } catch {
         return '';
     }
 }
@@ -113,7 +113,7 @@ function parseStoredVector(jsonText) {
         const parsed = JSON.parse(jsonText);
         if (!parsed || typeof parsed !== 'object') return null;
         return parsed;
-    } catch (_err) {
+    } catch {
         return null;
     }
 }

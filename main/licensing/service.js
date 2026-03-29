@@ -32,7 +32,7 @@ function sha256(value) {
 function safeJsonParse(jsonText, fallbackValue) {
     try {
         return JSON.parse(jsonText);
-    } catch (_err) {
+    } catch {
         return fallbackValue;
     }
 }
@@ -51,7 +51,7 @@ function pushOwnerSyncEvent(eventType, details = {}) {
         const { enqueueOwnerSyncEvent, flushOwnerSyncOutbox } = require('./ownerSync');
         enqueueOwnerSyncEvent(eventType, details);
         void flushOwnerSyncOutbox();
-    } catch (_err) {
+    } catch {
         // Owner sync is optional; ignore failures here
     }
 }

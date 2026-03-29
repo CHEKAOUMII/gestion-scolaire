@@ -139,6 +139,9 @@ const CHANNEL_REGISTRY = {
         bulk: true
     },
     'compensation:toggleCompensated': { tables: ['compensation_tracking'], operation: 'PUT', idExtractor: 'argId' },
+    'supportSessions:add': { tables: ['support_sessions'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
+    'supportSessions:delete': { tables: ['support_sessions'], operation: 'DEL', idExtractor: 'argId' },
+    'supportSessions:import': { tables: ['support_sessions'], operation: 'UPSERT', idExtractor: 'inputArray', bulk: true },
 
     // === students.js ===
     'students:add': { tables: ['students'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
@@ -213,7 +216,7 @@ function getDeviceHash() {
             const fp = collectCurrentFingerprint();
             _cachedDeviceHash = fp.deviceHash;
             _cachedDeviceName = fp.deviceName;
-        } catch (_err) {
+        } catch {
             // Fallback: use a random hash if fingerprinting fails
             _cachedDeviceHash = require('crypto').randomBytes(16).toString('hex');
             _cachedDeviceName = require('os').hostname();
@@ -315,7 +318,7 @@ function wrapWithSyncCapture(channel, originalHandler) {
                     WHERE id = 1
                 `
                 ).run(`[${channel}] ${captureErr.message}`);
-            } catch (_innerErr) {
+            } catch {
                 // Even error logging failed — silently ignore
             }
         }
@@ -505,7 +508,7 @@ function fetchRowById(db, tableName, id) {
         if (!isKnownTable(tableName)) return null;
         const row = db.prepare(`SELECT * FROM "${tableName}" WHERE id = ?`).get(id);
         return row || null;
-    } catch (_err) {
+    } catch {
         return null;
     }
 }
@@ -519,7 +522,7 @@ function fetchRowByKey(db, tableName, key) {
             return db.prepare('SELECT * FROM page_visibility WHERE page_key = ?').get(key);
         }
         return null;
-    } catch (_err) {
+    } catch {
         return null;
     }
 }
@@ -593,7 +596,7 @@ function runOutboxCleanup(db) {
             DELETE FROM sync_outbox WHERE created_at < datetime('now', '-' || ? || ' days')
         `
         ).run(days);
-    } catch (_err) {
+    } catch {
         // Silently ignore cleanup errors
     }
 }
@@ -612,7 +615,7 @@ function startOutboxCleanup() {
             try {
                 const db = getDb();
                 runOutboxCleanup(db);
-            } catch (_err) {
+            } catch {
                 // Silently ignore
             }
         }, SIX_HOURS);
@@ -621,7 +624,7 @@ function startOutboxCleanup() {
         if (typeof _cleanupTimer.unref === 'function') {
             _cleanupTimer.unref();
         }
-    } catch (_err) {
+    } catch {
         // Silently ignore startup errors
     }
 }

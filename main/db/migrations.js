@@ -720,6 +720,34 @@ const MIGRATIONS = [
     {
         version: '2026-03-039-page-visibility-seed-all',
         up: () => ensurePageVisibilitySchema()
+    },
+    {
+        version: '2026-03-29-support-sessions',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS support_sessions (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    teacher_id        INTEGER,
+                    teacher_name      TEXT,
+                    subject           TEXT NOT NULL,
+                    section           TEXT NOT NULL,
+                    room              TEXT,
+                    session_date      TEXT NOT NULL,
+                    time_from         TEXT NOT NULL,
+                    time_to           TEXT NOT NULL,
+                    duration_hours    REAL,
+                    attendance_status TEXT NOT NULL
+                        CHECK(attendance_status IN ('full','partial','absent')),
+                    school_year       TEXT NOT NULL,
+                    created_at        TEXT DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_support_sessions_year
+                    ON support_sessions(school_year);
+                CREATE INDEX IF NOT EXISTS idx_support_sessions_teacher
+                    ON support_sessions(teacher_id, school_year);
+            `);
+        }
     }
 ];
 

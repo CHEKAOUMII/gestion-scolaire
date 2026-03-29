@@ -1,134 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>تدبير الفروض | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+    </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تدبير الفروض | برنامج التدبير المدرسي</title>
-    <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
-    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="css/tailwind-output.css">
-    <script src="js/utils.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/sidebar.js"></script>
-    <script src="js/ux-enhancements.js"></script>
-</head>
+    <body>
+        <div class="toast-container" id="toast-container"></div>
 
-<body>
-    <div class="toast-container" id="toast-container"></div>
+        <aside class="sidebar" id="sidebar"></aside>
 
-    <aside class="sidebar" id="sidebar"></aside>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
+                    <h2 class="page-title"><i class="fas fa-clipboard-list"></i> تدبير الفروض</h2>
+                </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
 
-    <main class="main-content">
-        <header class="header">
-            <div class="header-left">
-                <button class="menu-toggle" id="menu-toggle"><i class="fas fa-bars"></i></button>
-                <h2 class="page-title"><i class="fas fa-clipboard-list"></i> تدبير الفروض</h2>
+            <div class="grades-container">
+                <div class="search-section">
+                    <form
+                        id="form"
+                        class="search-form"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"
+                    >
+                        <input type="hidden" id="id" />
+                        <input id="title" placeholder="عنوان الفرض" required />
+                        <input id="subject" placeholder="المادة" />
+                        <input id="section" placeholder="القسم" />
+                        <input type="date" id="date" />
+                        <button class="btn btn-success" type="submit">???</button>
+                    </form>
+                </div>
+
+                <div class="students-results">
+                    <table class="students-table students-table-card">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>العنوان</th>
+                                <th>المادة</th>
+                                <th>القسم</th>
+                                <th>التاريخ</th>
+                                <th>الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="header-right">
-                <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
-            </div>
-        </header>
+        </main>
 
-        <div class="grades-container">
-            <div class="search-section">
-                <form id="form" class="search-form"
-                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
-                    <input type="hidden" id="id">
-                    <input id="title" placeholder="عنوان الفرض" required>
-                    <input id="subject" placeholder="المادة">
-                    <input id="section" placeholder="القسم">
-                    <input type="date" id="date">
-                    <button class="btn btn-success" type="submit">???</button>
-                </form>
-            </div>
+        <script>
+            const year = getSchoolYear();
+            let rows = [];
 
-            <div class="students-results">
-                <table class="students-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>العنوان</th>
-                            <th>المادة</th>
-                            <th>القسم</th>
-                            <th>التاريخ</th>
-                            <th>الإجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody"></tbody>
-                </table>
-            </div>
-        </div>
-    </main>
+            document.addEventListener('DOMContentLoaded', async () => {
+                await loadRows();
+                document.getElementById('form').addEventListener('submit', save);
+            });
 
-    <script>
-        const year = getSchoolYear();
-        let rows = [];
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            await loadRows();
-            document.getElementById('form').addEventListener('submit', save);
-        });
-
-        async function loadRows() {
-            rows = await window.api.tests.getAll(year) || [];
-            document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
+            async function loadRows() {
+                rows = (await window.api.tests.getAll(year)) || [];
+                document.getElementById('tbody').innerHTML = rows.length
+                    ? rows
+                          .map(
+                              (r, i) => `
                 <tr>
-                    <td>${i + 1}</td>
-                    <td>${r.title || '-'}</td>
-                    <td>${r.subject || '-'}</td>
-                    <td>${r.section || '-'}</td>
-                    <td>${r.date || '-'}</td>
-                    <td>
+                    <td data-label="#">${i + 1}</td>
+                    <td data-label="العنوان">${r.title || '-'}</td>
+                    <td data-label="المادة">${r.subject || '-'}</td>
+                    <td data-label="القسم">${r.section || '-'}</td>
+                    <td data-label="التاريخ">${r.date || '-'}</td>
+                    <td data-label="الإجراء">
                         <button class="btn btn-secondary" onclick="editRow(${r.id})"><i class="fas fa-edit"></i></button>
                         <button class="btn btn-secondary" onclick="delRow(${r.id})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
-            `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
-        }
-
-        async function save(e) {
-            e.preventDefault();
-            const payload = {
-                id: document.getElementById('id').value ? Number(document.getElementById('id').value) : undefined,
-                title: document.getElementById('title').value.trim(),
-                subject: document.getElementById('subject').value.trim(),
-                section: document.getElementById('section').value.trim(),
-                date: document.getElementById('date').value,
-                school_year: year
-            };
-            const res = await window.api.tests.save(payload);
-            if (!res || res.success === false) {
-                showToast('فشل الحفظ', 'error');
-                return;
+            `
+                          )
+                          .join('')
+                    : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
             }
-            showToast('تم الحفظ', 'success');
-            e.target.reset();
-            document.getElementById('id').value = '';
-            await loadRows();
-        }
 
-        function editRow(id) {
-            const r = rows.find(x => x.id === id);
-            if (!r) return;
-            document.getElementById('id').value = r.id;
-            document.getElementById('title').value = r.title || '';
-            document.getElementById('subject').value = r.subject || '';
-            document.getElementById('section').value = r.section || '';
-            document.getElementById('date').value = r.date || '';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        async function delRow(id) {
-            if (!confirm('حذف هذا الفرض؟')) return;
-            const res = await window.api.tests.delete(id);
-            if (!res || res.success === false) {
-                showToast('فشل الحذف', 'error');
-                return;
+            async function save(e) {
+                e.preventDefault();
+                const payload = {
+                    id: document.getElementById('id').value ? Number(document.getElementById('id').value) : undefined,
+                    title: document.getElementById('title').value.trim(),
+                    subject: document.getElementById('subject').value.trim(),
+                    section: document.getElementById('section').value.trim(),
+                    date: document.getElementById('date').value,
+                    school_year: year
+                };
+                const res = await window.api.tests.save(payload);
+                if (!res || res.success === false) {
+                    showToast('فشل الحفظ', 'error');
+                    return;
+                }
+                showToast('تم الحفظ', 'success');
+                e.target.reset();
+                document.getElementById('id').value = '';
+                await loadRows();
             }
-            await loadRows();
-        }
-    </script>
-</body>
 
+            function editRow(id) {
+                const r = rows.find((x) => x.id === id);
+                if (!r) return;
+                document.getElementById('id').value = r.id;
+                document.getElementById('title').value = r.title || '';
+                document.getElementById('subject').value = r.subject || '';
+                document.getElementById('section').value = r.section || '';
+                document.getElementById('date').value = r.date || '';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            async function delRow(id) {
+                if (!confirm('حذف هذا الفرض؟')) return;
+                const res = await window.api.tests.delete(id);
+                if (!res || res.success === false) {
+                    showToast('فشل الحذف', 'error');
+                    return;
+                }
+                await loadRows();
+            }
+        </script>
+    </body>
 </html>

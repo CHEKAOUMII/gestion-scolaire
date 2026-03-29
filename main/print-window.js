@@ -39,7 +39,7 @@ async function printHTML(opts = {}) {
     for (const cssPath of cssFiles) {
         try {
             appCSS += fs.readFileSync(cssPath, 'utf-8') + '\n';
-        } catch (_) {
+        } catch {
             /* file may not exist */
         }
     }
@@ -86,7 +86,7 @@ async function printHTML(opts = {}) {
         // Wait for web fonts to be ready
         try {
             await printWin.webContents.executeJavaScript('document.fonts.ready.then(() => true)', true);
-        } catch (_) {
+        } catch {
             /* ignore if fonts API not available */
         }
 
@@ -164,7 +164,7 @@ async function printHTML(opts = {}) {
 function _cleanupTmp(filePath) {
     try {
         if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    } catch (_) {}
+    } catch {}
 }
 
 /**

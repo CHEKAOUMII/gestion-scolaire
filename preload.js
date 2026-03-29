@@ -134,6 +134,16 @@ contextBridge.exposeInMainWorld('api', {
         toggleCompensated: (id, compensated) => ipcRenderer.invoke('compensation:toggleCompensated', id, compensated)
     },
 
+    // Support sessions
+    supportSessions: {
+        list: (filters) => ipcRenderer.invoke('supportSessions:list', filters),
+        stats: (schoolYear) => ipcRenderer.invoke('supportSessions:stats', schoolYear),
+        add: (session) => ipcRenderer.invoke('supportSessions:add', session),
+        delete: (id) => ipcRenderer.invoke('supportSessions:delete', id),
+        export: (schoolYear) => ipcRenderer.invoke('supportSessions:export', schoolYear),
+        import: (payload) => ipcRenderer.invoke('supportSessions:import', payload)
+    },
+
     // Exams
     exams: {
         getAll: (schoolYear) => ipcRenderer.invoke('exams:getAll', schoolYear),

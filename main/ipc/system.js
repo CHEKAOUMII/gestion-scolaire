@@ -277,7 +277,7 @@ function registerSystemIpc(ipcMain) {
                 const { getDbPath } = require('../db/context');
                 const tmpPath = getDbPath() + '.backup.tmp';
                 if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
-            } catch (_) {}
+            } catch {}
             
             console.error('[backup] backupDb: FAILED —', err.message);
             if (err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN') {

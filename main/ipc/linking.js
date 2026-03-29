@@ -130,7 +130,7 @@ function buildCurrentDeviceSummary(db, deviceContext = getCurrentDeviceContext()
         // Prefer routable LAN IPs over link-local (169.254.x.x)
         const routableIp = allIps.find(ip => !ip.startsWith('169.254.'));
         localIp = routableIp || allIps[0] || null;
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
 
     return {
         deviceHash: deviceContext.deviceHash,

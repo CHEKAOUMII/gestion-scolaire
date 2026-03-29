@@ -67,7 +67,35 @@ function renderUnresolvedImportWarning() {
         return;
     }
     banner.style.display = 'block';
-    banner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> تم تحميل الجدول مع ${unresolvedCount} اسم من ملف tafwij لم تتم مطابقته بعد. يمكنك متابعة العمل مؤقتاً، ثم الرجوع إلى <a href="settings-imports.html">استيراد البيانات</a> لإكمال المطابقة.`;
+
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-exclamation-triangle';
+    icon.setAttribute('aria-hidden', 'true');
+
+    const text = document.createTextNode(
+        ` تم تحميل الجدول مع ${unresolvedCount} اسم من ملف tafwij لم تتم مطابقته بعد. يمكنك متابعة العمل مؤقتاً، ثم الرجوع إلى `
+    );
+
+    const link = document.createElement('a');
+    link.href = 'settings-imports.html';
+    link.textContent = 'استيراد البيانات';
+
+    const tail = document.createTextNode(' لإكمال المطابقة.');
+    banner.replaceChildren(icon, text, link, tail);
+}
+
+function setButtonIconLabel(button, iconClass, label) {
+    if (!button) return;
+
+    let icon = button.querySelector('i');
+    if (!icon) {
+        icon = document.createElement('i');
+    }
+    icon.className = `fas ${iconClass}`;
+    icon.setAttribute('aria-hidden', 'true');
+
+    const text = document.createTextNode(` ${label}`);
+    button.replaceChildren(icon, text);
 }
 
 // Helper: Extract base class name (remove ONLY grouping suffixes like :G1, :G2)
@@ -174,7 +202,7 @@ function initLocalKeyboardShortcuts() {
 }
 
 function closeAllModals() {
-    document.getElementById('shortcuts-modal')?.classList.remove('active');
+    closeShortcutsModal();
     document.getElementById('quick-nav-panel')?.classList.remove('open');
     document.getElementById('quick-nav-panel')?.setAttribute('aria-hidden', 'true');
     document.getElementById('quick-nav-toggle')?.classList.remove('active');
@@ -185,11 +213,28 @@ function closeAllModals() {
 }
 
 function openShortcutsModal() {
-    document.getElementById('shortcuts-modal')?.classList.add('active');
+    const modal = document.getElementById('shortcuts-modal');
+    if (window.UXEnhancements?.openDialog) {
+        window.UXEnhancements.openDialog(modal, {
+            contentSelector: '.shortcuts-content',
+            initialFocus: '#shortcuts-close'
+        });
+        return;
+    }
+
+    modal?.classList.add('active');
+    modal?.setAttribute('aria-hidden', 'false');
 }
 
 function closeShortcutsModal() {
-    document.getElementById('shortcuts-modal')?.classList.remove('active');
+    const modal = document.getElementById('shortcuts-modal');
+    if (window.UXEnhancements?.closeDialog) {
+        window.UXEnhancements.closeDialog(modal);
+        return;
+    }
+
+    modal?.classList.remove('active');
+    modal?.setAttribute('aria-hidden', 'true');
 }
 
 // ==================== Unified Search ====================
@@ -236,6 +281,55 @@ function initUnifiedSearch() {
     });
 }
 
+function createListActionItem({ className, type, value, icon, label }) {
+    const button = document.createElement('button');
+    button.className = className;
+    button.type = 'button';
+    button.dataset.resultType = type;
+    button.dataset.navType = type;
+    button.dataset.resultValue = value;
+    button.dataset.navValue = value;
+
+    const iconEl = document.createElement('i');
+    iconEl.className = `fas ${icon}`;
+    iconEl.setAttribute('aria-hidden', 'true');
+
+    const labelEl = document.createElement('span');
+    labelEl.textContent = label;
+
+    button.append(iconEl, labelEl);
+    return button;
+}
+
+function createListEmptyState(message, className) {
+    const empty = document.createElement('div');
+    empty.className = className;
+    empty.style.color = 'var(--text-muted)';
+    empty.textContent = message;
+    return empty;
+}
+
+function renderActionList(container, items, { className, emptyMessage }) {
+    if (!container) return;
+
+    if (!items.length) {
+        container.replaceChildren(createListEmptyState(emptyMessage, className));
+        return;
+    }
+
+    container.replaceChildren(
+        ...items.map((item) =>
+            createListActionItem({
+                className,
+                type: item.type,
+                value: item.value,
+                icon: item.icon,
+                label: item.label
+            })
+        )
+    );
+}
+
 function performSearch(query) {
     const teachersList = document.getElementById('search-teachers-list');
     const classesList = document.getElementById('search-classes-list');
@@ -246,62 +340,44 @@ function performSearch(query) {
         .filter((t) => (t.displayName || t.sourceDisplayName || '').toLowerCase().includes(query))
         .slice(0, 5);
 
-    teachersList.innerHTML =
-        matchedTeachers
-            .map(
-                (t) => `
-                <button
-                    class="search-result-item"
-                    type="button"
-                    data-result-type="teacher"
-                    data-result-value="${escapeHtml(t.name || '')}"
-                >
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    <span>${escapeHtml(t.displayName || t.sourceDisplayName || t.name || '')}</span>
-                </button>
-            `
-            )
-            .join('') || '<div class="search-result-item" style="color: var(--text-muted);">لا توجد نتائج</div>';
+    renderActionList(
+        teachersList,
+        matchedTeachers.map((teacher) => ({
+            type: 'teacher',
+            value: teacher.name || '',
+            icon: 'fa-chalkboard-teacher',
+            label: teacher.displayName || teacher.sourceDisplayName || teacher.name || ''
+        })),
+        { className: 'search-result-item', emptyMessage: 'لا توجد نتائج' }
+    );
 
     // Search classes
     const matchedClasses = fetData.classes.filter((c) => c.toLowerCase().includes(query)).slice(0, 5);
 
-    classesList.innerHTML =
-        matchedClasses
-            .map(
-                (c) => `
-                <button
-                    class="search-result-item"
-                    type="button"
-                    data-result-type="class"
-                    data-result-value="${escapeHtml(c)}"
-                >
-                    <i class="fas fa-users"></i>
-                    <span>${escapeHtml(c)}</span>
-                </button>
-            `
-            )
-            .join('') || '<div class="search-result-item" style="color: var(--text-muted);">لا توجد نتائج</div>';
+    renderActionList(
+        classesList,
+        matchedClasses.map((className) => ({
+            type: 'class',
+            value: className,
+            icon: 'fa-users',
+            label: className
+        })),
+        { className: 'search-result-item', emptyMessage: 'لا توجد نتائج' }
+    );
 
     // Search subjects
     const matchedSubjects = fetData.subjects.filter((s) => s.toLowerCase().includes(query)).slice(0, 5);
 
-    subjectsList.innerHTML =
-        matchedSubjects
-            .map(
-                (s) => `
-                <button
-                    class="search-result-item"
-                    type="button"
-                    data-result-type="subject"
-                    data-result-value="${escapeHtml(s)}"
-                >
-                    <i class="fas fa-book"></i>
-                    <span>${escapeHtml(s)}</span>
-                </button>
-            `
-            )
-            .join('') || '<div class="search-result-item" style="color: var(--text-muted);">لا توجد نتائج</div>';
+    renderActionList(
+        subjectsList,
+        matchedSubjects.map((subject) => ({
+            type: 'subject',
+            value: subject,
+            icon: 'fa-book',
+            label: subject
+        })),
+        { className: 'search-result-item', emptyMessage: 'لا توجد نتائج' }
+    );
 
     // Hide empty groups
     document.getElementById('search-teachers-group').style.display = matchedTeachers.length ? 'block' : 'none';
@@ -406,43 +482,29 @@ function populateQuickNav() {
     const classesList = document.getElementById('quick-nav-classes-list');
 
     if (teachersList) {
-        teachersList.innerHTML =
-            getTeachersArray()
-                .map(
-                    (t) => `
-                    <button
-                        class="quick-nav-item"
-                        type="button"
-                        data-nav-type="teacher"
-                        data-nav-value="${escapeHtml(t.name || '')}"
-                    >
-                        <i class="fas fa-chalkboard-teacher"></i>
-                        <span>${escapeHtml(t.displayName || t.sourceDisplayName || t.name || '')}</span>
-                    </button>
-                `
-                )
-                .join('') ||
-            '<div style="text-align: center; padding: 20px; color: var(--text-muted);">لا توجد بيانات</div>';
+        renderActionList(
+            teachersList,
+            getTeachersArray().map((teacher) => ({
+                type: 'teacher',
+                value: teacher.name || '',
+                icon: 'fa-chalkboard-teacher',
+                label: teacher.displayName || teacher.sourceDisplayName || teacher.name || ''
+            })),
+            { className: 'quick-nav-item', emptyMessage: 'لا توجد بيانات' }
+        );
     }
 
     if (classesList) {
-        classesList.innerHTML =
-            fetData.classes
-                .map(
-                    (c) => `
-                    <button
-                        class="quick-nav-item"
-                        type="button"
-                        data-nav-type="class"
-                        data-nav-value="${escapeHtml(c)}"
-                    >
-                        <i class="fas fa-users"></i>
-                        <span>${escapeHtml(c)}</span>
-                    </button>
-                `
-                )
-                .join('') ||
-            '<div style="text-align: center; padding: 20px; color: var(--text-muted);">لا توجد بيانات</div>';
+        renderActionList(
+            classesList,
+            fetData.classes.map((className) => ({
+                type: 'class',
+                value: className,
+                icon: 'fa-users',
+                label: className
+            })),
+            { className: 'quick-nav-item', emptyMessage: 'لا توجد بيانات' }
+        );
     }
 }
 
@@ -638,6 +700,24 @@ function initStaticActionButtons() {
     document.getElementById('shortcuts-close')?.addEventListener('click', closeShortcutsModal);
     document.getElementById('multi-select-clear')?.addEventListener('click', clearSelectedCells);
     document.getElementById('multi-select-cancel')?.addEventListener('click', cancelMultiSelect);
+
+    document.getElementById('edit-modal')?.addEventListener('click', (event) => {
+        if (event.target.id === 'edit-modal') {
+            closeEditModal();
+        }
+    });
+
+    document.getElementById('changelog-modal')?.addEventListener('click', (event) => {
+        if (event.target.id === 'changelog-modal') {
+            closeChangeLogModal();
+        }
+    });
+
+    document.getElementById('shortcuts-modal')?.addEventListener('click', (event) => {
+        if (event.target.id === 'shortcuts-modal') {
+            closeShortcutsModal();
+        }
+    });
 }
 
 // Global UX Enhancements are auto-initialized by ux-enhancements.js
@@ -809,9 +889,7 @@ function loadSavedData() {
                 renderUnresolvedImportWarning();
 
                 // File info section removed - data loaded from imports page
-                document.getElementById('file-stats').innerHTML = `
-                            <i class="fas fa-database"></i> البيانات المحملة: ${fetData.teachers.length} أستاذ
-                        `;
+                setFileStats(`البيانات المحملة: ${fetData.teachers.length} أستاذ`, 'fa-database');
 
                 showToast('تم تحميل البيانات المحفوظة بنجاح', 'success');
                 console.log('Data restored from localStorage');
@@ -865,15 +943,13 @@ function setupEventListeners() {
             });
 
             // Update teachers dropdown
-            teacherSelect.innerHTML = '<option value="">-- اختر الأستاذ --</option>';
-            teachersWithSubject.forEach((t) => {
-                const option = document.createElement('option');
-                option.value = t.name;
-                option.textContent =
-                    t.matchStatus === 'matched' || t.matchStatus === 'manual'
-                        ? t.displayName
-                        : `${t.displayName} (غير محسوم)`;
-                teacherSelect.appendChild(option);
+            setSelectOptions(teacherSelect, teachersWithSubject, {
+                placeholder: '-- اختر الأستاذ --',
+                getValue: (teacher) => teacher.name,
+                getLabel: (teacher) =>
+                    teacher.matchStatus === 'matched' || teacher.matchStatus === 'manual'
+                        ? teacher.displayName
+                        : `${teacher.displayName} (غير محسوم)`
             });
 
             showToast(`${teachersWithSubject.length} أستاذ يدرسون هذه المادة`, 'info');
@@ -952,10 +1028,10 @@ function handleFile(file) {
 
             // Show file info
             // File info section removed - data loaded from imports page
-            document.getElementById('file-stats').innerHTML = `
-                        <i class="fas fa-users"></i> ${fetData.teachers.length} أستاذ | 
-                        <i class="fas fa-book"></i> ${fetData.subjects.size || fetData.subjects.length || 0} مادة
-                    `;
+            setFileStats(
+                `${fetData.teachers.length} أستاذ | ${fetData.subjects.size || fetData.subjects.length || 0} مادة`,
+                'fa-users'
+            );
         } catch (error) {
             console.error('Error parsing file:', error);
             showToast('خطأ في المعالجة: ' + error.message, 'error');
@@ -1288,25 +1364,34 @@ function updateStats() {
 
 function populateTeacherSelect() {
     const select = document.getElementById('teacher-select');
-    select.innerHTML = '<option value="">-- اختر الأستاذ --</option>';
-
-    getTeachersArray().forEach((t) => {
-        const option = document.createElement('option');
-        option.value = t.name;
-        option.textContent =
-            t.matchStatus === 'matched' || t.matchStatus === 'manual' ? t.displayName : `${t.displayName} (غير محسوم)`;
-        select.appendChild(option);
+    setSelectOptions(select, getTeachersArray(), {
+        placeholder: '-- اختر الأستاذ --',
+        getValue: (teacher) => teacher.name,
+        getLabel: (teacher) =>
+            teacher.matchStatus === 'matched' || teacher.matchStatus === 'manual'
+                ? teacher.displayName
+                : `${teacher.displayName} (غير محسوم)`
     });
 
     // Populate subject filter (unified: normalized, filtered, sorted)
     const subjectFilter = document.getElementById('subject-filter');
-    subjectFilter.innerHTML = '<option value="">-- اختر المادة --</option>';
-    buildSubjectOptionsFromSet(fetData.subjects).forEach((subject) => {
-        const option = document.createElement('option');
-        option.value = subject;
-        option.textContent = subject.replace(/_/g, ' ');
-        subjectFilter.appendChild(option);
+    setSelectOptions(subjectFilter, buildSubjectOptionsFromSet(fetData.subjects), {
+        placeholder: '-- اختر المادة --',
+        getValue: (subject) => subject,
+        getLabel: (subject) => subject.replace(/_/g, ' ')
     });
+}
+
+function setFileStats(message, iconClass = 'fa-database') {
+    const container = document.getElementById('file-stats');
+    if (!container) return;
+
+    const icon = document.createElement('i');
+    icon.className = `fas ${iconClass}`;
+    icon.setAttribute('aria-hidden', 'true');
+
+    const text = document.createTextNode(` ${message}`);
+    container.replaceChildren(icon, text);
 }
 
 function showDataSections() {
@@ -1317,90 +1402,7 @@ function showDataSections() {
 
 // ==================== COLOR CODING SYSTEM ====================
 
-// Theme-aware color palette — 20 vibrant, distinct hues
-// Each entry has 'light' and 'dark' variants for proper theme support
-const colorPalette = [
-    {
-        light: { bg: '#FFB3BA', border: '#E8929A', text: '#333' },
-        dark: { bg: 'rgba(255,179,186,0.25)', border: '#E8929A', text: '#fecaca' }
-    }, // Pink
-    {
-        light: { bg: '#FFDFBA', border: '#E8C8A3', text: '#333' },
-        dark: { bg: 'rgba(255,223,186,0.25)', border: '#E8C8A3', text: '#fde68a' }
-    }, // Orange
-    {
-        light: { bg: '#BAE1FF', border: '#93C5E8', text: '#333' },
-        dark: { bg: 'rgba(186,225,255,0.25)', border: '#93C5E8', text: '#93c5fd' }
-    }, // Blue
-    {
-        light: { bg: '#FFFFBA', border: '#E8E893', text: '#333' },
-        dark: { bg: 'rgba(255,255,186,0.25)', border: '#E8E893', text: '#fef08a' }
-    }, // Yellow
-    {
-        light: { bg: '#BAFFC9', border: '#93E8A8', text: '#333' },
-        dark: { bg: 'rgba(186,255,201,0.25)', border: '#93E8A8', text: '#d1fae5' }
-    }, // Green
-    {
-        light: { bg: '#E8BAFF', border: '#D093E8', text: '#333' },
-        dark: { bg: 'rgba(232,186,255,0.25)', border: '#D093E8', text: '#ede9fe' }
-    }, // Purple
-    {
-        light: { bg: '#FFE4BA', border: '#E8CDA3', text: '#333' },
-        dark: { bg: 'rgba(255,228,186,0.25)', border: '#E8CDA3', text: '#ddd6fe' }
-    }, // Warm Orange
-    {
-        light: { bg: '#BAFFF5', border: '#93E8DC', text: '#333' },
-        dark: { bg: 'rgba(186,255,245,0.25)', border: '#93E8DC', text: '#bfdbfe' }
-    }, // Teal
-    {
-        light: { bg: '#FFC9BA', border: '#E8A893', text: '#333' },
-        dark: { bg: 'rgba(255,201,186,0.25)', border: '#E8A893', text: '#bae6fd' }
-    }, // Salmon
-    {
-        light: { bg: '#D4BAFF', border: '#BD93E8', text: '#333' },
-        dark: { bg: 'rgba(212,186,255,0.25)', border: '#BD93E8', text: '#a5f3fc' }
-    }, // Violet
-    {
-        light: { bg: '#BAFFD9', border: '#93E8BA', text: '#333' },
-        dark: { bg: 'rgba(186,255,217,0.25)', border: '#93E8BA', text: '#99f6e4' }
-    }, // Mint
-    {
-        light: { bg: '#FFD4BA', border: '#E8BD93', text: '#333' },
-        dark: { bg: 'rgba(255,212,186,0.25)', border: '#E8BD93', text: '#d9f99d' }
-    }, // Peach
-    {
-        light: { bg: '#BAD4FF', border: '#93BDE8', text: '#333' },
-        dark: { bg: 'rgba(186,212,255,0.25)', border: '#93BDE8', text: '#93c5fd' }
-    }, // Light Blue
-    {
-        light: { bg: '#FFBAE1', border: '#E893CA', text: '#333' },
-        dark: { bg: 'rgba(255,186,225,0.25)', border: '#E893CA', text: '#fde68a' }
-    }, // Hot Pink
-    {
-        light: { bg: '#E1FFBA', border: '#CAE893', text: '#333' },
-        dark: { bg: 'rgba(225,255,186,0.25)', border: '#CAE893', text: '#fed7aa' }
-    }, // Lime
-    {
-        light: { bg: '#FFBABA', border: '#E89393', text: '#333' },
-        dark: { bg: 'rgba(255,186,186,0.25)', border: '#E89393', text: '#fecaca' }
-    }, // Light Red
-    {
-        light: { bg: '#BAF5FF', border: '#93DDE8', text: '#333' },
-        dark: { bg: 'rgba(186,245,255,0.25)', border: '#93DDE8', text: '#fbcfe8' }
-    }, // Cyan
-    {
-        light: { bg: '#F5BAFF', border: '#DD93E8', text: '#333' },
-        dark: { bg: 'rgba(245,186,255,0.25)', border: '#DD93E8', text: '#f5d0fe' }
-    }, // Fuchsia
-    {
-        light: { bg: '#D9FFBA', border: '#C2E893', text: '#333' },
-        dark: { bg: 'rgba(217,255,186,0.25)', border: '#C2E893', text: '#e0e7ff' }
-    }, // Bright Green
-    {
-        light: { bg: '#FFCBBA', border: '#E8B493', text: '#333' },
-        dark: { bg: 'rgba(255,203,186,0.25)', border: '#E8B493', text: '#cffafe' }
-    } // Coral
-];
+const colorPalette = window.UXEnhancements?.getSharedSubjectPalette?.() || [];
 
 // Map to store class/subject -> color assignment
 const colorMaps = {
@@ -1455,6 +1457,157 @@ function generateColorLegend(type, items) {
     return html;
 }
 
+function ensureTeacherTimetableHeader(table, allSlots, separatorAfter, getSlotLabel) {
+    if (!table) return null;
+
+    let thead = table.tHead;
+    if (!thead) {
+        thead = table.createTHead();
+    }
+
+    if (thead.dataset.built === 'true') {
+        return table.querySelector('#timetable-total-hours');
+    }
+
+    const row = document.createElement('tr');
+    const totalHeader = document.createElement('th');
+    totalHeader.className = 'total-header';
+
+    const totalWrap = document.createElement('div');
+    totalWrap.style.display = 'flex';
+    totalWrap.style.flexDirection = 'column';
+    totalWrap.style.alignItems = 'center';
+    totalWrap.style.gap = '2px';
+
+    const totalValue = document.createElement('span');
+    totalValue.id = 'timetable-total-hours';
+    totalValue.style.fontSize = '1.1rem';
+    totalWrap.appendChild(totalValue);
+    totalHeader.appendChild(totalWrap);
+    row.appendChild(totalHeader);
+
+    allSlots.forEach((slot, index) => {
+        if (index === separatorAfter) {
+            const separator = document.createElement('th');
+            separator.style.width = '3px';
+            separator.style.padding = '0';
+            separator.style.background = 'var(--color-accent, #1e3a6e)';
+            row.appendChild(separator);
+        }
+
+        const cell = document.createElement('th');
+        cell.textContent = getSlotLabel(slot);
+        row.appendChild(cell);
+    });
+
+    thead.replaceChildren(row);
+    thead.dataset.built = 'true';
+
+    if (!table.tBodies.length) {
+        table.appendChild(document.createElement('tbody'));
+    }
+
+    return totalValue;
+}
+
+function renderTeacherFooterLegend(container, teacherClasses) {
+    if (!container) return;
+
+    container.replaceChildren();
+    if (!teacherClasses.size) return;
+
+    const classesList = Array.from(teacherClasses)
+        .sort()
+        .map((className) => className.replace(/_/g, ' '))
+        .join(' + ');
+
+    const section = document.createElement('div');
+    section.className = 'timetable-footer-section';
+
+    const row = document.createElement('div');
+    row.className = 'timetable-footer-row';
+
+    const label = document.createElement('span');
+    label.className = 'footer-sections-label';
+    label.textContent = 'لائحة الأقسام المسندة للأستاذ(ة):';
+
+    const list = document.createElement('span');
+    list.className = 'footer-sections-list';
+    list.textContent = classesList;
+
+    row.append(label, list);
+
+    const signature = document.createElement('div');
+    signature.className = 'footer-signature';
+    signature.textContent = 'خاتم و توقيع السيد مدير المؤسسة';
+
+    section.append(row, signature);
+    container.appendChild(section);
+}
+
+function createSummaryItem(kind, iconClass, text, extraStyle = '') {
+    const item = document.createElement('div');
+    item.className = `summary-item ${kind}`;
+    if (extraStyle) item.style.cssText = extraStyle;
+
+    const icon = document.createElement('i');
+    icon.className = `fas ${iconClass}`;
+
+    const label = document.createElement('span');
+    label.textContent = text;
+
+    item.append(icon, label);
+    return item;
+}
+
+function renderChangeLogRows(tbody, rows) {
+    if (!tbody) return;
+
+    if (!rows.length) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        td.style.textAlign = 'center';
+        td.style.color = 'var(--text-muted)';
+        td.textContent = 'لا توجد تغييرات مسجلة';
+        tr.appendChild(td);
+        tbody.replaceChildren(tr);
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    rows.forEach((change) => {
+        const tr = document.createElement('tr');
+        const typeLabel = change.type === 'add' ? 'إضافة' : change.type === 'edit' ? 'تعديل' : 'حذف';
+        const values = [
+            new Date(change.savedAt || change.timestamp).toLocaleString('ar-MA'),
+            null,
+            change.teacher,
+            change.newData?.subject || '-',
+            change.newData?.students || '-',
+            change.day,
+            change.period
+        ];
+
+        values.forEach((value, index) => {
+            const td = document.createElement('td');
+            if (index === 1) {
+                const badge = document.createElement('span');
+                badge.className = `change-type ${change.type}`;
+                badge.textContent = typeLabel;
+                td.appendChild(badge);
+            } else {
+                td.textContent = value;
+            }
+            tr.appendChild(td);
+        });
+
+        fragment.appendChild(tr);
+    });
+
+    tbody.replaceChildren(fragment);
+}
+
 function renderTeacherTimetable(teacherName, subjectFilter = '') {
     const wrapper = document.getElementById('timetable-wrapper');
     const table = document.getElementById('timetable');
@@ -1502,25 +1655,12 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
         });
     });
 
-    // === Build table HTML ===
-    let html = '<thead><tr>';
+    const totalHoursLabel = ensureTeacherTimetableHeader(table, allSlots, separatorAfter, getSlotLabel);
+    if (totalHoursLabel) {
+        totalHoursLabel.textContent = `${totalHours} h`;
+    }
 
-    // Total hours header (first column)
-    html += `<th class="total-header">
-                <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-                    <span style="font-size:1.1rem;">${totalHours} h</span>
-                </div>
-            </th>`;
-
-    // Time slot headers
-    allSlots.forEach((slot, i) => {
-        if (i === separatorAfter) {
-            html += '<th style="width:3px; padding:0; background: var(--color-accent, #1e3a6e);"></th>';
-        }
-        html += `<th>${getSlotLabel(slot)}</th>`;
-    });
-
-    html += '</tr></thead><tbody>';
+    let bodyHtml = '';
 
     // Day rows
     arabicDays.forEach((day) => {
@@ -1557,12 +1697,12 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
         }
 
         // Build row
-        html += `<tr><td class="day-cell">${day}</td>`;
+        bodyHtml += `<tr><td class="day-cell">${day}</td>`;
 
         dayCells.forEach((cell, i) => {
             // Insert separator column
             if (i === separatorAfter) {
-                html += '<td style="width:3px; padding:0; background: var(--color-accent); border: none;"></td>';
+                bodyHtml += '<td style="width:3px; padding:0; background: var(--color-accent); border: none;"></td>';
             }
             if (cell.skip) return;
 
@@ -1594,7 +1734,7 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
                     ? `style="font-size:0.82rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
                     : `style="font-size:0.82rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
 
-                html += `<td class="${mergedClass}"${colspanPart} ${dataAttrs} ${cellStyle}>
+                bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs} ${cellStyle}>
                             <div class="activity-cell" style="border-right: none; background: none;">
                                 <div class="subject" ${subjectStyle}>${subjectDisplay}</div>
                                 ${classDisplay ? `<div class="class" ${classNameStyle}>${classDisplay}</div>` : ''}
@@ -1602,15 +1742,15 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
                             </div>
                         </td>`;
             } else {
-                html += `<td class="${mergedClass}"${colspanPart} ${dataAttrs}><span class="empty-cell">—</span></td>`;
+                bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs}><span class="empty-cell">—</span></td>`;
             }
         });
 
-        html += '</tr>';
+        bodyHtml += '</tr>';
     });
 
-    html += '</tbody>';
-    table.innerHTML = html;
+    const tbody = table.tBodies[0] || table.appendChild(document.createElement('tbody'));
+    tbody.innerHTML = bodyHtml;
 
     // Update UI
     const teacher = fetData.teachers.find((t) => t.name === teacherName);
@@ -1629,24 +1769,7 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
         wrapper.after(legendContainer);
     }
 
-    legendContainer.innerHTML = '';
-    if (teacherClasses.size > 0) {
-        const classesList = Array.from(teacherClasses)
-            .sort()
-            .map((c) => c.replace(/_/g, ' '))
-            .join(' + ');
-        legendContainer.innerHTML = `
-                    <div class="timetable-footer-section">
-                        <div class="timetable-footer-row">
-                            <span class="footer-sections-label">لائحة الأقسام المسندة للأستاذ(ة):</span>
-                            <span class="footer-sections-list">${classesList}</span>
-                        </div>
-                        <div class="footer-signature">
-                            خاتم و توقيع السيد مدير المؤسسة
-                        </div>
-                    </div>
-                `;
-    }
+    renderTeacherFooterLegend(legendContainer, teacherClasses);
 }
 
 // Student timetable moved to timetable-students.html
@@ -1699,12 +1822,18 @@ function showToast(message, type = 'info') {
 
     const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle';
     toast.className = 'toast ' + type;
-    toast.innerHTML = `<i class="fas fa-${icon}"></i><span class="toast-text"></span>`;
 
-    const toastText = toast.querySelector('.toast-text');
-    if (toastText) {
-        toastText.textContent = String(message || '');
+    let toastIcon = toast.querySelector('i');
+    let toastText = toast.querySelector('.toast-text');
+    if (!toastIcon || !toastText) {
+        toastIcon = document.createElement('i');
+        toastText = document.createElement('span');
+        toastText.className = 'toast-text';
+        toast.replaceChildren(toastIcon, toastText);
     }
+
+    toastIcon.className = `fas fa-${icon}`;
+    toastText.textContent = String(message || '');
 
     requestAnimationFrame(() => toast.classList.add('show'));
     clearTimeout(toastHideTimer);
@@ -1779,7 +1908,7 @@ function toggleEditMode() {
     if (editMode.active) {
         timetableWrapper.classList.add('edit-mode-active');
         editControls.classList.add('active');
-        editModeBtn.innerHTML = '<i class="fas fa-times"></i> إلغاء وضع التعديل';
+        setButtonIconLabel(editModeBtn, 'fa-times', 'إلغاء وضع التعديل');
         editModeBtn.classList.remove('btn-warning');
         editModeBtn.classList.add('btn-danger');
 
@@ -1802,7 +1931,7 @@ function exitEditMode() {
 
     timetableWrapper.classList.remove('edit-mode-active');
     editControls.classList.remove('active');
-    editModeBtn.innerHTML = '<i class="fas fa-edit"></i> وضع التعديل';
+    setButtonIconLabel(editModeBtn, 'fa-edit', 'وضع التعديل');
     editModeBtn.classList.remove('btn-danger');
     editModeBtn.classList.add('btn-warning');
 
@@ -1904,24 +2033,22 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
     slotInfo.value = `${day} - ${periodLabel} ${periodType === 'morning' ? 'صباحاً' : 'مساءً'}`;
 
     // Populate subjects (unified: normalized, filtered, sorted)
-    subjectSelect.innerHTML = '<option value="">-- اختر المادة --</option>';
-    buildSubjectOptionsFromSet(fetData.subjects).forEach((subject) => {
-        const option = document.createElement('option');
-        option.value = subject;
-        option.textContent = subject;
-        subjectSelect.appendChild(option);
+    setSelectOptions(subjectSelect, buildSubjectOptionsFromSet(fetData.subjects), {
+        placeholder: '-- اختر المادة --',
+        getValue: (subject) => subject,
+        getLabel: (subject) => subject
     });
 
     // Populate classes
-    classSelect.innerHTML = '<option value="">-- اختر القسم --</option>';
     const classes = Array.from(fetData.classes).sort();
-    classes.forEach((cls) => {
-        classSelect.innerHTML += `<option value="${cls}">${cls}</option>`;
+    setSelectOptions(classSelect, classes, {
+        placeholder: '-- اختر القسم --',
+        getValue: (cls) => cls,
+        getLabel: (cls) => cls
     });
 
     // Populate rooms from all timetable data
     const roomSelect = document.getElementById('edit-room');
-    roomSelect.innerHTML = '<option value="">-- اختر القاعة --</option>';
     const allRooms = new Set();
     Object.values(fetData.timetables).forEach((teacherTT) => {
         Object.values(teacherTT).forEach((dayData) => {
@@ -1934,14 +2061,11 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
             });
         });
     });
-    Array.from(allRooms)
-        .sort()
-        .forEach((r) => {
-            const opt = document.createElement('option');
-            opt.value = r;
-            opt.textContent = r;
-            roomSelect.appendChild(opt);
-        });
+    setSelectOptions(roomSelect, Array.from(allRooms).sort(), {
+        placeholder: '-- اختر القاعة --',
+        getValue: (room) => room,
+        getLabel: (room) => room
+    });
 
     // Get current slot data using the correct periodType
     const timetable = fetData.timetables[editMode.currentTeacher];
@@ -1972,7 +2096,15 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
         highlightAvailableSlots(this.value);
     });
 
-    modal.classList.add('active');
+    if (window.UXEnhancements?.openDialog) {
+        window.UXEnhancements.openDialog(modal, {
+            contentSelector: '.edit-modal-content',
+            initialFocus: '#edit-modal-close'
+        });
+    } else {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
 
     // If there's already a class selected, highlight immediately
     if (newClassSelect.value) {
@@ -1981,7 +2113,14 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
 }
 
 function closeEditModal() {
-    document.getElementById('edit-modal').classList.remove('active');
+    const modal = document.getElementById('edit-modal');
+    if (window.UXEnhancements?.closeDialog) {
+        window.UXEnhancements.closeDialog(modal);
+    } else {
+        modal?.classList.remove('active');
+        modal?.setAttribute('aria-hidden', 'true');
+    }
+
     // Clear all highlighting (unless in move mode — keep destination hints visible)
     if (!editMode.moveMode?.active) {
         clearSlotHighlighting();
@@ -1996,7 +2135,12 @@ function startMoveMode() {
     if (!slot) return;
 
     // Close modal WITHOUT clearing highlights
-    document.getElementById('edit-modal').classList.remove('active');
+    if (window.UXEnhancements?.closeDialog) {
+        window.UXEnhancements.closeDialog(document.getElementById('edit-modal'));
+    } else {
+        document.getElementById('edit-modal')?.classList.remove('active');
+        document.getElementById('edit-modal')?.setAttribute('aria-hidden', 'true');
+    }
 
     // Store move context
     editMode.moveMode = {
@@ -2026,16 +2170,29 @@ function startMoveMode() {
             'align-items:center',
             'gap:12px',
             'z-index:9999',
-            'box-shadow:0 4px 20px rgba(0,0,0,0.3)',
-            'border:1px solid rgba(255,255,255,0.12)',
+            'box-shadow:var(--shadow-elevated)',
+            'border:1px solid var(--color-success-border)',
             'font-size:0.95rem'
         ].join(';');
-        cancelBar.innerHTML = `
-                    <i class="fas fa-arrows-alt" style="font-size:1.1rem;"></i>
-                    <span>انقر على خلية خضراء لنقل الحصة إليها</span>
-                    <button onclick="cancelMoveMode()" style="background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--color-text-main);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:0.9rem;">
-                        <i class="fas fa-times"></i> إلغاء
-                    </button>`;
+
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-arrows-alt';
+        icon.style.fontSize = '1.1rem';
+
+        const text = document.createElement('span');
+        text.textContent = 'انقر على خلية خضراء لنقل الحصة إليها';
+
+        const cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.style.cssText =
+            'background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--color-text-main);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:0.9rem;';
+        cancelButton.addEventListener('click', cancelMoveMode);
+
+        const cancelIcon = document.createElement('i');
+        cancelIcon.className = 'fas fa-times';
+        cancelButton.append(cancelIcon, document.createTextNode(' إلغاء'));
+
+        cancelBar.replaceChildren(icon, text, cancelButton);
         document.body.appendChild(cancelBar);
     }
     cancelBar.style.display = 'flex';
@@ -2840,7 +2997,7 @@ function toggleDiffMode() {
     if (editMode.diffModeActive) {
         timetableWrapper.classList.add('diff-mode-active');
         if (diffBtn) {
-            diffBtn.innerHTML = '<i class="fas fa-eye-slash"></i> إخفاء التغييرات';
+            setButtonIconLabel(diffBtn, 'fa-eye-slash', 'إخفاء التغييرات');
             diffBtn.classList.add('active');
         }
 
@@ -2850,7 +3007,7 @@ function toggleDiffMode() {
     } else {
         timetableWrapper.classList.remove('diff-mode-active');
         if (diffBtn) {
-            diffBtn.innerHTML = '<i class="fas fa-eye"></i> عرض التغييرات';
+            setButtonIconLabel(diffBtn, 'fa-eye', 'عرض التغييرات');
             diffBtn.classList.remove('active');
         }
 
@@ -2942,23 +3099,21 @@ function updateChangesSummary(added, deleted, modified) {
     }
 
     if (summaryBar) {
-        summaryBar.innerHTML = `
-                    <div class="summary-title" style="font-weight: 600; color: var(--text);">
-                        <i class="fas fa-chart-bar"></i> ملخص التغييرات:
-                    </div>
-                    <div class="summary-item added">
-                        <i class="fas fa-plus-circle"></i>
-                        <span>${added} إضافة</span>
-                    </div>
-                    <div class="summary-item modified" style="background: var(--color-warning-bg);">
-                        <i class="fas fa-edit"></i>
-                        <span>${modified} تعديل</span>
-                    </div>
-                    <div class="summary-item deleted">
-                        <i class="fas fa-minus-circle"></i>
-                        <span>${deleted} حذف</span>
-                    </div>
-                `;
+        const title = document.createElement('div');
+        title.className = 'summary-title';
+        title.style.fontWeight = '600';
+        title.style.color = 'var(--text)';
+
+        const titleIcon = document.createElement('i');
+        titleIcon.className = 'fas fa-chart-bar';
+        title.append(titleIcon, document.createTextNode(' ملخص التغييرات:'));
+
+        summaryBar.replaceChildren(
+            title,
+            createSummaryItem('added', 'fa-plus-circle', `${added} إضافة`),
+            createSummaryItem('modified', 'fa-edit', `${modified} تعديل`, 'background: var(--color-warning-bg);'),
+            createSummaryItem('deleted', 'fa-minus-circle', `${deleted} حذف`)
+        );
         summaryBar.classList.add('active');
     }
 }
@@ -2999,43 +3154,28 @@ function saveAllChanges() {
 function openChangeLogModal() {
     const modal = document.getElementById('changelog-modal');
     const tbody = document.getElementById('changelog-body');
+    renderChangeLogRows(tbody, [...editMode.changeHistory].reverse());
 
-    if (editMode.changeHistory.length === 0) {
-        tbody.innerHTML = `
-                    <tr>
-                        <td colspan="7" style="text-align: center; color: var(--text-muted);">
-                            لا توجد تغييرات مسجلة
-                        </td>
-                    </tr>
-                `;
+    if (window.UXEnhancements?.openDialog) {
+        window.UXEnhancements.openDialog(modal, {
+            contentSelector: '.changelog-content',
+            initialFocus: '#changelog-close'
+        });
     } else {
-        tbody.innerHTML = editMode.changeHistory
-            .reverse()
-            .map(
-                (change, idx) => `
-                    <tr>
-                        <td>${new Date(change.savedAt || change.timestamp).toLocaleString('ar-MA')}</td>
-                        <td>
-                            <span class="change-type ${change.type}">
-                                ${change.type === 'add' ? 'إضافة' : change.type === 'edit' ? 'تعديل' : 'حذف'}
-                            </span>
-                        </td>
-                        <td>${change.teacher}</td>
-                        <td>${change.newData?.subject || '-'}</td>
-                        <td>${change.newData?.students || '-'}</td>
-                        <td>${change.day}</td>
-                        <td>${change.period}</td>
-                    </tr>
-                `
-            )
-            .join('');
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
     }
-
-    modal.classList.add('active');
 }
 
 function closeChangeLogModal() {
-    document.getElementById('changelog-modal').classList.remove('active');
+    const modal = document.getElementById('changelog-modal');
+    if (window.UXEnhancements?.closeDialog) {
+        window.UXEnhancements.closeDialog(modal);
+        return;
+    }
+
+    modal?.classList.remove('active');
+    modal?.setAttribute('aria-hidden', 'true');
 }
 
 function exportChangeLog() {

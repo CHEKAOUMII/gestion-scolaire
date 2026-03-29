@@ -812,6 +812,12 @@ function renderAbsenceByTeacherChart(rows) {
         ? teacherAbsence.reduce((s, t) => s + t.avgHours, 0) / teacherAbsence.length
         : 0;
     meta.textContent = `${teacherAbsence.length} أستاذ · متوسط الغياب: ${globalAvgAbs.toFixed(2)} ساعة/تلميذ · الإجمالي: ${totalAbsAllTeachers.toFixed(0)} ساعة. 🔴 الأكثر  🟢 الأقل`;
+    updateChartAccessibility(
+        'tp-absence-by-teacher-chart',
+        'رسم بياني يوضح غيابات التلاميذ حسب الأستاذ',
+        'tp-absence-meta',
+        meta.textContent
+    );
 }
 
 /* ─── Chart.js Loading ─── */
@@ -851,6 +857,20 @@ function showChartFallback(canvasId, message) {
     fallback.className = 'tp-chart-fallback';
     fallback.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${escapeHtml(message)}`;
     wrap.appendChild(fallback);
+}
+
+function updateChartAccessibility(canvasId, label, summaryId, summaryText) {
+    const canvas = document.getElementById(canvasId);
+    if (canvas) {
+        canvas.setAttribute('role', 'img');
+        canvas.setAttribute('aria-label', label);
+        if (summaryId) canvas.setAttribute('aria-describedby', summaryId);
+    }
+
+    const summary = summaryId ? document.getElementById(summaryId) : null;
+    if (summary && summaryText) {
+        summary.textContent = summaryText;
+    }
 }
 
 function destroyChart(key) {
@@ -946,6 +966,12 @@ function renderComparisonChart(rows) {
 
     const globalPassRate = avg(rows.map((r) => r.passRate));
     meta.textContent = `${rows.length} أستاذ. 🟢 الأفضل: ${top5Best[0].teacher} (${top5Best[0].passRate.toFixed(1)}%) · 🔴 الأضعف: ${sorted[sorted.length - 1].teacher} (${sorted[sorted.length - 1].passRate.toFixed(1)}%) · متوسط: ${globalPassRate.toFixed(1)}%`;
+    updateChartAccessibility(
+        'tp-teacher-compare-chart',
+        'رسم بياني يقارن نسب نجاح الأساتذة',
+        'tp-comparison-meta',
+        meta.textContent
+    );
 }
 
 /* ─── Teacher Table ─── */
@@ -1086,6 +1112,12 @@ function renderTeacherSectionChart(teacherGrades) {
             }
         }
     });
+    updateChartAccessibility(
+        'tp-section-chart',
+        'رسم بياني يوضح أداء الأستاذ حسب الأقسام',
+        'tp-section-note',
+        labels.length ? `أفضل قسم معروض هو ${labels[0]} بمتوسط ${values[0].toFixed(2)}.` : 'لا توجد بيانات للأقسام.'
+    );
 }
 
 function renderTeacherDistributionChart(teacherGrades) {
@@ -1129,6 +1161,16 @@ function renderTeacherDistributionChart(teacherGrades) {
             }
         }
     });
+    const topBand = distribution.reduce(
+        (best, current) => (current.count > best.count ? current : best),
+        distribution[0]
+    );
+    updateChartAccessibility(
+        'tp-distribution-chart',
+        'رسم دائري يوضح توزيع نقط الأستاذ',
+        'tp-distribution-note',
+        `أكبر فئة هي ${topBand.label} بعدد ${topBand.count} نقطة من أصل ${teacherGrades.length}.`
+    );
 }
 
 function renderTeacherTrendChart(teacherGrades, noteNode) {
@@ -1184,6 +1226,12 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
             }
         }
     });
+    updateChartAccessibility(
+        'tp-trend-chart',
+        'رسم بياني يوضح تطور أداء الأستاذ بين الفروض',
+        'tp-trend-note',
+        noteNode.textContent
+    );
 }
 
 /* ─── Semester Comparison Chart (NEW) ─── */
@@ -1240,6 +1288,12 @@ function renderSemesterCompareChart(rows) {
     const improved = withBoth.filter((r) => r.semesterDiff > 0).length;
     const declined = withBoth.filter((r) => r.semesterDiff < 0).length;
     note.textContent = `${withBoth.length} أستاذ لديه بيانات للدورتين: ${improved} تحسن، ${declined} تراجع.`;
+    updateChartAccessibility(
+        'tp-semester-compare-chart',
+        'رسم بياني يقارن نتائج الدورتين الأولى والثانية',
+        'tp-semester-compare-note',
+        note.textContent
+    );
 }
 
 /* ─── Radar Chart (NEW) ─── */
@@ -1298,6 +1352,12 @@ function renderRadarChart(rows) {
     });
 
     note.textContent = `ملف شامل لـ ${row.teacher}: معدل ${row.avg.toFixed(2)}, نجاح ${row.passRate.toFixed(1)}%, تجانس ${consistency.toFixed(0)}%.`;
+    updateChartAccessibility(
+        'tp-radar-chart',
+        'رسم راداري يلخص ملف الأداء الشامل للأستاذ',
+        'tp-radar-note',
+        note.textContent
+    );
 }
 
 /* ─── State Line ─── */
