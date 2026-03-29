@@ -748,6 +748,16 @@ const MIGRATIONS = [
                     ON support_sessions(teacher_id, school_year);
             `);
         }
+    },
+    {
+        version: '2026-03-29-support-sessions-unique',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_support_sessions_unique
+                ON support_sessions(teacher_id, session_date, time_from, section, school_year)
+            `);
+        }
     }
 ];
 

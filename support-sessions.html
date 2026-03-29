@@ -43,41 +43,9 @@
             <div class="grades-container support-sessions-page">
                 <section class="gs-form-section support-primary-shell no-print">
                     <div class="support-page-intro">
-                        <div>
-                            <div class="gs-form-header"><i class="fas fa-plus-circle"></i> تسجيل حصة دعم جديدة</div>
-                            <p class="support-primary-note">املأ بيانات الحصة الأساسية ثم سجلها مباشرة. البحث والتصدير والطباعة متاحة في قسم منفصل أسفل النموذج.</p>
-                            <p class="support-helper-text" id="support-entry-help">الحقول المعلَّمة بعلامة <span aria-hidden="true">*</span> مطلوبة. عند اختيار الأستاذ، تُملأ المادة تلقائيا إذا كانت مسجلة في الملف. يمكنك استخدام <kbd>Ctrl</kbd> + <kbd>Enter</kbd> لتسجيل الحصة بسرعة.</p>
-                        </div>
-                        <div class="support-stats" id="stats-cards">
-                            <div class="stat-card">
-                                <div class="stat-icon total"><i class="fas fa-chalkboard"></i></div>
-                                <div class="stat-info">
-                                    <h4>إجمالي الحصص</h4>
-                                    <div class="stat-value" id="stat-sessions">0</div>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon percent"><i class="fas fa-clock"></i></div>
-                                <div class="stat-info">
-                                    <h4>إجمالي الساعات</h4>
-                                    <div class="stat-value" id="stat-hours">0</div>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon subject"><i class="fas fa-users"></i></div>
-                                <div class="stat-info">
-                                    <h4>عدد الأساتذة</h4>
-                                    <div class="stat-value" id="stat-teachers">0</div>
-                                </div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon critical"><i class="fas fa-school"></i></div>
-                                <div class="stat-info">
-                                    <h4>الأقسام المستفيدة</h4>
-                                    <div class="stat-value" id="stat-sections">0</div>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="gs-form-header"><i class="fas fa-plus-circle"></i> تسجيل حصة دعم جديدة</div>
+                        <p class="support-helper-text" id="support-entry-help">الحقول المعلَّمة بـ <span aria-hidden="true">*</span> مطلوبة. عند اختيار الأستاذ تُملأ المادة تلقائيا. <kbd>Ctrl</kbd> + <kbd>Enter</kbd> للتسجيل السريع.</p>
+                    </div>
                     <div class="gs-form-grid support-entry-grid">
                         <div class="gs-form-group">
                             <label for="form-teacher"><i class="fas fa-user-tie"></i> الأستاذ <span class="support-required-mark" aria-hidden="true">*</span></label>
@@ -141,7 +109,7 @@
                         <span class="support-secondary-hint">افتحها عند الحاجة فقط</span>
                     </summary>
                     <div class="support-secondary-body">
-                        <p class="support-helper-text support-secondary-copy" id="support-filter-help">اترك الحقول فارغة إذا كنت تريد عرض جميع الحصص المسجلة، ثم طبق البحث عند الحاجة.</p>
+                        <p class="support-helper-text support-secondary-copy" id="support-filter-help">اترك الحقول فارغة لعرض جميع الحصص، ثم طبق البحث عند الحاجة.</p>
                         <div class="gs-form-grid">
                             <div class="gs-form-group">
                                 <label for="filter-teacher">الأستاذ</label>
@@ -185,20 +153,50 @@
                                 <i class="fas fa-eye"></i> معاينة الطباعة
                             </button>
                             <button class="btn btn-secondary" id="btn-export" type="button">
-                                <i class="fas fa-file-export"></i> تصدير JSON
+                                <i class="fas fa-file-export"></i> تصدير
                             </button>
                             <label class="btn btn-secondary support-import-btn">
-                                <i class="fas fa-file-import"></i> استيراد JSON
+                                <i class="fas fa-file-import"></i> استيراد
                                 <input type="file" id="input-import" accept=".json" class="support-import-input" />
                             </label>
                         </div>
                     </div>
                 </details>
 
+                <div class="support-stats no-print" id="stats-cards" aria-label="ملخص إحصائي">
+                    <div class="stat-card">
+                        <div class="stat-icon total"><i class="fas fa-chalkboard"></i></div>
+                        <div class="stat-info">
+                            <h4>إجمالي الحصص</h4>
+                            <div class="stat-value" id="stat-sessions">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon percent"><i class="fas fa-clock"></i></div>
+                        <div class="stat-info">
+                            <h4>إجمالي الساعات</h4>
+                            <div class="stat-value" id="stat-hours">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon subject"><i class="fas fa-users"></i></div>
+                        <div class="stat-info">
+                            <h4>عدد الأساتذة</h4>
+                            <div class="stat-value" id="stat-teachers">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon critical"><i class="fas fa-school"></i></div>
+                        <div class="stat-info">
+                            <h4>الأقسام المستفيدة</h4>
+                            <div class="stat-value" id="stat-sections">0</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="support-results-header no-print">
                     <div>
-                        <h3>الحصص المسجلة</h3>
-                        <p class="support-results-meta">يعرض هذا الجدول الحصص المطابقة للبحث الحالي. افتح قسم البحث فقط عندما تحتاج إلى تضييق النتائج أو الطباعة أو الاستيراد والتصدير. <span class="support-count-pill" id="sessions-count" aria-live="polite"></span></p>
+                        <h3>الحصص المسجلة <span class="support-count-pill" id="sessions-count" aria-live="polite"></span></h3>
                     </div>
                 </div>
 
@@ -221,8 +219,9 @@
                         <tbody id="sessions-tbody">
                             <tr id="empty-row" class="empty-row">
                                 <td colspan="10" class="support-empty-cell">
-                                    <i class="fas fa-inbox support-empty-icon" aria-hidden="true"></i>
-                                    لا توجد حصص مسجلة
+                                    <i class="fas fa-chalkboard support-empty-icon" aria-hidden="true"></i>
+                                    <span class="support-empty-title">لا توجد حصص مسجلة بعد</span>
+                                    <span class="support-empty-action">سجّل أول حصة دعم من النموذج أعلاه</span>
                                 </td>
                             </tr>
                         </tbody>
