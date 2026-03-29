@@ -2,6 +2,30 @@
 (async function () {
     'use strict';
 
+    function isValidSchoolYear(value) {
+        return typeof value === 'string' && /^\d{4}\/\d{4}$/.test(value.trim());
+    }
+
+    async function resolveSchoolYear() {
+        if (typeof getSchoolYear === 'function') {
+            const localYear = String(getSchoolYear() || '').trim();
+            if (isValidSchoolYear(localYear)) return localYear;
+        }
+
+        if (window.api?.settings?.get) {
+            for (const key of ['currentSchoolYear', 'schoolYear', 'school_year']) {
+                try {
+                    const value = await window.api.settings.get(key);
+                    if (isValidSchoolYear(value)) return value.trim();
+                } catch (_error) {
+                    // Ignore legacy/missing keys and keep trying fallbacks.
+                }
+            }
+        }
+
+        return '2025/2026';
+    }
+
     const ATTENDANCE_LABELS = {
         full: 'حضور كلي',
         partial: 'حضور جزئي',
@@ -13,11 +37,18 @@
         absent: 'support-attendance support-attendance--absent'
     };
 
-    const schoolYear = (await window.api.settings.get('school_year')) || '';
+    const schoolYear = await resolveSchoolYear();
 
     let teachers = [];
     let sessions = [];
     let lastSessionDraft = null;
+    try {
+        const saved = sessionStorage.getItem('support_lastDraft');
+        if (saved) lastSessionDraft = JSON.parse(saved);
+    } catch (_e) { /* ignore */ }
+    const FALLBACK_SUBJECTS = typeof SUBJECT_LABELS === 'object'
+        ? [...new Set(Object.values(SUBJECT_LABELS))].sort()
+        : [];
 
     const formTeacher = document.getElementById('form-teacher');
     const formSubject = document.getElementById('form-subject');
@@ -97,10 +128,37 @@
         return `${action}: ${rawMessage}`;
     }
 
+    function ensureIpcSuccess(result, fallbackMessage) {
+        if (result && typeof result === 'object' && result.success === false) {
+            throw new Error(String(result.error || fallbackMessage || 'Ø­Ø¯Ø« Ø®Ø·Ø£ ØºÙŠØ± Ù…ØªÙˆÙ‚Ø¹'));
+        }
+        return result;
+    }
+
     function hasActiveFilters() {
         return Boolean(
             filterTeacher.value || filterSection.value || filterSubject.value || filterFrom.value || filterTo.value
         );
+    }
+
+    function highlightInvalidFields(payload) {
+        const fieldMap = {
+            teacher_id: formTeacher,
+            subject: formSubject,
+            section: formSection,
+            session_date: formDate,
+            time_from: formTimeFrom,
+            time_to: formTimeTo
+        };
+        Object.entries(fieldMap).forEach(([key, element]) => {
+            element.classList.toggle('is-invalid', !payload[key]);
+        });
+    }
+
+    function clearInvalidHighlights() {
+        [formTeacher, formSubject, formSection, formDate, formTimeFrom, formTimeTo].forEach((el) => {
+            el.classList.remove('is-invalid');
+        });
     }
 
     function getMissingRequiredFields(payload) {
@@ -132,6 +190,7 @@
     }
 
     function resetEntryForm() {
+        clearInvalidHighlights();
         formTeacher.value = '';
         formSubject.value = '';
         formSection.value = '';
@@ -165,7 +224,8 @@
     }
 
     async function loadTeachers() {
-        teachers = await window.api.teachers.getAll(schoolYear);
+        const result = ensureIpcSuccess(await window.api.teachers.getAll(schoolYear), 'تعذر تحميل قائمة الأساتذة');
+        teachers = Array.isArray(result) ? result : [];
         [formTeacher, filterTeacher].forEach((select) => {
             const placeholder = select === formTeacher ? '-- اختر الأستاذ --' : 'الكل';
             select.innerHTML = `<option value="">${placeholder}</option>`;
@@ -180,7 +240,8 @@
     }
 
     async function loadSections() {
-        const classes = await window.api.classes.getAll(schoolYear);
+        const result = ensureIpcSuccess(await window.api.classes.getAll(schoolYear), 'تعذر تحميل قائمة الأقسام');
+        const classes = Array.isArray(result) ? result : [];
         const sections = classes.map((item) => item.name || item.class_name || item).filter(Boolean);
         [formSection, filterSection].forEach((select) => {
             const placeholder = select === formSection ? '-- اختر القسم --' : 'الكل';
@@ -195,10 +256,11 @@
     }
 
     function loadSubjects() {
-        const subjectSet = new Set(teachers.map((teacher) => teacher.subject).filter(Boolean));
+        const teacherSubjects = new Set(teachers.map((teacher) => teacher.subject).filter(Boolean));
+        const allSubjects = new Set([...teacherSubjects, ...FALLBACK_SUBJECTS]);
         filterSubject.innerHTML = '<option value="">الكل</option>';
         formSubject.innerHTML = '<option value="">-- اختر المادة --</option>';
-        subjectSet.forEach((subject) => {
+        allSubjects.forEach((subject) => {
             [formSubject, filterSubject].forEach((select) => {
                 const option = document.createElement('option');
                 option.value = subject;
@@ -218,8 +280,16 @@
         element.addEventListener('change', updateDurationPreview);
     });
 
+    [formTeacher, formSubject, formSection, formDate, formTimeFrom, formTimeTo].forEach((el) => {
+        el.addEventListener('change', () => el.classList.remove('is-invalid'));
+        el.addEventListener('input', () => el.classList.remove('is-invalid'));
+    });
+
     async function loadStats() {
-        const stats = await window.api.supportSessions.stats(schoolYear);
+        const stats = ensureIpcSuccess(
+            await window.api.supportSessions.stats(schoolYear),
+            'تعذر تحميل إحصائيات حصص الدعم'
+        ) || {};
         document.getElementById('stat-sessions').textContent = stats.total_sessions || 0;
         document.getElementById('stat-hours').textContent = stats.total_hours || 0;
         document.getElementById('stat-teachers').textContent = stats.total_teachers || 0;
@@ -289,7 +359,8 @@
         }
 
         try {
-            sessions = await window.api.supportSessions.list(filters);
+            const result = ensureIpcSuccess(await window.api.supportSessions.list(filters), 'تعذر تحميل حصص الدعم');
+            sessions = Array.isArray(result) ? result : [];
             renderTable(sessions);
         } finally {
             if (showLoadingState) {
@@ -314,6 +385,7 @@
             school_year: schoolYear
         };
 
+        highlightInvalidFields(payload);
         const missingFields = getMissingRequiredFields(payload);
         if (missingFields.length) {
             showToast(`أكمل هذه البيانات قبل التسجيل: ${missingFields.join('، ')}`, 'error');
@@ -325,16 +397,23 @@
             return;
         }
 
+        const daysDiff = Math.floor((new Date(payload.session_date) - new Date(getTodayValue())) / 86400000);
+        if (daysDiff > 7 && !confirm('التاريخ المختار بعيد عن اليوم بأكثر من أسبوع. هل تريد المتابعة؟')) {
+            return;
+        }
+
         try {
             setActionBusy(addSessionButton, true, 'جارٍ تسجيل الحصة...', '<i class="fas fa-save"></i> تسجيل الحصة');
-            await window.api.supportSessions.add(payload);
+            ensureIpcSuccess(await window.api.supportSessions.add(payload), 'تعذر تسجيل حصة الدعم');
             lastSessionDraft = { ...payload };
+            try { sessionStorage.setItem('support_lastDraft', JSON.stringify(lastSessionDraft)); } catch (_e) { /* ignore */ }
             repeatLastButton.disabled = false;
             showToast('تم تسجيل حصة الدعم وتحديث الجدول أدناه.', 'success');
             resetEntryForm();
             formTeacher.focus();
             await Promise.all([loadStats(), loadSessions()]);
         } catch (error) {
+            console.error('[support-sessions] add failed:', error);
             showToast(getFriendlyErrorMessage('تعذر تسجيل حصة الدعم', error), 'error');
         } finally {
             setActionBusy(addSessionButton, false, '', '<i class="fas fa-save"></i> تسجيل الحصة');
@@ -382,10 +461,11 @@
 
         try {
             setActionBusy(button, true, 'جارٍ الحذف...', '<i class="fas fa-trash"></i>');
-            await window.api.supportSessions.delete(Number(button.dataset.delete));
+            ensureIpcSuccess(await window.api.supportSessions.delete(Number(button.dataset.delete)), 'تعذر حذف حصة الدعم');
             showToast('تم حذف حصة الدعم من السجل.', 'success');
             await Promise.all([loadStats(), loadSessions()]);
         } catch (error) {
+            console.error('[support-sessions] delete failed:', error);
             showToast(getFriendlyErrorMessage('تعذر حذف الحصة', error), 'error');
         } finally {
             setActionBusy(button, false, '', '<i class="fas fa-trash"></i>');
@@ -395,7 +475,7 @@
     exportButton.addEventListener('click', async () => {
         try {
             setActionBusy(exportButton, true, 'جارٍ تجهيز الملف...', '<i class="fas fa-file-export"></i> تصدير JSON');
-            const data = await window.api.supportSessions.export(schoolYear);
+            const data = ensureIpcSuccess(await window.api.supportSessions.export(schoolYear), 'تعذر تصدير حصص الدعم');
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
@@ -405,6 +485,7 @@
             URL.revokeObjectURL(url);
             showToast('تم تجهيز ملف التصدير. إذا لم يبدأ التنزيل تلقائيا، تحقق من إعدادات المتصفح.', 'success');
         } catch (error) {
+            console.error('[support-sessions] export failed:', error);
             showToast(getFriendlyErrorMessage('تعذر تصدير ملف الحصص', error), 'error');
         } finally {
             setActionBusy(exportButton, false, '', '<i class="fas fa-file-export"></i> تصدير JSON');
@@ -421,13 +502,14 @@
             setFileTriggerBusy(importTrigger, true, 'جارٍ استيراد الملف...');
             const text = await file.text();
             const payload = JSON.parse(text);
-            const result = await window.api.supportSessions.import(payload);
+            const result = ensureIpcSuccess(await window.api.supportSessions.import(payload), 'تعذر استيراد ملف حصص الدعم');
             showToast(
                 `اكتمل الاستيراد: تمت إضافة ${result.imported} حصة جديدة وتجاوز ${result.skipped} حصة مكررة.`,
                 'success'
             );
             await Promise.all([loadStats(), loadSessions()]);
         } catch (error) {
+            console.error('[support-sessions] import failed:', error);
             showToast(getFriendlyErrorMessage('تعذر استيراد الملف', error), 'error');
         } finally {
             setFileTriggerBusy(importTrigger, false, '');
@@ -454,11 +536,18 @@
         window.print();
     });
 
-    await loadTeachers();
-    loadSubjects();
-    await loadSections();
-    await Promise.all([loadStats(), loadSessions()]);
+    try {
+        await loadTeachers();
+        loadSubjects();
+        await loadSections();
+        await Promise.all([loadStats(), loadSessions()]);
 
-    formDate.value = getTodayValue();
-    formTeacher.focus();
+        formDate.value = getTodayValue();
+        if (lastSessionDraft) repeatLastButton.disabled = false;
+        formTeacher.focus();
+    } catch (error) {
+        console.error('[support-sessions] init failed:', error);
+        formDate.value = getTodayValue();
+        showToast(getFriendlyErrorMessage('تعذر تهيئة صفحة حصص الدعم', error), 'error');
+    }
 })();
