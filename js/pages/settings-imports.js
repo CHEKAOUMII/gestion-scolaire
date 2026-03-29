@@ -23,6 +23,29 @@ function setElementHidden(element, hidden) {
     element.classList.toggle('hidden', hidden);
 }
 
+function updateImportSelectionStatus(message) {
+    const status = document.getElementById('imports-selection-status');
+    if (status) status.textContent = message || '';
+}
+
+function initializeImportAccessibility() {
+    const sharedDescriptionId = 'imports-picker-help';
+    const sharedStatusId = 'imports-selection-status';
+
+    document.querySelectorAll('[data-action]').forEach((button) => {
+        const action = button.dataset.action;
+        const inputId = FILE_INPUTS[action];
+        const input = inputId ? document.getElementById(inputId) : null;
+        const label = ACTION_LABELS[action] || action;
+        if (!input) return;
+
+        button.setAttribute('aria-controls', inputId);
+        button.setAttribute('aria-describedby', `${sharedDescriptionId} ${sharedStatusId}`);
+        input.setAttribute('aria-label', `اختيار ملفات ${label}`);
+        input.setAttribute('aria-describedby', `${sharedDescriptionId} ${sharedStatusId}`);
+    });
+}
+
 function ensureXlsxLoaded() {
     if (window.XLSX) return Promise.resolve(window.XLSX);
     if (xlsxLoaderPromise) return xlsxLoaderPromise;
@@ -200,6 +223,8 @@ function createAbsenceRecord({ studentId, studentCode, date, month, type, hours,
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        initializeImportAccessibility();
+
         document.querySelectorAll('[data-action]').forEach((btn) => {
             btn.addEventListener('click', () => runImport(btn.dataset.action));
         });
@@ -210,6 +235,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             input.addEventListener('change', async (event) => {
                 const files = Array.from(event.target.files || []);
                 if (!files.length) return;
+                const label = ACTION_LABELS[action] || action;
+                updateImportSelectionStatus(
+                    files.length === 1
+                        ? `تم اختيار ملف واحد لـ ${label}: ${files[0].name}`
+                        : `تم اختيار ${files.length} ملفات لـ ${label}`
+                );
                 try {
                     const confirmed = await showImportConfirm(action, files);
                     if (!confirmed) {
@@ -305,7 +336,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             createBackupBtn.addEventListener('click', async () => {
                 try {
                     createBackupBtn.disabled = true;
-                    createBackupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإنشاء...';
+                    setButtonContent(createBackupBtn, { icon: 'fa-spinner', text: 'جاري الإنشاء...', spin: true });
                     const backup = await BackupManager.createBackup();
                     BackupManager.downloadBackup(backup);
                     showToast(
@@ -316,7 +347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     showToast(err.message || 'فشل إنشاء النسخة الاحتياطية', 'error');
                 } finally {
                     createBackupBtn.disabled = false;
-                    createBackupBtn.innerHTML = '<i class="fas fa-download"></i> إنشاء نسخة احتياطية';
+                    setButtonContent(createBackupBtn, { icon: 'fa-download', text: 'إنشاء نسخة احتياطية' });
                 }
             });
         }
@@ -326,14 +357,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             backupFileInput.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                const confirmed = await showActionConfirm('سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية. هل أنت متأكد؟');
+                const confirmed = await showActionConfirm(
+                    'سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية. هل أنت متأكد؟'
+                );
                 if (!confirmed) {
                     backupFileInput.value = '';
                     return;
                 }
                 try {
                     restoreBackupBtn.disabled = true;
-                    restoreBackupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاستعادة...';
+                    setButtonContent(restoreBackupBtn, { icon: 'fa-spinner', text: 'جاري الاستعادة...', spin: true });
                     const result = await BackupManager.restoreFromFile(file);
                     showToast('تم استعادة النسخة الاحتياطية بنجاح (' + result.restoredItems + ' عنصر)', 'success');
                     setTimeout(() => location.reload(), 1500);
@@ -341,7 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     showToast(err.message || 'فشل استعادة النسخة الاحتياطية', 'error');
                 } finally {
                     restoreBackupBtn.disabled = false;
-                    restoreBackupBtn.innerHTML = '<i class="fas fa-upload"></i> استعادة نسخة سابقة';
+                    setButtonContent(restoreBackupBtn, { icon: 'fa-upload', text: 'استعادة نسخة سابقة' });
                     backupFileInput.value = '';
                 }
             });
@@ -405,7 +438,6 @@ function showImportConfirm(action, files) {
         const message = document.getElementById('confirm-import-message');
         const okBtn = document.getElementById('confirm-import-ok');
         const cancelBtn = document.getElementById('confirm-import-cancel');
-        const previousActive = document.activeElement;
         if (!overlay || !message || !okBtn || !cancelBtn) {
             resolve(window.confirm('هل تريد متابعة الاستيراد؟'));
             return;
@@ -428,9 +460,17 @@ function showImportConfirm(action, files) {
             const more = safeFiles.length > 4 ? ` ... (+${safeFiles.length - 4})` : '';
             message.innerHTML = `هل تريد استيراد ${label} بشكل جماعي من <strong>${safeFiles.length}</strong> ملفات؟<br>${preview}${more}${semesterLabel}`;
         }
-        overlay.classList.add('active');
-        overlay.setAttribute('aria-hidden', 'false');
-        okBtn.focus();
+        if (window.UXEnhancements?.openDialog) {
+            window.UXEnhancements.openDialog(overlay, {
+                contentSelector: '.import-confirm-box',
+                initialFocus: '#confirm-import-ok',
+                onCloseRequest: () => cleanup(false)
+            });
+        } else {
+            overlay.classList.add('active');
+            overlay.setAttribute('aria-hidden', 'false');
+            okBtn.focus();
+        }
 
         const cleanup = (result) => {
             overlay.classList.remove('active');
@@ -438,7 +478,9 @@ function showImportConfirm(action, files) {
             okBtn.onclick = null;
             cancelBtn.onclick = null;
             overlay.onclick = null;
-            if (previousActive && typeof previousActive.focus === 'function') previousActive.focus();
+            if (window.UXEnhancements?.closeDialog) {
+                window.UXEnhancements.closeDialog(overlay);
+            }
             resolve(result);
         };
 
@@ -462,13 +504,27 @@ function showActionConfirm(messageText) {
         }
 
         message.textContent = messageText;
-        overlay.classList.add('active');
+        if (window.UXEnhancements?.openDialog) {
+            window.UXEnhancements.openDialog(overlay, {
+                contentSelector: '.import-confirm-box',
+                initialFocus: '#confirm-import-ok',
+                onCloseRequest: () => cleanup(false)
+            });
+        } else {
+            overlay.classList.add('active');
+            overlay.setAttribute('aria-hidden', 'false');
+            okBtn.focus();
+        }
 
         const cleanup = (result) => {
             overlay.classList.remove('active');
+            overlay.setAttribute('aria-hidden', 'true');
             okBtn.onclick = null;
             cancelBtn.onclick = null;
             overlay.onclick = null;
+            if (window.UXEnhancements?.closeDialog) {
+                window.UXEnhancements.closeDialog(overlay);
+            }
             resolve(result);
         };
 
@@ -1322,6 +1378,7 @@ async function runImport(action) {
         showToast('عنصر رفع الملف غير موجود', 'error');
         return;
     }
+    updateImportSelectionStatus(`جارٍ فتح نافذة اختيار الملفات لـ ${ACTION_LABELS[action] || action}`);
     input.click();
 }
 
@@ -1361,31 +1418,31 @@ function checkYearMismatch(detectedYear, selectedYear) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className =
-            'fixed inset-0 z-[10000] flex items-center justify-center bg-[rgba(0,0,0,0.6)] p-4 text-right';
+            'fixed inset-0 z-[10000] flex items-center justify-center bg-[var(--color-overlay)] p-4 text-right';
 
         overlay.innerHTML = `
-        <div class="w-full max-w-[420px] rounded-xl border border-[#f59e0b] bg-[#1e293b] px-8 py-7 text-[#f1f5f9] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+        <div class="w-full max-w-[420px] rounded-xl border border-[var(--color-warning-border)] bg-[var(--color-surface)] px-8 py-7 text-[var(--color-text-main)] shadow-[var(--shadow-elevated)]">
             <div class="mb-4 flex items-center gap-3">
-                <i class="fas fa-exclamation-triangle text-[28px] text-[#f59e0b]"></i>
-                <h3 class="m-0 text-lg text-[#fde68a]">تحذير: تعارض في الموسم الدراسي</h3>
+                <i class="fas fa-exclamation-triangle text-[28px] text-[var(--color-warning-text)]"></i>
+                <h3 class="m-0 text-lg text-[var(--color-warning-text)]">تحذير: تعارض في الموسم الدراسي</h3>
             </div>
-            <p class="mb-2 mt-0 leading-[1.7] text-[#cbd5e1]">
+            <p class="mb-2 mt-0 leading-[1.7] text-[var(--color-text-muted)]">
                 الملف المستورَد يبدو أنه يخص الموسم الدراسي:
-                <strong class="text-base text-[#fde68a]"> ${detectedYear} </strong>
+                <strong class="text-base text-[var(--color-warning-text)]"> ${detectedYear} </strong>
             </p>
-            <p class="mb-5 mt-0 leading-[1.7] text-[#cbd5e1]">
+            <p class="mb-5 mt-0 leading-[1.7] text-[var(--color-text-muted)]">
                 بينما الموسم المختار حالياً هو:
-                <strong class="text-base text-[#6ee7b7]"> ${selectedYear} </strong>
+                <strong class="text-base text-[var(--color-success-text)]"> ${selectedYear} </strong>
             </p>
-            <p class="mb-6 mt-0 text-[13px] text-[#94a3b8]">
-                إذا واصلت، ستُخَّزن البيانات تحت الموسم <strong class="text-[#6ee7b7]">${selectedYear}</strong>.
-                إذا أردت حفظها تحت <strong class="text-[#fde68a]">${detectedYear}</strong>، ألغِ وغيّر الموسم أولاً.
+            <p class="mb-6 mt-0 text-[13px] text-[var(--color-text-light)]">
+                إذا واصلت، ستُخَّزن البيانات تحت الموسم <strong class="text-[var(--color-success-text)]">${selectedYear}</strong>.
+                إذا أردت حفظها تحت <strong class="text-[var(--color-warning-text)]">${detectedYear}</strong>، ألغِ وغيّر الموسم أولاً.
             </p>
             <div class="flex justify-end gap-3">
-                <button id="ym-cancel" class="rounded-lg border border-[#475569] bg-transparent px-5 py-2.5 text-sm text-[#94a3b8] transition-all duration-200 hover:border-[#64748b] hover:text-[#e2e8f0]">
+                <button id="ym-cancel" class="rounded-lg border border-[var(--glass-border)] bg-transparent px-5 py-2.5 text-sm text-[var(--color-text-muted)] transition-all duration-200 hover:border-[var(--color-accent)] hover:text-[var(--color-text-main)]">
                     إلغاء — سأغير الموسم
                 </button>
-                <button id="ym-proceed" class="rounded-lg bg-[#f59e0b] px-5 py-2.5 text-sm font-bold text-[#1e293b] transition-all duration-200 hover:bg-[#fbbf24]">
+                <button id="ym-proceed" class="rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-solid)] px-5 py-2.5 text-sm font-bold text-white transition-all duration-200 hover:opacity-95">
                     واصل على أي حال
                 </button>
             </div>
@@ -1874,7 +1931,7 @@ function showDepartedPanel(students) {
 
         try {
             confirmBtn.disabled = true;
-            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+            setButtonContent(confirmBtn, { icon: 'fa-spinner', text: 'جاري الحفظ...', spin: true });
 
             const res = await window.api.students.updateStatusBulk(items);
             if (res && res.success) {
@@ -1887,7 +1944,7 @@ function showDepartedPanel(students) {
             showToast('خطأ في تحديث الوضعيات', 'error');
         } finally {
             confirmBtn.disabled = false;
-            confirmBtn.innerHTML = '<i class="fas fa-save"></i> حفظ التغييرات';
+            setButtonContent(confirmBtn, { icon: 'fa-save', text: 'حفظ التغييرات' });
             panel.classList.add('hidden');
             loadDataStats();
         }
@@ -3035,7 +3092,7 @@ async function loadLogs() {
         const tb = getImportLogsTbody();
         if (!tb) return;
         tb.innerHTML =
-            '<tr><td class="px-[30px] py-[30px] text-center text-[#888]" colspan="4">تعذر تحميل السجل (API غير متاحة)</td></tr>';
+            '<tr><td class="px-[30px] py-[30px] text-center text-[var(--color-text-light)]" colspan="4">تعذر تحميل السجل (API غير متاحة)</td></tr>';
         return;
     }
 
@@ -3075,7 +3132,7 @@ async function loadLogs() {
             `
               )
               .join('')
-        : '<tr><td class="px-[30px] py-[30px] text-center text-[#888]" colspan="4"><i class="fas fa-inbox mb-2.5 block text-[32px]"></i>لا توجد عمليات بعد</td></tr>';
+        : '<tr><td class="px-[30px] py-[30px] text-center text-[var(--color-text-light)]" colspan="4"><i class="fas fa-inbox mb-2.5 block text-[32px]"></i>لا توجد عمليات بعد</td></tr>';
 }
 
 // ─── Student Status Import ──────────────────────────────────────────────────

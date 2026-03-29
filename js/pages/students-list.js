@@ -13,21 +13,14 @@ let sectionToLevel = {}; // section → level mapping
 
 // Avatar color palette
 const avatarColors = [
-    '#3B6AC5',
-    '#3C95D0',
-    '#E67F22',
-    '#9B59B6',
-    '#E74C3C',
-    '#1ABC9C',
-    '#2980B9',
-    '#D35400',
-    '#8E44AD',
-    '#27AE60',
-    '#F39C12',
-    '#C0392B',
-    '#16A085',
-    '#2C3E50',
-    '#7F8C8D'
+    'var(--avatar-color-1)',
+    'var(--avatar-color-2)',
+    'var(--avatar-color-3)',
+    'var(--avatar-color-4)',
+    'var(--avatar-color-5)',
+    'var(--avatar-color-6)',
+    'var(--avatar-color-7)',
+    'var(--avatar-color-8)'
 ];
 
 // Gender normalization helpers (DB may store 'M'/'F', 'ذكر'/'أنثى', etc.)
@@ -102,9 +95,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // (now handled by the shared UX print preview system)
 
     // Sorting
-    document.querySelectorAll('.sl-table th[data-sort]').forEach((th) => {
-        th.addEventListener('click', () => handleSort(th.dataset.sort));
+    document.querySelectorAll('.sl-table .sl-sort-button').forEach((button) => {
+        button.addEventListener('click', () => handleSort(button.closest('th')?.dataset.sort));
     });
+    setupStudentsTableInteractions();
 
     // Student modal
     document.getElementById('modal-close').addEventListener('click', closeStudentModal);
@@ -122,9 +116,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             queryInput.focus();
             queryInput.select();
-        }
-        if (e.key === 'Escape') {
-            closeStudentModal();
         }
     });
 });
@@ -176,18 +167,12 @@ function _getLocalLevelName(section) {
 function renderClassOptions(selectedLevel) {
     const classSelect = document.getElementById('search-class');
     const previousValue = classSelect.value;
-    classSelect.innerHTML = '<option value="">\u0643\u0644 \u0627\u0644\u0623\u0642\u0633\u0627\u0645</option>';
 
     const list = selectedLevel
         ? allClasses.filter((name) => _getLocalLevelName(name) === selectedLevel)
         : allClasses.slice();
 
-    sortSectionNames(list).forEach((name) => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        classSelect.appendChild(opt);
-    });
+    setSelectOptions(classSelect, sortSectionNames(list), { placeholder: 'كل الأقسام' });
 
     // Restore previous value if still in list
     if (previousValue && Array.from(classSelect.options).some((o) => o.value === previousValue)) {
@@ -279,6 +264,8 @@ async function searchStudents() {
 
 // ─── Sorting ───
 function handleSort(column) {
+    if (!column) return;
+
     if (sortColumn === column) {
         sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
     } else {
@@ -286,16 +273,17 @@ function handleSort(column) {
         sortDirection = 'asc';
     }
 
-    // Update sort icons
     document.querySelectorAll('.sl-table th[data-sort]').forEach((th) => {
         const icon = th.querySelector('.sort-icon');
         th.classList.remove('sorted');
+        th.setAttribute('aria-sort', 'none');
         icon.className = 'fas fa-sort sort-icon';
     });
 
     const activeTh = document.querySelector(`.sl-table th[data-sort="${column}"]`);
     if (activeTh) {
         activeTh.classList.add('sorted');
+        activeTh.setAttribute('aria-sort', sortDirection === 'asc' ? 'ascending' : 'descending');
         const icon = activeTh.querySelector('.sort-icon');
         icon.className = `fas fa-sort-${sortDirection === 'asc' ? 'up' : 'down'} sort-icon`;
     }
@@ -318,6 +306,83 @@ function applySortToData() {
     });
 }
 
+function createStudentRow(student, rowIndex) {
+    const tr = document.createElement('tr');
+    const name = student.full_name || '-';
+    const initial = getInitial(name);
+    const color = getAvatarColor(name);
+    const genderClass = isMale(student.gender) ? 'male' : isFemale(student.gender) ? 'female' : '';
+    const genderLabel = isMale(student.gender) ? 'ذكر' : isFemale(student.gender) ? 'أنثى' : '-';
+    const genderIcon = isMale(student.gender) ? 'fa-mars' : isFemale(student.gender) ? 'fa-venus' : '';
+
+    const addCell = (content) => {
+        const td = document.createElement('td');
+        if (content instanceof Node) {
+            td.appendChild(content);
+        } else {
+            td.textContent = content;
+        }
+        tr.appendChild(td);
+        return td;
+    };
+
+    addCell(String(rowIndex));
+
+    const codeEl = document.createElement('code');
+    codeEl.className = 'sl-massar-code';
+    codeEl.textContent = student.massar_code || '-';
+    addCell(codeEl);
+
+    const studentCell = document.createElement('div');
+    studentCell.className = 'sl-student-cell';
+    const avatar = document.createElement('div');
+    avatar.className = 'sl-avatar';
+    avatar.style.background = color;
+    avatar.textContent = initial;
+    const nameEl = document.createElement('span');
+    nameEl.className = 'sl-student-name';
+    nameEl.textContent = name;
+    studentCell.appendChild(avatar);
+    studentCell.appendChild(nameEl);
+    addCell(studentCell);
+
+    const classBadge = document.createElement('span');
+    classBadge.className = 'sl-class-badge';
+    classBadge.textContent = student.class_name || '-';
+    addCell(classBadge);
+
+    if (genderClass) {
+        const genderBadge = document.createElement('span');
+        genderBadge.className = `sl-gender-badge ${genderClass}`;
+        const genderIconEl = document.createElement('i');
+        genderIconEl.className = `fas ${genderIcon}`;
+        genderIconEl.setAttribute('aria-hidden', 'true');
+        genderBadge.appendChild(genderIconEl);
+        genderBadge.appendChild(document.createTextNode(` ${genderLabel}`));
+        addCell(genderBadge);
+    } else {
+        addCell('-');
+    }
+
+    addCell(student.birth_date || '-');
+
+    const actionCell = document.createElement('td');
+    const actionButton = document.createElement('button');
+    actionButton.className = 'sl-action-btn';
+    actionButton.type = 'button';
+    actionButton.title = 'عرض ملف التلميذ';
+    actionButton.setAttribute('aria-label', 'عرض ملف التلميذ');
+    actionButton.dataset.studentCode = student.massar_code || String(student.id);
+    const iconEl = document.createElement('i');
+    iconEl.className = 'fas fa-eye';
+    iconEl.setAttribute('aria-hidden', 'true');
+    actionButton.appendChild(iconEl);
+    actionCell.appendChild(actionButton);
+    tr.appendChild(actionCell);
+
+    return tr;
+}
+
 // ─── Render Students ───
 function renderStudents() {
     updateCountBadge();
@@ -337,39 +402,7 @@ function renderStudents() {
     const pageStudents = filteredStudents.slice(start, end);
 
     const tbody = document.getElementById('students-tbody');
-    tbody.innerHTML = pageStudents
-        .map((s, i) => {
-            const idx = start + i + 1;
-            const name = s.full_name || '-';
-            const initial = getInitial(name);
-            const color = getAvatarColor(name);
-            const genderClass = isMale(s.gender) ? 'male' : isFemale(s.gender) ? 'female' : '';
-            const genderLabel = isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-';
-            const genderIcon = isMale(s.gender) ? 'fa-mars' : isFemale(s.gender) ? 'fa-venus' : '';
-
-            return `
-            <tr>
-                <td>${idx}</td>
-                <td><code style="font-size:13px;color:var(--color-text-muted)">${escapeHtml(s.massar_code || '-')}</code></td>
-                <td>
-                    <div class="sl-student-cell">
-                        <div class="sl-avatar" style="background:${color}">${initial}</div>
-                        <span class="sl-student-name">${escapeHtml(name)}</span>
-                    </div>
-                </td>
-                <td><span class="sl-class-badge">${escapeHtml(s.class_name || '-')}</span></td>
-                <td>${genderClass ? `<span class="sl-gender-badge ${genderClass}"><i class="fas ${genderIcon}"></i> ${genderLabel}</span>` : '-'}</td>
-                <td>${escapeHtml(s.birth_date || '-')}</td>
-                <td>
-                    <button class="sl-action-btn" type="button" title="عرض ملف التلميذ" aria-label="عرض ملف التلميذ"
-                        onclick="viewStudent('${escapeHtml(s.massar_code || s.id)}')">
-                        <i class="fas fa-eye" aria-hidden="true"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-        })
-        .join('');
+    tbody.replaceChildren(...pageStudents.map((student, index) => createStudentRow(student, start + index + 1)));
 
     setFeedback(`تم عرض ${filteredStudents.length} تلميذ(ة).`);
     renderPagination(totalPages);
@@ -416,46 +449,27 @@ function renderPagination(totalPages) {
     const container = document.getElementById('pagination');
     if (totalPages <= 1) {
         container.style.display = 'none';
+        container.replaceChildren();
         return;
     }
 
     container.style.display = 'flex';
-    let html = '';
-
-    // Previous
-    html += `<button ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})"><i class="fas fa-chevron-right"></i></button>`;
-
-    // Page numbers
-    const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    if (endPage - startPage < maxVisible - 1) {
-        startPage = Math.max(1, endPage - maxVisible + 1);
-    }
-
-    if (startPage > 1) {
-        html += `<button onclick="goToPage(1)">1</button>`;
-        if (startPage > 2) html += `<span class="sl-pagination-info">...</span>`;
-    }
-
-    for (let p = startPage; p <= endPage; p++) {
-        html += `<button class="${p === currentPage ? 'active' : ''}" onclick="goToPage(${p})">${p}</button>`;
-    }
-
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) html += `<span class="sl-pagination-info">...</span>`;
-        html += `<button onclick="goToPage(${totalPages})">${totalPages}</button>`;
-    }
-
-    // Next
-    html += `<button ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})"><i class="fas fa-chevron-left"></i></button>`;
-
-    // Info
     const start = (currentPage - 1) * PAGE_SIZE + 1;
     const end = Math.min(currentPage * PAGE_SIZE, filteredStudents.length);
-    html += `<span class="sl-pagination-info">${start}-${end} من ${filteredStudents.length}</span>`;
+    renderPaginationControls(container, {
+        currentPage,
+        totalPages,
+        onNavigate: goToPage,
+        infoText: `${start}-${end} من ${filteredStudents.length}`
+    });
+}
 
-    container.innerHTML = html;
+function setupStudentsTableInteractions() {
+    document.getElementById('students-tbody')?.addEventListener('click', (event) => {
+        const actionButton = event.target.closest('[data-student-code]');
+        if (!actionButton) return;
+        viewStudent(actionButton.dataset.studentCode);
+    });
 }
 
 function goToPage(page) {
@@ -484,18 +498,19 @@ function setFeedback(message) {
 
 // ─── Grade Helpers ───
 function gradeColor(val) {
-    if (val >= 16) return '#2ECC71';
-    if (val >= 14) return '#3b82f6';
-    if (val >= 12) return '#f59e0b';
-    if (val >= 10) return '#f97316';
-    return '#E85D5D';
+    if (val >= 16) return 'var(--color-grade-excellent)';
+    if (val >= 14) return 'var(--color-primary)';
+    if (val >= 12) return 'var(--color-grade-average)';
+    if (val >= 10) return 'var(--color-warning-solid)';
+    return 'var(--color-grade-poor)';
 }
 
 // normalizeSubjectName() — provided by js/utils.js
 
 // ─── View Student Modal ───
 async function viewStudent(code) {
-    const student = filteredStudents.find((s) => (s.massar_code || s.id) === code);
+    const normalizedCode = String(code);
+    const student = filteredStudents.find((s) => String(s.massar_code || s.id) === normalizedCode);
     if (!student) return;
 
     const name = student.full_name || '-';
@@ -523,7 +538,7 @@ async function viewStudent(code) {
 
     const body = document.getElementById('modal-body');
     body.innerHTML = `
-        <div class="sl-modal-avatar" style="background:${color}">${initial}</div>
+        <div class="sl-modal-avatar" style="--avatar-color:${color}">${initial}</div>
         <div class="sl-modal-info-grid">
             <div class="sl-modal-info-item full-width">
                 <div class="sl-modal-info-label"><i class="fas fa-user"></i> الاسم الكامل</div>
@@ -531,7 +546,7 @@ async function viewStudent(code) {
             </div>
             <div class="sl-modal-info-item">
                 <div class="sl-modal-info-label"><i class="fas fa-barcode"></i> رمز مسار</div>
-                <div class="sl-modal-info-value" style="direction:ltr;text-align:right">${escapeHtml(student.massar_code || '-')}</div>
+                <div class="sl-modal-info-value sl-modal-info-value-ltr">${escapeHtml(student.massar_code || '-')}</div>
             </div>
             <div class="sl-modal-info-item">
                 <div class="sl-modal-info-label"><i class="fas fa-chalkboard"></i> القسم</div>
@@ -546,12 +561,12 @@ async function viewStudent(code) {
                 <div class="sl-modal-info-value">${escapeHtml(student.birth_date || '-')}</div>
             </div>
             <div class="sl-modal-info-item">
-                <div class="sl-modal-info-label"><i class="fas fa-clock" style="color:#2ECC71"></i> ساعات الغياب المبررة</div>
-                <div class="sl-modal-info-value" style="color:#2ECC71;font-weight:700">${justifiedHours} <small style="font-weight:400;opacity:0.7">ساعة</small></div>
+                <div class="sl-modal-info-label"><i class="fas fa-clock sl-modal-icon-success"></i> ساعات الغياب المبررة</div>
+                <div class="sl-modal-info-value sl-modal-metric-success">${justifiedHours} <small class="sl-modal-metric-unit">ساعة</small></div>
             </div>
             <div class="sl-modal-info-item">
-                <div class="sl-modal-info-label"><i class="fas fa-clock" style="color:#E85D5D"></i> ساعات الغياب غير المبررة</div>
-                <div class="sl-modal-info-value" style="color:#E85D5D;font-weight:700">${unjustifiedHours} <small style="font-weight:400;opacity:0.7">ساعة</small></div>
+                <div class="sl-modal-info-label"><i class="fas fa-clock sl-modal-icon-danger"></i> ساعات الغياب غير المبررة</div>
+                <div class="sl-modal-info-value sl-modal-metric-danger">${unjustifiedHours} <small class="sl-modal-metric-unit">ساعة</small></div>
             </div>
         </div>
 
@@ -564,8 +579,15 @@ async function viewStudent(code) {
     `;
 
     const modal = document.getElementById('student-modal');
-    modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
+    if (window.UXEnhancements?.openDialog) {
+        window.UXEnhancements.openDialog(modal, {
+            contentSelector: '.sl-modal',
+            initialFocus: '#modal-close'
+        });
+    } else {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+    }
 
     // Show "View Full Profile" button if massar_code exists
     const fullProfileBtn = document.getElementById('modal-full-profile-btn');
@@ -639,7 +661,7 @@ async function viewStudent(code) {
         kpisContainer.innerHTML = `
             <div class="sl-detail-kpis">
                 <div class="sl-detail-kpi">
-                    <div class="kpi-val" style="color:${gradeColor(generalAvg)}">${generalAvg.toFixed(2)}</div>
+                    <div class="kpi-val" style="--kpi-color:${gradeColor(generalAvg)}">${generalAvg.toFixed(2)}</div>
                     <div class="kpi-lbl">المعدل العام</div>
                 </div>
                 <div class="sl-detail-kpi">
@@ -651,11 +673,11 @@ async function viewStudent(code) {
                     <div class="kpi-lbl">عدد النقط</div>
                 </div>
                 <div class="sl-detail-kpi">
-                    <div class="kpi-val" style="color:#2ECC71">${maxGrade.toFixed(1)}</div>
+                    <div class="kpi-val" style="--kpi-color:var(--color-success-text)">${maxGrade.toFixed(1)}</div>
                     <div class="kpi-lbl">أعلى نقطة</div>
                 </div>
                 <div class="sl-detail-kpi">
-                    <div class="kpi-val" style="color:#E85D5D">${minGrade.toFixed(1)}</div>
+                    <div class="kpi-val" style="--kpi-color:var(--color-danger-text)">${minGrade.toFixed(1)}</div>
                     <div class="kpi-lbl">أدنى نقطة</div>
                 </div>
             </div>
@@ -701,8 +723,8 @@ async function viewStudent(code) {
                                     const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
                                     return `<div class="sl-grade-chip">
                                 <span class="chip-label">${chipLabel}</span>
-                                <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
-                                <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                                <span class="chip-value" style="--grade-color:${gc}">${g.grade.toFixed(2)}</span>
+                                <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;--grade-color:${gc}"></div></div>
                             </div>`;
                                 })
                                 .join('');
@@ -724,8 +746,8 @@ async function viewStudent(code) {
                             const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
                             return `<div class="sl-grade-chip">
                             <span class="chip-label">${chipLabel}</span>
-                            <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
-                            <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                            <span class="chip-value" style="--grade-color:${gc}">${g.grade.toFixed(2)}</span>
+                            <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;--grade-color:${gc}"></div></div>
                         </div>`;
                         })
                         .join('');
@@ -736,7 +758,7 @@ async function viewStudent(code) {
                 <div class="sl-subject-block">
                     <div class="sl-subject-block-header">
                         <span class="subj-name"><i class="fas fa-book"></i> ${escapeHtml(subj)}</span>
-                        <span class="subj-avg" style="background:${clr}">${avg.toFixed(2)}</span>
+                        <span class="subj-avg" style="--grade-color:${clr}">${avg.toFixed(2)}</span>
                     </div>
                     <div class="sl-subject-block-body">${bodyHtml}</div>
                 </div>
@@ -755,8 +777,12 @@ async function viewStudent(code) {
 
 function closeStudentModal() {
     const modal = document.getElementById('student-modal');
-    modal.classList.remove('active');
-    modal.setAttribute('aria-hidden', 'true');
+    if (window.UXEnhancements?.closeDialog) {
+        window.UXEnhancements.closeDialog(modal);
+    } else {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+    }
 }
 
 // ─── Print Preview (gs-sheet style with letterhead) ───
@@ -790,12 +816,12 @@ async function openSlPrintPreview() {
         .map(
             (s, i) => `
         <tr>
-            <td style="text-align:center;font-weight:600;color:#666;">${i + 1}</td>
+            <td class="sl-print-row-index">${i + 1}</td>
             <td>${escapeHtml(s.massar_code || '-')}</td>
-            <td style="font-weight:600;">${escapeHtml(s.full_name || '-')}</td>
-            <td style="text-align:center;">${escapeHtml(s.class_name || '-')}</td>
-            <td style="text-align:center;">${isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-'}</td>
-            <td style="text-align:center;">${escapeHtml(s.birth_date || '-')}</td>
+            <td class="sl-print-row-name">${escapeHtml(s.full_name || '-')}</td>
+            <td class="sl-print-center">${escapeHtml(s.class_name || '-')}</td>
+            <td class="sl-print-center">${isMale(s.gender) ? 'ذكر' : isFemale(s.gender) ? 'أنثى' : '-'}</td>
+            <td class="sl-print-center">${escapeHtml(s.birth_date || '-')}</td>
         </tr>
     `
         )
@@ -824,12 +850,12 @@ async function openSlPrintPreview() {
                 <table>
                     <thead>
                         <tr>
-                            <th style="text-align:center;width:40px;">#</th>
+                            <th class="sl-print-col-index">#</th>
                             <th>رمز مسار</th>
                             <th>الاسم الكامل</th>
-                            <th style="text-align:center;">القسم</th>
-                            <th style="text-align:center;width:60px;">الجنس</th>
-                            <th style="text-align:center;">تاريخ الازدياد</th>
+                            <th class="sl-print-center">القسم</th>
+                            <th class="sl-print-col-gender">الجنس</th>
+                            <th class="sl-print-center">تاريخ الازدياد</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>

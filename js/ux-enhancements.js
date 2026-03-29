@@ -26,9 +26,134 @@ function toggleTheme() {
 function updateThemeIcon(theme) {
     const toggle = document.getElementById('theme-toggle');
     if (toggle) {
-        toggle.innerHTML = theme === 'dark'
-            ? '<i class="fas fa-sun"></i>'
-            : '<i class="fas fa-moon"></i>';
+        toggle.innerHTML = theme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+    }
+}
+
+const DIALOG_FOCUSABLE_SELECTOR = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled]):not([type="hidden"])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])'
+].join(', ');
+
+const dialogStateMap = new WeakMap();
+
+function getFocusableElements(container) {
+    if (!container) return [];
+    return Array.from(container.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR)).filter((element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+        const style = window.getComputedStyle(element);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+}
+
+function getDialogContent(dialog, options = {}) {
+    if (!dialog) return null;
+    if (options.contentSelector) {
+        return dialog.querySelector(options.contentSelector) || dialog;
+    }
+    return dialog.querySelector('[role="dialog"], .shortcuts-content, .sl-modal, .import-confirm-box') || dialog;
+}
+
+function openDialog(dialog, options = {}) {
+    if (!dialog) return;
+
+    const existingState = dialogStateMap.get(dialog);
+    if (existingState) {
+        const focusTarget =
+            (typeof options.initialFocus === 'string' && dialog.querySelector(options.initialFocus)) ||
+            options.initialFocus ||
+            getFocusableElements(existingState.content)[0] ||
+            existingState.content;
+        focusTarget?.focus();
+        return;
+    }
+
+    const content = getDialogContent(dialog, options);
+    if (!content) return;
+
+    const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const state = {
+        content,
+        previousActiveElement,
+        onCloseRequest: options.onCloseRequest || null,
+        activeClass: options.activeClass || 'active'
+    };
+
+    state.keydownHandler = (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof state.onCloseRequest === 'function') {
+                state.onCloseRequest('escape');
+            } else {
+                closeDialog(dialog);
+            }
+            return;
+        }
+
+        if (event.key !== 'Tab') return;
+
+        const focusableElements = getFocusableElements(content);
+        if (!focusableElements.length) {
+            event.preventDefault();
+            content.focus();
+            return;
+        }
+
+        const firstFocusable = focusableElements[0];
+        const lastFocusable = focusableElements[focusableElements.length - 1];
+        const activeElement = document.activeElement;
+
+        if (event.shiftKey && activeElement === firstFocusable) {
+            event.preventDefault();
+            lastFocusable.focus();
+        } else if (!event.shiftKey && activeElement === lastFocusable) {
+            event.preventDefault();
+            firstFocusable.focus();
+        }
+    };
+
+    if (!content.hasAttribute('tabindex')) {
+        content.setAttribute('tabindex', '-1');
+    }
+
+    dialogStateMap.set(dialog, state);
+    dialog.classList.add(state.activeClass);
+    dialog.setAttribute('aria-hidden', 'false');
+    dialog.addEventListener('keydown', state.keydownHandler);
+
+    requestAnimationFrame(() => {
+        const initialFocus =
+            (typeof options.initialFocus === 'string' && dialog.querySelector(options.initialFocus)) ||
+            options.initialFocus ||
+            getFocusableElements(content)[0] ||
+            content;
+        initialFocus?.focus();
+    });
+}
+
+function closeDialog(dialog, options = {}) {
+    if (!dialog) return;
+
+    const state = dialogStateMap.get(dialog);
+    if (state?.keydownHandler) {
+        dialog.removeEventListener('keydown', state.keydownHandler);
+    }
+
+    dialog.classList.remove(state?.activeClass || 'active');
+    dialog.setAttribute('aria-hidden', 'true');
+    dialogStateMap.delete(dialog);
+
+    if (options.restoreFocus === false) return;
+
+    const previousActiveElement = state?.previousActiveElement;
+    if (previousActiveElement?.isConnected) {
+        requestAnimationFrame(() => previousActiveElement.focus());
     }
 }
 
@@ -52,7 +177,8 @@ function initKeyboardShortcuts() {
 
         // /: Focus search (if exists)
         if (e.key === '/' && !e.ctrlKey && !e.shiftKey) {
-            const searchInput = document.querySelector('input[type="text"][placeholder*="بحث"]') ||
+            const searchInput =
+                document.querySelector('input[type="text"][placeholder*="بحث"]') ||
                 document.querySelector('.search-box input');
             if (searchInput) {
                 e.preventDefault();
@@ -81,11 +207,12 @@ function initKeyboardShortcuts() {
 
 function closeAllUXModals() {
     const shortcutsModal = document.getElementById('shortcuts-modal');
+    const backupModal = document.getElementById('backup-modal');
     const quickNavPanel = document.getElementById('quick-nav-panel');
     const quickNavToggle = document.getElementById('quick-nav-toggle');
 
-    shortcutsModal?.classList.remove('active');
-    shortcutsModal?.setAttribute('aria-hidden', 'true');
+    closeDialog(shortcutsModal);
+    closeDialog(backupModal);
 
     quickNavPanel?.classList.remove('open');
     quickNavPanel?.setAttribute('aria-hidden', 'true');
@@ -96,16 +223,15 @@ function closeAllUXModals() {
 
 function openShortcutsModal() {
     const shortcutsModal = document.getElementById('shortcuts-modal');
-    const shortcutsContent = shortcutsModal?.querySelector('.shortcuts-content');
-    shortcutsModal?.classList.add('active');
-    shortcutsModal?.setAttribute('aria-hidden', 'false');
-    shortcutsContent?.focus();
+    openDialog(shortcutsModal, {
+        contentSelector: '.shortcuts-content',
+        initialFocus: '#shortcuts-close'
+    });
 }
 
 function closeShortcutsModal() {
     const shortcutsModal = document.getElementById('shortcuts-modal');
-    shortcutsModal?.classList.remove('active');
-    shortcutsModal?.setAttribute('aria-hidden', 'true');
+    closeDialog(shortcutsModal);
 }
 
 // ==================== Quick Navigation Panel ====================
@@ -118,8 +244,10 @@ function initQuickNav() {
 
     // Dynamically populate quick-nav from sidebar links (single source of truth)
     if (pagesList && !pagesList.children.length) {
-        const sidebarLinks = document.querySelectorAll('.sidebar .sub-menu a, .sidebar .sidebar-nav > ul > li > a.nav-link[href]:not([href="#"])');
-        sidebarLinks.forEach(link => {
+        const sidebarLinks = document.querySelectorAll(
+            '.sidebar .sub-menu a, .sidebar .sidebar-nav > ul > li > a.nav-link[href]:not([href="#"])'
+        );
+        sidebarLinks.forEach((link) => {
             const href = link.getAttribute('href');
             if (!href || href === '#') return;
             const icon = link.querySelector('i');
@@ -150,13 +278,13 @@ function initQuickNav() {
     }
 
     // Tab switching
-    document.querySelectorAll('.quick-nav-tab').forEach(tab => {
+    document.querySelectorAll('.quick-nav-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.quick-nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.quick-nav-tab').forEach((t) => t.classList.remove('active'));
             tab.classList.add('active');
 
             const targetList = tab.dataset.navTab;
-            document.querySelectorAll('.quick-nav-list').forEach(list => {
+            document.querySelectorAll('.quick-nav-list').forEach((list) => {
                 list.style.display = 'none';
             });
             const targetElement = document.getElementById('quick-nav-' + targetList);
@@ -190,7 +318,7 @@ function toggleQuickNav() {
 function filterQuickNavItems(query) {
     const items = document.querySelectorAll('.quick-nav-item');
     const lowerQuery = query.toLowerCase();
-    items.forEach(item => {
+    items.forEach((item) => {
         if (item.dataset.pageVisibilityHidden === '1') {
             item.style.display = 'none';
             return;
@@ -344,7 +472,7 @@ function openPrintPreview(options = {}) {
 
     const sourceEl = options.contentSelector
         ? document.querySelector(options.contentSelector)
-        : (document.querySelector('.main-content') || document.querySelector('main'));
+        : document.querySelector('.main-content') || document.querySelector('main');
     if (!sourceEl) {
         if (typeof showToast === 'function') showToast('لا يوجد محتوى للطباعة', 'warning');
         return;
@@ -362,37 +490,55 @@ function openPrintPreview(options = {}) {
         // Only do auto-cleanup when cloning raw page content.
         if (!options.contentSelector) {
             // Strip UI controls from clone
-            clone.querySelectorAll('.header, .print-header, .search-section, .sl-search-section, .search-form, .filter-section, .filters-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .loading-overlay, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, #export-btn, .btn-print, .btn-export, .pagination, .sl-pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state, .table-toolbar, .page-title-row, .sl-results-header, .sl-results-actions, .sl-action-btn').forEach(el => el.remove());
+            clone
+                .querySelectorAll(
+                    '.header, .print-header, .search-section, .sl-search-section, .search-form, .filter-section, .filters-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .loading-overlay, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, #export-btn, .btn-print, .btn-export, .pagination, .sl-pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state, .table-toolbar, .page-title-row, .sl-results-header, .sl-results-actions, .sl-action-btn'
+                )
+                .forEach((el) => el.remove());
             // Hide last column (actions) in any table inside the clone
-            clone.querySelectorAll('th:last-child, td:last-child').forEach(el => {
-                if (el.querySelector('.sl-action-btn') || el.textContent.trim() === '' || el.textContent.includes('الإجراءات')) {
+            clone.querySelectorAll('th:last-child, td:last-child').forEach((el) => {
+                if (
+                    el.querySelector('.sl-action-btn') ||
+                    el.textContent.trim() === '' ||
+                    el.textContent.includes('الإجراءات')
+                ) {
                     el.style.display = 'none';
                 }
             });
             // Force solid white backgrounds on glass/card elements (override CSS variables)
-            clone.querySelectorAll('.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details, .analysis-panel, .analysis-kpi-card, .analysis-block').forEach(el => {
-                el.style.background = '#fff';
-                el.style.boxShadow = 'none';
-                el.style.backdropFilter = 'none';
-                el.style.webkitBackdropFilter = 'none';
-                el.style.animation = 'none';
-            });
+            clone
+                .querySelectorAll(
+                    '.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details, .analysis-panel, .analysis-kpi-card, .analysis-block'
+                )
+                .forEach((el) => {
+                    el.style.background = '#fff';
+                    el.style.boxShadow = 'none';
+                    el.style.backdropFilter = 'none';
+                    el.style.webkitBackdropFilter = 'none';
+                    el.style.animation = 'none';
+                });
             // Remove IDs to avoid duplicates
-            clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+            clone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
 
             // Replace canvases with images
             const sourceCanvases = sourceEl.querySelectorAll('canvas');
             const cloneCanvases = clone.querySelectorAll('canvas');
             cloneCanvases.forEach((cc, i) => {
                 const sc = sourceCanvases[i];
-                if (!sc) { cc.remove(); return; }
+                if (!sc) {
+                    cc.remove();
+                    return;
+                }
                 try {
                     const img = document.createElement('img');
                     img.src = sc.toDataURL('image/png', 1);
                     img.alt = 'رسم بياني';
-                    img.style.cssText = 'width:100%;height:auto;max-height:200px;object-fit:contain;display:block;border-radius:6px;';
+                    img.style.cssText =
+                        'width:100%;height:auto;max-height:200px;object-fit:contain;display:block;border-radius:6px;';
                     cc.replaceWith(img);
-                } catch { cc.remove(); }
+                } catch {
+                    cc.remove();
+                }
             });
         }
 
@@ -405,11 +551,16 @@ function openPrintPreview(options = {}) {
             try {
                 const id = await window.api.reports.getIdentity();
                 if (id && (id.school_name || id.ministry)) {
-                    const _esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const _esc = (s) =>
+                        String(s || '')
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
                     const logo = id.logo_base64
                         ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width: 300px; max-height: 300px;" alt="logo">`
                         : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>';
-                    const printTitle = options.title || document.querySelector('.page-title h1')?.textContent || document.title || '';
+                    const printTitle =
+                        options.title || document.querySelector('.page-title h1')?.textContent || document.title || '';
                     headerHTML = `
                     <div class="ux-pp-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px; margin-bottom: 14px;">
                         <table style="width: 100%; border-collapse: collapse;" role="presentation">
@@ -425,22 +576,27 @@ function openPrintPreview(options = {}) {
                                     <div style="font-size: 13px; font-weight: 800; color: #3B6AC5;">${_esc(id.school_name)}</div>
                                     ${id.school_code ? `<div style="font-size: 9px; color: #888; margin-top: 2px;">رمز المؤسسة: ${_esc(id.school_code)}</div>` : ''}
                                     ${id.commune ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">الجماعة: ${_esc(id.commune)}</div>` : ''}
-                                    ${(document.getElementById('school-year')?.value || id.school_year) ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${_esc(document.getElementById('school-year')?.value || id.school_year)}</div>` : ''}
+                                    ${document.getElementById('school-year')?.value || id.school_year ? `<div style="font-size: 9px; color: #888; margin-top: 1px;">السنة الدراسية: ${_esc(document.getElementById('school-year')?.value || id.school_year)}</div>` : ''}
                                 </td>
                             </tr>
                         </table>
-                        ${printTitle ? (() => {
-                            const reportDate = document.getElementById('print-date-display')?.textContent?.trim()
-                                || document.getElementById('date-display')?.textContent?.trim()
-                                || '';
-                            return `
+                        ${
+                            printTitle
+                                ? (() => {
+                                      const reportDate =
+                                          document.getElementById('print-date-display')?.textContent?.trim() ||
+                                          document.getElementById('date-display')?.textContent?.trim() ||
+                                          '';
+                                      return `
                         <div style="text-align: center; margin-top: 12px;">
                             <div style="display: inline-block; padding: 7px 30px; border: 2px solid #3B6AC5; border-radius: 8px;">
                                 <div style="font-size: 17px; font-weight: 800; color: #3B6AC5;">${_esc(printTitle)}</div>
                                 ${reportDate ? `<div style="font-size: 13px; font-weight: 600; color: #555; margin-top: 4px;">${_esc(reportDate)}</div>` : ''}
                             </div>
                         </div>`;
-                        })() : ''}
+                                  })()
+                                : ''
+                        }
                     </div>`;
                 }
             } catch (_) {
@@ -466,7 +622,11 @@ function openPrintPreview(options = {}) {
 
         _updateOrientationUI();
     };
-    if (_hasCanvases) { setTimeout(_doPreview, 300); } else { _doPreview(); }
+    if (_hasCanvases) {
+        setTimeout(_doPreview, 300);
+    } else {
+        _doPreview();
+    }
 }
 
 function closePrintPreviewGlobal() {
@@ -544,7 +704,7 @@ async function _executePrintFromPreview() {
     if (!capturedHTML) return;
     closePrintPreviewGlobal();
     _enablePrintMode(capturedHTML);
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
         if (window.api?.system?.printCurrentWindow) {
             await window.api.system.printCurrentWindow({
@@ -566,8 +726,8 @@ async function _exportPdfFromPreview() {
     if (!capturedHTML) return;
     closePrintPreviewGlobal();
     _enablePrintMode(capturedHTML);
-    await new Promise(r => setTimeout(r, 50));
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
         if (window.api?.system?.printToPDF) {
             const result = await window.api.system.printToPDF({
@@ -768,7 +928,7 @@ function buildLetterheadHTML(id, year) {
                     <div style="font-size:13px;font-weight:800;color:#3B6AC5;">${e(id.school_name || '')}</div>
                     ${id.school_code ? `<div style="font-size:9px;color:#888;margin-top:2px;">رمز المؤسسة: ${e(id.school_code)}</div>` : ''}
                     ${id.commune ? `<div style="font-size:9px;color:#888;margin-top:1px;">الجماعة: ${e(id.commune)}</div>` : ''}
-                    ${year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(year)}</div>` : (id.school_year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(id.school_year)}</div>` : '')}
+                    ${year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(year)}</div>` : id.school_year ? `<div style="font-size:9px;color:#888;margin-top:1px;">السنة الدراسية: ${e(id.school_year)}</div>` : ''}
                 </td>
             </tr>
         </table>
@@ -842,6 +1002,8 @@ if (document.readyState === 'loading') {
 window.UXEnhancements = {
     initTheme,
     toggleTheme,
+    openDialog,
+    closeDialog,
     openShortcutsModal,
     closeShortcutsModal,
     toggleQuickNav,

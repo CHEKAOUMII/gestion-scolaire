@@ -260,10 +260,9 @@ function applyPageVisibilityToDocument(role) {
         if (!linkedPage) return;
         const isAdmin = _isAdminRole(role);
         const shouldHide =
-            !isDev && (
-                (ADMIN_ONLY_PAGES.has(linkedPage) && !isAdmin) ||
-                (_isPageHiddenByAdminToggle(linkedPage, role) && !(ADMIN_ONLY_PAGES.has(linkedPage) && isAdmin))
-            );
+            !isDev &&
+            ((ADMIN_ONLY_PAGES.has(linkedPage) && !isAdmin) ||
+                (_isPageHiddenByAdminToggle(linkedPage, role) && !(ADMIN_ONLY_PAGES.has(linkedPage) && isAdmin)));
         _setPageLinkElementHidden(node, shouldHide);
     });
 
@@ -293,8 +292,11 @@ function applyPageVisibilityToDocument(role) {
                 break;
             }
             // Also check non-expandable direct links (e.g. لوحة التحكم)
-            if (!sibling.classList.contains('expandable') && !sibling.classList.contains('nav-section-label')
-                && sibling.style.display !== 'none') {
+            if (
+                !sibling.classList.contains('expandable') &&
+                !sibling.classList.contains('nav-section-label') &&
+                sibling.style.display !== 'none'
+            ) {
                 hasVisibleGroup = true;
                 break;
             }
@@ -1705,6 +1707,121 @@ function escapeHtml(text) {
         .replace(/'/g, '&#39;');
 }
 
+function setButtonContent(button, { icon, text, spin = false } = {}) {
+    if (!button) return;
+
+    button.replaceChildren();
+
+    if (icon) {
+        const iconEl = document.createElement('i');
+        iconEl.className = `fas ${icon}${spin ? ' fa-spin' : ''}`;
+        iconEl.setAttribute('aria-hidden', 'true');
+        button.appendChild(iconEl);
+    }
+
+    if (text) {
+        const textNode = document.createTextNode(`${icon ? ' ' : ''}${text}`);
+        button.appendChild(textNode);
+    }
+}
+
+function setSelectOptions(select, options, { placeholder = '', getValue, getLabel } = {}) {
+    if (!select) return;
+
+    select.replaceChildren();
+
+    if (placeholder) {
+        const placeholderOption = document.createElement('option');
+        placeholderOption.value = '';
+        placeholderOption.textContent = placeholder;
+        select.appendChild(placeholderOption);
+    }
+
+    (options || []).forEach((option, index) => {
+        const optionEl = document.createElement('option');
+        optionEl.value = typeof getValue === 'function' ? getValue(option, index) : option;
+        optionEl.textContent = typeof getLabel === 'function' ? getLabel(option, index) : option;
+        select.appendChild(optionEl);
+    });
+}
+
+function renderPaginationControls(
+    container,
+    { currentPage, totalPages, onNavigate, infoText = '', summaryText = '', maxVisible = 5 } = {}
+) {
+    if (!container) return;
+
+    container.replaceChildren();
+
+    if (!Number.isFinite(totalPages) || totalPages <= 1) return;
+
+    const fragment = document.createDocumentFragment();
+    const safeNavigate = typeof onNavigate === 'function' ? onNavigate : () => {};
+
+    const appendButton = ({ page, icon, label, disabled = false, active = false }) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.disabled = disabled;
+        if (active) button.classList.add('active');
+        if (label) {
+            button.textContent = label;
+        } else if (icon) {
+            const iconEl = document.createElement('i');
+            iconEl.className = `fas ${icon}`;
+            iconEl.setAttribute('aria-hidden', 'true');
+            button.appendChild(iconEl);
+        }
+        button.addEventListener('click', () => safeNavigate(page));
+        fragment.appendChild(button);
+    };
+
+    const appendInfo = (text, extraClass) => {
+        if (!text) return;
+        const info = document.createElement('span');
+        info.className = `sl-pagination-info${extraClass ? ` ${extraClass}` : ''}`;
+        info.textContent = text;
+        fragment.appendChild(info);
+    };
+
+    appendButton({
+        page: currentPage - 1,
+        icon: 'fa-chevron-right',
+        disabled: currentPage === 1
+    });
+
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+
+    if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+
+    if (startPage > 1) {
+        appendButton({ page: 1, label: '1' });
+        if (startPage > 2) appendInfo('...');
+    }
+
+    for (let page = startPage; page <= endPage; page += 1) {
+        appendButton({ page, label: String(page), active: page === currentPage });
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) appendInfo('...');
+        appendButton({ page: totalPages, label: String(totalPages) });
+    }
+
+    appendButton({
+        page: currentPage + 1,
+        icon: 'fa-chevron-left',
+        disabled: currentPage === totalPages
+    });
+
+    appendInfo(infoText);
+    appendInfo(summaryText, 'sl-pagination-info-strong');
+
+    container.appendChild(fragment);
+}
+
 // ===== Toast Messages =====
 /**
  * عرض رسالة Toast
@@ -2251,9 +2368,7 @@ function normalizeSubjectName(subject) {
 }
 
 // ===== Unified Subject List Builder =====
-const INVALID_SUBJECT_NAMES = new Set([
-    'sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة'
-]);
+const INVALID_SUBJECT_NAMES = new Set(['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة']);
 
 /**
  * Build a normalized, sorted, deduplicated subject list from grade records.
@@ -2267,13 +2382,13 @@ const INVALID_SUBJECT_NAMES = new Set([
 function buildSubjectOptionsFromGrades(grades, options = {}) {
     let filtered = grades;
     if (options.section) {
-        filtered = filtered.filter(g => (g.section || '') === options.section);
+        filtered = filtered.filter((g) => (g.section || '') === options.section);
     } else if (options.level && typeof options.getLevelName === 'function') {
-        filtered = filtered.filter(g => options.getLevelName(g.section) === options.level);
+        filtered = filtered.filter((g) => options.getLevelName(g.section) === options.level);
     }
 
     const subjects = new Set();
-    filtered.forEach(g => {
+    filtered.forEach((g) => {
         if (g.subject) {
             const normalized = normalizeSubjectName(g.subject);
             if (normalized && !INVALID_SUBJECT_NAMES.has(normalized.toLowerCase())) {
@@ -2283,9 +2398,7 @@ function buildSubjectOptionsFromGrades(grades, options = {}) {
     });
 
     return Array.from(subjects).sort(
-        typeof compareSubjects === 'function'
-            ? compareSubjects
-            : (a, b) => String(a).localeCompare(String(b), 'ar')
+        typeof compareSubjects === 'function' ? compareSubjects : (a, b) => String(a).localeCompare(String(b), 'ar')
     );
 }
 
@@ -2298,7 +2411,7 @@ function buildSubjectOptionsFromGrades(grades, options = {}) {
 function buildSubjectOptionsFromSet(subjectCollection) {
     const raw = subjectCollection instanceof Set ? Array.from(subjectCollection) : subjectCollection || [];
     const subjects = new Set();
-    raw.forEach(name => {
+    raw.forEach((name) => {
         if (!name) return;
         const normalized = typeof normalizeSubjectName === 'function' ? normalizeSubjectName(name) : name;
         if (normalized && !INVALID_SUBJECT_NAMES.has(normalized.toLowerCase())) {
@@ -2306,9 +2419,7 @@ function buildSubjectOptionsFromSet(subjectCollection) {
         }
     });
     return Array.from(subjects).sort(
-        typeof compareSubjects === 'function'
-            ? compareSubjects
-            : (a, b) => String(a).localeCompare(String(b), 'ar')
+        typeof compareSubjects === 'function' ? compareSubjects : (a, b) => String(a).localeCompare(String(b), 'ar')
     );
 }
 

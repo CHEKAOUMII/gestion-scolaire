@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="theme-color" content="#3B6AC5" />
+        <meta name="theme-color" content="#3b6ac5" />
         <title>إعداد المؤسسة</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
@@ -20,8 +20,7 @@
 
         <div id="toast-container" class="toast-container"></div>
 
-        <div id="setup-container" style="width: 100%; max-width: 480px; position: relative; z-index: 1;">
-
+        <div id="setup-container" style="width: 100%; max-width: 480px; position: relative; z-index: 1">
             <!-- ╔══════════════════════════════════════════╗ -->
             <!-- ║  STEP 1: Choose Mode                     ║ -->
             <!-- ╚══════════════════════════════════════════╝ -->
@@ -59,7 +58,7 @@
                 </div>
 
                 <div class="setup-footer">
-                    <i class="fas fa-lock" style="margin-inline-end: 4px;"></i>
+                    <i class="fas fa-lock" style="margin-inline-end: 4px"></i>
                     بياناتك محمية ومخزنة محلياً على هذا الجهاز
                 </div>
             </div>
@@ -278,20 +277,67 @@
 
                     <div class="setup-field">
                         <label>رمز الربط <span class="req">*</span></label>
-                        <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 10px;">أدخل الرمز المكون من 6 أرقام المعروض على الجهاز الرئيسي</p>
+                        <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 10px">
+                            أدخل الرمز المكون من 6 أرقام المعروض على الجهاز الرئيسي
+                        </p>
                         <div id="otp-container" class="otp-row">
-                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="0" />
-                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="1" />
-                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="2" />
-                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="3" />
-                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="4" />
-                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" data-index="5" />
+                            <input
+                                type="text"
+                                maxlength="1"
+                                inputmode="numeric"
+                                pattern="[0-9]"
+                                class="otp-digit"
+                                data-index="0"
+                            />
+                            <input
+                                type="text"
+                                maxlength="1"
+                                inputmode="numeric"
+                                pattern="[0-9]"
+                                class="otp-digit"
+                                data-index="1"
+                            />
+                            <input
+                                type="text"
+                                maxlength="1"
+                                inputmode="numeric"
+                                pattern="[0-9]"
+                                class="otp-digit"
+                                data-index="2"
+                            />
+                            <input
+                                type="text"
+                                maxlength="1"
+                                inputmode="numeric"
+                                pattern="[0-9]"
+                                class="otp-digit"
+                                data-index="3"
+                            />
+                            <input
+                                type="text"
+                                maxlength="1"
+                                inputmode="numeric"
+                                pattern="[0-9]"
+                                class="otp-digit"
+                                data-index="4"
+                            />
+                            <input
+                                type="text"
+                                maxlength="1"
+                                inputmode="numeric"
+                                pattern="[0-9]"
+                                class="otp-digit"
+                                data-index="5"
+                            />
                         </div>
-                        <p id="otp-error" class="field-error hidden" style="text-align: center;"></p>
+                        <p id="otp-error" class="field-error hidden" style="text-align: center"></p>
                     </div>
 
                     <div class="setup-field">
-                        <label for="link-primary-ip">عنوان IP للجهاز الرئيسي <span class="optional">(اختياري — عند تعذر الاكتشاف التلقائي)</span></label>
+                        <label for="link-primary-ip"
+                            >عنوان IP للجهاز الرئيسي
+                            <span class="optional">(اختياري — عند تعذر الاكتشاف التلقائي)</span></label
+                        >
                         <input
                             type="text"
                             id="link-primary-ip"
@@ -301,7 +347,8 @@
                             dir="ltr"
                         />
                         <p class="field-hint">
-                            استخدم عنوان Wi-Fi أو Ethernet الظاهر بجانب كود الربط على الجهاز الرئيسي فقط. تجاهل عناوين WSL أو Hotspot أو VPN.
+                            استخدم عنوان Wi-Fi أو Ethernet الظاهر بجانب كود الربط على الجهاز الرئيسي فقط. تجاهل عناوين
+                            WSL أو Hotspot أو VPN.
                         </p>
                     </div>
 
@@ -321,4 +368,3 @@
         <script src="js/pages/setup.js" defer></script>
     </body>
 </html>
-

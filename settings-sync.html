@@ -4,13 +4,13 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="description" content="صفحة إعدادات المزامنة السحابية" />
-        <meta name="theme-color" content="#0f172a" />
+        <meta name="theme-color" content="#3b6ac5" />
         <title>المزامنة السحابية | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/utils.js" defer></script>
-        <script src="js/notifications.js"></script>
+        <script src="js/notifications.js" defer></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
     </head>
@@ -18,10 +18,10 @@
     <body>
         <noscript>
             <div
-                class="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-[#0f172a] p-10 text-center text-[#f1f5f9]"
+                class="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-[var(--color-primary-dark)] p-10 text-center text-white"
             >
                 <div>
-                    <i class="fas fa-exclamation-triangle mb-4 block text-5xl text-[#f59e0b]"></i>
+                    <i class="fas fa-exclamation-triangle mb-4 block text-5xl text-[var(--color-warning-solid)]"></i>
                     <h2 class="text-2xl font-bold">يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
                 </div>
             </div>
@@ -33,7 +33,7 @@
         </aside>
 
         <main
-            class="main-content standalone-page flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
+            class="main-content standalone-page flex-1 min-w-0 p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
         >
             <header class="header unified-header">
                 <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
@@ -89,7 +89,9 @@
 
             <!-- Page Header with gradient accent -->
             <div class="mb-6 px-1">
-                <div class="inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-l from-[#1e40af] via-[#3b82f6] to-[#0ea5e9] px-4 py-2.5 shadow-md">
+                <div
+                    class="inline-flex items-center gap-2.5 rounded-xl bg-[var(--gradient-primary)] px-4 py-2.5 shadow-[var(--shadow-card)]"
+                >
                     <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
                         <i class="fas fa-cloud text-sm text-white"></i>
                     </div>
@@ -105,57 +107,93 @@
                 <div class="students-results overflow-hidden" id="sync-status-section">
                     <h3 class="flex items-center gap-2"><i class="fas fa-heartbeat"></i> حالة المزامنة</h3>
                     <div class="px-6 pb-6">
-                        <div
-                            id="sync-state-banner"
-                            class="mb-5 flex items-center gap-3 rounded-xl border border-[var(--glass-border)] bg-gradient-to-l from-[rgba(59,130,246,0.08)] to-transparent px-5 py-4 transition-all duration-300"
-                        >
-                            <div class="relative flex h-9 w-9 shrink-0 items-center justify-center">
-                                <span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-primary)] opacity-20"></span>
-                                <i class="fas fa-pause-circle text-xl text-[var(--color-primary)]"></i>
+                        <div id="sync-state-banner" class="sync-status-banner">
+                            <div class="sync-status-banner-icon">
+                                <span class="sync-status-banner-indicator" aria-hidden="true"></span>
+                                <i class="fas fa-pause-circle text-xl text-[var(--color-info-text)]"></i>
                             </div>
                             <span class="font-bold text-[var(--color-text-main)]">جاري التحميل...</span>
                         </div>
-                        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" id="status-cards" aria-live="polite">
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-blue-500/30">
+                        <div
+                            class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                            id="status-cards"
+                            aria-live="polite"
+                        >
+                            <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500"><i class="fas fa-wifi text-lg"></i></div>
-                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">حالة الاتصال</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-connection">—</div></div>
+                                    <div class="sync-status-icon sync-status-icon--connection">
+                                        <i class="fas fa-wifi text-lg"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="sync-status-card-title">حالة الاتصال</div>
+                                        <div class="sync-status-card-value" id="status-connection">—</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-emerald-500/30">
+                            <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500"><i class="fas fa-cloud-upload-alt text-lg"></i></div>
-                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر رفع</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-push">—</div></div>
+                                    <div class="sync-status-icon sync-status-icon--push">
+                                        <i class="fas fa-cloud-upload-alt text-lg"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="sync-status-card-title">آخر رفع</div>
+                                        <div class="sync-status-card-value" id="status-last-push">—</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-cyan-500/30">
+                            <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"><i class="fas fa-cloud-download-alt text-lg"></i></div>
-                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر سحب</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-pull">—</div></div>
+                                    <div class="sync-status-icon sync-status-icon--pull">
+                                        <i class="fas fa-cloud-download-alt text-lg"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="sync-status-card-title">آخر سحب</div>
+                                        <div class="sync-status-card-value" id="status-last-pull">—</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-amber-500/30">
+                            <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500"><i class="fas fa-hourglass-half text-lg"></i></div>
-                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">التغييرات المعلقة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-pending">—</div></div>
+                                    <div class="sync-status-icon sync-status-icon--pending">
+                                        <i class="fas fa-hourglass-half text-lg"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="sync-status-card-title">التغييرات المعلقة</div>
+                                        <div class="sync-status-card-value" id="status-pending">—</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-rose-500/30">
+                            <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500"><i class="fas fa-exclamation-triangle text-lg"></i></div>
-                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">العناصر الفاشلة</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-failed">—</div></div>
+                                    <div class="sync-status-icon sync-status-icon--failed">
+                                        <i class="fas fa-exclamation-triangle text-lg"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="sync-status-card-title">العناصر الفاشلة</div>
+                                        <div class="sync-status-card-value" id="status-failed">—</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-orange-500/30">
+                            <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500"><i class="fas fa-code-branch text-lg"></i></div>
-                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">التعارضات</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-conflicts">—</div></div>
+                                    <div class="sync-status-icon sync-status-icon--conflicts">
+                                        <i class="fas fa-code-branch text-lg"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="sync-status-card-title">التعارضات</div>
+                                        <div class="sync-status-card-value" id="status-conflicts">—</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="group overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-soft)] transition-all duration-200 hover:shadow-md hover:border-violet-500/30">
+                            <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500"><i class="fas fa-camera text-lg"></i></div>
-                                    <div class="min-w-0"><div class="text-xs font-medium text-[var(--color-text-muted)]">آخر فحص</div><div class="mt-1 text-base font-bold text-[var(--color-text-main)]" id="status-last-snapshot">—</div></div>
+                                    <div class="sync-status-icon sync-status-icon--snapshot">
+                                        <i class="fas fa-camera text-lg"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="sync-status-card-title">آخر فحص</div>
+                                        <div class="sync-status-card-value" id="status-last-snapshot">—</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -166,7 +204,9 @@
                 <div class="students-results admin-only overflow-hidden" id="sync-config-section">
                     <h3><i class="fas fa-cog"></i> إعدادات المزامنة</h3>
                     <form id="sync-config-form" class="px-6 pb-6">
-                        <label class="mb-5 flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]">
+                        <label
+                            class="mb-5 flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]"
+                        >
                             <input type="checkbox" id="cfg-enabled" class="h-4 w-4 accent-[var(--color-primary)]" />
                             <span class="font-semibold text-[var(--color-text-main)]">تفعيل المزامنة</span>
                         </label>
@@ -238,7 +278,9 @@
                             </div>
                         </div>
                         <details class="mt-5">
-                            <summary class="cursor-pointer select-none rounded-lg px-3 py-2 font-semibold text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-primary-mist)] hover:text-[var(--color-primary)]">
+                            <summary
+                                class="cursor-pointer select-none rounded-lg px-3 py-2 font-semibold text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-primary-mist)] hover:text-[var(--color-primary)]"
+                            >
                                 <i class="fas fa-sliders-h"></i> إعدادات متقدمة
                             </summary>
                             <div class="mt-4 grid gap-5 md:grid-cols-2">
@@ -314,13 +356,22 @@
                     <h3 class="flex items-center gap-2"><i class="fas fa-bolt text-amber-500"></i> مزامنة يدوية</h3>
                     <div class="px-6 pb-6">
                         <div class="flex items-center gap-4">
-                            <button class="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-l from-amber-600 to-amber-500 px-5 py-3 font-bold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:brightness-110 active:scale-[0.98]" id="btn-sync-now" type="button">
-                                <i class="fas fa-sync transition-transform duration-300 group-hover:rotate-180"></i>
+                            <button
+                                class="sync-primary-action group inline-flex items-center gap-2.5 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)] px-5 py-3 font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-[var(--color-primary-dark)] active:translate-y-px"
+                                id="btn-sync-now"
+                                type="button"
+                            >
+                                <i class="fas fa-sync"></i>
                                 <span>مزامنة الآن</span>
                             </button>
-                            <span class="text-xs text-[var(--color-text-muted)]">تشغيل دورة مزامنة فورية مع السيرفر</span>
+                            <span class="text-xs text-[var(--color-text-muted)]"
+                                >تشغيل دورة مزامنة فورية مع السيرفر</span
+                            >
                         </div>
-                        <div id="sync-results" class="mt-4 hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4"></div>
+                        <div
+                            id="sync-results"
+                            class="mt-4 hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4"
+                        ></div>
                     </div>
                 </div>
 
@@ -332,7 +383,10 @@
                     <div class="px-6 pb-5">
                         <div class="flex items-center gap-3 mb-4">
                             <label for="conflict-filter" class="sr-only">تصفية التعارضات</label>
-                            <select id="conflict-filter" class="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none">
+                            <select
+                                id="conflict-filter"
+                                class="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none"
+                            >
                                 <option value="all">الكل</option>
                                 <option value="unresolved" selected>غير محلولة</option>
                                 <option value="resolved">محلولة</option>
@@ -468,7 +522,16 @@
                                             >
                                         </div>
                                         <p class="device-note hidden" id="device-otp-restored-note"></p>
-                                        <p class="device-note" id="device-otp-ip-note" style="font-size: 0.78rem; color: var(--color-text-muted); margin-top: 4px; line-height: 1.55;">
+                                        <p
+                                            class="device-note"
+                                            id="device-otp-ip-note"
+                                            style="
+                                                font-size: 0.78rem;
+                                                color: var(--color-text-muted);
+                                                margin-top: 4px;
+                                                line-height: 1.55;
+                                            "
+                                        >
                                             <i class="fas fa-network-wired"></i> <span id="device-otp-ip">—</span>
                                         </p>
                                         <div class="device-actions-row">

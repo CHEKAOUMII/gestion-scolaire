@@ -6,33 +6,14 @@
         <title>بطاقات الأساتذة | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
-        
-    <link rel="stylesheet" href="css/tailwind-output.css">
+        <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js"></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
-        <style>
-            /* Force the detail overlay to behave as a side drawer instead of a centered modal */
-            #detail-overlay, #detail-overlay.active {
-                justify-content: flex-end !important;
-                align-items: stretch !important;
-            }
-            @keyframes slideInFromLeft {
-                from { transform: translateX(-100%); }
-                to { transform: translateX(0); }
-            }
-            .detail-panel {
-                height: 100vh !important;
-                max-height: 100vh !important;
-                border-radius: 0 !important;
-                margin: 0 !important;
-                animation: slideInFromLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-            }
-        </style>
-        </head>
+    </head>
 
-    <body>
+    <body class="teachers-page">
         <div class="toast-container" id="toast-container"></div>
 
         <aside class="sidebar" id="sidebar"></aside>
@@ -50,7 +31,7 @@
                 </div>
             </header>
 
-            <div class="grades-container" style="padding-top: 18px;">
+            <div class="grades-container teachers-page-shell">
                 <!-- Stats Row -->
                 <div class="staff-stats-row animate-in">
                     <div class="staff-stat-card">
@@ -69,14 +50,20 @@
                         <div class="stat-value" id="stat-female">-</div>
                         <div class="stat-label">إناث</div>
                     </div>
-                    <div class="staff-stat-card surplus" id="stat-surplus-card" title="انقر لعرض الفائضين فقط">
+                    <button
+                        class="staff-stat-card surplus"
+                        id="stat-surplus-card"
+                        type="button"
+                        title="عرض الأساتذة الفائضين فقط"
+                        aria-pressed="false"
+                    >
                         <div class="stat-value" id="stat-surplus">-</div>
                         <div class="stat-label">⚠️ الفائضون</div>
-                    </div>
+                    </button>
                 </div>
 
                 <!-- Add/Edit Form -->
-                <div class="gs-form-section" style="animation-delay:0.05s;">
+                <div class="gs-form-section">
                     <div class="gs-form-header">
                         <i class="fas fa-plus-circle"></i> <span id="form-title">إضافة أستاذ</span>
                     </div>
@@ -84,66 +71,74 @@
                         <input type="hidden" id="teacher-id" />
                         <div class="gs-form-group">
                             <label for="teacher-name">الاسم الكامل *</label>
-                            <input id="teacher-name" placeholder="الاسم الكامل" required
-                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
+                            <input id="teacher-name" class="gs-field-control" placeholder="الاسم الكامل" required />
                         </div>
                         <div class="gs-form-group">
                             <label for="teacher-subject">المادة</label>
-                            <input id="teacher-subject" placeholder="المادة"
-                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
+                            <input id="teacher-subject" class="gs-field-control" placeholder="المادة" />
                         </div>
                         <div class="gs-form-group">
                             <label for="teacher-phone">الهاتف</label>
-                            <input id="teacher-phone" placeholder="الهاتف"
-                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
+                            <input id="teacher-phone" class="gs-field-control" placeholder="الهاتف" />
                         </div>
                         <div class="gs-form-group">
                             <label for="teacher-email">البريد الإلكتروني</label>
-                            <input id="teacher-email" placeholder="البريد الإلكتروني" type="email"
-                                style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
+                            <input
+                                id="teacher-email"
+                                class="gs-field-control"
+                                placeholder="البريد الإلكتروني"
+                                type="email"
+                            />
                         </div>
                         <div class="gs-form-actions">
                             <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> حفظ</button>
-                            <button class="btn btn-secondary" type="button" id="cancel-edit" style="display:none;">إلغاء</button>
+                            <button class="btn btn-secondary" type="button" id="cancel-edit" hidden>إلغاء</button>
                         </div>
                     </form>
                 </div>
 
                 <!-- Teachers Table — gs-preview-section style -->
-                <div class="gs-preview-section" style="animation-delay:0.1s;">
-                    <div class="gs-preview-header" style="flex-wrap:wrap;gap:10px;">
+                <div class="gs-preview-section">
+                    <div class="gs-preview-header gs-preview-header-wrap">
                         <h3 class="gs-preview-title">
                             <i class="fas fa-table"></i>
                             لائحة الأساتذة
                             <span class="gs-count-badge" id="staff-counter">0</span>
                         </h3>
-                        <div class="staff-toolbar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-                            <input type="text" class="search-input" id="search-input"
+                        <div class="staff-toolbar">
+                            <input
+                                type="text"
+                                class="search-input"
+                                id="search-input"
                                 placeholder="بحث بالاسم أو ر.ت أو المادة..."
-                                style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;min-width:180px;" />
-                            <select id="filter-gender" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                            />
+                            <select id="filter-gender">
                                 <option value="">كل الأنواع</option>
                                 <option value="ذكور">ذكور</option>
                                 <option value="إناث">إناث</option>
                             </select>
-                            <select id="filter-subject" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                            <select id="filter-subject">
                                 <option value="">كل التخصصات</option>
                             </select>
-                            <select id="filter-cadre" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                            <select id="filter-cadre">
                                 <option value="">كل الأطر</option>
                             </select>
-                            <select id="filter-source" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                            <select id="filter-source">
                                 <option value="">كل المصادر</option>
                                 <option value="agent_xml">ملف الوزارة</option>
                                 <option value="fet">FET</option>
                                 <option value="manual">يدوي</option>
                             </select>
-                            <select id="filter-fonction" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-size:14px;">
+                            <select id="filter-fonction">
                                 <option value="">كل الوظائف</option>
                                 <option value="تدريس">تدريس</option>
                                 <option value="غير تدريس">غير تدريس</option>
                             </select>
-                            <button class="btn btn-success ux-print-preview-btn" id="btn-print" title="معاينة الطباعة" style="padding:8px 14px;white-space:nowrap;">
+                            <button
+                                class="btn btn-success ux-print-preview-btn teachers-print-btn"
+                                id="btn-print"
+                                title="معاينة الطباعة"
+                            >
                                 <i class="fas fa-eye"></i> معاينة
                             </button>
                         </div>
@@ -169,19 +164,21 @@
                                 <tbody id="teachers-tbody"></tbody>
                             </table>
                         </div>
-                        <div id="teachers-pagination" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 0 4px;font-size:13px;"></div>
+                        <div id="teachers-pagination" class="sl-pagination teachers-pagination"></div>
                     </div>
                 </div>
             </div>
         </main>
 
         <!-- Detail Drawer -->
-        <div class="detail-overlay" id="detail-overlay">
-            <div class="detail-panel" id="detail-panel">
+        <div class="detail-overlay" id="detail-overlay" aria-hidden="true">
+            <div class="detail-panel" id="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detail-name">
                 <div class="detail-header">
-                    <button class="close-detail" id="close-detail" title="إغلاق"><i class="fas fa-times"></i></button>
+                    <button class="close-detail" id="close-detail" title="إغلاق" aria-label="إغلاق تفاصيل الأستاذ">
+                        <i class="fas fa-times"></i>
+                    </button>
                     <div class="teacher-avatar"><i class="fas fa-user"></i></div>
-                    <div class="teacher-main-name" id="detail-name">-</div>
+                    <h3 class="teacher-main-name" id="detail-name">-</h3>
                     <div class="teacher-sub-name" id="detail-name-fr"></div>
                 </div>
                 <div class="detail-body" id="detail-body">
@@ -191,9 +188,8 @@
         </div>
 
         <script src="js/data/ma-education-labels.js"></script>
-        <script src="js/utils.js"></script>
         <script>
-            const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+            const getActiveSchoolYear = () => (typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026');
             let teachers = [];
             let filtered = [];
             const PAGE_SIZE = 20;
@@ -204,23 +200,37 @@
                 setupForm();
                 setupFilters();
                 setupDetailPanel();
+                setupTableInteractions();
                 document.getElementById('btn-print')?.addEventListener('click', async () => {
                     const list = filtered && filtered.length ? filtered : teachers;
-                    if (!list.length) { showToast('لا توجد بيانات للطباعة', 'warning'); return; }
+                    if (!list.length) {
+                        showToast('لا توجد بيانات للطباعة', 'warning');
+                        return;
+                    }
 
-                    const dateStr = new Intl.DateTimeFormat('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+                    const dateStr = new Intl.DateTimeFormat('ar-MA', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    }).format(new Date());
+                    const year = getActiveSchoolYear();
                     let identity = {};
-                    try { identity = await window.api.reports.getIdentity() || {}; } catch (_) {}
-                    const letterhead = (typeof window.buildLetterheadHTML === 'function') ? window.buildLetterheadHTML(identity, year) : '';
+                    try {
+                        identity = (await window.api.reports.getIdentity()) || {};
+                    } catch (_) {}
+                    const letterhead =
+                        typeof window.buildLetterheadHTML === 'function'
+                            ? window.buildLetterheadHTML(identity, year)
+                            : '';
 
                     let rows = '';
                     list.forEach((t, i) => {
                         rows += `<tr>
-                            <td style="text-align:center;font-weight:600;color:#666;">${i + 1}</td>
-                            <td style="text-align:center;">${esc(t.ppr || '')}</td>
-                            <td style="font-weight:600;">${esc(t.full_name || '')}</td>
-                            <td style="text-align:center;">${esc(t.phone || '-')}</td>
-                            <td style="min-width:110px;"></td>
+                            <td class="teachers-print-index">${i + 1}</td>
+                            <td class="teachers-print-ppr">${escapeHtml(t.ppr || '')}</td>
+                            <td class="teachers-print-name">${escapeHtml(t.full_name || '')}</td>
+                            <td class="teachers-print-phone">${escapeHtml(t.phone || '-')}</td>
+                            <td class="teachers-print-signature"></td>
                         </tr>`;
                     });
 
@@ -244,11 +254,11 @@
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th style="text-align:center;width:40px;">#</th>
-                                            <th style="text-align:center;width:90px;">ر.ت</th>
+                                            <th class="teachers-print-col-index">#</th>
+                                            <th class="teachers-print-col-ppr">ر.ت</th>
                                             <th>الاسم الكامل</th>
-                                            <th style="text-align:center;width:110px;">رقم الهاتف</th>
-                                            <th style="text-align:center;width:120px;">التوقيع</th>
+                                            <th class="teachers-print-col-phone">رقم الهاتف</th>
+                                            <th class="teachers-print-col-signature">التوقيع</th>
                                         </tr>
                                     </thead>
                                     <tbody>${rows}</tbody>
@@ -261,21 +271,22 @@
                         </div>
                     `;
                     printDiv.style.display = 'block';
-                    openPrintPreview({ contentSelector: '#tl-sheet-content', title: 'لائحة الإدارة التربوية', pageSize: 'A4', noHeader: true });
-                    setTimeout(() => { printDiv.style.display = 'none'; }, 500);
+                    openPrintPreview({
+                        contentSelector: '#tl-sheet-content',
+                        title: 'لائحة الإدارة التربوية',
+                        pageSize: 'A4',
+                        noHeader: true
+                    });
+                    setTimeout(() => {
+                        printDiv.style.display = 'none';
+                    }, 500);
                 });
             });
 
             async function loadTeachers() {
+                const year = getActiveSchoolYear();
                 const result = await window.api.teachers.getAll(year);
-                console.log('[DEBUG] getSchoolYear:', year, 'getAll result:', result);
                 teachers = Array.isArray(result) ? result : [];
-                // Debug: show unique position/statut values
-                const positions = [...new Set(teachers.map((t) => t.position).filter(Boolean))];
-                const statuts = [...new Set(teachers.map((t) => t.statut).filter(Boolean))];
-                console.log('[DEBUG-SURPLUS] Unique positions:', positions);
-                console.log('[DEBUG-SURPLUS] Unique statuts:', statuts);
-                console.log('[DEBUG-SURPLUS] Surplus count:', teachers.filter(isSurplusTeacher).length);
                 populateDropdowns();
                 applyFilters();
                 updateStats();
@@ -312,31 +323,16 @@
                 );
                 const surplusCount = teachers.filter(isSurplusTeacher).length;
                 el('stat-surplus', surplusCount);
-                // Wire click: show only surplus teachers
-                const surplusCard = document.getElementById('stat-surplus-card');
-                if (surplusCard) {
-                    surplusCard.onclick = () => {
-                        filtered = teachers.filter(isSurplusTeacher);
-                        renderTeachers();
-                        const counter = document.getElementById('staff-counter');
-                        if (counter) counter.textContent = `${filtered.length} / ${teachers.length} أستاذ (فائضون)`;
-                    };
-                }
             }
 
             function populateDropdowns() {
-                // Populate Cadre
                 const selectCadre = document.getElementById('filter-cadre');
                 const cadres = [...new Set(teachers.map((t) => t.cadre).filter(Boolean))].sort();
-                selectCadre.innerHTML = '<option value="">كل الأطر</option>';
-                cadres.forEach((c) => {
-                    const opt = document.createElement('option');
-                    opt.value = c;
-                    opt.textContent = typeof translateCadre === 'function' ? translateCadre(c) : c;
-                    selectCadre.appendChild(opt);
+                setSelectOptions(selectCadre, cadres, {
+                    placeholder: 'كل الأطر',
+                    getLabel: (value) => (typeof translateCadre === 'function' ? translateCadre(value) : value)
                 });
 
-                // Populate Subject — prefer specialty_subject, fallback to subject
                 const selectSubject = document.getElementById('filter-subject');
                 const subjectSet = new Set();
                 teachers.forEach((t) => {
@@ -346,13 +342,7 @@
                     if (label) subjectSet.add(label);
                 });
                 const subjects = [...subjectSet].sort(compareSubjects);
-                selectSubject.innerHTML = '<option value="">كل التخصصات</option>';
-                subjects.forEach((s) => {
-                    const opt = document.createElement('option');
-                    opt.value = s;
-                    opt.textContent = s;
-                    selectSubject.appendChild(opt);
-                });
+                setSelectOptions(selectSubject, subjects, { placeholder: 'كل التخصصات' });
             }
 
             function setupFilters() {
@@ -362,6 +352,13 @@
                 document.getElementById('filter-gender').addEventListener('change', applyFilters);
                 document.getElementById('filter-subject').addEventListener('change', applyFilters);
                 document.getElementById('filter-fonction').addEventListener('change', applyFilters);
+                document.getElementById('stat-surplus-card')?.addEventListener('click', () => {
+                    filtered = teachers.filter(isSurplusTeacher);
+                    currentPage = 1;
+                    setSurplusFilterPressed(true);
+                    renderTeachers();
+                    updateCounter(`${filtered.length} / ${teachers.length} أستاذ (فائضون)`);
+                });
             }
 
             /**
@@ -371,10 +368,7 @@
             function isTeachingRole(t) {
                 const fn = (t.function_title || '').toLowerCase();
                 return (
-                    fn.includes('مدرس') ||
-                    fn.includes('enseignant') ||
-                    fn.includes('surnombre') ||
-                    fn.includes('فائض')
+                    fn.includes('مدرس') || fn.includes('enseignant') || fn.includes('surnombre') || fn.includes('فائض')
                 );
             }
 
@@ -424,23 +418,185 @@
                 });
 
                 currentPage = 1;
+                setSurplusFilterPressed(false);
                 renderTeachers();
+                updateCounter(`${filtered.length} / ${teachers.length} أستاذ`);
+            }
+
+            function setSurplusFilterPressed(isPressed) {
+                const surplusButton = document.getElementById('stat-surplus-card');
+                if (surplusButton) surplusButton.setAttribute('aria-pressed', String(isPressed));
+            }
+
+            function updateCounter(text) {
                 const counter = document.getElementById('staff-counter');
-                if (counter) counter.textContent = `${filtered.length} / ${teachers.length} أستاذ`;
+                if (counter) counter.textContent = text;
             }
 
-            function esc(v) {
-                return String(v ?? '')
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;');
+            function createSourceBadge(src) {
+                const badge = document.createElement('span');
+                badge.className = 'badge badge-source';
+
+                if (src === 'agent_xml') {
+                    badge.classList.add('badge-source-agent');
+                    badge.textContent = 'الوزارة';
+                    return badge;
+                }
+
+                if (src === 'fet') {
+                    badge.classList.add('badge-source-fet');
+                    badge.textContent = 'FET';
+                    return badge;
+                }
+
+                badge.classList.add('badge-source-manual');
+                badge.textContent = 'يدوي';
+                return badge;
             }
 
-            function sourceLabel(src) {
-                if (src === 'agent_xml') return '<span class="badge badge-source badge-source-agent">الوزارة</span>';
-                if (src === 'fet') return '<span class="badge badge-source badge-source-fet">FET</span>';
-                return '<span class="badge badge-source badge-source-manual">يدوي</span>';
+            function createTeacherActionButton({ title, icon, action, id, extraClass = '' }) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `btn btn-secondary ${extraClass}`.trim();
+                button.title = title;
+                button.dataset.action = action;
+                button.dataset.teacherId = String(id);
+
+                const iconEl = document.createElement('i');
+                iconEl.className = `fas ${icon}`;
+                iconEl.setAttribute('aria-hidden', 'true');
+                button.appendChild(iconEl);
+
+                return button;
+            }
+
+            function createTeacherRow(teacher, rowNumber) {
+                const tr = document.createElement('tr');
+                tr.className = 'teacher-row';
+                tr.title = 'انقر لعرض التفاصيل';
+                tr.dataset.teacherId = String(teacher.id);
+
+                const specRaw = teacher.specialty_subject || teacher.subject;
+                const specDisplay = specRaw
+                    ? typeof translateSubject === 'function'
+                        ? translateSubject(specRaw)
+                        : specRaw
+                    : '-';
+                const cadreDisplay = teacher.cadre
+                    ? typeof translateCadre === 'function'
+                        ? translateCadre(teacher.cadre)
+                        : teacher.cadre
+                    : '-';
+                const gradeDisplay = teacher.grade
+                    ? typeof translateGrade === 'function'
+                        ? translateGrade(teacher.grade)
+                        : teacher.grade
+                    : '-';
+
+                const addTextCell = (text, className = '') => {
+                    const td = document.createElement('td');
+                    if (className) td.className = className;
+                    td.textContent = text;
+                    tr.appendChild(td);
+                    return td;
+                };
+
+                addTextCell(String(rowNumber));
+                addTextCell(teacher.ppr || '-', 'col-ppr');
+
+                const nameCell = document.createElement('td');
+                const nameStrong = document.createElement('strong');
+                nameStrong.textContent = teacher.full_name || '';
+                nameCell.appendChild(nameStrong);
+
+                if (teacher.gender && (teacher.gender.includes('2') || teacher.gender.includes('أنثى'))) {
+                    const iconEl = document.createElement('i');
+                    iconEl.className = 'fas fa-venus teacher-gender-icon teacher-gender-icon-female';
+                    iconEl.setAttribute('aria-hidden', 'true');
+                    nameCell.appendChild(document.createTextNode(' '));
+                    nameCell.appendChild(iconEl);
+                } else if (teacher.gender) {
+                    const iconEl = document.createElement('i');
+                    iconEl.className = 'fas fa-mars teacher-gender-icon teacher-gender-icon-male';
+                    iconEl.setAttribute('aria-hidden', 'true');
+                    nameCell.appendChild(document.createTextNode(' '));
+                    nameCell.appendChild(iconEl);
+                }
+                tr.appendChild(nameCell);
+
+                addTextCell(specDisplay);
+
+                const cadreCell = document.createElement('td');
+                if (teacher.cadre) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge badge-cadre';
+                    badge.textContent = cadreDisplay;
+                    cadreCell.appendChild(badge);
+                } else {
+                    cadreCell.textContent = '-';
+                }
+                tr.appendChild(cadreCell);
+
+                const gradeCell = document.createElement('td');
+                if (teacher.grade) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge badge-grade';
+                    badge.textContent = gradeDisplay;
+                    gradeCell.appendChild(badge);
+                } else {
+                    gradeCell.textContent = '-';
+                }
+                tr.appendChild(gradeCell);
+
+                addTextCell(teacher.echelon || '-');
+                addTextCell(teacher.phone || '-', 'teachers-phone-cell');
+
+                const sourceCell = document.createElement('td');
+                sourceCell.appendChild(createSourceBadge(teacher.source));
+                tr.appendChild(sourceCell);
+
+                const actionsCell = document.createElement('td');
+                actionsCell.className = 'col-actions';
+                const actionsRow = document.createElement('div');
+                actionsRow.className = 'actions-row';
+                actionsRow.appendChild(
+                    createTeacherActionButton({ title: 'تعديل', icon: 'fa-edit', action: 'edit', id: teacher.id })
+                );
+                actionsRow.appendChild(
+                    createTeacherActionButton({
+                        title: 'حذف',
+                        icon: 'fa-trash',
+                        action: 'delete',
+                        id: teacher.id,
+                        extraClass: 'teachers-danger-btn'
+                    })
+                );
+                actionsCell.appendChild(actionsRow);
+                tr.appendChild(actionsCell);
+
+                return tr;
+            }
+
+            function setupTableInteractions() {
+                const tbody = document.getElementById('teachers-tbody');
+                tbody?.addEventListener('click', (event) => {
+                    const actionButton = event.target.closest('[data-action][data-teacher-id]');
+                    if (actionButton) {
+                        event.stopPropagation();
+                        const teacherId = Number(actionButton.dataset.teacherId);
+                        if (actionButton.dataset.action === 'edit') {
+                            editTeacher(teacherId);
+                        } else if (actionButton.dataset.action === 'delete') {
+                            deleteTeacher(teacherId);
+                        }
+                        return;
+                    }
+
+                    const row = event.target.closest('tr[data-teacher-id]');
+                    if (row) {
+                        showDetail(Number(row.dataset.teacherId));
+                    }
+                });
             }
 
             function renderTeachers() {
@@ -449,13 +605,16 @@
                 currentPage = Math.min(currentPage, totalPages);
 
                 if (!filtered.length) {
-                    tbody.innerHTML = `
-                    <tr><td colspan="10">
+                    const emptyRow = document.createElement('tr');
+                    const emptyCell = document.createElement('td');
+                    emptyCell.colSpan = 10;
+                    emptyCell.innerHTML = `
                         <div class="empty-state">
                             <i class="fas fa-users"></i>
                             <p>لا توجد بيانات بخصوص معايير البحث المحددة</p>
-                        </div>
-                    </td></tr>`;
+                        </div>`;
+                    emptyRow.appendChild(emptyCell);
+                    tbody.replaceChildren(emptyRow);
                     renderTeachersPagination(0, 1);
                     return;
                 }
@@ -463,50 +622,9 @@
                 const start = (currentPage - 1) * PAGE_SIZE;
                 const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-                tbody.innerHTML = pageItems
-                    .map((t, i) => {
-                        const specRaw = t.specialty_subject || t.subject;
-                        const specDisplay = specRaw
-                            ? typeof translateSubject === 'function'
-                                ? translateSubject(specRaw)
-                                : specRaw
-                            : '-';
-                        const cadreDisplay = t.cadre
-                            ? typeof translateCadre === 'function'
-                                ? translateCadre(t.cadre)
-                                : t.cadre
-                            : '-';
-                        const gradeDisplay = t.grade
-                            ? typeof translateGrade === 'function'
-                                ? translateGrade(t.grade)
-                                : t.grade
-                            : '-';
-                        const genderIcon =
-                            t.gender && (t.gender.includes('2') || t.gender.includes('أنثى'))
-                                ? '&nbsp;<i class="fas fa-venus" style="color:#e83e8c;font-size:0.8em;"></i>'
-                                : t.gender
-                                  ? '&nbsp;<i class="fas fa-mars" style="color:#0d6efd;font-size:0.8em;"></i>'
-                                  : '';
-                        return `
-                <tr onclick="showDetail(${t.id})" title="انقر لعرض التفاصيل" class="teacher-row">
-                    <td>${start + i + 1}</td>
-                    <td class="col-ppr">${esc(t.ppr) || '-'}</td>
-                    <td><strong>${esc(t.full_name)}</strong>${genderIcon}</td>
-                    <td>${esc(specDisplay)}</td>
-                    <td>${t.cadre ? '<span class="badge badge-cadre">' + esc(cadreDisplay) + '</span>' : '-'}</td>
-                    <td>${t.grade ? '<span class="badge badge-grade">' + esc(gradeDisplay) + '</span>' : '-'}</td>
-                    <td>${t.echelon || '-'}</td>
-                    <td style="direction:ltr;text-align:right;font-size:12px;">${esc(t.phone) || '-'}</td>
-                    <td>${sourceLabel(t.source)}</td>
-                    <td class="col-actions" onclick="event.stopPropagation()">
-                        <div class="actions-row">
-                            <button class="btn btn-secondary" onclick="editTeacher(${t.id})" title="تعديل"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-secondary" style="color:var(--color-danger)" onclick="deleteTeacher(${t.id})" title="حذف"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </td>
-                </tr>`;
-                    })
-                    .join('');
+                tbody.replaceChildren(
+                    ...pageItems.map((teacher, index) => createTeacherRow(teacher, start + index + 1))
+                );
 
                 renderTeachersPagination(filtered.length, totalPages);
             }
@@ -514,19 +632,19 @@
             function renderTeachersPagination(total, totalPages) {
                 const el = document.getElementById('teachers-pagination');
                 if (!el) return;
-                if (total === 0 || totalPages <= 1) { el.innerHTML = ''; return; }
+                if (total === 0 || totalPages <= 1) {
+                    el.replaceChildren();
+                    return;
+                }
                 const from = (currentPage - 1) * PAGE_SIZE + 1;
                 const to = Math.min(currentPage * PAGE_SIZE, total);
-                const btnStyle = 'border:1px solid var(--color-accent);background:var(--color-surface);border-radius:6px;padding:4px 10px;cursor:pointer;color:var(--color-text-main);';
-                el.innerHTML = `
-                    <button onclick="teachersGotoPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} style="${btnStyle}">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                    <span style="color:var(--color-text-muted);">${from}–${to} من ${total}</span>
-                    <span style="font-weight:600;">صفحة ${currentPage} / ${totalPages}</span>
-                    <button onclick="teachersGotoPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} style="${btnStyle}">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>`;
+                renderPaginationControls(el, {
+                    currentPage,
+                    totalPages,
+                    onNavigate: teachersGotoPage,
+                    infoText: `${from}–${to} من ${total}`,
+                    summaryText: `صفحة ${currentPage} / ${totalPages}`
+                });
             }
 
             function teachersGotoPage(page) {
@@ -545,7 +663,13 @@
             }
 
             function closeDetail() {
-                document.getElementById('detail-overlay').classList.remove('active');
+                const overlay = document.getElementById('detail-overlay');
+                if (window.UXEnhancements?.closeDialog) {
+                    window.UXEnhancements.closeDialog(overlay);
+                    return;
+                }
+                overlay.classList.remove('active');
+                overlay.setAttribute('aria-hidden', 'true');
             }
 
             function showDetail(id) {
@@ -560,7 +684,7 @@
                         ? `
                 <div class="detail-field">
                     <span class="field-label">${label}</span>
-                    <span class="field-value">${esc(value)}</span>
+                    <span class="field-value">${escapeHtml(value)}</span>
                 </div>`
                         : '';
 
@@ -569,7 +693,7 @@
                         ? `
                 <div class="detail-field full-width">
                     <span class="field-label">${label}</span>
-                    <span class="field-value">${esc(value)}</span>
+                    <span class="field-value">${escapeHtml(value)}</span>
                 </div>`
                         : '';
 
@@ -617,7 +741,16 @@
                 </div>
             `;
 
-                document.getElementById('detail-overlay').classList.add('active');
+                const overlay = document.getElementById('detail-overlay');
+                if (window.UXEnhancements?.openDialog) {
+                    window.UXEnhancements.openDialog(overlay, {
+                        contentSelector: '#detail-panel',
+                        initialFocus: '#close-detail'
+                    });
+                    return;
+                }
+                overlay.classList.add('active');
+                overlay.setAttribute('aria-hidden', 'false');
             }
 
             /* ─── Form CRUD ─── */
@@ -625,6 +758,7 @@
                 document.getElementById('teacher-form').addEventListener('submit', async (e) => {
                     e.preventDefault();
                     const id = document.getElementById('teacher-id').value;
+                    const year = getActiveSchoolYear();
                     const payload = {
                         full_name: document.getElementById('teacher-name').value.trim(),
                         subject: document.getElementById('teacher-subject').value.trim(),
@@ -656,7 +790,7 @@
                 document.getElementById('teacher-phone').value = t.phone || '';
                 document.getElementById('teacher-email').value = t.email || '';
                 document.getElementById('form-title').textContent = 'تعديل: ' + (t.full_name || '');
-                document.getElementById('cancel-edit').style.display = 'inline-flex';
+                document.getElementById('cancel-edit').hidden = false;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
@@ -676,7 +810,7 @@
                 document.getElementById('teacher-form').reset();
                 document.getElementById('teacher-id').value = '';
                 document.getElementById('form-title').textContent = 'إضافة أستاذ';
-                document.getElementById('cancel-edit').style.display = 'none';
+                document.getElementById('cancel-edit').hidden = true;
             }
         </script>
     </body>

@@ -22,8 +22,8 @@ function injectSidebar() {
                 <li class="nav-section-label">إدارة الطلاب</li>
 
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-user-graduate"></i><span>التلاميذ</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-students-submenu"><i class="fas fa-user-graduate"></i><span>التلاميذ</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-students-submenu" hidden>
                         <li><a href="students-list.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
                         <li><a href="students-register.html"><i class="fas fa-user-plus"></i> التسجيل والحركة العامة</a></li>
                         <li><a href="students-files.html"><i class="fas fa-folder-open"></i> ترتيب الملفات</a></li>
@@ -33,8 +33,8 @@ function injectSidebar() {
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-users-cog"></i><span>تدبير الموظفين</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-staff-submenu"><i class="fas fa-users-cog"></i><span>تدبير الموظفين</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-staff-submenu" hidden>
                         <li><a href="teachers-list.html"><i class="fas fa-users"></i> قائمة الأساتذة</a></li>
                         <li><a href="teachers-schedule.html"><i class="fas fa-clock"></i> حصص الأساتذة</a></li>
                         <li><a href="teachers-absence.html"><i class="fas fa-user-minus"></i> غياب الأساتذة</a></li>
@@ -48,8 +48,8 @@ function injectSidebar() {
                 <li class="nav-section-label">التنظيم الدراسي</li>
 
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-timetable-submenu"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-timetable-submenu" hidden>
                         <li><a href="timetable.html"><i class="fas fa-table"></i>جدول حصص الأساتذة</a></li>
                         <li><a href="timetable-students.html"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</a></li>
                         <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول حصص القاعات</a></li>
@@ -58,8 +58,8 @@ function injectSidebar() {
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-chart-line"></i><span>التقويم والنتائج</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-grades-submenu"><i class="fas fa-chart-line"></i><span>التقويم والنتائج</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-grades-submenu" hidden>
                         <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
                         <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
                         <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
@@ -69,8 +69,8 @@ function injectSidebar() {
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-user-clock"></i><span>الغياب والمتابعة</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-absence-submenu"><i class="fas fa-user-clock"></i><span>الغياب والمتابعة</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-absence-submenu" hidden>
                         <li><a href="absence-weekly.html"><i class="fas fa-calendar-week"></i> ورقة الغياب الأسبوعية</a></li>
                         <li><a href="absence-students.html"><i class="fas fa-user-times"></i> غياب التلاميذ</a></li>
                         <li><a href="absence-correspondence.html"><i class="fas fa-envelope"></i> مراسلة الأولياء</a></li>
@@ -78,8 +78,8 @@ function injectSidebar() {
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-file-signature"></i><span>مركز الامتحانات</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-exams-submenu"><i class="fas fa-file-signature"></i><span>مركز الامتحانات</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-exams-submenu" hidden>
                         <li><a href="exams-schedule.html"><i class="fas fa-calendar-check"></i> برمجة الامتحانات</a></li>
                         <li><a href="exams-proctors.html"><i class="fas fa-user-shield"></i> توزيع الحراسة</a></li>
                         <li><a href="exams-rooms.html"><i class="fas fa-door-open"></i> قاعات الامتحان</a></li>
@@ -90,16 +90,16 @@ function injectSidebar() {
                 <li class="nav-section-label">التقارير والنظام</li>
 
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-file-alt"></i><span>التقارير والوثائق</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-reports-submenu"><i class="fas fa-file-alt"></i><span>التقارير والوثائق</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-reports-submenu" hidden>
                         <li><a href="reports-certificates.html"><i class="fas fa-certificate"></i> الشواهد المدرسية</a></li>
                         <li><a href="reports-forms.html"><i class="fas fa-file-invoice"></i> الاستمارات الإدارية</a></li>
                         <li><a href="reports-semester.html"><i class="fas fa-chart-pie"></i> تقارير الفصل</a></li>
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-cog"></i><span>الإعدادات</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-settings-submenu"><i class="fas fa-cog"></i><span>الإعدادات</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-settings-submenu" hidden>
                         <li><a href="settings-school.html"><i class="fas fa-school"></i> معلومات المؤسسة</a></li>
                         <li><a href="settings-imports.html"><i class="fas fa-file-import"></i> استيراد البيانات</a></li>
                         <li id="sidebar-users-link" class="hidden" data-dev-only><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
@@ -110,8 +110,8 @@ function injectSidebar() {
                 </li>
                 <!-- Prototypes Links for Review -->
                 <li class="expandable my-[2px] mx-[10px]">
-                    <a href="#" class="nav-link"><i class="fas fa-paint-brush"></i><span>التصاميم الجديدة</span><i class="fas fa-chevron-down arrow"></i></a>
-                    <ul class="sub-menu">
+                    <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-prototypes-submenu"><i class="fas fa-paint-brush"></i><span>التصاميم الجديدة</span><i class="fas fa-chevron-down arrow"></i></button>
+                    <ul class="sub-menu" id="sidebar-prototypes-submenu" hidden>
                         <li><a href="communication-center-prototype.html"><i class="fas fa-comments"></i> مركز التواصل (جديد)</a></li>
                     </ul>
                 </li>
@@ -237,8 +237,13 @@ function injectSidebar() {
             const parent = link.closest('.expandable');
             if (parent) {
                 parent.classList.add('open');
+                const disclosure = parent.querySelector('.nav-disclosure');
                 const subMenu = parent.querySelector('.sub-menu');
-                if (subMenu) subMenu.style.display = 'block';
+                if (disclosure) disclosure.setAttribute('aria-expanded', 'true');
+                if (subMenu) {
+                    subMenu.hidden = false;
+                    subMenu.style.display = 'block';
+                }
             }
         }
     });
@@ -251,47 +256,94 @@ function injectSidebar() {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const parent = link.parentElement;
-            parent.classList.toggle('open');
+            const isOpen = parent.classList.toggle('open');
             const subMenu = parent.querySelector('.sub-menu');
+            link.setAttribute('aria-expanded', String(isOpen));
             if (subMenu) {
-                subMenu.style.display = parent.classList.contains('open') ? 'block' : 'none';
+                subMenu.hidden = !isOpen;
+                subMenu.style.display = isOpen ? 'block' : 'none';
             }
         });
     });
 
     // Setup sidebar toggle (canonical implementation — utils.js defers to this)
     const menuToggle = document.getElementById('menu-toggle');
+    const mobileSidebarMedia = window.matchMedia('(max-width: 992px)');
+
+    function closeMobileSidebar() {
+        sidebar.classList.remove('mobile-open');
+        document.body.classList.remove('sidebar-mobile-open');
+    }
+
+    function reopenActiveSubmenu() {
+        const activeLink = sidebar.querySelector('.nav-link.active, .sub-menu a.active');
+        if (!activeLink) return;
+
+        const parent = activeLink.closest('.expandable');
+        if (!parent) return;
+
+        parent.classList.add('open');
+        const disclosure = parent.querySelector('.nav-disclosure');
+        const subMenu = parent.querySelector('.sub-menu');
+        if (disclosure) disclosure.setAttribute('aria-expanded', 'true');
+        if (subMenu) {
+            subMenu.hidden = false;
+            subMenu.style.display = 'block';
+        }
+    }
+
+    function syncSidebarViewportState() {
+        closeMobileSidebar();
+
+        if (mobileSidebarMedia.matches) {
+            sidebar.classList.remove('collapsed');
+            reopenActiveSubmenu();
+            return;
+        }
+
+        if (!sidebar.classList.contains('collapsed')) {
+            reopenActiveSubmenu();
+        }
+    }
+
     if (menuToggle) {
         menuToggle.dataset.toggleBound = 'true';
         menuToggle.addEventListener('click', () => {
+            if (mobileSidebarMedia.matches) {
+                const isOpen = sidebar.classList.toggle('mobile-open');
+                document.body.classList.toggle('sidebar-mobile-open', isOpen);
+                return;
+            }
+
             sidebar.classList.toggle('collapsed');
             const isCollapsed = sidebar.classList.contains('collapsed');
-            const mainContent = document.querySelector('.main-content');
-            if (mainContent) {
-                const sidebarWidth =
-                    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim() || '280px';
-                mainContent.style.marginRight = isCollapsed ? '' : sidebarWidth;
-            }
             // When collapsing: clear inline submenu display so CSS !important hides them
             // When expanding: restore the active page's parent submenu
             if (isCollapsed) {
                 sidebar.querySelectorAll('.sub-menu').forEach((sm) => {
+                    sm.hidden = true;
                     sm.style.display = '';
                 });
+                sidebar.querySelectorAll('.nav-disclosure').forEach((button) => {
+                    button.setAttribute('aria-expanded', 'false');
+                });
             } else {
-                // Re-open the submenu of the currently active page
-                const activeLink = sidebar.querySelector('.nav-link.active, .sub-menu a.active');
-                if (activeLink) {
-                    const parent = activeLink.closest('.expandable');
-                    if (parent) {
-                        parent.classList.add('open');
-                        const subMenu = parent.querySelector('.sub-menu');
-                        if (subMenu) subMenu.style.display = 'block';
-                    }
-                }
+                reopenActiveSubmenu();
             }
         });
     }
+
+    document.addEventListener('click', (event) => {
+        if (!mobileSidebarMedia.matches || !sidebar.classList.contains('mobile-open')) return;
+        const clickInsideSidebar = sidebar.contains(event.target);
+        const clickOnToggle = menuToggle?.contains(event.target);
+        if (!clickInsideSidebar && !clickOnToggle) {
+            closeMobileSidebar();
+        }
+    });
+
+    window.addEventListener('resize', syncSidebarViewportState);
+    syncSidebarViewportState();
 }
 
 /**

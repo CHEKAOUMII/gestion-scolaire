@@ -36,11 +36,39 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Backup button handler
+function openBackupModal() {
+    const modal = document.getElementById('backup-modal');
+    if (!modal) return;
+
+    if (window.UXEnhancements?.openDialog) {
+        window.UXEnhancements.openDialog(modal, {
+            contentSelector: '.shortcuts-content',
+            initialFocus: '#backup-close'
+        });
+        return;
+    }
+
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeBackupModal() {
+    const modal = document.getElementById('backup-modal');
+    if (!modal) return;
+
+    if (window.UXEnhancements?.closeDialog) {
+        window.UXEnhancements.closeDialog(modal);
+        return;
+    }
+
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
 const _backupBtn = document.getElementById('backup-btn');
 if (_backupBtn) {
     _backupBtn.addEventListener('click', () => {
-        const modal = document.getElementById('backup-modal');
-        if (modal) modal.classList.add('active');
+        openBackupModal();
     });
 }
 
@@ -48,8 +76,14 @@ if (_backupBtn) {
 const _backupClose = document.getElementById('backup-close');
 if (_backupClose) {
     _backupClose.addEventListener('click', () => {
-        const modal = document.getElementById('backup-modal');
-        if (modal) modal.classList.remove('active');
+        closeBackupModal();
+    });
+}
+
+const _backupModal = document.getElementById('backup-modal');
+if (_backupModal) {
+    _backupModal.addEventListener('click', (event) => {
+        if (event.target === _backupModal) closeBackupModal();
     });
 }
 
@@ -60,8 +94,7 @@ if (_createBackupBtn) {
             const backup = await BackupManager.createBackup();
             BackupManager.downloadBackup(backup);
             showToast('تم إنشاء النسخة الاحتياطية بنجاح!', 'success');
-            const modal = document.getElementById('backup-modal');
-            if (modal) modal.classList.remove('active');
+            closeBackupModal();
         } catch (e) {
             showToast('خطأ: ' + e.message, 'error');
         }
@@ -84,8 +117,7 @@ if (_backupFileInput) {
                 const result = await BackupManager.restoreFromFile(e.target.files[0]);
                 const dbPart = result.dbRestored ? ' مع قاعدة البيانات' : '';
                 showToast(`تم استعادة ${result.restoredItems} عنصر${dbPart} بنجاح!`, 'success');
-                const modal = document.getElementById('backup-modal');
-                if (modal) modal.classList.remove('active');
+                closeBackupModal();
                 setTimeout(() => location.reload(), 1500);
             } catch (err) {
                 showToast('خطأ: ' + err.message, 'error');

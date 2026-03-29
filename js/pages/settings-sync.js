@@ -14,7 +14,9 @@
             const role = String(sess?.role || '').toLowerCase();
             if (role === 'developer' || role === 'admin') isPrivileged = true;
         }
-    } catch (_) { /* */ }
+    } catch (_) {
+        /* */
+    }
     if (!isPrivileged) {
         // Hide sync config section once DOM is ready
         const hide = () => {
@@ -31,7 +33,7 @@
 
 // ── Hardcoded sync defaults (so users don't have to enter these) ──
 const SYNC_HARDCODED_DEFAULTS = {
-    awsRegion: 'us-east-1',
+    awsRegion: 'us-east-1'
     // authLambdaUrl will be set once infra is deployed
     // authLambdaUrl: 'https://xxxxx.lambda-url.us-east-1.on.aws'
 };
@@ -41,6 +43,7 @@ let isAdmin = false;
 let currentOffset = 0;
 const conflictPageSize = 50;
 let otpCountdownTimer = null;
+const conflictRowState = new WeakMap();
 
 const OTP_SESSION_STORAGE_KEY = 'gsl_linking_active_otp_v1';
 const LINK_METHOD_LABELS = {
@@ -135,6 +138,366 @@ function formatRelativeTime(isoString) {
     }
 }
 
+function createSyncIcon(iconName, extraClass = '') {
+    const icon = document.createElement('i');
+    icon.className = `fas ${iconName}${extraClass ? ` ${extraClass}` : ''}`;
+    icon.setAttribute('aria-hidden', 'true');
+    return icon;
+}
+
+function appendText(parent, text) {
+    parent.appendChild(document.createTextNode(String(text ?? '')));
+}
+
+function createSyncInfoLine({ iconName, iconClass = '', text = '', className = 'text-sm' }) {
+    const line = document.createElement('p');
+    line.className = className;
+    if (iconName) {
+        line.appendChild(createSyncIcon(iconName, iconClass));
+        appendText(line, ' ');
+    }
+    appendText(line, text);
+    return line;
+}
+
+function createSyncResultCard(title, titleIcon, contentNodes = []) {
+    const card = document.createElement('div');
+    card.className = 'rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3';
+
+    const heading = document.createElement('h4');
+    heading.className = 'mb-2 font-bold text-[var(--color-text-main)]';
+    heading.appendChild(createSyncIcon(titleIcon, 'me-1'));
+    appendText(heading, ` ${title}`);
+    card.appendChild(heading);
+
+    contentNodes.forEach((node) => card.appendChild(node));
+    return card;
+}
+
+function renderSyncResultsPanel(container, result) {
+    if (!container) return;
+
+    const grid = document.createElement('div');
+    grid.className = 'grid gap-3 sm:grid-cols-3';
+
+    const buildStageNodes = (stage, summaryTextBuilder) => {
+        if (!stage) {
+            return [createSyncInfoLine({ text: '—', className: 'text-sm text-[var(--color-text-muted)]' })];
+        }
+
+        if (stage.skipped) {
+            return [
+                createSyncInfoLine({
+                    text: `تم التخطي: ${stage.reason || '—'}`,
+                    className: 'text-sm text-[var(--color-text-muted)]'
+                })
+            ];
+        }
+
+        const success = !!stage.success;
+        const summary = createSyncInfoLine({
+            iconName: success ? 'fa-check-circle' : 'fa-times-circle',
+            iconClass: success ? 'text-[var(--color-success-text)]' : 'text-[var(--color-danger-text)]',
+            text: summaryTextBuilder(stage)
+        });
+
+        const nodes = [summary];
+        if (stage.lastError) {
+            nodes.push(
+                createSyncInfoLine({
+                    text: stage.lastError,
+                    className: 'mt-1 text-xs text-[var(--color-danger-text)]'
+                })
+            );
+        }
+        return nodes;
+    };
+
+    grid.appendChild(
+        createSyncResultCard(
+            'الرفع',
+            'fa-upload',
+            buildStageNodes(result.push, (stage) => `أُرسل: ${stage.sentCount ?? 0} | فشل: ${stage.failedCount ?? 0}`)
+        )
+    );
+    grid.appendChild(
+        createSyncResultCard(
+            'السحب',
+            'fa-download',
+            buildStageNodes(
+                result.pull,
+                (stage) => `تطبيق: ${stage.appliedCount ?? 0} | تعارضات: ${stage.conflictCount ?? 0}`
+            )
+        )
+    );
+    grid.appendChild(
+        createSyncResultCard(
+            'الفحص',
+            'fa-camera',
+            buildStageNodes(
+                result.snapshot,
+                (stage) => `تغييرات: ${stage.changesDetected ?? 0} | إضافة: ${stage.enqueued ?? 0}`
+            )
+        )
+    );
+
+    const nodes = [grid];
+    if (result?.error) {
+        nodes.push(
+            createSyncInfoLine({
+                iconName: 'fa-exclamation-circle',
+                iconClass: 'me-1 text-[var(--color-danger-text)]',
+                text: result.error,
+                className: 'mt-3 text-sm text-[var(--color-danger-text)]'
+            })
+        );
+    }
+
+    container.replaceChildren(...nodes);
+}
+
+function buildHighlightedJsonFragment(data, conflictingFields) {
+    const fragment = document.createDocumentFragment();
+    if (!data) {
+        fragment.appendChild(document.createTextNode('—'));
+        return fragment;
+    }
+
+    const content = JSON.stringify(data, null, 2);
+    if (!content) {
+        fragment.appendChild(document.createTextNode('—'));
+        return fragment;
+    }
+
+    if (!Array.isArray(conflictingFields) || !conflictingFields.length) {
+        fragment.appendChild(document.createTextNode(content));
+        return fragment;
+    }
+
+    const matcher = new RegExp(
+        `(${conflictingFields.map((field) => `"${String(field).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`).join('|')})`,
+        'g'
+    );
+    let lastIndex = 0;
+    let match = matcher.exec(content);
+
+    while (match) {
+        if (match.index > lastIndex) {
+            fragment.appendChild(document.createTextNode(content.slice(lastIndex, match.index)));
+        }
+        const highlight = document.createElement('span');
+        highlight.className = 'font-bold text-[var(--color-danger-text)]';
+        highlight.textContent = match[0];
+        fragment.appendChild(highlight);
+        lastIndex = match.index + match[0].length;
+        match = matcher.exec(content);
+    }
+
+    if (lastIndex < content.length) {
+        fragment.appendChild(document.createTextNode(content.slice(lastIndex)));
+    }
+
+    return fragment;
+}
+
+function createConflictStatusBadge(status) {
+    const badge = document.createElement('span');
+    badge.className =
+        status === 'unresolved'
+            ? 'inline-block rounded-full bg-[var(--color-danger-bg)] px-2 py-0.5 text-xs text-white'
+            : 'inline-block rounded-full bg-[var(--color-success-bg)] px-2 py-0.5 text-xs text-white';
+    badge.textContent = status === 'unresolved' ? 'غير محلول' : 'محلول';
+    return badge;
+}
+
+function createConflictActionButton({ className, iconName, label, title, dataset = {} }) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    if (title) button.title = title;
+    Object.entries(dataset).forEach(([key, value]) => {
+        button.dataset[key] = value;
+    });
+    button.appendChild(createSyncIcon(iconName));
+    if (label) appendText(button, ` ${label}`);
+    return button;
+}
+
+function createConflictRow(conflict, index) {
+    const row = document.createElement('tr');
+    conflictRowState.set(row, conflict);
+
+    const cells = [
+        String(index),
+        entityTypeLabels[conflict.entityType] || conflict.entityType,
+        null,
+        Array.isArray(conflict.conflictingFields) ? conflict.conflictingFields.join(', ') || '—' : '—',
+        null,
+        formatRelativeTime(conflict.createdAt),
+        null
+    ];
+
+    cells.forEach((value, cellIndex) => {
+        const td = document.createElement('td');
+        if (cellIndex === 2) {
+            const shortId =
+                conflict.rowSyncId && conflict.rowSyncId.length > 12
+                    ? `${conflict.rowSyncId.substring(0, 12)}…`
+                    : conflict.rowSyncId || '—';
+            td.title = conflict.rowSyncId || '';
+            td.textContent = shortId;
+        } else if (cellIndex === 4) {
+            td.appendChild(createConflictStatusBadge(conflict.status));
+        } else if (cellIndex === 6) {
+            td.className = 'admin-only';
+            td.appendChild(
+                createConflictActionButton({
+                    className: 'btn btn-sm btn-secondary conflict-expand-btn',
+                    iconName: 'fa-eye',
+                    title: 'عرض التفاصيل'
+                })
+            );
+            if (conflict.status === 'unresolved' && isAdmin) {
+                td.appendChild(document.createTextNode(' '));
+                td.appendChild(
+                    createConflictActionButton({
+                        className: 'btn btn-sm btn-primary admin-only conflict-resolve-btn',
+                        iconName: 'fa-desktop',
+                        label: 'محلي',
+                        dataset: { id: String(conflict.id), action: 'local' }
+                    })
+                );
+                td.appendChild(document.createTextNode(' '));
+                td.appendChild(
+                    createConflictActionButton({
+                        className: 'btn btn-sm btn-warning admin-only conflict-resolve-btn',
+                        iconName: 'fa-cloud',
+                        label: 'بعيد',
+                        dataset: { id: String(conflict.id), action: 'remote' }
+                    })
+                );
+            }
+        } else {
+            td.textContent = value;
+        }
+        row.appendChild(td);
+    });
+
+    return row;
+}
+
+function createConflictDetailRow(conflict) {
+    const detailRow = document.createElement('tr');
+    detailRow.className = 'conflict-detail-row';
+    const td = document.createElement('td');
+    td.colSpan = 7;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex gap-4 p-3';
+
+    const createPane = (title, iconName, data) => {
+        const pane = document.createElement('div');
+        pane.className = 'flex-1';
+        const heading = document.createElement('div');
+        heading.className = 'mb-1 text-sm font-bold text-[var(--color-text-muted)]';
+        heading.appendChild(createSyncIcon(iconName, 'me-1'));
+        appendText(heading, ` ${title}`);
+        const pre = document.createElement('pre');
+        pre.className = 'max-h-60 overflow-auto rounded bg-[var(--glass-bg)] p-2 text-xs';
+        pre.appendChild(
+            buildHighlightedJsonFragment(
+                data,
+                Array.isArray(conflict.conflictingFields) ? conflict.conflictingFields : []
+            )
+        );
+        pane.appendChild(heading);
+        pane.appendChild(pre);
+        return pane;
+    };
+
+    wrapper.appendChild(createPane('البيانات البعيدة', 'fa-cloud', conflict.remoteData));
+    wrapper.appendChild(createPane('البيانات المحلية', 'fa-desktop', conflict.localData));
+    td.appendChild(wrapper);
+    detailRow.appendChild(td);
+    return detailRow;
+}
+
+function createEmptyTableRow(colspan, text, className = '') {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = colspan;
+    if (className) cell.className = className;
+    cell.textContent = text;
+    row.appendChild(cell);
+    return row;
+}
+
+function createLinkedDeviceRow(device, currentDeviceHash) {
+    const row = document.createElement('tr');
+    const isCurrentDevice = !!device.isCurrentDevice || device.deviceHash === currentDeviceHash;
+    const isRevoked = device.status === 'revoked';
+    row.className = `${isCurrentDevice ? 'device-row-current ' : ''}${isRevoked ? 'device-row-revoked' : ''}`.trim();
+
+    const nameCell = document.createElement('td');
+    const stack = document.createElement('div');
+    stack.className = 'device-name-stack';
+    const title = document.createElement('span');
+    title.className = 'device-row-title';
+    title.textContent = device.deviceName || 'جهاز بدون اسم';
+    const subtitle = document.createElement('span');
+    subtitle.className = 'device-row-subtitle';
+    const code = document.createElement('bdi');
+    code.textContent = String(device.deviceHash || '').slice(0, 8) || '—';
+    subtitle.appendChild(code);
+    stack.appendChild(title);
+    stack.appendChild(subtitle);
+    if (isCurrentDevice) {
+        const badge = document.createElement('span');
+        badge.className = 'device-current-badge';
+        badge.textContent = 'هذا الجهاز';
+        stack.appendChild(badge);
+    }
+    nameCell.appendChild(stack);
+
+    const linkedByCell = document.createElement('td');
+    const methodBadge = document.createElement('span');
+    methodBadge.className = 'device-method-badge';
+    methodBadge.textContent = LINK_METHOD_LABELS[device.linkedBy] || 'غير معروف';
+    linkedByCell.appendChild(methodBadge);
+
+    const lastSeenCell = document.createElement('td');
+    lastSeenCell.textContent = device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'لم يسجل بعد';
+
+    const statusCell = document.createElement('td');
+    const statusBadge = document.createElement('span');
+    statusBadge.className = `device-status-badge ${isRevoked ? 'is-revoked' : 'is-active'}`;
+    statusBadge.textContent = DEVICE_STATUS_LABELS[device.status] || 'غير معروف';
+    statusCell.appendChild(statusBadge);
+
+    const actionCell = document.createElement('td');
+    actionCell.className = 'admin-only device-action-cell';
+    if (isAdmin && !isCurrentDevice && !isRevoked) {
+        const button = document.createElement('button');
+        button.className = 'btn btn-danger btn-sm device-revoke-btn';
+        button.type = 'button';
+        button.dataset.deviceHash = String(device.deviceHash || '');
+        button.dataset.deviceName = device.deviceName || 'هذا الجهاز';
+        button.appendChild(createSyncIcon('fa-user-slash'));
+        appendText(button, ' إلغاء');
+        actionCell.appendChild(button);
+    } else if (isCurrentDevice) {
+        const note = document.createElement('span');
+        note.className = 'device-note';
+        note.textContent = 'هذا هو الجهاز الحالي';
+        actionCell.appendChild(note);
+    } else {
+        actionCell.textContent = '—';
+    }
+
+    row.append(nameCell, linkedByCell, lastSeenCell, statusCell, actionCell);
+    return row;
+}
+
 /**
  * Derive sync state from status object.
  */
@@ -156,32 +519,52 @@ async function refreshStatus() {
         // Update state banner
         const banner = document.getElementById('sync-state-banner');
         if (banner) {
-            banner.className = 'mb-4 rounded-xl px-4 py-3.5 flex items-center gap-3';
+            banner.className = 'mb-4 flex items-center gap-3 rounded-xl border px-4 py-3.5';
             let bannerIcon = '';
             let bannerText = '';
             switch (state) {
                 case 'connected':
-                    banner.classList.add('bg-[rgba(46,204,113,0.12)]', 'text-[var(--color-success-bg)]');
+                    banner.classList.add(
+                        'border-[var(--color-success-border)]',
+                        'bg-[var(--color-success-surface)]',
+                        'text-[var(--color-success-text)]'
+                    );
                     bannerIcon = '<i class="fas fa-check-circle text-xl"></i>';
                     bannerText = 'متصل ومزامن';
                     break;
                 case 'syncing':
-                    banner.classList.add('bg-[rgba(46,204,113,0.12)]', 'text-[var(--color-success-bg)]');
+                    banner.classList.add(
+                        'border-[var(--color-success-border)]',
+                        'bg-[var(--color-success-surface)]',
+                        'text-[var(--color-success-text)]'
+                    );
                     bannerIcon = '<i class="fas fa-sync fa-spin text-xl"></i>';
                     bannerText = 'جاري المزامنة...';
                     break;
                 case 'offline':
-                    banner.classList.add('bg-[rgba(240,173,78,0.12)]', 'text-[var(--color-warning-bg)]');
+                    banner.classList.add(
+                        'border-[var(--color-warning-border)]',
+                        'bg-[var(--color-warning-surface)]',
+                        'text-[var(--color-warning-text)]'
+                    );
                     bannerIcon = '<i class="fas fa-exclamation-triangle text-xl"></i>';
                     bannerText = 'غير متصل — التغييرات في قائمة الانتظار';
                     break;
                 case 'error':
-                    banner.classList.add('bg-[rgba(232,93,93,0.12)]', 'text-[var(--color-danger-bg)]');
+                    banner.classList.add(
+                        'border-[var(--color-danger-border)]',
+                        'bg-[var(--color-danger-surface)]',
+                        'text-[var(--color-danger-text)]'
+                    );
                     bannerIcon = '<i class="fas fa-times-circle text-xl"></i>';
                     bannerText = status.lastPushError || status.lastPullError || 'خطأ في المزامنة';
                     break;
                 case 'disabled':
-                    banner.classList.add('bg-[rgba(150,150,150,0.12)]', 'text-[var(--color-text-muted)]');
+                    banner.classList.add(
+                        'border-[var(--color-neutral-border)]',
+                        'bg-[var(--color-neutral-surface)]',
+                        'text-[var(--color-neutral-text)]'
+                    );
                     bannerIcon = '<i class="fas fa-pause-circle text-xl"></i>';
                     bannerText = 'المزامنة معطلة';
                     break;
@@ -194,10 +577,10 @@ async function refreshStatus() {
         const connEl = document.getElementById('status-connection');
         if (connEl) {
             const stateMap = {
-                connected: { icon: 'fa-check-circle text-[var(--color-success-bg)]', label: 'متصل' },
-                syncing: { icon: 'fa-sync fa-spin text-[var(--color-success-bg)]', label: 'مزامنة' },
-                offline: { icon: 'fa-exclamation-triangle text-[var(--color-warning-bg)]', label: 'غير متصل' },
-                error: { icon: 'fa-times-circle text-[var(--color-danger-bg)]', label: 'خطأ' },
+                connected: { icon: 'fa-check-circle text-[var(--color-success-text)]', label: 'متصل' },
+                syncing: { icon: 'fa-sync fa-spin text-[var(--color-success-text)]', label: 'مزامنة' },
+                offline: { icon: 'fa-exclamation-triangle text-[var(--color-warning-text)]', label: 'غير متصل' },
+                error: { icon: 'fa-times-circle text-[var(--color-danger-text)]', label: 'خطأ' },
                 disabled: { icon: 'fa-pause-circle text-[var(--color-text-muted)]', label: 'معطل' }
             };
             const s = stateMap[state] || stateMap.disabled;
@@ -212,7 +595,7 @@ async function refreshStatus() {
                 let errDiv = pushEl.parentElement.querySelector('.kpi-error');
                 if (!errDiv) {
                     errDiv = document.createElement('div');
-                    errDiv.className = 'kpi-error text-xs text-[var(--color-danger-bg)] mt-1';
+                    errDiv.className = 'kpi-error mt-1 text-xs text-[var(--color-danger-text)]';
                     pushEl.parentElement.appendChild(errDiv);
                 }
                 errDiv.textContent = status.lastPushError;
@@ -229,7 +612,7 @@ async function refreshStatus() {
                 let errDiv = pullEl.parentElement.querySelector('.kpi-error');
                 if (!errDiv) {
                     errDiv = document.createElement('div');
-                    errDiv.className = 'kpi-error text-xs text-[var(--color-danger-bg)] mt-1';
+                    errDiv.className = 'kpi-error mt-1 text-xs text-[var(--color-danger-text)]';
                     pullEl.parentElement.appendChild(errDiv);
                 }
                 errDiv.textContent = status.lastPullError;
@@ -244,7 +627,7 @@ async function refreshStatus() {
             pendingEl.textContent = status.pendingCount ?? '—';
             pendingEl.className =
                 'text-lg font-bold ' +
-                (status.pendingCount > 0 ? 'text-[var(--color-warning-bg)]' : 'text-[var(--color-success-bg)]');
+                (status.pendingCount > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-success-text)]');
         }
 
         // 5. Failed count
@@ -253,7 +636,7 @@ async function refreshStatus() {
             failedEl.textContent = status.failedCount ?? '—';
             failedEl.className =
                 'text-lg font-bold ' +
-                (status.failedCount > 0 ? 'text-[var(--color-danger-bg)]' : 'text-[var(--color-success-bg)]');
+                (status.failedCount > 0 ? 'text-[var(--color-danger-text)]' : 'text-[var(--color-success-text)]');
         }
 
         // 6. Conflict count
@@ -262,7 +645,7 @@ async function refreshStatus() {
             conflictEl.textContent = status.conflictCount ?? '—';
             conflictEl.className =
                 'text-lg font-bold ' +
-                (status.conflictCount > 0 ? 'text-[var(--color-danger-bg)]' : 'text-[var(--color-success-bg)]');
+                (status.conflictCount > 0 ? 'text-[var(--color-danger-text)]' : 'text-[var(--color-success-text)]');
         }
 
         // 7. Last snapshot
@@ -406,8 +789,7 @@ function initTestConnection() {
     btn.addEventListener('click', async () => {
         const resultDiv = document.getElementById('test-connection-result');
         btn.disabled = true;
-        const origHTML = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاختبار...';
+        setButtonContent(btn, { icon: 'fa-spinner', text: 'جاري الاختبار...', spin: true });
         if (resultDiv) {
             resultDiv.classList.add('hidden');
             resultDiv.textContent = '';
@@ -419,12 +801,12 @@ function initTestConnection() {
                 resultDiv.classList.remove('hidden');
                 if (result.success) {
                     resultDiv.className =
-                        'mt-3 rounded-lg px-4 py-3 text-sm bg-[rgba(46,204,113,0.12)] text-[var(--color-success-bg)]';
+                        'mt-3 rounded-lg border border-[var(--color-success-border)] bg-[var(--color-success-surface)] px-4 py-3 text-sm text-[var(--color-success-text)]';
                     resultDiv.innerHTML = `<i class="fas fa-check-circle me-2"></i>الاتصال ناجح${result.schoolId ? ' — معرف المؤسسة: ' + result.schoolId : ''}`;
                 } else {
                     const stepLabel = { lambda: 'Lambda', cognito: 'Cognito', dynamodb: 'DynamoDB' }[result.step] || '';
                     resultDiv.className =
-                        'mt-3 rounded-lg px-4 py-3 text-sm bg-[rgba(232,93,93,0.12)] text-[var(--color-danger-bg)]';
+                        'mt-3 rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] px-4 py-3 text-sm text-[var(--color-danger-text)]';
                     resultDiv.innerHTML = `<i class="fas fa-times-circle me-2"></i>${stepLabel ? stepLabel + ': ' : ''}${result.error || 'فشل الاتصال'}`;
                 }
             }
@@ -432,11 +814,11 @@ function initTestConnection() {
             if (resultDiv) {
                 resultDiv.classList.remove('hidden');
                 resultDiv.className =
-                    'mt-3 rounded-lg px-4 py-3 text-sm bg-[rgba(232,93,93,0.12)] text-[var(--color-danger-bg)]';
+                    'mt-3 rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] px-4 py-3 text-sm text-[var(--color-danger-text)]';
                 resultDiv.textContent = err.message || 'خطأ غير متوقع';
             }
         } finally {
-            btn.innerHTML = origHTML;
+            setButtonContent(btn, { icon: 'fa-plug', text: 'اختبار الاتصال' });
             btn.disabled = false;
         }
     });
@@ -451,9 +833,8 @@ function initSyncNow() {
     btn.addEventListener('click', async () => {
         if (btn.disabled) return;
 
-        const originalHTML = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المزامنة...';
+        setButtonContent(btn, { icon: 'fa-spinner', text: 'جاري المزامنة...', spin: true });
 
         try {
             const result = await window.api.sync.triggerNow();
@@ -462,78 +843,7 @@ function initSyncNow() {
             const resultsDiv = document.getElementById('sync-results');
             if (resultsDiv && result) {
                 resultsDiv.classList.remove('hidden');
-                let html = '<div class="grid gap-3 sm:grid-cols-3">';
-
-                // Push results
-                html += '<div class="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3">';
-                html +=
-                    '<h4 class="mb-2 font-bold text-[var(--color-text-main)]"><i class="fas fa-upload me-1"></i> الرفع</h4>';
-                if (result.push) {
-                    if (result.push.skipped) {
-                        html += `<p class="text-sm text-[var(--color-text-muted)]">تم التخطي: ${result.push.reason || '—'}</p>`;
-                    } else {
-                        const pushIcon = result.push.success
-                            ? '<i class="fas fa-check-circle text-[var(--color-success-bg)]"></i>'
-                            : '<i class="fas fa-times-circle text-[var(--color-danger-bg)]"></i>';
-                        html += `<p class="text-sm">${pushIcon} أُرسل: ${result.push.sentCount ?? 0} | فشل: ${result.push.failedCount ?? 0}</p>`;
-                        if (result.push.lastError) {
-                            html += `<p class="text-xs text-[var(--color-danger-bg)] mt-1">${result.push.lastError}</p>`;
-                        }
-                    }
-                } else {
-                    html += '<p class="text-sm text-[var(--color-text-muted)]">—</p>';
-                }
-                html += '</div>';
-
-                // Pull results
-                html += '<div class="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3">';
-                html +=
-                    '<h4 class="mb-2 font-bold text-[var(--color-text-main)]"><i class="fas fa-download me-1"></i> السحب</h4>';
-                if (result.pull) {
-                    if (result.pull.skipped) {
-                        html += '<p class="text-sm text-[var(--color-text-muted)]">تم التخطي</p>';
-                    } else {
-                        const pullIcon = result.pull.success
-                            ? '<i class="fas fa-check-circle text-[var(--color-success-bg)]"></i>'
-                            : '<i class="fas fa-times-circle text-[var(--color-danger-bg)]"></i>';
-                        html += `<p class="text-sm">${pullIcon} تطبيق: ${result.pull.appliedCount ?? 0} | تعارضات: ${result.pull.conflictCount ?? 0}</p>`;
-                        if (result.pull.lastError) {
-                            html += `<p class="text-xs text-[var(--color-danger-bg)] mt-1">${result.pull.lastError}</p>`;
-                        }
-                    }
-                } else {
-                    html += '<p class="text-sm text-[var(--color-text-muted)]">—</p>';
-                }
-                html += '</div>';
-
-                // Snapshot results
-                html += '<div class="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3">';
-                html +=
-                    '<h4 class="mb-2 font-bold text-[var(--color-text-main)]"><i class="fas fa-camera me-1"></i> الفحص</h4>';
-                if (result.snapshot) {
-                    if (result.snapshot.skipped) {
-                        html += `<p class="text-sm text-[var(--color-text-muted)]">تم التخطي: ${result.snapshot.reason || '—'}</p>`;
-                    } else {
-                        const snapIcon = result.snapshot.success
-                            ? '<i class="fas fa-check-circle text-[var(--color-success-bg)]"></i>'
-                            : '<i class="fas fa-times-circle text-[var(--color-danger-bg)]"></i>';
-                        html += `<p class="text-sm">${snapIcon} تغييرات: ${result.snapshot.changesDetected ?? 0} | إضافة: ${result.snapshot.enqueued ?? 0}</p>`;
-                        if (result.snapshot.lastError) {
-                            html += `<p class="text-xs text-[var(--color-danger-bg)] mt-1">${result.snapshot.lastError}</p>`;
-                        }
-                    }
-                } else {
-                    html += '<p class="text-sm text-[var(--color-text-muted)]">—</p>';
-                }
-                html += '</div>';
-
-                html += '</div>';
-
-                if (result.error) {
-                    html += `<div class="mt-3 text-sm text-[var(--color-danger-bg)]"><i class="fas fa-exclamation-circle me-1"></i> ${result.error}</div>`;
-                }
-
-                resultsDiv.innerHTML = html;
+                renderSyncResultsPanel(resultsDiv, result);
             }
 
             if (result?.error) {
@@ -546,7 +856,7 @@ function initSyncNow() {
             showToast('حدث خطأ أثناء المزامنة', 'error');
         } finally {
             btn.disabled = false;
-            btn.innerHTML = originalHTML;
+            setButtonContent(btn, { icon: 'fa-sync', text: 'مزامنة الآن' });
         }
     });
 }
@@ -581,45 +891,16 @@ async function loadConflicts() {
         if (!tbody) return;
 
         if (!conflicts || conflicts.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">لا توجد تعارضات</td></tr>';
+            tbody.replaceChildren(createEmptyTableRow(7, 'لا توجد تعارضات', 'loading-cell'));
             if (badge) badge.textContent = '';
             updateConflictPagination(0);
             return;
         }
 
         if (badge) badge.textContent = conflicts.length >= conflictPageSize ? `${conflictPageSize}+` : conflicts.length;
-
-        tbody.innerHTML = conflicts
-            .map((c, i) => {
-                const idx = currentOffset + i + 1;
-                const typeLabel = entityTypeLabels[c.entityType] || c.entityType;
-                const shortId =
-                    c.rowSyncId && c.rowSyncId.length > 12 ? c.rowSyncId.substring(0, 12) + '…' : c.rowSyncId || '—';
-                const fields = Array.isArray(c.conflictingFields) ? c.conflictingFields.join(', ') : '—';
-                const statusBadge =
-                    c.status === 'unresolved'
-                        ? '<span class="inline-block rounded-full bg-[var(--color-danger-bg)] px-2 py-0.5 text-xs text-white">غير محلول</span>'
-                        : '<span class="inline-block rounded-full bg-[var(--color-success-bg)] px-2 py-0.5 text-xs text-white">محلول</span>';
-                const dateStr = formatRelativeTime(c.createdAt);
-
-                let actionHtml =
-                    '<button class="btn btn-sm btn-secondary conflict-expand-btn" type="button" title="عرض التفاصيل"><i class="fas fa-eye"></i></button>';
-                if (c.status === 'unresolved' && isAdmin) {
-                    actionHtml += ` <button class="btn btn-sm btn-primary admin-only conflict-resolve-btn" data-id="${c.id}" data-action="local" type="button"><i class="fas fa-desktop"></i> محلي</button>`;
-                    actionHtml += ` <button class="btn btn-sm btn-warning admin-only conflict-resolve-btn" data-id="${c.id}" data-action="remote" type="button"><i class="fas fa-cloud"></i> بعيد</button>`;
-                }
-
-                return `<tr data-conflict='${JSON.stringify(c).replace(/'/g, '&#39;')}'>
-                    <td>${idx}</td>
-                    <td>${typeLabel}</td>
-                    <td title="${c.rowSyncId || ''}">${shortId}</td>
-                    <td>${fields}</td>
-                    <td>${statusBadge}</td>
-                    <td>${dateStr}</td>
-                    <td class="admin-only">${actionHtml}</td>
-                </tr>`;
-            })
-            .join('');
+        tbody.replaceChildren(
+            ...conflicts.map((conflict, index) => createConflictRow(conflict, currentOffset + index + 1))
+        );
 
         updateConflictPagination(conflicts.length);
     } catch (err) {
@@ -683,40 +964,9 @@ function initConflictHandlers() {
                 return;
             }
             // Create detail row
-            let conflict;
-            try {
-                conflict = JSON.parse(row.dataset.conflict);
-            } catch (_) {
-                return;
-            }
-            const detailRow = document.createElement('tr');
-            detailRow.className = 'conflict-detail-row';
-
-            const conflictingFields = Array.isArray(conflict.conflictingFields) ? conflict.conflictingFields : [];
-
-            const highlightFields = (data) => {
-                if (!data) return '—';
-                const str = JSON.stringify(data, null, 2);
-                let result = str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                conflictingFields.forEach((field) => {
-                    const regex = new RegExp(`("${field}")`, 'g');
-                    result = result.replace(regex, '<span class="font-bold text-[var(--color-danger-bg)]">$1</span>');
-                });
-                return result;
-            };
-
-            detailRow.innerHTML = `<td colspan="7">
-                <div class="flex gap-4 p-3">
-                    <div class="flex-1">
-                        <div class="mb-1 text-sm font-bold text-[var(--color-text-muted)]"><i class="fas fa-cloud me-1"></i> البيانات البعيدة</div>
-                        <pre class="text-xs overflow-auto max-h-60 p-2 rounded bg-[var(--glass-bg)]">${highlightFields(conflict.remoteData)}</pre>
-                    </div>
-                    <div class="flex-1">
-                        <div class="mb-1 text-sm font-bold text-[var(--color-text-muted)]"><i class="fas fa-desktop me-1"></i> البيانات المحلية</div>
-                        <pre class="text-xs overflow-auto max-h-60 p-2 rounded bg-[var(--glass-bg)]">${highlightFields(conflict.localData)}</pre>
-                    </div>
-                </div>
-            </td>`;
+            const conflict = conflictRowState.get(row);
+            if (!conflict) return;
+            const detailRow = createConflictDetailRow(conflict);
             row.after(detailRow);
             return;
         }
@@ -788,15 +1038,6 @@ function cacheDeviceManagementDom() {
     };
 
     return deviceManagementState.dom;
-}
-
-function escapeHtml(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
 }
 
 function formatLanEndpointLabel(endpoint) {
@@ -1099,7 +1340,9 @@ function renderCurrentDevice(currentResult, institutionStatus) {
     dom.currentDeviceHash.title = currentResult.deviceHash || '';
     dom.currentDeviceMassar.textContent = massarCode;
     dom.currentDeviceInstitution.textContent = institutionName;
-    const preferredIpText = currentResult.preferredLanIp ? ` • IP الربط الموصى به: ${currentResult.preferredLanIp}` : '';
+    const preferredIpText = currentResult.preferredLanIp
+        ? ` • IP الربط الموصى به: ${currentResult.preferredLanIp}`
+        : '';
     dom.currentDeviceNote.textContent = `المنصة: ${currentResult.platform || 'غير معروفة'} • الإصدار: ${currentResult.appVersion || 'غير محدد'}${preferredIpText}`;
 
     deviceManagementState.currentDevice = currentResult;
@@ -1115,7 +1358,7 @@ function renderLinkedDevices(devicesResult, currentDeviceHash) {
         dom.devicesNote.textContent = 'تعذر تحميل قائمة الأجهزة المرتبطة. حاول مرة أخرى.';
         dom.devicesError?.classList.remove('hidden');
         dom.devicesTableWrap?.classList.add('hidden');
-        dom.devicesTbody.innerHTML = '';
+        dom.devicesTbody.replaceChildren();
         return;
     }
 
@@ -1126,11 +1369,9 @@ function renderLinkedDevices(devicesResult, currentDeviceHash) {
 
     if (!devices.length) {
         dom.devicesNote.textContent = 'لا توجد أجهزة مرتبطة بهذه المؤسسة حالياً.';
-        dom.devicesTbody.innerHTML = `
-            <tr class="device-empty-row">
-                <td colspan="5">لا توجد أي أجهزة مرتبطة بالمؤسسة حالياً.</td>
-            </tr>
-        `;
+        const emptyRow = createEmptyTableRow(5, 'لا توجد أي أجهزة مرتبطة بالمؤسسة حالياً.');
+        emptyRow.className = 'device-empty-row';
+        dom.devicesTbody.replaceChildren(emptyRow);
         return;
     }
 
@@ -1140,51 +1381,7 @@ function renderLinkedDevices(devicesResult, currentDeviceHash) {
         ? 'لا توجد أجهزة أخرى مرتبطة حالياً غير هذا الجهاز.'
         : `عدد الأجهزة المرتبطة حالياً: ${devices.length}`;
 
-    dom.devicesTbody.innerHTML = devices
-        .map((device) => {
-            const isCurrentDevice = !!device.isCurrentDevice || device.deviceHash === currentDeviceHash;
-            const isRevoked = device.status === 'revoked';
-            const linkedByLabel = LINK_METHOD_LABELS[device.linkedBy] || 'غير معروف';
-            const statusLabel = DEVICE_STATUS_LABELS[device.status] || 'غير معروف';
-            const deviceName = escapeHtml(device.deviceName || 'جهاز بدون اسم');
-            const deviceHash = escapeHtml(String(device.deviceHash || '').slice(0, 8));
-            const lastSeen = device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'لم يسجل بعد';
-
-            let actionContent = '—';
-            if (isAdmin && !isCurrentDevice && !isRevoked) {
-                actionContent = `
-                    <button
-                        class="btn btn-danger btn-sm device-revoke-btn"
-                        type="button"
-                        data-device-hash="${escapeHtml(device.deviceHash)}"
-                        data-device-name="${deviceName}"
-                    >
-                        <i class="fas fa-user-slash"></i> إلغاء
-                    </button>
-                `;
-            } else if (isCurrentDevice) {
-                actionContent = '<span class="device-note">هذا هو الجهاز الحالي</span>';
-            }
-
-            return `
-                <tr class="${isCurrentDevice ? 'device-row-current ' : ''}${isRevoked ? 'device-row-revoked' : ''}">
-                    <td>
-                        <div class="device-name-stack">
-                            <span class="device-row-title">${deviceName}</span>
-                            <span class="device-row-subtitle"><bdi>${deviceHash || '—'}</bdi></span>
-                            ${isCurrentDevice ? '<span class="device-current-badge">هذا الجهاز</span>' : ''}
-                        </div>
-                    </td>
-                    <td><span class="device-method-badge">${linkedByLabel}</span></td>
-                    <td>${lastSeen}</td>
-                    <td>
-                        <span class="device-status-badge ${isRevoked ? 'is-revoked' : 'is-active'}">${statusLabel}</span>
-                    </td>
-                    <td class="admin-only device-action-cell">${actionContent}</td>
-                </tr>
-            `;
-        })
-        .join('');
+    dom.devicesTbody.replaceChildren(...devices.map((device) => createLinkedDeviceRow(device, currentDeviceHash)));
 }
 
 async function getInstitutionStatus() {
@@ -1297,7 +1494,9 @@ async function handleGenerateOtp() {
         if (result.lanServerStarted === false) {
             const reason = result.lanServerError || 'سبب غير معروف';
             showToast(
-                'تنبيه: تعذر تشغيل خادم الشبكة المحلية (' + reason + '). قد يحتاج الجهاز الثاني إلى إدخال عنوان Wi-Fi أو Ethernet المعروض هنا يدوياً.',
+                'تنبيه: تعذر تشغيل خادم الشبكة المحلية (' +
+                    reason +
+                    '). قد يحتاج الجهاز الثاني إلى إدخال عنوان Wi-Fi أو Ethernet المعروض هنا يدوياً.',
                 'warning'
             );
         } else {

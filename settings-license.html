@@ -3,6 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="theme-color" content="#3b6ac5" />
         <title>إدارة الترخيص | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
@@ -13,11 +14,14 @@
         <script src="js/ux-enhancements.js"></script>
         <script>
             // Developer-only page guard
-            (function() {
+            (function () {
                 try {
                     var raw = localStorage.getItem('gsl_auth_session_v1');
-                    if (raw) { var s = JSON.parse(raw); if (s && s.role === 'developer') return; }
-                } catch(e) {}
+                    if (raw) {
+                        var s = JSON.parse(raw);
+                        if (s && s.role === 'developer') return;
+                    }
+                } catch (e) {}
                 window.location.replace('dashboard.html');
             })();
         </script>
@@ -28,9 +32,7 @@
 
         <aside class="sidebar" id="sidebar"></aside>
 
-        <main
-            class="main-content flex-1 min-w-0 overflow-x-clip p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ms-[var(--sidebar-width)]"
-        >
+        <main class="main-content flex-1 min-w-0 p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
             <header class="header">
                 <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
                     <button
@@ -259,20 +261,22 @@
                         لوحة الإدارة: يمكنك تعطيل أي جهاز مفعّل من الجدول أدناه.
                     </p>
 
-                    <table class="students-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>الجهاز</th>
-                                <th>النظام</th>
-                                <th>آخر استخدام</th>
-                                <th>هذه الآلة</th>
-                                <th>نسبة التطابق</th>
-                                <th>الإجراءات</th>
-                            </tr>
-                        </thead>
-                        <tbody id="devices-tbody"></tbody>
-                    </table>
+                    <div class="table-scroll">
+                        <table class="students-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الجهاز</th>
+                                    <th>النظام</th>
+                                    <th>آخر استخدام</th>
+                                    <th>هذه الآلة</th>
+                                    <th>نسبة التطابق</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devices-tbody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </main>
@@ -351,7 +355,7 @@
                     <td>${esc(device.deviceName || '-')}</td>
                     <td>${esc(device.platform || '-')}</td>
                     <td>${esc(fmtDate(device.lastSeenAt))}</td>
-                    <td>${device.isCurrentDevice ? '<span class="font-bold text-[#0b8f4e]">نعم</span>' : '-'}</td>
+                    <td>${device.isCurrentDevice ? '<span class="font-bold text-[var(--color-success-text)]">نعم</span>' : '-'}</td>
                     <td>${Number(device.matchScore || 0)}%</td>
                     <td>
                         <button
