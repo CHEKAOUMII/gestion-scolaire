@@ -10,7 +10,7 @@
 |--------|-------|
 | `grades.html` | `results-hub.html` |
 | "النتائج والإحصائيات" | "مركز النتائج \| Results Hub" |
-| Tab 2 label: "التلاميذ الحاصلون على صفر" | "الحاصلون على 0" |
+| Tab 2 label: "التلاميذ الحاصلون على صفر" | "الحاصلون على صفر" |
 
 ---
 
@@ -56,7 +56,7 @@ Tabs render above the filter bar. The filter bar adapts per active tab.
 
 ---
 
-## Tab 2 — الحاصلون على 0
+## Tab 2 — الحاصلون على صفر
 
 ### Source
 Port logic from `studentzero.html` inline into `grades.html`.
