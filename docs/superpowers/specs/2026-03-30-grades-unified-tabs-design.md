@@ -1,28 +1,38 @@
-# grades.html — Unified Tabs Design Spec
+# results-hub.html — Unified Tabs Design Spec
 **Date:** 2026-03-30
 **Status:** Approved
 
 ---
 
+## Naming
+
+| Before | After |
+|--------|-------|
+| `grades.html` | `results-hub.html` |
+| "النتائج والإحصائيات" | "مركز النتائج \| Results Hub" |
+| Tab 2 label: "التلاميذ الحاصلون على صفر" | "الحاصلون على 0" |
+
+---
+
 ## Objective
 
-Transform `grades.html` into a unified analysis hub with three tabs, incorporating the zero-grade students view and a new top-performers (أوائل) tab, while making minimal changes to existing logic.
+Transform `grades.html` into `results-hub.html` — a unified analysis hub with three tabs, incorporating the zero-grade students view and a new top-performers (أوائل) tab, while making minimal changes to existing logic.
 
 ---
 
 ## Scope
 
-- **In scope:** `grades.html` restructuring into 3 tabs
-- **Out of scope:** `studentzero.html` (stays independent), sidebar changes, IPC/DB changes
+- **In scope:** rename `grades.html` → `results-hub.html`, restructure into 3 tabs, update all internal references
+- **Out of scope:** `studentzero.html` (stays independent), sidebar changes beyond updating the link, IPC/DB changes
 
 ---
 
 ## Tab Structure
 
 ```
-grades.html
-├── Tab 1: النتائج العامة      ← existing view + رemark column + رemark filter
-├── Tab 2: الحاصلون على صفر   ← logic ported from studentzero.html
+results-hub.html
+├── Tab 1: النتائج العامة      ← existing view + remark column + remark filter
+├── Tab 2: الحاصلون على 0      ← logic ported from studentzero.html
 └── Tab 3: الأوائل             ← new view
 ```
 
@@ -46,7 +56,7 @@ Tabs render above the filter bar. The filter bar adapts per active tab.
 
 ---
 
-## Tab 2 — التلاميذ الحاصلون على صفر
+## Tab 2 — الحاصلون على 0
 
 ### Source
 Port logic from `studentzero.html` inline into `grades.html`.
