@@ -295,19 +295,33 @@
             }
 
             // Theme-aware palette aligned with shared design tokens
-            const subjectPalette = window.UXEnhancements?.getSharedSubjectPalette?.() || [];
+            // Lazy-loaded: UXEnhancements is set by ux-enhancements.js which loads via defer
+            // and is not available when this inline script first executes.
+            let subjectPalette = null;
+
+            function _ensureSubjectPalette() {
+                if (!subjectPalette || subjectPalette.length === 0) {
+                    subjectPalette = window.UXEnhancements?.getSharedSubjectPalette?.() || [];
+                }
+                return subjectPalette;
+            }
 
             function isDarkTheme() {
                 return document.documentElement.getAttribute('data-theme') === 'dark';
             }
 
             function getSubjectColor(subject) {
+                const palette = _ensureSubjectPalette();
+                if (palette.length === 0) {
+                    // Fallback if palette still unavailable
+                    return { bg: 'var(--color-primary-mist)', border: 'var(--color-primary-light)', text: 'var(--color-primary-dark)' };
+                }
                 if (!subjectColorMap[subject]) {
-                    const idx = Object.keys(subjectColorMap).length % subjectPalette.length;
+                    const idx = Object.keys(subjectColorMap).length % palette.length;
                     subjectColorMap[subject] = idx;
                 }
                 const idx = subjectColorMap[subject];
-                return isDarkTheme() ? subjectPalette[idx].dark : subjectPalette[idx].light;
+                return isDarkTheme() ? palette[idx].dark : palette[idx].light;
             }
 
             function showClassSchedule(className) {

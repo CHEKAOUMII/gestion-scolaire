@@ -71,11 +71,43 @@
                         </div>
                         <div class="gs-form-group">
                             <label for="form-time-from"><i class="fas fa-clock"></i> من <span class="support-required-mark" aria-hidden="true">*</span></label>
-                            <input type="time" id="form-time-from" aria-describedby="support-entry-help" />
+                            <select id="form-time-from" aria-describedby="support-entry-help">
+                                <option value="">-- وقت البداية --</option>
+                                <optgroup label="صباحا">
+                                    <option value="08:30">08:30</option>
+                                    <option value="09:30">09:30</option>
+                                    <option value="10:30">10:30</option>
+                                    <option value="11:30">11:30</option>
+                                    <option value="12:30">12:30</option>
+                                </optgroup>
+                                <optgroup label="مساء">
+                                    <option value="14:30">14:30</option>
+                                    <option value="15:30">15:30</option>
+                                    <option value="16:30">16:30</option>
+                                    <option value="17:30">17:30</option>
+                                    <option value="18:30">18:30</option>
+                                </optgroup>
+                            </select>
                         </div>
                         <div class="gs-form-group">
                             <label for="form-time-to">إلى <span class="support-required-mark" aria-hidden="true">*</span> <span class="support-duration-note" id="form-duration" aria-live="polite"></span></label>
-                            <input type="time" id="form-time-to" aria-describedby="support-entry-help" />
+                            <select id="form-time-to" aria-describedby="support-entry-help">
+                                <option value="">-- وقت النهاية --</option>
+                                <optgroup label="صباحا">
+                                    <option value="08:30">08:30</option>
+                                    <option value="09:30">09:30</option>
+                                    <option value="10:30">10:30</option>
+                                    <option value="11:30">11:30</option>
+                                    <option value="12:30">12:30</option>
+                                </optgroup>
+                                <optgroup label="مساء">
+                                    <option value="14:30">14:30</option>
+                                    <option value="15:30">15:30</option>
+                                    <option value="16:30">16:30</option>
+                                    <option value="17:30">17:30</option>
+                                    <option value="18:30">18:30</option>
+                                </optgroup>
+                            </select>
                         </div>
                         <div class="gs-form-group">
                             <label for="form-room"><i class="fas fa-door-open"></i> القاعة</label>
