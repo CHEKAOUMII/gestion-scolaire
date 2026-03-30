@@ -64,7 +64,6 @@ function injectSidebar() {
                         <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
                         <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
                         <li><a href="grades-results.html"><i class="fas fa-file-invoice"></i> بيان النتائج</a></li>
-                        <li><a href="studentzero.html"><i class="fas fa-exclamation-circle"></i> التلاميذ الحاصلون على صفر</a></li>
                         <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> الدعم التربوي</a></li>
                         <li><a href="support-sessions.html"><i class="fas fa-chalkboard"></i> تتبع حصص الدعم</a></li>
                     </ul>

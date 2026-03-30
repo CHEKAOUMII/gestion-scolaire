@@ -23,7 +23,6 @@ module.exports = [
     'results-hub.html',
     'analytics.html',
     'grades-sheets.html',
-    'studentzero.html',
     'student-support.html',
     'absence-weekly.html',
     'absence-students.html',

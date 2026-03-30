@@ -32,13 +32,13 @@
             <div class="grades-container">
                 <!-- Tab Navigation -->
                 <div class="rh-tabs" role="tablist">
-                    <button class="rh-tab-btn active" id="tab-btn-results" role="tab" aria-selected="true" aria-controls="tab-results" type="button">
+                    <button class="rh-tab-btn active" id="tab-btn-results" role="tab" aria-selected="true" aria-controls="tab-results" type="button" onclick="switchTab('results')">
                         <i class="fas fa-chart-bar"></i> النتائج العامة
                     </button>
-                    <button class="rh-tab-btn" id="tab-btn-zeros" role="tab" aria-selected="false" aria-controls="tab-zeros" type="button">
+                    <button class="rh-tab-btn" id="tab-btn-zeros" role="tab" aria-selected="false" aria-controls="tab-zeros" type="button" onclick="switchTab('zeros')">
                         <i class="fas fa-exclamation-circle"></i> الحاصلون على صفر
                     </button>
-                    <button class="rh-tab-btn" id="tab-btn-top" role="tab" aria-selected="false" aria-controls="tab-top" type="button">
+                    <button class="rh-tab-btn" id="tab-btn-top" role="tab" aria-selected="false" aria-controls="tab-top" type="button" onclick="switchTab('top')">
                         <i class="fas fa-trophy"></i> الأوائل
                     </button>
                 </div>
