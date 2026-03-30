@@ -342,7 +342,7 @@
                 }
             }
 
-            const year = getSchoolYear();
+            let year;
             let allSections = [];
             let allGradesCache = [];
             let sectionToLevel = {};
@@ -364,6 +364,7 @@
 
             document.addEventListener('DOMContentLoaded', async () => {
                 try {
+                    year = getSchoolYear();
                     // Tab switching
                     document.getElementById('tab-btn-results').addEventListener('click', () => switchTab('results'));
                     document.getElementById('tab-btn-zeros').addEventListener('click', () => switchTab('zeros'));
