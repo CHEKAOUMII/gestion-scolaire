@@ -252,7 +252,44 @@
 </div>
 
                 <!-- Tab 3: الأوائل -->
-                <div class="rh-tab-panel" id="tab-top" role="tabpanel"></div>
+                <div class="rh-tab-panel" id="tab-top" role="tabpanel">
+    <!-- Scope + semester filters -->
+    <div class="gs-form-section">
+        <div class="gs-form-header"><i class="fas fa-trophy"></i> إعدادات العرض</div>
+        <div style="padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+            <div>
+                <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">نطاق العرض</label>
+                <div class="rh-scope-bar" id="top-scope-bar">
+                    <button class="rh-scope-btn active" data-scope="section" type="button">
+                        <i class="fas fa-chalkboard"></i> حسب القسم
+                    </button>
+                    <button class="rh-scope-btn" data-scope="level" type="button">
+                        <i class="fas fa-layer-group"></i> حسب المستوى
+                    </button>
+                    <button class="rh-scope-btn" data-scope="school" type="button">
+                        <i class="fas fa-school"></i> حسب المؤسسة
+                    </button>
+                </div>
+            </div>
+            <div>
+                <label for="top-semester" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">الدورة</label>
+                <select id="top-semester" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);">
+                    <option value="">كل الدورات</option>
+                    <option value="1">الدورة الأولى</option>
+                    <option value="2">الدورة الثانية</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cards container -->
+    <div class="rh-top-grid" id="top-grid">
+        <div style="padding:40px;text-align:center;color:var(--color-text-muted);">
+            <i class="fas fa-trophy" style="font-size:40px;opacity:0.3;display:block;margin-bottom:12px;"></i>
+            جاري تحميل بيانات الأوائل...
+        </div>
+    </div>
+</div>
             </div>
         </main>
 
@@ -350,6 +387,18 @@
                         if (!Number.isFinite(targetPage) || targetPage < 1 || targetPage === zCurrentPage) return;
                         zCurrentPage = targetPage;
                         searchZeros();
+                    });
+
+                    // Tab 3 events
+                    document.getElementById('top-scope-bar').addEventListener('click', e => {
+                        const btn = e.target.closest('.rh-scope-btn[data-scope]');
+                        if (!btn) return;
+                        topScope = btn.dataset.scope;
+                        document.querySelectorAll('.rh-scope-btn').forEach(b => b.classList.toggle('active', b === btn));
+                        if (tab3Loaded) renderTopPerformers();
+                    });
+                    document.getElementById('top-semester').addEventListener('change', () => {
+                        if (tab3Loaded) renderTopPerformers();
                     });
 
                     await loadFilters();
@@ -1188,6 +1237,117 @@
                     console.warn('Print preview error:', err);
                     showToast('تعذر فتح معاينة الطباعة', 'error');
                 }
+            }
+
+            // ===== Tab 3: الأوائل =====
+
+            let topScope = 'section';
+            const MEDALS = ['🥇', '🥈', '🥉'];
+
+            function topGradeColor(avg) {
+                if (avg >= 16) return '#10b981';
+                if (avg >= 14) return '#3b82f6';
+                if (avg >= 12) return '#f59e0b';
+                if (avg >= 10) return '#f97316';
+                return '#ef4444';
+            }
+
+            async function renderTopPerformers() {
+                const grid = document.getElementById('top-grid');
+                const semester = document.getElementById('top-semester').value;
+
+                grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--color-text-muted);"><i class="fas fa-spinner fa-spin" style="font-size:30px;display:block;margin-bottom:10px;"></i> جاري التحميل...</div>';
+
+                try {
+                    const allGrades = (await window.api.grades.getAll(year)) || [];
+                    const grades = allGrades.map(g => ({ ...g, grade: Number(g.grade) })).filter(g => Number.isFinite(g.grade));
+                    const filtered = semester ? grades.filter(g => String(g.semester || '') === semester) : grades;
+
+                    if (!filtered.length) {
+                        grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--color-text-muted);"><i class="fas fa-inbox" style="font-size:36px;display:block;margin-bottom:10px;opacity:0.4;"></i> لا توجد بيانات</div>';
+                        return;
+                    }
+
+                    const studentsAgg = new Map();
+                    filtered.forEach(g => {
+                        const id = String(g.student_id || g.student_code || g.full_name || 'غير محدد');
+                        const base = normalizeSubjectName(g.subject) || 'غير محدد';
+                        let agg = studentsAgg.get(id);
+                        if (!agg) { agg = { firstRecord: g, bySubject: new Map() }; studentsAgg.set(id, agg); }
+                        const arr = agg.bySubject.get(base) || [];
+                        arr.push(g);
+                        agg.bySubject.set(base, arr);
+                    });
+
+                    const students = Array.from(studentsAgg.entries()).map(([id, agg]) => {
+                        const first = agg.firstRecord || {};
+                        const subjectAvgs = Array.from(agg.bySubject.entries(), ([base, grds]) => ({ subject: base, avg: computeSubjectAverage(base, grds) }));
+                        const branch = typeof detectBranch === 'function' ? detectBranch(first.section || first.class_name || '') : null;
+                        const average = typeof computeWeightedGeneralAverage === 'function'
+                            ? computeWeightedGeneralAverage(subjectAvgs, branch)
+                            : (subjectAvgs.length ? subjectAvgs.reduce((s, x) => s + x.avg, 0) / subjectAvgs.length : 0);
+                        return {
+                            id,
+                            name: String(first.full_name || first.student_code || id),
+                            massar_code: first.student_code || first.massar_code || '-',
+                            section: first.section || '-',
+                            level: _getLocalLevelName(first.section || ''),
+                            average
+                        };
+                    });
+
+                    students.sort((a, b) => b.average - a.average);
+
+                    let cards = '';
+                    if (topScope === 'school') {
+                        cards = buildTopCard('المؤسسة بأكملها', 'fa-school', students.slice(0, 3));
+                    } else if (topScope === 'section') {
+                        const bySection = {};
+                        students.forEach(s => {
+                            if (!bySection[s.section]) bySection[s.section] = [];
+                            bySection[s.section].push(s);
+                        });
+                        sortSectionNames(Object.keys(bySection)).forEach(sec => {
+                            cards += buildTopCard(sec, 'fa-chalkboard', bySection[sec].slice(0, 3));
+                        });
+                    } else {
+                        const byLevel = {};
+                        students.forEach(s => {
+                            const lv = s.level || 'غير محدد';
+                            if (!byLevel[lv]) byLevel[lv] = [];
+                            byLevel[lv].push(s);
+                        });
+                        const levels = Object.keys(byLevel);
+                        (typeof sortLevelNames === 'function' ? sortLevelNames(levels) : levels).forEach(lv => {
+                            cards += buildTopCard(lv, 'fa-layer-group', byLevel[lv].slice(0, 3));
+                        });
+                    }
+
+                    grid.innerHTML = cards || '<div style="padding:40px;text-align:center;color:var(--color-text-muted);">لا توجد بيانات كافية</div>';
+
+                } catch (err) {
+                    console.warn('Top performers error:', err);
+                    grid.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444;"><i class="fas fa-triangle-exclamation" style="font-size:30px;display:block;margin-bottom:10px;"></i> تعذر تحميل البيانات</div>';
+                }
+            }
+
+            function buildTopCard(label, iconClass, topStudents) {
+                if (!topStudents || !topStudents.length) return '';
+                const rows = topStudents.map((s, i) => {
+                    const color = topGradeColor(s.average);
+                    return `<div class="rh-top-row">
+                        <span class="rh-top-medal">${MEDALS[i] || (i + 1)}</span>
+                        <div class="rh-top-info">
+                            <div class="rh-top-name">${s.name}</div>
+                            <div class="rh-top-code">${s.massar_code}</div>
+                        </div>
+                        <span class="rh-top-avg" style="color:${color}">${s.average.toFixed(2)}</span>
+                    </div>`;
+                }).join('');
+                return `<div class="rh-top-card">
+                    <div class="rh-top-card-header"><i class="fas ${iconClass}"></i> ${label}</div>
+                    ${rows}
+                </div>`;
             }
         </script>
     </body>
