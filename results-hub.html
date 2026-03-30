@@ -30,6 +30,21 @@
                 </div>
             </header>
             <div class="grades-container">
+                <!-- Tab Navigation -->
+                <div class="rh-tabs" role="tablist">
+                    <button class="rh-tab-btn active" id="tab-btn-results" role="tab" aria-selected="true" aria-controls="tab-results" type="button">
+                        <i class="fas fa-chart-bar"></i> النتائج العامة
+                    </button>
+                    <button class="rh-tab-btn" id="tab-btn-zeros" role="tab" aria-selected="false" aria-controls="tab-zeros" type="button">
+                        <i class="fas fa-exclamation-circle"></i> الحاصلون على صفر
+                    </button>
+                    <button class="rh-tab-btn" id="tab-btn-top" role="tab" aria-selected="false" aria-controls="tab-top" type="button">
+                        <i class="fas fa-trophy"></i> الأوائل
+                    </button>
+                </div>
+
+                <!-- Tab 1: النتائج العامة -->
+                <div class="rh-tab-panel active" id="tab-results" role="tabpanel">
                 <div class="search-section">
                     <h3><i class="fas fa-filter"></i> تصفية النتائج</h3>
                     <form class="search-form filter-grid" id="filter-form">
@@ -79,6 +94,7 @@
 
                 <div class="students-results">
                     <h3><i class="fas fa-chart-bar"></i> ملخص الإحصائيات</h3>
+
                     <div class="kpi-grid">
                         <div class="kpi-card" style="background: linear-gradient(135deg, #3b6ac5, #5b84d6)">
                             <div class="kpi-value" id="total-students">0</div>
@@ -125,6 +141,13 @@
                     </div>
                     <div class="pagination-bar" id="pagination-bar"></div>
                 </div>
+                </div>
+
+                <!-- Tab 2: الحاصلون على صفر -->
+                <div class="rh-tab-panel" id="tab-zeros" role="tabpanel"></div>
+
+                <!-- Tab 3: الأوائل -->
+                <div class="rh-tab-panel" id="tab-top" role="tabpanel"></div>
             </div>
         </main>
 
@@ -153,6 +176,30 @@
 
         <script src="js/data/ma-education-labels.js"></script>
         <script>
+            let activeTab = 'results';
+            let tab2Loaded = false;
+            let tab3Loaded = false;
+
+            function switchTab(tabId) {
+                activeTab = tabId;
+                document.querySelectorAll('.rh-tab-btn').forEach(btn => {
+                    const isActive = btn.id === `tab-btn-${tabId}`;
+                    btn.classList.toggle('active', isActive);
+                    btn.setAttribute('aria-selected', String(isActive));
+                });
+                document.querySelectorAll('.rh-tab-panel').forEach(panel => {
+                    panel.classList.toggle('active', panel.id === `tab-${tabId}`);
+                });
+                if (tabId === 'zeros' && !tab2Loaded) {
+                    tab2Loaded = true;
+                    searchZeros({ resetPage: true });
+                }
+                if (tabId === 'top' && !tab3Loaded) {
+                    tab3Loaded = true;
+                    renderTopPerformers();
+                }
+            }
+
             const year = getSchoolYear();
             let allSections = [];
             let allGradesCache = [];
@@ -175,6 +222,11 @@
 
             document.addEventListener('DOMContentLoaded', async () => {
                 try {
+                    // Tab switching
+                    document.getElementById('tab-btn-results').addEventListener('click', () => switchTab('results'));
+                    document.getElementById('tab-btn-zeros').addEventListener('click', () => switchTab('zeros'));
+                    document.getElementById('tab-btn-top').addEventListener('click', () => switchTab('top'));
+
                     await loadFilters();
 
                     // Event listeners for cascading dropdowns
