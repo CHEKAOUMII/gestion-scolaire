@@ -30,7 +30,7 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'timetable-students.html', title: 'جدول حصص التلاميذ', group: 'الاستعمال الزمني', completed: true },
     { page: 'timetable-rooms.html', title: 'جدول القاعات', group: 'الاستعمال الزمني', completed: true },
     { page: 'timetable-teachers.html', title: 'جدول حصص الأساتذة', group: 'الاستعمال الزمني', completed: true },
-    { page: 'grades.html', title: 'النتائج والإحصائيات', group: 'التقويم والنتائج', completed: true },
+    { page: 'results-hub.html', title: 'مركز النتائج', group: 'التقويم والنتائج', completed: true },
     { page: 'analytics.html', title: 'تحليل النتائج', group: 'التقويم والنتائج', completed: true },
     { page: 'grades-sheets.html', title: 'أوراق التنقيط', group: 'التقويم والنتائج', completed: true },
     { page: 'studentzero.html', title: 'التلاميذ الحاصلون على صفر', group: 'التقويم والنتائج', completed: true },
@@ -2029,12 +2029,12 @@ function setupUnifiedHeader() {
 
     const utilityButtons = [
         hasShortcutsModal
-            ? `<button class="theme-toggle header-tools-btn" id="shortcuts-btn" title="اختصارات لوحة المفاتيح" aria-label="اختصارات لوحة المفاتيح"><span>الاختصارات</span><i class="fas fa-keyboard" aria-hidden="true"></i></button>`
+            ? `<button class="header-tools-btn" id="shortcuts-btn" title="اختصارات لوحة المفاتيح" aria-label="اختصارات لوحة المفاتيح"><span>الاختصارات</span><i class="fas fa-keyboard" aria-hidden="true"></i></button>`
             : '',
         hasBackupModal
-            ? `<button class="theme-toggle header-tools-btn" id="backup-btn" title="إدارة النسخة الاحتياطية" aria-label="إدارة النسخة الاحتياطية"><span>النسخة الاحتياطية</span><i class="fas fa-database" aria-hidden="true"></i></button>`
+            ? `<button class="header-tools-btn" id="backup-btn" title="إدارة النسخة الاحتياطية" aria-label="إدارة النسخة الاحتياطية"><span>النسخة الاحتياطية</span><i class="fas fa-database" aria-hidden="true"></i></button>`
             : '',
-        `<button class="theme-toggle header-tools-btn" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة"><span>السمة</span><i class="fas fa-moon" aria-hidden="true"></i></button>`
+        `<button class="header-tools-btn" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة"><span>السمة</span><i class="fas fa-moon" aria-hidden="true"></i></button>`
     ]
         .filter(Boolean)
         .join('');
@@ -2063,7 +2063,10 @@ function setupUnifiedHeader() {
             </div>
             <details class="header-tools">
                 <summary class="header-tools-summary" aria-label="أدوات الإدارة">
-                    <span>أدوات الإدارة</span>
+                    <span class="header-tools-summary-copy">
+                        <strong>أدوات الإدارة</strong>
+                        <small>اختصارات، نسخ احتياطي، سمة</small>
+                    </span>
                     <i class="fas fa-sliders-h" aria-hidden="true"></i>
                 </summary>
                 <div class="header-tools-panel">

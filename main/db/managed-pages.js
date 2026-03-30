@@ -20,7 +20,7 @@ module.exports = [
     'timetable-students.html',
     'timetable-rooms.html',
     'timetable-teachers.html',
-    'grades.html',
+    'results-hub.html',
     'analytics.html',
     'grades-sheets.html',
     'studentzero.html',

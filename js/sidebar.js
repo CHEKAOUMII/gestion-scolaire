@@ -60,7 +60,7 @@ function injectSidebar() {
                 <li class="expandable my-[2px] mx-[10px]">
                     <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-grades-submenu"><i class="fas fa-chart-line"></i><span>التقويم والنتائج</span><i class="fas fa-chevron-down arrow"></i></button>
                     <ul class="sub-menu" id="sidebar-grades-submenu" hidden>
-                        <li><a href="grades.html"><i class="fas fa-star"></i> النتائج والإحصائيات</a></li>
+                        <li><a href="results-hub.html"><i class="fas fa-chart-pie"></i> مركز النتائج</a></li>
                         <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
                         <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
                         <li><a href="grades-results.html"><i class="fas fa-file-invoice"></i> بيان النتائج</a></li>
