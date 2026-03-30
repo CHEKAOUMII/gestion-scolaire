@@ -74,6 +74,17 @@
                                 <option value="2">الدورة الثانية</option>
                             </select>
                         </div>
+                        <div class="filter-group">
+                            <label>التقدير</label>
+                            <select id="remark-select">
+                                <option value="">كل التقديرات</option>
+                                <option value="ممتاز">ممتاز</option>
+                                <option value="حسن جدا">حسن جداً</option>
+                                <option value="حسن">حسن</option>
+                                <option value="مقبول">مقبول</option>
+                                <option value="ضعيف">ضعيف</option>
+                            </select>
+                        </div>
                         <button class="btn btn-primary" type="button" id="search-btn">
                             <i class="fas fa-search"></i> عرض
                         </button>
@@ -133,7 +144,7 @@
                                     <th>القسم</th>
                                     <th>المعدل العام</th>
                                     <th>الترتيب</th>
-                                    <th>الملاحظة</th>
+                                    <th>التقدير</th>
                                 </tr>
                             </thead>
                             <tbody id="tbody"></tbody>
@@ -357,6 +368,7 @@
                 document.getElementById('class-select').value = '';
                 document.getElementById('subject-select').value = '';
                 document.getElementById('semester-select').value = '';
+                document.getElementById('remark-select').value = '';
                 renderClassOptions('');
                 renderSubjectOptions('', '');
                 loadResults();
@@ -504,7 +516,12 @@
                     document.getElementById('excellence-rate').textContent = excellenceRate.toFixed(1) + '%';
 
                     // Store data for pagination and render first page
-                    currentStudentData = studentData;
+                    let displayData = studentData;
+                    const remarkFilter = document.getElementById('remark-select').value;
+                    if (remarkFilter) {
+                        displayData = studentData.filter(s => getGradeRemark(s.average) === remarkFilter);
+                    }
+                    currentStudentData = displayData;
                     currentPage = 1;
                     renderPage();
                 } catch (error) {
