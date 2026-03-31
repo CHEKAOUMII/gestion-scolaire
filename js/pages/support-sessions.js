@@ -191,8 +191,9 @@
 
     function resetEntryForm() {
         clearInvalidHighlights();
-        formTeacher.value = '';
         formSubject.value = '';
+        filterTeachersBySubject('');
+        formTeacher.value = '';
         formSection.value = '';
         formDate.value = getTodayValue();
         formTimeFrom.value = '';
@@ -204,8 +205,9 @@
 
     function applyDraftToForm(draft) {
         if (!draft) return;
-        formTeacher.value = draft.teacher_id != null ? String(draft.teacher_id) : '';
         formSubject.value = draft.subject || '';
+        filterTeachersBySubject(formSubject.value);
+        formTeacher.value = draft.teacher_id != null ? String(draft.teacher_id) : '';
         formSection.value = draft.section || '';
         formDate.value = getTodayValue();
         formTimeFrom.value = draft.time_from || '';
@@ -243,6 +245,27 @@
         const result = ensureIpcSuccess(await window.api.classes.getAll(schoolYear), 'تعذر تحميل قائمة الأقسام');
         const classes = Array.isArray(result) ? result : [];
         const sections = classes.map((item) => item.name || item.class_name || item).filter(Boolean);
+
+        const SECTION_ORDER = [
+            { pattern: /\u062c\u0630\u0639|\u0627\u0644\u062c\u0630\u0639|\u062c\u0630\u0648\u0639|\u0627\u0644\u062c\u0630\u0648\u0639|TC/i, rank: 1 },
+            { pattern: /\u0623\u0648\u0644\u0649|1\s*\u0628\u0627\u0643|1BAC|\u0627\u0644\u0623\u0648\u0644\u0649/i, rank: 2 },
+            { pattern: /\u062b\u0627\u0646\u064a\u0629|2\s*\u0628\u0627\u0643|2BAC|\u0627\u0644\u062b\u0627\u0646\u064a\u0629/i, rank: 3 }
+        ];
+
+        function getSectionRank(name) {
+            for (const entry of SECTION_ORDER) {
+                if (entry.pattern.test(name)) return entry.rank;
+            }
+            return 99;
+        }
+
+        sections.sort((a, b) => {
+            const rankA = getSectionRank(a);
+            const rankB = getSectionRank(b);
+            if (rankA !== rankB) return rankA - rankB;
+            return a.localeCompare(b, 'ar');
+        });
+
         [formSection, filterSection].forEach((select) => {
             const placeholder = select === formSection ? '-- اختر القسم --' : 'الكل';
             select.innerHTML = `<option value="">${placeholder}</option>`;
@@ -270,10 +293,28 @@
         });
     }
 
-    formTeacher.addEventListener('change', () => {
-        const selected = formTeacher.options[formTeacher.selectedIndex];
-        const subject = selected ? selected.dataset.subject : '';
-        if (subject) formSubject.value = subject;
+    function filterTeachersBySubject(selectedSubject) {
+        const currentTeacher = formTeacher.value;
+        formTeacher.innerHTML = '<option value="">-- اختر الأستاذ --</option>';
+        const filtered = selectedSubject
+            ? teachers.filter((t) => t.subject === selectedSubject)
+            : teachers;
+        filtered.forEach((teacher) => {
+            const option = document.createElement('option');
+            option.value = teacher.id;
+            option.dataset.subject = teacher.subject || '';
+            option.textContent = teacher.full_name;
+            formTeacher.appendChild(option);
+        });
+        if (filtered.some((t) => String(t.id) === currentTeacher)) {
+            formTeacher.value = currentTeacher;
+        } else {
+            formTeacher.value = '';
+        }
+    }
+
+    formSubject.addEventListener('change', () => {
+        filterTeachersBySubject(formSubject.value);
     });
 
     [formTimeFrom, formTimeTo].forEach((element) => {
@@ -410,7 +451,7 @@
             repeatLastButton.disabled = false;
             showToast('تم تسجيل حصة الدعم وتحديث الجدول أدناه.', 'success');
             resetEntryForm();
-            formTeacher.focus();
+            formSubject.focus();
             await Promise.all([loadStats(), loadSessions()]);
         } catch (error) {
             console.error('[support-sessions] add failed:', error);
@@ -431,13 +472,13 @@
     repeatLastButton.addEventListener('click', () => {
         if (!lastSessionDraft) return;
         applyDraftToForm(lastSessionDraft);
-        formTeacher.focus();
+        formSubject.focus();
         showToast('تم تجهيز بيانات آخر حصة. راجعها ثم سجلها من جديد إذا لزم الأمر.', 'info');
     });
 
     resetFormButton.addEventListener('click', () => {
         resetEntryForm();
-        formTeacher.focus();
+        formSubject.focus();
         showToast('تم تفريغ الحقول والاحتفاظ بتاريخ اليوم لبدء إدخال جديد.', 'info');
     });
 
@@ -544,7 +585,7 @@
 
         formDate.value = getTodayValue();
         if (lastSessionDraft) repeatLastButton.disabled = false;
-        formTeacher.focus();
+        formSubject.focus();
     } catch (error) {
         console.error('[support-sessions] init failed:', error);
         formDate.value = getTodayValue();
