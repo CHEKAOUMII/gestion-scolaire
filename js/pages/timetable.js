@@ -1839,7 +1839,6 @@ function showToast(message, type = 'info') {
     clearTimeout(toastHideTimer);
     toastHideTimer = setTimeout(() => toast.classList.remove('show'), 4200);
 }
-const timetableShowToast = showToast;
 // ==================== EDIT MODE SYSTEM ====================
 
 // Edit mode state
