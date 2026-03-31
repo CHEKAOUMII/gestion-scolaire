@@ -8014,7 +8014,7 @@ a.quick-nav-item {
        ============================ */
     .toast.loading {
         background: var(--color-primary-mist, #eff6ff);
-        border-inline-end-color: var(--color-primary);
+        border-inline-end: 3px solid var(--color-primary);
     }
 
     .toast.loading i.fa-spinner {
@@ -8068,6 +8068,10 @@ a.quick-nav-item {
 
     .toast .toast-close:hover {
         opacity: 1;
+    }
+
+    [data-theme='dark'] .toast.loading {
+        background: rgba(59, 106, 197, 0.15);
     }
 }
 

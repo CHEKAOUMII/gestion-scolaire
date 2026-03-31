@@ -14,40 +14,234 @@
         type = type || 'success';
         duration = duration || 3000;
 
-        let container = document.getElementById('toast-container');
+        var container = _ensureToastContainer();
+        var dismissed = false;
+
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+
+        var icon = document.createElement('i');
+        var iconClass = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle'
+        };
+        icon.className = 'fas ' + (iconClass[type] || iconClass.info);
+
+        var span = document.createElement('span');
+        span.textContent = message;
+
+        toast.appendChild(icon);
+        toast.appendChild(span);
+        container.appendChild(toast);
+        requestAnimationFrame(function () {
+            toast.classList.add('show');
+        });
+
+        function dismiss() {
+            if (dismissed) return;
+            dismissed = true;
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(function () {
+                toast.remove();
+            }, 300);
+        }
+
+        toast.style.cursor = 'pointer';
+        toast.addEventListener('click', dismiss);
+
+        setTimeout(dismiss, duration);
+    }
+
+    function _ensureToastContainer() {
+        var container = document.getElementById('toast-container');
         if (!container) {
             container = document.createElement('div');
             container.id = 'toast-container';
             container.className = 'toast-container';
             document.body.appendChild(container);
         }
+        return container;
+    }
 
-        const toast = document.createElement('div');
-        toast.className = 'toast ' + type;
+    var _lastToast = {};
 
-        const icon = document.createElement('i');
-        const iconClass = {
-            success: 'fa-check-circle',
-            error: 'fa-exclamation-circle',
-            warning: 'fa-exclamation-triangle',
-            info: 'fa-info-circle',
+    function _deduplicateToast(type, message) {
+        var now = Date.now();
+        var lastToast = _lastToast[type];
+        if (lastToast && message === lastToast.message && now - lastToast.time < 2000) return true;
+        _lastToast[type] = {
+            message: message,
+            time: now
         };
-        icon.className = 'fas ' + (iconClass[type] || iconClass.info);
+        return false;
+    }
 
-        const span = document.createElement('span');
+    function _createNoopHandle() {
+        return {
+            success: function () {},
+            error: function () {},
+            progress: function () {},
+            dismiss: function () {}
+        };
+    }
+
+    function renderLoadingToast(message) {
+        if (_deduplicateToast('loading', message)) return _createNoopHandle();
+
+        var container = _ensureToastContainer();
+        var toast = document.createElement('div');
+        toast.className = 'toast loading';
+        toast.style.position = 'relative';
+
+        var spinner = document.createElement('i');
+        spinner.className = 'fas fa-spinner';
+
+        var span = document.createElement('span');
         span.textContent = message;
 
-        toast.appendChild(icon);
-        toast.appendChild(span);
-        container.appendChild(toast);
+        var progressBar = document.createElement('div');
+        progressBar.className = 'toast-progress-bar';
+        progressBar.style.width = '0%';
 
-        setTimeout(function () {
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'toast-close';
+        closeBtn.type = 'button';
+        closeBtn.setAttribute('aria-label', 'إغلاق');
+        closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+
+        toast.appendChild(spinner);
+        toast.appendChild(span);
+        toast.appendChild(progressBar);
+        toast.appendChild(closeBtn);
+        container.appendChild(toast);
+        requestAnimationFrame(function () {
+            toast.classList.add('show');
+        });
+
+        var dismissed = false;
+        var resolved = false;
+
+        function dismiss() {
+            if (dismissed) return;
+            dismissed = true;
             toast.style.opacity = '0';
             toast.style.transform = 'translateY(-20px)';
             setTimeout(function () {
                 toast.remove();
             }, 300);
-        }, duration);
+        }
+
+        closeBtn.addEventListener('click', dismiss);
+        toast.style.cursor = 'pointer';
+        toast.addEventListener('click', function (e) {
+            if (e.target.closest('.toast-close')) return;
+            dismiss();
+        });
+
+        return {
+            success: function (msg) {
+                if (dismissed || resolved) return;
+                resolved = true;
+                spinner.className = 'fas fa-check-circle';
+                toast.className = 'toast success';
+                if (msg) span.textContent = msg;
+                progressBar.style.width = '100%';
+                setTimeout(dismiss, 3000);
+            },
+            error: function (msg) {
+                if (dismissed || resolved) return;
+                resolved = true;
+                spinner.className = 'fas fa-exclamation-circle';
+                toast.className = 'toast error';
+                if (msg) span.textContent = msg;
+                if (progressBar.parentNode) progressBar.remove();
+                setTimeout(dismiss, 5000);
+            },
+            progress: function (percent) {
+                if (dismissed || resolved) return;
+                var clamped = Math.max(0, Math.min(100, Number(percent) || 0));
+                progressBar.style.width = clamped + '%';
+            },
+            dismiss: dismiss
+        };
+    }
+
+    function renderActionToast(message, actionConfig, opts) {
+        if (_deduplicateToast('action', message)) return _createNoopHandle();
+        opts = opts || {};
+        var duration = opts.duration || 8000;
+
+        var container = _ensureToastContainer();
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + (opts.type || 'info');
+        toast.style.cursor = 'pointer';
+
+        var iconMap = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle'
+        };
+        var icon = document.createElement('i');
+        icon.className = 'fas ' + (iconMap[opts.type] || iconMap.info);
+
+        var span = document.createElement('span');
+        span.textContent = message;
+
+        toast.appendChild(icon);
+        toast.appendChild(span);
+
+        if (actionConfig && actionConfig.label) {
+            var actionBtn = document.createElement('button');
+            actionBtn.className = 'toast-action-btn';
+            actionBtn.type = 'button';
+            if (actionConfig.icon) {
+                var btnIcon = document.createElement('i');
+                btnIcon.className = 'fas ' + actionConfig.icon;
+                actionBtn.appendChild(btnIcon);
+                actionBtn.appendChild(document.createTextNode(' '));
+            }
+            actionBtn.appendChild(document.createTextNode(actionConfig.label));
+            toast.appendChild(actionBtn);
+        }
+
+        container.appendChild(toast);
+        requestAnimationFrame(function () {
+            toast.classList.add('show');
+        });
+
+        var dismissed = false;
+
+        function dismissToast() {
+            if (dismissed) return;
+            dismissed = true;
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(function () {
+                toast.remove();
+            }, 300);
+        }
+
+        toast.addEventListener('click', function (e) {
+            if (dismissed) return;
+            if (e.target.closest('.toast-action-btn')) {
+                if (actionConfig && typeof actionConfig.onClick === 'function') {
+                    try {
+                        actionConfig.onClick();
+                    } catch (error) {
+                        console.error(error);
+                    }
+                }
+                dismissToast();
+                return;
+            }
+            dismissToast();
+        });
+
+        setTimeout(dismissToast, duration);
     }
 
     // ===== Notification center helpers =====
@@ -225,6 +419,8 @@
 
     // Backward-compatible global showToast (replaces all 3 competing definitions)
     window.showToast = renderToast;
+    window.showToast.loading = renderLoadingToast;
+    window.showToast.action = renderActionToast;
 
     // New unified dispatch — sends through the engine
     window.notify = function (event) {
