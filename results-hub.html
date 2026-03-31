@@ -20,7 +20,16 @@
         <main class="main-content">
             <header class="header">
                 <div class="header-left">
-                    <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
+                    <button
+                        class="menu-toggle"
+                        id="menu-toggle"
+                        type="button"
+                        aria-controls="sidebar"
+                        aria-expanded="false"
+                        aria-label="فتح القائمة الجانبية"
+                    >
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
                     <h2 class="page-title"><i class="fas fa-chart-pie"></i> مركز النتائج | Results Hub</h2>
                 </div>
                 <div class="header-right">
@@ -32,264 +41,331 @@
             <div class="grades-container">
                 <!-- Tab Navigation -->
                 <div class="rh-tabs" role="tablist">
-                    <button class="rh-tab-btn active" id="tab-btn-results" role="tab" aria-selected="true" aria-controls="tab-results" type="button" onclick="switchTab('results')">
+                    <button
+                        class="rh-tab-btn active"
+                        id="tab-btn-results"
+                        role="tab"
+                        aria-selected="true"
+                        aria-controls="tab-results"
+                        type="button"
+                    >
                         <i class="fas fa-chart-bar"></i> النتائج العامة
                     </button>
-                    <button class="rh-tab-btn" id="tab-btn-zeros" role="tab" aria-selected="false" aria-controls="tab-zeros" type="button" onclick="switchTab('zeros')">
+                    <button
+                        class="rh-tab-btn"
+                        id="tab-btn-zeros"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="tab-zeros"
+                        type="button"
+                    >
                         <i class="fas fa-exclamation-circle"></i> الحاصلون على صفر
                     </button>
-                    <button class="rh-tab-btn" id="tab-btn-top" role="tab" aria-selected="false" aria-controls="tab-top" type="button" onclick="switchTab('top')">
+                    <button
+                        class="rh-tab-btn"
+                        id="tab-btn-top"
+                        role="tab"
+                        aria-selected="false"
+                        aria-controls="tab-top"
+                        type="button"
+                    >
                         <i class="fas fa-trophy"></i> الأوائل
                     </button>
                 </div>
 
                 <!-- Tab 1: النتائج العامة -->
-                <div class="rh-tab-panel active" id="tab-results" role="tabpanel">
-                <div class="search-section">
-                    <h3><i class="fas fa-filter"></i> تصفية النتائج</h3>
-                    <form class="search-form filter-grid" id="filter-form">
-                        <div class="filter-group">
-                            <label>المستوى</label>
-                            <select id="level-select">
-                                <option value="">كل المستويات</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>القسم</label>
-                            <select id="class-select">
-                                <option value="">كل الأقسام</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>المادة</label>
-                            <select id="subject-select">
-                                <option value="">كل المواد</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>الدورة</label>
-                            <select id="semester-select">
-                                <option value="">كل الدورات</option>
-                                <option value="1">الدورة الأولى</option>
-                                <option value="2">الدورة الثانية</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label>التقدير</label>
-                            <select id="remark-select">
-                                <option value="">كل التقديرات</option>
-                                <option value="ممتاز">ممتاز</option>
-                                <option value="حسن جدا">حسن جداً</option>
-                                <option value="حسن">حسن</option>
-                                <option value="مقبول">مقبول</option>
-                                <option value="ضعيف">ضعيف</option>
-                            </select>
-                        </div>
-                        <button class="btn btn-primary" type="button" id="search-btn">
-                            <i class="fas fa-search"></i> عرض
-                        </button>
-                        <button
-                            class="btn btn-secondary"
-                            type="button"
-                            id="reset-btn"
-                            style="
-                                background: var(--color-surface);
-                                color: var(--color-text-main);
-                                border: 1px solid var(--color-accent);
-                            "
-                        >
-                            <i class="fas fa-redo"></i> إعادة
-                        </button>
-                    </form>
-                </div>
-
-                <div class="students-results">
-                    <h3><i class="fas fa-chart-bar"></i> ملخص الإحصائيات</h3>
-
-                    <div class="kpi-grid">
-                        <div class="kpi-card" style="background: linear-gradient(135deg, #3b6ac5, #5b84d6)">
-                            <div class="kpi-value" id="total-students">0</div>
-                            <div class="kpi-label">عدد التلاميذ</div>
-                        </div>
-                        <div class="kpi-card" style="background: linear-gradient(135deg, #2ecc71, #27ae60)">
-                            <div class="kpi-value" id="avg-grade">-</div>
-                            <div class="kpi-label">المعدل العام</div>
-                        </div>
-                        <div class="kpi-card" style="background: linear-gradient(135deg, #7c6bbf, #5b4f9e)">
-                            <div class="kpi-value" id="subject-avg">-</div>
-                            <div class="kpi-label">معدل المادة</div>
-                        </div>
-                        <div class="kpi-card" style="background: linear-gradient(135deg, #e8a838, #d4942f)">
-                            <div class="kpi-value" id="pass-rate">-</div>
-                            <div class="kpi-label">نسبة النجاح</div>
-                        </div>
-                        <div class="kpi-card" style="background: linear-gradient(135deg, #e85d5d, #c0392b)">
-                            <div class="kpi-value" id="fail-count">0</div>
-                            <div class="kpi-label">الراسبون</div>
-                        </div>
-                        <div class="kpi-card" style="background: linear-gradient(135deg, #5b9bd5, #3a7bbd)">
-                            <div class="kpi-value" id="excellence-rate">-</div>
-                            <div class="kpi-label">نسبة التفوق</div>
-                        </div>
+                <div class="rh-tab-panel active" id="tab-results" role="tabpanel" aria-labelledby="tab-btn-results">
+                    <div class="search-section">
+                        <h3><i class="fas fa-filter"></i> تصفية النتائج</h3>
+                        <form class="search-form filter-grid" id="filter-form">
+                            <div class="filter-group">
+                                <label>المستوى</label>
+                                <select id="level-select">
+                                    <option value="">كل المستويات</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>القسم</label>
+                                <select id="class-select">
+                                    <option value="">كل الأقسام</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>المادة</label>
+                                <select id="subject-select">
+                                    <option value="">كل المواد</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>الدورة</label>
+                                <select id="semester-select">
+                                    <option value="">كل الدورات</option>
+                                    <option value="1">الدورة الأولى</option>
+                                    <option value="2">الدورة الثانية</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>التقدير</label>
+                                <select id="remark-select">
+                                    <option value="">كل التقديرات</option>
+                                    <option value="ممتاز">ممتاز</option>
+                                    <option value="حسن جدا">حسن جداً</option>
+                                    <option value="حسن">حسن</option>
+                                    <option value="مقبول">مقبول</option>
+                                    <option value="ضعيف">ضعيف</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" type="button" id="search-btn">
+                                <i class="fas fa-search"></i> عرض
+                            </button>
+                            <button
+                                class="btn btn-secondary"
+                                type="button"
+                                id="reset-btn"
+                                style="
+                                    background: var(--color-surface);
+                                    color: var(--color-text-main);
+                                    border: 1px solid var(--color-accent);
+                                "
+                            >
+                                <i class="fas fa-redo"></i> إعادة
+                            </button>
+                        </form>
                     </div>
 
-                    <h3 style="margin-top: 20px"><i class="fas fa-list"></i> قائمة النتائج</h3>
-                    <div class="table-responsive">
-                        <table class="students-table students-table-card">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>رمز مسار</th>
-                                    <th>الاسم الكامل</th>
-                                    <th>القسم</th>
-                                    <th>المعدل العام</th>
-                                    <th>الترتيب</th>
-                                    <th>التقدير</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tbody"></tbody>
-                        </table>
+                    <div class="students-results">
+                        <h3><i class="fas fa-chart-bar"></i> ملخص الإحصائيات</h3>
+
+                        <div class="kpi-grid">
+                            <div class="kpi-card" style="background: linear-gradient(135deg, #3b6ac5, #5b84d6)">
+                                <div class="kpi-value" id="total-students">0</div>
+                                <div class="kpi-label">عدد التلاميذ</div>
+                            </div>
+                            <div class="kpi-card" style="background: linear-gradient(135deg, #2ecc71, #27ae60)">
+                                <div class="kpi-value" id="avg-grade">-</div>
+                                <div class="kpi-label">المعدل العام</div>
+                            </div>
+                            <div class="kpi-card" style="background: linear-gradient(135deg, #7c6bbf, #5b4f9e)">
+                                <div class="kpi-value" id="subject-avg">-</div>
+                                <div class="kpi-label">معدل المادة</div>
+                            </div>
+                            <div class="kpi-card" style="background: linear-gradient(135deg, #e8a838, #d4942f)">
+                                <div class="kpi-value" id="pass-rate">-</div>
+                                <div class="kpi-label">نسبة النجاح</div>
+                            </div>
+                            <div class="kpi-card" style="background: linear-gradient(135deg, #e85d5d, #c0392b)">
+                                <div class="kpi-value" id="fail-count">0</div>
+                                <div class="kpi-label">الراسبون</div>
+                            </div>
+                            <div class="kpi-card" style="background: linear-gradient(135deg, #5b9bd5, #3a7bbd)">
+                                <div class="kpi-value" id="excellence-rate">-</div>
+                                <div class="kpi-label">نسبة التفوق</div>
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 20px"><i class="fas fa-list"></i> قائمة النتائج</h3>
+                        <div class="table-responsive">
+                            <table class="students-table students-table-card">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>رمز مسار</th>
+                                        <th>الاسم الكامل</th>
+                                        <th>القسم</th>
+                                        <th>المعدل العام</th>
+                                        <th>الترتيب</th>
+                                        <th>التقدير</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="pagination-bar" id="pagination-bar"></div>
                     </div>
-                    <div class="pagination-bar" id="pagination-bar"></div>
-                </div>
                 </div>
 
                 <!-- Tab 2: الحاصلون على صفر -->
-                <div class="rh-tab-panel" id="tab-zeros" role="tabpanel">
-    <!-- Filters -->
-    <div class="gs-form-section">
-        <div class="gs-form-header"><i class="fas fa-filter"></i> تصفية النتائج</div>
-        <form class="gs-form-grid" id="zeros-form">
-            <div class="gs-form-group" style="grid-column: span 2">
-                <label for="zeros-search">البحث</label>
-                <input id="zeros-search" type="text" placeholder="بحث بالاسم، رمز مسار أو المادة" autocomplete="off"
-                    style="width:100%;padding:10px 14px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);font-size:14px;" />
-            </div>
-            <div class="gs-form-group">
-                <label for="zeros-class">القسم</label>
-                <select id="zeros-class">
-                    <option value="">كل الأقسام</option>
-                </select>
-            </div>
-            <div class="gs-form-group">
-                <label for="zeros-semester">الدورة</label>
-                <select id="zeros-semester">
-                    <option value="">كل الدورات</option>
-                    <option value="1">الدورة الأولى</option>
-                    <option value="2">الدورة الثانية</option>
-                </select>
-            </div>
-            <div class="gs-form-group">
-                <label for="zeros-page-size">عدد النتائج</label>
-                <select id="zeros-page-size">
-                    <option value="10">10 في الصفحة</option>
-                    <option value="25" selected>25 في الصفحة</option>
-                    <option value="50">50 في الصفحة</option>
-                    <option value="100">100 في الصفحة</option>
-                </select>
-            </div>
-            <div class="gs-form-actions">
-                <button class="btn btn-primary" type="button" id="zeros-search-btn">
-                    <i class="fas fa-search"></i> بحث
-                </button>
-                <button class="btn btn-success ux-print-preview-btn" type="button" id="zeros-export-btn" disabled>
-                    <i class="fas fa-eye"></i> معاينة
-                </button>
-            </div>
-        </form>
-    </div>
+                <div class="rh-tab-panel" id="tab-zeros" role="tabpanel" aria-labelledby="tab-btn-zeros">
+                    <!-- Filters -->
+                    <div class="gs-form-section">
+                        <div class="gs-form-header"><i class="fas fa-filter"></i> تصفية النتائج</div>
+                        <form class="gs-form-grid" id="zeros-form">
+                            <div class="gs-form-group" style="grid-column: span 2">
+                                <label for="zeros-search">البحث</label>
+                                <input
+                                    id="zeros-search"
+                                    type="text"
+                                    placeholder="بحث بالاسم، رمز مسار أو المادة"
+                                    autocomplete="off"
+                                    style="
+                                        width: 100%;
+                                        padding: 10px 14px;
+                                        border: 1px solid var(--color-accent);
+                                        border-radius: var(--radius-sm);
+                                        background: var(--color-surface);
+                                        color: var(--color-text-main);
+                                        font-family: var(--font-main);
+                                        font-size: 14px;
+                                    "
+                                />
+                            </div>
+                            <div class="gs-form-group">
+                                <label for="zeros-class">القسم</label>
+                                <select id="zeros-class">
+                                    <option value="">كل الأقسام</option>
+                                </select>
+                            </div>
+                            <div class="gs-form-group">
+                                <label for="zeros-semester">الدورة</label>
+                                <select id="zeros-semester">
+                                    <option value="">كل الدورات</option>
+                                    <option value="1">الدورة الأولى</option>
+                                    <option value="2">الدورة الثانية</option>
+                                </select>
+                            </div>
+                            <div class="gs-form-group">
+                                <label for="zeros-page-size">عدد النتائج</label>
+                                <select id="zeros-page-size">
+                                    <option value="10">10 في الصفحة</option>
+                                    <option value="25" selected>25 في الصفحة</option>
+                                    <option value="50">50 في الصفحة</option>
+                                    <option value="100">100 في الصفحة</option>
+                                </select>
+                            </div>
+                            <div class="gs-form-actions">
+                                <button class="btn btn-primary" type="button" id="zeros-search-btn">
+                                    <i class="fas fa-search"></i> بحث
+                                </button>
+                                <button
+                                    class="btn btn-success ux-print-preview-btn"
+                                    type="button"
+                                    id="zeros-export-btn"
+                                    disabled
+                                >
+                                    <i class="fas fa-eye"></i> معاينة
+                                </button>
+                            </div>
+                        </form>
+                    </div>
 
-    <!-- KPIs -->
-    <div class="sz-kpis" aria-live="polite">
-        <div class="sz-kpi-card">
-            <div class="sz-kpi-label">حالات الصفر</div>
-            <div class="sz-kpi-value" id="z-kpi-total">0</div>
-        </div>
-        <div class="sz-kpi-card">
-            <div class="sz-kpi-label">عدد التلاميذ</div>
-            <div class="sz-kpi-value" id="z-kpi-students">0</div>
-        </div>
-        <div class="sz-kpi-card">
-            <div class="sz-kpi-label">الأقسام المتأثرة</div>
-            <div class="sz-kpi-value" id="z-kpi-sections">0</div>
-        </div>
-        <div class="sz-kpi-card">
-            <div class="sz-kpi-label">مرتبطة بالغياب</div>
-            <div class="sz-kpi-value" id="z-kpi-absence">0</div>
-        </div>
-    </div>
+                    <!-- KPIs -->
+                    <div class="sz-kpis" aria-live="polite">
+                        <div class="sz-kpi-card">
+                            <div class="sz-kpi-label">حالات الصفر</div>
+                            <div class="sz-kpi-value" id="z-kpi-total">0</div>
+                        </div>
+                        <div class="sz-kpi-card">
+                            <div class="sz-kpi-label">عدد التلاميذ</div>
+                            <div class="sz-kpi-value" id="z-kpi-students">0</div>
+                        </div>
+                        <div class="sz-kpi-card">
+                            <div class="sz-kpi-label">الأقسام المتأثرة</div>
+                            <div class="sz-kpi-value" id="z-kpi-sections">0</div>
+                        </div>
+                        <div class="sz-kpi-card">
+                            <div class="sz-kpi-label">مرتبطة بالغياب</div>
+                            <div class="sz-kpi-value" id="z-kpi-absence">0</div>
+                        </div>
+                    </div>
 
-    <!-- Table -->
-    <div class="gs-preview-section">
-        <div class="gs-preview-header">
-            <h3 class="gs-preview-title">
-                <i class="fas fa-list"></i>
-                الحاصلون على صفر
-                <span id="z-results-count" class="gs-count-badge" aria-live="polite">0</span>
-            </h3>
-            <div id="z-results-meta" style="font-size:13px;color:var(--color-text-muted)">-</div>
-        </div>
-        <div class="gs-preview-body">
-            <div class="table-responsive">
-                <table class="students-table students-table-card">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>رمز مسار</th>
-                            <th>الاسم الكامل</th>
-                            <th>القسم</th>
-                            <th>المادة</th>
-                            <th>الدورة</th>
-                            <th>السبب</th>
-                        </tr>
-                    </thead>
-                    <tbody id="z-tbody"></tbody>
-                </table>
-            </div>
-            <div class="pagination" id="z-pagination" style="display:none"></div>
-        </div>
-    </div>
-</div>
+                    <!-- Table -->
+                    <div class="gs-preview-section">
+                        <div class="gs-preview-header">
+                            <h3 class="gs-preview-title">
+                                <i class="fas fa-list"></i>
+                                الحاصلون على صفر
+                                <span id="z-results-count" class="gs-count-badge" aria-live="polite">0</span>
+                            </h3>
+                            <div id="z-results-meta" style="font-size: 13px; color: var(--color-text-muted)">-</div>
+                        </div>
+                        <div class="gs-preview-body">
+                            <div class="table-responsive">
+                                <table class="students-table students-table-card">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>رمز مسار</th>
+                                            <th>الاسم الكامل</th>
+                                            <th>القسم</th>
+                                            <th>المادة</th>
+                                            <th>الدورة</th>
+                                            <th>السبب</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="z-tbody"></tbody>
+                                </table>
+                            </div>
+                            <div class="pagination" id="z-pagination" style="display: none"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Tab 3: الأوائل -->
-                <div class="rh-tab-panel" id="tab-top" role="tabpanel">
-    <!-- Scope + semester filters -->
-    <div class="gs-form-section">
-        <div class="gs-form-header"><i class="fas fa-trophy"></i> إعدادات العرض</div>
-        <div style="padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
-            <div>
-                <label style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">نطاق العرض</label>
-                <div class="rh-scope-bar" id="top-scope-bar">
-                    <button class="rh-scope-btn active" data-scope="section" type="button">
-                        <i class="fas fa-chalkboard"></i> حسب القسم
-                    </button>
-                    <button class="rh-scope-btn" data-scope="level" type="button">
-                        <i class="fas fa-layer-group"></i> حسب المستوى
-                    </button>
-                    <button class="rh-scope-btn" data-scope="school" type="button">
-                        <i class="fas fa-school"></i> حسب المؤسسة
-                    </button>
-                </div>
-            </div>
-            <div>
-                <label for="top-semester" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">الدورة</label>
-                <select id="top-semester" style="padding:8px 12px;border:1px solid var(--color-accent);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text-main);font-family:var(--font-main);">
-                    <option value="">كل الدورات</option>
-                    <option value="1">الدورة الأولى</option>
-                    <option value="2">الدورة الثانية</option>
-                </select>
-            </div>
-        </div>
-    </div>
+                <div class="rh-tab-panel" id="tab-top" role="tabpanel" aria-labelledby="tab-btn-top">
+                    <!-- Scope + semester filters -->
+                    <div class="gs-form-section">
+                        <div class="gs-form-header"><i class="fas fa-trophy"></i> إعدادات العرض</div>
+                        <div class="rh-top-controls">
+                            <div>
+                                <label class="rh-top-label" id="top-scope-label">نطاق العرض</label>
+                                <div
+                                    class="rh-scope-bar"
+                                    id="top-scope-bar"
+                                    role="radiogroup"
+                                    aria-labelledby="top-scope-label"
+                                >
+                                    <button
+                                        class="rh-scope-btn active"
+                                        data-scope="section"
+                                        role="radio"
+                                        aria-checked="true"
+                                        tabindex="0"
+                                        type="button"
+                                    >
+                                        <i class="fas fa-chalkboard"></i> حسب القسم
+                                    </button>
+                                    <button
+                                        class="rh-scope-btn"
+                                        data-scope="level"
+                                        role="radio"
+                                        aria-checked="false"
+                                        tabindex="-1"
+                                        type="button"
+                                    >
+                                        <i class="fas fa-layer-group"></i> حسب المستوى
+                                    </button>
+                                    <button
+                                        class="rh-scope-btn"
+                                        data-scope="school"
+                                        role="radio"
+                                        aria-checked="false"
+                                        tabindex="-1"
+                                        type="button"
+                                    >
+                                        <i class="fas fa-school"></i> حسب المؤسسة
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="rh-top-label" for="top-semester">الدورة</label>
+                                <select class="rh-top-select" id="top-semester">
+                                    <option value="">كل الدورات</option>
+                                    <option value="1">الدورة الأولى</option>
+                                    <option value="2">الدورة الثانية</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
-    <!-- Cards container -->
-    <div class="rh-top-grid" id="top-grid">
-        <div style="padding:40px;text-align:center;color:var(--color-text-muted);">
-            <i class="fas fa-trophy" style="font-size:40px;opacity:0.3;display:block;margin-bottom:12px;"></i>
-            جاري تحميل بيانات الأوائل...
-        </div>
-    </div>
-</div>
+                    <!-- Cards container -->
+                    <p class="sr-only" id="top-status" aria-live="polite"></p>
+                    <div class="rh-top-grid" id="top-grid" role="region" aria-labelledby="tab-btn-top" aria-busy="true">
+                        <div class="rh-top-state">
+                            <i class="fas fa-trophy rh-top-state-icon" aria-hidden="true"></i>
+                            جاري تحميل بيانات الأوائل...
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
 
@@ -324,12 +400,12 @@
 
             function switchTab(tabId) {
                 activeTab = tabId;
-                document.querySelectorAll('.rh-tab-btn').forEach(btn => {
+                document.querySelectorAll('.rh-tab-btn').forEach((btn) => {
                     const isActive = btn.id === `tab-btn-${tabId}`;
                     btn.classList.toggle('active', isActive);
                     btn.setAttribute('aria-selected', String(isActive));
                 });
-                document.querySelectorAll('.rh-tab-panel').forEach(panel => {
+                document.querySelectorAll('.rh-tab-panel').forEach((panel) => {
                     panel.classList.toggle('active', panel.id === `tab-${tabId}`);
                 });
                 if (tabId === 'zeros' && !tab2Loaded) {
@@ -371,17 +447,22 @@
                     document.getElementById('tab-btn-top').addEventListener('click', () => switchTab('top'));
 
                     // Tab 2 events
-                    document.getElementById('zeros-search-btn').addEventListener('click', () => searchZeros({ resetPage: true }));
+                    document
+                        .getElementById('zeros-search-btn')
+                        .addEventListener('click', () => searchZeros({ resetPage: true }));
                     document.getElementById('zeros-export-btn').addEventListener('click', zShowPrintPreview);
-                    document.getElementById('zeros-form').addEventListener('submit', e => { e.preventDefault(); searchZeros({ resetPage: true }); });
-                    ['zeros-class', 'zeros-semester', 'zeros-page-size'].forEach(id => {
+                    document.getElementById('zeros-form').addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        searchZeros({ resetPage: true });
+                    });
+                    ['zeros-class', 'zeros-semester', 'zeros-page-size'].forEach((id) => {
                         document.getElementById(id).addEventListener('change', () => searchZeros({ resetPage: true }));
                     });
                     document.getElementById('zeros-search').addEventListener('input', () => {
                         clearTimeout(zDebounceTimer);
                         zDebounceTimer = setTimeout(() => searchZeros({ resetPage: true }), 250);
                     });
-                    document.getElementById('z-pagination').addEventListener('click', e => {
+                    document.getElementById('z-pagination').addEventListener('click', (e) => {
                         const btn = e.target.closest('button[data-page]');
                         if (!btn || btn.disabled) return;
                         const targetPage = Number(btn.dataset.page);
@@ -391,11 +472,28 @@
                     });
 
                     // Tab 3 events
-                    document.getElementById('top-scope-bar').addEventListener('click', e => {
+                    document.getElementById('top-scope-bar').addEventListener('click', (e) => {
                         const btn = e.target.closest('.rh-scope-btn[data-scope]');
                         if (!btn) return;
-                        topScope = btn.dataset.scope;
-                        document.querySelectorAll('.rh-scope-btn').forEach(b => b.classList.toggle('active', b === btn));
+                        setTopScope(btn.dataset.scope);
+                        if (tab3Loaded) renderTopPerformers();
+                    });
+                    document.getElementById('top-scope-bar').addEventListener('keydown', (e) => {
+                        const buttons = Array.from(document.querySelectorAll('.rh-scope-btn'));
+                        const currentIndex = buttons.findIndex((button) => button.dataset.scope === topScope);
+                        if (currentIndex === -1) return;
+
+                        let nextIndex = currentIndex;
+                        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+                            nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+                        if (e.key === 'ArrowRight' || e.key === 'ArrowDown')
+                            nextIndex = (currentIndex + 1) % buttons.length;
+                        if (nextIndex === currentIndex) return;
+
+                        e.preventDefault();
+                        const nextButton = buttons[nextIndex];
+                        setTopScope(nextButton.dataset.scope);
+                        nextButton.focus();
                         if (tab3Loaded) renderTopPerformers();
                     });
                     document.getElementById('top-semester').addEventListener('change', () => {
@@ -484,6 +582,7 @@
                 const students = (await window.api.students.getAll(year)) || [];
                 const grades = (await window.api.grades.getAll(year)) || [];
                 allGradesCache = grades;
+                topStudentsCache.clear();
 
                 const uniqueSubjects = [...new Set(grades.map((g) => g.subject).filter(Boolean))];
                 debugGrades('loadFilters:data', {
@@ -514,7 +613,7 @@
                 // Populate Tab 2 class select
                 const zerosClassSelect = document.getElementById('zeros-class');
                 while (zerosClassSelect.options.length > 1) zerosClassSelect.remove(1);
-                sortSectionNames(allSections).forEach(name => {
+                sortSectionNames(allSections).forEach((name) => {
                     const opt = document.createElement('option');
                     opt.value = name;
                     opt.textContent = name;
@@ -693,7 +792,7 @@
                     let displayData = studentData;
                     const remarkFilter = document.getElementById('remark-select').value;
                     if (remarkFilter) {
-                        displayData = studentData.filter(s => getGradeRemark(s.average) === remarkFilter);
+                        displayData = studentData.filter((s) => getGradeRemark(s.average) === remarkFilter);
                     }
                     currentStudentData = displayData;
                     currentPage = 1;
@@ -1066,7 +1165,7 @@
                     return btn;
                 };
                 const nodes = [make('السابق', page - 1, 'nav-btn', page <= 1, false)];
-                zBuildPageList(page, totalPages).forEach(item => {
+                zBuildPageList(page, totalPages).forEach((item) => {
                     if (item === '...') {
                         const span = document.createElement('span');
                         span.className = 'ellipsis';
@@ -1086,34 +1185,47 @@
             }
 
             function zNormalizeRows(rows = []) {
-                return rows.map(g => ({
-                    id: g.id,
-                    student_code: g.student_code || g.massar_code || '',
-                    student_name: g.student_name || g.full_name || '',
-                    class_name: g.class_name || g.section || '',
-                    subject: g.subject || '',
-                    semester: String(g.semester || ''),
-                    grade: Number(g.grade),
-                    absence_count: Number(g.absence_count || 0),
-                    zero_reason: g.zero_reason || ''
-                })).filter(g => g.grade === 0);
+                return rows
+                    .map((g) => ({
+                        id: g.id,
+                        student_code: g.student_code || g.massar_code || '',
+                        student_name: g.student_name || g.full_name || '',
+                        class_name: g.class_name || g.section || '',
+                        subject: g.subject || '',
+                        semester: String(g.semester || ''),
+                        grade: Number(g.grade),
+                        absence_count: Number(g.absence_count || 0),
+                        zero_reason: g.zero_reason || ''
+                    }))
+                    .filter((g) => g.grade === 0);
             }
 
-            async function zBuildFallback({ className = '', semester = '', searchTerm = '', page = 1, pageSize = 25, exportAll = false } = {}) {
+            async function zBuildFallback({
+                className = '',
+                semester = '',
+                searchTerm = '',
+                page = 1,
+                pageSize = 25,
+                exportAll = false
+            } = {}) {
                 const rawGrades = await window.api.grades.getAll(year);
                 const all = zNormalizeRows(Array.isArray(rawGrades) ? rawGrades : []);
                 const search = searchTerm.trim().toLowerCase();
                 let filtered = all;
-                if (className) filtered = filtered.filter(g => g.class_name === className);
-                if (semester) filtered = filtered.filter(g => String(g.semester) === String(semester));
-                if (search) filtered = filtered.filter(g =>
-                    String(g.student_name).toLowerCase().includes(search) ||
-                    String(g.student_code).toLowerCase().includes(search) ||
-                    String(g.subject).toLowerCase().includes(search)
-                );
+                if (className) filtered = filtered.filter((g) => g.class_name === className);
+                if (semester) filtered = filtered.filter((g) => String(g.semester) === String(semester));
+                if (search)
+                    filtered = filtered.filter(
+                        (g) =>
+                            String(g.student_name).toLowerCase().includes(search) ||
+                            String(g.student_code).toLowerCase().includes(search) ||
+                            String(g.subject).toLowerCase().includes(search)
+                    );
                 filtered.sort((a, b) => {
                     const bySection = String(a.class_name).localeCompare(String(b.class_name), 'ar');
-                    return bySection !== 0 ? bySection : String(a.student_name).localeCompare(String(b.student_name), 'ar');
+                    return bySection !== 0
+                        ? bySection
+                        : String(a.student_name).localeCompare(String(b.student_name), 'ar');
                 });
                 const totalRows = filtered.length;
                 const totalPages = totalRows ? Math.ceil(totalRows / pageSize) : 1;
@@ -1122,21 +1234,41 @@
                 const rows = exportAll ? filtered : filtered.slice(start, start + pageSize);
                 return {
                     success: true,
-                    rows: rows.map(r => ({ ...r, zero_reason: r.zero_reason || 'تعثر دراسي' })),
-                    pagination: { page: exportAll ? 1 : safePage, pageSize: exportAll ? rows.length || pageSize : pageSize, totalRows, totalPages: exportAll ? 1 : totalPages },
+                    rows: rows.map((r) => ({ ...r, zero_reason: r.zero_reason || 'تعثر دراسي' })),
+                    pagination: {
+                        page: exportAll ? 1 : safePage,
+                        pageSize: exportAll ? rows.length || pageSize : pageSize,
+                        totalRows,
+                        totalPages: exportAll ? 1 : totalPages
+                    },
                     summary: {
                         totalCases: totalRows,
-                        uniqueStudents: new Set(filtered.map(r => r.student_code || r.student_name)).size,
-                        sectionsCount: new Set(filtered.map(r => r.class_name)).size,
+                        uniqueStudents: new Set(filtered.map((r) => r.student_code || r.student_name)).size,
+                        sectionsCount: new Set(filtered.map((r) => r.class_name)).size,
                         absenceLinkedCases: 0
                     }
                 };
             }
 
-            async function zFetch({ className = '', semester = '', searchTerm = '', page = 1, pageSize = 25, exportAll = false } = {}) {
+            async function zFetch({
+                className = '',
+                semester = '',
+                searchTerm = '',
+                page = 1,
+                pageSize = 25,
+                exportAll = false
+            } = {}) {
                 if (typeof window.api?.grades?.getZeroStudents === 'function') {
                     try {
-                        const result = await window.api.grades.getZeroStudents({ schoolYear: year, className, semester, searchTerm, page, pageSize, exportAll });
+                        const result = await window.api.grades.getZeroStudents({
+                            schoolYear: year,
+                            className,
+                            semester,
+                            searchTerm,
+                            page,
+                            pageSize,
+                            exportAll
+                        });
                         if (result?.success) return result;
                     } catch (_) {}
                 }
@@ -1172,9 +1304,14 @@
                     zUpdateMeta(result.pagination || {});
                     zRenderPagination(result.pagination || {});
                     const rows = Array.isArray(result.rows) ? result.rows : [];
-                    document.getElementById('zeros-export-btn').disabled = !rows.length && !Number(result.pagination?.totalRows || 0);
+                    document.getElementById('zeros-export-btn').disabled =
+                        !rows.length && !Number(result.pagination?.totalRows || 0);
                     if (!rows.length) {
-                        zRenderMessage('لا يوجد تلاميذ حاصلون على صفر وفق الفلاتر الحالية', 'fa-check-circle', '#10b981');
+                        zRenderMessage(
+                            'لا يوجد تلاميذ حاصلون على صفر وفق الفلاتر الحالية',
+                            'fa-check-circle',
+                            '#10b981'
+                        );
                         return;
                     }
                     zRenderRows(rows, result.pagination || {});
@@ -1195,18 +1332,39 @@
                     const result = await zFetch({ ...filters, page: 1, pageSize: zGetPageSize(), exportAll: true });
                     if (!result?.success) throw new Error();
                     const rows = Array.isArray(result.rows) ? result.rows : [];
-                    if (!rows.length) { showToast('لا توجد بيانات للمعاينة', 'warning'); return; }
+                    if (!rows.length) {
+                        showToast('لا توجد بيانات للمعاينة', 'warning');
+                        return;
+                    }
 
-                    const dateStr = new Intl.DateTimeFormat('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+                    const dateStr = new Intl.DateTimeFormat('ar-MA', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    }).format(new Date());
                     let identity = {};
-                    try { identity = (await window.api.reports.getIdentity()) || {}; } catch (_) {}
-                    const letterhead = typeof window.buildLetterheadHTML === 'function' ? window.buildLetterheadHTML(identity, year) : '';
-                    const filtersText = [filters.className || 'كل الأقسام', filters.semester ? zSemesterLabel(filters.semester) : 'كل الدورات'].join(' — ');
+                    try {
+                        identity = (await window.api.reports.getIdentity()) || {};
+                    } catch (_) {}
+                    const letterhead =
+                        typeof window.buildLetterheadHTML === 'function'
+                            ? window.buildLetterheadHTML(identity, year)
+                            : '';
+                    const filtersText = [
+                        filters.className || 'كل الأقسام',
+                        filters.semester ? zSemesterLabel(filters.semester) : 'كل الدورات'
+                    ].join(' — ');
 
-                    const tableRows = rows.map((row, idx) => {
-                        const reason = row.zero_reason || (Number(row.absence_count || 0) > 0 ? 'غياب' : 'تعثر دراسي');
-                        const esc = v => { const d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; };
-                        return `<tr>
+                    const tableRows = rows
+                        .map((row, idx) => {
+                            const reason =
+                                row.zero_reason || (Number(row.absence_count || 0) > 0 ? 'غياب' : 'تعثر دراسي');
+                            const esc = (v) => {
+                                const d = document.createElement('div');
+                                d.textContent = v == null ? '' : String(v);
+                                return d.innerHTML;
+                            };
+                            return `<tr>
                         <td style="text-align:center;font-weight:600;color:#666">${idx + 1}</td>
                         <td>${esc(row.student_code || '-')}</td>
                         <td style="font-weight:600">${esc(row.student_name || '-')}</td>
@@ -1215,10 +1373,16 @@
                         <td style="text-align:center">${zSemesterLabel(row.semester)}</td>
                         <td style="text-align:center">${esc(reason)}</td>
                     </tr>`;
-                    }).join('');
+                        })
+                        .join('');
 
                     let printDiv = document.getElementById('rh-zeros-print');
-                    if (!printDiv) { printDiv = document.createElement('div'); printDiv.id = 'rh-zeros-print'; printDiv.style.display = 'none'; document.body.appendChild(printDiv); }
+                    if (!printDiv) {
+                        printDiv = document.createElement('div');
+                        printDiv.id = 'rh-zeros-print';
+                        printDiv.style.display = 'none';
+                        document.body.appendChild(printDiv);
+                    }
                     printDiv.innerHTML = `<div class="gs-sheet-wrapper"><div class="gs-sheet" id="rh-zeros-sheet">${letterhead}
                         <div class="gs-sheet-title">الحاصلون على صفر</div>
                         <div class="gs-sheet-subtitle">${filtersText}</div>
@@ -1228,11 +1392,24 @@
                     </div></div>`;
                     printDiv.style.display = 'block';
 
-                    const previewFn = (typeof window.openPrintPreview === 'function' && window.openPrintPreview) || (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
+                    const previewFn =
+                        (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
+                        (typeof window.UXEnhancements?.openPrintPreview === 'function' &&
+                            window.UXEnhancements.openPrintPreview);
                     if (previewFn) {
-                        previewFn({ contentSelector: '#rh-zeros-sheet', title: 'الحاصلون على صفر', pageSize: 'A4', noHeader: true, defaultFileName: `تلاميذ_الصفر_${year.replace('/', '-')}` });
-                    } else { window.print(); }
-                    setTimeout(() => { printDiv.style.display = 'none'; }, 500);
+                        previewFn({
+                            contentSelector: '#rh-zeros-sheet',
+                            title: 'الحاصلون على صفر',
+                            pageSize: 'A4',
+                            noHeader: true,
+                            defaultFileName: `تلاميذ_الصفر_${year.replace('/', '-')}`
+                        });
+                    } else {
+                        window.print();
+                    }
+                    setTimeout(() => {
+                        printDiv.style.display = 'none';
+                    }, 500);
                     showToast(`تم تجهيز المعاينة (${rows.length} سجل)`, 'success');
                 } catch (err) {
                     console.warn('Print preview error:', err);
@@ -1243,50 +1420,97 @@
             // ===== Tab 3: الأوائل =====
 
             let topScope = 'section';
-            const MEDALS = ['🥇', '🥈', '🥉'];
+            const TOP_RANKS = [1, 2, 3];
+            const topStudentsCache = new Map();
 
-            function topGradeColor(avg) {
-                if (avg >= 16) return '#10b981';
-                if (avg >= 14) return '#3b82f6';
-                if (avg >= 12) return '#f59e0b';
-                if (avg >= 10) return '#f97316';
-                return '#ef4444';
+            function escapeTopHtml(value) {
+                if (typeof window.escapeHtml === 'function')
+                    return window.escapeHtml(value == null ? '' : String(value));
+                const div = document.createElement('div');
+                div.textContent = value == null ? '' : String(value);
+                return div.innerHTML;
             }
 
-            async function renderTopPerformers() {
+            function setTopStatus(message) {
+                const status = document.getElementById('top-status');
+                if (status) status.textContent = message;
+            }
+
+            function setTopScope(scope) {
+                topScope = scope;
+                document.querySelectorAll('.rh-scope-btn').forEach((button) => {
+                    const isActive = button.dataset.scope === scope;
+                    button.classList.toggle('active', isActive);
+                    button.setAttribute('aria-checked', String(isActive));
+                    button.tabIndex = isActive ? 0 : -1;
+                });
+            }
+
+            function setTopGridState(state, message) {
                 const grid = document.getElementById('top-grid');
-                const semester = document.getElementById('top-semester').value;
+                grid.setAttribute('aria-busy', state === 'loading' ? 'true' : 'false');
+                const toneClass =
+                    state === 'error'
+                        ? 'rh-top-state--error'
+                        : state === 'empty'
+                          ? 'rh-top-state--empty'
+                          : 'rh-top-state--loading';
+                const iconClass =
+                    state === 'error'
+                        ? 'fa-triangle-exclamation'
+                        : state === 'empty'
+                          ? 'fa-inbox'
+                          : 'fa-spinner fa-spin';
+                grid.innerHTML = `<div class="rh-top-state ${toneClass}"><i class="fas ${iconClass} rh-top-state-icon" aria-hidden="true"></i>${escapeTopHtml(message)}</div>`;
+                setTopStatus(message);
+            }
 
-                grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--color-text-muted);"><i class="fas fa-spinner fa-spin" style="font-size:30px;display:block;margin-bottom:10px;"></i> جاري التحميل...</div>';
+            function topScopeLabel(scope) {
+                if (scope === 'school') return 'المؤسسة';
+                if (scope === 'level') return 'المستوى';
+                return 'القسم';
+            }
 
-                try {
-                    const allGrades = (await window.api.grades.getAll(year)) || [];
-                    const grades = allGrades.map(g => ({ ...g, grade: Number(g.grade) })).filter(g => Number.isFinite(g.grade));
-                    const filtered = semester ? grades.filter(g => String(g.semester || '') === semester) : grades;
+            function getTopStudentsForSemester(semester) {
+                const cacheKey = semester || 'all';
+                if (topStudentsCache.has(cacheKey)) return topStudentsCache.get(cacheKey);
 
-                    if (!filtered.length) {
-                        grid.innerHTML = '<div style="padding:40px;text-align:center;color:var(--color-text-muted);"><i class="fas fa-inbox" style="font-size:36px;display:block;margin-bottom:10px;opacity:0.4;"></i> لا توجد بيانات</div>';
-                        return;
+                const filtered = (allGradesCache || [])
+                    .map((g) => ({ ...g, grade: Number(g.grade) }))
+                    .filter((g) => Number.isFinite(g.grade) && (!semester || String(g.semester || '') === semester));
+
+                const studentsAgg = new Map();
+                filtered.forEach((g) => {
+                    const id = String(g.student_id || g.student_code || g.full_name || 'غير محدد');
+                    const base = normalizeSubjectName(g.subject) || 'غير محدد';
+                    let agg = studentsAgg.get(id);
+                    if (!agg) {
+                        agg = { firstRecord: g, bySubject: new Map() };
+                        studentsAgg.set(id, agg);
                     }
+                    const arr = agg.bySubject.get(base) || [];
+                    arr.push(g);
+                    agg.bySubject.set(base, arr);
+                });
 
-                    const studentsAgg = new Map();
-                    filtered.forEach(g => {
-                        const id = String(g.student_id || g.student_code || g.full_name || 'غير محدد');
-                        const base = normalizeSubjectName(g.subject) || 'غير محدد';
-                        let agg = studentsAgg.get(id);
-                        if (!agg) { agg = { firstRecord: g, bySubject: new Map() }; studentsAgg.set(id, agg); }
-                        const arr = agg.bySubject.get(base) || [];
-                        arr.push(g);
-                        agg.bySubject.set(base, arr);
-                    });
-
-                    const students = Array.from(studentsAgg.entries()).map(([id, agg]) => {
+                const students = Array.from(studentsAgg.entries())
+                    .map(([id, agg]) => {
                         const first = agg.firstRecord || {};
-                        const subjectAvgs = Array.from(agg.bySubject.entries(), ([base, grds]) => ({ subject: base, avg: computeSubjectAverage(base, grds) }));
-                        const branch = typeof detectBranch === 'function' ? detectBranch(first.section || first.class_name || '') : null;
-                        const average = typeof computeWeightedGeneralAverage === 'function'
-                            ? computeWeightedGeneralAverage(subjectAvgs, branch)
-                            : (subjectAvgs.length ? subjectAvgs.reduce((s, x) => s + x.avg, 0) / subjectAvgs.length : 0);
+                        const subjectAvgs = Array.from(agg.bySubject.entries(), ([base, grds]) => ({
+                            subject: base,
+                            avg: computeSubjectAverage(base, grds)
+                        }));
+                        const branch =
+                            typeof detectBranch === 'function'
+                                ? detectBranch(first.section || first.class_name || '')
+                                : null;
+                        const average =
+                            typeof computeWeightedGeneralAverage === 'function'
+                                ? computeWeightedGeneralAverage(subjectAvgs, branch)
+                                : subjectAvgs.length
+                                  ? subjectAvgs.reduce((sum, item) => sum + item.avg, 0) / subjectAvgs.length
+                                  : 0;
+
                         return {
                             id,
                             name: String(first.full_name || first.student_code || id),
@@ -1295,60 +1519,124 @@
                             level: _getLocalLevelName(first.section || ''),
                             average
                         };
-                    });
+                    })
+                    .sort((a, b) => b.average - a.average);
 
-                    students.sort((a, b) => b.average - a.average);
+                topStudentsCache.set(cacheKey, students);
+                return students;
+            }
 
-                    let cards = '';
+            function topGradeColor(avg) {
+                if (avg >= 16) return 'rh-top-avg--success';
+                if (avg >= 14) return 'rh-top-avg--info';
+                if (avg >= 12) return 'rh-top-avg--warning';
+                if (avg >= 10) return 'rh-top-avg--warning-soft';
+                return 'rh-top-avg--danger';
+            }
+
+            async function renderTopPerformers() {
+                const grid = document.getElementById('top-grid');
+                const semester = document.getElementById('top-semester').value;
+
+                setTopGridState('loading', 'جاري تحميل بيانات الأوائل...');
+
+                try {
+                    const students = getTopStudentsForSemester(semester);
+
+                    if (!students.length) {
+                        setTopGridState('empty', 'لا توجد بيانات في هذا النطاق');
+                        return;
+                    }
+                    const cards = [];
                     if (topScope === 'school') {
-                        cards = buildTopCard('المؤسسة بأكملها', 'fa-school', students.slice(0, 3));
+                        cards.push(buildTopCard('المؤسسة بأكملها', 'fa-school', students.slice(0, 3)));
                     } else if (topScope === 'section') {
                         const bySection = {};
-                        students.forEach(s => {
+                        students.forEach((s) => {
                             if (!bySection[s.section]) bySection[s.section] = [];
                             bySection[s.section].push(s);
                         });
-                        sortSectionNames(Object.keys(bySection)).forEach(sec => {
-                            cards += buildTopCard(sec, 'fa-chalkboard', bySection[sec].slice(0, 3));
+                        sortSectionNames(Object.keys(bySection)).forEach((sec) => {
+                            cards.push(buildTopCard(sec, 'fa-chalkboard', bySection[sec].slice(0, 3)));
                         });
                     } else {
                         const byLevel = {};
-                        students.forEach(s => {
+                        students.forEach((s) => {
                             const lv = s.level || 'غير محدد';
                             if (!byLevel[lv]) byLevel[lv] = [];
                             byLevel[lv].push(s);
                         });
                         const levels = Object.keys(byLevel);
-                        (typeof sortLevelNames === 'function' ? sortLevelNames(levels) : levels).forEach(lv => {
-                            cards += buildTopCard(lv, 'fa-layer-group', byLevel[lv].slice(0, 3));
+                        (typeof sortLevelNames === 'function' ? sortLevelNames(levels) : levels).forEach((lv) => {
+                            cards.push(buildTopCard(lv, 'fa-layer-group', byLevel[lv].slice(0, 3)));
                         });
                     }
 
-                    grid.innerHTML = cards || '<div style="padding:40px;text-align:center;color:var(--color-text-muted);">لا توجد بيانات كافية</div>';
+                    grid.replaceChildren(...cards.filter(Boolean));
+                    grid.setAttribute('aria-busy', 'false');
+                    setTopStatus(`تم تحميل ${cards.length} بطاقة للأوائل حسب ${topScopeLabel(topScope)}.`);
 
+                    if (!cards.length) {
+                        setTopGridState('empty', 'لا توجد بيانات كافية لعرض الأوائل');
+                    }
                 } catch (err) {
                     console.warn('Top performers error:', err);
-                    grid.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444;"><i class="fas fa-triangle-exclamation" style="font-size:30px;display:block;margin-bottom:10px;"></i> تعذر تحميل البيانات</div>';
+                    setTopGridState('error', 'تعذر تحميل بيانات الأوائل');
                 }
             }
 
             function buildTopCard(label, iconClass, topStudents) {
-                if (!topStudents || !topStudents.length) return '';
-                const rows = topStudents.map((s, i) => {
-                    const color = topGradeColor(s.average);
-                    return `<div class="rh-top-row">
-                        <span class="rh-top-medal">${MEDALS[i] || (i + 1)}</span>
-                        <div class="rh-top-info">
-                            <div class="rh-top-name">${s.name}</div>
-                            <div class="rh-top-code">${s.massar_code}</div>
-                        </div>
-                        <span class="rh-top-avg" style="color:${color}">${s.average.toFixed(2)}</span>
-                    </div>`;
-                }).join('');
-                return `<div class="rh-top-card">
-                    <div class="rh-top-card-header"><i class="fas ${iconClass}"></i> ${label}</div>
-                    ${rows}
-                </div>`;
+                if (!topStudents || !topStudents.length) return null;
+
+                const card = document.createElement('section');
+                card.className = 'rh-top-card';
+
+                const header = document.createElement('div');
+                header.className = 'rh-top-card-header';
+
+                const headerIcon = document.createElement('i');
+                headerIcon.className = `fas ${iconClass}`;
+                headerIcon.setAttribute('aria-hidden', 'true');
+                header.appendChild(headerIcon);
+                header.append(document.createTextNode(` ${label}`));
+                card.appendChild(header);
+
+                topStudents.forEach((student, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'rh-top-row';
+
+                    const rank = document.createElement('span');
+                    rank.className = 'rh-top-rank';
+                    rank.textContent = String(TOP_RANKS[index] || index + 1);
+                    rank.setAttribute('aria-label', `الرتبة ${index + 1}`);
+
+                    const info = document.createElement('div');
+                    info.className = 'rh-top-info';
+
+                    const name = document.createElement('div');
+                    name.className = 'rh-top-name';
+                    name.textContent = student.name;
+                    name.title = student.name;
+
+                    const code = document.createElement('div');
+                    code.className = 'rh-top-code';
+                    code.textContent = student.massar_code;
+
+                    const meta = document.createElement('div');
+                    meta.className = 'rh-top-meta';
+                    meta.textContent = topScope === 'school' ? student.section : student.level || student.section;
+
+                    info.append(name, code, meta);
+
+                    const average = document.createElement('span');
+                    average.className = `rh-top-avg ${topGradeColor(student.average)}`;
+                    average.textContent = student.average.toFixed(2);
+
+                    row.append(rank, info, average);
+                    card.appendChild(row);
+                });
+
+                return card;
             }
         </script>
     </body>
