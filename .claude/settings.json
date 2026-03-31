@@ -4,7 +4,11 @@
       "Bash(git check-ignore:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(grep -o rh-tab-panel[^}]*} C:Userscheka.claudeprojectsd--gestionScholaired7997e60-4303-408f-87bd-b15d7478e72ftool-resultsbuapym5zm.txt)"
+      "Bash(grep -o rh-tab-panel[^}]*} C:Userscheka.claudeprojectsd--gestionScholaired7997e60-4303-408f-87bd-b15d7478e72ftool-resultsbuapym5zm.txt)",
+      "Bash(powershell.exe -File \".specify/scripts/powershell/create-new-feature.ps1\" \"read docs/superpowers/plans/2026-03-31-message-system.md and create a specification for the Feature 1 Phase 1 Foundation CSS and Core API ONLY.\" -Json -ShortName \"message-system-foundation\")",
+      "Bash(powershell.exe -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",
+      "Bash(powershell.exe -File \".specify/scripts/powershell/update-agent-context.ps1\" -AgentType claude)",
+      "Bash(powershell.exe -File \".specify/scripts/powershell/check-prerequisites.ps1\" -Json)"
     ]
   },
   "enabledPlugins": {
