@@ -394,7 +394,12 @@ async function initSettingsUsersPage() {
     document.getElementById('save-page-visibility')?.addEventListener('click', savePageVisibilityChanges);
     document.getElementById('refresh-page-visibility')?.addEventListener('click', async () => {
         if (pageVisibilityDirty.size > 0) {
-            const proceed = window.confirm('هناك تعديلات غير محفوظة. هل تريد التحديث وفقدان التغييرات؟');
+            const { confirmed: proceed } = await showConfirm({
+                title: 'تحديث البيانات',
+                message: 'هناك تعديلات غير محفوظة. هل تريد التحديث وفقدان التغييرات؟',
+                type: 'warning',
+                confirmText: 'تحديث'
+            });
             if (!proceed) return;
         }
         await loadPageVisibilityRows(true);
@@ -410,9 +415,13 @@ async function initSettingsUsersPage() {
             return;
         }
 
-        const confirmed = window.confirm(
-            'هل تريد حفظ إعدادات الظهور الحالية كإعداد افتراضي؟\nستُطبَّق هذه الإعدادات تلقائياً عند تثبيت التطبيق على أي جهاز جديد.'
-        );
+        const { confirmed } = await showConfirm({
+            title: 'حفظ الإعداد الافتراضي',
+            message: 'هل تريد حفظ إعدادات الظهور الحالية كإعداد افتراضي؟',
+            detail: 'ستُطبَّق هذه الإعدادات تلقائياً عند تثبيت التطبيق على أي جهاز جديد.',
+            type: 'info',
+            confirmText: 'حفظ'
+        });
         if (!confirmed) return;
 
         try {

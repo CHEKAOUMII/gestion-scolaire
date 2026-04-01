@@ -242,7 +242,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         : `تم اختيار ${files.length} ملفات لـ ${label}`
                 );
                 try {
-                    const confirmed = await showImportConfirm(action, files);
+                    const { confirmed } = await showConfirm({
+                        title: 'استيراد البيانات',
+                        ...buildImportConfirmMessage(action, files),
+                        type: 'info',
+                        icon: 'fa-cloud-upload-alt',
+                        confirmText: 'بدء الاستيراد',
+                        cancelText: 'إلغاء'
+                    });
                     if (!confirmed) {
                         showToast('تم إلغاء الاستيراد', 'info');
                         return;
@@ -357,9 +364,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             backupFileInput.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                const confirmed = await showActionConfirm(
-                    'سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية. هل أنت متأكد؟'
-                );
+                const { confirmed } = await showConfirm({
+                    title: 'استعادة النسخة الاحتياطية',
+                    message: 'سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية. هل أنت متأكد؟',
+                    type: 'warning',
+                    confirmText: 'استعادة'
+                });
                 if (!confirmed) {
                     backupFileInput.value = '';
                     return;
@@ -432,108 +442,29 @@ function hideImportProgress(delay = 0) {
     else reset();
 }
 
-function showImportConfirm(action, files) {
-    return new Promise((resolve) => {
-        const overlay = document.getElementById('import-confirm-overlay');
-        const message = document.getElementById('confirm-import-message');
-        const okBtn = document.getElementById('confirm-import-ok');
-        const cancelBtn = document.getElementById('confirm-import-cancel');
-        if (!overlay || !message || !okBtn || !cancelBtn) {
-            resolve(window.confirm('هل تريد متابعة الاستيراد؟'));
-            return;
-        }
+function buildImportConfirmMessage(action, files) {
+    const label = ACTION_LABELS[action] || action;
+    const safeFiles = Array.isArray(files) ? files : [];
+    const semesterLabel = action === 'grades' ? ' سيتم تحديد الدورة تلقائياً من الملف.' : '';
 
-        const label = ACTION_LABELS[action] || action;
-        const safeFiles = Array.isArray(files) ? files : [];
-        const semesterLabel =
-            action === 'grades'
-                ? '<br><span class="font-semibold text-[var(--color-primary)]">📌 سيتم تحديد الدورة تلقائياً من الملف</span>'
-                : '';
-        if (safeFiles.length === 1) {
-            const fileName = escapeHtml(safeFiles[0]?.name || 'الملف المحدد');
-            message.innerHTML = `هل تريد استيراد ${label} من الملف:<br><strong>${fileName}</strong>؟${semesterLabel}`;
-        } else {
-            const preview = safeFiles
-                .slice(0, 4)
-                .map((f) => escapeHtml(f.name))
-                .join('، ');
-            const more = safeFiles.length > 4 ? ` ... (+${safeFiles.length - 4})` : '';
-            message.innerHTML = `هل تريد استيراد ${label} بشكل جماعي من <strong>${safeFiles.length}</strong> ملفات؟<br>${preview}${more}${semesterLabel}`;
-        }
-        if (window.UXEnhancements?.openDialog) {
-            window.UXEnhancements.openDialog(overlay, {
-                contentSelector: '.import-confirm-box',
-                initialFocus: '#confirm-import-ok',
-                onCloseRequest: () => cleanup(false)
-            });
-        } else {
-            overlay.classList.add('active');
-            overlay.setAttribute('aria-hidden', 'false');
-            okBtn.focus();
-        }
-
-        const cleanup = (result) => {
-            overlay.classList.remove('active');
-            overlay.setAttribute('aria-hidden', 'true');
-            okBtn.onclick = null;
-            cancelBtn.onclick = null;
-            overlay.onclick = null;
-            if (window.UXEnhancements?.closeDialog) {
-                window.UXEnhancements.closeDialog(overlay);
-            }
-            resolve(result);
+    if (safeFiles.length === 1) {
+        const fileName = safeFiles[0]?.name || 'الملف المحدد';
+        return {
+            message: `هل تريد استيراد ${label} من الملف:`,
+            detail: `${fileName}${semesterLabel}`,
         };
+    }
 
-        okBtn.onclick = () => cleanup(true);
-        cancelBtn.onclick = () => cleanup(false);
-        overlay.onclick = (e) => {
-            if (e.target === overlay) cleanup(false);
-        };
-    });
-}
+    const preview = safeFiles
+        .slice(0, 4)
+        .map((file) => file?.name || 'ملف غير معروف')
+        .join('، ');
+    const more = safeFiles.length > 4 ? ` ... (+${safeFiles.length - 4})` : '';
 
-function showActionConfirm(messageText) {
-    return new Promise((resolve) => {
-        const overlay = document.getElementById('import-confirm-overlay');
-        const message = document.getElementById('confirm-import-message');
-        const okBtn = document.getElementById('confirm-import-ok');
-        const cancelBtn = document.getElementById('confirm-import-cancel');
-        if (!overlay || !message || !okBtn || !cancelBtn) {
-            resolve(window.confirm(messageText));
-            return;
-        }
-
-        message.textContent = messageText;
-        if (window.UXEnhancements?.openDialog) {
-            window.UXEnhancements.openDialog(overlay, {
-                contentSelector: '.import-confirm-box',
-                initialFocus: '#confirm-import-ok',
-                onCloseRequest: () => cleanup(false)
-            });
-        } else {
-            overlay.classList.add('active');
-            overlay.setAttribute('aria-hidden', 'false');
-            okBtn.focus();
-        }
-
-        const cleanup = (result) => {
-            overlay.classList.remove('active');
-            overlay.setAttribute('aria-hidden', 'true');
-            okBtn.onclick = null;
-            cancelBtn.onclick = null;
-            overlay.onclick = null;
-            if (window.UXEnhancements?.closeDialog) {
-                window.UXEnhancements.closeDialog(overlay);
-            }
-            resolve(result);
-        };
-
-        okBtn.onclick = () => cleanup(true);
-        cancelBtn.onclick = () => cleanup(false);
-        overlay.onclick = (e) => {
-            if (e.target === overlay) cleanup(false);
-        };
-    });
+    return {
+        message: `هل تريد استيراد ${label} بشكل جماعي من ${safeFiles.length} ملفات؟`,
+        detail: `${preview}${more}${semesterLabel}`,
+    };
 }
 
 function hideTafwijMatchingPanel() {
@@ -1515,7 +1446,14 @@ function initDropZone() {
         }
 
         try {
-            const confirmed = await showImportConfirm(action, files);
+            const { confirmed } = await showConfirm({
+                title: 'استيراد البيانات',
+                ...buildImportConfirmMessage(action, files),
+                type: 'info',
+                icon: 'fa-cloud-upload-alt',
+                confirmText: 'بدء الاستيراد',
+                cancelText: 'إلغاء'
+            });
             if (!confirmed) {
                 showToast('تم إلغاء الاستيراد', 'info');
                 return;
@@ -1623,7 +1561,15 @@ async function clearData(type) {
               ? `هل تريد إعادة جميع الوضعيات إلى "نشط" للموسم ${schoolYear}؟`
               : `هل تريد حذف ${label} الخاصة بالموسم ${schoolYear}؟`;
 
-    const confirmed = await showActionConfirm(message);
+    const isHard = ['students', 'grades', 'absences', 'teachers'].includes(type);
+    const dialogType = isHard ? 'danger' : 'warning';
+    const { confirmed } = await showConfirm({
+        title: `حذف ${label}`,
+        message,
+        detail: 'لا يمكن التراجع عن هذا الإجراء.',
+        type: dialogType,
+        confirmText: isHard ? 'حذف نهائي' : 'تأكيد'
+    });
     if (!confirmed) return;
 
     try {

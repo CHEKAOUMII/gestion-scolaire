@@ -101,7 +101,7 @@
         ensureStyles();
 
         if (activeConfirm) {
-            resolveConfirm(false);
+            resolveConfirm(false, 'dismiss');
         }
 
         return new Promise(function (resolve) {
@@ -132,7 +132,7 @@
             var closeBtn = document.createElement('button');
             closeBtn.type = 'button';
             closeBtn.className = 'msg-confirm-close';
-            closeBtn.dataset.action = 'cancel';
+            closeBtn.dataset.action = 'close';
             closeBtn.setAttribute('aria-label', 'إغلاق');
             closeBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
 
@@ -220,7 +220,7 @@
                     contentSelector: '.msg-confirm-card',
                     initialFocus: inputEl || confirmBtn,
                     onCloseRequest: function () {
-                        resolveConfirm(false);
+                        resolveConfirm(false, 'dismiss');
                     }
                 });
             } else {
@@ -232,31 +232,32 @@
             overlay.addEventListener('click', function (event) {
                 var actionTarget = event.target.closest('[data-action]');
                 if (actionTarget) {
-                    resolveConfirm(actionTarget.dataset.action === 'confirm');
+                    var action = actionTarget.dataset.action;
+                    resolveConfirm(action === 'confirm', action);
                     return;
                 }
 
                 if (event.target === overlay) {
-                    resolveConfirm(false);
+                    resolveConfirm(false, 'dismiss');
                 }
             });
 
             overlay.addEventListener('keydown', function (event) {
                 if (event.key === 'Escape') {
                     event.preventDefault();
-                    resolveConfirm(false);
+                    resolveConfirm(false, 'dismiss');
                     return;
                 }
 
                 if (event.key === 'Enter' && event.target === inputEl && !confirmBtn.disabled) {
                     event.preventDefault();
-                    resolveConfirm(true);
+                    resolveConfirm(true, 'confirm');
                 }
             });
         });
     }
 
-    function resolveConfirm(confirmed) {
+    function resolveConfirm(confirmed, action) {
         if (!activeConfirm) {
             return;
         }
@@ -277,6 +278,7 @@
 
         state.resolve({
             confirmed: confirmed,
+            action: action || (confirmed ? 'confirm' : 'dismiss'),
             inputValue: state.inputEl ? state.inputEl.value : undefined
         });
     }

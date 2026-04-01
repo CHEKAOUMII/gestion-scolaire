@@ -45,10 +45,11 @@
     try {
         const saved = sessionStorage.getItem('support_lastDraft');
         if (saved) lastSessionDraft = JSON.parse(saved);
-    } catch (_e) { /* ignore */ }
-    const FALLBACK_SUBJECTS = typeof SUBJECT_LABELS === 'object'
-        ? [...new Set(Object.values(SUBJECT_LABELS))].sort()
-        : [];
+    } catch (_e) {
+        /* ignore */
+    }
+    const FALLBACK_SUBJECTS =
+        typeof SUBJECT_LABELS === 'object' ? [...new Set(Object.values(SUBJECT_LABELS))].sort() : [];
 
     const formTeacher = document.getElementById('form-teacher');
     const formSubject = document.getElementById('form-subject');
@@ -247,9 +248,20 @@
         const sections = classes.map((item) => item.name || item.class_name || item).filter(Boolean);
 
         const SECTION_ORDER = [
-            { pattern: /\u062c\u0630\u0639|\u0627\u0644\u062c\u0630\u0639|\u062c\u0630\u0648\u0639|\u0627\u0644\u062c\u0630\u0648\u0639|TC/i, rank: 1 },
-            { pattern: /\u0623\u0648\u0644\u0649|1\s*\u0628\u0627\u0643|1BAC|\u0627\u0644\u0623\u0648\u0644\u0649/i, rank: 2 },
-            { pattern: /\u062b\u0627\u0646\u064a\u0629|2\s*\u0628\u0627\u0643|2BAC|\u0627\u0644\u062b\u0627\u0646\u064a\u0629/i, rank: 3 }
+            {
+                pattern:
+                    /\u062c\u0630\u0639|\u0627\u0644\u062c\u0630\u0639|\u062c\u0630\u0648\u0639|\u0627\u0644\u062c\u0630\u0648\u0639|TC/i,
+                rank: 1
+            },
+            {
+                pattern: /\u0623\u0648\u0644\u0649|1\s*\u0628\u0627\u0643|1BAC|\u0627\u0644\u0623\u0648\u0644\u0649/i,
+                rank: 2
+            },
+            {
+                pattern:
+                    /\u062b\u0627\u0646\u064a\u0629|2\s*\u0628\u0627\u0643|2BAC|\u0627\u0644\u062b\u0627\u0646\u064a\u0629/i,
+                rank: 3
+            }
         ];
 
         function getSectionRank(name) {
@@ -296,9 +308,7 @@
     function filterTeachersBySubject(selectedSubject) {
         const currentTeacher = formTeacher.value;
         formTeacher.innerHTML = '<option value="">-- اختر الأستاذ --</option>';
-        const filtered = selectedSubject
-            ? teachers.filter((t) => t.subject === selectedSubject)
-            : teachers;
+        const filtered = selectedSubject ? teachers.filter((t) => t.subject === selectedSubject) : teachers;
         filtered.forEach((teacher) => {
             const option = document.createElement('option');
             option.value = teacher.id;
@@ -327,10 +337,8 @@
     });
 
     async function loadStats() {
-        const stats = ensureIpcSuccess(
-            await window.api.supportSessions.stats(schoolYear),
-            'تعذر تحميل إحصائيات حصص الدعم'
-        ) || {};
+        const stats =
+            ensureIpcSuccess(await window.api.supportSessions.stats(schoolYear), 'تعذر تحميل إحصائيات حصص الدعم') || {};
         document.getElementById('stat-sessions').textContent = stats.total_sessions || 0;
         document.getElementById('stat-hours').textContent = stats.total_hours || 0;
         document.getElementById('stat-teachers').textContent = stats.total_teachers || 0;
@@ -439,15 +447,25 @@
         }
 
         const daysDiff = Math.floor((new Date(payload.session_date) - new Date(getTodayValue())) / 86400000);
-        if (daysDiff > 7 && !confirm('التاريخ المختار بعيد عن اليوم بأكثر من أسبوع. هل تريد المتابعة؟')) {
-            return;
+        if (daysDiff > 7) {
+            const { confirmed: proceed } = await showConfirm({
+                title: 'تاريخ بعيد',
+                message: 'التاريخ المختار بعيد عن اليوم بأكثر من أسبوع. هل تريد المتابعة؟',
+                type: 'warning',
+                confirmText: 'متابعة'
+            });
+            if (!proceed) return;
         }
 
         try {
             setActionBusy(addSessionButton, true, 'جارٍ تسجيل الحصة...', '<i class="fas fa-save"></i> تسجيل الحصة');
             ensureIpcSuccess(await window.api.supportSessions.add(payload), 'تعذر تسجيل حصة الدعم');
             lastSessionDraft = { ...payload };
-            try { sessionStorage.setItem('support_lastDraft', JSON.stringify(lastSessionDraft)); } catch (_e) { /* ignore */ }
+            try {
+                sessionStorage.setItem('support_lastDraft', JSON.stringify(lastSessionDraft));
+            } catch (_e) {
+                /* ignore */
+            }
             repeatLastButton.disabled = false;
             showToast('تم تسجيل حصة الدعم وتحديث الجدول أدناه.', 'success');
             resetEntryForm();
@@ -497,12 +515,21 @@
         const row = button.closest('tr');
         const teacherName = row ? row.children[2].textContent.trim() : 'هذا الأستاذ';
         const sessionDate = row ? row.children[1].textContent.trim() : 'هذا التاريخ';
-        if (!confirm(`سيتم حذف حصة الدعم بتاريخ ${sessionDate} الخاصة بـ ${teacherName}. لا يمكن التراجع بعد الحذف.`))
-            return;
+        const { confirmed } = await showConfirm({
+            title: 'حذف حصة الدعم',
+            message: `سيتم حذف حصة الدعم بتاريخ ${sessionDate} الخاصة بـ ${teacherName}.`,
+            detail: 'لا يمكن التراجع بعد الحذف.',
+            type: 'danger',
+            confirmText: 'حذف'
+        });
+        if (!confirmed) return;
 
         try {
             setActionBusy(button, true, 'جارٍ الحذف...', '<i class="fas fa-trash"></i>');
-            ensureIpcSuccess(await window.api.supportSessions.delete(Number(button.dataset.delete)), 'تعذر حذف حصة الدعم');
+            ensureIpcSuccess(
+                await window.api.supportSessions.delete(Number(button.dataset.delete)),
+                'تعذر حذف حصة الدعم'
+            );
             showToast('تم حذف حصة الدعم من السجل.', 'success');
             await Promise.all([loadStats(), loadSessions()]);
         } catch (error) {
@@ -543,7 +570,10 @@
             setFileTriggerBusy(importTrigger, true, 'جارٍ استيراد الملف...');
             const text = await file.text();
             const payload = JSON.parse(text);
-            const result = ensureIpcSuccess(await window.api.supportSessions.import(payload), 'تعذر استيراد ملف حصص الدعم');
+            const result = ensureIpcSuccess(
+                await window.api.supportSessions.import(payload),
+                'تعذر استيراد ملف حصص الدعم'
+            );
             showToast(
                 `اكتمل الاستيراد: تمت إضافة ${result.imported} حصة جديدة وتجاوز ${result.skipped} حصة مكررة.`,
                 'success'
