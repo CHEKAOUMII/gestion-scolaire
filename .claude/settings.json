@@ -30,7 +30,9 @@
       "Bash(sed -n '437,505p' js/pages/support-sessions.js)",
       "Read(//c/Users/cheka/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.6/skills/requesting-code-review/**)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(powershell.exe -File \".specify/scripts/powershell/create-new-feature.ps1\" \"Phase 6 Verification and Polish for message system - full test pass covering dark theme, RTL layout, keyboard navigation, toast variants, and error boundary\" -Json -ShortName \"message-system-verification\")"
+      "Bash(powershell.exe -File \".specify/scripts/powershell/create-new-feature.ps1\" \"Phase 6 Verification and Polish for message system - full test pass covering dark theme, RTL layout, keyboard navigation, toast variants, and error boundary\" -Json -ShortName \"message-system-verification\")",
+      "Bash(coderabbit --version)",
+      "Bash(coderabbit auth:*)"
     ]
   },
   "enabledPlugins": {

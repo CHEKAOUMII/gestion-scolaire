@@ -12446,9 +12446,32 @@ body {
 /* ─── Stat Cards ─── */
 .comp-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(3, 1fr) repeat(2, minmax(0, 1.5fr));
     gap: 16px;
     margin-bottom: 24px;
+}
+
+@media (max-width: 1200px) {
+    .comp-stats {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .comp-stats .comp-stat-card:nth-child(4),
+    .comp-stats .comp-stat-card:nth-child(5) {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 900px) {
+    .comp-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .comp-stats {
+        grid-template-columns: 1fr;
+    }
 }
 
 .comp-stat-card {
@@ -12461,6 +12484,8 @@ body {
     gap: 16px;
     transition: var(--transition-normal);
     animation: fadeInUp 0.4s ease-out both;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .comp-stat-card:nth-child(1) {
@@ -12492,6 +12517,12 @@ body {
     flex-shrink: 0;
 }
 
+.comp-stat-body {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+}
+
 .comp-stat-body h4 {
     margin: 0;
     font-family: var(--font-display);
@@ -12507,6 +12538,9 @@ body {
     font-size: 13px;
     color: var(--color-text-muted);
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* ─── Main Table ─── */
@@ -14241,10 +14275,20 @@ body {
 }
 
 .gs-form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 12px;
-    align-items: end;
+    align-items: flex-end;
+}
+
+.gs-form-grid .gs-form-group {
+    flex: 1 1 160px;
+    min-width: 0;
+}
+
+.gs-form-grid .gs-form-actions {
+    flex: 0 0 auto;
+    width: auto;
 }
 
 .gs-form-group-wide {
@@ -14310,18 +14354,19 @@ body {
 }
 
 .gs-form-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    display: flex;
+    flex-direction: row;
     gap: 8px;
     align-items: stretch;
+    flex-wrap: nowrap;
 }
 
 .gs-form-actions .btn {
     white-space: nowrap;
-    width: 100%;
     min-height: 46px;
     margin: 0;
     justify-content: center;
+    flex: 1 1 auto;
 }
 
 /* --- Preview Section --- */
