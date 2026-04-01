@@ -105,3 +105,59 @@ Single quotes, no trailing commas, 4-space indent, 120-char line width, semicolo
 ### Telemetry Server
 
 `server/index.js` is a standalone Node.js HTTP server deployed separately (Railway/VPS) for tracking installed device heartbeats. Run independently of the Electron app.
+
+### Message System (mandatory for all UI interactions)
+
+Every page, tab, button, and user-facing action MUST use the unified message system. No ad-hoc patterns allowed.
+
+**Available globals** (loaded via `js/message-system.js` on every page):
+
+- **`showConfirm(config)`** — Promise-based confirmation dialog. Use for ALL destructive actions (delete, clear, overwrite) and any operation requiring user consent. Never use `window.confirm()`.
+  ```js
+  const { confirmed } = await showConfirm({
+      title: 'حذف السجل',
+      message: 'هل أنت متأكد؟',
+      detail: 'لا يمكن التراجع عن هذا الإجراء.',  // optional
+      type: 'danger',           // 'danger' | 'warning' | 'info'
+      confirmText: 'حذف نهائي', // optional, defaults to 'تأكيد'
+      cancelText: 'إلغاء',      // optional
+  });
+  if (!confirmed) return;
+  ```
+
+- **`showToast(message, type, duration)`** — Standard toast. Use for operation results (success/error/warning/info). Never show raw `alert()`.
+  ```js
+  showToast('تم الحفظ بنجاح', 'success');
+  showToast('حدث خطأ', 'error');
+  ```
+
+- **`showToast.loading(message)`** — Loading toast for async operations. Returns a handle to transition state.
+  ```js
+  const handle = showToast.loading('جاري الحفظ...');
+  try {
+      await doWork();
+      handle.success('تم الحفظ');
+  } catch (e) {
+      handle.error('فشل الحفظ');
+  }
+  ```
+
+- **`showToast.action(message, { label, icon, onClick })`** — Toast with an undo/action button.
+  ```js
+  showToast.action('تم حذف السجل', { label: 'تراجع', icon: 'fa-undo', onClick: undoFn });
+  ```
+
+- **`setFieldValidation(field, message, type)`** — Inline validation on form fields. Use for form errors instead of alert-based validation.
+  ```js
+  setFieldValidation(inputEl, 'هذا الحقل مطلوب', 'error');   // 'error' | 'warning' | 'success'
+  ```
+
+- **`clearValidation(container)`** — Clear all validation messages within a form or container.
+
+**Rules:**
+- `window.confirm()` is **prohibited** — use `showConfirm()`.
+- `alert()` is **prohibited** — use `showToast()`.
+- Every delete/clear/reset button handler MUST `await showConfirm()` before proceeding.
+- Every async operation (IPC call, import, export) MUST give feedback via `showToast` or `showToast.loading`.
+- Form validation errors MUST use `setFieldValidation()`, not inline HTML manipulation.
+- `js/message-system.js` is already included on all 44 HTML pages — do not add it again.
