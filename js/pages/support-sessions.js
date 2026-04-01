@@ -219,9 +219,10 @@
     }
 
     function clearFilters() {
+        filterSubject.value = '';
+        filterTeachersBySubjectForFilter('');
         filterTeacher.value = '';
         filterSection.value = '';
-        filterSubject.value = '';
         filterFrom.value = '';
         filterTo.value = '';
     }
@@ -323,8 +324,30 @@
         }
     }
 
+    function filterTeachersBySubjectForFilter(selectedSubject) {
+        const currentTeacher = filterTeacher.value;
+        filterTeacher.innerHTML = '<option value="">الكل</option>';
+        const filtered = selectedSubject ? teachers.filter((t) => t.subject === selectedSubject) : teachers;
+        filtered.forEach((teacher) => {
+            const option = document.createElement('option');
+            option.value = teacher.id;
+            option.dataset.subject = teacher.subject || '';
+            option.textContent = teacher.full_name;
+            filterTeacher.appendChild(option);
+        });
+        if (filtered.some((t) => String(t.id) === currentTeacher)) {
+            filterTeacher.value = currentTeacher;
+        } else {
+            filterTeacher.value = '';
+        }
+    }
+
     formSubject.addEventListener('change', () => {
         filterTeachersBySubject(formSubject.value);
+    });
+
+    filterSubject.addEventListener('change', () => {
+        filterTeachersBySubjectForFilter(filterSubject.value);
     });
 
     [formTimeFrom, formTimeTo].forEach((element) => {

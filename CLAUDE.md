@@ -1,4 +1,4 @@
-﻿# CLAUDE.md
+# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -195,3 +195,14 @@ function renderPaginationControls(total, totalPages) {
 
 - Pagination controls must be RTL-aware (previous = right arrow in Arabic layout).
 - When the result set is empty, hide pagination controls entirely and show an empty-state message.
+
+### CRUD Completeness (mandatory)
+
+Whenever an **insert/add** (إضافة) feature is created for any entity, an **edit/update** (تعديل) feature MUST also be implemented alongside it. No entity should be add-only without the ability to correct mistakes.
+
+**Rules:**
+- Every table row with a delete button MUST also have an edit button next to it.
+- Edit can be implemented as inline editing (converting the row to input fields) or via a modal — prefer inline for simple entities, modal for complex ones.
+- The edit action must reuse the same backend `save` handler by passing the record `id` for update (upsert pattern).
+- Edit buttons use the `.edit-btn` class with `fa-edit` icon, placed before the delete button inside an `.att-action-group` wrapper.
+- Both edit and delete buttons must be hidden from print via the `no-print` class.

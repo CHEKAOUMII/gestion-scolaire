@@ -198,6 +198,88 @@
                     </table>
                 </div>
             </div>
+
+            <!-- ══ Edit Modal ══ -->
+            <div class="att-modal-overlay" id="edit-modal" style="display:none">
+                <div class="att-modal-card">
+                    <div class="att-modal-header">
+                        <i class="fas fa-edit"></i>
+                        <h3>تعديل السجل</h3>
+                        <button type="button" class="att-modal-close" id="edit-modal-close" title="إغلاق">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="att-modal-body">
+                        <input type="hidden" id="edit-id" />
+                        <div class="form-grid">
+                            <div style="margin-bottom: 14px">
+                                <label style="font-family:var(--font-main);font-size:13px;font-weight:600;color:var(--color-text-muted);margin-bottom:6px;display:block">النوع</label>
+                                <div class="type-toggle" id="edit-type-toggle">
+                                    <button type="button" class="type-toggle-btn active" data-type="absence">
+                                        <i class="fas fa-user-minus"></i> غياب
+                                    </button>
+                                    <button type="button" class="type-toggle-btn" data-type="late">
+                                        <i class="fas fa-clock"></i> تأخر
+                                    </button>
+                                </div>
+                                <input type="hidden" id="edit-type" value="absence" />
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-subject">المادة</label>
+                                <select id="edit-subject">
+                                    <option value="">-- كل المواد --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-teacher">الأستاذ(ة)</label>
+                                <select id="edit-teacher" required>
+                                    <option value="">-- اختر أستاذ(ة) --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-date">التاريخ</label>
+                                <input type="date" id="edit-date" required />
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-reason">السبب</label>
+                                <select id="edit-reason">
+                                    <option value="">-- اختر السبب --</option>
+                                    <option value="رخصة">رخصة</option>
+                                    <option value="تكوين">تكوين</option>
+                                    <option value="لقاء تربوي">لقاء تربوي</option>
+                                    <option value="إضراب">إضراب</option>
+                                    <option value="بدون">بدون</option>
+                                    <option value="أخرى">أخرى</option>
+                                </select>
+                            </div>
+                            <div class="late-fields" id="edit-late-fields">
+                                <div class="form-group">
+                                    <label for="edit-arrival-time">وقت الوصول</label>
+                                    <input type="time" id="edit-arrival-time" />
+                                </div>
+                            </div>
+                            <div class="late-fields" id="edit-late-fields-duration">
+                                <div class="form-group">
+                                    <label for="edit-late-duration">مدة التأخر (بالدقائق)</label>
+                                    <input type="number" id="edit-late-duration" min="1" max="480" placeholder="مثال: 15" />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-notes">ملاحظات</label>
+                                <input type="text" id="edit-notes" placeholder="اختياري" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="att-modal-footer">
+                        <button type="button" class="btn-primary" id="edit-save-btn">
+                            <i class="fas fa-check"></i> حفظ التعديلات
+                        </button>
+                        <button type="button" class="btn-secondary" id="edit-cancel-btn">
+                            <i class="fas fa-times"></i> إلغاء
+                        </button>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <script src="js/data/ma-education-labels.js"></script>
@@ -693,12 +775,17 @@
                         <td>${escapeHtml(r.subject || '—')}</td>
                         <td>${formatDate(r.attendance_date)}</td>
                         <td>${timeInfo}</td>
-                        <td>${escapeHtml(r.reason || '—')}</td>
+                        <td>${escapeHtml(r.reason || '—')}${r.notes ? `<div class="att-note-hint"><i class="fas fa-sticky-note"></i> ${escapeHtml(r.notes)}</div>` : ''}</td>
                         <td>${isAbsence ? sectionsHtml : '—'}</td>
                         <td>
-                            <button class="delete-btn" onclick="deleteRecord(${Number(r.id)})" title="حذف">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                            <div class="att-action-group">
+                                <button class="edit-btn" onclick="editRecord(${Number(r.id)})" title="تعديل">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="delete-btn" onclick="deleteRecord(${Number(r.id)})" title="حذف">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>`;
                     })
@@ -756,8 +843,182 @@
                 await loadRecords();
             }
 
+            // ── Edit record ──
+            function editRecord(id) {
+                const record = allRecords.find(r => r.id === id);
+                if (!record) return;
+
+                document.getElementById('edit-id').value = record.id;
+                document.getElementById('edit-type').value = record.type || 'absence';
+                document.getElementById('edit-date').value = record.attendance_date || '';
+                document.getElementById('edit-reason').value = record.reason || '';
+                document.getElementById('edit-notes').value = record.notes || '';
+                document.getElementById('edit-arrival-time').value = record.arrival_time || '';
+                document.getElementById('edit-late-duration').value = record.late_duration || '';
+
+                // Type toggle
+                document.querySelectorAll('#edit-type-toggle .type-toggle-btn').forEach(b => b.classList.remove('active'));
+                const activeTypeBtn = document.querySelector(`#edit-type-toggle .type-toggle-btn[data-type="${record.type || 'absence'}"]`);
+                if (activeTypeBtn) activeTypeBtn.classList.add('active');
+
+                // Show/hide late fields
+                const isLate = record.type === 'late';
+                document.getElementById('edit-late-fields').classList.toggle('visible', isLate);
+                document.getElementById('edit-late-fields-duration').classList.toggle('visible', isLate);
+
+                // Populate subjects in edit modal
+                const editSubject = document.getElementById('edit-subject');
+                editSubject.innerHTML = '<option value="">-- كل المواد --</option>';
+                const subjectsSet = new Set();
+                teachersList.forEach(t => {
+                    if (t.subject) {
+                        t.subject.split(',').forEach(s => {
+                            const trimmed = s.trim();
+                            if (trimmed) {
+                                const normalized = typeof normalizeSubjectName === 'function' ? normalizeSubjectName(trimmed) : trimmed;
+                                if (normalized) subjectsSet.add(normalized);
+                            }
+                        });
+                    }
+                });
+                [...subjectsSet].sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar')).forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = s;
+                    editSubject.appendChild(opt);
+                });
+                editSubject.value = record.subject || '';
+
+                // Populate teachers filtered by subject
+                populateEditTeachers(editSubject.value);
+                // Try to select the right teacher
+                const editTeacher = document.getElementById('edit-teacher');
+                if (record.teacher_id) {
+                    editTeacher.value = String(record.teacher_id);
+                } else {
+                    // Find by name
+                    for (const opt of editTeacher.options) {
+                        if (opt.textContent === record.full_name) {
+                            editTeacher.value = opt.value;
+                            break;
+                        }
+                    }
+                }
+
+                document.getElementById('edit-modal').style.display = 'flex';
+            }
+
+            function populateEditTeachers(selectedSubject) {
+                const editTeacher = document.getElementById('edit-teacher');
+                const currentValue = editTeacher.value;
+                editTeacher.innerHTML = '<option value="">-- اختر أستاذ(ة) --</option>';
+                const seen = new Set();
+                teachersList.forEach(t => {
+                    if (selectedSubject) {
+                        const subjects = (t.subject || '').split(',').map(s => {
+                            const trimmed = s.trim();
+                            return typeof normalizeSubjectName === 'function' ? normalizeSubjectName(trimmed) : trimmed;
+                        });
+                        if (!subjects.includes(selectedSubject)) return;
+                    }
+                    if (seen.has(t.full_name)) return;
+                    seen.add(t.full_name);
+                    const opt = document.createElement('option');
+                    opt.value = t.id || t.full_name;
+                    opt.textContent = t.full_name;
+                    opt.dataset.subject = selectedSubject || t.subject || '';
+                    opt.dataset.hasId = t.id ? '1' : '0';
+                    editTeacher.appendChild(opt);
+                });
+                // Restore previous selection if still valid
+                let found = false;
+                for (const opt of editTeacher.options) {
+                    if (opt.value === currentValue) { found = true; break; }
+                }
+                editTeacher.value = found ? currentValue : '';
+            }
+
+            function closeEditModal() {
+                document.getElementById('edit-modal').style.display = 'none';
+            }
+
+            // Edit modal events
+            document.getElementById('edit-modal-close').addEventListener('click', closeEditModal);
+            document.getElementById('edit-cancel-btn').addEventListener('click', closeEditModal);
+            document.getElementById('edit-modal').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) closeEditModal();
+            });
+
+            // Edit type toggle
+            document.querySelectorAll('#edit-type-toggle .type-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#edit-type-toggle .type-toggle-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const type = btn.dataset.type;
+                    document.getElementById('edit-type').value = type;
+                    document.getElementById('edit-late-fields').classList.toggle('visible', type === 'late');
+                    document.getElementById('edit-late-fields-duration').classList.toggle('visible', type === 'late');
+                });
+            });
+
+            // Edit subject change → filter teachers
+            document.getElementById('edit-subject').addEventListener('change', function() {
+                populateEditTeachers(this.value);
+            });
+
+            // Save edit
+            document.getElementById('edit-save-btn').addEventListener('click', async () => {
+                const editTeacher = document.getElementById('edit-teacher');
+                if (!editTeacher.value) {
+                    showToast('الرجاء اختيار أستاذ(ة)', 'error');
+                    return;
+                }
+                const selectedOption = editTeacher.options[editTeacher.selectedIndex];
+                const hasId = selectedOption.dataset.hasId === '1';
+                const type = document.getElementById('edit-type').value;
+                const selectedSubject = document.getElementById('edit-subject').value || selectedOption.dataset.subject || '';
+
+                const payload = {
+                    id: Number(document.getElementById('edit-id').value),
+                    teacher_id: hasId ? Number(editTeacher.value) : null,
+                    teacher_name: selectedOption.textContent,
+                    subject: selectedSubject,
+                    attendance_date: document.getElementById('edit-date').value,
+                    type: type,
+                    reason: document.getElementById('edit-reason').value,
+                    notes: document.getElementById('edit-notes').value.trim(),
+                    school_year: year
+                };
+
+                if (type === 'late') {
+                    payload.arrival_time = document.getElementById('edit-arrival-time').value || null;
+                    payload.late_duration = Number(document.getElementById('edit-late-duration').value) || null;
+                }
+
+                const res = await window.api.staffAttendance.update(payload);
+                if (!res || res.success === false) {
+                    showToast(res?.error || 'فشل التعديل', 'error');
+                    return;
+                }
+
+                showToast('تم تعديل السجل بنجاح', 'success');
+                closeEditModal();
+                await loadRecords();
+            });
+
+            // ── Delete record ──
             async function deleteRecord(id) {
-                if (!confirm('هل تريد حذف هذا السجل؟')) return;
+                const record = allRecords.find(r => r.id === id);
+                const teacherName = record ? (record.full_name || 'هذا الأستاذ') : 'هذا الأستاذ';
+                const dateStr = record ? formatDate(record.attendance_date) : '';
+                const { confirmed } = await showConfirm({
+                    title: 'حذف سجل الحضور',
+                    message: `سيتم حذف سجل ${record?.type === 'late' ? 'التأخر' : 'الغياب'} بتاريخ ${dateStr} الخاص بـ ${teacherName}.`,
+                    detail: 'لا يمكن التراجع بعد الحذف.',
+                    type: 'danger',
+                    confirmText: 'حذف'
+                });
+                if (!confirmed) return;
                 const res = await window.api.staffAttendance.delete(id);
                 if (!res || res.success === false) {
                     showToast('فشل الحذف', 'error');

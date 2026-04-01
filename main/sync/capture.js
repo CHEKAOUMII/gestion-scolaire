@@ -178,6 +178,7 @@ const CHANNEL_REGISTRY = {
 
     // === staffAttendance.js ===
     'staffAttendance:save': { tables: ['staff_attendance'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
+    'staffAttendance:update': { tables: ['staff_attendance'], operation: 'PUT', idExtractor: 'argId' },
     'staffAttendance:delete': { tables: ['staff_attendance'], operation: 'DEL', idExtractor: 'argId' },
 
     // === system.js ===

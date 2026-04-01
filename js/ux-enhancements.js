@@ -817,7 +817,7 @@ function _enablePrintMode(capturedSheet) {
     }
     const pageSize = _printPreviewOptions.pageSize || 'A4';
     const orient = _printPreviewLandscape ? 'landscape' : 'portrait';
-    pageStyle.textContent = `@page { size: ${pageSize} ${orient}; margin: 3mm 0; }`;
+    pageStyle.textContent = `@page { size: ${pageSize} ${orient}; margin: 2mm 3mm; }`;
 }
 
 function _disablePrintMode() {
@@ -841,7 +841,7 @@ async function _executePrintFromPreview() {
                 printBackground: true,
                 pageSize: _printPreviewOptions.pageSize || 'A4',
                 landscape: _printPreviewLandscape,
-                margins: { marginType: 'none' }
+                margins: { marginType: 'custom', top: 0.08, bottom: 0.08, left: 0.12, right: 0.12 }
             });
         } else {
             window.print();
@@ -864,7 +864,7 @@ async function _exportPdfFromPreview() {
                 printBackground: true,
                 pageSize: _printPreviewOptions.pageSize || 'A4',
                 landscape: _printPreviewLandscape,
-                margins: { top: 2, bottom: 2, left: 0, right: 0 }
+                margins: { top: 0.08, bottom: 0.08, left: 0.12, right: 0.12 }
             });
             if (result?.success && typeof showToast === 'function') {
                 showToast('تم تصدير الملف بنجاح', 'success');
