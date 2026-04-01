@@ -161,3 +161,37 @@ Every page, tab, button, and user-facing action MUST use the unified message sys
 - Every async operation (IPC call, import, export) MUST give feedback via `showToast` or `showToast.loading`.
 - Form validation errors MUST use `setFieldValidation()`, not inline HTML manipulation.
 - `js/message-system.js` is already included on all 44 HTML pages — do not add it again.
+
+### Pagination (mandatory for all data tables)
+
+Every page that displays a list or table of records MUST implement client-side pagination. No exceptions.
+
+**Rules:**
+- Default page size is **20 records per page**.
+- Every newly created page with a table MUST include pagination controls from the start.
+- Pagination state (`currentPage`, `pageSize`) must be reset to page 1 whenever the data set changes (filter, search, school-year switch).
+- The pagination bar must show: previous button, page numbers (or `X / Y` counter), next button, and total record count.
+- Use the following standard pattern for all pages:
+
+```js
+let currentPage = 1;
+const PAGE_SIZE = 20;
+
+function renderPage(data) {
+    const total = data.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages);
+    const slice = data.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    // … render slice into the table tbody …
+
+    renderPaginationControls(total, totalPages);
+}
+
+function renderPaginationControls(total, totalPages) {
+    // Update prev/next button disabled state, page counter text, and total count
+}
+```
+
+- Pagination controls must be RTL-aware (previous = right arrow in Arabic layout).
+- When the result set is empty, hide pagination controls entirely and show an empty-state message.
