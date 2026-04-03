@@ -76,6 +76,46 @@ function registerStaffAttendanceIpc(ipcMain) {
         return { success: true };
     });
 
+    handleWrite(ipcMain, 'staffAttendance:update', ['admin', 'staff'], (db, _event, payload) => {
+        const recordId = Number(payload.id);
+        if (!Number.isFinite(recordId) || recordId <= 0) {
+            return { success: false, error: 'Invalid ID' };
+        }
+        if (payload.attendance_date) {
+            validateDate('attendance_date', payload.attendance_date);
+        }
+        const type = payload.type === 'late' ? 'late' : 'absence';
+        const year = requireSchoolYear(payload.school_year);
+        const resolved = resolveTeacherIdentity(db, {
+            teacher_id: payload.teacher_id,
+            teacher_name: payload.teacher_name,
+            subject: payload.subject,
+            school_year: year,
+            source: 'staffAttendance'
+        });
+        db.prepare(`
+            UPDATE staff_attendance
+            SET teacher_id = ?, teacher_name = ?, subject = ?, attendance_date = ?,
+                type = ?, late_duration = ?, arrival_time = ?, reason = ?, notes = ?,
+                absence_period = ?, school_year = ?
+            WHERE id = ?
+        `).run(
+            resolved.teacher_id || null,
+            resolved.teacher_name || payload.teacher_name || null,
+            resolved.subject || payload.subject || null,
+            payload.attendance_date,
+            type,
+            type === 'late' ? Number(payload.late_duration) || null : null,
+            type === 'late' ? payload.arrival_time || null : null,
+            payload.reason || null,
+            payload.notes || null,
+            type === 'absence' ? (payload.absence_period || 'full_day') : null,
+            year,
+            recordId
+        );
+        return { success: true };
+    });
+
     handleWrite(ipcMain, 'staffAttendance:delete', ['admin', 'staff'], (db, _event, id) => {
         const recordId = Number(id);
         if (!Number.isFinite(recordId) || recordId <= 0) {

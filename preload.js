@@ -291,6 +291,7 @@ contextBridge.exposeInMainWorld('api', {
     staffAttendance: {
         getAll: (schoolYear) => ipcRenderer.invoke('staffAttendance:getAll', schoolYear),
         save: (payload) => ipcRenderer.invoke('staffAttendance:save', payload),
+        update: (payload) => ipcRenderer.invoke('staffAttendance:update', payload),
         delete: (id) => ipcRenderer.invoke('staffAttendance:delete', id)
     },
 

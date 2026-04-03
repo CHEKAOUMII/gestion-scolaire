@@ -137,8 +137,12 @@
                                 </div>
                             </div>
 
+                            <input type="hidden" id="att-edit-id" value="" />
                             <div class="form-actions">
-                                <button type="submit" class="btn-primary"><i class="fas fa-save"></i> حفظ</button>
+                                <button type="submit" class="btn-primary" id="att-submit-btn"><i class="fas fa-save"></i> حفظ</button>
+                                <button type="button" class="btn-secondary" id="att-cancel-edit-btn" style="display:none">
+                                    <i class="fas fa-times"></i> إلغاء التعديل
+                                </button>
                                 <button type="reset" class="btn-secondary" id="reset-btn">
                                     <i class="fas fa-undo"></i> إعادة تعيين
                                 </button>
@@ -880,9 +884,12 @@
                         <td>${formatDate(r.attendance_date)}</td>
                         <td>${periodHtml}</td>
                         <td>${timeInfo}</td>
-                        <td>${escapeHtml(r.reason || '—')}</td>
+                        <td>${escapeHtml(r.reason || '—')}${r.notes ? '<br><small style="color:var(--color-text-muted);font-size:11px"><i class="fas fa-sticky-note" style="margin-left:3px"></i>' + escapeHtml(r.notes) + '</small>' : ''}</td>
                         <td>${isAbsence ? sectionsHtml : '—'}</td>
-                        <td>
+                        <td style="white-space:nowrap">
+                            <button class="delete-btn" onclick="editRecord(${Number(r.id)})" title="تعديل" style="background:var(--color-primary);margin-left:4px">
+                                <i class="fas fa-edit"></i>
+                            </button>
                             <button class="delete-btn" onclick="deleteRecord(${Number(r.id)})" title="حذف">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -893,6 +900,85 @@
 
                 renderAttPagination(totalRows, totalPages);
             }
+
+            function resetFormToAddMode() {
+                document.getElementById('att-edit-id').value = '';
+                document.getElementById('att-form').reset();
+                document.getElementById('att-subject').value = '';
+                document.getElementById('att-absence-period').value = 'full_day';
+                document.getElementById('absence-period-field').classList.add('visible');
+                document.querySelectorAll('.late-fields').forEach((f) => f.classList.remove('visible'));
+                document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelector('.type-toggle-btn[data-type="absence"]').classList.add('active');
+                document.getElementById('att-type').value = 'absence';
+                document.getElementById('att-date').value = todayStr();
+                document.getElementById('att-submit-btn').innerHTML = '<i class="fas fa-save"></i> حفظ';
+                document.getElementById('att-cancel-edit-btn').style.display = 'none';
+                document.querySelector('.attendance-form-header h3').textContent = 'تسجيل غياب أو تأخر';
+            }
+
+            function editRecord(id) {
+                const record = allRecords.find((r) => Number(r.id) === id);
+                if (!record) { showToast('لم يتم العثور على السجل', 'error'); return; }
+
+                // Set edit ID
+                document.getElementById('att-edit-id').value = id;
+
+                // Set type toggle
+                const type = record.type || 'absence';
+                document.getElementById('att-type').value = type;
+                document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
+                document.querySelector(`.type-toggle-btn[data-type="${type}"]`)?.classList.add('active');
+
+                // Show/hide fields based on type
+                document.querySelectorAll('.late-fields').forEach((f) => f.classList.toggle('visible', type === 'late'));
+                document.getElementById('absence-period-field').classList.toggle('visible', type === 'absence');
+
+                // Fill subject & trigger teacher filter
+                document.getElementById('att-subject').value = record.subject || '';
+                const filterEvent = new Event('change');
+                document.getElementById('att-subject').dispatchEvent(filterEvent);
+
+                // Wait a tick for teacher list to re-populate, then set teacher
+                setTimeout(() => {
+                    const teacherSelect = document.getElementById('att-teacher');
+                    // Try by id first, then by name
+                    const byId = record.teacher_id ? String(record.teacher_id) : null;
+                    if (byId && [...teacherSelect.options].some((o) => o.value === byId)) {
+                        teacherSelect.value = byId;
+                    } else {
+                        // Find option by name
+                        const nameOption = [...teacherSelect.options].find((o) => o.textContent === record.full_name);
+                        if (nameOption) teacherSelect.value = nameOption.value;
+                    }
+                }, 50);
+
+                // Fill other fields
+                document.getElementById('att-date').value = record.attendance_date || todayStr();
+                document.getElementById('att-reason').value = record.reason || '';
+                document.getElementById('att-notes').value = record.notes || '';
+
+                if (type === 'absence') {
+                    document.getElementById('att-absence-period').value = record.absence_period || 'full_day';
+                }
+                if (type === 'late') {
+                    document.getElementById('att-arrival-time').value = record.arrival_time || '';
+                    document.getElementById('att-late-duration').value = record.late_duration || '';
+                }
+
+                // Update UI to edit mode
+                document.getElementById('att-submit-btn').innerHTML = '<i class="fas fa-check"></i> تحديث';
+                document.getElementById('att-cancel-edit-btn').style.display = '';
+                document.querySelector('.attendance-form-header h3').textContent = 'تعديل السجل';
+
+                // Scroll to form
+                document.querySelector('.attendance-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            // Cancel edit button
+            document.addEventListener('DOMContentLoaded', () => {
+                document.getElementById('att-cancel-edit-btn')?.addEventListener('click', resetFormToAddMode);
+            });
 
             async function saveRecord(e) {
                 e.preventDefault();
@@ -931,22 +1017,22 @@
                     payload.late_duration = Number(document.getElementById('att-late-duration').value) || null;
                 }
 
-                const res = await window.api.staffAttendance.save(payload);
+                const editId = document.getElementById('att-edit-id').value;
+                let res;
+                if (editId) {
+                    payload.id = Number(editId);
+                    res = await window.api.staffAttendance.update(payload);
+                } else {
+                    res = await window.api.staffAttendance.save(payload);
+                }
+
                 if (!res || res.success === false) {
                     showToast(res?.error || 'فشل الحفظ', 'error');
                     return;
                 }
 
-                showToast('تم الحفظ بنجاح', 'success');
-                document.getElementById('att-form').reset();
-                document.getElementById('att-subject').value = '';
-                document.getElementById('att-absence-period').value = 'full_day';
-                document.getElementById('absence-period-field').classList.add('visible');
-                document.querySelectorAll('.late-fields').forEach((f) => f.classList.remove('visible'));
-                document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
-                document.querySelector('.type-toggle-btn[data-type="absence"]').classList.add('active');
-                document.getElementById('att-type').value = 'absence';
-                document.getElementById('att-date').value = todayStr();
+                showToast(editId ? 'تم التحديث بنجاح' : 'تم الحفظ بنجاح', 'success');
+                resetFormToAddMode();
                 attCurrentPage = 1;
                 await loadRecords();
             }
