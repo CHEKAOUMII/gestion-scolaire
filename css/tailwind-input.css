@@ -2722,6 +2722,312 @@ body {
     background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
 }
 
+/* ===== Enhanced Toast Variants ===== */
+.toast.loading {
+    background: linear-gradient(135deg, #475569, #64748b);
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 0 0 10px 10px;
+    transition: width 0.3s ease;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 2px 6px;
+    margin-right: -8px;
+    margin-left: 8px;
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.toast-close:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.toast-action-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: auto;
+    margin-left: 8px;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+}
+
+.toast-action-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+/* ===== Message System Confirm Dialog ===== */
+.msg-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+
+.msg-confirm-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.msg-confirm-card {
+    width: min(480px, 92vw);
+    background: var(--color-surface, #fff);
+    color: var(--color-text-main, #0f172a);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    overflow: hidden;
+    transform: translateY(12px) scale(0.96);
+    transition: transform 0.18s ease;
+}
+
+.msg-confirm-overlay.active .msg-confirm-card {
+    transform: translateY(0) scale(1);
+}
+
+.msg-confirm-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-accent, #e5e7eb);
+    border-top: 4px solid var(--color-primary, #3b6ac5);
+}
+
+.msg-confirm-header.info {
+    border-top-color: var(--color-primary, #3b6ac5);
+}
+
+.msg-confirm-header.warning {
+    border-top-color: var(--color-warning-solid, #d97706);
+}
+
+.msg-confirm-header.danger {
+    border-top-color: var(--color-danger-solid, #dc2626);
+}
+
+.msg-confirm-icon {
+    font-size: 20px;
+    flex: 0 0 auto;
+}
+
+.msg-confirm-header.info .msg-confirm-icon {
+    color: var(--color-primary, #3b6ac5);
+}
+
+.msg-confirm-header.warning .msg-confirm-icon {
+    color: var(--color-warning-solid, #d97706);
+}
+
+.msg-confirm-header.danger .msg-confirm-icon {
+    color: var(--color-danger-solid, #dc2626);
+}
+
+.msg-confirm-title {
+    flex: 1 1 auto;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.msg-confirm-close {
+    border: 0;
+    background: transparent;
+    color: var(--color-text-muted, #64748b);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 8px;
+}
+
+.msg-confirm-close:hover {
+    background: rgba(148, 163, 184, 0.16);
+    color: var(--color-text-main, #0f172a);
+}
+
+.msg-confirm-body {
+    padding: 20px;
+    display: grid;
+    gap: 10px;
+}
+
+.msg-confirm-message {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.msg-confirm-detail {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-text-muted, #64748b);
+}
+
+.msg-confirm-input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--color-accent, #cbd5e1);
+    border-radius: 10px;
+    background: var(--color-surface, #fff);
+    color: var(--color-text-main, #0f172a);
+    font: inherit;
+}
+
+.msg-confirm-input:focus {
+    outline: 0;
+    border-color: var(--color-primary, #3b6ac5);
+    box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.18);
+}
+
+.msg-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--color-accent, #e5e7eb);
+}
+
+.msg-confirm-btn {
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+}
+
+.msg-confirm-btn:hover {
+    transform: translateY(-1px);
+}
+
+.msg-confirm-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    transform: none;
+}
+
+.msg-confirm-btn.secondary {
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--color-text-main, #0f172a);
+}
+
+.msg-confirm-btn.primary {
+    background: var(--color-primary, #3b6ac5);
+    color: #fff;
+}
+
+.msg-confirm-btn.warning {
+    background: var(--color-warning-solid, #d97706);
+    color: #fff;
+}
+
+.msg-confirm-btn.danger {
+    background: var(--color-danger-solid, #dc2626);
+    color: #fff;
+}
+
+/* ===== Field Validation Styles ===== */
+.field-validation {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.field-validation.error {
+    color: var(--color-danger-solid, #dc2626);
+}
+
+.field-validation.warning {
+    color: var(--color-warning-solid, #d97706);
+}
+
+.field-validation.success {
+    color: var(--color-success-solid, #16a34a);
+}
+
+.field-validation i {
+    margin-top: 2px;
+    flex: 0 0 auto;
+}
+
+.field-invalid {
+    border-color: var(--color-danger-solid, #dc2626) !important;
+}
+
+.field-warning {
+    border-color: var(--color-warning-solid, #d97706) !important;
+}
+
+.field-valid {
+    border-color: var(--color-success-solid, #16a34a) !important;
+}
+
+/* ===== Dark Mode: Message System ===== */
+[data-theme='dark'] .msg-confirm-card {
+    background: var(--color-surface, #1e293b);
+    color: var(--color-text-main, #e2e8f0);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .msg-confirm-close {
+    color: var(--color-text-muted, #94a3b8);
+}
+
+[data-theme='dark'] .msg-confirm-close:hover {
+    background: rgba(148, 163, 184, 0.18);
+    color: var(--color-text-main, #e2e8f0);
+}
+
+[data-theme='dark'] .msg-confirm-input {
+    background: rgba(15, 23, 42, 0.65);
+    color: var(--color-text-main, #e2e8f0);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+[data-theme='dark'] .msg-confirm-btn.secondary {
+    background: rgba(148, 163, 184, 0.2);
+    color: var(--color-text-main, #e2e8f0);
+}
+
 /* Import Log */
 .import-log {
     margin-top: 15px;
