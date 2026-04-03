@@ -208,7 +208,7 @@
                                 <th>إجراء</th>
                             </tr>
                         </thead>
-                        <tbody id="records-tbody" aria-live="polite" aria-relevant="additions removals">
+                        <tbody id="records-tbody">
                             <tr class="empty-row">
                                 <td colspan="10">لا توجد سجلات</td>
                             </tr>
@@ -1011,7 +1011,7 @@
                 }
 
                 showToast(editId ? 'تم التحديث بنجاح' : 'تم الحفظ بنجاح', 'success');
-                _timetableCache = null; // invalidate cache in case timetable context changed
+                _timetableCache = null;
                 resetFormToAddMode();
                 attCurrentPage = 1;
                 await loadRecords();

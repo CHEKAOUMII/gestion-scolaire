@@ -19540,10 +19540,23 @@ body {
 
 .support-filter-controls {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
     flex: 1;
     min-width: 0;
+    align-items: end;
+}
+
+.support-filter-controls > div {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.support-filter-controls select,
+.support-filter-controls input[type="number"] {
+    width: 100%;
+    min-height: 42px;
 }
 
 .support-filter-actions {
@@ -20005,33 +20018,6 @@ body {
     color: var(--color-info-text);
 }
 
-/* ─── Chart skeleton loader ─── */
-.chart-skeleton {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 200px;
-    border-radius: var(--radius-sm, 8px);
-    background: linear-gradient(
-        90deg,
-        var(--color-surface-alt, #e7e8e5) 25%,
-        color-mix(in srgb, var(--color-surface-alt, #e7e8e5) 60%, transparent) 50%,
-        var(--color-surface-alt, #e7e8e5) 75%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.4s ease infinite;
-    color: var(--color-text-muted);
-    font-size: 13px;
-}
-
-@keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .chart-skeleton { animation: none; }
-}
 
 /* ─── Student Modal ─── */
 .student-modal-overlay {

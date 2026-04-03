@@ -8,7 +8,7 @@
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/data/ma-education-labels.js"></script>
-        <script src="js/utils.js" defer></script>
+        <script src="js/utils.js"></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
@@ -525,7 +525,6 @@
 
             // ─── Existing helpers ───
             // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
-            // escapeHtml() — provided by js/utils.js
 
             function _getLocalLevelName(section) {
                 const s = String(section || '').trim();
