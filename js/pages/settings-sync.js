@@ -1547,7 +1547,12 @@ async function handleDeviceRevoke(event) {
     const deviceName = button.dataset.deviceName || 'هذا الجهاز';
     if (!deviceHash) return;
 
-    const confirmed = window.confirm(`هل تريد تأكيد إلغاء ربط الجهاز "${deviceName}"؟`);
+    const { confirmed } = await showConfirm({
+        title: 'إلغاء ربط الجهاز',
+        message: `هل تريد تأكيد إلغاء ربط الجهاز "${deviceName}"؟`,
+        type: 'warning',
+        confirmText: 'إلغاء الربط'
+    });
     if (!confirmed) return;
 
     const originalHtml = button.innerHTML;

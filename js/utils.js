@@ -3,6 +3,92 @@
  * ملف الأدوات المشتركة لجميع صفحات برنامج التدبير المدرسي
  */
 
+// ===== Global Error Boundary =====
+(function () {
+    'use strict';
+
+    var THROTTLE_MS = 3000;
+    var FLOOD_LIMIT = 5;
+    var FLOOD_WINDOW_MS = 10000;
+    var ERROR_TOAST_DURATION = 5000;
+    var REJECTION_TOAST_DURATION = 4000;
+    var FLOOD_TOAST_DURATION = 8000;
+
+    var _lastToastTime = 0;
+    var _errorCount = 0;
+    var _windowStart = 0;
+    var _floodStopped = false;
+
+    function _logToMain(action, data) {
+        try {
+            if (window.api && window.api.systemLogs && window.api.systemLogs.add) {
+                window.api.systemLogs.add({
+                    action: action,
+                    details: JSON.stringify(data),
+                    entity_type: 'renderer',
+                    entity_id: window.location.pathname
+                });
+            }
+        } catch (_) {}
+    }
+
+    function _shouldShowToast() {
+        var now = Date.now();
+
+        if (now - _windowStart > FLOOD_WINDOW_MS) {
+            _errorCount = 0;
+            _windowStart = now;
+            _floodStopped = false;
+        }
+
+        _errorCount++;
+
+        if (_errorCount > FLOOD_LIMIT) {
+            if (!_floodStopped) {
+                _floodStopped = true;
+                if (typeof showToast === 'function') {
+                    showToast('أخطاء متعددة — يرجى إعادة تحميل الصفحة', 'error', FLOOD_TOAST_DURATION);
+                }
+            }
+            return false;
+        }
+
+        if (now - _lastToastTime < THROTTLE_MS) {
+            return false;
+        }
+
+        _lastToastTime = now;
+        return true;
+    }
+
+    window.addEventListener('error', function (event) {
+        _logToMain('uncaught_error', {
+            message: event.message,
+            filename: event.filename,
+            lineno: event.lineno,
+            stack: event.error ? event.error.stack : ''
+        });
+        if (_shouldShowToast()) {
+            if (typeof showToast === 'function') {
+                showToast('حدث خطأ غير متوقع', 'error', ERROR_TOAST_DURATION);
+            }
+        }
+    });
+
+    window.addEventListener('unhandledrejection', function (event) {
+        var reason = event.reason || {};
+        _logToMain('unhandled_rejection', {
+            message: String(reason.message || reason),
+            stack: reason.stack || ''
+        });
+        if (_shouldShowToast()) {
+            if (typeof showToast === 'function') {
+                showToast('خطأ في معالجة العملية', 'error', REJECTION_TOAST_DURATION);
+            }
+        }
+    });
+})();
+
 // ===== App Auth Guard =====
 const AUTH_SESSION_KEY = 'gsl_auth_session_v1';
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
@@ -1820,55 +1906,6 @@ function renderPaginationControls(
     appendInfo(summaryText, 'sl-pagination-info-strong');
 
     container.appendChild(fragment);
-}
-
-// ===== Toast Messages =====
-/**
- * عرض رسالة Toast
- * Delegates to the unified Notification Engine (js/notifications.js).
- * Kept as a thin wrapper so pages that load utils.js before notifications.js
- * still get a working showToast until the full script loads.
- */
-function showToast(message, type = 'success', duration = 3000) {
-    // If the unified SDK has loaded it will have set window.showToast.
-    // Avoid infinite recursion: only delegate when window.showToast !== this function.
-    if (window.showToast && window.showToast !== showToast) {
-        return window.showToast(message, type, duration);
-    }
-
-    // Inline fallback (identical to js/notifications.js renderToast)
-    let container = document.getElementById('toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-container';
-        container.className = 'toast-container';
-        document.body.appendChild(container);
-    }
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-
-    const icon = document.createElement('i');
-    const iconClass = {
-        success: 'fa-check-circle',
-        error: 'fa-exclamation-circle',
-        warning: 'fa-exclamation-triangle',
-        info: 'fa-info-circle'
-    };
-    icon.className = `fas ${iconClass[type] || iconClass.info}`;
-
-    const span = document.createElement('span');
-    span.textContent = message;
-
-    toast.appendChild(icon);
-    toast.appendChild(span);
-    container.appendChild(toast);
-
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(-20px)';
-        setTimeout(() => toast.remove(), 300);
-    }, duration);
 }
 
 // ===== Date Formatting =====

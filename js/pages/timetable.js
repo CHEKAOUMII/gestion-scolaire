@@ -1839,7 +1839,6 @@ function showToast(message, type = 'info') {
     clearTimeout(toastHideTimer);
     toastHideTimer = setTimeout(() => toast.classList.remove('show'), 4200);
 }
-const timetableShowToast = showToast;
 // ==================== EDIT MODE SYSTEM ====================
 
 // Edit mode state
@@ -2958,9 +2957,16 @@ function undoLastChange() {
     showToast('تم التراجع عن آخر تغيير', 'info');
 }
 
-function cancelEditMode() {
+async function cancelEditMode() {
     if (editMode.pendingChanges.length > 0) {
-        if (!confirm('هل تريد إلغاء جميع التعديلات المعلقة؟')) {
+        const { confirmed } = await showConfirm({
+            title: 'إلغاء التعديلات',
+            message: 'هل تريد إلغاء جميع التعديلات المعلقة؟',
+            type: 'warning',
+            confirmText: 'إلغاء التعديلات',
+            cancelText: 'تراجع'
+        });
+        if (!confirmed) {
             return;
         }
     }
@@ -3235,7 +3241,7 @@ function exportChangesJSON() {
 function importChangesJSON(file) {
     const reader = new FileReader();
 
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
         try {
             const data = JSON.parse(e.target.result);
 
@@ -3245,22 +3251,30 @@ function importChangesJSON(file) {
             }
 
             // Ask user what to do
-            const action = confirm(
-                'كيف تريد الاستيراد؟\n- موافق: دمج مع التغييرات الحالية\n- إلغاء: استبدال التغييرات الحالية'
-            );
+            const { confirmed: doMerge, action } = await showConfirm({
+                title: 'استيراد التغييرات',
+                message: 'كيف تريد الاستيراد؟',
+                detail: 'اختر "دمج" لإضافة التغييرات إلى الحالية، أو "استبدال" لوضع ملف الاستيراد مكانها.',
+                type: 'info',
+                confirmText: 'دمج',
+                cancelText: 'استبدال'
+            });
 
-            if (action) {
+            if (doMerge) {
                 // Merge
                 editMode.changeHistory = [...editMode.changeHistory, ...data.changeHistory];
                 if (data.pendingChanges) {
                     editMode.pendingChanges = [...editMode.pendingChanges, ...data.pendingChanges];
                 }
                 showToast(`تم دمج ${data.changeHistory.length} تغيير`, 'success');
-            } else {
+            } else if (action === 'cancel') {
                 // Replace
                 editMode.changeHistory = data.changeHistory;
                 editMode.pendingChanges = data.pendingChanges || [];
                 showToast(`تم استيراد ${data.changeHistory.length} تغيير`, 'success');
+            } else {
+                showToast('تم إلغاء استيراد التغييرات', 'info');
+                return;
             }
 
             // Apply changes to fetData

@@ -210,7 +210,12 @@ if (_backupFileInput) {
         if (e.target.files.length > 0) {
             const file = e.target.files[0];
             updateBackupModalSummary(file);
-            const confirmed = window.confirm(`سيتم استبدال البيانات الحالية بالملف: ${file.name}. هل تريد المتابعة؟`);
+            const { confirmed } = await showConfirm({
+                title: 'استعادة النسخة الاحتياطية',
+                message: `سيتم استبدال البيانات الحالية بالملف: ${file.name}. هل تريد المتابعة؟`,
+                type: 'warning',
+                confirmText: 'متابعة'
+            });
             if (!confirmed) {
                 e.target.value = '';
                 updateBackupModalSummary();
