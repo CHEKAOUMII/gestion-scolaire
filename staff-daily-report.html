@@ -44,7 +44,7 @@
                     <i class="fas fa-sync-alt"></i> تحميل التقرير
                 </button>
                 <span class="report-date-display" id="date-display"></span>
-                <button id="print-btn" type="button" style="margin-right: auto; padding: 10px 24px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #0891b2, #0e7490); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; box-shadow: 0 3px 10px rgba(8,145,178,0.3);" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 5px 16px rgba(8,145,178,0.45)'" onmouseleave="this.style.transform='';this.style.boxShadow='0 3px 10px rgba(8,145,178,0.3)'">
+                <button id="print-btn" type="button" class="btn-primary btn-print-preview">
                     <i class="fas fa-eye"></i> معاينة الطباعة
                 </button>
             </div>
@@ -66,8 +66,7 @@
                     </div>
                 </div>
                 <div class="report-stat-card">
-                    <div class="report-stat-icon warning"
-                        style="background: rgba(240, 173, 78, 0.12); color: var(--color-warning-bg);">
+                    <div class="report-stat-icon warning">
                         <i class="fas fa-clock"></i>
                     </div>
                     <div class="report-stat-body">
@@ -94,7 +93,7 @@
                     </div>
                 </div>
                 <div class="report-stat-card">
-                    <div class="report-stat-icon" style="background: rgba(46, 204, 113, 0.12); color: var(--color-success);">
+                    <div class="report-stat-icon success">
                         <i class="fas fa-check-double"></i>
                     </div>
                     <div class="report-stat-body">
@@ -122,7 +121,7 @@
                             <th>الأقسام المتضررة</th>
                         </tr>
                     </thead>
-                    <tbody id="absences-tbody">
+                    <tbody id="absences-tbody" aria-live="polite" aria-relevant="additions removals">
                         <tr class="empty-row">
                             <td colspan="6">اختر تاريخاً لعرض التقرير</td>
                         </tr>
@@ -163,7 +162,7 @@
                             <th>السبب</th>
                         </tr>
                     </thead>
-                    <tbody id="tardiness-tbody">
+                    <tbody id="tardiness-tbody" aria-live="polite" aria-relevant="additions removals">
                         <tr class="empty-row">
                             <td colspan="6">لا توجد تأخرات</td>
                         </tr>
@@ -187,7 +186,7 @@
                             <th>الأساتذة الغائبون</th>
                         </tr>
                     </thead>
-                    <tbody id="compensatory-tbody">
+                    <tbody id="compensatory-tbody" aria-live="polite" aria-relevant="additions removals">
                         <tr class="empty-row">
                             <td colspan="4">اختر تاريخاً لعرض التقرير</td>
                         </tr>
@@ -224,11 +223,6 @@
             </div>
 
             <!-- Print-only signature block -->
-            <style>
-                .print-signature-block { display: none !important; }
-                .ux-pp-sheet .print-signature-block { display: block !important; }
-                #ux-print-root .print-signature-block { display: block !important; }
-            </style>
             <div class="print-signature-block" style="margin-top: 50px; padding: 0 20px;">
                 <div style="display: flex; justify-content: space-between; direction: rtl;">
                     <div style="text-align: center; width: 40%;">
@@ -287,6 +281,18 @@
         }
 
         const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+
+        let _timetableCache = null;
+        function getTimetableData() {
+            if (_timetableCache !== null) return _timetableCache;
+            try {
+                const raw = localStorage.getItem('timetableData');
+                _timetableCache = raw ? JSON.parse(raw) : null;
+            } catch {
+                _timetableCache = null;
+            }
+            return _timetableCache;
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             const dateInput = document.getElementById('report-date');
@@ -410,9 +416,7 @@
          */
         function getSectionsForDay(teacherName, dateStr, fallbackSections, teacherId) {
             try {
-                const raw = localStorage.getItem('timetableData');
-                if (!raw) return fallbackSections || [];
-                const data = JSON.parse(raw);
+                const data = getTimetableData();
                 if (!data || !data.timetables) return fallbackSections || [];
 
                 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -466,9 +470,7 @@
          */
         function getScheduleForDay(teacherName, dateStr, fallback, teacherId) {
             try {
-                const raw = localStorage.getItem('timetableData');
-                if (!raw) return fallback || [];
-                const data = JSON.parse(raw);
+                const data = getTimetableData();
                 if (!data || !data.timetables) return fallback || [];
 
                 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -515,9 +517,7 @@
                 'h7': '16:00-17:00', 'h8': '17:00-18:00'
             };
             try {
-                const raw = localStorage.getItem('timetableData');
-                if (!raw) return sessions;
-                const ttData = JSON.parse(raw);
+                const ttData = getTimetableData();
                 if (!ttData || !ttData.timetables) return sessions;
 
                 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -731,13 +731,11 @@
 
             if (uniqueAbsences.length > 0) {
                 try {
-                    const raw = localStorage.getItem('timetableData');
-                    if (raw) {
-                        const ttData = JSON.parse(raw);
-                        if (ttData && ttData.timetables) {
-                            const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-                            const dateObj = new Date(date + 'T00:00:00');
-                            const dayName = dayNames[dateObj.getDay()];
+                    const ttData = getTimetableData();
+                    if (ttData && ttData.timetables) {
+                        const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                        const dateObj = new Date(date + 'T00:00:00');
+                        const dayName = dayNames[dateObj.getDay()];
 
                             for (const absence of uniqueAbsences) {
                                 const name = absence.full_name;
@@ -768,7 +766,6 @@
                                 });
                             }
                         }
-                    }
                 } catch (e) {
                     console.warn('Error calculating compensatory hours:', e);
                 }
@@ -884,6 +881,27 @@
             return tr;
         }
 
+        function cancelEditEvent(btn) {
+            const row = btn.closest('tr');
+            const cells = row.querySelectorAll('td');
+            row.classList.remove('event-row-editing');
+            cells[1].innerHTML = escapeHtml(row.dataset.origType || '');
+            cells[2].innerHTML = escapeHtml(row.dataset.origDetails || '');
+            cells[3].innerHTML = escapeHtml(row.dataset.origTime || '');
+            delete row.dataset.origType;
+            delete row.dataset.origDetails;
+            delete row.dataset.origTime;
+            cells[4].innerHTML = `
+                <div style="display: flex; gap: 4px; align-items: center;">
+                    <button class="btn-edit-event" onclick="editEvent(this, ${row.dataset.eventId})" style="font-size: 15px; padding: 6px 8px; background: none; border: none; color: var(--color-primary); cursor: pointer;" title="تعديل">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-delete-event" onclick="deleteEvent(${row.dataset.eventId})" style="font-size: 17px; padding: 6px 8px;" title="حذف">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>`;
+        }
+
         function editEvent(btn, eventId) {
             const row = btn.closest('tr');
             const cells = row.querySelectorAll('td');
@@ -895,6 +913,10 @@
                 `<option value="${t}"${t === currentType ? ' selected' : ''}>${t}</option>`
             ).join('');
 
+            row.dataset.origType = currentType;
+            row.dataset.origDetails = currentDetails === '—' ? '' : currentDetails;
+            row.dataset.origTime = currentTime === '—' ? '' : currentTime;
+
             row.classList.add('event-row-editing');
             cells[1].innerHTML = `<select class="event-type-select">${typeOptions}</select>`;
             cells[2].innerHTML = `<input type="text" class="event-details-input" value="${escapeHtml(currentDetails === '—' ? '' : currentDetails)}" placeholder="تفاصيل الحدث...">`;
@@ -904,7 +926,7 @@
                     <button class="btn-primary" onclick="saveEditEvent(this, ${eventId})" style="padding: 6px 14px; font-size: 15px;" title="حفظ">
                         <i class="fas fa-check"></i>
                     </button>
-                    <button class="btn-delete-event" onclick="loadReport()" style="font-size: 17px; padding: 6px 8px;" title="إلغاء">
+                    <button class="btn-delete-event" onclick="cancelEditEvent(this)" style="font-size: 17px; padding: 6px 8px;" title="إلغاء">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>`;
@@ -1017,7 +1039,15 @@
         }
 
         async function deleteEvent(eventId) {
-            if (!confirm('هل تريد حذف هذا الحدث؟')) return;
+            const { confirmed } = await showConfirm({
+                title: 'حذف الحدث',
+                message: 'هل أنت متأكد من حذف هذا الحدث؟',
+                detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                type: 'danger',
+                confirmText: 'حذف نهائي',
+                cancelText: 'إلغاء',
+            });
+            if (!confirmed) return;
 
             try {
                 await window.api.schoolEvents.delete(eventId);

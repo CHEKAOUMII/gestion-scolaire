@@ -584,7 +584,7 @@ function _ensurePrintPreviewModal() {
 /**
  * openPrintPreview — opens an in-app A4 print preview modal.
  */
-function openPrintPreview(options = {}) {
+async function openPrintPreview(options = {}) {
     _printPreviewOptions = options;
     _printPreviewLandscape = !!options.landscape;
     _ensurePrintPreviewModal();
@@ -598,11 +598,22 @@ function openPrintPreview(options = {}) {
         return;
     }
 
+    const waitFor = typeof options.waitFor === 'function' ? options.waitFor() : options.waitFor;
+    if (waitFor && typeof waitFor.then === 'function') {
+        try {
+            await waitFor;
+        } catch (_) {
+            // Ignore caller wait failures and continue with best-effort preview capture.
+        }
+    }
+
     // Force light theme BEFORE cloning so canvas images & colors are captured in light mode
     _forceLightThemeForPrint();
 
-    // Give charts time to repaint in light mode before snapshot (skip delay if no canvases)
     const _hasCanvases = !!sourceEl.querySelector('canvas');
+    if (_hasCanvases) {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
     const _doPreview = async () => {
         const clone = sourceEl.cloneNode(true);
 
@@ -746,11 +757,7 @@ function openPrintPreview(options = {}) {
 
         _updateOrientationUI();
     };
-    if (_hasCanvases) {
-        setTimeout(_doPreview, 300);
-    } else {
-        _doPreview();
-    }
+    return _doPreview();
 }
 
 function closePrintPreviewGlobal() {

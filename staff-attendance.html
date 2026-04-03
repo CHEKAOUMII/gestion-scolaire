@@ -182,7 +182,7 @@
                     <div class="att-section-header">
                         <i class="fas fa-clipboard-list"></i>
                         <h3>سجل الحضور والغياب</h3>
-                        <span class="badge-count" id="records-count">0</span>
+                        <span class="badge-count" id="records-count" role="status" aria-live="polite">0</span>
                         <div class="filter-bar">
                             <select id="filter-type">
                                 <option value="">الكل</option>
@@ -192,6 +192,7 @@
                             <input type="date" id="filter-date" title="فلترة حسب التاريخ" />
                         </div>
                     </div>
+                    <div class="att-table-scroll">
                     <table class="att-table">
                         <thead>
                             <tr>
@@ -207,12 +208,13 @@
                                 <th>إجراء</th>
                             </tr>
                         </thead>
-                        <tbody id="records-tbody">
+                        <tbody id="records-tbody" aria-live="polite" aria-relevant="additions removals">
                             <tr class="empty-row">
                                 <td colspan="10">لا توجد سجلات</td>
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                     <div class="support-pagination no-print" id="att-pagination"></div>
                 </div>
             </div>
@@ -250,6 +252,19 @@
             }
 
             const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+
+            let _timetableCache = null;
+            function getTimetableData() {
+                if (_timetableCache !== null) return _timetableCache;
+                try {
+                    const raw = localStorage.getItem('timetableData');
+                    _timetableCache = raw ? JSON.parse(raw) : null;
+                } catch {
+                    _timetableCache = null;
+                }
+                return _timetableCache;
+            }
+
             let allRecords = [];
             let teachersList = [];
             let teacherSections = {};
@@ -282,9 +297,7 @@
             function teacherWorksInPeriod(teacherName, teacherId, dateStr, period) {
                 if (!period || period === 'full_day') return true;
                 try {
-                    const raw = localStorage.getItem('timetableData');
-                    if (!raw) return true; // no timetable → show all
-                    const data = JSON.parse(raw);
+                    const data = getTimetableData();
                     if (!data || !data.timetables) return true;
 
                     const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -463,6 +476,9 @@
                 // Save form
                 document.getElementById('att-form').addEventListener('submit', saveRecord);
 
+                // Cancel edit
+                document.getElementById('att-cancel-edit-btn')?.addEventListener('click', resetFormToAddMode);
+
                 // Filters
                 document.getElementById('filter-type').addEventListener('change', () => { attCurrentPage = 1; renderTable(); });
                 document.getElementById('filter-date').addEventListener('change', () => { attCurrentPage = 1; renderTable(); });
@@ -633,17 +649,13 @@
                 );
             }
 
-            let _debugSectionsShown = false;
-
             /**
              * Get the sections a teacher was scheduled to teach on a specific date,
              * reading from the timetable stored in localStorage.
              */
             function getSectionsForDay(teacherId, teacherName, dateStr, absencePeriod) {
                 try {
-                    const raw = localStorage.getItem('timetableData');
-                    if (!raw) return getFallbackTeacherSections(teacherId, teacherName);
-                    const data = JSON.parse(raw);
+                    const data = getTimetableData();
                     if (!data || !data.timetables) return getFallbackTeacherSections(teacherId, teacherName);
 
                     // Map JS getDay() → Arabic day name
@@ -652,29 +664,6 @@
                     const dayName = dayNames[dateObj.getDay()];
 
                     const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
-
-                    // Debug: show matching info once
-                    if (!_debugSectionsShown) {
-                        _debugSectionsShown = true;
-                        const ttSample = getStoredTimetableTeacherEntries(data)
-                            .slice(0, 5)
-                            .map((entry) => ({ key: entry.key, teacherId: entry.teacherId, name: entry.teacherName }));
-                        console.log(
-                            '[Sections Debug]',
-                            '\nTeacher from record:',
-                            JSON.stringify(teacherName),
-                            '\nTeacher ID:',
-                            JSON.stringify(teacherId || null),
-                            '\nDay:',
-                            dayName,
-                            '\nAbsence period:',
-                            absencePeriod || 'full_day',
-                            '\nTimetable teachers (first 5):',
-                            ttSample,
-                            '\nMatches found:',
-                            teacherKeys.length ? teacherKeys : 'NONE'
-                        );
-                    }
 
                     const sections = new Set();
                     teacherKeys.forEach((teacherKey) => {
@@ -708,9 +697,7 @@
              */
             function getScheduleForDay(teacherId, teacherName, dateStr, absencePeriod) {
                 try {
-                    const raw = localStorage.getItem('timetableData');
-                    if (!raw) return [];
-                    const data = JSON.parse(raw);
+                    const data = getTimetableData();
                     if (!data || !data.timetables) return [];
 
                     const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -885,10 +872,10 @@
                         <td>${formatDate(r.attendance_date)}</td>
                         <td>${periodHtml}</td>
                         <td>${timeInfo}</td>
-                        <td>${escapeHtml(r.reason || '—')}${r.notes ? '<br><small style="color:var(--color-text-muted);font-size:11px"><i class="fas fa-sticky-note" style="margin-left:3px"></i>' + escapeHtml(r.notes) + '</small>' : ''}</td>
+                        <td>${escapeHtml(r.reason || '—')}${r.notes ? '<br><small class="record-note"><i class="fas fa-sticky-note"></i>' + escapeHtml(r.notes) + '</small>' : ''}</td>
                         <td>${isAbsence ? sectionsHtml : '—'}</td>
                         <td style="white-space:nowrap">
-                            <button class="delete-btn" onclick="editRecord(${Number(r.id)})" title="تعديل" style="background:var(--color-primary);margin-left:4px">
+                            <button class="delete-btn edit-action-btn" onclick="editRecord(${Number(r.id)})" title="تعديل">
                                 <i class="fas fa-edit"></i>
                             </button>
                             <button class="delete-btn" onclick="deleteRecord(${Number(r.id)})" title="حذف">
@@ -940,19 +927,15 @@
                 const filterEvent = new Event('change');
                 document.getElementById('att-subject').dispatchEvent(filterEvent);
 
-                // Wait a tick for teacher list to re-populate, then set teacher
-                setTimeout(() => {
-                    const teacherSelect = document.getElementById('att-teacher');
-                    // Try by id first, then by name
-                    const byId = record.teacher_id ? String(record.teacher_id) : null;
-                    if (byId && [...teacherSelect.options].some((o) => o.value === byId)) {
-                        teacherSelect.value = byId;
-                    } else {
-                        // Find option by name
-                        const nameOption = [...teacherSelect.options].find((o) => o.textContent === record.full_name);
-                        if (nameOption) teacherSelect.value = nameOption.value;
-                    }
-                }, 50);
+                // filterTeachers() is synchronous — set teacher value immediately after it runs
+                const teacherSelect = document.getElementById('att-teacher');
+                const byId = record.teacher_id ? String(record.teacher_id) : null;
+                if (byId && [...teacherSelect.options].some((o) => o.value === byId)) {
+                    teacherSelect.value = byId;
+                } else {
+                    const nameOption = [...teacherSelect.options].find((o) => o.textContent === record.full_name);
+                    if (nameOption) teacherSelect.value = nameOption.value;
+                }
 
                 // Fill other fields
                 document.getElementById('att-date').value = record.attendance_date || todayStr();
@@ -975,11 +958,6 @@
                 // Scroll to form
                 document.querySelector('.attendance-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-
-            // Cancel edit button
-            document.addEventListener('DOMContentLoaded', () => {
-                document.getElementById('att-cancel-edit-btn')?.addEventListener('click', resetFormToAddMode);
-            });
 
             async function saveRecord(e) {
                 e.preventDefault();
@@ -1033,13 +1011,22 @@
                 }
 
                 showToast(editId ? 'تم التحديث بنجاح' : 'تم الحفظ بنجاح', 'success');
+                _timetableCache = null; // invalidate cache in case timetable context changed
                 resetFormToAddMode();
                 attCurrentPage = 1;
                 await loadRecords();
             }
 
             async function deleteRecord(id) {
-                if (!confirm('هل تريد حذف هذا السجل؟')) return;
+                const { confirmed } = await showConfirm({
+                    title: 'حذف السجل',
+                    message: 'هل أنت متأكد من حذف هذا السجل؟',
+                    detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                    type: 'danger',
+                    confirmText: 'حذف نهائي',
+                    cancelText: 'إلغاء',
+                });
+                if (!confirmed) return;
                 const res = await window.api.staffAttendance.delete(id);
                 if (!res || res.success === false) {
                     showToast('فشل الحذف', 'error');

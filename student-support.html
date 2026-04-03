@@ -43,55 +43,43 @@
             <div class="grades-container">
                 <div class="search-section">
                     <h3>تحديد التلاميذ المحتاجين للدعم</h3>
-                    <form
-                        class="search-form"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"
-                    >
-                        <select id="level-select">
-                            <option value="">كل المستويات</option>
-                        </select>
-                        <select id="class-select">
-                            <option value="">كل الأقسام</option>
-                        </select>
-                        <select id="subject-select">
-                            <option value="">كل المواد</option>
-                        </select>
-                        <input
-                            type="number"
-                            id="threshold"
-                            placeholder="الحد الأقصى للنقطة"
-                            value="10"
-                            min="0"
-                            max="20"
-                        />
-                        <div style="display: flex; gap: 8px">
-                            <button
-                                class="btn btn-primary"
-                                type="button"
-                                id="search-btn"
-                                style="
-                                    flex: 1;
-                                    padding: 12px 20px;
-                                    font-size: 14px;
-                                    border-radius: 10px;
-                                    margin: 0;
-                                    justify-content: center;
-                                "
-                            >
+                    <form class="support-filter-form">
+                        <div class="support-filter-controls">
+                            <div>
+                                <label for="level-select" class="sr-only">المستوى الدراسي</label>
+                                <select id="level-select">
+                                    <option value="">كل المستويات</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="class-select" class="sr-only">القسم</label>
+                                <select id="class-select">
+                                    <option value="">كل الأقسام</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="subject-select" class="sr-only">المادة</label>
+                                <select id="subject-select">
+                                    <option value="">كل المواد</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="threshold" class="sr-only">الحد الأقصى للنقطة</label>
+                                <input
+                                    type="number"
+                                    id="threshold"
+                                    placeholder="الحد الأقصى للنقطة"
+                                    value="10"
+                                    min="0"
+                                    max="20"
+                                />
+                            </div>
+                        </div>
+                        <div class="support-filter-actions">
+                            <button class="btn btn-primary support-filter-btn" type="button" id="search-btn">
                                 <i class="fas fa-search"></i> بحث
                             </button>
-                            <button
-                                class="btn btn-success ux-print-preview-btn"
-                                type="button"
-                                id="print-btn"
-                                style="
-                                    padding: 12px 16px;
-                                    font-size: 14px;
-                                    border-radius: 10px;
-                                    margin: 0;
-                                    white-space: nowrap;
-                                "
-                            >
+                            <button class="btn btn-success ux-print-preview-btn support-filter-btn" type="button" id="print-btn" disabled aria-disabled="true">
                                 <i class="fas fa-eye"></i> معاينة الطباعة
                             </button>
                         </div>
@@ -168,28 +156,28 @@
                 </div>
 
                 <div class="students-results">
-                    <div class="results-action-bar">
-                        <h3 style="margin: 0">التلاميذ المحتاجين للدعم</h3>
-                    </div>
-                    <div class="level-filter-tabs" id="level-tabs" style="display: none">
-                        <button class="level-tab active" data-level="all">
-                            <i class="fas fa-list"></i> الكل <span class="tab-count" id="count-all">0</span>
-                        </button>
-                        <button class="level-tab" data-level="critical">
-                            <i class="fas fa-exclamation-circle"></i> حرج (0-5)
-                            <span class="tab-count" id="count-critical">0</span>
-                        </button>
-                        <button class="level-tab" data-level="medium">
-                            <i class="fas fa-minus-circle"></i> متوسط (5-8)
-                            <span class="tab-count" id="count-medium">0</span>
-                        </button>
-                        <button class="level-tab" data-level="near">
-                            <i class="fas fa-arrow-circle-up"></i> قريب (8-10)
-                            <span class="tab-count" id="count-near">0</span>
-                        </button>
+                    <div class="support-results-header">
+                        <h3>التلاميذ المحتاجين للدعم</h3>
+                        <div class="level-filter-tabs" id="level-tabs" style="display: none">
+                            <button class="level-tab active" data-level="all">
+                                <i class="fas fa-list"></i> الكل <span class="tab-count" id="count-all">0</span>
+                            </button>
+                            <button class="level-tab" data-level="critical">
+                                <i class="fas fa-exclamation-circle"></i> حرج (0-5)
+                                <span class="tab-count" id="count-critical">0</span>
+                            </button>
+                            <button class="level-tab" data-level="medium">
+                                <i class="fas fa-minus-circle"></i> متوسط (5-8)
+                                <span class="tab-count" id="count-medium">0</span>
+                            </button>
+                            <button class="level-tab" data-level="near">
+                                <i class="fas fa-arrow-circle-up"></i> قريب (8-10)
+                                <span class="tab-count" id="count-near">0</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="table-quick-search" id="table-quick-search">
-                        <i class="fas fa-filter" style="color: var(--color-text-muted, #999)"></i>
+                        <i class="fas fa-filter" style="color: var(--color-text-muted)"></i>
                         <input type="text" id="quick-search-input" placeholder="بحث سريع بالاسم أو رمز مسار..." />
                         <span class="search-count" id="search-count"></span>
                     </div>
@@ -247,6 +235,7 @@
             aria-modal="true"
             aria-hidden="true"
             aria-labelledby="modal-student-name"
+            inert
         >
             <div class="student-modal">
                 <div class="student-modal-header">
@@ -275,6 +264,50 @@
             let sortColumn = 'grade';
             let sortDir = 'asc';
             let quickSearchTerm = '';
+            let chartsReady = true;
+            let chartsReadyPromise = Promise.resolve();
+            let resolveChartsReady = null;
+            let chartRenderVersion = 0;
+
+            function updatePrintButtonState() {
+                const printBtn = document.getElementById('print-btn');
+                if (!printBtn) return;
+
+                const hasRows = lastFiltered.length > 0;
+                const isDisabled = !hasRows || !chartsReady;
+                let title = 'معاينة الطباعة';
+                if (!hasRows) title = 'قم بالبحث أولاً';
+                else if (!chartsReady) title = 'جاري تجهيز الرسوم البيانية للطباعة';
+
+                printBtn.disabled = isDisabled;
+                printBtn.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
+                printBtn.setAttribute('aria-busy', !chartsReady ? 'true' : 'false');
+                printBtn.title = title;
+            }
+
+            function beginChartsRender() {
+                chartRenderVersion += 1;
+                chartsReady = false;
+                chartsReadyPromise = new Promise((resolve) => {
+                    resolveChartsReady = resolve;
+                });
+                updatePrintButtonState();
+                return chartRenderVersion;
+            }
+
+            function finishChartsRender(version) {
+                if (version !== chartRenderVersion) return;
+                chartsReady = true;
+                if (resolveChartsReady) {
+                    resolveChartsReady();
+                    resolveChartsReady = null;
+                }
+                updatePrintButtonState();
+            }
+
+            function waitForChartsReady() {
+                return chartsReadyPromise;
+            }
 
             function updateSortableHeaders() {
                 document.querySelectorAll('.students-table th.sortable').forEach((th) => {
@@ -295,7 +328,10 @@
             }
 
             document.addEventListener('DOMContentLoaded', async () => {
-                document.getElementById('print-btn').addEventListener('click', exportPdf);
+                document.getElementById('print-btn').addEventListener('click', () => {
+                    void exportPdf();
+                });
+                updatePrintButtonState();
 
                 await loadFilters();
 
@@ -361,6 +397,32 @@
                 document.getElementById('student-modal-overlay').addEventListener('click', (e) => {
                     if (e.target === e.currentTarget) closeStudentModal();
                 });
+
+                // Modal keyboard: Escape to close, Tab trap
+                document.getElementById('student-modal-overlay').addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') { closeStudentModal(); return; }
+                    if (e.key !== 'Tab') return;
+                    const modal = document.querySelector('.student-modal');
+                    const focusable = Array.from(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'));
+                    if (!focusable.length) return;
+                    const first = focusable[0], last = focusable[focusable.length - 1];
+                    if (e.shiftKey) { if (document.activeElement === first) { e.preventDefault(); last.focus(); } }
+                    else { if (document.activeElement === last) { e.preventDefault(); first.focus(); } }
+                });
+
+                // Student name link event delegation (replaces inline onclick)
+                document.getElementById('tbody').addEventListener('click', (e) => {
+                    const btn = e.target.closest('.student-name-link');
+                    if (btn) openStudentModal(btn.dataset.code, btn.dataset.name);
+                });
+
+                // Pagination event delegation (replaces inline onclick="goToPage(n)")
+                document.getElementById('pagination').addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-page]');
+                    if (!btn || btn.disabled) return;
+                    const page = parseInt(btn.dataset.page, 10);
+                    if (!isNaN(page)) goToPage(page);
+                });
             });
 
             // ─── Chart.js loader ───
@@ -390,9 +452,56 @@
             function makeChart(id, config) {
                 if (chartInstances[id]) chartInstances[id].destroy();
                 const ctx = document.getElementById(id);
-                if (!ctx) return null;
-                chartInstances[id] = new Chart(ctx, config);
-                return chartInstances[id];
+                if (!ctx) return Promise.resolve(null);
+
+                return new Promise((resolve) => {
+                    let settled = false;
+                    let chart = null;
+                    const settle = () => {
+                        if (settled) return;
+                        settled = true;
+                        resolve(chart);
+                    };
+
+                    const options = config.options || {};
+                    const animation = options.animation;
+                    const animationConfig = animation === false ? false : { ...(typeof animation === 'object' ? animation : {}) };
+                    const originalOnComplete = animationConfig && typeof animationConfig.onComplete === 'function'
+                        ? animationConfig.onComplete
+                        : null;
+
+                    if (animationConfig) {
+                        animationConfig.onComplete = (context) => {
+                            if (originalOnComplete) originalOnComplete(context);
+                            settle();
+                        };
+                    }
+
+                    const renderReadyPlugin = {
+                        id: `student-support-render-ready-${id}`,
+                        afterRender() {
+                            settle();
+                        }
+                    };
+
+                    try {
+                        chart = new Chart(ctx, {
+                            ...config,
+                            plugins: [...(config.plugins || []), renderReadyPlugin],
+                            options: {
+                                ...options,
+                                animation: animationConfig
+                            }
+                        });
+                        chartInstances[id] = chart;
+                        if (animationConfig === false) {
+                            requestAnimationFrame(() => settle());
+                        }
+                    } catch (error) {
+                        console.warn(`Chart render failed for ${id}`, error);
+                        settle();
+                    }
+                });
             }
 
             // ─── Support level helpers ───
@@ -403,19 +512,21 @@
             }
 
             function getSupportLabel(level) {
-                if (level === 'critical') return { text: 'حرج', bg: '#fef2f2', color: '#dc2626' };
-                if (level === 'medium') return { text: 'متوسط', bg: '#fffbeb', color: '#f59e0b' };
-                return { text: 'قريب من المعدل', bg: '#eff6ff', color: '#3b82f6' };
+                if (level === 'critical') return { text: 'حرج', cssClass: 'support-badge--critical', icon: 'fa-exclamation-circle' };
+                if (level === 'medium') return { text: 'متوسط', cssClass: 'support-badge--medium', icon: 'fa-minus-circle' };
+                return { text: 'قريب من المعدل', cssClass: 'support-badge--near', icon: 'fa-arrow-circle-up' };
             }
 
-            function getGradeColor(grade) {
-                if (grade < 5) return '#dc2626';
-                if (grade < 8) return '#f59e0b';
-                return '#3b82f6';
+            function getGradeCssClass(grade) {
+                if (grade < 5) return 'grade--critical';
+                if (grade < 8) return 'grade--medium';
+                return 'grade--near';
             }
 
             // ─── Existing helpers ───
             // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
+            // escapeHtml() — provided by js/utils.js
+
             function _getLocalLevelName(section) {
                 const s = String(section || '').trim();
                 if (!s) return '';
@@ -433,7 +544,8 @@
                     ? allSections.filter((section) => _getLocalLevelName(section) === selectedLevel)
                     : allSections.slice();
 
-                sortSectionNames(list).forEach((section) => {
+                (typeof sortSectionNames === 'function' ? sortSectionNames(list) : list)
+                    .forEach((section) => {
                     const opt = document.createElement('option');
                     opt.value = section;
                     opt.textContent = section;
@@ -502,7 +614,7 @@
                     if (level) levels.add(level);
                 });
 
-                sortLevelNames(Array.from(levels)).forEach((level) => {
+                (typeof sortLevelNames === 'function' ? sortLevelNames(Array.from(levels)) : Array.from(levels)).forEach((level) => {
                     const opt = document.createElement('option');
                     opt.value = level;
                     opt.textContent = level;
@@ -566,19 +678,21 @@
                 const tbody = document.getElementById('tbody');
                 tbody.innerHTML = pageData.length
                     ? pageData
-                          .map((g, i) => {
-                              const lvl = getSupportLabel(getSupportLevel(g.grade));
-                              const code = g.massar_code || g.student_code || '-';
-                              const name = g.student_name || g.full_name || '-';
+                          .map((row, i) => {
+                              const lvl = getSupportLabel(getSupportLevel(row.grade));
+                              const code = escapeHtml(row.massar_code || row.student_code || '-');
+                              const name = escapeHtml(row.student_name || row.full_name || '-');
+                              const section = escapeHtml(row.section || row.class_name || '-');
+                              const subject = escapeHtml(normalizeSubjectName(row.subject) || '-');
                               return `
                 <tr>
                     <td data-label="#">${start + i + 1}</td>
                     <td data-label="رمز مسار">${code}</td>
-                    <td data-label="الاسم الكامل"><span class="student-name-link" onclick="openStudentModal('${code.replace(/'/g, "\\'")}','${name.replace(/'/g, "\\'")}')">${name}</span></td>
-                    <td data-label="القسم">${g.section || g.class_name || '-'}</td>
-                    <td data-label="المادة">${normalizeSubjectName(g.subject) || '-'}</td>
-                    <td data-label="النقطة" style="color: ${getGradeColor(g.grade)}; font-weight: bold;">${g.grade}</td>
-                    <td data-label="الحالة"><span style="background: ${lvl.bg}; color: ${lvl.color}; padding: 3px 8px; border-radius: 8px; font-size:12px;">${lvl.text}</span></td>
+                    <td data-label="الاسم الكامل"><button type="button" class="student-name-link" data-code="${code}" data-name="${name}">${name}</button></td>
+                    <td data-label="القسم">${section}</td>
+                    <td data-label="المادة">${subject}</td>
+                    <td data-label="النقطة" class="${getGradeCssClass(row.grade)} grade-value">${row.grade}</td>
+                    <td data-label="الحالة"><span class="support-badge ${lvl.cssClass}"><i class="fas ${lvl.icon}" aria-hidden="true"></i> ${lvl.text}</span></td>
                 </tr>`;
                           })
                           .join('')
@@ -595,7 +709,7 @@
                 }
                 pag.style.display = '';
 
-                let html = `<button class="nav-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">السابق <i class="fas fa-chevron-right"></i></button>`;
+                let html = `<button class="nav-btn" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}  aria-label="الصفحة السابقة">السابق <i class="fas fa-chevron-right"></i></button>`;
                 html += '<div class="page-numbers">';
 
                 const maxVisible = 5;
@@ -604,22 +718,22 @@
                 if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
 
                 if (startPage > 1) {
-                    html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+                    html += `<button class="page-btn" data-page="1">1</button>`;
                     if (startPage > 2) html += '<span class="ellipsis">...</span>';
                 }
 
                 for (let p = startPage; p <= endPage; p++) {
-                    html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goToPage(${p})">${p}</button>`;
+                    html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" data-page="${p}" aria-current="${p === currentPage ? 'page' : 'false'}">${p}</button>`;
                 }
 
                 if (endPage < totalPages) {
                     if (endPage < totalPages - 1) html += '<span class="ellipsis">...</span>';
-                    html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+                    html += `<button class="page-btn" data-page="${totalPages}">${totalPages}</button>`;
                 }
 
                 html += '</div>';
                 html += `<span class="page-info">${currentPage} / ${totalPages} (المجموع: ${totalItems})</span>`;
-                html += `<button class="nav-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})"><i class="fas fa-chevron-left"></i> التالي</button>`;
+                html += `<button class="nav-btn" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''} aria-label="الصفحة التالية"><i class="fas fa-chevron-left"></i> التالي</button>`;
 
                 pag.innerHTML = html;
             }
@@ -670,8 +784,11 @@
 
             // ─── Render charts ───
             async function renderCharts(filtered) {
+                const renderVersion = beginChartsRender();
                 if (!filtered.length) {
+                    destroyCharts();
                     document.getElementById('chart-section').classList.remove('visible');
+                    finishChartsRender(renderVersion);
                     return;
                 }
 
@@ -679,11 +796,15 @@
                     await ensureChartJs();
                 } catch (e) {
                     console.warn('Chart.js failed to load', e);
+                    destroyCharts();
+                    document.getElementById('chart-section').classList.remove('visible');
+                    finishChartsRender(renderVersion);
                     return;
                 }
 
                 destroyCharts();
                 document.getElementById('chart-section').classList.add('visible');
+                const chartRenders = [];
 
                 // Chart 1: By subject
                 const subjectCount = {};
@@ -699,7 +820,7 @@
                     return `hsla(${hues[i % hues.length]}, 70%, 55%, 0.85)`;
                 });
 
-                makeChart('chart-by-subject', {
+                chartRenders.push(makeChart('chart-by-subject', {
                     type: 'bar',
                     data: {
                         labels: sortedSubjects.map((s) => s[0]),
@@ -722,7 +843,7 @@
                             x: { ticks: { font: { size: 11 } } }
                         }
                     }
-                });
+                }));
                 updateChartSummary(
                     'chart-by-subject',
                     sortedSubjects.length
@@ -735,16 +856,22 @@
                 const medium = filtered.filter((g) => g.grade >= 5 && g.grade < 8).length;
                 const near = filtered.filter((g) => g.grade >= 8).length;
 
-                makeChart('chart-by-level', {
+                const cs = getComputedStyle(document.documentElement);
+                const clrCritical = cs.getPropertyValue('--color-danger-solid').trim() || '#e85d5d';
+                const clrMedium = cs.getPropertyValue('--color-warning-solid').trim() || '#f0ad4e';
+                const clrNear = cs.getPropertyValue('--color-info-solid').trim() || '#5b8fa8';
+                const clrSurface = cs.getPropertyValue('--color-surface').trim() || '#ffffff';
+
+                chartRenders.push(makeChart('chart-by-level', {
                     type: 'doughnut',
                     data: {
                         labels: ['حرج (0-5)', 'متوسط (5-8)', 'قريب من المعدل (8-10)'],
                         datasets: [
                             {
                                 data: [critical, medium, near],
-                                backgroundColor: ['#dc2626', '#f59e0b', '#3b82f6'],
+                                backgroundColor: [clrCritical, clrMedium, clrNear],
                                 borderWidth: 2,
-                                borderColor: '#fff'
+                                borderColor: clrSurface
                             }
                         ]
                     },
@@ -758,7 +885,7 @@
                             }
                         }
                     }
-                });
+                }));
                 updateChartSummary(
                     'chart-by-level',
                     `التوزيع الحالي: ${critical} حالات حرجة، ${medium} حالات متوسطة، و${near} حالات قريبة من المعدل.`
@@ -774,7 +901,7 @@
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 12);
 
-                makeChart('chart-by-section', {
+                chartRenders.push(makeChart('chart-by-section', {
                     type: 'bar',
                     data: {
                         labels: sortedSections.map((s) => s[0]),
@@ -782,7 +909,7 @@
                             {
                                 label: 'عدد المتعثرين',
                                 data: sortedSections.map((s) => s[1]),
-                                backgroundColor: 'rgba(59, 106, 197, 0.7)',
+                                backgroundColor: `${cs.getPropertyValue('--color-primary').trim() || '#3b6ac5'}b3`,
                                 borderRadius: 6,
                                 borderSkipped: false
                             }
@@ -798,17 +925,22 @@
                             y: { ticks: { font: { size: 10 } } }
                         }
                     }
-                });
+                }));
                 updateChartSummary(
                     'chart-by-section',
                     sortedSections.length
                         ? `القسم الأكثر احتياجاً للدعم هو ${sortedSections[0][0]} بعدد ${sortedSections[0][1]} تلميذ. يعرض الرسم أعلى ${sortedSections.length} أقسام.`
                         : 'لا توجد أقسام لعرضها في الرسم البياني.'
                 );
+                await Promise.all(chartRenders);
+                finishChartsRender(renderVersion);
             }
+
+            let _modalOpener = null;
 
             // ─── Student Modal ───
             function openStudentModal(code, name) {
+                _modalOpener = document.activeElement;
                 const threshold = parseFloat(document.getElementById('threshold').value) || 10;
                 // Find ALL grades for this student (by code) below threshold
                 const studentGrades = allGradesCache.filter(
@@ -819,10 +951,12 @@
 
                 if (!studentGrades.length) {
                     document.getElementById('modal-body').innerHTML =
-                        '<p style="text-align:center;color:#999;padding:20px;">لا توجد بيانات لهذا التلميذ</p>';
+                        '<p class="modal-empty-msg">لا توجد بيانات لهذا التلميذ</p>';
                     const modal = document.getElementById('student-modal-overlay');
+                    modal.removeAttribute('inert');
                     modal.classList.add('active');
                     modal.setAttribute('aria-hidden', 'false');
+                    document.getElementById('close-student-modal').focus();
                     return;
                 }
 
@@ -830,25 +964,24 @@
                 const avg = (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(2);
                 const min = Math.min(...grades).toFixed(2);
                 const section = studentGrades[0].section || studentGrades[0].class_name || '-';
-                const criticalCount = grades.filter((g) => g < 5).length;
 
                 let html = `
                 <div class="student-summary">
                     <div class="student-summary-item">
                         <div class="label">القسم</div>
-                        <div class="value" style="font-size:14px;">${section}</div>
+                        <div class="value">${section}</div>
                     </div>
                     <div class="student-summary-item">
                         <div class="label">عدد المواد المتعثر فيها</div>
-                        <div class="value" style="color:#f59e0b;">${studentGrades.length}</div>
+                        <div class="value grade--medium">${studentGrades.length}</div>
                     </div>
                     <div class="student-summary-item">
                         <div class="label">المتوسط</div>
-                        <div class="value" style="color:${avg < 5 ? '#dc2626' : avg < 8 ? '#f59e0b' : '#3b82f6'};">${avg}</div>
+                        <div class="value ${getGradeCssClass(parseFloat(avg))}">${avg}</div>
                     </div>
                     <div class="student-summary-item">
                         <div class="label">أدنى نقطة</div>
-                        <div class="value" style="color:#dc2626;">${min}</div>
+                        <div class="value grade--critical">${min}</div>
                     </div>
                 </div>
                 <table>
@@ -860,8 +993,8 @@
                                 const lvl = getSupportLabel(getSupportLevel(g.grade));
                                 return `<tr>
                                 <td>${normalizeSubjectName(g.subject) || '-'}</td>
-                                <td style="color:${getGradeColor(g.grade)};font-weight:bold;">${g.grade}</td>
-                                <td><span style="background:${lvl.bg};color:${lvl.color};padding:2px 8px;border-radius:8px;font-size:12px;">${lvl.text}</span></td>
+                                <td class="${getGradeCssClass(g.grade)} grade-value">${g.grade}</td>
+                                <td><span class="support-badge ${lvl.cssClass}"><i class="fas ${lvl.icon}" aria-hidden="true"></i> ${lvl.text}</span></td>
                             </tr>`;
                             })
                             .join('')}
@@ -870,14 +1003,21 @@
 
                 document.getElementById('modal-body').innerHTML = html;
                 const modal = document.getElementById('student-modal-overlay');
+                modal.removeAttribute('inert');
                 modal.classList.add('active');
                 modal.setAttribute('aria-hidden', 'false');
+                document.getElementById('close-student-modal').focus();
             }
 
             function closeStudentModal() {
                 const modal = document.getElementById('student-modal-overlay');
                 modal.classList.remove('active');
                 modal.setAttribute('aria-hidden', 'true');
+                modal.setAttribute('inert', '');
+                if (_modalOpener && typeof _modalOpener.focus === 'function') {
+                    _modalOpener.focus();
+                    _modalOpener = null;
+                }
             }
 
             // ─── Main search ───
@@ -949,11 +1089,11 @@
 
                 updateStats(filtered);
                 renderTable(filtered);
-                renderCharts(filtered);
+                await renderCharts(filtered);
             }
 
             // ─── Print preview ───
-            function exportPdf() {
+            async function exportPdf() {
                 let display =
                     activeLevel === 'all'
                         ? lastFiltered.slice()
@@ -965,6 +1105,8 @@
                     return;
                 }
 
+                await waitForChartsReady();
+
                 // Sort by class name (section), then by grade within each class
                 display.sort((a, b) => {
                     const secA = (a.section || a.class_name || '').toLowerCase();
@@ -974,50 +1116,51 @@
                     return (a.grade || 0) - (b.grade || 0);
                 });
 
-                // Temporarily render ALL rows for print
-                const tbody = document.getElementById('tbody');
-                tbody.innerHTML = display
-                    .map((g, i) => {
-                        const lvl = getSupportLabel(getSupportLevel(g.grade));
-                        return `
+                try {
+                    // Temporarily render ALL rows for print
+                    const tbody = document.getElementById('tbody');
+                    tbody.innerHTML = display
+                        .map((g, i) => {
+                            const lvl = getSupportLabel(getSupportLevel(g.grade));
+                            return `
                 <tr>
                     <td>${i + 1}</td>
-                    <td>${g.massar_code || g.student_code || '-'}</td>
-                    <td>${g.student_name || g.full_name || '-'}</td>
-                    <td>${g.section || g.class_name || '-'}</td>
-                    <td>${normalizeSubjectName(g.subject) || '-'}</td>
-                    <td style="color: ${getGradeColor(g.grade)}; font-weight: bold;">${g.grade}</td>
-                    <td><span style="background: ${lvl.bg}; color: ${lvl.color}; padding: 3px 8px; border-radius: 8px; font-size:12px;">${lvl.text}</span></td>
+                    <td>${escapeHtml(g.massar_code || g.student_code || '-')}</td>
+                    <td>${escapeHtml(g.student_name || g.full_name || '-')}</td>
+                    <td>${escapeHtml(g.section || g.class_name || '-')}</td>
+                    <td>${escapeHtml(normalizeSubjectName(g.subject) || '-')}</td>
+                    <td class="${getGradeCssClass(g.grade)} grade-value">${g.grade}</td>
+                    <td><span class="support-badge ${lvl.cssClass}"><i class="fas ${lvl.icon}" aria-hidden="true"></i> ${lvl.text}</span></td>
                 </tr>`;
-                    })
-                    .join('');
+                        })
+                        .join('');
 
-                // Hide pagination for the clone
-                const pag = document.getElementById('pagination');
-                pag.style.display = 'none';
+                    // Hide pagination for the clone
+                    const pag = document.getElementById('pagination');
+                    pag.style.display = 'none';
 
-                const level = document.getElementById('level-select');
-                const cls = document.getElementById('class-select');
-                const subj = document.getElementById('subject-select');
-                const threshold = document.getElementById('threshold').value || '10';
+                    const level = document.getElementById('level-select');
+                    const cls = document.getElementById('class-select');
+                    const subj = document.getElementById('subject-select');
+                    const threshold = document.getElementById('threshold').value || '10';
 
-                const parts = [];
-                if (level.value) parts.push('المستوى: ' + level.options[level.selectedIndex].text);
-                if (cls.value) parts.push('القسم: ' + cls.options[cls.selectedIndex].text);
-                if (subj.value) parts.push('المادة: ' + subj.options[subj.selectedIndex].text);
-                parts.push('الحد الأقصى: ' + threshold);
-                parts.push('عدد التلاميذ: ' + display.length);
+                    const parts = [];
+                    if (level.value) parts.push('المستوى: ' + level.options[level.selectedIndex].text);
+                    if (cls.value) parts.push('القسم: ' + cls.options[cls.selectedIndex].text);
+                    if (subj.value) parts.push('المادة: ' + subj.options[subj.selectedIndex].text);
+                    parts.push('الحد الأقصى: ' + threshold);
+                    parts.push('عدد التلاميذ: ' + display.length);
 
-                document.getElementById('print-date').textContent =
-                    'تاريخ التصدير: ' +
-                    new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
-                document.getElementById('print-filters').textContent = parts.join(' | ');
+                    document.getElementById('print-date').textContent =
+                        'تاريخ التصدير: ' +
+                        new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
+                    document.getElementById('print-filters').textContent = parts.join(' | ');
 
-                openPrintPreview({ title: 'الدعم التربوي', pageSize: 'A4', landscape: false });
-
-                // openPrintPreview clones content after ~300ms (charts/theme capture).
-                // Keep full rows a bit longer so preview captures every page.
-                setTimeout(() => renderTable(lastFiltered), 700);
+                    await openPrintPreview({ title: 'الدعم التربوي', pageSize: 'A4', landscape: false });
+                } finally {
+                    renderTable(lastFiltered);
+                    updatePrintButtonState();
+                }
             }
         </script>
     </body>

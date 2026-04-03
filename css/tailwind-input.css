@@ -17597,6 +17597,38 @@ body {
     font-style: italic;
 }
 
+.att-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.att-table {
+    min-width: 900px;
+}
+
+.record-note {
+    color: var(--color-text-muted);
+    font-size: 11px;
+}
+
+.record-note .fas {
+    margin-inline-start: 3px;
+}
+
+.edit-action-btn {
+    background: var(--color-primary);
+    margin-inline-start: 4px;
+}
+
+.print-signature-block {
+    display: none !important;
+}
+
+.ux-pp-sheet .print-signature-block,
+#ux-print-root .print-signature-block {
+    display: block !important;
+}
+
 .type-badge {
     display: inline-flex;
     align-items: center;
@@ -19498,18 +19530,64 @@ body {
     }
 }
 
-/* ─── Level Filter Tabs ─── */
-.level-filter-tabs {
+/* ─── Support filter form layout ─── */
+.support-filter-form {
     display: flex;
-    gap: 8px;
-    margin-bottom: 15px;
+    gap: 12px;
+    align-items: flex-end;
     flex-wrap: wrap;
 }
 
+.support-filter-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.support-filter-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    align-items: center;
+}
+
+.support-filter-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    margin: 0;
+    white-space: nowrap;
+    justify-content: center;
+}
+
+/* ─── Results header: title + tabs inline ─── */
+.support-results-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm, 1rem);
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.support-results-header h3 {
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.support-results-header .level-filter-tabs {
+    margin-bottom: 0;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+/* ─── Level Filter Tabs ─── */
 .level-tab {
     padding: 7px 18px;
     border-radius: 20px;
-    border: 2px solid #e5e7eb;
+    border: 2px solid var(--color-accent);
     background: var(--color-surface, #fff);
     cursor: pointer;
     font-family: inherit;
@@ -19540,18 +19618,6 @@ body {
     background: var(--color-primary, #3b6ac5);
 }
 
-.level-tab.active[data-level='critical'] {
-    background: #dc2626;
-}
-
-.level-tab.active[data-level='medium'] {
-    background: #f59e0b;
-}
-
-.level-tab.active[data-level='near'] {
-    background: #3b82f6;
-}
-
 .level-tab .tab-count {
     background: rgba(255, 255, 255, 0.25);
     padding: 1px 8px;
@@ -19560,8 +19626,53 @@ body {
 }
 
 .level-tab:not(.active) .tab-count {
-    background: #f3f4f6;
-    color: #6b7280;
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+}
+
+.level-tab.active[data-level='critical'] {
+    background: var(--color-danger-solid);
+}
+
+.level-tab.active[data-level='medium'] {
+    background: var(--color-warning-solid);
+}
+
+.level-tab.active[data-level='near'] {
+    background: var(--color-info-solid);
+}
+
+/* ─── Vertical rhythm: section spacing ─── */
+.support-stats {
+    margin-bottom: 28px;
+}
+
+.chart-section {
+    margin-bottom: 28px;
+}
+
+@media (max-width: 680px) {
+    .support-filter-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .support-filter-actions {
+        justify-content: stretch;
+    }
+
+    .support-filter-btn {
+        flex: 1;
+    }
+
+    .support-results-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .support-results-header .level-filter-tabs {
+        justify-content: flex-start;
+    }
 }
 
 /* ─── Chart Section ─── */
@@ -19838,11 +19949,88 @@ body {
     text-decoration: underline;
     text-decoration-style: dotted;
     text-underline-offset: 3px;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    text-align: inherit;
 }
 
 .student-name-link:hover {
     color: var(--color-primary-dark, #2f5499);
     text-decoration-style: solid;
+}
+
+/* ─── Support level badges (token-based, dark-mode safe) ─── */
+.support-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: var(--radius-xs, 6px);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.support-badge--critical {
+    background: var(--color-danger-surface);
+    color: var(--color-danger-text);
+}
+
+.support-badge--medium {
+    background: var(--color-warning-surface);
+    color: var(--color-warning-text);
+}
+
+.support-badge--near {
+    background: var(--color-info-surface);
+    color: var(--color-info-text);
+}
+
+/* ─── Grade value coloring (token-based) ─── */
+.grade-value {
+    font-weight: 700;
+}
+
+.grade--critical {
+    color: var(--color-danger-text);
+}
+
+.grade--medium {
+    color: var(--color-warning-text);
+}
+
+.grade--near {
+    color: var(--color-info-text);
+}
+
+/* ─── Chart skeleton loader ─── */
+.chart-skeleton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    border-radius: var(--radius-sm, 8px);
+    background: linear-gradient(
+        90deg,
+        var(--color-surface-alt, #e7e8e5) 25%,
+        color-mix(in srgb, var(--color-surface-alt, #e7e8e5) 60%, transparent) 50%,
+        var(--color-surface-alt, #e7e8e5) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease infinite;
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chart-skeleton { animation: none; }
 }
 
 /* ─── Student Modal ─── */

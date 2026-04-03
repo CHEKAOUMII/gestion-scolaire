@@ -33,7 +33,11 @@
       "Bash(powershell.exe -File \".specify/scripts/powershell/create-new-feature.ps1\" \"Phase 6 Verification and Polish for message system - full test pass covering dark theme, RTL layout, keyboard navigation, toast variants, and error boundary\" -Json -ShortName \"message-system-verification\")",
       "Bash(coderabbit --version)",
       "Bash(coderabbit auth:*)",
-      "Bash(npm version:*)"
+      "Bash(npm version:*)",
+      "Bash(Get-Content \"d:/gestionScholaire/staff-attendance.html\")",
+      "Bash(Select-Object -First 5)",
+      "Bash(Out-String)",
+      "Read(//c/Users/cheka/AppData/Local/Temp/claude/d--gestionScholaire/7f95e10c-eea4-47be-af2e-edc87641cda4/tasks/**)"
     ]
   },
   "enabledPlugins": {
