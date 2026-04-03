@@ -138,3 +138,104 @@ The timetable is stored in `localStorage` under the key `timetableData` as a JSO
 ### Telemetry Server
 
 `server/index.js` is a standalone Node.js HTTP server deployed separately (Railway/VPS) for tracking installed device heartbeats. Run independently of the Electron app.
+
+### Message System (mandatory for all UI interactions)
+
+Every page, tab, button, and user-facing action MUST use the unified message system. No ad-hoc patterns allowed.
+
+**Available globals** (loaded via `js/message-system.js` on every page):
+
+- **`showConfirm(config)`** — Promise-based confirmation dialog. Use for ALL destructive actions (delete, clear, overwrite) and any operation requiring user consent. Never use `window.confirm()`.
+  ```js
+  const { confirmed } = await showConfirm({
+      title: 'حذف السجل',
+      message: 'هل أنت متأكد؟',
+      detail: 'لا يمكن التراجع عن هذا الإجراء.',  // optional
+      type: 'danger',           // 'danger' | 'warning' | 'info'
+      confirmText: 'حذف نهائي', // optional, defaults to 'تأكيد'
+      cancelText: 'إلغاء',      // optional
+  });
+  if (!confirmed) return;
+  ```
+
+- **`showToast(message, type, duration)`** — Standard toast. Use for operation results (success/error/warning/info). Never show raw `alert()`.
+  ```js
+  showToast('تم الحفظ بنجاح', 'success');
+  showToast('حدث خطأ', 'error');
+  ```
+
+- **`showToast.loading(message)`** — Loading toast for async operations. Returns a handle to transition state.
+  ```js
+  const handle = showToast.loading('جاري الحفظ...');
+  try {
+      await doWork();
+      handle.success('تم الحفظ');
+  } catch (e) {
+      handle.error('فشل الحفظ');
+  }
+  ```
+
+- **`showToast.action(message, { label, icon, onClick })`** — Toast with an undo/action button.
+  ```js
+  showToast.action('تم حذف السجل', { label: 'تراجع', icon: 'fa-undo', onClick: undoFn });
+  ```
+
+- **`setFieldValidation(field, message, type)`** — Inline validation on form fields. Use for form errors instead of alert-based validation.
+  ```js
+  setFieldValidation(inputEl, 'هذا الحقل مطلوب', 'error');   // 'error' | 'warning' | 'success'
+  ```
+
+- **`clearValidation(container)`** — Clear all validation messages within a form or container.
+
+**Rules:**
+- `window.confirm()` is **prohibited** — use `showConfirm()`.
+- `alert()` is **prohibited** — use `showToast()`.
+- Every delete/clear/reset button handler MUST `await showConfirm()` before proceeding.
+- Every async operation (IPC call, import, export) MUST give feedback via `showToast` or `showToast.loading`.
+- Form validation errors MUST use `setFieldValidation()`, not inline HTML manipulation.
+- `js/message-system.js` is already included on all 44 HTML pages — do not add it again.
+
+### Pagination (mandatory for all data tables)
+
+Every page that displays a list or table of records MUST implement client-side pagination. No exceptions.
+
+**Rules:**
+- Default page size is **20 records per page**.
+- Every newly created page with a table MUST include pagination controls from the start.
+- Pagination state (`currentPage`, `pageSize`) must be reset to page 1 whenever the data set changes (filter, search, school-year switch).
+- The pagination bar must show: previous button, page numbers (or `X / Y` counter), next button, and total record count.
+- Use the following standard pattern for all pages:
+
+```js
+let currentPage = 1;
+const PAGE_SIZE = 20;
+
+function renderPage(data) {
+    const total = data.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages);
+    const slice = data.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    // … render slice into the table tbody …
+
+    renderPaginationControls(total, totalPages);
+}
+
+function renderPaginationControls(total, totalPages) {
+    // Update prev/next button disabled state, page counter text, and total count
+}
+```
+
+- Pagination controls must be RTL-aware (previous = right arrow in Arabic layout).
+- When the result set is empty, hide pagination controls entirely and show an empty-state message.
+
+### CRUD Completeness (mandatory)
+
+Whenever an **insert/add** (إضافة) feature is created for any entity, an **edit/update** (تعديل) feature MUST also be implemented alongside it. No entity should be add-only without the ability to correct mistakes.
+
+**Rules:**
+- Every table row with a delete button MUST also have an edit button next to it.
+- Edit can be implemented as inline editing (converting the row to input fields) or via a modal — prefer inline for simple entities, modal for complex ones.
+- The edit action must reuse the same backend `save` handler by passing the record `id` for update (upsert pattern).
+- Edit buttons use the `.edit-btn` class with `fa-edit` icon, placed before the delete button inside an `.att-action-group` wrapper.
+- Both edit and delete buttons must be hidden from print via the `no-print` class.

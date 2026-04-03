@@ -14,6 +14,8 @@
             </td>
         </tr>`;
 
+    const PAGE_SIZE = 20;
+
     const state = {
         schoolYear: '',
         timetableData: null,
@@ -21,6 +23,7 @@
         teacherById: new Map(),
         rows: [],
         filteredRows: [],
+        currentPage: 1,
         pendingAssignments: new Map(),
         lastAppliedFilters: { level: '', subject: '', teacherName: '' },
         initialSnapshot: ''
@@ -300,6 +303,7 @@
             return true;
         });
 
+        state.currentPage = 1;
         renderResults();
         updatePrintHeader();
     }
@@ -312,12 +316,19 @@
             els.resultsHint.textContent = state.rows.length
                 ? 'لا توجد أقسام مطابقة للفلاتر الحالية.'
                 : 'اختر مستوى ومادة ثم اضغط بحث.';
+            renderPagination();
             updateCounters();
             return;
         }
 
-        els.resultsTbody.innerHTML = state.filteredRows
+        const totalPages = Math.ceil(state.filteredRows.length / PAGE_SIZE);
+        state.currentPage = Math.min(Math.max(1, state.currentPage), totalPages);
+        const startIndex = (state.currentPage - 1) * PAGE_SIZE;
+        const pageRows = state.filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
+
+        els.resultsTbody.innerHTML = pageRows
             .map((row, index) => {
+                const globalIndex = startIndex + index;
                 const pendingTeacherId = Number(state.pendingAssignments.get(row.key)) || null;
                 const rowDirty = Boolean(pendingTeacherId);
                 const currentPills = row.currentTeacherNames
@@ -329,7 +340,7 @@
 
                 return `
                     <tr class="${rowDirty ? 'row-dirty' : ''}">
-                        <td>${index + 1}</td>
+                        <td>${globalIndex + 1}</td>
                         <td>${escapeHtml(row.level)}</td>
                         <td><strong>${escapeHtml(row.section)}</strong></td>
                         <td><div class="teacher-pill-list">${currentPills}</div></td>
@@ -350,7 +361,64 @@
             .join('');
 
         els.resultsHint.textContent = 'يمكنك تغيير الأستاذ الجديد لكل قسم ثم حفظ كل التعديلات دفعة واحدة.';
+        renderPagination();
         updateCounters();
+    }
+
+    function renderPagination() {
+        let container = document.getElementById('pagination-bar');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'pagination-bar';
+            container.className = 'pagination-bar';
+            const tableWrapper = els.resultsTbody?.closest('.table-responsive');
+            if (tableWrapper) tableWrapper.after(container);
+        }
+
+        const total = state.filteredRows.length;
+        const totalPages = Math.ceil(total / PAGE_SIZE);
+
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const page = state.currentPage;
+        const start = (page - 1) * PAGE_SIZE + 1;
+        const end = Math.min(page * PAGE_SIZE, total);
+
+        const makeBtn = (label, targetPage, disabled, active = false) => {
+            const cls = ['pagination-btn', active ? 'active' : '', disabled ? 'disabled' : ''].filter(Boolean).join(' ');
+            return `<button class="${cls}" data-page="${targetPage}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+        };
+
+        let pages = '';
+        const delta = 2;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= page - delta && i <= page + delta)) {
+                pages += makeBtn(i, i, false, i === page);
+            } else if (i === page - delta - 1 || i === page + delta + 1) {
+                pages += `<span class="pagination-ellipsis">…</span>`;
+            }
+        }
+
+        container.innerHTML = `
+            <div class="pagination-info">صفحة ${page} من ${totalPages} · عرض ${start}–${end} من ${total}</div>
+            <div class="pagination-controls">
+                ${makeBtn('<i class="fas fa-angle-double-right"></i>', 1, page === 1)}
+                ${makeBtn('<i class="fas fa-angle-right"></i>', page - 1, page === 1)}
+                ${pages}
+                ${makeBtn('<i class="fas fa-angle-left"></i>', page + 1, page === totalPages)}
+                ${makeBtn('<i class="fas fa-angle-double-left"></i>', totalPages, page === totalPages)}
+            </div>`;
+
+        container.querySelectorAll('.pagination-btn:not([disabled])').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                state.currentPage = Number(btn.dataset.page);
+                renderResults();
+                els.resultsTbody?.closest('.students-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        });
     }
 
     function renderTeacherSelect(row, selectedTeacherId) {

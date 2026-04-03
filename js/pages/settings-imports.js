@@ -2816,17 +2816,37 @@ async function importAgentXml(file) {
                 console.log('[agent-xml] positionMap values:', JSON.stringify([...positionMap.entries()]));
                 console.log('[agent-xml] statutMap values:', JSON.stringify([...statutMap.entries()]));
 
-                // ── Build ACTIVITE map: PPR → first activity details ──
+                // ── Build ACTIVITE map: PPR → best activity details ──
+                // Priority: E002 (surnombre) wins; otherwise keep most recent DATEAFFECT.
+                // Also collect ALL cd_fonc codes per PPR to reliably detect surplus.
+                const activiteAllFoncs = new Map(); // PPR → Set<cd_fonc>
                 const activiteMap = new Map();
                 xmlDoc.querySelectorAll('ACTIVITE').forEach((el) => {
                     const ppr = el.querySelector('PPR')?.textContent?.trim();
-                    if (!ppr || activiteMap.has(ppr)) return;
-                    activiteMap.set(ppr, {
-                        cd_fonc: el.querySelector('CD_FONC')?.textContent?.trim() || '',
-                        cd_etab: el.querySelector('CD_ETAB')?.textContent?.trim() || '',
-                        cd_activites: el.querySelector('CD_ACTIVITES')?.textContent?.trim() || '',
-                        dateaffect: el.querySelector('DATEAFFECT')?.textContent?.trim() || ''
-                    });
+                    if (!ppr) return;
+
+                    const cdFonc = el.querySelector('CD_FONC')?.textContent?.trim() || '';
+                    const cdEtab = el.querySelector('CD_ETAB')?.textContent?.trim() || '';
+                    const cdActivites = el.querySelector('CD_ACTIVITES')?.textContent?.trim() || '';
+                    const dateaffect = el.querySelector('DATEAFFECT')?.textContent?.trim() || '';
+
+                    // Track all function codes for this PPR (for surplus detection)
+                    if (!activiteAllFoncs.has(ppr)) activiteAllFoncs.set(ppr, new Set());
+                    if (cdFonc) activiteAllFoncs.get(ppr).add(cdFonc);
+
+                    const current = activiteMap.get(ppr);
+                    const isCurrentSurplus = current && (current.cd_fonc === 'E002' || /surnombre/i.test(fonctionMap.get(current.cd_fonc) || ''));
+                    const isNewSurplus = cdFonc === 'E002' || /surnombre/i.test(fonctionMap.get(cdFonc) || '');
+
+                    if (!current) {
+                        activiteMap.set(ppr, { cd_fonc: cdFonc, cd_etab: cdEtab, cd_activites: cdActivites, dateaffect });
+                    } else if (!isCurrentSurplus && isNewSurplus) {
+                        // Upgrade to surplus-signalling activity
+                        activiteMap.set(ppr, { cd_fonc: cdFonc, cd_etab: cdEtab, cd_activites: cdActivites, dateaffect });
+                    } else if (!isCurrentSurplus && !isNewSurplus && dateaffect > current.dateaffect) {
+                        // Both non-surplus: prefer more recent
+                        activiteMap.set(ppr, { cd_fonc: cdFonc, cd_etab: cdEtab, cd_activites: cdActivites, dateaffect });
+                    }
                 });
 
                 // ── Build R_TABSERV map: CD_ACTIVITES → aggregated teaching hours ──
@@ -2935,7 +2955,14 @@ async function importAgentXml(file) {
                     const sitFamAr = tr(translateMaritalStatus, sitFamMap.get(cdSitFam));
 
                     const fonctionLabelFr = fonctionMap.get(cdFonc) || null;
-                    const isSurplus = cdFonc === 'E002' || /surnombre/i.test(fonctionLabelFr || '');
+                    // Check primary activity AND any other activities for this PPR
+                    const allFoncs = activiteAllFoncs.get(ppr) || new Set();
+                    const isSurplus =
+                        cdFonc === 'E002' ||
+                        /surnombre/i.test(fonctionLabelFr || '') ||
+                        [...allFoncs].some(
+                            (fc) => fc === 'E002' || /surnombre/i.test(fonctionMap.get(fc) || '')
+                        );
 
                     // Prefer Arabic labels, fall back to French, but preserve the surplus meaning explicitly.
                     const fonctionLabel = isSurplus
