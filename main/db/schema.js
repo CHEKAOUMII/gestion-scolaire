@@ -190,6 +190,7 @@ function createTables() {
         arrival_time TEXT,
         reason TEXT,
         notes TEXT,
+        absence_period TEXT DEFAULT 'full_day',
         school_year TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );

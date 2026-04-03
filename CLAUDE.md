@@ -1,4 +1,4 @@
-﻿# CLAUDE.md
+# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -93,6 +93,39 @@ Single quotes, no trailing commas, 4-space indent, 120-char line width, semicolo
 - **Components:** reusable classes live in `@layer components {}`
 - **Carry-forward CSS:** legacy shared/page CSS that has not yet been re-expressed as utilities lives in documented carry-forward sections inside `css/tailwind-input.css`
 - **RTL:** prefer logical properties/utilities (`ps-*`, `pe-*`, `ms-*`, `me-*`, `start-*`) over physical left/right utilities
+
+### Timetable Data Structure (localStorage `timetableData`)
+
+The timetable is stored in `localStorage` under the key `timetableData` as a JSON object. Its structure is:
+
+```
+{
+  teachers: [...],
+  subjects: [...],
+  classes: [...],
+  timetables: {
+    "teacherName": {
+      "الاثنين": {
+        morning:   { H1: {subject, students, room}, H2: {...}, H3: {...}, H4: {...} },
+        afternoon: { H1: {subject, students, room}, H2: {...}, H3: {...}, H4: {...} }
+      },
+      "الثلاثاء": { morning: {...}, afternoon: {...} },
+      ...
+    }
+  },
+  teacherMetaByKey: {...}
+}
+```
+
+**Critical rules:**
+
+- **Period separation is at the `morning`/`afternoon` key level**, NOT at the hour-key level. The keys `H1`, `H2`, `H3`, `H4` repeat identically inside both `morning` and `afternoon`.
+- **Never assume `h1-h4` = morning and `h5-h8` = afternoon.** The FET import uses `_m`/`_s` suffixes on day names for period detection, and hours are always `H1-H4` within each period.
+- **Time mapping depends on the period context:**
+  - Morning: `H1` → 08:30-09:30, `H2` → 09:30-10:30, `H3` → 10:30-11:30, `H4` → 11:30-12:30
+  - Afternoon: `H1` → 14:30-15:30, `H2` → 15:30-16:30, `H3` → 16:30-17:30, `H4` → 17:30-18:30
+- **Day names are Arabic:** الاثنين, الثلاثاء, الأربعاء, الخميس, الجمعة, السبت (Monday–Saturday). Note: الاثنين uses plain alef (not hamza إ).
+- **Teacher keys** may be tafwij-prefixed (`tafwij:name`) or plain names. Use `resolveTeacherTimetableKeys()` for matching.
 
 ### Environment Variables
 

@@ -57,8 +57,8 @@ function registerStaffAttendanceIpc(ipcMain) {
         });
         db.prepare(
             `
-            INSERT INTO staff_attendance(teacher_id, teacher_name, subject, attendance_date, type, late_duration, arrival_time, reason, notes, school_year)
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO staff_attendance(teacher_id, teacher_name, subject, attendance_date, type, late_duration, arrival_time, reason, notes, absence_period, school_year)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
         ).run(
             resolved.teacher_id || null,
@@ -70,6 +70,7 @@ function registerStaffAttendanceIpc(ipcMain) {
             type === 'late' ? payload.arrival_time || null : null,
             payload.reason || null,
             payload.notes || null,
+            type === 'absence' ? (payload.absence_period || 'full_day') : null,
             year
         );
         return { success: true };

@@ -700,22 +700,21 @@ function openPrintPreview(options = {}) {
                                 </td>
                             </tr>
                         </table>
-                        ${
-                            printTitle
-                                ? (() => {
-                                      const reportDate =
-                                          document.getElementById('print-date-display')?.textContent?.trim() ||
-                                          document.getElementById('date-display')?.textContent?.trim() ||
-                                          '';
-                                      return `
+                        ${printTitle
+                            ? (() => {
+                                const reportDate =
+                                    document.getElementById('print-date-display')?.textContent?.trim() ||
+                                    document.getElementById('date-display')?.textContent?.trim() ||
+                                    '';
+                                return `
                         <div style="text-align: center; margin-top: 12px;">
                             <div style="display: inline-block; padding: 7px 30px; border: 2px solid var(--color-primary); border-radius: 8px; background: var(--color-primary-mist);">
                                 <div style="font-size: 17px; font-weight: 800; color: var(--color-primary);">${_esc(printTitle)}</div>
                                 ${reportDate ? `<div style="font-size: 13px; font-weight: 600; color: var(--color-text-muted); margin-top: 4px;">${_esc(reportDate)}</div>` : ''}
                             </div>
                         </div>`;
-                                  })()
-                                : ''
+                            })()
+                            : ''
                         }
                     </div>`;
                 }
@@ -817,7 +816,7 @@ function _enablePrintMode(capturedSheet) {
     }
     const pageSize = _printPreviewOptions.pageSize || 'A4';
     const orient = _printPreviewLandscape ? 'landscape' : 'portrait';
-    pageStyle.textContent = `@page { size: ${pageSize} ${orient}; margin: 3mm 0; }`;
+    pageStyle.textContent = `@page { size: ${pageSize} ${orient}; margin: 5mm 4mm; }`;
 }
 
 function _disablePrintMode() {
@@ -841,7 +840,7 @@ async function _executePrintFromPreview() {
                 printBackground: true,
                 pageSize: _printPreviewOptions.pageSize || 'A4',
                 landscape: _printPreviewLandscape,
-                margins: { marginType: 'none' }
+                margins: { marginType: 'custom', top: 0.2, bottom: 0.2, left: 0.16, right: 0.16 }
             });
         } else {
             window.print();
@@ -864,7 +863,7 @@ async function _exportPdfFromPreview() {
                 printBackground: true,
                 pageSize: _printPreviewOptions.pageSize || 'A4',
                 landscape: _printPreviewLandscape,
-                margins: { top: 2, bottom: 2, left: 0, right: 0 }
+                margins: { top: 0.2, bottom: 0.2, left: 0.16, right: 0.16 }
             });
             if (result?.success && typeof showToast === 'function') {
                 showToast('تم تصدير الملف بنجاح', 'success');

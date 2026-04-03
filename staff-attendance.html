@@ -80,6 +80,18 @@
                                     </select>
                                 </div>
 
+                                <!-- Absence Period (visible only for absence type) -->
+                                <div class="absence-period-field" id="absence-period-field">
+                                    <div class="form-group">
+                                        <label for="att-absence-period">فترة الغياب</label>
+                                        <select id="att-absence-period">
+                                            <option value="full_day">اليوم كامل</option>
+                                            <option value="morning">صباحا فقط (08:00 – 12:00)</option>
+                                            <option value="afternoon">مساءً فقط (14:00 – 18:00)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <div class="form-group">
                                     <label for="att-date">التاريخ</label>
                                     <input type="date" id="att-date" required />
@@ -183,6 +195,7 @@
                                 <th>الأستاذ(ة)</th>
                                 <th>المادة</th>
                                 <th>التاريخ</th>
+                                <th>الفترة</th>
                                 <th>التوقيت / المدة</th>
                                 <th>السبب</th>
                                 <th>الأقسام المتضررة</th>
@@ -191,10 +204,11 @@
                         </thead>
                         <tbody id="records-tbody">
                             <tr class="empty-row">
-                                <td colspan="9">لا توجد سجلات</td>
+                                <td colspan="10">لا توجد سجلات</td>
                             </tr>
                         </tbody>
                     </table>
+                    <div class="support-pagination no-print" id="att-pagination"></div>
                 </div>
             </div>
         </main>
@@ -234,6 +248,64 @@
             let allRecords = [];
             let teachersList = [];
             let teacherSections = {};
+            let attCurrentPage = 1;
+            const ATT_PER_PAGE = 20;
+
+            /**
+             * Timetable structure: timetables[teacherKey][dayName] = { morning: {H1: lesson, H2: ...}, afternoon: {H1: lesson, ...} }
+             * The period keys 'morning'/'afternoon' are the first level inside a day.
+             * Hour keys (H1, H2, H3, H4) repeat in both morning and afternoon.
+             */
+
+            /** Get the period sub-objects to iterate based on absencePeriod */
+            function getPeriodEntries(dayData, absencePeriod) {
+                if (!dayData || typeof dayData !== 'object') return [];
+                if (absencePeriod === 'morning') {
+                    return dayData.morning ? [['morning', dayData.morning]] : [];
+                }
+                if (absencePeriod === 'afternoon') {
+                    return dayData.afternoon ? [['afternoon', dayData.afternoon]] : [];
+                }
+                // full_day → both periods
+                const entries = [];
+                if (dayData.morning) entries.push(['morning', dayData.morning]);
+                if (dayData.afternoon) entries.push(['afternoon', dayData.afternoon]);
+                return entries;
+            }
+
+            /** Check if a teacher has any hours in a specific period for a given day */
+            function teacherWorksInPeriod(teacherName, teacherId, dateStr, period) {
+                if (!period || period === 'full_day') return true;
+                try {
+                    const raw = localStorage.getItem('timetableData');
+                    if (!raw) return true; // no timetable → show all
+                    const data = JSON.parse(raw);
+                    if (!data || !data.timetables) return true;
+
+                    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                    const dateObj = new Date(dateStr + 'T00:00:00');
+                    const dayName = dayNames[dateObj.getDay()];
+
+                    const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
+                    if (!teacherKeys.length) return true; // no match → don't filter out
+
+                    for (const teacherKey of teacherKeys) {
+                        const dayData = data.timetables?.[teacherKey]?.[dayName];
+                        if (!dayData) continue;
+                        const periodEntries = getPeriodEntries(dayData, period);
+                        for (const [, hours] of periodEntries) {
+                            if (!hours || typeof hours !== 'object') continue;
+                            // If there are any lessons in this period, teacher works here
+                            for (const lesson of Object.values(hours)) {
+                                if (lesson && lesson.subject) return true;
+                            }
+                        }
+                    }
+                    return false;
+                } catch {
+                    return true;
+                }
+            }
 
             document.addEventListener('DOMContentLoaded', async () => {
                 // Set today's date
@@ -291,11 +363,16 @@
                         subjectSelect.appendChild(opt);
                     });
 
-                // Filter teachers by selected subject
+                // Filter teachers by selected subject and absence period
                 const teacherSelect = document.getElementById('att-teacher');
+                const absencePeriodSelect = document.getElementById('att-absence-period');
+                const absencePeriodField = document.getElementById('absence-period-field');
 
                 function filterTeachers() {
                     const selectedSubject = subjectSelect.value;
+                    const currentType = document.getElementById('att-type').value;
+                    const selectedPeriod = absencePeriodSelect.value;
+                    const dateStr = document.getElementById('att-date').value || todayStr();
                     teacherSelect.innerHTML = '<option value="">-- اختر أستاذ(ة) --</option>';
 
                     const seen = new Set();
@@ -309,6 +386,10 @@
                                     : trimmed;
                             });
                             if (!subjects.includes(selectedSubject)) return;
+                        }
+                        // Filter by absence period: only show teachers who work in the selected period
+                        if (currentType === 'absence' && selectedPeriod !== 'full_day') {
+                            if (!teacherWorksInPeriod(t.full_name, t.id, dateStr, selectedPeriod)) return;
                         }
                         // Deduplicate by name
                         if (seen.has(t.full_name)) return;
@@ -324,6 +405,8 @@
                 }
 
                 subjectSelect.addEventListener('change', filterTeachers);
+                absencePeriodSelect.addEventListener('change', filterTeachers);
+                document.getElementById('att-date').addEventListener('change', filterTeachers);
                 filterTeachers(); // Initial populate
 
                 // Load teacher → sections mapping for affected sections display
@@ -347,12 +430,23 @@
                         lateFields.forEach((f) => {
                             f.classList.toggle('visible', type === 'late');
                         });
+                        // Show/hide absence period field
+                        absencePeriodField.classList.toggle('visible', type === 'absence');
+                        if (type !== 'absence') {
+                            absencePeriodSelect.value = 'full_day';
+                        }
+                        filterTeachers();
                     });
                 });
+
+                // Show absence period by default (since default type is absence)
+                absencePeriodField.classList.add('visible');
 
                 // Reset button
                 document.getElementById('reset-btn').addEventListener('click', () => {
                     document.getElementById('att-subject').value = '';
+                    absencePeriodSelect.value = 'full_day';
+                    absencePeriodField.classList.add('visible');
                     filterTeachers();
                     document.querySelectorAll('.late-fields').forEach((f) => f.classList.remove('visible'));
                     document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
@@ -365,8 +459,31 @@
                 document.getElementById('att-form').addEventListener('submit', saveRecord);
 
                 // Filters
-                document.getElementById('filter-type').addEventListener('change', renderTable);
-                document.getElementById('filter-date').addEventListener('change', renderTable);
+                document.getElementById('filter-type').addEventListener('change', () => { attCurrentPage = 1; renderTable(); });
+                document.getElementById('filter-date').addEventListener('change', () => { attCurrentPage = 1; renderTable(); });
+
+                // Pagination clicks
+                const paginationEl = document.getElementById('att-pagination');
+                if (paginationEl) {
+                    paginationEl.addEventListener('click', (event) => {
+                        const btn = event.target.closest('[data-page]');
+                        if (btn) {
+                            const page = Number(btn.dataset.page);
+                            if (!isNaN(page) && page !== attCurrentPage) {
+                                attCurrentPage = page;
+                                renderTable();
+                                document.querySelector('.att-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                            return;
+                        }
+                        if (event.target.closest('#atp-prev')) {
+                            if (attCurrentPage > 1) { attCurrentPage--; renderTable(); document.querySelector('.att-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                        } else if (event.target.closest('#atp-next')) {
+                            const totalPages = Math.ceil(getFilteredRecords().length / ATT_PER_PAGE) || 1;
+                            if (attCurrentPage < totalPages) { attCurrentPage++; renderTable(); document.querySelector('.att-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                        }
+                    });
+                }
 
                 // Load records
                 await loadRecords();
@@ -517,7 +634,7 @@
              * Get the sections a teacher was scheduled to teach on a specific date,
              * reading from the timetable stored in localStorage.
              */
-            function getSectionsForDay(teacherId, teacherName, dateStr) {
+            function getSectionsForDay(teacherId, teacherName, dateStr, absencePeriod) {
                 try {
                     const raw = localStorage.getItem('timetableData');
                     if (!raw) return getFallbackTeacherSections(teacherId, teacherName);
@@ -545,6 +662,8 @@
                             JSON.stringify(teacherId || null),
                             '\nDay:',
                             dayName,
+                            '\nAbsence period:',
+                            absencePeriod || 'full_day',
                             '\nTimetable teachers (first 5):',
                             ttSample,
                             '\nMatches found:',
@@ -556,8 +675,11 @@
                     teacherKeys.forEach((teacherKey) => {
                         const dayData = data.timetables?.[teacherKey]?.[dayName];
                         if (!dayData) return;
-                        for (const hours of Object.values(dayData)) {
-                            for (const lesson of Object.values(hours || {})) {
+                        const periodEntries = getPeriodEntries(dayData, absencePeriod);
+                        for (const [, hours] of periodEntries) {
+                            if (!hours || typeof hours !== 'object') continue;
+                            for (const lesson of Object.values(hours)) {
+                                if (!lesson) continue;
                                 const students = (lesson.students || '').trim();
                                 if (students) {
                                     const baseClass = students.replace(/:[Gg]\d+$/g, '').trim();
@@ -579,7 +701,7 @@
              * Get the scheduled time periods for a teacher on a specific date.
              * Returns an array of period strings, e.g. ['08:00-09:00', '10:00-11:00']
              */
-            function getScheduleForDay(teacherId, teacherName, dateStr) {
+            function getScheduleForDay(teacherId, teacherName, dateStr, absencePeriod) {
                 try {
                     const raw = localStorage.getItem('timetableData');
                     if (!raw) return [];
@@ -593,28 +715,28 @@
                     const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
                     if (!teacherKeys.length) return [];
 
-                    // Period mapping from common FET hour names to display times
-                    const periodMap = {
-                        h1: '08:00-09:00',
-                        h2: '09:00-10:00',
-                        h3: '10:00-11:00',
-                        h4: '11:00-12:00',
-                        h5: '14:00-15:00',
-                        h6: '15:00-16:00',
-                        h7: '16:00-17:00',
-                        h8: '17:00-18:00'
+                    // Period mapping: morning hours and afternoon hours have distinct time ranges
+                    const morningHourMap = {
+                        H1: '08:30-09:30', H2: '09:30-10:30', H3: '10:30-11:30', H4: '11:30-12:30',
+                        h1: '08:30-09:30', h2: '09:30-10:30', h3: '10:30-11:30', h4: '11:30-12:30'
+                    };
+                    const afternoonHourMap = {
+                        H1: '14:30-15:30', H2: '15:30-16:30', H3: '16:30-17:30', H4: '17:30-18:30',
+                        h1: '14:30-15:30', h2: '15:30-16:30', h3: '16:30-17:30', h4: '17:30-18:30'
                     };
 
                     const periods = [];
                     teacherKeys.forEach((teacherKey) => {
                         const dayData = data.timetables?.[teacherKey]?.[dayName];
                         if (!dayData) return;
-                        for (const hours of Object.values(dayData)) {
+                        const periodEntries = getPeriodEntries(dayData, absencePeriod);
+                        for (const [periodKey, hours] of periodEntries) {
                             if (!hours || typeof hours !== 'object') continue;
+                            const hourMap = periodKey === 'morning' ? morningHourMap : afternoonHourMap;
                             const sortedKeys = Object.keys(hours).sort();
                             for (const h of sortedKeys) {
                                 if (hours[h]) {
-                                    periods.push(periodMap[h] || h);
+                                    periods.push(hourMap[h] || h);
                                 }
                             }
                         }
@@ -626,32 +748,99 @@
                 }
             }
 
-            function renderTable() {
+            function getFilteredRecords() {
                 const filterType = document.getElementById('filter-type').value;
                 const filterDate = document.getElementById('filter-date').value;
-
                 let filtered = allRecords;
-                if (filterType) {
-                    filtered = filtered.filter((r) => r.type === filterType);
-                }
-                if (filterDate) {
-                    filtered = filtered.filter((r) => r.attendance_date === filterDate);
-                }
+                if (filterType) filtered = filtered.filter((r) => r.type === filterType);
+                if (filterDate) filtered = filtered.filter((r) => r.attendance_date === filterDate);
+                return filtered;
+            }
 
-                document.getElementById('records-count').textContent = filtered.length;
-                const tbody = document.getElementById('records-tbody');
-
-                if (filtered.length === 0) {
-                    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">لا توجد سجلات مطابقة</td></tr>';
+            function renderAttPagination(totalRows, totalPages) {
+                const container = document.getElementById('att-pagination');
+                if (!container) return;
+                if (totalPages <= 1) {
+                    container.innerHTML = totalRows > 0
+                        ? `<div class="support-pagination-info"><span><i class="fas fa-list-ol"></i> المجموع: ${totalRows}</span></div>`
+                        : '';
                     return;
                 }
 
-                tbody.innerHTML = filtered
+                const maxVisible = 5;
+                let startPage = Math.max(1, attCurrentPage - Math.floor(maxVisible / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
+
+                let pageButtons = '';
+                if (startPage > 1) {
+                    pageButtons += `<button class="support-page-btn" data-page="1">1</button>`;
+                    if (startPage > 2) pageButtons += `<span class="support-page-ellipsis">…</span>`;
+                }
+                for (let i = startPage; i <= endPage; i++) {
+                    pageButtons += `<button class="support-page-btn${i === attCurrentPage ? ' active' : ''}" data-page="${i}">${i}</button>`;
+                }
+                if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) pageButtons += `<span class="support-page-ellipsis">…</span>`;
+                    pageButtons += `<button class="support-page-btn" data-page="${totalPages}">${totalPages}</button>`;
+                }
+
+                const startRecord = (attCurrentPage - 1) * ATT_PER_PAGE + 1;
+                const endRecord = Math.min(attCurrentPage * ATT_PER_PAGE, totalRows);
+
+                container.innerHTML = `
+                    <div class="support-pagination-bar">
+                        <button class="support-page-nav" id="atp-prev" ${attCurrentPage === 1 ? 'disabled' : ''}>
+                            <i class="fas fa-chevron-right"></i> السابق
+                        </button>
+                        <div class="support-page-numbers">${pageButtons}</div>
+                        <button class="support-page-nav" id="atp-next" ${attCurrentPage === totalPages ? 'disabled' : ''}>
+                            التالي <i class="fas fa-chevron-left"></i>
+                        </button>
+                    </div>
+                    <div class="support-pagination-info">
+                        <span><i class="fas fa-eye"></i> ${startRecord}–${endRecord} من ${totalRows}</span>
+                        <span><i class="fas fa-file-alt"></i> صفحة ${attCurrentPage} / ${totalPages}</span>
+                    </div>
+                `;
+            }
+
+            function renderTable() {
+                const filtered = getFilteredRecords();
+                const totalRows = filtered.length;
+                const totalPages = Math.ceil(totalRows / ATT_PER_PAGE) || 1;
+                attCurrentPage = Math.max(1, Math.min(attCurrentPage, totalPages));
+
+                document.getElementById('records-count').textContent = totalRows;
+                const tbody = document.getElementById('records-tbody');
+
+                if (totalRows === 0) {
+                    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">لا توجد سجلات مطابقة</td></tr>';
+                    renderAttPagination(0, 0);
+                    return;
+                }
+
+                const startIndex = (attCurrentPage - 1) * ATT_PER_PAGE;
+                const pageRows = filtered.slice(startIndex, startIndex + ATT_PER_PAGE);
+
+                tbody.innerHTML = pageRows
                     .map((r, i) => {
                         const isAbsence = r.type === 'absence';
                         const typeBadge = isAbsence
                             ? '<span class="type-badge absence"><i class="fas fa-user-minus"></i> غياب</span>'
                             : '<span class="type-badge late"><i class="fas fa-clock"></i> تأخر</span>';
+
+                        // Absence period display
+                        const absencePeriod = r.absence_period || 'full_day';
+                        let periodHtml = '—';
+                        if (isAbsence) {
+                            const periodLabels = {
+                                full_day: '<span class="period-badge full"><i class="fas fa-calendar-day"></i> يوم كامل</span>',
+                                morning: '<span class="period-badge morning"><i class="fas fa-sun"></i> صباحا</span>',
+                                afternoon: '<span class="period-badge afternoon"><i class="fas fa-moon"></i> مساءً</span>'
+                            };
+                            periodHtml = periodLabels[absencePeriod] || periodLabels.full_day;
+                        }
 
                         let timeInfo = '—';
                         if (!isAbsence) {
@@ -660,8 +849,7 @@
                             if (r.late_duration) parts.push(r.late_duration + ' دقيقة');
                             timeInfo = parts.length ? parts.join(' · ') : '—';
                         } else if ((r.teacher_id || r.full_name) && r.attendance_date) {
-                            // Show schedule hours from timetable for this day
-                            const scheduleHours = getScheduleForDay(r.teacher_id, r.full_name, r.attendance_date);
+                            const scheduleHours = getScheduleForDay(r.teacher_id, r.full_name, r.attendance_date, absencePeriod);
                             if (scheduleHours.length > 0) {
                                 timeInfo = scheduleHours
                                     .map(
@@ -672,11 +860,10 @@
                             }
                         }
 
-                        // Affected sections — from timetable for that specific day only
                         const teacherName = r.full_name;
                         let sectionsHtml = '—';
                         if (isAbsence && (r.teacher_id || teacherName) && r.attendance_date) {
-                            const daySections = getSectionsForDay(r.teacher_id, teacherName, r.attendance_date);
+                            const daySections = getSectionsForDay(r.teacher_id, teacherName, r.attendance_date, absencePeriod);
                             if (daySections.length > 0) {
                                 sectionsHtml = daySections
                                     .map((s) => `<span class="section-tag">${escapeHtml(s)}</span>`)
@@ -686,11 +873,12 @@
 
                         return `
                     <tr>
-                        <td>${i + 1}</td>
+                        <td>${startIndex + i + 1}</td>
                         <td>${typeBadge}</td>
                         <td><strong>${escapeHtml(r.full_name || '—')}</strong></td>
                         <td>${escapeHtml(r.subject || '—')}</td>
                         <td>${formatDate(r.attendance_date)}</td>
+                        <td>${periodHtml}</td>
                         <td>${timeInfo}</td>
                         <td>${escapeHtml(r.reason || '—')}</td>
                         <td>${isAbsence ? sectionsHtml : '—'}</td>
@@ -702,6 +890,8 @@
                     </tr>`;
                     })
                     .join('');
+
+                renderAttPagination(totalRows, totalPages);
             }
 
             async function saveRecord(e) {
@@ -732,6 +922,10 @@
                     school_year: year
                 };
 
+                if (type === 'absence') {
+                    payload.absence_period = document.getElementById('att-absence-period').value || 'full_day';
+                }
+
                 if (type === 'late') {
                     payload.arrival_time = document.getElementById('att-arrival-time').value || null;
                     payload.late_duration = Number(document.getElementById('att-late-duration').value) || null;
@@ -746,12 +940,14 @@
                 showToast('تم الحفظ بنجاح', 'success');
                 document.getElementById('att-form').reset();
                 document.getElementById('att-subject').value = '';
+                document.getElementById('att-absence-period').value = 'full_day';
+                document.getElementById('absence-period-field').classList.add('visible');
                 document.querySelectorAll('.late-fields').forEach((f) => f.classList.remove('visible'));
                 document.querySelectorAll('.type-toggle-btn').forEach((b) => b.classList.remove('active'));
                 document.querySelector('.type-toggle-btn[data-type="absence"]').classList.add('active');
                 document.getElementById('att-type').value = 'absence';
                 document.getElementById('att-date').value = todayStr();
-
+                attCurrentPage = 1;
                 await loadRecords();
             }
 
@@ -763,6 +959,7 @@
                     return;
                 }
                 showToast('تم الحذف', 'success');
+                attCurrentPage = 1;
                 await loadRecords();
             }
         </script>

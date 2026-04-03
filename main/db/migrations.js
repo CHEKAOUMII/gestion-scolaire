@@ -758,6 +758,12 @@ const MIGRATIONS = [
                 ON support_sessions(teacher_id, session_date, time_from, section, school_year)
             `);
         }
+    },
+    {
+        version: '2026-04-040-staff-attendance-absence-period',
+        up: () => {
+            ensureColumn('staff_attendance', 'absence_period', "TEXT DEFAULT 'full_day'");
+        }
     }
 ];
 

@@ -144,6 +144,12 @@
                         <p class="support-helper-text support-secondary-copy" id="support-filter-help">اترك الحقول فارغة لعرض جميع الحصص، ثم طبق البحث عند الحاجة.</p>
                         <div class="gs-form-grid">
                             <div class="gs-form-group">
+                                <label for="filter-subject">المادة</label>
+                                <select id="filter-subject" aria-describedby="support-filter-help">
+                                    <option value="">الكل</option>
+                                </select>
+                            </div>
+                            <div class="gs-form-group">
                                 <label for="filter-teacher">الأستاذ</label>
                                 <select id="filter-teacher" aria-describedby="support-filter-help">
                                     <option value="">الكل</option>
@@ -152,12 +158,6 @@
                             <div class="gs-form-group">
                                 <label for="filter-section">القسم</label>
                                 <select id="filter-section" aria-describedby="support-filter-help">
-                                    <option value="">الكل</option>
-                                </select>
-                            </div>
-                            <div class="gs-form-group">
-                                <label for="filter-subject">المادة</label>
-                                <select id="filter-subject" aria-describedby="support-filter-help">
                                     <option value="">الكل</option>
                                 </select>
                             </div>
@@ -259,6 +259,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="support-pagination no-print" id="sessions-pagination"></div>
             </div>
         </main>
     </body>

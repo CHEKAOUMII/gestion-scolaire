@@ -41,6 +41,8 @@
 
     let teachers = [];
     let sessions = [];
+    let currentPage = 1;
+    const SESSIONS_PER_PAGE = 20;
     let lastSessionDraft = null;
     try {
         const saved = sessionStorage.getItem('support_lastDraft');
@@ -73,6 +75,7 @@
 
     const tbody = document.getElementById('sessions-tbody');
     const sessionsCount = document.getElementById('sessions-count');
+    const paginationContainer = document.getElementById('sessions-pagination');
     const exportButton = document.getElementById('btn-export');
     const importInput = document.getElementById('input-import');
     const printButton = document.getElementById('btn-print');
@@ -317,6 +320,29 @@
         filterTeachersBySubject(formSubject.value);
     });
 
+    function filterSecondaryTeachersBySubject(selectedSubject) {
+        const currentValue = filterTeacher.value;
+        filterTeacher.innerHTML = '<option value="">الكل</option>';
+        const filtered = selectedSubject
+            ? teachers.filter((t) => t.subject === selectedSubject)
+            : teachers;
+        filtered.forEach((teacher) => {
+            const option = document.createElement('option');
+            option.value = teacher.id;
+            option.textContent = teacher.full_name;
+            filterTeacher.appendChild(option);
+        });
+        if (filtered.some((t) => String(t.id) === currentValue)) {
+            filterTeacher.value = currentValue;
+        } else {
+            filterTeacher.value = '';
+        }
+    }
+
+    filterSubject.addEventListener('change', () => {
+        filterSecondaryTeachersBySubject(filterSubject.value);
+    });
+
     [formTimeFrom, formTimeTo].forEach((element) => {
         element.addEventListener('change', updateDurationPreview);
     });
@@ -351,15 +377,24 @@
                 </tr>
             `;
             sessionsCount.textContent = '';
+            if (paginationContainer) paginationContainer.innerHTML = '';
             return;
         }
 
-        sessionsCount.textContent = `(${rows.length})`;
-        tbody.innerHTML = rows
+        const totalRows = rows.length;
+        const totalPages = Math.ceil(totalRows / SESSIONS_PER_PAGE) || 1;
+        currentPage = Math.max(1, Math.min(currentPage, totalPages));
+
+        const startIndex = (currentPage - 1) * SESSIONS_PER_PAGE;
+        const endIndex = startIndex + SESSIONS_PER_PAGE;
+        const pageRows = rows.slice(startIndex, endIndex);
+
+        sessionsCount.textContent = `(${totalRows})`;
+        tbody.innerHTML = pageRows
             .map(
                 (session, index) => `
                     <tr>
-                        <td data-label="#">${index + 1}</td>
+                        <td data-label="#">${startIndex + index + 1}</td>
                         <td data-label="التاريخ">${session.session_date}</td>
                         <td data-label="الأستاذ">${session.teacher_name || session.teacher_full_name || '-'}</td>
                         <td data-label="المادة">${session.subject}</td>
@@ -381,6 +416,57 @@
                 `
             )
             .join('');
+
+        renderPagination(totalRows, totalPages);
+    }
+
+    function renderPagination(totalRows, totalPages) {
+        if (!paginationContainer) return;
+        if (totalPages <= 1) {
+            paginationContainer.innerHTML = `<div class="support-pagination-info">
+                <span><i class="fas fa-list-ol"></i> المجموع: ${totalRows}</span>
+            </div>`;
+            return;
+        }
+
+        const maxVisible = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+        if (endPage - startPage < maxVisible - 1) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+
+        let pageButtons = '';
+        if (startPage > 1) {
+            pageButtons += `<button class="support-page-btn" data-page="1">1</button>`;
+            if (startPage > 2) pageButtons += `<span class="support-page-ellipsis">…</span>`;
+        }
+        for (let i = startPage; i <= endPage; i++) {
+            pageButtons += `<button class="support-page-btn${i === currentPage ? ' active' : ''}" data-page="${i}">${i}</button>`;
+        }
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) pageButtons += `<span class="support-page-ellipsis">…</span>`;
+            pageButtons += `<button class="support-page-btn" data-page="${totalPages}">${totalPages}</button>`;
+        }
+
+        const startRecord = (currentPage - 1) * SESSIONS_PER_PAGE + 1;
+        const endRecord = Math.min(currentPage * SESSIONS_PER_PAGE, totalRows);
+
+        paginationContainer.innerHTML = `
+            <div class="support-pagination-bar">
+                <button class="support-page-nav" id="sp-prev" ${currentPage === 1 ? 'disabled' : ''}>
+                    <i class="fas fa-chevron-right"></i> السابق
+                </button>
+                <div class="support-page-numbers">${pageButtons}</div>
+                <button class="support-page-nav" id="sp-next" ${currentPage === totalPages ? 'disabled' : ''}>
+                    التالي <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+            <div class="support-pagination-info">
+                <span><i class="fas fa-eye"></i> ${startRecord}–${endRecord} من ${totalRows}</span>
+                <span><i class="fas fa-file-alt"></i> صفحة ${currentPage} / ${totalPages}</span>
+            </div>
+        `;
     }
 
     async function loadSessions(options = {}) {
@@ -452,6 +538,7 @@
             showToast('تم تسجيل حصة الدعم وتحديث الجدول أدناه.', 'success');
             resetEntryForm();
             formSubject.focus();
+            currentPage = 1;
             await Promise.all([loadStats(), loadSessions()]);
         } catch (error) {
             console.error('[support-sessions] add failed:', error);
@@ -461,13 +548,38 @@
         }
     });
 
-    filterButton.addEventListener('click', () => loadSessions({ showLoadingState: true }));
+    filterButton.addEventListener('click', () => {
+        currentPage = 1;
+        loadSessions({ showLoadingState: true });
+    });
 
     clearFiltersButton.addEventListener('click', async () => {
         clearFilters();
+        currentPage = 1;
         await loadSessions({ showLoadingState: true });
         showToast('تم مسح عوامل البحث وعرض جميع الحصص.', 'success');
     });
+
+    if (paginationContainer) {
+        paginationContainer.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-page]');
+            if (btn) {
+                const page = Number(btn.dataset.page);
+                if (!isNaN(page) && page !== currentPage) {
+                    currentPage = page;
+                    renderTable(sessions);
+                    tbody.closest('.table-responsive')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+                return;
+            }
+            if (event.target.closest('#sp-prev')) {
+                if (currentPage > 1) { currentPage--; renderTable(sessions); tbody.closest('.table-responsive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+            } else if (event.target.closest('#sp-next')) {
+                const totalPages = Math.ceil(sessions.length / SESSIONS_PER_PAGE) || 1;
+                if (currentPage < totalPages) { currentPage++; renderTable(sessions); tbody.closest('.table-responsive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+            }
+        });
+    }
 
     repeatLastButton.addEventListener('click', () => {
         if (!lastSessionDraft) return;
