@@ -14,6 +14,301 @@
         <script src="js/sidebar.js" defer></script>
         <script src="js/cc-rules.js"></script>
         <script src="js/ux-enhancements.js" defer></script>
+        <style>
+            .subject-multiselect { position: relative; display: inline-block; min-width: 110px; }
+            .subject-multiselect-btn { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 10px; border: 1px solid var(--color-border, #d1d5db); border-radius: 8px; background: var(--color-surface, #fff); color: var(--color-text, #1f2937); cursor: pointer; font-size: 12px; width: 100%; transition: all 0.2s; font-family: inherit; }
+            .subject-multiselect-btn:hover { border-color: var(--color-primary, #3b6ac5); }
+            .subject-multiselect-btn i { font-size: 9px; transition: transform 0.2s; }
+            .subject-multiselect.open .subject-multiselect-btn i { transform: rotate(180deg); }
+            .subject-dropdown { display: none; position: absolute; top: calc(100% + 4px); right: 0; min-width: 240px; max-height: 260px; overflow-y: auto; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #d1d5db); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 100; padding: 4px; }
+            .subject-multiselect.open .subject-dropdown { display: block; }
+            .subject-dropdown-header { display: flex; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--color-border, #e5e7eb); margin-bottom: 4px; }
+            .select-action-btn { font-size: 11px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--color-border, #d1d5db); background: transparent; color: var(--color-primary, #3b6ac5); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+            .select-action-btn:hover { background: var(--color-primary, #3b6ac5); color: #fff; }
+            .subject-dropdown-item { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 6px; cursor: pointer; transition: background 0.15s; font-size: 13px; }
+            .subject-dropdown-item:hover { background: var(--color-surface-hover, #f3f4f6); }
+            .subject-dropdown-item input[type="checkbox"] { accent-color: var(--color-primary, #3b6ac5); width: 15px; height: 15px; cursor: pointer; }
+            .subject-item-name { flex: 1; }
+            .subject-item-grade { font-weight: 600; font-size: 12px; min-width: 30px; text-align: center; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,0.04); }
+            .subject-tags-display { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+            .subject-tags-display:empty { display: none; }
+            .filter-multiselect { position: relative; min-width: 160px; z-index: 50; }
+            .search-section { position: relative; z-index: 10; overflow: visible !important; }
+            .support-filter-form { overflow: visible !important; }
+            .support-filter-controls { overflow: visible !important; }
+            .filter-multiselect-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border: 1px solid var(--color-border, #d1d5db); border-radius: 8px; background: var(--color-surface, #fff); color: var(--color-text, #1f2937); cursor: pointer; font-size: 13px; width: 100%; font-family: inherit; transition: border-color 0.2s; }
+            .filter-multiselect-btn:hover { border-color: var(--color-primary, #3b6ac5); }
+            .filter-multiselect-btn i { font-size: 10px; transition: transform 0.2s; }
+            .filter-multiselect.open .filter-multiselect-btn i { transform: rotate(180deg); }
+            .filter-multiselect.open { z-index: 999; }
+            .filter-multiselect-dropdown { display: none; position: absolute; top: calc(100% + 4px); right: 0; left: 0; min-width: 250px; max-height: 300px; overflow-y: auto; background: #1e2736; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.4); z-index: 1000; padding: 6px; color: #e2e8f0; }
+            .filter-multiselect.open .filter-multiselect-dropdown { display: block; }
+            .filter-multiselect-dropdown .fm-header { display: flex; gap: 6px; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 4px; }
+            .filter-multiselect-dropdown .fm-action { font-size: 11px; padding: 3px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: #7eb8da; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+            .filter-multiselect-dropdown .fm-action:hover { background: #7eb8da; color: #1e2736; }
+            .filter-multiselect-dropdown .fm-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.15s; color: #e2e8f0; }
+            .filter-multiselect-dropdown .fm-item:hover { background: rgba(255,255,255,0.08); }
+            .filter-multiselect-dropdown .fm-item input[type="checkbox"] { accent-color: #7eb8da; width: 16px; height: 16px; cursor: pointer; }
+            .filter-selected-tags { display: none !important; }
+            .filter-selected-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: rgba(126,184,218,0.15); color: #7eb8da; border: 1px solid rgba(126,184,218,0.25); }
+            .filter-selected-tag .remove-tag { cursor: pointer; font-size: 10px; opacity: 0.7; transition: opacity 0.15s; }
+            .filter-selected-tag .remove-tag:hover { opacity: 1; }
+            .subject-tag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; line-height: 1.4; white-space: nowrap; }
+            .subject-tag.grade--critical { background: rgba(232,93,93,0.12); color: #c0392b; border: 1px solid rgba(232,93,93,0.25); }
+            .subject-tag.grade--medium { background: rgba(240,173,78,0.12); color: #d68910; border: 1px solid rgba(240,173,78,0.25); }
+            .subject-tag.grade--near { background: rgba(91,143,168,0.12); color: #2f7a99; border: 1px solid rgba(91,143,168,0.25); }
+            .subject-tag-grade { font-weight: 700; font-size: 10px; opacity: 0.85; }
+            @media print { .subject-multiselect-btn, .subject-dropdown { display: none !important; } .subject-tags-display { margin-top: 2px; } .subject-tag { font-size: 9px; padding: 1px 5px; } }
+            .support-students-table thead th {
+                padding: 0.5rem 0.625rem !important;
+            }
+            .support-students-table tbody td {
+                padding: 0.55rem 0.625rem !important;
+                line-height: 1.45 !important;
+            }
+            .support-students-table tbody td:nth-child(5) {
+                padding-inline: 0.625rem !important;
+            }
+            .ux-pp-sheet .support-students-table,
+            #ux-print-root .support-students-table {
+                width: 100% !important;
+                table-layout: auto !important;
+                border-collapse: separate !important;
+                border-spacing: 0 !important;
+                direction: rtl;
+                background: #ffffff;
+                border: 1px solid #d8e3f4;
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow: 0 14px 34px rgba(27, 67, 128, 0.08);
+                margin-top: 10px;
+            }
+            .ux-pp-sheet .support-students-table thead th,
+            #ux-print-root .support-students-table thead th {
+                padding: 0.5rem 0.625rem !important;
+                font-size: 11px !important;
+                font-weight: 800 !important;
+                letter-spacing: 0 !important;
+                text-align: center !important;
+                background: linear-gradient(135deg, #2d5fb7, #5f84d9) !important;
+                color: #fff !important;
+                border: 0 !important;
+                white-space: nowrap !important;
+            }
+            .ux-pp-sheet .support-students-table td,
+            #ux-print-root .support-students-table td {
+                padding: 0.55rem 0.625rem !important;
+                font-size: 10px !important;
+                line-height: 1.45 !important;
+                vertical-align: top !important;
+                color: #18324d;
+                border-bottom: 1px solid #e5edf8 !important;
+                white-space: normal !important;
+                overflow: visible !important;
+                text-overflow: clip !important;
+                background: transparent !important;
+            }
+            .ux-pp-sheet .support-students-table tbody tr:nth-child(even),
+            #ux-print-root .support-students-table tbody tr:nth-child(even) {
+                background: #f8fbff;
+            }
+            .ux-pp-sheet .support-students-table tbody tr:last-child td,
+            #ux-print-root .support-students-table tbody tr:last-child td {
+                border-bottom: 0 !important;
+            }
+            .ux-pp-sheet .support-students-table tbody tr:hover td,
+            #ux-print-root .support-students-table tbody tr:hover td {
+                background: transparent !important;
+            }
+            .ux-pp-sheet .support-students-table th:first-child,
+            .ux-pp-sheet .support-students-table td:first-child,
+            #ux-print-root .support-students-table th:first-child,
+            #ux-print-root .support-students-table td:first-child {
+                display: table-cell !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                width: 1% !important;
+                min-width: 34px !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                font-variant-numeric: tabular-nums;
+            }
+            .ux-pp-sheet .support-students-table th:nth-child(2),
+            .ux-pp-sheet .support-students-table td:nth-child(2),
+            #ux-print-root .support-students-table th:nth-child(2),
+            #ux-print-root .support-students-table td:nth-child(2) {
+                width: 1% !important;
+                min-width: 0 !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                font-variant-numeric: tabular-nums;
+            }
+            .ux-pp-sheet .support-students-table th:nth-child(3),
+            .ux-pp-sheet .support-students-table td:nth-child(3),
+            #ux-print-root .support-students-table th:nth-child(3),
+            #ux-print-root .support-students-table td:nth-child(3) {
+                width: 1% !important;
+                min-width: 0 !important;
+                white-space: nowrap !important;
+            }
+            .ux-pp-sheet .support-students-table th:nth-child(4),
+            .ux-pp-sheet .support-students-table td:nth-child(4),
+            #ux-print-root .support-students-table th:nth-child(4),
+            #ux-print-root .support-students-table td:nth-child(4) {
+                width: 1% !important;
+                min-width: 0 !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+            }
+            .ux-pp-sheet .support-students-table th:nth-child(5),
+            .ux-pp-sheet .support-students-table td:nth-child(5),
+            #ux-print-root .support-students-table th:nth-child(5),
+            #ux-print-root .support-students-table td:nth-child(5) {
+                width: auto !important;
+                padding-inline: 0.625rem !important;
+                white-space: normal !important;
+            }
+            .ux-pp-sheet .support-students-table th:nth-child(6),
+            .ux-pp-sheet .support-students-table td:nth-child(6),
+            #ux-print-root .support-students-table th:nth-child(6),
+            #ux-print-root .support-students-table td:nth-child(6) {
+                width: 1% !important;
+                min-width: 72px !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+                text-overflow: clip !important;
+            }
+            .ux-pp-sheet .support-students-table .subject-tags-display,
+            #ux-print-root .support-students-table .subject-tags-display {
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 6px !important;
+                justify-content: flex-start !important;
+                margin: 0 !important;
+            }
+            .ux-pp-sheet .support-students-table .subject-tag,
+            #ux-print-root .support-students-table .subject-tag {
+                padding: 3px 8px !important;
+                border-radius: 999px !important;
+                font-size: 9px !important;
+                line-height: 1.35 !important;
+            }
+            .ux-pp-sheet .support-students-table .support-badge,
+            #ux-print-root .support-students-table .support-badge {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 4px !important;
+                min-width: 0;
+                padding: 4px 9px !important;
+                border-radius: 999px !important;
+                font-size: 10px !important;
+                line-height: 1.2 !important;
+                white-space: nowrap !important;
+                box-shadow: inset 0 0 0 1px rgba(255,255,255,0.45);
+            }
+            @media print {
+                .support-students-table {
+                    width: 100% !important;
+                    table-layout: auto !important;
+                    border-collapse: separate !important;
+                    border-spacing: 0 !important;
+                    border: 1px solid #d8e3f4 !important;
+                    border-radius: 16px !important;
+                    overflow: hidden !important;
+                    box-shadow: none !important;
+                }
+                .support-students-table thead th {
+                    padding: 0.5rem 0.625rem !important;
+                    font-size: 11px !important;
+                    text-align: center !important;
+                    background: #3f6ec8 !important;
+                    color: #fff !important;
+                    border: 0 !important;
+                    white-space: nowrap !important;
+                }
+                .support-students-table td {
+                    padding: 0.55rem 0.625rem !important;
+                    font-size: 10px !important;
+                    line-height: 1.4 !important;
+                    vertical-align: top !important;
+                    border-bottom: 1px solid #e5edf8 !important;
+                    white-space: normal !important;
+                    overflow: visible !important;
+                    text-overflow: clip !important;
+                }
+                .support-students-table tbody tr:nth-child(even) {
+                    background: #f8fbff !important;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                .support-students-table th:first-child,
+                .support-students-table td:first-child {
+                    display: table-cell !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    width: 1% !important;
+                    min-width: 34px !important;
+                    text-align: center !important;
+                    white-space: nowrap !important;
+                }
+                .support-students-table th:nth-child(2),
+                .support-students-table td:nth-child(2) {
+                    width: 1% !important;
+                    min-width: 0 !important;
+                    text-align: center !important;
+                    white-space: nowrap !important;
+                }
+                .support-students-table th:nth-child(3),
+                .support-students-table td:nth-child(3) {
+                    width: 1% !important;
+                    min-width: 0 !important;
+                    white-space: nowrap !important;
+                }
+                .support-students-table th:nth-child(4),
+                .support-students-table td:nth-child(4) {
+                    width: 1% !important;
+                    min-width: 0 !important;
+                    text-align: center !important;
+                    white-space: nowrap !important;
+                }
+                .support-students-table th:nth-child(5),
+                .support-students-table td:nth-child(5) {
+                    width: auto !important;
+                    padding-inline: 0.625rem !important;
+                    white-space: normal !important;
+                }
+                .support-students-table th:nth-child(6),
+                .support-students-table td:nth-child(6) {
+                    width: 1% !important;
+                    min-width: 72px !important;
+                    text-align: center !important;
+                    white-space: nowrap !important;
+                    overflow: visible !important;
+                    text-overflow: clip !important;
+                }
+                .support-students-table .subject-tags-display {
+                    display: flex !important;
+                    flex-wrap: wrap !important;
+                    gap: 6px !important;
+                    margin: 0 !important;
+                }
+                .support-students-table .support-badge {
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    min-width: 0;
+                    padding: 4px 9px !important;
+                    font-size: 10px !important;
+                    white-space: nowrap !important;
+                }
+                .support-students-table .subject-tag {
+                    padding: 3px 8px !important;
+                    font-size: 9px !important;
+                }
+            }
+        </style>
     </head>
 
     <body>
@@ -58,10 +353,20 @@
                                 </select>
                             </div>
                             <div>
-                                <label for="subject-select" class="sr-only">المادة</label>
-                                <select id="subject-select">
-                                    <option value="">كل المواد</option>
-                                </select>
+                                <div class="filter-multiselect" id="subject-filter-ms">
+                                    <button type="button" class="filter-multiselect-btn" id="subject-filter-btn">
+                                        <span id="subject-filter-label">كل المواد</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                    <div class="filter-multiselect-dropdown" id="subject-filter-dropdown">
+                                        <div class="fm-header">
+                                            <button type="button" class="fm-action" id="subject-check-all">تحديد الكل</button>
+                                            <button type="button" class="fm-action" id="subject-uncheck-all">إلغاء الكل</button>
+                                        </div>
+                                        <div id="subject-filter-list"></div>
+                                    </div>
+                                </div>
+                                <div class="filter-selected-tags" id="subject-selected-tags"></div>
                             </div>
                             <div>
                                 <label for="threshold" class="sr-only">الحد الأقصى للنقطة</label>
@@ -182,8 +487,8 @@
                         <span class="search-count" id="search-count"></span>
                     </div>
                     <div class="table-responsive">
-                        <table class="students-table students-table-card">
-                            <thead>
+                        <table class="students-table students-table-card support-students-table">
+                            <thead class="screen-thead">
                                 <tr>
                                     <th>#</th>
                                     <th class="sortable" data-sort="code" aria-sort="none">
@@ -205,17 +510,21 @@
                                         </button>
                                     </th>
                                     <th class="sortable" data-sort="subject" aria-sort="none">
-                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب المادة">
-                                            <span>المادة</span>
+                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب عدد المواد">
+                                            <span>المواد</span>
                                             <i class="fas fa-sort sort-icon" aria-hidden="true"></i>
                                         </button>
                                     </th>
-                                    <th class="sortable" data-sort="grade" aria-sort="ascending">
-                                        <button type="button" class="sort-trigger" aria-label="ترتيب حسب النقطة">
-                                            <span>النقطة</span>
-                                            <i class="fas fa-sort sort-icon" aria-hidden="true"></i>
-                                        </button>
-                                    </th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <thead class="print-thead" style="display:none">
+                                <tr>
+                                    <th>#</th>
+                                    <th>رمز مسار</th>
+                                    <th>الاسم الكامل</th>
+                                    <th>القسم</th>
+                                    <th>المواد / النقطة</th>
                                     <th>الحالة</th>
                                 </tr>
                             </thead>
@@ -274,14 +583,14 @@
                 if (!printBtn) return;
 
                 const hasRows = lastFiltered.length > 0;
-                const isDisabled = !hasRows || !chartsReady;
+                const isDisabled = !hasRows;
                 let title = 'معاينة الطباعة';
                 if (!hasRows) title = 'قم بالبحث أولاً';
                 else if (!chartsReady) title = 'جاري تجهيز الرسوم البيانية للطباعة';
 
                 printBtn.disabled = isDisabled;
                 printBtn.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
-                printBtn.setAttribute('aria-busy', !chartsReady ? 'true' : 'false');
+                printBtn.setAttribute('aria-busy', 'false');
                 printBtn.title = title;
             }
 
@@ -347,6 +656,26 @@
                     renderSubjectOptions(level, className);
                 });
 
+                // Subject filter multi-select toggle
+                document.getElementById('subject-filter-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.getElementById('subject-filter-ms').classList.toggle('open');
+                });
+                document.getElementById('subject-check-all').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('#subject-filter-list input[type="checkbox"]').forEach(cb => cb.checked = true);
+                    updateSubjectFilterLabel();
+                });
+                document.getElementById('subject-uncheck-all').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('#subject-filter-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+                    updateSubjectFilterLabel();
+                });
+                document.getElementById('subject-filter-list').addEventListener('change', () => updateSubjectFilterLabel());
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#subject-filter-ms')) document.getElementById('subject-filter-ms').classList.remove('open');
+                });
+
                 document.getElementById('search-btn').addEventListener('click', search);
 
                 // Level filter tabs
@@ -410,13 +739,26 @@
                     else { if (document.activeElement === last) { e.preventDefault(); first.focus(); } }
                 });
 
-                // Student name link event delegation (replaces inline onclick)
+                // Student name link + multi-select event delegation
                 document.getElementById('tbody').addEventListener('click', (e) => {
-                    const btn = e.target.closest('.student-name-link');
-                    if (btn) openStudentModal(btn.dataset.code, btn.dataset.name);
+                    const nameBtn = e.target.closest('.student-name-link');
+                    if (nameBtn) { openStudentModal(nameBtn.dataset.code, nameBtn.dataset.name); return; }
+                    const toggleBtn = e.target.closest('[data-toggle-dropdown]');
+                    if (toggleBtn) { e.stopPropagation(); toggleSubjectDropdown(toggleBtn.dataset.toggleDropdown); return; }
+                    const selAll = e.target.closest('[data-select-all]');
+                    if (selAll) { e.stopPropagation(); selectAllSubjects(selAll.dataset.selectAll, true); return; }
+                    const deselAll = e.target.closest('[data-deselect-all]');
+                    if (deselAll) { e.stopPropagation(); selectAllSubjects(deselAll.dataset.deselectAll, false); return; }
+                });
+                document.getElementById('tbody').addEventListener('change', (e) => {
+                    if (e.target.type === 'checkbox' && e.target.dataset.row) updateSubjectTags(e.target.dataset.row);
+                });
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.subject-multiselect'))
+                        document.querySelectorAll('.subject-multiselect.open').forEach(el => el.classList.remove('open'));
                 });
 
-                // Pagination event delegation (replaces inline onclick="goToPage(n)")
+                // Pagination event delegation
                 document.getElementById('pagination').addEventListener('click', (e) => {
                     const btn = e.target.closest('[data-page]');
                     if (!btn || btn.disabled) return;
@@ -424,6 +766,31 @@
                     if (!isNaN(page)) goToPage(page);
                 });
             });
+
+            // ─── Multi-select helpers ───
+            function toggleSubjectDropdown(rowId) {
+                const el = document.getElementById(rowId);
+                if (!el) return;
+                document.querySelectorAll('.subject-multiselect.open').forEach(o => { if (o.id !== rowId) o.classList.remove('open'); });
+                el.classList.toggle('open');
+            }
+            function updateSubjectTags(rowId) {
+                const container = document.getElementById(rowId);
+                const tagsEl = document.getElementById('tags-' + rowId);
+                if (!container || !tagsEl) return;
+                const cbs = container.querySelectorAll('input[type="checkbox"]');
+                const tags = tagsEl.querySelectorAll('.subject-tag');
+                cbs.forEach((cb, i) => { if (tags[i]) tags[i].style.display = cb.checked ? '' : 'none'; });
+                const checked = container.querySelectorAll('input[type="checkbox"]:checked').length;
+                const btn = container.querySelector('.subject-multiselect-btn span');
+                if (btn) btn.textContent = `${checked}/${cbs.length} مادة`;
+            }
+            function selectAllSubjects(rowId, select) {
+                const container = document.getElementById(rowId);
+                if (!container) return;
+                container.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = select);
+                updateSubjectTags(rowId);
+            }
 
             // ─── Chart.js loader ───
             function ensureChartJs() {
@@ -504,7 +871,64 @@
                 });
             }
 
-            // ─── Support level helpers ───
+            // ─── Shared row builder ───
+            function buildRow(student, index, { forPrint = false } = {}) {
+                const lvl = getSupportLabel(getSupportLevel(student.avgGrade));
+                const codeEsc = escapeHtml(student.code);
+                const nameEsc = escapeHtml(student.name);
+                const sectionEsc = escapeHtml(student.section);
+                const inlineTags = student.subjects.map((s) => {
+                    const gc = getGradeCssClass(s.grade);
+                    return `<span class="subject-tag ${gc}"><span class="subject-tag-name">${escapeHtml(s.name)}</span> <span class="subject-tag-grade">${s.grade}</span></span>`;
+                }).join('');
+                const nameCell = forPrint
+                    ? `<td>${nameEsc}</td>`
+                    : `<td data-label="الاسم الكامل"><button type="button" class="student-name-link" data-code="${codeEsc}" data-name="${nameEsc}">${nameEsc}</button></td>`;
+                const label = forPrint ? '' : ' data-label';
+                return `
+                <tr>
+                    <td${forPrint ? '' : ' data-label="#"'}>${index}</td>
+                    <td${forPrint ? '' : ' data-label="رمز مسار"'}>${codeEsc}</td>
+                    ${nameCell}
+                    <td${forPrint ? '' : ' data-label="القسم"'}>${sectionEsc}</td>
+                    <td${forPrint ? '' : ' data-label="المواد"'}><div class="subject-tags-display" style="margin-top:0">${inlineTags}</div></td>
+                    <td${forPrint ? '' : ' data-label="الحالة"'}><span class="support-badge ${lvl.cssClass}"><i class="fas ${lvl.icon}" aria-hidden="true"></i> ${lvl.text}</span></td>
+                </tr>`;
+            }
+
+            function cleanupSupportExportHost() {
+                document.getElementById('support-export-host')?.remove();
+            }
+
+            function buildSupportExportSheet(display, metaParts, exportedAtText) {
+                const rowsHtml = display.map((student, i) => buildRow(student, i + 1, { forPrint: true })).join('');
+                const metaText = escapeHtml(metaParts.join(' | '));
+                const dateText = escapeHtml(exportedAtText);
+                return `
+                <div class="support-export-sheet" style="direction: rtl; color: #18324d;">
+                    <div class="print-header" style="display:block; text-align:center; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #d7e1f0;">
+                        <h1 style="margin: 0 0 6px; font-size: 18px; font-weight: 800;">لائحة التلاميذ المحتاجين للدعم التربوي</h1>
+                        <p style="margin: 0 0 4px; font-size: 11px; color: #556277;">${dateText}</p>
+                        <p style="margin: 0; font-size: 10px; color: #6b778c;">${metaText}</p>
+                    </div>
+                    <div class="table-responsive" style="overflow: visible !important;">
+                        <table class="students-table support-students-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>رمز مسار</th>
+                                    <th>الاسم الكامل</th>
+                                    <th>القسم</th>
+                                    <th>المواد / النقطة</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+            }
+
             function getSupportLevel(grade) {
                 if (grade < 5) return 'critical';
                 if (grade < 8) return 'medium';
@@ -513,8 +937,8 @@
 
             function getSupportLabel(level) {
                 if (level === 'critical') return { text: 'حرج', cssClass: 'support-badge--critical', icon: 'fa-exclamation-circle' };
-                if (level === 'medium') return { text: 'متوسط', cssClass: 'support-badge--medium', icon: 'fa-minus-circle' };
-                return { text: 'قريب من المعدل', cssClass: 'support-badge--near', icon: 'fa-arrow-circle-up' };
+                if (level === 'medium') return { text: 'ضعيف جداً', cssClass: 'support-badge--medium', icon: 'fa-minus-circle' };
+                return { text: 'ضعيف', cssClass: 'support-badge--near', icon: 'fa-arrow-circle-up' };
             }
 
             function getGradeCssClass(grade) {
@@ -553,8 +977,8 @@
             }
 
             function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
-                const subjectSelect = document.getElementById('subject-select');
-                subjectSelect.innerHTML = '<option value="">كل المواد</option>';
+                const list = document.getElementById('subject-filter-list');
+                list.innerHTML = '';
 
                 let filteredGrades = allGradesCache;
                 if (selectedClass) {
@@ -577,11 +1001,48 @@
                 Array.from(subjects)
                     .sort((a, b) => String(a).localeCompare(String(b), 'ar'))
                     .forEach((subject) => {
-                        const opt = document.createElement('option');
-                        opt.value = subject;
-                        opt.textContent = subject;
-                        subjectSelect.appendChild(opt);
+                        const label = document.createElement('label');
+                        label.className = 'fm-item';
+                        label.innerHTML = `<input type="checkbox" value="${escapeHtml(subject)}" checked> <span>${escapeHtml(subject)}</span>`;
+                        list.appendChild(label);
                     });
+
+                updateSubjectFilterLabel();
+            }
+
+            function getSelectedSubjects() {
+                const checked = document.querySelectorAll('#subject-filter-list input[type="checkbox"]:checked');
+                return Array.from(checked).map(cb => cb.value);
+            }
+
+            function updateSubjectFilterLabel() {
+                const all = document.querySelectorAll('#subject-filter-list input[type="checkbox"]');
+                const checked = document.querySelectorAll('#subject-filter-list input[type="checkbox"]:checked');
+                const label = document.getElementById('subject-filter-label');
+                const tagsContainer = document.getElementById('subject-selected-tags');
+
+                if (checked.length === 0) {
+                    label.textContent = 'لا مادة محددة';
+                } else if (checked.length === all.length) {
+                    label.textContent = 'كل المواد';
+                } else {
+                    label.textContent = `${checked.length} مادة محددة`;
+                }
+
+                // Render selected tags
+                tagsContainer.innerHTML = '';
+                if (checked.length > 0 && checked.length < all.length) {
+                    Array.from(checked).forEach(cb => {
+                        const tag = document.createElement('span');
+                        tag.className = 'filter-selected-tag';
+                        tag.innerHTML = `${escapeHtml(cb.value)} <i class="fas fa-times remove-tag" data-subject="${escapeHtml(cb.value)}"></i>`;
+                        tag.querySelector('.remove-tag').addEventListener('click', () => {
+                            cb.checked = false;
+                            updateSubjectFilterLabel();
+                        });
+                        tagsContainer.appendChild(tag);
+                    });
+                }
             }
 
             async function loadFilters() {
@@ -634,70 +1095,71 @@
                 return '';
             }
 
-            // ─── Render table with level filtering + sorting + quick search + pagination ───
+            // ─── Render table with grouping by student + multi-select subjects ───
             function renderTable(filtered) {
-                let display =
-                    activeLevel === 'all'
-                        ? filtered.slice()
-                        : filtered.filter((g) => getSupportLevel(g.grade) === activeLevel);
+                // Group by student
+                const studentMap = {};
+                filtered.forEach((g) => {
+                    const code = g.massar_code || g.student_code || '';
+                    if (!code) return;
+                    if (!studentMap[code]) {
+                        studentMap[code] = {
+                            code,
+                            name: g.student_name || g.full_name || '',
+                            section: g.section || g.class_name || '',
+                            subjects: []
+                        };
+                    }
+                    studentMap[code].subjects.push({
+                        name: normalizeSubjectName(g.subject) || '-',
+                        grade: g.grade
+                    });
+                });
 
-                // Quick search filter
+                let grouped = Object.values(studentMap);
+                grouped.forEach((s) => {
+                    s.subjects.sort((a, b) => a.grade - b.grade);
+                    s.avgGrade = parseFloat((s.subjects.reduce((sum, sub) => sum + sub.grade, 0) / s.subjects.length).toFixed(2));
+                });
+
+                // Level filter
+                if (activeLevel !== 'all') {
+                    grouped = grouped.filter((s) => getSupportLevel(s.avgGrade) === activeLevel);
+                }
+
+                // Quick search
                 if (quickSearchTerm) {
-                    display = display.filter((g) => {
-                        const name = (g.student_name || g.full_name || '').toLowerCase();
-                        const code = (g.massar_code || g.student_code || '').toLowerCase();
-                        return name.includes(quickSearchTerm) || code.includes(quickSearchTerm);
+                    grouped = grouped.filter((s) => {
+                        return s.name.toLowerCase().includes(quickSearchTerm) || s.code.toLowerCase().includes(quickSearchTerm);
                     });
                 }
 
                 // Sort
-                display.sort((a, b) => {
-                    const va = getSortValue(a, sortColumn);
-                    const vb = getSortValue(b, sortColumn);
+                grouped.sort((a, b) => {
                     let cmp = 0;
-                    if (typeof va === 'number') cmp = va - vb;
-                    else cmp = String(va).localeCompare(String(vb), 'ar');
+                    if (sortColumn === 'code') cmp = a.code.localeCompare(b.code, 'ar');
+                    else if (sortColumn === 'name') cmp = a.name.localeCompare(b.name, 'ar');
+                    else if (sortColumn === 'section') cmp = a.section.localeCompare(b.section, 'ar');
+                    else if (sortColumn === 'subject') cmp = a.subjects.length - b.subjects.length;
+                    else if (sortColumn === 'grade') cmp = a.avgGrade - b.avgGrade;
                     return sortDir === 'desc' ? -cmp : cmp;
                 });
 
-                // Update search count
+                // Search count
                 const searchCountEl = document.getElementById('search-count');
-                if (quickSearchTerm) {
-                    searchCountEl.textContent = `${display.length} نتيجة`;
-                } else {
-                    searchCountEl.textContent = '';
-                }
+                searchCountEl.textContent = quickSearchTerm ? `${grouped.length} نتيجة` : '';
 
-                const totalPages = Math.max(1, Math.ceil(display.length / PAGE_SIZE));
+                const totalPages = Math.max(1, Math.ceil(grouped.length / PAGE_SIZE));
                 if (currentPage > totalPages) currentPage = totalPages;
-
                 const start = (currentPage - 1) * PAGE_SIZE;
-                const pageData = display.slice(start, start + PAGE_SIZE);
+                const pageData = grouped.slice(start, start + PAGE_SIZE);
 
                 const tbody = document.getElementById('tbody');
                 tbody.innerHTML = pageData.length
-                    ? pageData
-                          .map((row, i) => {
-                              const lvl = getSupportLabel(getSupportLevel(row.grade));
-                              const code = escapeHtml(row.massar_code || row.student_code || '-');
-                              const name = escapeHtml(row.student_name || row.full_name || '-');
-                              const section = escapeHtml(row.section || row.class_name || '-');
-                              const subject = escapeHtml(normalizeSubjectName(row.subject) || '-');
-                              return `
-                <tr>
-                    <td data-label="#">${start + i + 1}</td>
-                    <td data-label="رمز مسار">${code}</td>
-                    <td data-label="الاسم الكامل"><button type="button" class="student-name-link" data-code="${code}" data-name="${name}">${name}</button></td>
-                    <td data-label="القسم">${section}</td>
-                    <td data-label="المادة">${subject}</td>
-                    <td data-label="النقطة" class="${getGradeCssClass(row.grade)} grade-value">${row.grade}</td>
-                    <td data-label="الحالة"><span class="support-badge ${lvl.cssClass}"><i class="fas ${lvl.icon}" aria-hidden="true"></i> ${lvl.text}</span></td>
-                </tr>`;
-                          })
-                          .join('')
-                    : '<tr><td colspan="7" style="padding: 20px; text-align: center;">لا يوجد تلاميذ في هذه الفئة</td></tr>';
+                    ? pageData.map((student, i) => buildRow(student, start + i + 1)).join('')
+                    : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا يوجد تلاميذ في هذه الفئة</td></tr>';
 
-                renderPagination(display.length, totalPages);
+                renderPagination(grouped.length, totalPages);
             }
 
             function renderPagination(totalItems, totalPages) {
@@ -769,12 +1231,24 @@
                 document.getElementById('stat-subject').textContent = topSubject ? topSubject[0] : '-';
                 document.getElementById('support-stats').style.display = '';
 
-                // Update tab counts
-                document.getElementById('count-all').textContent = total;
-                document.getElementById('count-critical').textContent = critical;
-                document.getElementById('count-medium').textContent = medium;
-                document.getElementById('count-near').textContent = near;
-                document.getElementById('level-tabs').style.display = total > 0 ? '' : 'none';
+                // Update tab counts (grouped by student)
+                const _stuMap = {};
+                filtered.forEach((g) => {
+                    const c = g.massar_code || g.student_code || '';
+                    if (!c) return;
+                    if (!_stuMap[c]) _stuMap[c] = [];
+                    _stuMap[c].push(g.grade);
+                });
+                const _students = Object.values(_stuMap).map((grades) => grades.reduce((a, b) => a + b, 0) / grades.length);
+                const stuTotal = _students.length;
+                const stuCritical = _students.filter((avg) => avg < 5).length;
+                const stuMedium = _students.filter((avg) => avg >= 5 && avg < 8).length;
+                const stuNear = _students.filter((avg) => avg >= 8).length;
+                document.getElementById('count-all').textContent = stuTotal;
+                document.getElementById('count-critical').textContent = stuCritical;
+                document.getElementById('count-medium').textContent = stuMedium;
+                document.getElementById('count-near').textContent = stuNear;
+                document.getElementById('level-tabs').style.display = stuTotal > 0 ? '' : 'none';
 
                 document.getElementById('table-quick-search').classList.toggle('visible', total > 0);
                 document.getElementById('quick-search-input').value = '';
@@ -1023,7 +1497,6 @@
             async function search() {
                 const level = document.getElementById('level-select').value;
                 const className = document.getElementById('class-select').value;
-                const subject = document.getElementById('subject-select').value;
                 const threshold = parseFloat(document.getElementById('threshold').value) || 10;
 
                 // Step 1: Filter by class/level/subject (before threshold)
@@ -1035,8 +1508,10 @@
                     relevantGrades = relevantGrades.filter((g) => _getLocalLevelName(g.section) === level);
                 }
 
-                if (subject) {
-                    relevantGrades = relevantGrades.filter((g) => normalizeSubjectName(g.subject) === subject);
+                const selectedSubjects = getSelectedSubjects();
+                const allSubjectCheckboxes = document.querySelectorAll('#subject-filter-list input[type="checkbox"]');
+                if (selectedSubjects.length > 0 && selectedSubjects.length < allSubjectCheckboxes.length) {
+                    relevantGrades = relevantGrades.filter((g) => selectedSubjects.includes(normalizeSubjectName(g.subject)));
                 }
 
                 // Step 2: Group by (student code + base subject) to get subject average
@@ -1093,60 +1568,59 @@
 
             // ─── Print preview ───
             async function exportPdf() {
-                let display =
+                let entries =
                     activeLevel === 'all'
                         ? lastFiltered.slice()
                         : lastFiltered.filter((g) => getSupportLevel(g.grade) === activeLevel);
 
-                if (!display.length) {
+                if (!entries.length) {
                     if (typeof showToast === 'function')
                         showToast('لا توجد بيانات للتصدير. قم بالبحث أولاً', 'warning');
                     return;
                 }
 
-                await waitForChartsReady();
-
-                // Sort by class name (section), then by grade within each class
+                // Group by student for print
+                const printMap = {};
+                entries.forEach((g) => {
+                    const code = g.massar_code || g.student_code || '';
+                    if (!code) return;
+                    if (!printMap[code]) {
+                        printMap[code] = {
+                            code,
+                            name: g.student_name || g.full_name || '',
+                            section: g.section || g.class_name || '',
+                            subjects: []
+                        };
+                    }
+                    printMap[code].subjects.push({ name: normalizeSubjectName(g.subject) || '-', grade: g.grade });
+                });
+                let display = Object.values(printMap);
+                display.forEach((s) => {
+                    s.subjects.sort((a, b) => a.grade - b.grade);
+                    s.avgGrade = parseFloat((s.subjects.reduce((sum, sub) => sum + sub.grade, 0) / s.subjects.length).toFixed(2));
+                });
+                // نفس ترتيب الجدول الحالي
                 display.sort((a, b) => {
-                    const secA = (a.section || a.class_name || '').toLowerCase();
-                    const secB = (b.section || b.class_name || '').toLowerCase();
-                    const secCmp = secA.localeCompare(secB, 'ar');
-                    if (secCmp !== 0) return secCmp;
-                    return (a.grade || 0) - (b.grade || 0);
+                    let cmp = 0;
+                    if (sortColumn === 'code') cmp = a.code.localeCompare(b.code, 'ar');
+                    else if (sortColumn === 'name') cmp = a.name.localeCompare(b.name, 'ar');
+                    else if (sortColumn === 'section') cmp = a.section.localeCompare(b.section, 'ar');
+                    else if (sortColumn === 'subject') cmp = a.subjects.length - b.subjects.length;
+                    else cmp = a.avgGrade - b.avgGrade;
+                    return sortDir === 'desc' ? -cmp : cmp;
                 });
 
                 try {
-                    // Temporarily render ALL rows for print
-                    const tbody = document.getElementById('tbody');
-                    tbody.innerHTML = display
-                        .map((g, i) => {
-                            const lvl = getSupportLabel(getSupportLevel(g.grade));
-                            return `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${escapeHtml(g.massar_code || g.student_code || '-')}</td>
-                    <td>${escapeHtml(g.student_name || g.full_name || '-')}</td>
-                    <td>${escapeHtml(g.section || g.class_name || '-')}</td>
-                    <td>${escapeHtml(normalizeSubjectName(g.subject) || '-')}</td>
-                    <td class="${getGradeCssClass(g.grade)} grade-value">${g.grade}</td>
-                    <td><span class="support-badge ${lvl.cssClass}"><i class="fas ${lvl.icon}" aria-hidden="true"></i> ${lvl.text}</span></td>
-                </tr>`;
-                        })
-                        .join('');
-
-                    // Hide pagination for the clone
-                    const pag = document.getElementById('pagination');
-                    pag.style.display = 'none';
-
                     const level = document.getElementById('level-select');
                     const cls = document.getElementById('class-select');
-                    const subj = document.getElementById('subject-select');
+                    const printSubjects = getSelectedSubjects();
+                    const allSubjectCbs = document.querySelectorAll('#subject-filter-list input[type="checkbox"]');
                     const threshold = document.getElementById('threshold').value || '10';
 
                     const parts = [];
                     if (level.value) parts.push('المستوى: ' + level.options[level.selectedIndex].text);
                     if (cls.value) parts.push('القسم: ' + cls.options[cls.selectedIndex].text);
-                    if (subj.value) parts.push('المادة: ' + subj.options[subj.selectedIndex].text);
+                    if (printSubjects.length > 0 && printSubjects.length < allSubjectCbs.length) parts.push('المواد: ' + printSubjects.join('، '));
                     parts.push('الحد الأقصى: ' + threshold);
                     parts.push('عدد التلاميذ: ' + display.length);
 
@@ -1154,11 +1628,24 @@
                         'تاريخ التصدير: ' +
                         new Date().toLocaleDateString('ar-MA', { year: 'numeric', month: 'long', day: 'numeric' });
                     document.getElementById('print-filters').textContent = parts.join(' | ');
+                    cleanupSupportExportHost();
+                    const exportHost = document.createElement('div');
+                    exportHost.id = 'support-export-host';
+                    exportHost.style.cssText = 'position:fixed;left:-100000px;top:0;width:210mm;visibility:hidden;pointer-events:none;z-index:-1;';
+
+                    const exportSheet = document.createElement('div');
+                    exportSheet.id = 'support-export-sheet';
+                    exportSheet.innerHTML = buildSupportExportSheet(
+                        display,
+                        parts,
+                        document.getElementById('print-date').textContent || ''
+                    );
+                    exportHost.appendChild(exportSheet);
+                    document.body.appendChild(exportHost);
 
                     await openPrintPreview({ title: 'الدعم التربوي', pageSize: 'A4', landscape: false });
                 } finally {
-                    renderTable(lastFiltered);
-                    updatePrintButtonState();
+                    cleanupSupportExportHost();
                 }
             }
         </script>

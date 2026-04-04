@@ -590,8 +590,10 @@ async function openPrintPreview(options = {}) {
     _ensurePrintPreviewModal();
     _updateOrientationUI();
 
-    const sourceEl = options.contentSelector
-        ? document.querySelector(options.contentSelector)
+    const preparedSelector =
+        options.contentSelector || (document.getElementById('support-export-sheet') ? '#support-export-sheet' : null);
+    const sourceEl = preparedSelector
+        ? document.querySelector(preparedSelector)
         : document.querySelector('.main-content') || document.querySelector('main');
     if (!sourceEl) {
         if (typeof showToast === 'function') showToast('لا يوجد محتوى للطباعة', 'warning');
@@ -617,9 +619,9 @@ async function openPrintPreview(options = {}) {
     const _doPreview = async () => {
         const clone = sourceEl.cloneNode(true);
 
-        // When contentSelector is provided, the caller already prepared the content.
+        // When contentSelector or a prepared export sheet is provided, the caller already prepared the content.
         // Only do auto-cleanup when cloning raw page content.
-        if (!options.contentSelector) {
+        if (!preparedSelector) {
             // Strip UI controls from clone
             clone
                 .querySelectorAll(

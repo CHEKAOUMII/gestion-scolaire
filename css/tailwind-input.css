@@ -19591,6 +19591,10 @@ body {
 }
 
 .support-results-header .level-filter-tabs {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
     margin-bottom: 0;
     flex: 1;
     justify-content: flex-end;
