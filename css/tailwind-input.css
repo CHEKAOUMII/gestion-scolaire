@@ -27249,7 +27249,7 @@ button.staff-stat-card:focus-visible {
 .form-group select,
 .form-group input {
     width: 100%;
-    padding: 12px 15px;
+    padding: 12px 35px;
     border: 2px solid var(--border);
     border-radius: 10px;
     font-family: inherit;

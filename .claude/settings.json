@@ -40,7 +40,8 @@
       "Read(//c/Users/cheka/AppData/Local/Temp/claude/d--gestionScholaire/7f95e10c-eea4-47be-af2e-edc87641cda4/tasks/**)",
       "Bash(git checkout:*)",
       "Bash(git fetch:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(git push:*)"
     ]
   },
   "enabledPlugins": {

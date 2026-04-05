@@ -764,6 +764,13 @@ const MIGRATIONS = [
         up: () => {
             ensureColumn('staff_attendance', 'absence_period', "TEXT DEFAULT 'full_day'");
         }
+    },
+    {
+        version: '2026-04-041-compensation-tracking-reason-notes',
+        up: () => {
+            ensureColumn('compensation_tracking', 'reason', 'TEXT');
+            ensureColumn('compensation_tracking', 'notes', 'TEXT');
+        }
     }
 ];
 

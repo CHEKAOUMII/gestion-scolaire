@@ -699,9 +699,16 @@ function registerStaffIpc(ipcMain) {
         return db
             .prepare(
                 `
-            SELECT c.*, COALESCE(t.full_name, c.teacher_name) as teacher_name
+            SELECT c.*,
+                COALESCE(t.full_name, c.teacher_name) as teacher_name,
+                COALESCE(c.reason, sa.reason) as reason,
+                COALESCE(c.notes, sa.notes) as notes
             FROM compensation_tracking c
             LEFT JOIN teachers t ON t.id = c.teacher_id
+            LEFT JOIN staff_attendance sa
+                ON sa.attendance_date = c.absence_date
+                AND (sa.teacher_id = c.teacher_id OR sa.teacher_name = c.teacher_name)
+                AND sa.type = 'absence'
             WHERE c.absence_date = ? AND c.school_year = ?
             ORDER BY c.section, c.period_slot
         `
@@ -714,9 +721,16 @@ function registerStaffIpc(ipcMain) {
         return db
             .prepare(
                 `
-            SELECT c.*, COALESCE(t.full_name, c.teacher_name) as teacher_name
+            SELECT c.*,
+                COALESCE(t.full_name, c.teacher_name) as teacher_name,
+                COALESCE(c.reason, sa.reason) as reason,
+                COALESCE(c.notes, sa.notes) as notes
             FROM compensation_tracking c
             LEFT JOIN teachers t ON t.id = c.teacher_id
+            LEFT JOIN staff_attendance sa
+                ON sa.attendance_date = c.absence_date
+                AND (sa.teacher_id = c.teacher_id OR sa.teacher_name = c.teacher_name)
+                AND sa.type = 'absence'
             WHERE c.compensated = 0 AND c.school_year = ?
             ORDER BY c.absence_date DESC, c.section, c.period_slot
         `
@@ -730,8 +744,8 @@ function registerStaffIpc(ipcMain) {
         }
         const stmt = db.prepare(`
             INSERT OR IGNORE INTO compensation_tracking
-                (absence_date, teacher_id, teacher_name, section, period_slot, period_time, subject, school_year)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (absence_date, teacher_id, teacher_name, section, period_slot, period_time, subject, school_year, reason, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         const txn = db.transaction((items) => {
             let inserted = 0;
@@ -751,7 +765,9 @@ function registerStaffIpc(ipcMain) {
                     s.period_slot,
                     s.period_time || '',
                     resolved.subject || s.subject || '',
-                    requireSchoolYear(s.school_year)
+                    requireSchoolYear(s.school_year),
+                    s.reason || null,
+                    s.notes || null
                 );
                 if (result.changes > 0) inserted++;
             }

@@ -182,13 +182,14 @@
                                     <th>الأستاذ(ة)</th>
                                     <th>المادة</th>
                                     <th>الحصة</th>
+                                    <th>السبب</th>
                                     <th>الحالة</th>
                                     <th class="no-print" style="width: 120px">إجراء</th>
                                 </tr>
                             </thead>
                             <tbody id="tracking-tbody">
                                 <tr class="empty-row">
-                                    <td colspan="8">جارٍ التحميل...</td>
+                                    <td colspan="9">جارٍ التحميل...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -499,7 +500,9 @@
                                         period_slot: h,
                                         period_time: PERIOD_MAP[h] || h,
                                         subject: lesson.subject || absence.subject || '',
-                                        school_year: year
+                                        school_year: year,
+                                        reason: absence.reason || '',
+                                        notes: absence.notes || ''
                                     });
                                 }
                             }
@@ -1037,7 +1040,7 @@
                 if (records.length === 0) {
                     tbody.innerHTML = `
                     <tr class="empty-row">
-                        <td colspan="8">
+                        <td colspan="9">
                             <div class="comp-empty-state">
                                 <i class="fas fa-check-circle"></i>
                                 <p>لا توجد حصص مسجلة بهذه المعايير</p>
@@ -1065,6 +1068,9 @@
                            <i class="fas fa-check"></i> تعويض
                        </button>`;
                         const periodLabel = escapeHtml((r.period_slot || '').toUpperCase());
+                        const reasonHtml = r.reason
+                            ? escapeHtml(r.reason) + (r.notes ? '<br><small class="record-note"><i class="fas fa-sticky-note"></i>' + escapeHtml(r.notes) + '</small>' : '')
+                            : (r.notes ? '<small class="record-note"><i class="fas fa-sticky-note"></i>' + escapeHtml(r.notes) + '</small>' : '—');
 
                         return `
                     <tr class="${isCompensated ? 'compensated' : ''}">
@@ -1074,6 +1080,7 @@
                         <td data-label="الأستاذ(ة)">${escapeHtml(r.teacher_name)}</td>
                         <td data-label="المادة">${escapeHtml(r.subject || '—')}</td>
                         <td data-label="الحصة"><span class="section-tag" style="font-size: 11px;">${periodLabel}</span></td>
+                        <td data-label="السبب">${reasonHtml}</td>
                         <td data-label="الحالة">${statusHtml}</td>
                         <td data-label="إجراء" class="no-print">${actionHtml}</td>
                     </tr>`;
