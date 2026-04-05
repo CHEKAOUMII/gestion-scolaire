@@ -25,19 +25,17 @@ function injectSidebar() {
                     <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-students-submenu"><i class="fas fa-user-graduate"></i><span>التلاميذ</span><i class="fas fa-chevron-down arrow"></i></button>
                     <ul class="sub-menu" id="sidebar-students-submenu" hidden>
                         <li><a href="students-list.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
-                        <li><a href="students-register.html"><i class="fas fa-user-plus"></i> التسجيل والحركة العامة</a></li>
-                        <li><a href="students-files.html"><i class="fas fa-folder-open"></i> ترتيب الملفات</a></li>
                         <li><a href="students-movement.html"><i class="fas fa-exchange-alt"></i> حركية التلاميذ</a></li>
-                        <li><a href="student-profile-prototype.html"><i class="fas fa-user-circle"></i> ملف التلميذ</a></li>
                         <li><a href="students-status.html"><i class="fas fa-user-slash"></i> الوضعية الدراسية</a></li>
                     </ul>
                 </li>
+
+                <li class="nav-section-label">الموارد البشرية والإدارة</li>
+
                 <li class="expandable my-[2px] mx-[10px]">
                     <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-staff-submenu"><i class="fas fa-users-cog"></i><span>تدبير الموظفين</span><i class="fas fa-chevron-down arrow"></i></button>
                     <ul class="sub-menu" id="sidebar-staff-submenu" hidden>
                         <li><a href="teachers-list.html"><i class="fas fa-users"></i> قائمة الأساتذة</a></li>
-                        <li><a href="teachers-schedule.html"><i class="fas fa-clock"></i> حصص الأساتذة</a></li>
-                        <li><a href="teachers-absence.html"><i class="fas fa-user-minus"></i> غياب الأساتذة</a></li>
                         <li><a href="teachers-performance.html"><i class="fas fa-chart-line"></i> مؤشرات الأداء</a></li>
                         <li><a href="staff-attendance.html"><i class="fas fa-clipboard-check"></i> الحضور والغياب</a></li>
                         <li><a href="staff-daily-report.html"><i class="fas fa-file-alt"></i> التقرير اليومي</a></li>
@@ -50,11 +48,8 @@ function injectSidebar() {
                 <li class="expandable my-[2px] mx-[10px]">
                     <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-timetable-submenu"><i class="fas fa-calendar-alt"></i><span>تدبير الحصص</span><i class="fas fa-chevron-down arrow"></i></button>
                     <ul class="sub-menu" id="sidebar-timetable-submenu" hidden>
-                        <li><a href="timetable.html"><i class="fas fa-table"></i>جدول حصص الأساتذة</a></li>
-                        <li><a href="timetable-students.html"><i class="fas fa-user-graduate"></i> جدول حصص التلاميذ</a></li>
-                        <li><a href="timetable-rooms.html"><i class="fas fa-door-open"></i> جدول حصص القاعات</a></li>
+                        <li><a href="timetable.html"><i class="fas fa-table"></i> الشبكات الزمنية</a></li>
                         <li><a href="timetable-redistribution.html"><i class="fas fa-random"></i> إعادة توزيع الأقسام</a></li>
-                        <li><a href="timetable-teachers.html"><i class="fas fa-chalkboard-teacher"></i> استعمال الزمن الأسبوعي</a></li>
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">
@@ -64,8 +59,7 @@ function injectSidebar() {
                         <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
                         <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
                         <li><a href="grades-results.html"><i class="fas fa-file-invoice"></i> بيان النتائج</a></li>
-                        <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> الدعم التربوي</a></li>
-                        <li><a href="support-sessions.html"><i class="fas fa-chalkboard"></i> تتبع حصص الدعم</a></li>
+                        <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> مركز الدعم التربوي</a></li>
                     </ul>
                 </li>
                 <li class="expandable my-[2px] mx-[10px]">

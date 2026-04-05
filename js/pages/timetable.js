@@ -396,8 +396,9 @@ function selectSearchResult(type, value) {
             teacherSelect.dispatchEvent(new Event('change'));
         }
     } else if (type === 'class') {
-        // Redirect to the dedicated students timetable page
-        window.location.href = 'timetable-students.html';
+        // Switch to students tab within the unified timetable page
+        const studentsTab = document.querySelector('.primary-tab[data-tab="tab-students"]');
+        if (studentsTab) studentsTab.click();
         return;
     } else if (type === 'subject') {
         // Filter by subject

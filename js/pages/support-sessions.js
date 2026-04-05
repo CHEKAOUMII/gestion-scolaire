@@ -79,7 +79,7 @@
     const paginationContainer = document.getElementById('sessions-pagination');
     const exportButton = document.getElementById('btn-export');
     const importInput = document.getElementById('input-import');
-    const printButton = document.getElementById('btn-print');
+    const printButton = document.getElementById('btn-print-sessions');
 
     function setActionBusy(control, isBusy, busyLabel, idleLabel) {
         if (!control) return;
@@ -701,8 +701,8 @@
         event.target.value = '';
     });
 
-    document.getElementById('btn-print').addEventListener('click', () => {
-        document.getElementById('print-date').textContent = `تاريخ الطباعة: ${new Date().toLocaleDateString('ar-MA')}`;
+    document.getElementById('btn-print-sessions').addEventListener('click', () => {
+        document.getElementById('print-date-sessions').textContent = `تاريخ الطباعة: ${new Date().toLocaleDateString('ar-MA')}`;
         const filterParts = [];
         if (filterTeacher.value) {
             filterParts.push(`الأستاذ: ${filterTeacher.options[filterTeacher.selectedIndex].textContent}`);
@@ -713,7 +713,7 @@
         if (filterSubject.value) {
             filterParts.push(`المادة: ${filterSubject.value}`);
         }
-        document.getElementById('print-filters').textContent = filterParts.length
+        document.getElementById('print-filters-sessions').textContent = filterParts.length
             ? filterParts.join(' | ')
             : 'بدون عوامل بحث';
         window.print();
