@@ -653,6 +653,15 @@ async function openPrintPreview(options = {}) {
             // Remove IDs to avoid duplicates
             clone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
 
+            // Ensure events table fills full width with Details column taking most space
+            clone.querySelectorAll('.events-table').forEach((tbl) => {
+                tbl.style.tableLayout = 'auto';
+                tbl.style.width = '100%';
+                tbl.querySelectorAll('.col-event-type').forEach((c) => { c.style.width = '14%'; c.style.whiteSpace = 'nowrap'; });
+                tbl.querySelectorAll('.col-event-details').forEach((c) => { c.style.width = 'auto'; c.style.whiteSpace = 'normal'; c.style.wordBreak = 'break-word'; });
+                tbl.querySelectorAll('.col-event-time').forEach((c) => { c.style.width = '10%'; c.style.whiteSpace = 'nowrap'; });
+            });
+
             // Replace canvases with images
             const sourceCanvases = sourceEl.querySelectorAll('canvas');
             const cloneCanvases = clone.querySelectorAll('canvas');

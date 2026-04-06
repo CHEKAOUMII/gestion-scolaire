@@ -693,7 +693,9 @@
 
             /**
              * Get the scheduled time periods for a teacher on a specific date.
-             * Returns an array of period strings, e.g. ['08:00-09:00', '10:00-11:00']
+             * Returns an array of period strings, e.g. ['08:30-10:30', '10:30-11:30']
+             * Consecutive hours with the SAME section are merged into one block.
+             * Uses mergeConsecutivePeriods, MORNING_HOUR_MAP, AFTERNOON_HOUR_MAP from utils.js
              */
             function getScheduleForDay(teacherId, teacherName, dateStr, absencePeriod) {
                 try {
@@ -707,33 +709,37 @@
                     const teacherKeys = resolveTeacherTimetableKeys(data, teacherId, teacherName);
                     if (!teacherKeys.length) return [];
 
-                    // Period mapping: morning hours and afternoon hours have distinct time ranges
-                    const morningHourMap = {
-                        H1: '08:30-09:30', H2: '09:30-10:30', H3: '10:30-11:30', H4: '11:30-12:30',
-                        h1: '08:30-09:30', h2: '09:30-10:30', h3: '10:30-11:30', h4: '11:30-12:30'
-                    };
-                    const afternoonHourMap = {
-                        H1: '14:30-15:30', H2: '15:30-16:30', H3: '16:30-17:30', H4: '17:30-18:30',
-                        h1: '14:30-15:30', h2: '15:30-16:30', h3: '16:30-17:30', h4: '17:30-18:30'
-                    };
-
-                    const periods = [];
+                    // Collect slots with section info for smart merging
+                    const slots = [];
                     teacherKeys.forEach((teacherKey) => {
                         const dayData = data.timetables?.[teacherKey]?.[dayName];
                         if (!dayData) return;
                         const periodEntries = getPeriodEntries(dayData, absencePeriod);
                         for (const [periodKey, hours] of periodEntries) {
                             if (!hours || typeof hours !== 'object') continue;
-                            const hourMap = periodKey === 'morning' ? morningHourMap : afternoonHourMap;
+                            const hourMap = periodKey === 'morning' ? MORNING_HOUR_MAP : AFTERNOON_HOUR_MAP;
                             const sortedKeys = Object.keys(hours).sort();
                             for (const h of sortedKeys) {
-                                if (hours[h]) {
-                                    periods.push(hourMap[h] || h);
+                                const lesson = hours[h];
+                                if (lesson) {
+                                    const time = hourMap[h] || h;
+                                    const section = (lesson.students || '').replace(/:[Gg]\d+$/g, '').trim();
+                                    slots.push({ time, section });
                                 }
                             }
                         }
                     });
-                    return [...new Set(periods)];
+
+                    // Deduplicate by time+section
+                    const seen = new Set();
+                    const uniqueSlots = slots.filter((s) => {
+                        const key = s.time + '|' + s.section;
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+
+                    return mergeConsecutivePeriods(uniqueSlots);
                 } catch (e) {
                     console.warn('Error reading schedule:', e);
                     return [];

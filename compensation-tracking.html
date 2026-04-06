@@ -253,18 +253,7 @@
                 );
             }
 
-            const PERIOD_MAP = {
-                h1: '08:00-09:00',
-                h2: '09:00-10:00',
-                h3: '10:00-11:00',
-                h4: '11:00-12:00',
-                h5: '14:00-15:00',
-                h6: '15:00-16:00',
-                h7: '16:00-17:00',
-                h8: '17:00-18:00'
-            };
-
-            const CONSECUTIVE_NEXT = { h1: 'h2', h2: 'h3', h3: 'h4', h5: 'h6', h6: 'h7', h7: 'h8' };
+            // PERIOD_MAP, CONSECUTIVE_SLOT_MAP, resolveSlotTime → loaded from utils.js
 
             function renderTopList(container, items, options) {
                 if (!container) return;
@@ -292,12 +281,16 @@
             function buildMergedRecord(run) {
                 const first = run[0];
                 if (run.length === 1) {
-                    return { ...first, ids: [first.id] };
+                    return {
+                        ...first,
+                        period_time: resolveSlotTime(first.period_slot, first.period_time),
+                        ids: [first.id]
+                    };
                 }
                 const last = run[run.length - 1];
                 const slotLabels = run.map((r) => (r.period_slot || '').toUpperCase()).join(' ');
-                const firstTime = PERIOD_MAP[(first.period_slot || '').toLowerCase()] || first.period_time || '';
-                const lastTime = PERIOD_MAP[(last.period_slot || '').toLowerCase()] || last.period_time || '';
+                const firstTime = resolveSlotTime(first.period_slot, first.period_time);
+                const lastTime = resolveSlotTime(last.period_slot, last.period_time);
                 const startTime = firstTime.split('-')[0] || '';
                 const endTime = lastTime.split('-')[1] || '';
                 const combinedTime = startTime && endTime ? startTime + '-' + endTime : firstTime;
@@ -1067,10 +1060,10 @@
                             : `<button class="comp-toggle approve" onclick="toggleComp([${r.ids.join(',')}], true)" title="تأكيد التعويض">
                            <i class="fas fa-check"></i> تعويض
                        </button>`;
-                        const periodLabel = escapeHtml((r.period_slot || '').toUpperCase());
+                        const periodTime = escapeHtml(r.period_time || PERIOD_MAP[(r.period_slot || '').toLowerCase()] || r.period_slot || '');
                         const reasonHtml = r.reason
-                            ? escapeHtml(r.reason) + (r.notes ? '<br><small class="record-note"><i class="fas fa-sticky-note"></i>' + escapeHtml(r.notes) + '</small>' : '')
-                            : (r.notes ? '<small class="record-note"><i class="fas fa-sticky-note"></i>' + escapeHtml(r.notes) + '</small>' : '—');
+                            ? escapeHtml(r.reason) + (r.notes ? '<br><small class="record-note"><i class="fas fa-sticky-note"></i> ' + escapeHtml(r.notes) + '</small>' : '')
+                            : (r.notes ? '<small class="record-note"><i class="fas fa-sticky-note"></i> ' + escapeHtml(r.notes) + '</small>' : '—');
 
                         return `
                     <tr class="${isCompensated ? 'compensated' : ''}">
@@ -1079,7 +1072,7 @@
                         <td data-label="القسم"><strong>${escapeHtml(r.section)}</strong></td>
                         <td data-label="الأستاذ(ة)">${escapeHtml(r.teacher_name)}</td>
                         <td data-label="المادة">${escapeHtml(r.subject || '—')}</td>
-                        <td data-label="الحصة"><span class="section-tag" style="font-size: 11px;">${periodLabel}</span></td>
+                        <td data-label="الحصة"><span class="section-tag" style="font-size: 11px;">${periodTime}</span></td>
                         <td data-label="السبب">${reasonHtml}</td>
                         <td data-label="الحالة">${statusHtml}</td>
                         <td data-label="إجراء" class="no-print">${actionHtml}</td>

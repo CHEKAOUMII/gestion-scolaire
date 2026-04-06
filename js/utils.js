@@ -2543,6 +2543,86 @@ async function initSchoolYear() {
     }
 }
 
+// ===== Timetable Schedule Utilities =====
+
+/**
+ * Maps period slot keys (h1-h8 / H1-H8) to their actual time ranges.
+ * h1-h4 = morning periods, h5-h8 = afternoon periods.
+ */
+const PERIOD_MAP = {
+    h1: '08:30-09:30', H1: '08:30-09:30',
+    h2: '09:30-10:30', H2: '09:30-10:30',
+    h3: '10:30-11:30', H3: '10:30-11:30',
+    h4: '11:30-12:30', H4: '11:30-12:30',
+    h5: '14:30-15:30', H5: '14:30-15:30',
+    h6: '15:30-16:30', H6: '15:30-16:30',
+    h7: '16:30-17:30', H7: '16:30-17:30',
+    h8: '17:30-18:30', H8: '17:30-18:30'
+};
+
+/** Morning period hour map (H1-H4 within a day's morning block) */
+const MORNING_HOUR_MAP = {
+    H1: '08:30-09:30', H2: '09:30-10:30', H3: '10:30-11:30', H4: '11:30-12:30',
+    h1: '08:30-09:30', h2: '09:30-10:30', h3: '10:30-11:30', h4: '11:30-12:30'
+};
+
+/** Afternoon period hour map (H1-H4 within a day's afternoon block) */
+const AFTERNOON_HOUR_MAP = {
+    H1: '14:30-15:30', H2: '15:30-16:30', H3: '16:30-17:30', H4: '17:30-18:30',
+    h1: '14:30-15:30', h2: '15:30-16:30', h3: '16:30-17:30', h4: '17:30-18:30'
+};
+
+/** Map of consecutive slot keys for merging (h1→h2, h2→h3, etc.) */
+const CONSECUTIVE_SLOT_MAP = { h1: 'h2', h2: 'h3', h3: 'h4', h5: 'h6', h6: 'h7', h7: 'h8' };
+
+/**
+ * Resolve a period slot (e.g. "H2") and/or stored time to an actual time string.
+ * Prefers PERIOD_MAP lookup; falls back to stored time if it contains ':'.
+ */
+function resolveSlotTime(slot, fallbackTime) {
+    const mapped = PERIOD_MAP[(slot || '').toLowerCase()];
+    if (mapped) return mapped;
+    if (fallbackTime && fallbackTime.includes(':')) return fallbackTime;
+    return fallbackTime || slot || '';
+}
+
+/**
+ * Merge consecutive time periods into continuous blocks,
+ * but ONLY when they belong to the same section (class).
+ * Accepts arrays of either:
+ *   - strings: ['09:30-10:30', '10:30-11:30']
+ *   - objects: [{time:'09:30-10:30', section:'1BACSH-7'}, ...]
+ *
+ * Returns an array of merged time strings.
+ */
+function mergeConsecutivePeriods(slots) {
+    if (!slots || slots.length === 0) return [];
+    if (slots.length === 1) return [typeof slots[0] === 'string' ? slots[0] : (slots[0].time || '')];
+
+    const parsed = slots
+        .map((s) => {
+            const time = typeof s === 'string' ? s : (s.time || s);
+            const parts = String(time).split('-');
+            if (parts.length !== 2) return null;
+            return { start: parts[0].trim(), end: parts[1].trim(), section: (typeof s === 'object' && s.section) || '' };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.start.localeCompare(b.start));
+
+    if (parsed.length === 0) return slots.map((s) => (typeof s === 'string' ? s : (s.time || '')));
+
+    const merged = [{ start: parsed[0].start, end: parsed[0].end, section: parsed[0].section }];
+    for (let i = 1; i < parsed.length; i++) {
+        const last = merged[merged.length - 1];
+        if (parsed[i].section === last.section && parsed[i].start === last.end) {
+            last.end = parsed[i].end;
+        } else {
+            merged.push({ start: parsed[i].start, end: parsed[i].end, section: parsed[i].section });
+        }
+    }
+    return merged.map((m) => m.start + '-' + m.end);
+}
+
 // ===== Auto-init =====
 document.addEventListener('DOMContentLoaded', () => {
     initSchoolYear();
@@ -2583,6 +2663,12 @@ if (typeof module !== 'undefined' && module.exports) {
         getCurrentAppRole,
         lockScreen,
         isSessionLocked,
-        openPinSetupModal
+        openPinSetupModal,
+        PERIOD_MAP,
+        MORNING_HOUR_MAP,
+        AFTERNOON_HOUR_MAP,
+        CONSECUTIVE_SLOT_MAP,
+        resolveSlotTime,
+        mergeConsecutivePeriods
     };
 }

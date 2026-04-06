@@ -17903,6 +17903,7 @@ body {
     margin-bottom: 20px;
     overflow: hidden;
     animation: fadeInUp 0.4s ease-out both;
+    width: 100%;
 }
 
 .report-section:nth-of-type(1) {

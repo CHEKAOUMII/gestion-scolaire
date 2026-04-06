@@ -135,6 +135,28 @@
             white-space: nowrap;
         }
 
+        /* Events table — give Details column the most space */
+        .events-table {
+            table-layout: auto !important;
+            width: 100% !important;
+        }
+
+        .events-table .col-event-type {
+            width: 14%;
+            white-space: nowrap;
+        }
+
+        .events-table .col-event-details {
+            width: auto;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .events-table .col-event-time {
+            width: 10%;
+            white-space: nowrap;
+        }
+
         /* Absences table — named column layout */
         .absences-table {
             table-layout: fixed;
@@ -419,13 +441,13 @@
                         <i class="fas fa-plus"></i> إضافة حدث
                     </button>
                 </div>
-                <table class="report-table" id="events-table">
+                <table class="report-table events-table" id="events-table">
                     <thead>
                         <tr>
                             <th class="col-index">#</th>
-                            <th>نوع الحدث</th>
-                            <th>التفاصيل</th>
-                            <th>التوقيت</th>
+                            <th class="col-event-type">نوع الحدث</th>
+                            <th class="col-event-details">التفاصيل</th>
+                            <th class="col-event-time">التوقيت</th>
                             <th class="no-print" style="width: 50px;"></th>
                         </tr>
                     </thead>
@@ -1083,9 +1105,9 @@
             tbody.innerHTML = events.map((ev, i) => `
                 <tr class="event-row" data-event-id="${ev.id}">
                     <td class="col-index">${i + 1}</td>
-                    <td>${escapeHtml(ev.event_type || '—')}</td>
-                    <td>${escapeHtml(ev.details || '—')}</td>
-                    <td>${escapeHtml(ev.event_time || '—')}</td>
+                    <td class="col-event-type">${escapeHtml(ev.event_type || '—')}</td>
+                    <td class="col-event-details">${escapeHtml(ev.details || '—')}</td>
+                    <td class="col-event-time">${escapeHtml(ev.event_time || '—')}</td>
                     <td class="no-print">
                         <div style="display: flex; gap: 4px; align-items: center;">
                             <button class="btn-edit-event" onclick="editEvent(this, ${ev.id})" style="font-size: 15px; padding: 6px 8px; background: none; border: none; color: var(--color-primary); cursor: pointer;" title="تعديل">

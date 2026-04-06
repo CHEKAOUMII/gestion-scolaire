@@ -127,6 +127,59 @@ The timetable is stored in `localStorage` under the key `timetableData` as a JSO
 - **Day names are Arabic:** الاثنين, الثلاثاء, الأربعاء, الخميس, الجمعة, السبت (Monday–Saturday). Note: الاثنين uses plain alef (not hamza إ).
 - **Teacher keys** may be tafwij-prefixed (`tafwij:name`) or plain names. Use `resolveTeacherTimetableKeys()` for matching.
 
+### Timetable Schedule Utilities (mandatory — `js/utils.js`)
+
+Shared functions and constants for converting period slot labels (H1, H2, etc.) to actual time strings. **Always use these instead of creating local copies.**
+
+**Available globals** (loaded via `js/utils.js` on every page):
+
+- **`PERIOD_MAP`** — Maps all slot keys (`h1`-`h8`, `H1`-`H8`) to absolute time strings. Use for flat slot-to-time lookup (e.g. in compensation tracking where slots are `h1`-`h8`).
+  ```js
+  PERIOD_MAP['h1']  // '08:30-09:30'
+  PERIOD_MAP['H5']  // '14:30-15:30'
+  ```
+
+- **`MORNING_HOUR_MAP`** — Maps `H1`-`H4` to morning times. Use when you know the period is `morning` (from timetable data).
+  ```js
+  MORNING_HOUR_MAP['H2']  // '09:30-10:30'
+  ```
+
+- **`AFTERNOON_HOUR_MAP`** — Maps `H1`-`H4` to afternoon times. Use when you know the period is `afternoon`.
+  ```js
+  AFTERNOON_HOUR_MAP['H2']  // '15:30-16:30'
+  ```
+
+- **`CONSECUTIVE_SLOT_MAP`** — Maps each slot to its next consecutive slot: `{ h1:'h2', h2:'h3', h3:'h4', h5:'h6', h6:'h7', h7:'h8' }`.
+
+- **`resolveSlotTime(slot, fallbackTime)`** — Converts a slot label (e.g. `'H2'`) to an actual time string via `PERIOD_MAP`. Falls back to `fallbackTime` if it contains `:`. Use this when displaying stored records that may have slot labels instead of time strings.
+  ```js
+  resolveSlotTime('H2', null)       // '09:30-10:30'
+  resolveSlotTime('H2', 'H2')       // '09:30-10:30'  (fallback is not a time)
+  resolveSlotTime('', '10:30-11:30') // '10:30-11:30'  (uses fallback)
+  ```
+
+- **`mergeConsecutivePeriods(slots)`** — Merges consecutive time periods into continuous blocks, but **only when they belong to the same section (class)**. Accepts either an array of time strings or objects with `{time, section}`. Returns an array of merged time strings.
+  ```js
+  // Simple strings (no section awareness):
+  mergeConsecutivePeriods(['09:30-10:30', '10:30-11:30'])
+  // → ['09:30-11:30']
+
+  // With section awareness:
+  mergeConsecutivePeriods([
+      { time: '09:30-10:30', section: '1BACSH-7' },
+      { time: '10:30-11:30', section: '1BACSH-7' },
+      { time: '11:30-12:30', section: 'TCSF-4' }
+  ])
+  // → ['09:30-11:30', '11:30-12:30']  (different sections NOT merged)
+  ```
+
+**Rules:**
+- **Never create local `PERIOD_MAP` or hour maps** — they are already in `utils.js`.
+- **Always use `MORNING_HOUR_MAP` / `AFTERNOON_HOUR_MAP`** when working with timetable data (because `H1-H4` repeat in both morning and afternoon blocks).
+- **Always use `PERIOD_MAP`** when working with flat slot names like `h1-h8` from the compensation/attendance DB tables.
+- **Always use `resolveSlotTime()`** before displaying any `period_time` or `period_slot` value from the database — stored values may be slot labels instead of actual times.
+- **Always use `mergeConsecutivePeriods()`** when displaying teacher/student/room schedules — pass `{time, section}` objects to prevent incorrect merging across different classes.
+
 ### Environment Variables
 
 `.env` is gitignored. Required values: `GH_TOKEN` (auto-updater GitHub Releases), `OWNER_SYNC_WRITE_TOKEN` / `OWNER_SYNC_READ_TOKEN` (telemetry server).
