@@ -8112,8 +8112,8 @@ a.quick-nav-item {
         gap: 0.75rem;
         padding: 0.5rem 0.75rem;
         border-radius: var(--radius-sm);
-        background: var(--color-bg-card);
-        border: 1px solid var(--color-border-subtle);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border, #e2e8f0);
         font-size: 0.875rem;
     }
 
