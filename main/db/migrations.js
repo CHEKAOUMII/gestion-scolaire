@@ -771,6 +771,28 @@ const MIGRATIONS = [
             ensureColumn('compensation_tracking', 'reason', 'TEXT');
             ensureColumn('compensation_tracking', 'notes', 'TEXT');
         }
+    },
+    {
+        version: '2026-04-042-name-aliases',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS name_aliases (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entity_type       TEXT NOT NULL,
+                    canonical_id      INTEGER NOT NULL,
+                    alias_text        TEXT NOT NULL,
+                    alias_normalized  TEXT NOT NULL,
+                    source            TEXT NOT NULL,
+                    school_year       TEXT,
+                    confidence        REAL DEFAULT 1.0,
+                    created_at        TEXT DEFAULT (datetime('now')),
+                    UNIQUE(entity_type, alias_normalized, school_year)
+                );
+                CREATE INDEX IF NOT EXISTS idx_name_aliases_lookup
+                    ON name_aliases(entity_type, alias_normalized, school_year);
+            `);
+        }
     }
 ];
 
