@@ -8096,6 +8096,42 @@ a.quick-nav-item {
             font-size: 15px;
         }
     }
+
+    /* ============================
+       Import Status Panel
+       ============================ */
+    .import-status-panel {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .import-status-row {
+        display: grid;
+        grid-template-columns: 1.5rem 8rem 1fr auto;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: var(--radius-sm);
+        background: var(--color-bg-card);
+        border: 1px solid var(--color-border-subtle);
+        font-size: 0.875rem;
+    }
+
+    .import-status-row.status-ok    { border-color: var(--color-success-border); background: var(--color-success-surface); }
+    .import-status-row.status-warn  { border-color: var(--color-warning-border); background: var(--color-warning-surface); }
+    .import-status-row.status-error { border-color: var(--color-danger-border);  background: var(--color-danger-surface);  }
+    .import-status-row.status-pending { opacity: 0.6; }
+
+    .import-status-icon  { font-size: 1rem; text-align: center; }
+    .import-status-label { font-weight: 600; color: var(--color-text-main); }
+    .import-status-detail {
+        color: var(--color-text-muted);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .import-status-action { flex-shrink: 0; }
 }
 
 [data-theme='dark'] .main-content,
