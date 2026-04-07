@@ -909,6 +909,7 @@ function registerStaffIpc(ipcMain) {
 
     handleWrite(ipcMain, 'teachers:saveNameAlias', ['admin', 'staff'], (db, _event, payload) => {
         const { entity_type, canonical_id, alias_text, alias_normalized, source, school_year, confidence } = payload;
+        requireFields(payload, ['entity_type', 'canonical_id', 'alias_text', 'alias_normalized', 'source']);
         db.prepare(
             `INSERT INTO name_aliases
                 (entity_type, canonical_id, alias_text, alias_normalized, source, school_year, confidence)
@@ -923,7 +924,9 @@ function registerStaffIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'teachers:deleteNameAlias', ['admin', 'staff'], (db, _event, id) => {
-        db.prepare('DELETE FROM name_aliases WHERE id = ?').run(id);
+        const aliasId = Number(id);
+        if (!Number.isFinite(aliasId) || aliasId <= 0) return { success: false, error: 'Invalid ID' };
+        db.prepare('DELETE FROM name_aliases WHERE id = ?').run(aliasId);
         return { success: true };
     });
 
