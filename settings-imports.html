@@ -261,6 +261,56 @@
                     </div>
                 </div>
 
+                <!-- Import Status Panel -->
+                <div class="students-results" id="import-status-panel-section">
+                    <h3>
+                        <i class="fas fa-link"></i> حالة ربط البيانات
+                        <span class="me-1.5 text-[13px] font-normal opacity-70" id="status-panel-year-label"></span>
+                    </h3>
+                    <div class="import-status-panel" id="import-status-panel">
+                        <div class="import-status-row status-pending" data-source="students">
+                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
+                            <span class="import-status-label">التلاميذ</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="agent_xml">
+                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
+                            <span class="import-status-label">ملف الوزارة</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="fet">
+                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
+                            <span class="import-status-label">FET (جدول)</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="grades">
+                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
+                            <span class="import-status-label">النقط</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="absences">
+                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
+                            <span class="import-status-label">الغياب</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row" data-source="status">
+                            <span class="import-status-icon"><i class="fas fa-minus-circle"></i></span>
+                            <span class="import-status-label">الوضعيات</span>
+                            <span class="import-status-detail">اختياري</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                    </div>
+                    <p class="mt-2 text-[0.8rem] text-[var(--color-text-muted)]">
+                        <i class="fas fa-info-circle"></i>
+                        الترتيب الموصى به: التلاميذ ← ملف الوزارة ← FET ← النقط ← الغياب
+                    </p>
+                </div>
+
                 <!-- Import Center -->
                 <div class="students-results">
                     <h3><i class="fas fa-cloud-upload-alt"></i> مركز الاستيراد</h3>
@@ -599,6 +649,9 @@
         </div>
 
         <script src="js/backup.js" defer></script>
+        <script src="js/name-resolver.js" defer></script>
+        <script src="js/data-source-registry.js" defer></script>
+        <script src="js/cross-source-validator.js" defer></script>
         <script src="js/pages/settings-imports.js" defer></script>
     </body>
 </html>
