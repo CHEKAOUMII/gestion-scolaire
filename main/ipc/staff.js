@@ -896,6 +896,37 @@ function registerStaffIpc(ipcMain) {
         };
     });
 
+    handleRead(ipcMain, 'teachers:getNameAliases', (db, entityType, schoolYear) => {
+        return db
+            .prepare(
+                `SELECT * FROM name_aliases
+                 WHERE entity_type = ?
+                   AND (school_year = ? OR school_year IS NULL)
+                 ORDER BY created_at DESC`
+            )
+            .all(entityType, schoolYear || null);
+    });
+
+    handleWrite(ipcMain, 'teachers:saveNameAlias', ['admin', 'staff'], (db, _event, payload) => {
+        const { entity_type, canonical_id, alias_text, alias_normalized, source, school_year, confidence } = payload;
+        db.prepare(
+            `INSERT INTO name_aliases
+                (entity_type, canonical_id, alias_text, alias_normalized, source, school_year, confidence)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(entity_type, alias_normalized, school_year) DO UPDATE SET
+                canonical_id = excluded.canonical_id,
+                alias_text   = excluded.alias_text,
+                source       = excluded.source,
+                confidence   = excluded.confidence`
+        ).run(entity_type, canonical_id, alias_text, alias_normalized, source, school_year || null, confidence ?? 1.0);
+        return { success: true };
+    });
+
+    handleWrite(ipcMain, 'teachers:deleteNameAlias', ['admin', 'staff'], (db, _event, id) => {
+        db.prepare('DELETE FROM name_aliases WHERE id = ?').run(id);
+        return { success: true };
+    });
+
     handleWrite(ipcMain, 'supportSessions:import', ['admin', 'staff'], (db, _event, payload) => {
         if (!payload || !Array.isArray(payload.support_sessions)) {
             throw new Error('ملف JSON غير صالح');

@@ -105,7 +105,11 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('teachers:delete', id),
         deleteByYear: (schoolYear) => ipcRenderer.invoke('teachers:deleteByYear', schoolYear),
         importBulk: (teachers) => ipcRenderer.invoke('teachers:importBulk', teachers),
-        saveTafwijAliases: (payload) => ipcRenderer.invoke('teachers:saveTafwijAliases', payload)
+        saveTafwijAliases: (payload) => ipcRenderer.invoke('teachers:saveTafwijAliases', payload),
+        getNameAliases: (entityType, schoolYear) =>
+            ipcRenderer.invoke('teachers:getNameAliases', entityType, schoolYear),
+        saveNameAlias: (payload) => ipcRenderer.invoke('teachers:saveNameAlias', payload),
+        deleteNameAlias: (id) => ipcRenderer.invoke('teachers:deleteNameAlias', id)
     },
 
     // Teacher absences
