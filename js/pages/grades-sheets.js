@@ -88,90 +88,19 @@
         `;
     }
 
-    // ─── Load Filters ───
-    let classLevelMap = new Map(); // code → { name, order, sections[] }
+    // ─── Load Filters (via shared FilterManager) ───
+    let filterManager = null;
 
     async function loadFilters() {
         try {
-            const year = getYear();
-            const classes = (await window.api.classes.getAll(year)) || [];
-
-            // Build level → sections map
-            classLevelMap = new Map();
-            classes.forEach((c) => {
-                const levelInfo = getLevelFromSection(c.name);
-                if (!classLevelMap.has(levelInfo.code)) {
-                    classLevelMap.set(levelInfo.code, { name: levelInfo.name, order: levelInfo.order, sections: [] });
-                }
-                const entry = classLevelMap.get(levelInfo.code);
-                if (!entry.sections.includes(c.name)) entry.sections.push(c.name);
+            filterManager = new FilterManager({
+                selectors: { level: 'level-select', class: 'class-select', subject: 'subject-select' },
+                placeholders: { level: 'اختر المستوى', class: 'اختر القسم', subject: 'اختر المادة' }
             });
-
-            // Populate level dropdown
-            const ls = $('level-select');
-            if (ls) {
-                while (ls.options.length > 1) ls.remove(1);
-                [...classLevelMap.entries()]
-                    .sort((a, b) => a[1].order - b[1].order)
-                    .forEach(([code, info]) => {
-                        const opt = document.createElement('option');
-                        opt.value = code;
-                        opt.textContent = info.name;
-                        ls.appendChild(opt);
-                    });
-            }
-
-            // Populate class dropdown from level selection (or all if no level select)
-            updateClassDropdown();
-
-            const subjects = (await window.api.subjects.getAll()) || [];
-            const ss = subjectSelect();
-            while (ss.options.length > 1) ss.remove(1);
-
-            // normalizeSubjectName() — provided by js/utils.js
-
-            const uniqueSubjects = Array.from(
-                new Set(subjects.map((s) => normalizeSubjectName(s.name)).filter(Boolean))
-            ).sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
-
-            uniqueSubjects.forEach((subjectName) => {
-                const opt = document.createElement('option');
-                opt.value = subjectName;
-                opt.textContent = subjectName;
-                ss.appendChild(opt);
-            });
+            await filterManager.init();
         } catch (err) {
             console.warn('Failed to load filters:', err);
             if (typeof showToast === 'function') showToast('تعذر تحميل البيانات', 'error');
-        }
-    }
-
-    function updateClassDropdown() {
-        const cs = classSelect();
-        const ls = $('level-select');
-        while (cs.options.length > 1) cs.remove(1);
-
-        const selectedLevel = ls?.value || '';
-        if (selectedLevel && classLevelMap.has(selectedLevel)) {
-            const entry = classLevelMap.get(selectedLevel);
-            sortSectionNames(entry.sections).forEach((name) => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                cs.appendChild(opt);
-            });
-        } else if (!selectedLevel) {
-            // Show all classes grouped by level
-            [...classLevelMap.entries()]
-                .sort((a, b) => a[1].order - b[1].order)
-                .forEach(([, info]) => {
-                    sortSectionNames(info.sections).forEach((name) => {
-                        const opt = document.createElement('option');
-                        opt.value = name;
-                        opt.textContent = name;
-                        cs.appendChild(opt);
-                    });
-                });
         }
     }
 
@@ -377,9 +306,8 @@
         // Generate
         generateBtn()?.addEventListener('click', generate);
 
-        // Level filter chains to class dropdown
+        // Level filter — cascading is handled by FilterManager, reset UI state here
         $('level-select')?.addEventListener('change', () => {
-            updateClassDropdown();
             showEmpty();
             updateButtons(false);
             isGenerated = false;

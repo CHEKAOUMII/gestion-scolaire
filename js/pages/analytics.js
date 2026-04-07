@@ -9,6 +9,7 @@ let analyzeInProgress = false;
 let allSections = [];
 let allGradesCache = [];
 let sectionToLevel = {};
+let _filterManager = null;
 const gradeBands = [
     { key: 'excellent', label: 'ممتاز', min: 16, max: 20, color: '#2FB36D' },
     { key: 'veryGood', label: 'حسن جدا', min: 14, max: 16, color: '#3C95D0' },
@@ -28,28 +29,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const classSelect = document.getElementById('class-select');
         const typeSelect = document.getElementById('analysis-type');
 
-        // Cascading: Level ? Class ? Subject
+        // Level/Class/Subject cascading is handled by FilterManager.
+        // Extra page-specific: sync teacher-subject-select on level/class change
         if (levelSelect) {
             levelSelect.addEventListener('change', () => {
-                renderClassOptions(levelSelect.value);
-                renderSubjectOptions(levelSelect.value, '');
-                renderTeacherSubjectOptions(levelSelect.value, '');
+                renderTeacherSubjectOptions();
             });
         }
 
         if (classSelect) {
             classSelect.addEventListener('change', () => {
-                const levelName = levelSelect ? levelSelect.value : '';
-                renderSubjectOptions(levelName, classSelect.value);
-                renderTeacherSubjectOptions(levelName, classSelect.value);
+                renderTeacherSubjectOptions();
             });
         }
 
         if (typeSelect) {
             typeSelect.addEventListener('change', () => {
-                const levelName = levelSelect ? levelSelect.value : '';
-                const className = classSelect ? classSelect.value : '';
-                renderTeacherSubjectOptions(levelName, className);
+                renderTeacherSubjectOptions();
                 toggleTeacherSubjectFilter();
             });
         }
@@ -169,9 +165,9 @@ function tooltipLabelWithPercent(context, total) {
     return `${label}: ${value} (${pct.toFixed(1)}%)`;
 }
 
-// Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
-// Named _getLocalLevelName to avoid collision with global getLevelFromSection (object‐returning)
+// Level normalization: delegates to FilterManager's cached levelsMapping
 function _getLocalLevelName(section) {
+    if (_filterManager) return _filterManager._getLocalLevelName(section);
     const s = String(section || '').trim();
     if (!s) return '';
     if (sectionToLevel[s]) return sectionToLevel[s];
@@ -405,22 +401,8 @@ function renderZeroStudentsList(students) {
     container.replaceChildren(fragment);
 }
 
-function renderClassOptions(selectedLevel = '') {
-    const classSelect = document.getElementById('class-select');
-    if (!classSelect) return;
-    const previousValue = classSelect.value;
-
-    const list = selectedLevel
-        ? allSections.filter((section) => _getLocalLevelName(section) === selectedLevel)
-        : allSections.slice();
-
-    renderSelectOptions(
-        classSelect,
-        sortSectionNames(list).map((section) => ({ value: section, label: section })),
-        'كل الأقسام',
-        previousValue
-    );
-}
+// renderClassOptions and renderSubjectOptions are now handled by FilterManager.
+// Only renderTeacherSubjectOptions remains page-specific.
 
 function getAvailableSubjects(selectedLevel = '', selectedClass = '') {
     return buildSubjectOptionsFromGrades(allGradesCache, {
@@ -430,24 +412,15 @@ function getAvailableSubjects(selectedLevel = '', selectedClass = '') {
     });
 }
 
-function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
-    const subjectSelect = document.getElementById('subject-select');
-    if (!subjectSelect) return;
-    renderSelectOptions(
-        subjectSelect,
-        getAvailableSubjects(selectedLevel, selectedClass).map((subject) => ({ value: subject, label: subject })),
-        'كل المواد',
-        subjectSelect.value
-    );
-}
-
-function renderTeacherSubjectOptions(selectedLevel = '', selectedClass = '') {
+function renderTeacherSubjectOptions() {
     const teacherSubjectSelect = document.getElementById('teacher-subject-select');
     if (!teacherSubjectSelect) return;
+    const levelName = document.getElementById('level-select')?.value || '';
+    const className = document.getElementById('class-select')?.value || '';
     const previousValue = teacherSubjectSelect.value;
     renderSelectOptions(
         teacherSubjectSelect,
-        getAvailableSubjects(selectedLevel, selectedClass).map((subject) => ({ value: subject, label: subject })),
+        getAvailableSubjects(levelName, className).map((subject) => ({ value: subject, label: subject })),
         'كل المواد (مقارنة الأساتذة)',
         previousValue
     );
@@ -578,54 +551,22 @@ function buildTeacherPerformanceRows(grades) {
 }
 
 async function loadFilters() {
-    const levelSelect = document.getElementById('level-select');
-    const students = (await window.api.students.getAll(year)) || [];
-    const grades = (await window.api.grades.getAll(year)) || [];
-    allGradesCache = grades;
-
-    // Debug: Log loaded data
-    console.log('Analytics - Students loaded:', students.length);
-    console.log('Analytics - Grades loaded:', grades.length);
-    if (grades.length > 0) {
-        console.log('Analytics - Sample grade:', grades[0]);
-        console.log('Analytics - Unique subjects:', [
-            ...new Set(grades.map((g) => normalizeSubjectName(g.subject)).filter(Boolean))
-        ]);
-    }
-
-    const mappingRaw = await window.api.settings.get('levelsMapping');
-    let parsedMapping = {};
-    try {
-        parsedMapping = mappingRaw ? JSON.parse(mappingRaw) : {};
-    } catch (_) {
-        parsedMapping = {};
-    }
-    sectionToLevel = parsedMapping || {};
-
-    const sections = new Set();
-    const levels = new Set();
-    students.forEach((s) => {
-        if (s.section) sections.add(s.section);
+    // Use FilterManager for Level → Class → Subject cascading
+    _filterManager = new FilterManager({
+        selectors: { level: 'level-select', class: 'class-select', subject: 'subject-select' },
+        subjectsFromGrades: true
     });
-    grades.forEach((g) => {
-        if (g.section) sections.add(g.section);
-    });
-    allSections = Array.from(sections);
-    sections.forEach((section) => {
-        const level = _getLocalLevelName(section);
-        if (level) levels.add(level);
-    });
+    await _filterManager.init();
 
-    renderClassOptions('');
-    renderSubjectOptions('', '');
-    renderTeacherSubjectOptions('', '');
+    // Sync internal caches from FilterManager
+    const fmData = _filterManager.getData();
+    allGradesCache = fmData.grades;
+    allSections = fmData.classes;
+    sectionToLevel = _filterManager._levelsMapping || {};
+
+    // Page-specific: teacher-subject filter
+    renderTeacherSubjectOptions();
     toggleTeacherSubjectFilter();
-
-    renderSelectOptions(
-        levelSelect,
-        sortLevelNames(Array.from(levels)).map((level) => ({ value: level, label: level })),
-        'كل المستويات'
-    );
 }
 
 async function analyze() {

@@ -911,10 +911,12 @@
 
                 await loadFilters();
 
+                // Level/class cascade is handled by FilterManager.
+                // When level or class changes, refresh subject multi-select.
                 document.getElementById('level-select').addEventListener('change', () => {
                     const level = document.getElementById('level-select').value;
-                    renderClassOptions(level);
-                    renderSubjectOptions(level, '');
+                    const className = document.getElementById('class-select').value;
+                    renderSubjectOptions(level, className);
                 });
 
                 document.getElementById('class-select').addEventListener('change', () => {
@@ -1226,23 +1228,6 @@
 
             // normalizeSubjectName() — provided by js/utils.js
 
-            function renderClassOptions(selectedLevel = '') {
-                const classSelect = document.getElementById('class-select');
-                classSelect.innerHTML = '<option value="">كل الأقسام</option>';
-
-                const list = selectedLevel
-                    ? allSections.filter((section) => _getLocalLevelName(section) === selectedLevel)
-                    : allSections.slice();
-
-                (typeof sortSectionNames === 'function' ? sortSectionNames(list) : list)
-                    .forEach((section) => {
-                    const opt = document.createElement('option');
-                    opt.value = section;
-                    opt.textContent = section;
-                    classSelect.appendChild(opt);
-                });
-            }
-
             function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
                 const list = document.getElementById('subject-filter-list');
                 list.innerHTML = '';
@@ -1312,44 +1297,36 @@
                 }
             }
 
+            // ─── Populate Filters (via shared FilterManager) ───
+            let _supportFilterManager = null;
+
             async function loadFilters() {
-                const levelSelect = document.getElementById('level-select');
-                const students = (await window.api.students.getAll(year)) || [];
-                const grades = (await window.api.grades.getAll(year)) || [];
-                allGradesCache = grades;
-                allStudentsCache = students;
-
-                const mappingRaw = await window.api.settings.get('levelsMapping');
                 try {
-                    sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {};
-                } catch (_) {
-                    sectionToLevel = {};
+                    // Load grades for subject multi-select and search functionality
+                    allGradesCache = (await window.api.grades.getAll(year)) || [];
+                    allStudentsCache = (await window.api.students.getAll(year)) || [];
+
+                    // Load levels mapping for _getLocalLevelName
+                    const mappingRaw = await window.api.settings.get('levelsMapping');
+                    try {
+                        sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {};
+                    } catch (_) {
+                        sectionToLevel = {};
+                    }
+
+                    // Init FilterManager for level + class (unified DB source)
+                    _supportFilterManager = new FilterManager({
+                        selectors: { level: 'level-select', class: 'class-select' },
+                        placeholders: { level: 'كل المستويات', class: 'كل الأقسام' }
+                    });
+                    await _supportFilterManager.init();
+
+                    // Populate subject multi-select from grades cache
+                    renderSubjectOptions('', '');
+                } catch (err) {
+                    console.warn('Failed to load filters:', err);
+                    if (typeof showToast === 'function') showToast('تعذر تحميل بيانات الفلاتر', 'error');
                 }
-
-                const sections = new Set();
-                const levels = new Set();
-                students.forEach((s) => {
-                    if (s.section) sections.add(s.section);
-                });
-                grades.forEach((g) => {
-                    if (g.section) sections.add(g.section);
-                });
-                allSections = Array.from(sections);
-
-                sections.forEach((section) => {
-                    const level = _getLocalLevelName(section);
-                    if (level) levels.add(level);
-                });
-
-                (typeof sortLevelNames === 'function' ? sortLevelNames(Array.from(levels)) : Array.from(levels)).forEach((level) => {
-                    const opt = document.createElement('option');
-                    opt.value = level;
-                    opt.textContent = level;
-                    levelSelect.appendChild(opt);
-                });
-
-                renderClassOptions('');
-                renderSubjectOptions('', '');
             }
 
             // ─── Sort helper ───

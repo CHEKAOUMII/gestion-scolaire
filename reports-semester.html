@@ -891,59 +891,21 @@
 
             // Store all classes for level filtering
             let allClasses = [];
+            let _filterManager = null;
 
             // --- DOM Ready ---
             document.addEventListener('DOMContentLoaded', async () => {
                 try {
-                    const [classes, grades] = await Promise.all([
-                        window.api.classes.getAll(year),
-                        window.api.grades.getAll(year)
-                    ]);
-
-                    allClasses = classes || [];
-
-                    // Populate level dropdown from unique levels
-                    const levelSelect = document.getElementById('level-select');
-                    const levels = sortLevelNames([...new Set(allClasses.map((c) => extractLevel(c.name)))]);
-                    levels.forEach((lv) => {
-                        const opt = document.createElement('option');
-                        opt.value = lv;
-                        opt.textContent = lv;
-                        levelSelect.appendChild(opt);
+                    // Use FilterManager for Level → Class → Subject cascading
+                    _filterManager = new FilterManager({
+                        selectors: { level: 'level-select', class: 'class-select', subject: 'subject-select' },
+                        subjectsFromGrades: true
                     });
+                    await _filterManager.init();
 
-                    // Populate class dropdown (all initially, sorted by educational order)
-                    const classSelect = document.getElementById('class-select');
-                    sortSectionNames(allClasses.map((c) => c.name)).forEach((name) => {
-                        const opt = document.createElement('option');
-                        opt.value = name;
-                        opt.textContent = name;
-                        classSelect.appendChild(opt);
-                    });
-
-                    // Level → filter classes
-                    levelSelect.addEventListener('change', () => {
-                        const selectedLevel = levelSelect.value;
-                        classSelect.innerHTML = '<option value="">كل الأقسام</option>';
-                        const filtered = selectedLevel
-                            ? allClasses.filter((c) => extractLevel(c.name) === selectedLevel)
-                            : allClasses;
-                        sortSectionNames(filtered.map((c) => c.name)).forEach((name) => {
-                            const opt = document.createElement('option');
-                            opt.value = name;
-                            opt.textContent = name;
-                            classSelect.appendChild(opt);
-                        });
-                    });
-
-                    // Populate subject dropdown from grades using unified builder
-                    const subjectSelect = document.getElementById('subject-select');
-                    buildSubjectOptionsFromGrades(grades || []).forEach((name) => {
-                        const opt = document.createElement('option');
-                        opt.value = name;
-                        opt.textContent = name;
-                        subjectSelect.appendChild(opt);
-                    });
+                    // Sync caches
+                    const fmData = _filterManager.getData();
+                    allClasses = fmData.classes.map((name) => ({ name }));
                 } catch (err) {
                     console.error('Init error:', err);
                 }

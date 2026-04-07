@@ -423,6 +423,7 @@
             let allSections = [];
             let allGradesCache = [];
             let sectionToLevel = {};
+            let _filterManager = null;
             // Pagination state
             const PAGE_SIZE = 20;
             let currentPage = 1;
@@ -503,18 +504,8 @@
 
                     await loadFilters();
 
-                    // Event listeners for cascading dropdowns
-                    document.getElementById('level-select').addEventListener('change', () => {
-                        const level = document.getElementById('level-select').value;
-                        renderClassOptions(level);
-                        renderSubjectOptions(level, '');
-                    });
-
-                    document.getElementById('class-select').addEventListener('change', () => {
-                        const level = document.getElementById('level-select').value;
-                        const className = document.getElementById('class-select').value;
-                        renderSubjectOptions(level, className);
-                    });
+                    // Level/Class/Subject cascading is handled by FilterManager
+                    // No manual event binding needed for cascading
 
                     // Button events
                     document.getElementById('search-btn').addEventListener('click', loadResults);
@@ -529,89 +520,37 @@
                 }
             });
 
-            // Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
+            // _getLocalLevelName: delegates to FilterManager
             function _getLocalLevelName(section) {
+                if (_filterManager) return _filterManager._getLocalLevelName(section);
                 const s = String(section || '').trim();
                 if (!s) return '';
                 if (sectionToLevel[s]) return sectionToLevel[s];
                 return getLevelNameFromSection(s);
             }
 
-            function renderClassOptions(selectedLevel = '') {
-                const classSelect = document.getElementById('class-select');
-                classSelect.innerHTML = '<option value="">كل الأقسام</option>';
-
-                const list = selectedLevel
-                    ? allSections.filter((section) => _getLocalLevelName(section) === selectedLevel)
-                    : allSections.slice();
-
-                sortSectionNames(list).forEach((section) => {
-                    const opt = document.createElement('option');
-                    opt.value = section;
-                    opt.textContent = section;
-                    classSelect.appendChild(opt);
-                });
-            }
-
-            function renderSubjectOptions(selectedLevel = '', selectedClass = '') {
-                const subjectSelect = document.getElementById('subject-select');
-                subjectSelect.innerHTML = '<option value="">كل المواد</option>';
-
-                const subjectList = buildSubjectOptionsFromGrades(allGradesCache, {
-                    level: selectedLevel,
-                    section: selectedClass,
-                    getLevelName: _getLocalLevelName
-                });
-
-                debugGrades('renderSubjectOptions', {
-                    selectedLevel,
-                    selectedClass,
-                    subjectsCount: subjectList.length,
-                    sampleSubjects: subjectList.slice(0, 20)
-                });
-
-                subjectList.forEach((subject) => {
-                    const opt = document.createElement('option');
-                    opt.value = subject;
-                    opt.textContent = subject;
-                    subjectSelect.appendChild(opt);
-                });
-            }
+            // renderClassOptions and renderSubjectOptions are now handled by FilterManager.
 
             async function loadFilters() {
-                const levelSelect = document.getElementById('level-select');
-                const students = (await window.api.students.getAll(year)) || [];
-                const grades = (await window.api.grades.getAll(year)) || [];
-                allGradesCache = grades;
+                _filterManager = new FilterManager({
+                    selectors: { level: 'level-select', class: 'class-select', subject: 'subject-select' },
+                    subjectsFromGrades: true
+                });
+                await _filterManager.init();
+
+                // Sync caches
+                const fmData = _filterManager.getData();
+                allGradesCache = fmData.grades;
+                allSections = fmData.classes;
+                sectionToLevel = _filterManager._levelsMapping || {};
                 topStudentsCache.clear();
 
-                const uniqueSubjects = [...new Set(grades.map((g) => g.subject).filter(Boolean))];
                 debugGrades('loadFilters:data', {
-                    students: students.length,
-                    grades: grades.length,
-                    uniqueSubjectsCount: uniqueSubjects.length,
-                    sampleGrade: grades[0] || null,
-                    sampleSubjects: uniqueSubjects.slice(0, 30)
+                    classes: allSections.length,
+                    grades: allGradesCache.length
                 });
 
-                const mappingRaw = await window.api.settings.get('levelsMapping');
-                try {
-                    sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {};
-                } catch (_) {
-                    sectionToLevel = {};
-                }
-
-                const sections = new Set();
-                const levels = new Set();
-                students.forEach((s) => {
-                    if (s.section) sections.add(s.section);
-                });
-                grades.forEach((g) => {
-                    if (g.section) sections.add(g.section);
-                });
-                allSections = Array.from(sections);
-
-                // Populate Tab 2 class select
+                // Populate Tab 2 class select (separate dropdown, not managed by FilterManager)
                 const zerosClassSelect = document.getElementById('zeros-class');
                 while (zerosClassSelect.options.length > 1) zerosClassSelect.remove(1);
                 sortSectionNames(allSections).forEach((name) => {
@@ -620,31 +559,12 @@
                     opt.textContent = name;
                     zerosClassSelect.appendChild(opt);
                 });
-
-                sections.forEach((section) => {
-                    const level = _getLocalLevelName(section);
-                    if (level) levels.add(level);
-                });
-
-                renderClassOptions('');
-                renderSubjectOptions('', '');
-
-                sortLevelNames(Array.from(levels)).forEach((level) => {
-                    const opt = document.createElement('option');
-                    opt.value = level;
-                    opt.textContent = level;
-                    levelSelect.appendChild(opt);
-                });
             }
 
             function resetFilters() {
-                document.getElementById('level-select').value = '';
-                document.getElementById('class-select').value = '';
-                document.getElementById('subject-select').value = '';
+                if (_filterManager) _filterManager.reset();
                 document.getElementById('semester-select').value = '';
                 document.getElementById('remark-select').value = '';
-                renderClassOptions('');
-                renderSubjectOptions('', '');
                 loadResults();
                 showToast('تم إعادة ضبط الفلاتر', 'info');
             }

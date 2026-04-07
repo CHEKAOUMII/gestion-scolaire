@@ -10,6 +10,7 @@ let sortColumn = null;
 let sortDirection = 'asc';
 let allClasses = []; // keep all class names for level cascading
 let sectionToLevel = {}; // section → level mapping
+let _filterManager = null;
 
 // Avatar color palette
 const avatarColors = [
@@ -74,9 +75,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 300);
     queryInput.addEventListener('input', debouncedSearch);
 
-    // Level cascading → class dropdown
+    // Level cascading → class dropdown (FilterManager handles cascading)
     document.getElementById('search-level').addEventListener('change', async () => {
-        renderClassOptions(document.getElementById('search-level').value);
         currentPage = 1;
         await searchStudents();
     });
@@ -120,64 +120,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
-// ─── Load Classes & Levels ───
+// ─── Load Classes & Levels (via FilterManager) ───
 async function loadClassesAndLevels() {
-    const classSelect = document.getElementById('search-class');
-    const levelSelect = document.getElementById('search-level');
     try {
-        const classes = (await window.api.classes.getAll(getCurrentYear())) || [];
-        allClasses = classes.map((c) => c.name);
-
-        // Build level mapping
-        const mappingRaw = await window.api.settings.get('levelsMapping');
-        try {
-            sectionToLevel = mappingRaw ? JSON.parse(mappingRaw) : {};
-        } catch (_) {
-            sectionToLevel = {};
-        }
-
-        const levels = new Set();
-        allClasses.forEach((name) => {
-            const level = _getLocalLevelName(name);
-            if (level) levels.add(level);
+        _filterManager = new FilterManager({
+            selectors: { level: 'search-level', class: 'search-class' }
         });
+        await _filterManager.init();
 
-        // Populate levels
-        sortLevelNames(Array.from(levels)).forEach((level) => {
-            const opt = document.createElement('option');
-            opt.value = level;
-            opt.textContent = level;
-            levelSelect.appendChild(opt);
-        });
-
-        // Populate classes (all initially)
-        renderClassOptions('');
+        // Sync caches for search filtering
+        const fmData = _filterManager.getData();
+        allClasses = fmData.classes;
+        sectionToLevel = _filterManager._levelsMapping || {};
     } catch (_error) {
         showToast('تعذر تحميل قائمة الأقسام', 'warning');
     }
 }
 
 function _getLocalLevelName(section) {
+    if (_filterManager) return _filterManager._getLocalLevelName(section);
     const s = String(section || '').trim();
     if (!s) return '';
     if (sectionToLevel[s]) return sectionToLevel[s];
     return getLevelNameFromSection(s);
-}
-
-function renderClassOptions(selectedLevel) {
-    const classSelect = document.getElementById('search-class');
-    const previousValue = classSelect.value;
-
-    const list = selectedLevel
-        ? allClasses.filter((name) => _getLocalLevelName(name) === selectedLevel)
-        : allClasses.slice();
-
-    setSelectOptions(classSelect, sortSectionNames(list), { placeholder: 'كل الأقسام' });
-
-    // Restore previous value if still in list
-    if (previousValue && Array.from(classSelect.options).some((o) => o.value === previousValue)) {
-        classSelect.value = previousValue;
-    }
 }
 
 // ─── Save / Restore Filters ───
@@ -195,9 +160,10 @@ function restoreFilters() {
     const filters = loadFromStorage('sl_filters');
     if (!filters) return;
     if (filters.query) document.getElementById('search-query').value = filters.query;
-    if (filters.level) {
+    if (filters.level && _filterManager) {
         document.getElementById('search-level').value = filters.level;
-        renderClassOptions(filters.level);
+        // Trigger FilterManager cascade for class dropdown
+        _filterManager._refreshClasses();
     }
     if (filters.class) document.getElementById('search-class').value = filters.class;
     if (filters.gender) document.getElementById('search-gender').value = filters.gender;

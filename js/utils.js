@@ -2623,6 +2623,338 @@ function mergeConsecutivePeriods(slots) {
     return merged.map((m) => m.start + '-' + m.end);
 }
 
+// ===== Unified Filter Manager =====
+/**
+ * FilterManager — مكون فلترة موحد للقوائم المنسدلة المتسلسلة
+ *
+ * يتولى تعبئة وربط فلاتر المستوى والقسم والمادة والأستاذ
+ * باستخدام مصدر بيانات واحد (classes API + subjects API).
+ *
+ * @example
+ *   const fm = new FilterManager({
+ *       selectors: { level: '#level-select', class: '#class-select', subject: '#subject-select' },
+ *       onChange: (values) => console.log(values)
+ *   });
+ *   await fm.init();
+ */
+class FilterManager {
+    /**
+     * @param {Object} config
+     * @param {Object} config.selectors — CSS selectors or element IDs (without #) for each filter
+     *   - level:   string — المستوى (optional)
+     *   - class:   string — القسم (optional)
+     *   - subject: string — المادة (optional)
+     *   - teacher: string — الأستاذ (optional)
+     * @param {Function} [config.onChange] — callback({ level, class, subject, teacher }) on any change
+     * @param {Object} [config.placeholders] — custom placeholder text for each filter
+     * @param {boolean} [config.subjectsFromGrades=false] — if true, populate subjects from grades API instead of subjects API
+     * @param {string} [config.year] — school year override (defaults to getSchoolYear())
+     * @param {boolean} [config.autoInit=false] — if true, calls init() automatically
+     */
+    constructor(config = {}) {
+        this._config = config;
+        this._year = config.year || (typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026');
+        this._placeholders = Object.assign({
+            level: 'كل المستويات',
+            class: 'كل الأقسام',
+            subject: 'كل المواد',
+            teacher: 'كل الأساتذة'
+        }, config.placeholders || {});
+        this._onChange = typeof config.onChange === 'function' ? config.onChange : null;
+
+        // Resolved DOM elements
+        this._els = {};
+        // Data caches
+        this._allClasses = [];         // raw class names from API
+        this._levelMap = new Map();    // levelCode → { name, order, sections[] }
+        this._levelsMapping = {};      // section → level name (from settings)
+        this._allSubjects = [];        // normalized subject names
+        this._allGradesCache = [];     // grades cache (if subjectsFromGrades)
+        // Bound handlers for cleanup
+        this._handlers = {};
+
+        if (config.autoInit) {
+            // Defer to next tick so caller can still store the reference
+            Promise.resolve().then(() => this.init());
+        }
+    }
+
+    // ─── Public API ───
+
+    /** Initialize: load data + populate + bind cascading events */
+    async init() {
+        this._resolveElements();
+        await this._loadData();
+        this._populateAll();
+        this._bindEvents();
+        return this;
+    }
+
+    /** Get current selected values */
+    getValues() {
+        return {
+            level: this._val('level'),
+            class: this._val('class'),
+            subject: this._val('subject'),
+            teacher: this._val('teacher')
+        };
+    }
+
+    /** Programmatically set values and trigger cascading refresh */
+    setValues(values = {}) {
+        if (values.level !== undefined && this._els.level) {
+            this._els.level.value = values.level;
+        }
+        this._refreshClasses();
+        if (values.class !== undefined && this._els.class) {
+            this._els.class.value = values.class;
+        }
+        this._refreshSubjects();
+        if (values.subject !== undefined && this._els.subject) {
+            this._els.subject.value = values.subject;
+        }
+        if (values.teacher !== undefined && this._els.teacher) {
+            this._els.teacher.value = values.teacher;
+        }
+    }
+
+    /** Reset all filters to default (empty) */
+    reset() {
+        ['level', 'class', 'subject', 'teacher'].forEach((key) => {
+            if (this._els[key]) this._els[key].value = '';
+        });
+        this._refreshClasses();
+        this._refreshSubjects();
+        this._fireOnChange();
+    }
+
+    /** Get the cached data for external use */
+    getData() {
+        return {
+            classes: this._allClasses.slice(),
+            levelMap: new Map(this._levelMap),
+            subjects: this._allSubjects.slice(),
+            grades: this._allGradesCache.slice()
+        };
+    }
+
+    /** Clean up event listeners */
+    destroy() {
+        Object.entries(this._handlers).forEach(([key, handler]) => {
+            if (this._els[key]) {
+                this._els[key].removeEventListener('change', handler);
+            }
+        });
+        this._handlers = {};
+    }
+
+    // ─── Internal ───
+
+    _resolveElements() {
+        const sel = this._config.selectors || {};
+        ['level', 'class', 'subject', 'teacher'].forEach((key) => {
+            if (!sel[key]) { this._els[key] = null; return; }
+            // Accept '#id', 'id', or a DOM element
+            if (sel[key] instanceof HTMLElement) {
+                this._els[key] = sel[key];
+            } else {
+                const id = String(sel[key]).replace(/^#/, '');
+                this._els[key] = document.getElementById(id);
+            }
+        });
+    }
+
+    async _loadData() {
+        const year = this._year;
+
+        // 1. Load classes (single source of truth for levels/sections)
+        let classes = [];
+        try {
+            classes = (await window.api?.classes?.getAll?.(year)) || [];
+        } catch (_) { /* fallback to empty */ }
+        this._allClasses = classes.map((c) => c.name).filter(Boolean);
+
+        // 2. Load levelsMapping from settings
+        try {
+            const mappingRaw = await window.api?.settings?.get?.('levelsMapping');
+            this._levelsMapping = mappingRaw ? JSON.parse(mappingRaw) : {};
+        } catch (_) {
+            this._levelsMapping = {};
+        }
+
+        // 3. Build level → sections map
+        this._levelMap = new Map();
+        this._allClasses.forEach((name) => {
+            const levelInfo = getLevelFromSection(name);
+            if (!this._levelMap.has(levelInfo.code)) {
+                this._levelMap.set(levelInfo.code, { name: levelInfo.name, order: levelInfo.order, sections: [] });
+            }
+            const entry = this._levelMap.get(levelInfo.code);
+            if (!entry.sections.includes(name)) entry.sections.push(name);
+        });
+
+        // 4. Load subjects
+        if (this._config.subjectsFromGrades) {
+            // Build subjects from grades (for analytics/results pages)
+            try {
+                this._allGradesCache = (await window.api?.grades?.getAll?.(year)) || [];
+            } catch (_) {
+                this._allGradesCache = [];
+            }
+            this._allSubjects = buildSubjectOptionsFromGrades(this._allGradesCache, {
+                getLevelName: (s) => this._getLocalLevelName(s)
+            });
+        } else {
+            // Load from subjects API (single canonical source)
+            try {
+                const subjects = (await window.api?.subjects?.getAll?.()) || [];
+                const normalized = new Set();
+                subjects.forEach((s) => {
+                    if (s.name) {
+                        const n = normalizeSubjectName(s.name);
+                        if (n && !INVALID_SUBJECT_NAMES.has(n.toLowerCase())) normalized.add(n);
+                    }
+                });
+                this._allSubjects = Array.from(normalized).sort(
+                    typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar')
+                );
+            } catch (_) {
+                this._allSubjects = [];
+            }
+        }
+    }
+
+    /** Level name from section — uses settings mapping first, then getLevelNameFromSection */
+    _getLocalLevelName(section) {
+        const s = String(section || '').trim();
+        if (!s) return '';
+        if (this._levelsMapping[s]) return this._levelsMapping[s];
+        return getLevelNameFromSection(s);
+    }
+
+    // ─── Populate Helpers ───
+
+    _populateAll() {
+        this._populateLevels();
+        this._refreshClasses();
+        this._refreshSubjects();
+    }
+
+    _populateLevels() {
+        const el = this._els.level;
+        if (!el) return;
+
+        // Build unique level names from the level map
+        const levelNames = new Set();
+        this._levelMap.forEach((info) => levelNames.add(info.name));
+
+        const sorted = sortLevelNames(Array.from(levelNames));
+        setSelectOptions(el, sorted.map((name) => ({ value: name, label: name })), {
+            placeholder: this._placeholders.level,
+            getValue: (o) => o.value,
+            getLabel: (o) => o.label
+        });
+    }
+
+    _refreshClasses() {
+        const el = this._els.class;
+        if (!el) return;
+
+        const selectedLevel = this._val('level');
+        const previousValue = el.value;
+        let list;
+
+        if (selectedLevel) {
+            // Filter sections by selected level name
+            list = this._allClasses.filter((name) => this._getLocalLevelName(name) === selectedLevel);
+        } else {
+            list = this._allClasses.slice();
+        }
+
+        setSelectOptions(el, sortSectionNames(list), { placeholder: this._placeholders.class });
+
+        // Restore previous value if still in the list
+        if (previousValue && Array.from(el.options).some((o) => o.value === previousValue)) {
+            el.value = previousValue;
+        }
+    }
+
+    _refreshSubjects() {
+        const el = this._els.subject;
+        if (!el) return;
+
+        const selectedLevel = this._val('level');
+        const selectedClass = this._val('class');
+        const previousValue = el.value;
+        let subjects;
+
+        if (this._config.subjectsFromGrades && this._allGradesCache.length) {
+            // Filter subjects based on selected level/class
+            subjects = buildSubjectOptionsFromGrades(this._allGradesCache, {
+                level: selectedLevel,
+                section: selectedClass,
+                getLevelName: (s) => this._getLocalLevelName(s)
+            });
+        } else {
+            // Use the full canonical subject list (no cascading filter for canonical subjects)
+            subjects = this._allSubjects;
+        }
+
+        setSelectOptions(el, subjects.map((s) => ({ value: s, label: s })), {
+            placeholder: this._placeholders.subject,
+            getValue: (o) => o.value,
+            getLabel: (o) => o.label
+        });
+
+        if (previousValue && Array.from(el.options).some((o) => o.value === previousValue)) {
+            el.value = previousValue;
+        }
+    }
+
+    // ─── Event Binding ───
+
+    _bindEvents() {
+        if (this._els.level) {
+            this._handlers.level = () => {
+                this._refreshClasses();
+                this._refreshSubjects();
+                this._fireOnChange();
+            };
+            this._els.level.addEventListener('change', this._handlers.level);
+        }
+
+        if (this._els.class) {
+            this._handlers.class = () => {
+                this._refreshSubjects();
+                this._fireOnChange();
+            };
+            this._els.class.addEventListener('change', this._handlers.class);
+        }
+
+        if (this._els.subject) {
+            this._handlers.subject = () => {
+                this._fireOnChange();
+            };
+            this._els.subject.addEventListener('change', this._handlers.subject);
+        }
+
+        if (this._els.teacher) {
+            this._handlers.teacher = () => {
+                this._fireOnChange();
+            };
+            this._els.teacher.addEventListener('change', this._handlers.teacher);
+        }
+    }
+
+    _val(key) {
+        return this._els[key]?.value || '';
+    }
+
+    _fireOnChange() {
+        if (this._onChange) this._onChange(this.getValues());
+    }
+}
+
 // ===== Auto-init =====
 document.addEventListener('DOMContentLoaded', () => {
     initSchoolYear();
@@ -2669,6 +3001,7 @@ if (typeof module !== 'undefined' && module.exports) {
         AFTERNOON_HOUR_MAP,
         CONSECUTIVE_SLOT_MAP,
         resolveSlotTime,
-        mergeConsecutivePeriods
+        mergeConsecutivePeriods,
+        FilterManager
     };
 }

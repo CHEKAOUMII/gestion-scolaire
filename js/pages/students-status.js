@@ -80,9 +80,8 @@
         document.getElementById('search-btn').addEventListener('click', loadData);
         document.getElementById('print-btn').addEventListener('click', () => window.print());
 
-        // Level change → filter sections dropdown + reload
+        // Level change → FilterManager handles section cascading, just reload data
         levelSelect.addEventListener('change', () => {
-            filterSectionsByLevel();
             loadData();
         });
 
@@ -128,76 +127,17 @@
     }
 
     // ── Data loading ──
+    let _filterManager = null;
+
     async function loadSections() {
         try {
-            const year = getSchoolYear();
-            allClasses = (await window.api.classes.getAll(year)) || [];
-
-            // Populate levels using getLevelFromSection (from utils.js)
-            const levelMap = new Map(); // levelName → { name, order }
-            allClasses.forEach((c) => {
-                const info =
-                    typeof getLevelFromSection === 'function'
-                        ? getLevelFromSection(c.name)
-                        : { name: c.name, order: 99 };
-                if (!levelMap.has(info.name)) {
-                    levelMap.set(info.name, info);
-                }
+            _filterManager = new FilterManager({
+                selectors: { level: 'level-select', class: 'section-select' }
             });
-
-            // Sort levels by educational order
-            const levelNames = Array.from(levelMap.keys());
-            const sortedLevels = typeof sortLevelNames === 'function' ? sortLevelNames(levelNames) : levelNames.sort();
-
-            levelSelect.innerHTML = '<option value="">كل المستويات</option>';
-            sortedLevels.forEach((name) => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                levelSelect.appendChild(opt);
-            });
-
-            // Populate all sections (sorted)
-            const sortedSections =
-                typeof sortSectionNames === 'function'
-                    ? sortSectionNames(allClasses.map((c) => c.name))
-                    : allClasses.map((c) => c.name).sort();
-
-            sectionSelect.innerHTML = '<option value="">كل الأقسام</option>';
-            sortedSections.forEach((name) => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                sectionSelect.appendChild(opt);
-            });
+            await _filterManager.init();
         } catch (err) {
             console.error('Failed to load sections:', err);
         }
-    }
-
-    function filterSectionsByLevel() {
-        const selectedLevel = levelSelect.value;
-        sectionSelect.innerHTML = '<option value="">كل الأقسام</option>';
-
-        let filtered = allClasses;
-        if (selectedLevel) {
-            filtered = allClasses.filter((c) => {
-                const info = typeof getLevelFromSection === 'function' ? getLevelFromSection(c.name) : { name: c.name };
-                return info.name === selectedLevel;
-            });
-        }
-
-        const sortedSections =
-            typeof sortSectionNames === 'function'
-                ? sortSectionNames(filtered.map((c) => c.name))
-                : filtered.map((c) => c.name).sort();
-
-        sortedSections.forEach((name) => {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            sectionSelect.appendChild(opt);
-        });
     }
 
     async function loadData() {

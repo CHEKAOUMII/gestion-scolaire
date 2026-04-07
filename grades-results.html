@@ -141,70 +141,39 @@
                 }
             }
 
-            // ─── Populate Filters ───
-            function populateFilters() {
-                const levelSelect = document.getElementById('level-select');
+            // ─── Populate Filters (via shared FilterManager) ───
+            let filterManager = null;
+
+            function populateStudentList() {
                 const classSelect = document.getElementById('class-select');
-
-                // Extract unique levels from students using getLevelFromSection
-                const levels = new Map(); // code → { name, order, sections[] }
-                allStudents.forEach(s => {
-                    const section = String(s.section || '').trim();
-                    if (!section) return;
-                    const levelInfo = getLevelFromSection(section);
-                    if (!levels.has(levelInfo.code)) {
-                        levels.set(levelInfo.code, { name: levelInfo.name, order: levelInfo.order, sections: [] });
-                    }
-                    const entry = levels.get(levelInfo.code);
-                    if (!entry.sections.includes(section)) entry.sections.push(section);
-                });
-
-                levelSelect.innerHTML = '<option value="">اختر المستوى</option>';
-                [...levels.entries()]
-                    .sort((a, b) => a[1].order - b[1].order)
-                    .forEach(([code, info]) => {
-                        const opt = document.createElement('option');
-                        opt.value = code;
-                        opt.textContent = info.name;
-                        levelSelect.appendChild(opt);
-                    });
-
                 const studentSelect = document.getElementById('student-select');
-
-                const populateStudentList = () => {
-                    const cls = classSelect.value;
-                    studentSelect.innerHTML = '<option value="">الكل</option>';
-                    studentSelect.disabled = !cls;
-                    if (!cls) return;
-                    allStudents
-                        .filter(s => String(s.section || '').trim() === cls)
-                        .sort((a, b) => String(a.full_name || '').localeCompare(b.full_name || '', 'ar'))
-                        .forEach(s => {
-                            const opt = document.createElement('option');
-                            opt.value = String(s.code || '').trim();
-                            opt.textContent = `${s.full_name || s.code} (${s.code})`;
-                            studentSelect.appendChild(opt);
-                        });
-                };
-
-                levelSelect.onchange = () => {
-                    const selectedLevel = levelSelect.value;
-                    classSelect.innerHTML = '<option value="">اختر القسم</option>';
-                    classSelect.disabled = !selectedLevel;
-                    studentSelect.innerHTML = '<option value="">الكل</option>';
-                    studentSelect.disabled = true;
-                    if (!selectedLevel) return;
-                    const entry = levels.get(selectedLevel);
-                    const classes = entry ? entry.sections : [];
-                    sortSectionNames(classes).forEach(cls => {
+                const cls = classSelect.value;
+                studentSelect.innerHTML = '<option value="">الكل</option>';
+                studentSelect.disabled = !cls;
+                if (!cls) return;
+                allStudents
+                    .filter(s => String(s.section || '').trim() === cls)
+                    .sort((a, b) => String(a.full_name || '').localeCompare(b.full_name || '', 'ar'))
+                    .forEach(s => {
                         const opt = document.createElement('option');
-                        opt.value = cls;
-                        opt.textContent = cls;
-                        classSelect.appendChild(opt);
+                        opt.value = String(s.code || '').trim();
+                        opt.textContent = `${s.full_name || s.code} (${s.code})`;
+                        studentSelect.appendChild(opt);
                     });
-                };
+            }
 
-                classSelect.onchange = populateStudentList;
+            async function populateFilters() {
+                try {
+                    filterManager = new FilterManager({
+                        selectors: { level: 'level-select', class: 'class-select' },
+                        placeholders: { level: 'اختر المستوى', class: 'اختر القسم' },
+                        onChange: () => populateStudentList()
+                    });
+                    await filterManager.init();
+                } catch (err) {
+                    console.warn('Failed to load filters:', err);
+                    if (typeof showToast === 'function') showToast('تعذر تحميل بيانات المستويات', 'error');
+                }
             }
 
             // ─── Generate Results ───
@@ -484,8 +453,7 @@
 
             // ─── Init ───
             async function init() {
-                await loadAllData();
-                populateFilters();
+                await Promise.all([loadAllData(), populateFilters()]);
 
                 document.getElementById('generate-btn').addEventListener('click', generateResults);
 
@@ -510,7 +478,8 @@
                 const yearEl = document.getElementById('school-year');
                 if (yearEl) yearEl.addEventListener('change', async () => {
                     await loadAllData();
-                    populateFilters();
+                    if (filterManager) { filterManager.destroy(); }
+                    await populateFilters();
                 });
             }
 

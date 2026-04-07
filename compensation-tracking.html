@@ -254,6 +254,7 @@
             }
 
             // PERIOD_MAP, CONSECUTIVE_SLOT_MAP, resolveSlotTime → loaded from utils.js
+            // Note: CONSECUTIVE_SLOT_MAP maps each slot to its next consecutive (h1→h2, etc.)
 
             function renderTopList(container, items, options) {
                 if (!container) return;
@@ -320,24 +321,38 @@
                     groups[key].push(r);
                 }
                 const merged = [];
-                for (const groupRecords of Object.values(groups)) {
-                    groupRecords.sort((a, b) => {
-                        const numA = parseInt((a.period_slot || '').toLowerCase().replace('h', ''), 10) || 0;
-                        const numB = parseInt((b.period_slot || '').toLowerCase().replace('h', ''), 10) || 0;
-                        return numA - numB;
-                    });
-                    let run = [groupRecords[0]];
-                    for (let i = 1; i < groupRecords.length; i++) {
-                        const prevSlot = (run[run.length - 1].period_slot || '').toLowerCase();
-                        const currSlot = (groupRecords[i].period_slot || '').toLowerCase();
-                        if (CONSECUTIVE_NEXT[prevSlot] === currSlot) {
-                            run.push(groupRecords[i]);
-                        } else {
-                            merged.push(buildMergedRecord(run));
-                            run = [groupRecords[i]];
+                for (const [groupKey, groupRecords] of Object.entries(groups)) {
+                    try {
+                        groupRecords.sort((a, b) => {
+                            const numA = parseInt((a.period_slot || '').toLowerCase().replace('h', ''), 10) || 0;
+                            const numB = parseInt((b.period_slot || '').toLowerCase().replace('h', ''), 10) || 0;
+                            return numA - numB;
+                        });
+                        let run = [groupRecords[0]];
+                        for (let i = 1; i < groupRecords.length; i++) {
+                            const prevSlot = (run[run.length - 1].period_slot || '').toLowerCase();
+                            const currSlot = (groupRecords[i].period_slot || '').toLowerCase();
+                            if (CONSECUTIVE_SLOT_MAP[prevSlot] === currSlot) {
+                                run.push(groupRecords[i]);
+                            } else {
+                                merged.push(buildMergedRecord(run));
+                                run = [groupRecords[i]];
+                            }
+                        }
+                        merged.push(buildMergedRecord(run));
+                    } catch (mergeErr) {
+                        const parts = groupKey.split('|');
+                        const ctx = `التاريخ: ${parts[0] || '?'}, الأستاذ: ${parts[1] || '?'}, القسم: ${parts[2] || '?'}`;
+                        console.error(`[CompTracking] خطأ في دمج الحصص المتتابعة (${ctx}):`, mergeErr);
+                        // Fall back: add records un-merged so the page still works
+                        for (const r of groupRecords) {
+                            merged.push({
+                                ...r,
+                                period_time: resolveSlotTime(r.period_slot, r.period_time),
+                                ids: [r.id]
+                            });
                         }
                     }
-                    merged.push(buildMergedRecord(run));
                 }
                 return merged;
             }
@@ -552,13 +567,13 @@
                 }
             }
 
-            document.addEventListener('DOMContentLoaded', () => {
+            document.addEventListener('DOMContentLoaded', async () => {
                 // Set default date range
                 document.getElementById('filter-date-from').value = thirtyDaysAgo();
                 document.getElementById('filter-date-to').value = todayStr();
 
-                // Populate teacher/section filters
-                populateFilters();
+                // Populate teacher/section/subject filters
+                await populateFilters();
 
                 // Load data
                 loadTrackingData();
@@ -658,6 +673,8 @@
                 });
             });
 
+            let _compFilterManager = null;
+
             async function populateFilters() {
                 try {
                     loadedTeachers = await window.api.teachers.getAll(year);
@@ -665,76 +682,19 @@
                     console.warn('Could not load teachers for filter:', e);
                 }
 
-                // Populate sections from timetable or grades
+                // Use FilterManager for section + subject (unified DB source)
                 try {
-                    const sectionSet = new Set();
-                    const raw = localStorage.getItem('timetableData');
-                    if (raw) {
-                        const ttData = JSON.parse(raw);
-                        if (ttData && ttData.timetables) {
-                            for (const teacher of Object.values(ttData.timetables)) {
-                                for (const day of Object.values(teacher)) {
-                                    if (!day || typeof day !== 'object') continue;
-                                    for (const period of Object.values(day)) {
-                                        if (!period || typeof period !== 'object') continue;
-                                        for (const lesson of Object.values(period)) {
-                                            if (lesson && lesson.students) {
-                                                sectionSet.add(lesson.students.trim());
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                    _compFilterManager = new FilterManager({
+                        selectors: { class: 'filter-section', subject: 'filter-subject' },
+                        placeholders: { class: 'الكل', subject: 'الكل' },
+                        onChange: (values) => {
+                            // When subject changes, filter teachers accordingly
+                            updateTeacherDropdown(values.subject || '');
                         }
-                    }
-                    const sectionSelect = document.getElementById('filter-section');
-                    [...sectionSet].sort().forEach((s) => {
-                        const opt = document.createElement('option');
-                        opt.value = s;
-                        opt.textContent = s;
-                        sectionSelect.appendChild(opt);
                     });
-                } catch (e) {
-                    console.warn('Could not load sections:', e);
-                }
-
-                // Populate subjects from timetable
-                try {
-                    const subjectSet = new Set();
-                    const raw = localStorage.getItem('timetableData');
-                    if (raw) {
-                        const ttData = JSON.parse(raw);
-                        if (ttData && ttData.timetables) {
-                            for (const teacher of Object.values(ttData.timetables)) {
-                                for (const day of Object.values(teacher)) {
-                                    if (!day || typeof day !== 'object') continue;
-                                    for (const period of Object.values(day)) {
-                                        if (!period || typeof period !== 'object') continue;
-                                        for (const lesson of Object.values(period)) {
-                                            if (lesson && lesson.subject) {
-                                                subjectSet.add(lesson.subject.trim());
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    const subjectSelect = document.getElementById('filter-subject');
-                    [...subjectSet]
-                        .sort((a, b) => a.localeCompare(b, 'ar'))
-                        .forEach((s) => {
-                            const opt = document.createElement('option');
-                            opt.value = s;
-                            opt.textContent = s;
-                            subjectSelect.appendChild(opt);
-                        });
-
-                    subjectSelect.addEventListener('change', () => {
-                        updateTeacherDropdown(subjectSelect.value);
-                    });
-                } catch (e) {
-                    console.warn('Could not load subjects:', e);
+                    await _compFilterManager.init();
+                } catch (err) {
+                    console.warn('Failed to init FilterManager:', err);
                 }
 
                 // Initialize teachers dropdown
@@ -879,10 +839,13 @@
 
                     applyFilters();
                 } catch (err) {
+                    const detail = err instanceof ReferenceError
+                        ? `خطأ مرجعي: ${err.message}`
+                        : err.message || 'خطأ غير معروف';
                     console.error('Error loading tracking data:', err);
                     allRecords = [];
                     applyFilters();
-                    showToast(err.message || 'خطأ في تحميل بيانات التتبع', 'error');
+                    showToast(`خطأ في تحميل بيانات التتبع: ${detail}`, 'error');
                 }
             }
 

@@ -15,6 +15,7 @@ let selectedTeacherName = '';
 const charts = {};
 const sortState = { key: 'passRate', direction: 'desc' };
 let currentSubjectFilter = '';
+let _filterManager = null;
 
 const gradeBands = [
     { label: 'ممتاز (16-20)', min: 16, max: 20, color: 'rgba(47, 179, 109, 0.85)' },
@@ -50,27 +51,30 @@ function bindEvents() {
     if (analyzeBtn) analyzeBtn.addEventListener('click', () => runAnalysis());
     if (resetBtn)
         resetBtn.addEventListener('click', () => {
-            [levelFilter, classFilter, subjectFilter, semesterFilter, teacherFilter].forEach((s) => {
+            if (_filterManager) _filterManager.reset();
+            [semesterFilter, teacherFilter].forEach((s) => {
                 if (s) s.value = '';
             });
             selectedTeacherName = '';
-            renderClassFilter();
-            renderSubjectFilter();
             renderSemesterFilter();
             renderTeacherFilter();
             runAnalysis();
         });
 
+    // Level/Class/Subject cascading handled by FilterManager.
+    // Page-specific: sync semester and teacher on level/class/subject change.
     if (levelFilter)
         levelFilter.addEventListener('change', () => {
-            renderClassFilter();
-            renderSubjectFilter();
             renderSemesterFilter();
             renderTeacherFilter();
         });
     if (classFilter)
         classFilter.addEventListener('change', () => {
-            renderSubjectFilter();
+            renderSemesterFilter();
+            renderTeacherFilter();
+        });
+    if (subjectFilter)
+        subjectFilter.addEventListener('change', () => {
             renderSemesterFilter();
             renderTeacherFilter();
         });
@@ -129,24 +133,33 @@ async function getCurrentYear() {
 
 async function loadInitialData() {
     const year = await getCurrentYear();
-    const [gradesRaw, levelsMappingRaw, absencesRaw] = await Promise.all([
-        window.api.grades.getAll(year),
-        window.api.settings.get('levelsMapping'),
-        window.api.absences?.getAll?.(year).catch(() => []) ?? Promise.resolve([])
-    ]);
+
+    // Use FilterManager for Level → Class → Subject (from grades)
+    _filterManager = new FilterManager({
+        selectors: {
+            level: 'tp-level-filter',
+            class: 'tp-class-filter',
+            subject: 'tp-subject-filter'
+        },
+        subjectsFromGrades: true,
+        year
+    });
+    await _filterManager.init();
+
+    // Sync caches from FilterManager
+    const fmData = _filterManager.getData();
+    allGradesCache = fmData.grades;
+    sectionToLevel = _filterManager._levelsMapping || {};
+
+    // Enrich grades cache with computed fields
+    const absencesRaw = await window.api.absences?.getAll?.(year).catch(() => []) ?? [];
     allAbsencesCache = (absencesRaw || []).map((a) => ({
         ...a,
         _hours: Number(a.hours) || 0,
         _section: String(a.section || '').trim()
     }));
 
-    try {
-        sectionToLevel = levelsMappingRaw ? JSON.parse(levelsMappingRaw) : {};
-    } catch (_) {
-        sectionToLevel = {};
-    }
-
-    allGradesCache = (gradesRaw || [])
+    allGradesCache = allGradesCache
         .map((grade) => {
             const value = Number(grade.grade);
             if (!Number.isFinite(value)) return null;
@@ -171,80 +184,12 @@ async function loadInitialData() {
         })
         .filter(Boolean);
 
-    renderLevelFilter();
-    renderClassFilter();
-    renderSubjectFilter();
     renderSemesterFilter();
     renderTeacherFilter();
 }
 
-/* ─── Filter Renderers ─── */
-function renderLevelFilter() {
-    const select = document.getElementById('tp-level-filter');
-    if (!select) return;
-    const previous = select.value;
-    const levels = sortLevelNames(Array.from(new Set(allGradesCache.map((g) => g._level).filter(Boolean))));
-    select.innerHTML = '<option value="">كل المستويات</option>';
-    levels.forEach((level) => {
-        const o = document.createElement('option');
-        o.value = level;
-        o.textContent = level;
-        select.appendChild(o);
-    });
-    if (previous && levels.includes(previous)) select.value = previous;
-}
-
-function renderClassFilter() {
-    const level = document.getElementById('tp-level-filter')?.value || '';
-    const s = document.getElementById('tp-class-filter');
-    if (!s) return;
-    const prev = s.value;
-    const classes = Array.from(
-        new Set(
-            allGradesCache
-                .filter((g) => !level || g._level === level)
-                .map((g) => String(g.section || '').trim())
-                .filter(Boolean)
-        )
-    ).sort((a, b) => {
-        const infoA = getLevelFromSection(a);
-        const infoB = getLevelFromSection(b);
-        if (infoA.order !== infoB.order) return infoA.order - infoB.order;
-        return a.localeCompare(b, 'ar');
-    });
-    s.innerHTML = '<option value="">كل الأقسام</option>';
-    classes.forEach((c) => {
-        const o = document.createElement('option');
-        o.value = c;
-        o.textContent = c;
-        s.appendChild(o);
-    });
-    if (prev && classes.includes(prev)) s.value = prev;
-}
-
-function renderSubjectFilter() {
-    const level = document.getElementById('tp-level-filter')?.value || '';
-    const className = document.getElementById('tp-class-filter')?.value || '';
-    const s = document.getElementById('tp-subject-filter');
-    if (!s) return;
-    const prev = s.value;
-    const subjects = Array.from(
-        new Set(
-            allGradesCache
-                .filter((g) => (!level || g._level === level) && (!className || String(g.section || '') === className))
-                .map((g) => g._subject)
-                .filter(Boolean)
-        )
-    ).sort(typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar'));
-    s.innerHTML = '<option value="">كل المواد</option>';
-    subjects.forEach((sub) => {
-        const o = document.createElement('option');
-        o.value = sub;
-        o.textContent = sub;
-        s.appendChild(o);
-    });
-    if (prev && subjects.includes(prev)) s.value = prev;
-}
+// renderLevelFilter, renderClassFilter, renderSubjectFilter are now handled by FilterManager.
+// Only renderSemesterFilter and renderTeacherFilter remain page-specific.
 
 function renderSemesterFilter() {
     const level = document.getElementById('tp-level-filter')?.value || '';
@@ -291,9 +236,8 @@ function renderTeacherFilter() {
 }
 
 /* ─── Utility Functions ─── */
-// Level normalization: uses shared dictionary from utils.js (getLevelNameFromSection)
-// Note: getLevelNameFromSection is loaded globally from utils.js
 function _getLocalLevelName(section) {
+    if (_filterManager) return _filterManager._getLocalLevelName(section);
     const s = String(section || '').trim();
     if (!s) return '';
     if (sectionToLevel[s]) return sectionToLevel[s];

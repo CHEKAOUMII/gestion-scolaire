@@ -180,6 +180,46 @@ Shared functions and constants for converting period slot labels (H1, H2, etc.) 
 - **Always use `resolveSlotTime()`** before displaying any `period_time` or `period_slot` value from the database — stored values may be slot labels instead of actual times.
 - **Always use `mergeConsecutivePeriods()`** when displaying teacher/student/room schedules — pass `{time, section}` objects to prevent incorrect merging across different classes.
 
+### FilterManager (mandatory for all filtering and dropdowns)
+
+Whenever you create a new page, update an existing one, or implement dropdown filters for levels, classes (sections), subjects, or teachers, you MUST use the unified `FilterManager` class from `js/utils.js`.
+
+**Why?** To ensure a **single source of truth** across the entire application. Previously, pages parsed local storage, FET data, or implemented custom manual logic to get classes and subjects. Now, `FilterManager` acts as the standard, fetching from the unified database via `window.api.classes.getAll()` and `window.api.subjects.getAll()`.
+
+**Usage Pattern:**
+```js
+// 1. Ensure you have HTML selects with appropriate IDs
+// <select id="level-filter"></select>
+// <select id="class-filter"></select>
+
+// 2. Initialize in your JS file
+let fm = new FilterManager({
+    selectors: {
+        level: 'level-filter',
+        class: 'class-filter',
+        subject: 'subject-filter', // omit if not needed on this page
+        teacher: 'teacher-filter'  // omit if not needed
+    },
+    placeholders: {
+        level: 'كل المستويات',
+        class: 'كل الأقسام'
+    },
+    // Useful for results/analytics: if true, fetch subjects only from grades, not subjects API
+    // subjectsFromGrades: true,
+    onChange: (values) => {
+        // Automatically called when any dropdown changes.
+        // values = { level: '...', class: '...', subject: '...', teacher: '...' }
+        loadDataOrRenderTable(); 
+    }
+});
+await fm.init();
+```
+
+**Critical Rules:**
+- NEVER write manual `classSelect.innerHTML = ...` loops.
+- NEVER parse `localStorage.getItem('timetableData')` just to build a list of sections or subjects.
+- ALWAYS use `FilterManager` for Level → Section cascading logic.
+
 ### Environment Variables
 
 `.env` is gitignored. Required values: `GH_TOKEN` (auto-updater GitHub Releases), `OWNER_SYNC_WRITE_TOKEN` / `OWNER_SYNC_READ_TOKEN` (telemetry server).

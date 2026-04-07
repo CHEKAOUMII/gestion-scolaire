@@ -437,6 +437,8 @@
                 sortDir: 'asc'
             };
 
+            let _absFilterManager = null;
+
             let chartLoaderPromise = null;
 
             /* ===== Chart Theme Helper ===== */
@@ -556,6 +558,13 @@
                     applyGlobalChartDefaults();
                     wireEvents();
                     await loadData();
+                    // Init FilterManager for level/section dropdowns
+                    _absFilterManager = new FilterManager({
+                        selectors: { level: 'lv', class: 'c' },
+                        placeholders: { level: 'كل المستويات', class: 'كل الأقسام' },
+                        onChange: () => render()
+                    });
+                    await _absFilterManager.init();
                     initFilters();
                     restoreFiltersFromUrl();
                     render();
@@ -580,37 +589,20 @@
                     e.preventDefault();
                     appState.schoolYear = getEl('y').value || SCHOOL_YEAR;
                     await loadData();
+                    // Reinit FilterManager with new year data
+                    if (_absFilterManager) _absFilterManager.destroy();
+                    _absFilterManager = new FilterManager({
+                        selectors: { level: 'lv', class: 'c' },
+                        placeholders: { level: 'كل المستويات', class: 'كل الأقسام' },
+                        onChange: () => render()
+                    });
+                    await _absFilterManager.init();
                     render();
                 };
 
-                // Level ? Section cascade
-                levelSelect.onchange = () => {
-                    const selectedLevel = levelSelect.value;
-                    const sectionEl = getEl('c');
-                    const currentSection = sectionEl.value;
-
-                    const allSections = Array.from(
-                        new Set(
-                            (appState.classes || [])
-                                .map((x) => String(x.name || x.class_name || '').trim())
-                                .filter(Boolean)
-                        )
-                    ).concat(Array.from(new Set(appState.rows.map((x) => x.section).filter(Boolean))));
-
-                    const uniqueSections = sortSectionNames(Array.from(new Set(allSections)));
-                    const filtered = selectedLevel
-                        ? uniqueSections.filter((s) => extractLevel(s) === selectedLevel)
-                        : uniqueSections;
-
-                    sectionEl.innerHTML =
-                        '<option value="">\u0643\u0644 \u0627\u0644\u0623\u0642\u0633\u0627\u0645</option>' +
-                        filtered.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-
-                    if (filtered.includes(currentSection)) sectionEl.value = currentSection;
-                    render();
-                };
-
-                [monthSelect, sectionSelect, typeSelect].forEach((el) => {
+                // Level ↔ Section cascade handled by FilterManager
+                // Only bind non-FilterManager filters here
+                [monthSelect, typeSelect].forEach((el) => {
                     if (el) el.onchange = render;
                 });
 
@@ -713,42 +705,7 @@
                     );
 
                     appState.rows = (absences || []).map(normalizeRow);
-
-                    // Build sections list for dropdown
-                    const sectionsSet = new Set();
-                    appState.classes.forEach((x) => {
-                        const name = String(x.name || x.class_name || '').trim();
-                        if (name) sectionsSet.add(name);
-                    });
-                    appState.students.forEach((x) => {
-                        const name = String(x.class_name || x.section || '').trim();
-                        if (name) sectionsSet.add(name);
-                    });
-                    appState.rows.forEach((x) => {
-                        if (x.section) sectionsSet.add(x.section);
-                    });
-
-                    const sortedSections = sortSectionNames(Array.from(sectionsSet));
-
-                    getEl('c').innerHTML =
-                        '<option value="">كل الأقسام</option>' +
-                        sortedSections.map((x) => `<option>${escapeHtml(x)}</option>`).join('');
-
-                    // Dynamically populate levels dropdown
-                    const levelsSet = new Set();
-                    sortedSections.forEach((sec) => {
-                        const extracted = extractLevel(sec);
-                        if (extracted) levelsSet.add(extracted);
-                    });
-
-                    const levelSelect = getEl('lv');
-                    const currentLevel = levelSelect.value;
-                    levelSelect.innerHTML =
-                        '<option value="">كل المستويات</option>' +
-                        sortLevelNames(Array.from(levelsSet))
-                            .map((lv) => `<option value="${escapeHtml(lv)}">${escapeHtml(lv)}</option>`)
-                            .join('');
-                    if (currentLevel) levelSelect.value = currentLevel;
+                    // Level/section dropdowns are managed by FilterManager
                 } finally {
                     showLoading(false);
                 }
