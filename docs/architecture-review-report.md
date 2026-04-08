@@ -169,3 +169,113 @@ The `updater:checkForUpdates`, `updater:downloadUpdate`, and `updater:installUpd
 
 ### Summary
 Channel parity is solid: the 170-channel contract between `preload.js` and handler files is enforced by an automated smoke test that prevents drift. The helper wrappers (`handleRead`, `handleWrite`, `handleWriteSoftAuth`) are well designed and used correctly in 10 of 17 handler files, but 7 files (accounting for 56 of ~170 handlers) bypass them entirely with raw `ipcMain.handle()` calls. The most actionable finding is that `reports:updateIdentity` is an unprotected write channel that should have admin-only auth. The direct `getDb()` imports in `auth.js` and `system.js` and the manual soft-auth reimplementation in `system.js` are structural inconsistencies that should be addressed in a consolidation pass to prevent the pattern from eroding further as new features are added.
+
+---
+
+## 3. Database Layer
+
+### Tables Inventory
+
+**Domain tables** (should have `school_year` as partition key):
+
+| Table | Has school_year | UNIQUE constraint | school_year in index |
+|---|---|---|---|
+| students | YES | UNIQUE(code, school_year) | YES (idx_students_year, idx_students_code_year) |
+| grades | YES | UNIQUE idx (student_code, subject, semester, school_year) via migration 016 | YES (idx_grades_year_code, idx_grades_year_subject, idx_grades_year_teacher) |
+| absences | YES | UNIQUE idx (student_code, month, school_year, absence_type) via migration 017 | YES (idx_absences_year_code, idx_absences_year_month) |
+| correspondence | YES | None | YES (idx_correspondence_year) |
+| student_files | YES | UNIQUE(student_id, doc_key, school_year) | Via UNIQUE constraint only -- no standalone index |
+| student_movements | YES | None | **NO** |
+| teachers | YES | Partial UNIQUE(ppr, school_year) WHERE ppr IS NOT NULL | YES (idx_teachers_year, idx_teachers_ppr_year) |
+| teacher_aliases | YES (NOT NULL) | UNIQUE(teacher_id, school_year, alias_normalized) | YES (idx_teacher_aliases_lookup, idx_teacher_aliases_teacher) |
+| teacher_absences | YES | None | **NO** |
+| staff_attendance | YES | None | YES (idx_staff_attendance_year, idx_staff_attendance_date) |
+| exams | YES | None | **NO** |
+| exam_proctors | YES | None | **NO** |
+| exam_rooms | YES | None | **NO** |
+| tests | YES | None | YES (idx_tests_year_teacher) |
+| school_events | YES (NOT NULL) | None | YES (idx_school_events_date) |
+| compensation_tracking | YES (NOT NULL) | UNIQUE(absence_date, teacher_name, section, period_slot, school_year) | YES (idx_compensation_date_year, idx_compensation_pending, idx_compensation_year_teacher) |
+| support_sessions | YES (NOT NULL) | UNIQUE idx (teacher_id, session_date, time_from, section, school_year) | YES (idx_support_sessions_year, idx_support_sessions_teacher) |
+| name_aliases | YES (nullable) | UNIQUE(entity_type, alias_normalized, school_year) | YES (idx_name_aliases_lookup) |
+| timetable_data | YES (NOT NULL) | UNIQUE(school_year) | Via UNIQUE constraint only |
+| notifications | **NO** | None (TEXT PK on id) | **NO** |
+
+**System/config/meta tables** (school_year not expected -- 22 tables):
+`settings`, `system_logs`, `users`, `schema_migrations`, `school_identity`, `app_meta`, `page_visibility`, `license_plans`, `licenses`, `license_activations`, `license_events`, `owner_sync_config`, `owner_sync_outbox`, `sync_outbox` (has school_year), `sync_id_map`, `sync_config`, `sync_pull_state`, `sync_conflicts`, `sync_snapshots`, `institution_config`, `device_otp`, `linked_devices`
+
+**Total: 42 tables** (20 domain + 22 system/config).
+
+### Migration Health
+- Total migrations: **44**
+- All use `ensureColumn()`: **NO** -- 2 exceptions:
+  - Migration `2026-03-020` (`staff_attendance.teacher_name`): raw `ALTER TABLE ADD COLUMN` with try/catch
+  - Migration `2026-03-021` (`staff_attendance.subject`): raw `ALTER TABLE ADD COLUMN` with try/catch
+- DDL duplicated from schema.js: **YES** -- 5 instances:
+  - `teacher_aliases` table: `schema.js`:153-165 and migration 028:438-449
+  - `teacher_aliases` indexes: `schema.js`:332-333 and migration 028:450-454
+  - `idx_teachers_ppr_year`: `schema.js`:350-352 and migration 023:353-357
+  - `idx_grades_year_teacher`: `schema.js`:339 and migration 028:456
+  - `idx_tests_year_teacher`: `schema.js`:343 and migration 028:457
+  - (All guarded by `IF NOT EXISTS` so no runtime errors, but conceptually duplicated)
+- Additionally, `schema.js` `createTables()` calls the same `ensure*Schema()` helpers that migrations 008, 010, 012, 035, 039 also call (licensing, owner sync, page visibility, institution). Safe due to idempotence, but creates double-execution on new installs.
+- Version strings unique: **YES** (all 44 are distinct)
+- Version numbering inconsistencies:
+  - `2026-03-14` lacks zero-padding (should be `2026-03-014` per the convention of other entries)
+  - Sequence numbers 037 and 043 are skipped (036 jumps to 038; 042 jumps to 044)
+  - `2026-03-29-support-sessions` and `2026-03-29-support-sessions-unique` break the sequence-number convention by using a date-based suffix
+
+### Init Checklist
+- [x] `journal_mode = WAL` -- **PASS** (`init.js`:14)
+- [x] `foreign_keys = ON` -- **PASS** (`init.js`:15)
+- [x] Init order `createTables()` then `runMigrations()` -- **PASS** (`init.js`:20-21)
+- [x] True DB singleton -- **PASS** (`context.js`:4 module-level `let db = null`; `setDb()` / `getDb()` with throw-on-null guard; `init.js`:17 calls `setDb(db)` once)
+- [x] DB path uses `userData` -- **PASS** (`context.js`:16 `app.getPath('userData')`)
+
+### Findings
+
+**🟢 Good -- `context.js`:10-12 -- Singleton enforced with a throw guard.**
+`getDb()` throws `'Database is not initialized'` if called before `setDb()`. This prevents silent null-reference errors and ensures no handler can operate on an uninitialized database.
+
+**🟢 Good -- `init.js`:23-41 -- Robust error recovery on init failure.**
+If database initialization fails, the catch block closes the database handle (line 27-30), resets the singleton to null via `setDb(null)` (line 35), and re-throws. This prevents a half-initialized database from leaking into the application.
+
+**🟢 Good -- `schema.js`:660-667 -- `ensureColumn()` helper provides idempotent column additions.**
+The `PRAGMA table_info()` check-before-alter pattern prevents duplicate `ALTER TABLE` errors on repeat runs. This is the correct approach for forward-only migrations without rollback support.
+
+**🟢 Good -- `migrations.js`:824-846 -- Migration runner is forward-only with Set-based de-duplication.**
+Applied versions are loaded into a `Set` before iteration, and the `applyMigration` transaction wrapper ensures each migration is recorded atomically with its execution. The `recordsVersionInternally` escape hatch (used by migration 019) is well-documented and necessary for the table-rename transaction.
+
+**🟢 Good -- `migrations.js`:153-249 -- Unique constraint migrations (016, 017, 018) handle NULL coercion and duplicate cleanup.**
+Before creating UNIQUE indexes on `grades` and `absences`, these migrations coerce NULL values to empty strings/defaults and delete duplicate rows, keeping only the latest. Migration 018 serves as a repair pass in case 016/017 partially failed. This is a careful, production-safe approach.
+
+**🟠 Important -- `schema.js`:306,319 -- Admin password logged to console in plaintext.**
+Lines 306 and 319 write the initial and reset admin passwords to the console via `console.log()`. In a packaged Electron app, stdout may be captured to log files stored on disk. The password should be communicated through a secure UI prompt (e.g., a dialog shown to the operator) rather than logged.
+
+**🟠 Important -- 5 domain tables missing `school_year` index.**
+`student_movements`, `teacher_absences`, `exams`, `exam_proctors`, and `exam_rooms` all have a `school_year` column but no index that includes it. Since the project convention is that "almost every query filters by school_year," these tables will perform full table scans on year-filtered queries. While these tables are likely small, the missing indexes break the architectural pattern established for all other domain tables.
+
+**🟠 Important -- `notifications` table missing `school_year` column (`migrations.js`:132-150).**
+The `notifications` table (migration 015) is a user-facing domain entity but has no `school_year` column. Notifications will accumulate across school years with no way to partition or purge them by year. This violates the rule that "every main table must have school_year TEXT as a partition key."
+
+**🟡 Minor -- `migrations.js`:305-325 -- Migrations 020 and 021 use raw `ALTER TABLE` instead of `ensureColumn()`.**
+Both wrap the ALTER in a try/catch to handle the "column already exists" case. This achieves the same idempotency as `ensureColumn()` but through a different mechanism. All other column-addition migrations use `ensureColumn()`. These two should be refactored for consistency, though the current code is functionally correct.
+
+**🟡 Minor -- Version numbering inconsistencies across 44 migrations.**
+Three categories of inconsistency: (1) `2026-03-14` lacks zero-padding while neighbors use three-digit sequences; (2) sequence numbers 037 and 043 are skipped; (3) `2026-03-29-support-sessions` and `2026-03-29-support-sessions-unique` use date-based naming instead of sequenced numbers. While all version strings are unique and the migration runner is order-independent (it skips already-applied versions), the inconsistent naming makes it harder to reason about migration ordering at a glance.
+
+**🟡 Minor -- DDL duplication between `schema.js` and `migrations.js` for 5 objects.**
+The `teacher_aliases` table and its two indexes, plus `idx_teachers_ppr_year`, `idx_grades_year_teacher`, and `idx_tests_year_teacher` are defined in both `createTables()` and in migrations. The `schema.js` versions are guarded by `CREATE ... IF NOT EXISTS` or wrapped in try/catch (lines 338-355), so no runtime errors occur. But maintaining the same DDL in two places creates a risk of silent divergence if one copy is updated and the other is not.
+
+**🟡 Minor -- `schema.js`:279-280 -- `ensureColumn` calls for columns already in the CREATE TABLE.**
+`ensureColumn('users', 'password_hash', 'TEXT')` and `ensureColumn('users', 'must_change_password', ...)` are called immediately after the `CREATE TABLE IF NOT EXISTS users(...)` statement that already defines both columns. The comment on line 278 explains the intent ("Backward-compatibility for existing databases created before password auth"), which is valid for upgrades, but on new installs these are no-ops adding unnecessary startup overhead.
+
+**🟡 Minor -- `schema.js`:660-666 -- `ensureColumn()` uses string interpolation for SQL identifiers.**
+The `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}` pattern does not validate or quote the table/column names. While all callers pass developer-supplied string literals (never user input), the function has no guard against accidental misuse. Wrapping identifiers in double-quotes (`"${table}"`) would add defense-in-depth at no cost.
+
+**🟡 Minor -- `migrations.js`:428-542 -- Migration 028 is oversized.**
+This single migration creates a table, adds 3 columns, creates 5 indexes, and performs a data migration across 3 domain tables (grades, tests, compensation_tracking) with teacher identity resolution. If the data migration fails (e.g., on a large database), the entire table/column/index creation is rolled back. Splitting the DDL changes from the data backfill into separate migrations would improve resilience.
+
+### Summary
+
+The database layer is structurally sound. The singleton pattern, init sequence, pragma configuration, and migration runner all follow the documented conventions correctly. The `ensureColumn()` helper and idempotent `IF NOT EXISTS` guards make the schema resilient to repeated runs. The two most actionable findings are: (1) admin passwords logged in plaintext to console during initial setup and password-reset recovery, which should use a UI prompt instead; and (2) five domain tables (`student_movements`, `teacher_absences`, `exams`, `exam_proctors`, `exam_rooms`) and the `notifications` table lack the `school_year` indexing or column that the architecture requires. The DDL duplication between `schema.js` and `migrations.js` is safe due to idempotency guards but should be consolidated to prevent future divergence.
