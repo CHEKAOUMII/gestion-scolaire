@@ -347,3 +347,187 @@ When the primary signing secret does not verify a license key, `decodeOfflineLic
 ### Summary
 
 The auth and licensing security implementation is well-executed across all critical requirements. Password hashing correctly uses `crypto.scryptSync` with random per-password salts and `timingSafeEqual` for comparison -- no `===` hash comparisons exist anywhere. License key signing uses HMAC-SHA256 with a secret that is never hardcoded in source: it is sourced from an environment variable or a per-installation auto-generated file. Telemetry credentials default to empty strings and are sourced from environment variables. No critical or important findings were identified. The minor findings -- Windows file permission semantics, module-level secret caching, public `saltHex` parameter, activation-only signature verification, and the fallback verification path -- are all low-risk items appropriate for a hardening pass rather than urgent remediation.
+
+---
+
+## 5. Renderer Architecture
+
+### Scope
+
+Audited all 24 files in `js/pages/`, plus the three shared renderer modules (`js/utils.js`, `js/message-system.js`, `js/ux-enhancements.js`). Each page file was checked against seven violation categories mandated by `CLAUDE.md`.
+
+### Shared Module Verification
+
+| Global | File | Line | Status |
+|---|---|---|---|
+| `PERIOD_MAP` | `js/utils.js` | 2552 | PRESENT -- maps `h1`-`h8` and `H1`-`H8` to absolute time strings |
+| `MORNING_HOUR_MAP` | `js/utils.js` | 2564 | PRESENT -- maps `H1`-`H4` to morning times |
+| `AFTERNOON_HOUR_MAP` | `js/utils.js` | 2570 | PRESENT -- maps `H1`-`H4` to afternoon times |
+| `resolveSlotTime()` | `js/utils.js` | 2582 | PRESENT -- slot label to time string with fallback |
+| `mergeConsecutivePeriods()` | `js/utils.js` | 2598 | PRESENT -- merges consecutive time periods with section awareness |
+| `FilterManager` | `js/utils.js` | 2640 | PRESENT -- unified dropdown filtering class using `window.api.classes.getAll()` and `window.api.subjects.getAll()` |
+| `showConfirm()` | `js/message-system.js` | exported | PRESENT -- Promise-based confirmation dialog |
+| `showToast()` | `js/ux-enhancements.js` | exported | PRESENT -- standard toast notification with `.loading()` and `.action()` variants |
+| `setFieldValidation()` | `js/message-system.js` | exported | PRESENT -- inline form field validation |
+
+All six required `utils.js` globals and all three `message-system.js` / `ux-enhancements.js` globals are present and correctly implemented.
+
+### Violation Matrix
+
+| # | Page file | V1: Local PERIOD_MAP copy | V2: localStorage for dropdowns | V3: No FilterManager | V4: Raw alert/confirm/prompt | V5: Delete without showConfirm | V6: No pagination | V7: Delete without edit |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `dashboard-init.js` | -- | -- | N/A | **YES** (prompt, L16) | -- | N/A | N/A |
+| 2 | `grades-sheets.js` | -- | -- | PASS | -- | -- | PASS | N/A |
+| 3 | `analytics.js` | -- | -- | PASS | -- | -- | N/A | N/A |
+| 4 | `students-list.js` | -- | -- | PASS | -- | -- | PASS (PAGE_SIZE=25) | N/A |
+| 5 | `students-status.js` | -- | -- | PASS | -- | -- | **YES** | N/A |
+| 6 | `student-profile.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+| 7 | `teachers-list.js` | -- | -- | PASS | -- | PASS | PASS (PAGE_SIZE=20) | PASS |
+| 8 | `teachers-performance.js` | -- | -- | PASS | -- | -- | **YES** | N/A |
+| 9 | `timetable.js` | **YES** (L1661-1662) | -- | N/A | -- | PASS | N/A | N/A |
+| 10 | `timetable-rooms.js` | **YES** (L8-13) | -- | N/A | -- | -- | N/A | N/A |
+| 11 | `timetable-students.js` | **YES** (L8-13) | -- | N/A | -- | -- | N/A | N/A |
+| 12 | `timetable-redistribution.js` | **YES** (L770-774) | -- | N/A | -- | -- | PASS (PAGE_SIZE=20) | N/A |
+| 13 | `support-sessions.js` | -- | -- | PASS | -- | PASS | PASS (PER_PAGE=20) | **YES** (L417) |
+| 14 | `settings-imports.js` | -- | -- | N/A | **YES** (alert, L501) | PASS | N/A | N/A |
+| 15 | `settings-school.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+| 16 | `settings-users.js` | -- | -- | N/A | -- | -- | N/A | Partial |
+| 17 | `settings-license.js` | -- | -- | N/A | -- | PASS | N/A | N/A |
+| 18 | `settings-sync.js` | -- | -- | N/A | -- | PASS | PASS (pageSize=50) | N/A |
+| 19 | `settings-license-guard.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+| 20 | `settings-users-guard.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+| 21 | `setup.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+| 22 | `login.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+| 23 | `reports-forms.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+| 24 | `reports-certificates.js` | -- | -- | N/A | -- | -- | N/A | N/A |
+
+**Legend:** `--` = not applicable / not present; `N/A` = check does not apply to this page type; `PASS` = compliant; `Partial` = partially compliant (see findings); `YES` = violation found (bold).
+
+### Violation Counts
+
+| Category | Files affected | Total |
+|---|---|---|
+| V1: Local PERIOD_MAP / hour-map duplication | timetable.js, timetable-rooms.js, timetable-students.js, timetable-redistribution.js | **4** |
+| V2: localStorage timetableData for dropdown population | (none) | **0** |
+| V3: Missing FilterManager where needed | (none -- justified exceptions) | **0** |
+| V4: Raw alert / confirm / prompt | dashboard-init.js, settings-imports.js | **2** |
+| V5: Delete without showConfirm | (none) | **0** |
+| V6: Missing pagination on data tables | students-status.js, teachers-performance.js | **2** |
+| V7: Delete button without sibling edit button | support-sessions.js | **1** |
+
+**Additional violation (not in the original seven):**
+| Category | Files affected | Total |
+|---|---|---|
+| Local showToast shadow overriding global | timetable.js | **1** |
+
+### Findings
+
+**V1: Local PERIOD_MAP / hour-map duplication (4 files)**
+
+**[IMPORTANT] `timetable-rooms.js`:8-13 -- `defaultHourLabels` duplicates `MORNING_HOUR_MAP`.**
+```js
+const defaultHourLabels = {
+    H1: '08:30-09:30',
+    H2: '09:30-10:30',
+    H3: '10:30-11:30',
+    H4: '11:30-12:30'
+};
+```
+This is identical to the `MORNING_HOUR_MAP` global from `js/utils.js`. If the school's morning schedule ever changes, this local copy will be stale. Replace with `const defaultHourLabels = MORNING_HOUR_MAP;`.
+
+**[IMPORTANT] `timetable-students.js`:8-13 -- Identical `defaultHourLabels` duplication.**
+Same issue as `timetable-rooms.js`. Same fix applies.
+
+**[IMPORTANT] `timetable.js`:1661-1662 -- Local time-label arrays duplicate both hour maps.**
+```js
+const morningTimeLabels = ['08:30-09:30', '09:30-10:30', '10:30-11:30', '11:30-12:30'];
+const afternoonTimeLabels = ['14:30-15:30', '15:30-16:30', '16:30-17:30', '17:30-18:30'];
+```
+These should be derived from `Object.values(MORNING_HOUR_MAP)` and `Object.values(AFTERNOON_HOUR_MAP)` respectively.
+
+**[IMPORTANT] `timetable-redistribution.js`:770-774 -- `formatSlotLabel` hardcodes all time strings.**
+```js
+function formatSlotLabel(periodType, hour) {
+    const labels = {
+        morning: { H1: '08:30-09:30', H2: '09:30-10:30', H3: '10:30-11:30', H4: '11:30-12:30' },
+        afternoon: { H1: '14:30-15:30', H2: '15:30-16:30', H3: '16:30-17:30', H4: '17:30-18:30' }
+    };
+    return labels?.[periodType]?.[hour] || `${periodType}:${hour}`;
+}
+```
+This duplicates both `MORNING_HOUR_MAP` and `AFTERNOON_HOUR_MAP` in a single function. Replace with:
+```js
+function formatSlotLabel(periodType, hour) {
+    const map = periodType === 'morning' ? MORNING_HOUR_MAP : AFTERNOON_HOUR_MAP;
+    return map?.[hour] || `${periodType}:${hour}`;
+}
+```
+
+**V4: Raw alert / confirm / prompt (2 files)**
+
+**[IMPORTANT] `dashboard-init.js`:16 -- Uses raw `prompt()` for user input.**
+The dashboard initialization calls `prompt()` to collect input. This violates the `CLAUDE.md` mandate that `alert()` and `window.confirm()` are prohibited, which by extension applies to `prompt()` as it is the same category of blocking browser dialog. Replace with a custom input dialog using the message system pattern.
+
+**[IMPORTANT] `settings-imports.js`:501 -- Uses raw `alert()` for error display.**
+The catch handler in the `DOMContentLoaded` listener calls `alert()` to show initialization errors. This should use `showToast(message, 'error')` instead:
+```js
+// Before:
+alert('...' + (error?.message || error));
+// After:
+showToast('...' + (error?.message || error), 'error');
+```
+
+**V6: Missing pagination (2 files)**
+
+**[IMPORTANT] `students-status.js` -- `renderTable()` renders all rows without pagination.**
+The page loads all student-status records and renders them in a single pass with no `PAGE_SIZE` constant, no page slicing, and no pagination controls. For a school with hundreds of students, this creates a long, unsearchable table. Add standard pagination (PAGE_SIZE=20) following the pattern documented in `CLAUDE.md`.
+
+**[IMPORTANT] `teachers-performance.js` -- Teacher table has no pagination.**
+The performance table renders all teachers in one block. While the teacher count is typically smaller than the student count, the `CLAUDE.md` mandate applies to all data tables without exception. Add pagination controls.
+
+**V7: Delete without edit button (1 file)**
+
+**[IMPORTANT] `support-sessions.js`:417-419 -- Delete button with no sibling edit button.**
+The sessions table renders a delete button per row:
+```html
+<button class="btn btn-danger btn-sm" data-delete="${session.id}">
+    <i class="fas fa-trash"></i>
+</button>
+```
+There is no corresponding edit button. Per `CLAUDE.md`: "Every table row with a delete button MUST also have an edit button next to it." An edit button should be added, either as inline editing or via a modal that reuses the entry form, wrapped in an `.att-action-group` container.
+
+**Additional: Local showToast shadow (1 file)**
+
+**[MINOR] `timetable.js`:1833 -- Local `showToast` function shadows the global unified message system.**
+The timetable page defines its own `showToast` function that creates toast UI using a page-local `#toast` element instead of delegating to the global `showToast` from `js/ux-enhancements.js`. This means timetable toasts have inconsistent styling, duration, and behavior compared to every other page in the application. The local function should be removed and the page should rely on the global `showToast`.
+
+**Additional: `settings-users.js` -- Partial CRUD compliance.**
+The users table has a disable/enable toggle and a role dropdown per row (which serves as inline editing for the `role` field), but no explicit edit button for the user's other fields (name, password). This is a partial compliance scenario: the inline controls cover the most important editable fields, but there is no way to edit a user's display name or reset their password from the table. This is categorized as a minor gap rather than a full violation because user management is typically admin-only and the most critical fields are already editable inline.
+
+### Positive Patterns
+
+**[GOOD] No page uses `localStorage.getItem('timetableData')` for dropdown population.**
+All pages that need timetable or class data retrieve it from SQLite via `window.api.timetable.get()` or `window.api.classes.getAll()`. The codebase has fully migrated away from local-storage-based dropdown population.
+
+**[GOOD] All delete handlers use `showConfirm()` before destructive operations.**
+Every page that implements a delete action (`teachers-list.js`, `support-sessions.js`, `settings-license.js`, `settings-sync.js`, `settings-imports.js`) properly gates the operation behind `await showConfirm({...})` with appropriate `type: 'danger'` or `type: 'warning'` configurations.
+
+**[GOOD] FilterManager adoption is consistent across pages that need it.**
+`grades-sheets.js`, `analytics.js`, `students-list.js`, `students-status.js`, `teachers-performance.js`, `teachers-list.js`, and `support-sessions.js` all use `FilterManager` for their dropdown filtering. No page manually parses localStorage or builds class/subject dropdowns from scratch.
+
+**[GOOD] Pages that have pagination implement it correctly.**
+`students-list.js` (PAGE_SIZE=25), `teachers-list.js` (PAGE_SIZE=20), `timetable-redistribution.js` (PAGE_SIZE=20), `support-sessions.js` (SESSIONS_PER_PAGE=20), and `settings-sync.js` (conflictPageSize=50) all implement proper page slicing, pagination controls, and page-reset on filter changes.
+
+### Checklist
+
+- [ ] No local PERIOD_MAP / hour-map copies -- **FAIL** (4 files: timetable.js, timetable-rooms.js, timetable-students.js, timetable-redistribution.js)
+- [x] No localStorage timetableData for dropdown population -- **PASS** (0 violations across 24 files)
+- [x] FilterManager used where needed -- **PASS** (7 pages use it; remainder are justified N/A)
+- [ ] No raw alert / confirm / prompt -- **FAIL** (2 files: dashboard-init.js line 16, settings-imports.js line 501)
+- [x] All deletes gated by showConfirm -- **PASS** (0 violations across 24 files)
+- [ ] All data tables have pagination -- **FAIL** (2 files: students-status.js, teachers-performance.js)
+- [ ] All delete buttons have sibling edit buttons -- **FAIL** (1 file: support-sessions.js line 417)
+
+### Summary
+
+The renderer architecture is in good structural health. The three shared modules (`utils.js`, `message-system.js`, `ux-enhancements.js`) correctly expose all mandated globals and are consistently used across the majority of pages. The most pervasive violation category is local PERIOD_MAP / hour-map duplication (4 files in the timetable family), which is a maintenance risk rather than a functional bug -- all local copies currently contain correct values, but they will drift if the schedule constants are ever updated in `utils.js`. The two raw `alert()`/`prompt()` usages and the two missing-pagination pages are straightforward fixes. The single CRUD-completeness violation in `support-sessions.js` requires adding an edit button and corresponding edit logic. No critical violations were found. The codebase has successfully completed the migration from localStorage-based dropdown population to API-backed FilterManager, and all destructive operations are properly gated by the unified confirmation dialog system.
