@@ -128,6 +128,8 @@ const CHANNEL_REGISTRY = {
         idExtractor: 'inputArray',
         bulk: true
     },
+    'teachers:saveNameAlias': { tables: ['name_aliases'], operation: 'UPSERT', idExtractor: 'argIdOrLastInsert' },
+    'teachers:deleteNameAlias': { tables: ['name_aliases'], operation: 'DEL', idExtractor: 'argId' },
     'teacherAbsences:save': { tables: ['teacher_absences'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
     'teacherAbsences:delete': { tables: ['teacher_absences'], operation: 'DEL', idExtractor: 'argId' },
     'schoolEvents:save': { tables: ['school_events'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
