@@ -507,7 +507,12 @@
                                         section: sectionName,
                                         period_slot: h,
                                         period_time: PERIOD_MAP[h] || h,
-                                        subject: lesson.subject || absence.subject || '',
+                                        subject:
+                                        (typeof normalizeSubjectName === 'function'
+                                            ? normalizeSubjectName(lesson.subject || '')
+                                            : lesson.subject || '') ||
+                                        absence.subject ||
+                                        '',
                                         school_year: year,
                                         reason: absence.reason || '',
                                         notes: absence.notes || ''
@@ -899,7 +904,14 @@
                     statsRecords = statsRecords.filter((r) => r.teacher_name === teacher);
                 }
                 if (subject) {
-                    statsRecords = statsRecords.filter((r) => r.subject === subject);
+                    statsRecords = statsRecords.filter((r) => {
+                        if (r.subject === subject) return true;
+                        const norm =
+                            typeof normalizeSubjectName === 'function'
+                                ? normalizeSubjectName(r.subject || '')
+                                : r.subject;
+                        return norm === subject;
+                    });
                 }
 
                 let tableRecords = [...statsRecords];
