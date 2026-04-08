@@ -23,6 +23,83 @@ function setElementHidden(element, hidden) {
     element.classList.toggle('hidden', hidden);
 }
 
+function renderImportStatusPanel(schoolYear) {
+    const panel   = document.getElementById('import-status-panel');
+    const yearLbl = document.getElementById('status-panel-year-label');
+    if (!panel) return;
+    if (yearLbl) yearLbl.textContent = schoolYear || '';
+
+    const state    = DataSourceRegistry.getYear(schoolYear);
+    const warnings = state.warnings || [];
+
+    const SOURCES = [
+        { key: 'students',  label: 'التلاميذ',    optional: false },
+        { key: 'agent_xml', label: 'ملف الوزارة', optional: false },
+        { key: 'fet',       label: 'FET (جدول)', optional: false },
+        { key: 'grades',    label: 'النقط',       optional: false },
+        { key: 'absences',  label: 'الغياب',      optional: false },
+        { key: 'status',    label: 'الوضعيات',   optional: true  }
+    ];
+
+    SOURCES.forEach(({ key, optional }) => {
+        const row = panel.querySelector(`[data-source="${key}"]`);
+        if (!row) return;
+
+        const src      = state[key];
+        const srcWarns = warnings.filter((w) => w.source === key);
+        const hasError = srcWarns.some((w) => w.level === 'error');
+        const hasWarn  = srcWarns.some((w) => w.level === 'warning');
+
+        row.className = 'import-status-row ' + (
+            !src?.importedAt ? (optional ? '' : 'status-pending')
+            : hasError       ? 'status-error'
+            : hasWarn        ? 'status-warn'
+            :                  'status-ok'
+        );
+
+        const iconEl   = row.querySelector('.import-status-icon');
+        const detailEl = row.querySelector('.import-status-detail');
+        const actionEl = row.querySelector('.import-status-action');
+
+        if (iconEl) {
+            const ic = !src?.importedAt
+                ? (optional ? 'fa-minus-circle' : 'fa-clock')
+                : hasError  ? 'fa-exclamation-circle'
+                : hasWarn   ? 'fa-exclamation-triangle'
+                :             'fa-check-circle';
+            iconEl.innerHTML = `<i class="fas ${ic}"></i>`;
+        }
+
+        if (detailEl) {
+            if (!src?.importedAt) {
+                detailEl.textContent = optional ? 'اختياري' : 'لم يُستورد بعد';
+            } else {
+                const parts = [];
+                if (src.count    != null)  parts.push(`${src.count.toLocaleString('ar-MA')} سجل`);
+                if (src.sections?.length)  parts.push(`${src.sections.length} قسم`);
+                if (src.teachers?.length)  parts.push(`${src.teachers.length} أستاذ`);
+                if (src.subjects?.length)  parts.push(`${src.subjects.length} مادة`);
+                if (srcWarns.length)       parts.push(srcWarns.map((w) => w.message).join(' · '));
+                detailEl.textContent = parts.join(' · ') || 'مستورد';
+            }
+        }
+
+        if (actionEl) {
+            actionEl.innerHTML = '';
+            if (hasWarn && key === 'fet') {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-secondary min-h-0 px-2.5 py-1 text-[12px]';
+                btn.type = 'button';
+                btn.innerHTML = '<i class="fas fa-link"></i> مراجعة';
+                btn.addEventListener('click', () =>
+                    document.getElementById('tafwij-matching-panel')?.classList.remove('hidden')
+                );
+                actionEl.appendChild(btn);
+            }
+        }
+    });
+}
+
 function updateImportSelectionStatus(message) {
     const status = document.getElementById('imports-selection-status');
     if (status) status.textContent = message || '';
@@ -1539,6 +1616,7 @@ async function loadDataStats() {
     } catch {
         setValue('stat-status-count', '-');
     }
+    renderImportStatusPanel(getCurrentSchoolYear());
 }
 
 async function clearData(type) {
@@ -1577,24 +1655,29 @@ async function clearData(type) {
             if (!window.api?.students?.deleteByYear) throw new Error('ميزة حذف التلاميذ غير متاحة في هذا الإصدار');
             const res = await window.api.students.deleteByYear(schoolYear);
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف بيانات التلاميذ');
+            DataSourceRegistry.clear('students', schoolYear);
         } else if (type === 'grades') {
             if (!window.api?.grades?.deleteBySemester) {
                 throw new Error('ميزة حذف النقط حسب الدورة غير متاحة في هذا الإصدار');
             }
             const res = await window.api.grades.deleteBySemester(schoolYear, semester);
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف النقط');
+            DataSourceRegistry.clear('grades', schoolYear);
         } else if (type === 'absences') {
             const res = await window.api.absences.deleteByYear(schoolYear);
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف الغياب');
+            DataSourceRegistry.clear('absences', schoolYear);
         } else if (type === 'timetable') {
             localStorage.removeItem('timetableData');
             pendingTafwijImportState = null;
             hideTafwijMatchingPanel();
             renderTafwijWarningBanner();
+            DataSourceRegistry.clear('fet', schoolYear);
         } else if (type === 'teachers') {
             if (!window.api?.teachers?.deleteByYear) throw new Error('ميزة حذف الأساتذة غير متاحة في هذا الإصدار');
             const res = await window.api.teachers.deleteByYear(schoolYear);
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف بيانات الأساتذة');
+            DataSourceRegistry.clear('agent_xml', schoolYear);
         } else if (type === 'status') {
             if (!window.api?.students?.updateStatusBulk) throw new Error('ميزة مسح الوضعيات غير متاحة في هذا الإصدار');
             const statusRes = await window.api.students.getByStatus({ school_year: schoolYear });
@@ -1604,6 +1687,7 @@ async function clearData(type) {
                 const res = await window.api.students.updateStatusBulk(items);
                 if (!res || res.success === false) throw new Error(res?.error || 'تعذر مسح الوضعيات');
             }
+            DataSourceRegistry.clear('status', schoolYear);
         } else {
             throw new Error('نوع حذف غير مدعوم');
         }
@@ -1779,6 +1863,7 @@ async function handleImport(action, files) {
         if (action === 'students' && pendingDeparted.length > 0) {
             showDepartedPanel(pendingDeparted);
         }
+        renderImportStatusPanel(getCurrentSchoolYear());
     } catch (error) {
         const fileWord = fileList.length === 1 ? 'ملف' : 'ملفات';
         await safeLogImport(action, `فشل الاستيراد (${fileList.length} ${fileWord}): ${error.message}`);
@@ -1968,6 +2053,8 @@ async function importStudents(workbook, schoolYear) {
 
     const res = await window.api.students.addBulk(deduped);
     if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ بيانات التلاميذ');
+    const sections = [...new Set(deduped.map((s) => s.section).filter(Boolean))];
+    DataSourceRegistry.update('students', schoolYear, { count: deduped.length, sections }, []);
     return { importedCount: deduped.length, departedStudents };
 }
 
@@ -2304,6 +2391,15 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
 
     const res = await window.api.grades.saveBulk(deduped);
     if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ النقط');
+    const gradeSections  = [...new Set(grades.map((g) => g.section).filter(Boolean))];
+    const gradeTeachers  = [...new Set(grades.map((g) => g._teacher).filter(Boolean))];
+    const gradeLevels    = grades.filter((g) => g._level && g.section).map((g) => ({ section: g.section, level: g._level }));
+    const gradeSubjects  = [...new Set(grades.map((g) => g.subject).filter(Boolean))];
+    const gradeValidator = new CrossSourceValidator(schoolYear);
+    const { warnings: gradeWarnings } = await gradeValidator.validateAfterImport('grades', {
+        sections: gradeSections, teacherNames: gradeTeachers, levels: gradeLevels
+    });
+    DataSourceRegistry.update('grades', schoolYear, { count: deduped.length, subjects: gradeSubjects }, gradeWarnings);
     const studentCodes = [...new Set(grades.map((g) => String(g.student_code || '').trim()).filter(Boolean))];
     return { gradesCount: grades.length, studentsCount: studentCodes.length, studentCodes, semester: detectedSemester };
 }
@@ -2553,6 +2649,13 @@ async function importAbsences(workbook, schoolYear, options = {}) {
 
     const res = await window.api.absences.saveBulk(absences);
     if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ الغياب');
+    const absCodes      = [...new Set(absences.map((a) => a.student_code).filter(Boolean))];
+    const absTeachers   = [...new Set(absences.map((a) => a.teacher_name).filter(Boolean))];
+    const absValidator  = new CrossSourceValidator(schoolYear);
+    const { warnings: absWarnings } = await absValidator.validateAfterImport('absences', {
+        studentCodes: absCodes, teacherNames: absTeachers
+    });
+    DataSourceRegistry.update('absences', schoolYear, { count: absences.length }, absWarnings);
     return absences.length;
 }
 
@@ -2739,6 +2842,11 @@ async function importFetXml(file) {
                 localStorage.setItem('timetableData', JSON.stringify(dataToSave));
                 renderTafwijWarningBanner();
                 console.log('FET data saved to localStorage:', fetEntries.length, 'teachers');
+
+                const fetNames      = fetEntries.map((t) => t.name || t.teacherName || '').filter(Boolean);
+                const fetValidator  = new CrossSourceValidator(getCurrentSchoolYear());
+                const { warnings: fetWarnings } = await fetValidator.validateAfterImport('fet', { teacherNames: fetNames });
+                DataSourceRegistry.update('fet', getCurrentSchoolYear(), { teachers: fetNames }, fetWarnings);
 
                 resolve({ teachersCount: fetEntries.length, unresolvedCount: 0, requiresReview: false });
             } catch (error) {
@@ -3029,6 +3137,11 @@ async function importAgentXml(file) {
                 }
 
                 console.log('[agent-xml] Import successful:', res.count, 'teachers');
+                const agentPpr      = teachers.map((t) => t.ppr || '').filter(Boolean);
+                const agentNames    = teachers.map((t) => t.full_name || '').filter(Boolean);
+                const agentValidator = new CrossSourceValidator(getCurrentSchoolYear());
+                const { warnings: agentWarnings } = await agentValidator.validateAfterImport('agent_xml', { pprList: agentPpr });
+                DataSourceRegistry.update('agent_xml', getCurrentSchoolYear(), { teachers: agentNames, pprList: agentPpr }, agentWarnings);
                 resolve(teachers.length);
             } catch (error) {
                 reject(error);
