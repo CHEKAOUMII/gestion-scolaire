@@ -755,3 +755,114 @@ Line 94 uses `await new Promise((r) => setTimeout(r, 1000))` as a blanket wait f
 ### Summary
 
 The report engine and notification system are both well-architected. The report engine correctly uses the shared `print-window.js` utility for all document types, and all engine-owned components (letterhead, security bar, watermark, footer) consistently escape user data before HTML interpolation. Error handling properly closes the print window and cleans up temp files on all failure paths. The notification system is persisted to SQLite with full read/unread lifecycle management and a deduplication guard against notification storms. The renderer-side display uses the safe `textContent`/`innerHTML` DOM escaping technique for notification body and title content. The two most actionable findings are: (1) the `store.init()` function is dead code, creating a schema definition divergence with the migration; and (2) the engine's `bodyHTML` parameter passes through without engine-level sanitization, making XSS prevention dependent on each individual template's diligence -- a template audit is recommended to verify this assumption holds.
+
+---
+
+## 9. Executive Summary
+
+### Findings Tally
+
+Tallied from all findings across Sections 1-8. One finding -- `schema.js`:306,319 admin password logged in plaintext -- was tagged Important in Section 3 but is promoted to Critical here because it meets the severity legend's Critical definition ("security vulnerability or data loss risk").
+
+| Severity | Count |
+|---|---|
+| :red_circle: Critical | 1 |
+| :orange_circle: Important | 21 |
+| :yellow_circle: Minor | 31 |
+| :green_circle: Good | 37 |
+
+### Overall Assessment
+
+The application has a sound architectural skeleton: `contextIsolation` and `nodeIntegration` are correctly configured, the IPC contract is enforced by an automated 170-channel smoke test, the database singleton and migration runner follow documented conventions, and password hashing and license key signing both use correct cryptographic primitives with timing-safe comparisons. The strongest areas are auth/licensing security (zero Important findings, seven Good findings), the IPC parity enforcement mechanism, and the notification system's deduplication and lifecycle management. The highest-priority systemic risks are (1) the single Critical plaintext password log, (2) the concentration of 56 raw `ipcMain.handle()` calls that bypass the centralized auth/error wrappers, and (3) the pervasive inline-style debt (358 HTML + 236 JS occurrences) that undermines the Tailwind migration and RTL correctness.
+
+### Sprint 1 -- Fix Immediately (:red_circle: Critical)
+
+**`schema.js`:306,319 -- Admin password logged to console in plaintext during initial setup and password reset.**
+Both `console.log()` calls write the generated admin password to Electron's stdout, which may be captured to log files on disk in a packaged application. Remove both `console.log` statements. Communicate the generated password through the existing IPC response object (return it in the result payload to the renderer, which already displays it to the operator via a UI dialog). No password should ever appear in application logs.
+
+### Sprint 2 -- Fix Before Next Release (:orange_circle: Important)
+
+#### IPC Layer
+- `auth.js`:1 and `system.js`:1 -- Refactor to remove direct `getDb()` imports; inject the database handle through `handleRead`/`handleWrite`/`handleWriteSoftAuth` wrappers, as all other handler files do
+- 7 handler files (56 raw `ipcMain.handle()` calls) -- Migrate `system.js`, `notifications.js`, and `reports.js` handlers to the helper wrappers; `auth.js`, `licensing.js`, `ownerTelemetry.js`, and `updater.js` may retain raw calls with documented justification (unique session semantics, no DB access)
+- `reports.js`:17 -- Add `handleWrite(ipcMain, ..., ['admin'], ...)` guard to `reports:updateIdentity`; it currently allows unauthenticated overwrite of school identity data used in official document headers
+
+#### Database
+- `student_movements`, `teacher_absences`, `exams`, `exam_proctors`, `exam_rooms` -- Add `CREATE INDEX IF NOT EXISTS idx_<table>_year ON <table>(school_year)` to a new migration for each of the five domain tables missing a `school_year` index
+- `notifications` table -- Add a `school_year TEXT` column via migration; backfill existing rows with the current active school year; add a corresponding index
+- `store.js`:17-19 -- Remove the dead `init()` function or wire it into `main/db/init.js` for defensive redundancy; reconcile the divergent schema definition with the canonical migration DDL
+
+#### Renderer
+- `timetable-rooms.js`:8-13 and `timetable-students.js`:8-13 -- Replace local `defaultHourLabels` object with `MORNING_HOUR_MAP` from `js/utils.js`
+- `timetable.js`:1661-1662 -- Replace local `morningTimeLabels` / `afternoonTimeLabels` arrays with `Object.values(MORNING_HOUR_MAP)` / `Object.values(AFTERNOON_HOUR_MAP)`
+- `timetable-redistribution.js`:770-774 -- Replace hardcoded `labels` object in `formatSlotLabel()` with `MORNING_HOUR_MAP` / `AFTERNOON_HOUR_MAP`
+- `dashboard-init.js`:16 -- Replace raw `prompt()` with a custom input dialog using the message system pattern
+- `settings-imports.js`:501 -- Replace `alert()` with `showToast(message, 'error')`
+- `students-status.js` -- Add standard pagination (PAGE_SIZE=20) to `renderTable()`
+- `teachers-performance.js` -- Add standard pagination (PAGE_SIZE=20) to the teacher table
+- `support-sessions.js`:417 -- Add an edit button (`.edit-btn` with `fa-edit` icon) as a sibling to the existing delete button, wrapped in an `.att-action-group` container
+
+#### CSS
+- 358 inline `style="..."` attributes across 36 HTML files -- Phase 1: extract repeated static patterns (grid layouts appearing in 8+ files, `display:none` initial states) into named classes in `@layer components {}`; Phase 2: convert dynamic width/color values to CSS custom properties set via JS
+- 236 `.style.` direct mutations across 18 JS files -- Replace `.style.display = 'none'`/`''` with `classList.add('hidden')`/`classList.remove('hidden')`; replace `.style.cssText` bulk assignments (13 occurrences) with component classes
+- ~105 physical CSS properties in `tailwind-input.css` -- Convert `margin-right` to `margin-inline-start`, `text-align: right` to `text-align: start`, `border-right` to `border-inline-start`, and equivalent conversions for all physical left/right properties
+
+#### Tests
+- Add a DB integration test: open an in-memory SQLite database, run `createTables()` then `runMigrations()`, assert no error; run `runMigrations()` a second time to verify idempotency
+- Add Node-level smoke assertions that `js/utils.js` exports `FilterManager`, `PERIOD_MAP`, `MORNING_HOUR_MAP`, `AFTERNOON_HOUR_MAP`, `resolveSlotTime`, `mergeConsecutivePeriods`; and that `js/message-system.js` exports `showConfirm`, `setFieldValidation`
+
+#### Reports
+- `engine.js`:21 -- Add engine-level HTML escaping for `bodyHTML` content, or add a mandatory template audit to the CI pipeline to verify all template files escape user-sourced values before interpolation
+
+### Sprint 3 -- Cleanup Sprint (:yellow_circle: Minor)
+
+#### Process Boundary
+- `main.js`:179 -- Add `devTools: false` in `webPreferences` when `app.isPackaged` is true, or block F12/Ctrl+Shift+I via `before-input-event`
+- `main.js`:139 -- Add `sandbox: true` to `webPreferences` for OS-level renderer process isolation
+- `preload.js`:270-279 -- Add `if (typeof callback !== 'function') return;` guard before `ipcRenderer.on()` registration
+
+#### IPC Layer
+- `absences.js`:237 -- Add `school_year` filter to `correspondence:getByStudent` query
+- `students.js`:744 -- Add `school_year` filter to `subjects:getAll` query, or document the intentional cross-year aggregation
+- `system.js`:109,115 -- Remove `console.log` of generated password in `users:resetAdminPassword`
+- `system.js`:239-417 -- Refactor `system:backupDb` and `system:restoreDb` to use `handleWriteSoftAuth` instead of manual soft-auth reimplementation
+- `updater.js`:14-27 -- Add `requireRole(event, ['admin'])` guard to `updater:installUpdate`
+
+#### Database
+- Migrations 020, 021 -- Refactor raw `ALTER TABLE + try/catch` to use `ensureColumn()` for consistency
+- Migration version numbering -- Document the naming convention and note the zero-padding and sequence-gap exceptions
+- 5 DDL objects duplicated between `schema.js` and `migrations.js` -- Consolidate to a single source of truth; remove duplicates from whichever file is not canonical
+- `schema.js`:279-280 -- Remove redundant `ensureColumn` calls for columns already defined in the preceding `CREATE TABLE`
+- `schema.js`:660-666 -- Quote table/column identifiers in the `ensureColumn()` helper (`"${table}"`, `"${column}"`)
+- Migration 028 -- Consider splitting DDL changes from the data backfill into separate migrations for resilience
+
+#### Auth & Licensing
+- `offlineKey.js`:53 -- Document that `mode: 0o600` has no effect on Windows/NTFS; consider adding Windows-specific ACL restriction if the threat model warrants it
+- `offlineKey.js`:14 -- Document that the signing secret is cached for the process lifetime and cannot be rotated without restart
+- `password.js`:18 -- Remove the public `saltHex` parameter or add a JSDoc warning against external use
+- `service.js`:120-191 -- Consider storing an HMAC digest alongside the license DB record and re-verifying on status checks
+- `offlineKey.js`:134-139 -- Add code comments explaining when the fallback signature verification path can be safely removed
+
+#### Renderer
+- `timetable.js`:1833 -- Remove local `showToast` function; rely on the global from `js/ux-enhancements.js`
+
+#### CSS
+- Toast container -- Replace physical `right` property with `inset-inline-end` for RTL correctness
+- `timetable.js`:2181-2219 -- Extract `cancelBar` inline styles into a `.timetable-cancel-bar` class in `@layer components {}`
+- `utils.js`:852,1217,1296,1464 -- Extract modal overlay inline styles into CSS classes
+- 8+ HTML files -- Extract repeated `display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px` into a `.filter-grid` component class
+
+#### Tests
+- Add inline `style="..."` count-based regression guard to the smoke test (threshold at current baseline; fail on increase)
+- Expand lint scope to include `js/utils.js`, `js/ux-enhancements.js`, `js/message-system.js`, `js/sidebar.js`, `js/notifications.js`, `app.js`
+- Evaluate adopting a lightweight test framework (Vitest or Node `--test`) if DB integration tests are added
+
+#### Reports & Notifications
+- `js/notifications.js`:286 -- Apply `escapeHtml()` to the icon class field before `innerHTML` insertion
+- `security.js`:48-56 -- Consider generating the QR code as a base64 `data:` URL in the main process instead of using an inline `<script>` tag
+- `store.js`:3-15 vs `migrations.js`:132-149 -- Consolidate the divergent notification schema definitions into a single source of truth
+- `print-window.js`:94 -- Reduce the fixed 1-second font-settling delay to 200-300ms; `document.fonts.ready` already handles font loading
+
+---
+*Review completed: 2026-04-08*
+*Plan: `docs/superpowers/plans/2026-04-08-architecture-review.md`*
