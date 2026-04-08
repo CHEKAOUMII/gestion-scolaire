@@ -61,19 +61,16 @@ const RoomTimetable = (function() {
         themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     }
 
-    function loadTimetableData() {
+    async function loadTimetableData() {
         try {
-            const raw = localStorage.getItem('timetableData');
-            if (!raw) {
+            const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+            const parsed = await window.api?.timetable?.get?.(schoolYear);
+            if (!parsed || !parsed.timetables) {
                 showNoImportState();
                 return;
             }
 
-            timetableData = JSON.parse(raw);
-            if (!timetableData || !timetableData.timetables) {
-                showNoImportState();
-                return;
-            }
+            timetableData = parsed;
 
             const morningSet = new Set();
             const afternoonSet = new Set();

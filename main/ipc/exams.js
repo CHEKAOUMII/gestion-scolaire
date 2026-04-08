@@ -187,11 +187,6 @@ function registerExamsIpc(ipcMain) {
         return { success: true };
     });
 
-    // Timetable compatibility endpoints (database-backed timetable is not implemented yet)
-    ipcMain.handle('timetable:getByTeacher', async () => []);
-    ipcMain.handle('timetable:getByRoom', async () => []);
-    ipcMain.handle('timetable:getByClass', async () => []);
-
     // ── Tests (read = open, write = admin/staff) ──
 
     handleRead(ipcMain, 'tests:getAll', (db, schoolYear) => {

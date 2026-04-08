@@ -294,14 +294,16 @@
         const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
 
         let _timetableCache = null;
-        function getTimetableData() {
-            if (_timetableCache !== null) return _timetableCache;
+        let _timetableCacheLoaded = false;
+        async function getTimetableData() {
+            if (_timetableCacheLoaded) return _timetableCache;
             try {
-                const raw = localStorage.getItem('timetableData');
-                _timetableCache = raw ? JSON.parse(raw) : null;
+                const schoolYear = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+                _timetableCache = await window.api.timetable.get(schoolYear);
             } catch {
                 _timetableCache = null;
             }
+            _timetableCacheLoaded = true;
             return _timetableCache;
         }
 
@@ -425,9 +427,9 @@
          * reading from the timetable stored in localStorage.
          * Falls back to the provided fallbackSections if timetable data is unavailable.
          */
-        function getSectionsForDay(teacherName, dateStr, fallbackSections, teacherId) {
+        async function getSectionsForDay(teacherName, dateStr, fallbackSections, teacherId) {
             try {
-                const data = getTimetableData();
+                const data = await getTimetableData();
                 if (!data || !data.timetables) return fallbackSections || [];
 
                 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -479,9 +481,9 @@
          * Get the scheduled time periods for a teacher on a specific date.
          * Returns an array of period strings, e.g. ['08:00-09:00', '10:00-11:00']
          */
-        function getScheduleForDay(teacherName, dateStr, fallback, teacherId) {
+        async function getScheduleForDay(teacherName, dateStr, fallback, teacherId) {
             try {
-                const data = getTimetableData();
+                const data = await getTimetableData();
                 if (!data || !data.timetables) return fallback || [];
 
                 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -519,7 +521,7 @@
             }
         }
 
-        function getDetailedSessionsForDay(uniqueAbsences, date) {
+        async function getDetailedSessionsForDay(uniqueAbsences, date) {
             const sessions = [];
             const periodMap = {
                 'h1': '08:00-09:00', 'h2': '09:00-10:00',
@@ -528,7 +530,7 @@
                 'h7': '16:00-17:00', 'h8': '17:00-18:00'
             };
             try {
-                const ttData = getTimetableData();
+                const ttData = await getTimetableData();
                 if (!ttData || !ttData.timetables) return sessions;
 
                 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -616,7 +618,7 @@
                 const name = absence.full_name;
                 if (!name) continue;
                 const fallback = (backendTeacherSections && backendTeacherSections[name]) || [];
-                const daySections = getSectionsForDay(name, date, fallback);
+                const daySections = await getSectionsForDay(name, date, fallback);
                 teacherSectionsOverride[name] = daySections;
                 if (daySections.length > 0) {
                     affectedSections[name] = daySections;
@@ -653,19 +655,21 @@
                         </td>
                     </tr>`;
             } else {
-                absencesTbody.innerHTML = uniqueAbsences.map((a, i) => {
+                const absenceRows = [];
+                for (let i = 0; i < uniqueAbsences.length; i++) {
+                    const a = uniqueAbsences[i];
                     const sections = (teacherSections && teacherSections[a.full_name])
                         ? formatCompactList(teacherSections[a.full_name], 'section-list-text')
                         : '<span style="color: var(--color-text-light);">—</span>';
                     // Get schedule hours from timetable for this day
                     let scheduleHtml = '—';
                     if (a.full_name) {
-                        const scheduleHours = getScheduleForDay(a.full_name, date, []);
+                        const scheduleHours = await getScheduleForDay(a.full_name, date, []);
                         if (scheduleHours.length > 0) {
-                            scheduleHtml = formatCompactList(scheduleHours, 'schedule-text', 'â€”');
+                            scheduleHtml = formatCompactList(scheduleHours, 'schedule-text', '—');
                         }
                     }
-                    return `
+                    absenceRows.push(`
                         <tr>
                             <td class="col-index">${i + 1}</td>
                             <td class="col-teacher"><strong>${escapeHtml(a.full_name || '—')}</strong></td>
@@ -673,8 +677,9 @@
                             <td class="col-schedule">${scheduleHtml}</td>
                             <td class="col-reason reason-cell">${formatReasonCell(a.reason, a.notes)}</td>
                             <td class="col-sections">${sections}</td>
-                        </tr>`;
-                }).join('');
+                        </tr>`);
+                }
+                absencesTbody.innerHTML = absenceRows.join('');
             }
 
             // ── Affected Sections Grid ──
@@ -742,7 +747,7 @@
 
             if (uniqueAbsences.length > 0) {
                 try {
-                    const ttData = getTimetableData();
+                    const ttData = await getTimetableData();
                     if (ttData && ttData.timetables) {
                         const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
                         const dateObj = new Date(date + 'T00:00:00');
@@ -791,7 +796,7 @@
             document.getElementById('stat-hours').textContent = totalLostHours;
 
             // ── Auto-save lost sessions to compensation tracking ──
-            const detailedSessions = getDetailedSessionsForDay(uniqueAbsences, date);
+            const detailedSessions = await getDetailedSessionsForDay(uniqueAbsences, date);
             if (detailedSessions.length > 0) {
                 try {
                     await window.api.compensation.saveBatch(detailedSessions);

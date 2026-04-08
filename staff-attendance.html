@@ -254,14 +254,16 @@
             const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
 
             let _timetableCache = null;
-            function getTimetableData() {
-                if (_timetableCache !== null) return _timetableCache;
+            let _timetableCacheLoaded = false;
+            async function getTimetableData() {
+                if (_timetableCacheLoaded) return _timetableCache;
                 try {
-                    const raw = localStorage.getItem('timetableData');
-                    _timetableCache = raw ? JSON.parse(raw) : null;
+                    const schoolYear = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+                    _timetableCache = await window.api.timetable.get(schoolYear);
                 } catch {
                     _timetableCache = null;
                 }
+                _timetableCacheLoaded = true;
                 return _timetableCache;
             }
 
@@ -294,10 +296,10 @@
             }
 
             /** Check if a teacher has any hours in a specific period for a given day */
-            function teacherWorksInPeriod(teacherName, teacherId, dateStr, period) {
+            async function teacherWorksInPeriod(teacherName, teacherId, dateStr, period) {
                 if (!period || period === 'full_day') return true;
                 try {
-                    const data = getTimetableData();
+                    const data = await getTimetableData();
                     if (!data || !data.timetables) return true;
 
                     const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -386,7 +388,7 @@
                 const absencePeriodSelect = document.getElementById('att-absence-period');
                 const absencePeriodField = document.getElementById('absence-period-field');
 
-                function filterTeachers() {
+                async function filterTeachers() {
                     const selectedSubject = subjectSelect.value;
                     const currentType = document.getElementById('att-type').value;
                     const selectedPeriod = absencePeriodSelect.value;
@@ -394,7 +396,7 @@
                     teacherSelect.innerHTML = '<option value="">-- اختر أستاذ(ة) --</option>';
 
                     const seen = new Set();
-                    teachersList.forEach((t) => {
+                    for (const t of teachersList) {
                         // Check if teacher teaches the selected subject (normalized)
                         if (selectedSubject) {
                             const subjects = (t.subject || '').split(',').map((s) => {
@@ -403,14 +405,14 @@
                                     ? normalizeSubjectName(trimmed)
                                     : trimmed;
                             });
-                            if (!subjects.includes(selectedSubject)) return;
+                            if (!subjects.includes(selectedSubject)) continue;
                         }
                         // Filter by absence period: only show teachers who work in the selected period
                         if (currentType === 'absence' && selectedPeriod !== 'full_day') {
-                            if (!teacherWorksInPeriod(t.full_name, t.id, dateStr, selectedPeriod)) return;
+                            if (!(await teacherWorksInPeriod(t.full_name, t.id, dateStr, selectedPeriod))) continue;
                         }
                         // Deduplicate by name
-                        if (seen.has(t.full_name)) return;
+                        if (seen.has(t.full_name)) continue;
                         seen.add(t.full_name);
 
                         const opt = document.createElement('option');
@@ -419,7 +421,7 @@
                         opt.dataset.subject = selectedSubject || t.subject || '';
                         opt.dataset.hasId = t.id ? '1' : '0';
                         teacherSelect.appendChild(opt);
-                    });
+                    }
                 }
 
                 subjectSelect.addEventListener('change', filterTeachers);
@@ -653,9 +655,9 @@
              * Get the sections a teacher was scheduled to teach on a specific date,
              * reading from the timetable stored in localStorage.
              */
-            function getSectionsForDay(teacherId, teacherName, dateStr, absencePeriod) {
+            async function getSectionsForDay(teacherId, teacherName, dateStr, absencePeriod) {
                 try {
-                    const data = getTimetableData();
+                    const data = await getTimetableData();
                     if (!data || !data.timetables) return getFallbackTeacherSections(teacherId, teacherName);
 
                     // Map JS getDay() → Arabic day name
@@ -697,9 +699,9 @@
              * Consecutive hours with the SAME section are merged into one block.
              * Uses mergeConsecutivePeriods, MORNING_HOUR_MAP, AFTERNOON_HOUR_MAP from utils.js
              */
-            function getScheduleForDay(teacherId, teacherName, dateStr, absencePeriod) {
+            async function getScheduleForDay(teacherId, teacherName, dateStr, absencePeriod) {
                 try {
-                    const data = getTimetableData();
+                    const data = await getTimetableData();
                     if (!data || !data.timetables) return [];
 
                     const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -803,7 +805,7 @@
                 `;
             }
 
-            function renderTable() {
+            async function renderTable() {
                 const filtered = getFilteredRecords();
                 const totalRows = filtered.length;
                 const totalPages = Math.ceil(totalRows / ATT_PER_PAGE) || 1;
@@ -813,63 +815,70 @@
                 const tbody = document.getElementById('records-tbody');
 
                 if (totalRows === 0) {
-                    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">لا توجد سجلات مطابقة</td></tr>';
-                    renderAttPagination(0, 0);
+                    tbody.innerHTML = `
+                        <tr class="empty-row">
+                            <td colspan="10">
+                                <i class="fas fa-check-circle" style="color: var(--color-success-bg); margin-left: 8px;"></i>
+                                لا توجد سجلات مطابقة
+                            </td>
+                        </tr>`;
+                    renderAttPagination(0, 1);
                     return;
                 }
 
                 const startIndex = (attCurrentPage - 1) * ATT_PER_PAGE;
                 const pageRows = filtered.slice(startIndex, startIndex + ATT_PER_PAGE);
 
-                tbody.innerHTML = pageRows
-                    .map((r, i) => {
-                        const isAbsence = r.type === 'absence';
-                        const typeBadge = isAbsence
-                            ? '<span class="type-badge absence"><i class="fas fa-user-minus"></i> غياب</span>'
-                            : '<span class="type-badge late"><i class="fas fa-clock"></i> تأخر</span>';
+                const rowsHtml = [];
+                for (let i = 0; i < pageRows.length; i++) {
+                    const r = pageRows[i];
+                    const isAbsence = r.type === 'absence';
+                    const typeBadge = isAbsence
+                        ? '<span class="type-badge absence"><i class="fas fa-user-minus"></i> غياب</span>'
+                        : '<span class="type-badge late"><i class="fas fa-clock"></i> تأخر</span>';
 
-                        // Absence period display
-                        const absencePeriod = r.absence_period || 'full_day';
-                        let periodHtml = '—';
-                        if (isAbsence) {
-                            const periodLabels = {
-                                full_day: '<span class="period-badge full"><i class="fas fa-calendar-day"></i> يوم كامل</span>',
-                                morning: '<span class="period-badge morning"><i class="fas fa-sun"></i> صباحا</span>',
-                                afternoon: '<span class="period-badge afternoon"><i class="fas fa-moon"></i> مساءً</span>'
-                            };
-                            periodHtml = periodLabels[absencePeriod] || periodLabels.full_day;
+                    // Absence period display
+                    const absencePeriod = r.absence_period || 'full_day';
+                    let periodHtml = '—';
+                    if (isAbsence) {
+                        const periodLabels = {
+                            full_day: '<span class="period-badge full"><i class="fas fa-calendar-day"></i> يوم كامل</span>',
+                            morning: '<span class="period-badge morning"><i class="fas fa-sun"></i> صباحا</span>',
+                            afternoon: '<span class="period-badge afternoon"><i class="fas fa-moon"></i> مساءً</span>'
+                        };
+                        periodHtml = periodLabels[absencePeriod] || periodLabels.full_day;
+                    }
+
+                    let timeInfo = '—';
+                    if (!isAbsence) {
+                        const parts = [];
+                        if (r.arrival_time) parts.push('الوصول: ' + escapeHtml(r.arrival_time));
+                        if (r.late_duration) parts.push(r.late_duration + ' دقيقة');
+                        timeInfo = parts.length ? parts.join(' · ') : '—';
+                    } else if ((r.teacher_id || r.full_name) && r.attendance_date) {
+                        const scheduleHours = await getScheduleForDay(r.teacher_id, r.full_name, r.attendance_date, absencePeriod);
+                        if (scheduleHours.length > 0) {
+                            timeInfo = scheduleHours
+                                .map(
+                                    (h) =>
+                                        `<span class="section-tag" style="font-size: 11px;">${escapeHtml(h)}</span>`
+                                )
+                                .join('');
                         }
+                    }
 
-                        let timeInfo = '—';
-                        if (!isAbsence) {
-                            const parts = [];
-                            if (r.arrival_time) parts.push('الوصول: ' + escapeHtml(r.arrival_time));
-                            if (r.late_duration) parts.push(r.late_duration + ' دقيقة');
-                            timeInfo = parts.length ? parts.join(' · ') : '—';
-                        } else if ((r.teacher_id || r.full_name) && r.attendance_date) {
-                            const scheduleHours = getScheduleForDay(r.teacher_id, r.full_name, r.attendance_date, absencePeriod);
-                            if (scheduleHours.length > 0) {
-                                timeInfo = scheduleHours
-                                    .map(
-                                        (h) =>
-                                            `<span class="section-tag" style="font-size: 11px;">${escapeHtml(h)}</span>`
-                                    )
-                                    .join('');
-                            }
+                    const teacherName = r.full_name;
+                    let sectionsHtml = '—';
+                    if (isAbsence && (r.teacher_id || teacherName) && r.attendance_date) {
+                        const daySections = await getSectionsForDay(r.teacher_id, teacherName, r.attendance_date, absencePeriod);
+                        if (daySections.length > 0) {
+                            sectionsHtml = daySections
+                                .map((s) => `<span class="section-tag">${escapeHtml(s)}</span>`)
+                                .join('');
                         }
+                    }
 
-                        const teacherName = r.full_name;
-                        let sectionsHtml = '—';
-                        if (isAbsence && (r.teacher_id || teacherName) && r.attendance_date) {
-                            const daySections = getSectionsForDay(r.teacher_id, teacherName, r.attendance_date, absencePeriod);
-                            if (daySections.length > 0) {
-                                sectionsHtml = daySections
-                                    .map((s) => `<span class="section-tag">${escapeHtml(s)}</span>`)
-                                    .join('');
-                            }
-                        }
-
-                        return `
+                    rowsHtml.push(`
                     <tr>
                         <td>${startIndex + i + 1}</td>
                         <td>${typeBadge}</td>
@@ -888,9 +897,9 @@
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
-                    </tr>`;
-                    })
-                    .join('');
+                    </tr>`);
+                }
+                tbody.innerHTML = rowsHtml.join('');
 
                 renderAttPagination(totalRows, totalPages);
             }

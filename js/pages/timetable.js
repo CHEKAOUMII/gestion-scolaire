@@ -832,14 +832,29 @@ function toggleTeacherDiffMode() {
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     setupSidebar();
-    loadSavedData(); // Load saved data from localStorage
+    // Auto-migrate from localStorage to SQLite (one-time)
+    try {
+        const raw = localStorage.getItem('timetableData');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+            const existing = await window.api?.timetable?.get?.(schoolYear);
+            if (!existing) {
+                await window.api?.timetable?.save?.({ school_year: schoolYear, data: parsed });
+            }
+            localStorage.removeItem('timetableData');
+        }
+    } catch (e) {
+        console.error('[migration] timetable localStorage migration failed:', e);
+    }
+    loadSavedData();
 });
 
-// Save data to localStorage
-function saveDataToStorage() {
+// Save data to database
+async function saveDataToStorage() {
     try {
         const dataToSave = {
             teachers: getTeachersArray(),
@@ -849,19 +864,20 @@ function saveDataToStorage() {
             teacherMetaByKey: fetData.teacherMetaByKey || {},
             unresolvedTeacherKeys: Array.isArray(fetData.unresolvedTeacherKeys) ? fetData.unresolvedTeacherKeys : []
         };
-        localStorage.setItem('timetableData', JSON.stringify(dataToSave));
-        console.log('Data saved to localStorage');
+        const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+        await window.api?.timetable?.save?.({ school_year: schoolYear, data: dataToSave });
+        console.log('Data saved to database');
     } catch (e) {
-        console.error('Error saving to localStorage:', e);
+        console.error('Error saving timetable data:', e);
     }
 }
 
-// Load saved data from localStorage
-function loadSavedData() {
+// Load saved data from database
+async function loadSavedData() {
     try {
-        const savedData = localStorage.getItem('timetableData');
-        if (savedData) {
-            const parsed = JSON.parse(savedData);
+        const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+        const parsed = await window.api?.timetable?.get?.(schoolYear);
+        if (parsed) {
             fetData.teachers = (parsed.teachers || []).map(normalizeImportedTeacherEntry);
             fetData.subjects = new Set(parsed.subjects || []);
             fetData.classes = new Set(parsed.classes || []);
@@ -893,17 +909,22 @@ function loadSavedData() {
                 setFileStats(`البيانات المحملة: ${fetData.teachers.length} أستاذ`, 'fa-database');
 
                 showToast('تم تحميل البيانات المحفوظة بنجاح', 'success');
-                console.log('Data restored from localStorage');
+                console.log('Data restored from database');
             }
         }
     } catch (e) {
-        console.error('Error loading from localStorage:', e);
+        console.error('Error loading timetable data:', e);
     }
 }
 
 // Clear saved data
-function clearSavedData() {
-    localStorage.removeItem('timetableData');
+async function clearSavedData() {
+    try {
+        const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+        await window.api?.timetable?.delete?.(schoolYear);
+    } catch (e) {
+        console.error('Error clearing timetable data:', e);
+    }
     fetData.teacherMetaByKey = {};
     fetData.unresolvedTeacherKeys = [];
     renderUnresolvedImportWarning();

@@ -469,14 +469,13 @@
 
             /**
              * Extract every detailed session (teacher × section × period) for a list of
-             * absence records on a given date, using the timetable in localStorage.
+             * absence records on a given date, using the timetable from the database.
              */
-            function getDetailedSessionsForDay(absenceRecords, date) {
+            async function getDetailedSessionsForDay(absenceRecords, date) {
                 const sessions = [];
                 try {
-                    const raw = localStorage.getItem('timetableData');
-                    if (!raw) return sessions;
-                    const ttData = JSON.parse(raw);
+                    const schoolYear = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+                    const ttData = await window.api.timetable.get(schoolYear);
                     if (!ttData || !ttData.timetables) return sessions;
 
                     const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -558,7 +557,7 @@
 
                     // For each day, extract sessions and saveBatch
                     for (const [date, recs] of Object.entries(byDate)) {
-                        const sessions = getDetailedSessionsForDay(recs, date);
+                        const sessions = await getDetailedSessionsForDay(recs, date);
                         if (sessions.length > 0) {
                             try {
                                 await window.api.compensation.saveBatch(sessions);
@@ -706,7 +705,7 @@
                 updateTeacherDropdown('');
             }
 
-            function updateTeacherDropdown(selectedSubject) {
+            async function updateTeacherDropdown(selectedSubject) {
                 const teacherSelect = document.getElementById('filter-teacher');
                 const currentTeacher = teacherSelect.value;
                 teacherSelect.innerHTML = '<option value="">الكل</option>';
@@ -734,10 +733,9 @@
                     }
 
                     try {
-                        const raw = localStorage.getItem('timetableData');
-                        if (raw) {
-                            const ttData = JSON.parse(raw);
-                            if (ttData && ttData.timetables) {
+                        const schoolYear = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+                        const ttData = await window.api.timetable.get(schoolYear);
+                        if (ttData && ttData.timetables) {
                                 for (const [teacherKey, days] of Object.entries(ttData.timetables)) {
                                     let teachesSubject = false;
                                     for (const day of Object.values(days)) {
@@ -774,8 +772,7 @@
                                     }
                                 }
                             }
-                        }
-                    } catch (e) {}
+                        } catch (e) {}
                 }
 
                 const teachersToRender = [];

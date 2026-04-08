@@ -41,6 +41,7 @@
 
     let teachers = [];
     let sessions = [];
+    let _sessionsFilterManager = null;
     let currentPage = 1;
     const SESSIONS_PER_PAGE = 20;
     let lastSessionDraft = null;
@@ -229,75 +230,37 @@
         filterTo.value = '';
     }
 
-    async function loadTeachers() {
+    async function loadTeachersAndDropdowns() {
         const result = ensureIpcSuccess(await window.api.teachers.getAll(schoolYear), 'تعذر تحميل قائمة الأساتذة');
         teachers = Array.isArray(result) ? result : [];
-        [formTeacher, filterTeacher].forEach((select) => {
-            const placeholder = select === formTeacher ? '-- اختر الأستاذ --' : 'الكل';
-            select.innerHTML = `<option value="">${placeholder}</option>`;
-            teachers.forEach((teacher) => {
-                const option = document.createElement('option');
-                option.value = teacher.id;
-                option.dataset.subject = teacher.subject || '';
-                option.textContent = teacher.full_name;
-                select.appendChild(option);
+
+        // form-teacher: populated by filterTeachersBySubject (subject-aware cascade)
+        filterTeachersBySubject('');
+
+        // filter-teacher: all teachers, no subject filter initially
+        filterSecondaryTeachersBySubject('');
+
+        // Subjects: unified DB source via subjects API (same source as FilterManager)
+        let allSubjects = [];
+        try {
+            const rawSubjects = (await window.api.subjects.getAll()) || [];
+            const normalized = new Set();
+            const invalid = new Set(['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة']);
+            rawSubjects.forEach((s) => {
+                const n = typeof normalizeSubjectName === 'function' ? normalizeSubjectName(s.name || s) : (s.name || s || '').trim();
+                if (n && !invalid.has(n.toLowerCase())) normalized.add(n);
             });
-        });
-    }
-
-    async function loadSections() {
-        const result = ensureIpcSuccess(await window.api.classes.getAll(schoolYear), 'تعذر تحميل قائمة الأقسام');
-        const classes = Array.isArray(result) ? result : [];
-        const sections = classes.map((item) => item.name || item.class_name || item).filter(Boolean);
-
-        const SECTION_ORDER = [
-            {
-                pattern:
-                    /\u062c\u0630\u0639|\u0627\u0644\u062c\u0630\u0639|\u062c\u0630\u0648\u0639|\u0627\u0644\u062c\u0630\u0648\u0639|TC/i,
-                rank: 1
-            },
-            {
-                pattern: /\u0623\u0648\u0644\u0649|1\s*\u0628\u0627\u0643|1BAC|\u0627\u0644\u0623\u0648\u0644\u0649/i,
-                rank: 2
-            },
-            {
-                pattern:
-                    /\u062b\u0627\u0646\u064a\u0629|2\s*\u0628\u0627\u0643|2BAC|\u0627\u0644\u062b\u0627\u0646\u064a\u0629/i,
-                rank: 3
-            }
-        ];
-
-        function getSectionRank(name) {
-            for (const entry of SECTION_ORDER) {
-                if (entry.pattern.test(name)) return entry.rank;
-            }
-            return 99;
+            allSubjects = Array.from(normalized).sort(
+                typeof compareSubjects === 'function' ? compareSubjects : (a, b) => String(a).localeCompare(String(b), 'ar')
+            );
+        } catch (_) {
+            // Fallback: derive from teachers if subjects API unavailable
+            allSubjects = [...new Set(teachers.map((t) => t.subject).filter(Boolean))].sort((a, b) =>
+                String(a).localeCompare(String(b), 'ar')
+            );
         }
-
-        sections.sort((a, b) => {
-            const rankA = getSectionRank(a);
-            const rankB = getSectionRank(b);
-            if (rankA !== rankB) return rankA - rankB;
-            return a.localeCompare(b, 'ar');
-        });
-
-        [formSection, filterSection].forEach((select) => {
-            const placeholder = select === formSection ? '-- اختر القسم --' : 'الكل';
-            select.innerHTML = `<option value="">${placeholder}</option>`;
-            sections.forEach((section) => {
-                const option = document.createElement('option');
-                option.value = section;
-                option.textContent = section;
-                select.appendChild(option);
-            });
-        });
-    }
-
-    function loadSubjects() {
-        const teacherSubjects = new Set(teachers.map((teacher) => teacher.subject).filter(Boolean));
-        const allSubjects = new Set([...teacherSubjects, ...FALLBACK_SUBJECTS]);
-        filterSubject.innerHTML = '<option value="">الكل</option>';
         formSubject.innerHTML = '<option value="">-- اختر المادة --</option>';
+        filterSubject.innerHTML = '<option value="">الكل</option>';
         allSubjects.forEach((subject) => {
             [formSubject, filterSubject].forEach((select) => {
                 const option = document.createElement('option');
@@ -305,6 +268,41 @@
                 option.textContent = subject;
                 select.appendChild(option);
             });
+        });
+    }
+
+    async function loadSectionsViaFilterManager() {
+        // FilterManager populates both formSection and filterSection from the unified DB source.
+        _sessionsFilterManager = new FilterManager({
+            selectors: { class: 'form-section' },
+            placeholders: { class: '-- اختر القسم --' },
+            onChange: () => {}
+        });
+        await _sessionsFilterManager.init();
+
+        // Mirror the same options into filterSection (filter panel) with a different placeholder
+        const classes = await window.api.classes.getAll(schoolYear).catch(() => []);
+        const sections = (Array.isArray(classes) ? classes : [])
+            .map((item) => item.name || item.class_name || String(item))
+            .filter(Boolean);
+
+        const SECTION_ORDER = [
+            { pattern: /جذع|الجذع|جذوع|الجذوع|TC/i, rank: 1 },
+            { pattern: /أولى|1\s*باك|1BAC|الأولى/i, rank: 2 },
+            { pattern: /ثانية|2\s*باك|2BAC|الثانية/i, rank: 3 }
+        ];
+        sections.sort((a, b) => {
+            const ra = SECTION_ORDER.find((e) => e.pattern.test(a))?.rank ?? 99;
+            const rb = SECTION_ORDER.find((e) => e.pattern.test(b))?.rank ?? 99;
+            return ra !== rb ? ra - rb : a.localeCompare(b, 'ar');
+        });
+
+        filterSection.innerHTML = '<option value="">الكل</option>';
+        sections.forEach((section) => {
+            const option = document.createElement('option');
+            option.value = section;
+            option.textContent = section;
+            filterSection.appendChild(option);
         });
     }
 
@@ -720,9 +718,8 @@
     });
 
     try {
-        await loadTeachers();
-        loadSubjects();
-        await loadSections();
+        await loadTeachersAndDropdowns();
+        await loadSectionsViaFilterManager();
         await Promise.all([loadStats(), loadSessions()]);
 
         formDate.value = getTodayValue();

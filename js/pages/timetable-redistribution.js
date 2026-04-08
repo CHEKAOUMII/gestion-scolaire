@@ -1,7 +1,6 @@
 (function () {
     'use strict';
 
-    const TIMETABLE_STORAGE_KEY = 'timetableData';
     const BACKUP_STORAGE_KEY = 'gsl_timetable_redistribution_backup_v1';
     const EMPTY_RESULTS_HTML = `
         <tr>
@@ -95,7 +94,7 @@
         try {
             const [teachers, timetableData] = await Promise.all([
                 window.api?.teachers?.getAll?.(state.schoolYear).catch(() => []),
-                Promise.resolve(readTimetableData())
+                readTimetableData()
             ]);
 
             state.teacherRows = Array.isArray(teachers) ? teachers : [];
@@ -120,13 +119,12 @@
         }
     }
 
-    function readTimetableData() {
+    async function readTimetableData() {
         try {
-            const raw = localStorage.getItem(TIMETABLE_STORAGE_KEY);
-            if (!raw) return null;
-            return JSON.parse(raw);
+            const schoolYear = state.schoolYear || (typeof getSchoolYear === 'function' ? getSchoolYear() : '');
+            return await window.api?.timetable?.get?.(schoolYear) || null;
         } catch (error) {
-            console.error('Invalid timetable storage:', error);
+            console.error('Failed to read timetable data:', error);
             return null;
         }
     }
@@ -570,7 +568,8 @@
             );
 
             rebuildCatalogs(draft);
-            localStorage.setItem(TIMETABLE_STORAGE_KEY, JSON.stringify(draft));
+            const schoolYear = state.schoolYear || (typeof getSchoolYear === 'function' ? getSchoolYear() : '');
+            await window.api?.timetable?.save?.({ school_year: schoolYear, data: draft });
 
             state.timetableData = draft;
             state.initialSnapshot = JSON.stringify(draft);

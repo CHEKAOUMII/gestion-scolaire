@@ -100,6 +100,31 @@ function renderImportStatusPanel(schoolYear) {
     });
 }
 
+async function migrateTimetableFromLocalStorage() {
+    try {
+        const raw = localStorage.getItem('timetableData');
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const schoolYear = getCurrentSchoolYear();
+        const existing = await window.api?.timetable?.get?.(schoolYear);
+        if (!existing) {
+            const result = await window.api?.timetable?.save?.({ school_year: schoolYear, data: parsed });
+            if (!result?.success) {
+                console.error('[migration] Save failed:', result?.error);
+                if (typeof showToast === 'function') showToast('فشل ترحيل بيانات استعمال الزمن: ' + (result?.error || 'خطأ غير معروف'), 'error');
+                return;
+            }
+            console.log('[migration] Timetable data migrated from localStorage to SQLite');
+        }
+        localStorage.removeItem('timetableData');
+        if (typeof showToast === 'function') {
+            showToast('تم ترحيل بيانات استعمال الزمن إلى قاعدة البيانات', 'info');
+        }
+    } catch (e) {
+        console.error('[migration] Failed to migrate timetable data:', e);
+    }
+}
+
 function updateImportSelectionStatus(message) {
     const status = document.getElementById('imports-selection-status');
     if (status) status.textContent = message || '';
@@ -467,8 +492,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
+        await migrateTimetableFromLocalStorage();
         await Promise.all([loadLogs(), loadDataStats()]);
-        renderTafwijWarningBanner();
+        await renderTafwijWarningBanner();
         await restorePendingTafwijStateFromStorage();
     } catch (error) {
         console.error('settings-imports init failed:', error);
@@ -551,16 +577,15 @@ function hideTafwijMatchingPanel() {
     if (banner && !pendingTafwijImportState) setElementHidden(banner, true);
 }
 
-function renderTafwijWarningBanner() {
+async function renderTafwijWarningBanner() {
     const banner = document.getElementById('tafwij-warning-banner');
     if (!banner) return;
-    const timetableRaw = localStorage.getItem('timetableData');
-    if (!timetableRaw) {
-        setElementHidden(banner, true);
-        return;
-    }
     try {
-        const parsed = JSON.parse(timetableRaw);
+        const parsed = await window.api?.timetable?.get?.(getCurrentSchoolYear());
+        if (!parsed) {
+            setElementHidden(banner, true);
+            return;
+        }
         const unresolvedCount = Array.isArray(parsed?.unresolvedTeacherKeys) ? parsed.unresolvedTeacherKeys.length : 0;
         if (!unresolvedCount) {
             setElementHidden(banner, true);
@@ -575,9 +600,8 @@ function renderTafwijWarningBanner() {
 
 async function restorePendingTafwijStateFromStorage() {
     try {
-        const raw = localStorage.getItem('timetableData');
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
+        const parsed = await window.api?.timetable?.get?.(getCurrentSchoolYear());
+        if (!parsed) return;
         const unresolvedKeys = Array.isArray(parsed?.unresolvedTeacherKeys) ? parsed.unresolvedTeacherKeys : [];
         if (!unresolvedKeys.length || !parsed?.teacherMetaByKey) return;
         const allTeachers = (await window.api?.teachers?.getAll?.(getCurrentSchoolYear())) || [];
@@ -628,16 +652,15 @@ async function restorePendingTafwijStateFromStorage() {
     }
 }
 
-function buildTafwijStoragePayload(state, resolutionOverrides = new Map(), keepUnresolved = true) {
+async function buildTafwijStoragePayload(state, resolutionOverrides = new Map(), keepUnresolved = true) {
     const teacherMetaByKey = {};
     const timetables = {};
     const unresolvedTeacherKeys = [];
     const subjects = new Set();
     const classes = new Set();
-    const currentStorageRaw = localStorage.getItem('timetableData');
     let currentStorage = null;
     try {
-        currentStorage = currentStorageRaw ? JSON.parse(currentStorageRaw) : null;
+        currentStorage = await window.api?.timetable?.get?.(getCurrentSchoolYear()) || null;
     } catch {
         currentStorage = null;
     }
@@ -866,8 +889,11 @@ async function finalizePendingTafwijImport({ saveAliases = false, keepUnresolved
         }
     }
 
-    const dataToSave = buildTafwijStoragePayload(state, selectionMap, keepUnresolved);
-    localStorage.setItem('timetableData', JSON.stringify(dataToSave));
+    const dataToSave = await buildTafwijStoragePayload(state, selectionMap, keepUnresolved);
+    const saveResult = await window.api?.timetable?.save?.({ school_year: getCurrentSchoolYear(), data: dataToSave });
+    if (!saveResult?.success) {
+        throw new Error(saveResult?.error || 'فشل حفظ بيانات استعمال الزمن في قاعدة البيانات');
+    }
     const unresolvedCount = dataToSave.unresolvedTeacherKeys.length;
     pendingTafwijImportState = null;
     hideTafwijMatchingPanel();
@@ -1580,8 +1606,7 @@ async function loadDataStats() {
     }
 
     try {
-        const timetableRaw = localStorage.getItem('timetableData');
-        const timetable = timetableRaw ? JSON.parse(timetableRaw) : null;
+        const timetable = await window.api?.timetable?.get?.(schoolYear);
         const teachersCount = Array.isArray(timetable?.teachers) ? timetable.teachers.length : 0;
         const unresolvedCount = Array.isArray(timetable?.unresolvedTeacherKeys)
             ? timetable.unresolvedTeacherKeys.length
@@ -1668,10 +1693,10 @@ async function clearData(type) {
             if (!res || res.success === false) throw new Error(res?.error || 'تعذر حذف الغياب');
             DataSourceRegistry.clear('absences', schoolYear);
         } else if (type === 'timetable') {
-            localStorage.removeItem('timetableData');
+            await window.api?.timetable?.delete?.(schoolYear);
             pendingTafwijImportState = null;
             hideTafwijMatchingPanel();
-            renderTafwijWarningBanner();
+            await renderTafwijWarningBanner();
             DataSourceRegistry.clear('fet', schoolYear);
         } else if (type === 'teachers') {
             if (!window.api?.teachers?.deleteByYear) throw new Error('ميزة حذف الأساتذة غير متاحة في هذا الإصدار');
@@ -2818,10 +2843,11 @@ async function importFetXml(file) {
                         allTeachers,
                         fileName: file?.name || 'tafwij'
                     };
-                    const partialData = buildTafwijStoragePayload(pendingTafwijImportState, new Map(), true);
-                    localStorage.setItem('timetableData', JSON.stringify(partialData));
+                    const partialData = await buildTafwijStoragePayload(pendingTafwijImportState, new Map(), true);
+                    const partialSave = await window.api?.timetable?.save?.({ school_year: getCurrentSchoolYear(), data: partialData });
+                    if (!partialSave?.success) throw new Error(partialSave?.error || 'فشل حفظ بيانات tafwij المؤقتة');
                     renderTafwijMatchingPanel();
-                    renderTafwijWarningBanner();
+                    await renderTafwijWarningBanner();
                     resolve({
                         teachersCount: fetEntries.length,
                         unresolvedCount: unresolvedEntries.length,
@@ -2830,7 +2856,7 @@ async function importFetXml(file) {
                     return;
                 }
 
-                const dataToSave = buildTafwijStoragePayload(
+                const dataToSave = await buildTafwijStoragePayload(
                     {
                         schoolYear: getCurrentSchoolYear(),
                         entries: fetEntries,
@@ -2839,9 +2865,10 @@ async function importFetXml(file) {
                     new Map(),
                     true
                 );
-                localStorage.setItem('timetableData', JSON.stringify(dataToSave));
-                renderTafwijWarningBanner();
-                console.log('FET data saved to localStorage:', fetEntries.length, 'teachers');
+                const fetSaveResult = await window.api?.timetable?.save?.({ school_year: getCurrentSchoolYear(), data: dataToSave });
+                if (!fetSaveResult?.success) throw new Error(fetSaveResult?.error || 'فشل حفظ بيانات FET في قاعدة البيانات');
+                await renderTafwijWarningBanner();
+                console.log('FET data saved to database:', fetEntries.length, 'teachers');
 
                 const fetNames      = fetEntries.map((t) => t.name || t.teacherName || '').filter(Boolean);
                 const fetValidator  = new CrossSourceValidator(getCurrentSchoolYear());

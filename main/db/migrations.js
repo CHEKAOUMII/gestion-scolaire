@@ -793,6 +793,21 @@ const MIGRATIONS = [
                     ON name_aliases(entity_type, alias_normalized, school_year);
             `);
         }
+    },
+    {
+        version: '2026-04-044-timetable-data-table',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS timetable_data (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    school_year  TEXT NOT NULL,
+                    data_json    TEXT NOT NULL,
+                    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(school_year)
+                )
+            `);
+        }
     }
 ];
 

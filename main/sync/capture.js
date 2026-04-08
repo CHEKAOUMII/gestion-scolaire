@@ -195,6 +195,10 @@ const CHANNEL_REGISTRY = {
     'sync:resolveConflict': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:testConnection': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
 
+    // === timetable-data.js ===
+    'timetableData:save': { tables: ['timetable_data'], operation: 'UPSERT', idExtractor: 'argKey', exclude: true },
+    'timetableData:delete': { tables: ['timetable_data'], operation: 'DEL', idExtractor: 'argKey', exclude: true },
+
     // === linking.js ===
     'linking:setup-new-institution': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'linking:verify-and-link': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },

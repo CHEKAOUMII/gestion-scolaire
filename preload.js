@@ -171,9 +171,9 @@ contextBridge.exposeInMainWorld('api', {
     },
 
     timetable: {
-        getByTeacher: (teacher, schoolYear) => ipcRenderer.invoke('timetable:getByTeacher', teacher, schoolYear),
-        getByRoom: (room, schoolYear) => ipcRenderer.invoke('timetable:getByRoom', room, schoolYear),
-        getByClass: (className, schoolYear) => ipcRenderer.invoke('timetable:getByClass', className, schoolYear)
+        get: (schoolYear) => ipcRenderer.invoke('timetableData:get', schoolYear),
+        save: (payload) => ipcRenderer.invoke('timetableData:save', payload),
+        delete: (schoolYear) => ipcRenderer.invoke('timetableData:delete', schoolYear)
     },
 
     // Supervised tests

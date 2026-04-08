@@ -126,15 +126,10 @@
       });
     });
 
-    function loadTimetableData() {
+    async function loadTimetableData() {
       try {
-        const raw = localStorage.getItem('timetableData');
-        if (!raw) {
-          showNoImportState();
-          return;
-        }
-
-        timetableData = JSON.parse(raw);
+        const schoolYear = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+        timetableData = await window.api.timetable.get(schoolYear);
         if (!timetableData || !timetableData.timetables) {
           showNoImportState();
           return;

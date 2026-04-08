@@ -35,8 +35,11 @@ class CrossSourceValidator {
         const dbTeachers = await window.api.teachers.getAll(this._year).catch(() => []);
         let timetableTeachers = [];
         try {
-            const td = JSON.parse(localStorage.getItem('timetableData') || '{}');
-            timetableTeachers = (td.teachers || []).map((name) => ({ id: null, name }));
+            const td = await window.api?.timetable?.get?.(this._year);
+            timetableTeachers = ((td?.teachers || []).map((t) => ({
+                id: t.teacherId || null,
+                name: t.displayName || t.teacherName || (typeof t === 'string' ? t : '')
+            }))).filter((t) => t.name);
         } catch (_) { /* ignore */ }
         return new NameResolver([...dbTeachers, ...timetableTeachers]);
     }
