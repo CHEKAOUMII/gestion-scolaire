@@ -590,3 +590,114 @@ This exact inline style appears in `absence-students.html`:40, `absence-weekly.h
 ### Summary
 
 The CSS architecture foundation is solid: `@theme {}` design tokens, `@layer components {}`, and dark mode via `[data-theme="dark"]` are all correctly implemented and well-organized. The Tailwind build output is current and not stale. However, the codebase has three pervasive violations of the CSS architecture rules: (1) 358 inline `style="..."` attributes across 36 HTML files, (2) 236 direct `.style.` mutations across 18 JS files (with 13 `.style.cssText` bulk assignments), and (3) approximately 105 physical CSS properties in `tailwind-input.css` that should be logical properties for RTL correctness. These are systemic issues reflecting pre-Tailwind-migration legacy code that was carried forward without conversion. None cause immediate functional breakage, but they undermine maintainability, theming consistency, and RTL correctness. A phased cleanup -- starting with the repeated static patterns (grid layouts, `display:none` initial states), then the `.style.cssText` bulk assignments, then the physical-to-logical property conversion -- would bring the codebase into compliance with its own documented CSS architecture rules.
+
+---
+
+## 7. Test Coverage & CI Health
+
+### Smoke Test -- What It Covers
+- IPC parity (preload channels vs main handlers): **YES** -- `runContractSmoke()`, lines 32-51
+- Sync registry completeness (write channels mapped): **YES** -- `runSyncRegistryCompletenessSmoke()`, lines 53-89
+- Module integrity (initDatabase, registerAllIpcHandlers exports): **YES** -- `runModuleExportsSmoke()`, lines 91-98
+- Page script extraction (4 HTML pages have deferred script tags, no trailing inline scripts): **YES** -- `runPageScriptExtractionSmoke()`, lines 100-117
+- Migration versioning (MIGRATIONS list exists, versions unique, count >= 3): **YES** -- `runMigrationSmoke()`, lines 119-128
+- Lazy-load script policy (no CDN Chart.js/XLSX in head of 4 key pages): **YES** -- `runLazyLoadSmoke()`, lines 130-163
+- Restore safety checks (quick_check, .validate.tmp, .restore.bak, expectedByteLength): **YES** -- `runRestoreSafetySmoke()`, lines 165-174
+- No CDN refs (walks entire source tree for CDN URLs, verifies vendor files exist): **YES** -- `runNoCdnSmoke()`, lines 176-223
+- Tailwind output (css/tailwind-output.css exists, >1000 bytes, contains --color-primary): **YES** -- `runTailwindOutputSmoke()`, lines 225-235
+- Legacy CSS cleanup (5 legacy files deleted, no HTML refs to them, no inline `<style>` blocks): **YES** -- `runLegacyCssSmoke()`, lines 237-276
+- Consolidation checks (no legacy channel aliases, no handleWriteNoAuth, validation module exports): **YES** -- `runConsolidationSmoke()`, lines 455-484
+- Linking LAN endpoint ranking (collectLanEndpoints, getLanEndpointSummary with sample interfaces): **YES** -- `runLinkingNetworkSmoke()`, lines 486-514
+- Sync default resolution (applySyncDefaults trims trailing slashes, falls back to env region): **YES** -- `runSyncDefaultsSmoke()`, lines 516-532
+- Validation module behavioral tests (requireFields, validateRange, validateDate, validateSchoolYear with positive and negative cases): **YES** -- `runValidationTests()`, lines 278-414
+- Auth module behavioral tests (hashPassword + verifyPassword round-trip, authErrorResponse code mapping): **YES** -- `runAuthTests()`, lines 416-453
+
+### Smoke Test -- Gaps (Not Covered)
+- DB schema correctness (no actual database is opened; `createTables()` is never executed against a real SQLite file): not tested
+- Migration idempotency (only checks version string uniqueness; does not run migrations twice to assert no error): not tested
+- Renderer globals availability (`FilterManager`, `PERIOD_MAP`, `showConfirm`, `showToast` are never verified as loadable in a browser-like context): not tested
+- End-to-end IPC round-trip (handler logic is never exercised with real data through a real `ipcMain.handle()` callback; only stub registration is tested): not tested
+- Page-level JS execution (no headless browser or Electron test runner; JS page modules are not loaded or exercised): not tested
+- Inline `style="..."` attribute detection in HTML (the legacy CSS smoke checks for `<style>` blocks but not for inline `style="..."` attributes, which are a separate CLAUDE.md violation with 358 occurrences): not tested
+- JS `.style.` direct mutations (236 occurrences across 18 files are not detected by any smoke check): not tested
+- Notification system (dispatcher, router, delivery, store -- no behavioral tests): not tested
+- Licensing service integration (activation flow, status checks, device fingerprint matching -- no integration test): not tested
+- Report engine (PDF pipeline, templates -- no behavioral tests): not tested
+- Physical vs logical CSS property compliance (RTL correctness of ~105 physical properties not checked): not tested
+
+### Smoke Test Result
+```
+> gestion-scolaire@1.0.32 test:smoke
+> node tests/smoke.js
+
+[smoke] IPC channels parity OK (170 channels)
+  [smoke] Sync registry OK (69 entries, 68 write channels)
+[smoke] Module exports OK
+[smoke] Page script extraction OK
+[smoke] Migrations versioned OK (44 steps)
+[smoke] Lazy-load script policy OK
+[smoke] Restore safety checks OK
+[smoke] No-CDN policy OK (vendor files present)
+[smoke] Tailwind CSS build output OK
+[smoke] Legacy CSS cleanup complete (no legacy files, no stale refs, no inline styles)
+[smoke] Consolidation checks OK (no legacy channels, no handleWriteNoAuth, validation module)
+[smoke] Linking LAN endpoint ranking OK
+[smoke] Sync default resolution OK
+[smoke] Validation module behavioral tests OK
+[smoke] Auth module behavioral tests OK
+[smoke] All smoke checks passed
+```
+
+### Lint Result
+```
+> gestion-scolaire@1.0.32 lint
+> eslint "main/**/*.js" "preload.js" "js/backup.js" "js/pages/*.js" "tests/**/*.js"
+
+No errors
+```
+
+### Findings
+
+**🟢 Good -- 15 distinct smoke checks provide broad structural coverage.**
+The smoke test suite covers IPC contract parity, module exports, CDN policy, CSS hygiene, migration versioning, validation logic, auth hashing, sync registry, LAN endpoint ranking, sync defaults, restore safety, consolidation, lazy-loading, page script extraction, and Tailwind output. This is an unusually thorough smoke suite for a project with no test framework (it uses raw `assert` module). All 15 checks pass cleanly.
+
+**🟢 Good -- Auth password hashing IS tested at the behavioral level.**
+`runAuthTests()` (lines 416-453) exercises the full `hashPassword` -> `verifyPassword` round-trip, asserts the `scrypt$` prefix format, verifies correct-password acceptance and wrong-password rejection, and tests `authErrorResponse` code mapping for UNAUTHENTICATED, FORBIDDEN, and unknown codes. This addresses a common gap in smoke suites.
+
+**🟢 Good -- Validation module IS tested with positive and negative cases.**
+`runValidationTests()` (lines 278-414) exercises all four exported validators (`requireFields`, `validateRange`, `validateDate`, `validateSchoolYear`) with valid inputs, missing/null/empty inputs, type mismatches, and format violations. Each negative case asserts that the thrown error message references the expected field name or format.
+
+**🟢 Good -- Lint is fully clean.**
+ESLint runs against `main/**/*.js`, `preload.js`, `js/backup.js`, `js/pages/*.js`, and `tests/**/*.js` with zero errors and zero warnings. The flat config (v9) is correctly configured with appropriate strictness per environment (Node vs browser globals).
+
+**🟢 Good -- CI pipeline is correctly sequenced.**
+`package.json` defines `test:smoke` as `node tests/smoke.js` and the documented CI pipeline runs `npm ci` -> `npm run css:build` -> `npm run lint` -> `npm run test:smoke`. The CSS build must precede smoke because `runTailwindOutputSmoke()` asserts the output file exists and contains the design token `--color-primary`.
+
+**🟠 Important -- No DB integration test: schema correctness and migration idempotency are untested.**
+The smoke suite never opens a real SQLite database. `runMigrationSmoke()` only parses the migration source file as text (checking version string uniqueness and count). There is no test that `createTables()` produces valid DDL, that `runMigrations()` can run to completion against a fresh database, or that running migrations twice is idempotent. Given that the project has 42 tables and 44 migrations -- and Section 3 identified DDL duplication between `schema.js` and `migrations.js` -- an integration test that opens an in-memory SQLite database and exercises the full init sequence would catch regressions that text parsing cannot.
+
+**🟠 Important -- No renderer-context tests: shared globals are assumed but never verified.**
+`FilterManager`, `PERIOD_MAP`, `MORNING_HOUR_MAP`, `AFTERNOON_HOUR_MAP`, `resolveSlotTime()`, `mergeConsecutivePeriods()`, `showConfirm()`, `showToast()`, and `setFieldValidation()` are mandated by `CLAUDE.md` as globals that must be available on every page. No smoke check verifies these are exported or loadable. A Node-level assertion that `js/utils.js` and `js/message-system.js` define the expected symbols (even without a browser context) would catch accidental deletion or renaming.
+
+**🟡 Minor -- Smoke test does not detect inline `style="..."` attributes or JS `.style.` mutations.**
+`runLegacyCssSmoke()` checks for `<style>` blocks in HTML (line 262-265) and references to deleted legacy CSS files, but does not flag inline `style="..."` attributes (358 occurrences in 36 HTML files) or direct `.style.` mutations in JS (236 occurrences in 18 JS files). Section 6 identified both as violations of documented CSS architecture rules. Adding even a count-based threshold assertion (e.g., "inline style count must not increase") would prevent regression.
+
+**🟡 Minor -- Lint scope excludes shared renderer modules.**
+The lint script targets `main/**/*.js`, `preload.js`, `js/backup.js`, `js/pages/*.js`, and `tests/**/*.js`. This excludes three shared renderer modules: `js/utils.js`, `js/ux-enhancements.js`, and `js/message-system.js`. Also excluded: `js/sidebar.js`, `js/notifications.js`, `app.js`, and any other top-level JS files. While these use browser globals that make strict linting harder (and the ESLint config has `no-undef: off` for `js/` anyway), including them in the lint scope would catch syntax errors and unused-variable warnings.
+
+**🟡 Minor -- No test framework or test runner.**
+The entire test suite is a single `tests/smoke.js` file executed directly via `node`. There is no test framework (Jest, Vitest, Mocha, etc.), no test runner, no coverage reporting, and no watch mode. The `assert` module provides basic pass/fail semantics but no test isolation, setup/teardown hooks, or parallel execution. For the current scope (15 structural checks + 2 behavioral test groups), this is adequate. If integration tests are added (DB, licensing, reports), a framework would become necessary.
+
+### Recommendations
+- Add integration test: open in-memory SQLite, run `createTables()` then `runMigrations()` twice, assert no error (migration idempotency)
+- Add integration test: `hashPassword` -> `verifyPassword` is already covered; extend to test `timingSafeEqual` with mismatched buffer lengths (edge case at `password.js`:44)
+- Add smoke assertion: `FilterManager` class exported from `js/utils.js` (Node-level `require` check for the constructor function)
+- Add smoke assertion: `showConfirm` exported from `js/message-system.js` (Node-level `require` check)
+- Add smoke assertion: `PERIOD_MAP`, `MORNING_HOUR_MAP`, `AFTERNOON_HOUR_MAP`, `resolveSlotTime`, `mergeConsecutivePeriods` exported from `js/utils.js`
+- Expand lint scope to include `js/utils.js`, `js/ux-enhancements.js`, `js/message-system.js`, `js/sidebar.js`, `js/notifications.js`, and `app.js`
+- Add a count-based regression guard for inline `style="..."` in HTML files (e.g., assert count <= current baseline, reject increases)
+- Consider adopting a lightweight test framework (Vitest or Node's built-in `node --test`) if integration tests are added
+
+### Summary
+
+The test and CI health is good for a project of this type. The 15-check smoke suite provides unusually broad structural coverage for a no-framework test setup, and both smoke and lint pass cleanly with zero errors. The suite has grown organically to include behavioral tests for auth and validation modules, not just structural assertions. The main gap is the absence of any database integration test -- the 42-table schema with 44 migrations is validated only by text-parsing the migration source file, not by exercising the actual DDL against a real SQLite engine. Adding an in-memory DB round-trip test and Node-level export checks for the mandated renderer globals would close the two most significant coverage gaps without requiring a test framework migration.
