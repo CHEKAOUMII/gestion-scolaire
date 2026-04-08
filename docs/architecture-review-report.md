@@ -531,3 +531,62 @@ Every page that implements a delete action (`teachers-list.js`, `support-session
 ### Summary
 
 The renderer architecture is in good structural health. The three shared modules (`utils.js`, `message-system.js`, `ux-enhancements.js`) correctly expose all mandated globals and are consistently used across the majority of pages. The most pervasive violation category is local PERIOD_MAP / hour-map duplication (4 files in the timetable family), which is a maintenance risk rather than a functional bug -- all local copies currently contain correct values, but they will drift if the schedule constants are ever updated in `utils.js`. The two raw `alert()`/`prompt()` usages and the two missing-pagination pages are straightforward fixes. The single CRUD-completeness violation in `support-sessions.js` requires adding an edit button and corresponding edit logic. No critical violations were found. The codebase has successfully completed the migration from localStorage-based dropdown population to API-backed FilterManager, and all destructive operations are properly gated by the unified confirmation dialog system.
+
+---
+
+## 6. CSS Architecture
+
+### tailwind-input.css Health
+- `@theme {}` tokens block: **YES** -- lines 18-163, comprehensive design tokens covering colors (core surfaces, text, brand, semantic status, grade, gender/chart), fonts, border radius, shadows, spacing, layout, motion, and gradients
+- `@layer components {}` used: **YES** -- line 6710, contains reusable component classes
+- Dark mode via `[data-theme="dark"]`: **YES** -- `@variant dark` declared at line 12, dark mode token overrides block at lines 181-260 using `[data-theme='dark']` selector to reassign all `--color-*` custom properties
+- Physical properties used instead of logical: **~105 instances** (see findings below)
+
+### Inline Style Violations
+- HTML files with `style="`: **36 files -- 358 total occurrences**
+  - Top offenders: `staff-daily-report.html` (33), `timetable.html` (31), `results-hub.html` (30), `compensation-tracking.html` (28), `timetable-students.html` (26), `timetable-rooms.html` (24), `student-support.html` (20), `timetable_body.html` (16), `exams-schedule.html` (15), `settings-school.html` (15)
+  - Remaining 26 files: `timetable-teachers.html` (12), `absence-analytics.html` (11), `students-status.html` (9), `student-profile-prototype.html` (10), `students-register.html` (8), `staff-attendance.html` (6), `absence-weekly.html` (6), `reports-semester.html` (6), `absence-students.html` (5), `absence-correspondence.html` (5), `students-list.html` (4), `students-files.html` (4), `teachers-schedule.html` (4), `setup.html` (4), `analytics.html` (3), `communication-center-prototype.html` (3), `timetable-redistribution.html` (3), `teachers-absence.html` (3), `students-movement.html` (3), `exams-proctors.html` (2), `exams-rooms.html` (2), `exams-tests.html` (2), `index.html` (2), `grades-sheets.html` (1), `grades-results.html` (1), `settings-sync.html` (1)
+
+- JS files with `.style.`: **236 occurrences across 18 files**
+  - Top offenders: `js/utils.js` (80), `js/pages/timetable.js` (54), `js/ux-enhancements.js` (34), `js/notifications.js` (13), `js/pages/students-list.js` (10), `js/pages/analytics.js` (8), `js/pages/settings-school.js` (7), `js/sidebar.js` (6), `js/pages/settings-imports.js` (6)
+  - Remaining 9 files: `js/pages/login.js` (3), `js/pages/teachers-list.js` (3), `js/pages/grades-sheets.js` (2), `js/pages/timetable-rooms.js` (2), `js/pages/timetable-students.js` (2), `js/pages/student-profile.js` (2), `js/pages/setup.js` (2), `js/pages/settings-sync.js` (1), `js/pages/teachers-performance.js` (1)
+  - Of these, 13 use `.style.cssText` (bulk inline style assignment) across 4 files: `js/utils.js` (8), `js/pages/timetable.js` (3), `js/ux-enhancements.js` (1), `js/pages/setup.js` (1)
+
+### Build Output
+- `tailwind-output.css` matches input (no stale diff): **YES** -- `npm run css:build` succeeded and `git diff css/tailwind-output.css` returned empty
+
+### Findings
+
+**[GOOD] `tailwind-input.css`:18-163 -- Comprehensive `@theme {}` block with well-organized design tokens.**
+The theme block defines ~80 custom properties organized into clear categories: core surfaces, text, brand/primary, semantic status (success/warning/danger/info with text/surface/border/solid variants), grade colors, utility colors, gender/chart colors, fonts, border radius, shadows, spacing, layout, motion, and gradients. Legacy aliases (lines 149-162) map old `--primary`, `--text`, `--border-color` names to the new `--color-*` namespace, enabling incremental migration without breaking existing carry-forward CSS.
+
+**[GOOD] `tailwind-input.css`:12 -- Dark mode correctly targets `[data-theme="dark"]`.**
+The `@variant dark` declaration at line 12 uses the exact `&:where([data-theme="dark"], [data-theme="dark"] *)` pattern. The dark mode override block at lines 181-260 reassigns all core surface, text, border, glass, shadow, and gradient custom properties. Every component using `var(--color-*)` tokens automatically responds to the theme toggle without per-component dark mode rules.
+
+**[GOOD] `tailwind-input.css`:6710 -- `@layer components {}` used for reusable classes.**
+The component layer contains shared classes that can be overridden by utility classes, following Tailwind v4 conventions.
+
+**[IMPORTANT] 36 HTML files contain 358 inline `style="..."` attributes.**
+The `CLAUDE.md` rule states "all styles must live in `css/tailwind-input.css` -- no inline `style="..."` in HTML." The inline styles fall into several categories: (1) dynamic values computed from JS template literals (e.g., `style="width:${percent}%"`, `style="background:${color}"` -- ~90 occurrences), which cannot easily move to CSS but should use class toggling or CSS custom properties set via JS; (2) static layout styles (e.g., `style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"` repeated across 8+ files), which should be extracted to named component classes in `@layer components {}`; (3) `style="display: none"` for initial-hidden elements (~50 occurrences), which should use a Tailwind `hidden` class; (4) hardcoded colors and typography (e.g., `style="color:#ef4444"`, `style="font-family:monospace"`, `style="font-weight:bold"`), which should be replaced with Tailwind utilities or component classes.
+
+**[IMPORTANT] 18 JS files contain 236 direct `.style.` mutations.**
+The `CLAUDE.md` rule states "JS must not mutate `.style.` directly -- use class toggling instead." The violations are concentrated in three shared modules (`js/utils.js` with 80, `js/ux-enhancements.js` with 34, `js/notifications.js` with 13) and the timetable page (`js/pages/timetable.js` with 54). The most problematic pattern is `.style.cssText` (13 occurrences across 4 files), which sets entire inline style blocks from JS strings -- these are the hardest to maintain and the most resistant to theming. The `.style.display = 'none'`/`''` pattern (~100 occurrences) is the most common mutation category and should be replaced with `classList.add('hidden')`/`classList.remove('hidden')` using a Tailwind or custom utility class.
+
+**[IMPORTANT] `tailwind-input.css` -- ~105 physical CSS properties used instead of logical properties.**
+The `CLAUDE.md` rule mandates logical properties (`ps-*`, `pe-*`, `ms-*`, `me-*`, `start-*`) over physical `left`/`right` for RTL compatibility. The CSS file contains approximately: `margin-right` (~30), `margin-left` (~12), `text-align: right` (~25), `text-align: left` (~7), `border-right` (~15), `border-left` (~6), `padding-right` (~6), `padding-left` (~4). Since this is an Arabic-language RTL application, physical `left`/`right` properties are directionally incorrect in principle. For example, `margin-right: auto` (line 841, 2414, 2468, etc.) should be `margin-inline-start: auto`; `text-align: right` (line 1166, 1287, etc.) should be `text-align: start`; `border-right` (line 896, 925, etc.) should be `border-inline-start`. Some usages may be intentionally physical (e.g., print layout), but the majority should be converted to logical equivalents.
+
+**[MINOR] `tailwind-input.css`:27118-27150 -- Toast positioning uses physical `right` property.**
+The toast container uses `right: var(--toast-right-offset)` and `--toast-right-offset: 24px`. In an RTL layout, this places toasts on the left side of the viewport (since CSS `right` is physical). If the intent is to position toasts at the inline-end of the viewport, this should use `inset-inline-end` instead of `right`. The corresponding JS mutations in `timetable.js`:1808-1829 also set `--toast-right-offset` via `root.style.setProperty()`.
+
+**[MINOR] `js/pages/timetable.js`:2181-2219 -- `cancelBar` built entirely via `.style.cssText`.**
+The drag-cancel bar is constructed with 12 inline style declarations set via `.style.cssText`, including layout, colors, borders, and positioning. This entire visual treatment should be defined as a CSS class in `@layer components {}` (e.g., `.timetable-cancel-bar`) and toggled via `classList`.
+
+**[MINOR] `js/utils.js`:852, 1217, 1296, 1464 -- Modal overlays built entirely via `.style.cssText`.**
+Four modal/overlay creation points in `utils.js` (change-password modal, lock screen overlay, PIN setup modal, password change modal) construct their entire visual layout through `.style.cssText` strings. These should be defined as CSS classes. The lock screen overlay (line 1296) alone has 15+ style properties set inline.
+
+**[MINOR] Static `display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px` repeated across 8+ HTML files.**
+This exact inline style appears in `absence-students.html`:40, `absence-weekly.html`:38, `exams-proctors.html`:40, `exams-rooms.html`:40, `exams-tests.html`:40, `students-files.html`:40, `teachers-absence.html`:41, `students-movement.html`:38, and `students-register.html`:38. It should be extracted to a named class (e.g., `.filter-grid` or `.form-grid`) in `@layer components {}`.
+
+### Summary
+
+The CSS architecture foundation is solid: `@theme {}` design tokens, `@layer components {}`, and dark mode via `[data-theme="dark"]` are all correctly implemented and well-organized. The Tailwind build output is current and not stale. However, the codebase has three pervasive violations of the CSS architecture rules: (1) 358 inline `style="..."` attributes across 36 HTML files, (2) 236 direct `.style.` mutations across 18 JS files (with 13 `.style.cssText` bulk assignments), and (3) approximately 105 physical CSS properties in `tailwind-input.css` that should be logical properties for RTL correctness. These are systemic issues reflecting pre-Tailwind-migration legacy code that was carried forward without conversion. None cause immediate functional breakage, but they undermine maintainability, theming consistency, and RTL correctness. A phased cleanup -- starting with the repeated static patterns (grid layouts, `display:none` initial states), then the `.style.cssText` bulk assignments, then the physical-to-logical property conversion -- would bring the codebase into compliance with its own documented CSS architecture rules.
