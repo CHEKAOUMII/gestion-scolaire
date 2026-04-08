@@ -279,3 +279,71 @@ This single migration creates a table, adds 3 columns, creates 5 indexes, and pe
 ### Summary
 
 The database layer is structurally sound. The singleton pattern, init sequence, pragma configuration, and migration runner all follow the documented conventions correctly. The `ensureColumn()` helper and idempotent `IF NOT EXISTS` guards make the schema resilient to repeated runs. The two most actionable findings are: (1) admin passwords logged in plaintext to console during initial setup and password-reset recovery, which should use a UI prompt instead; and (2) five domain tables (`student_movements`, `teacher_absences`, `exams`, `exam_proctors`, `exam_rooms`) and the `notifications` table lack the `school_year` indexing or column that the architecture requires. The DDL duplication between `schema.js` and `migrations.js` is safe due to idempotency guards but should be consolidated to prevent future divergence.
+
+---
+
+## 4. Auth & Licensing Security
+
+### Password Hashing
+- Algorithm: `crypto.scryptSync` with key length 64 bytes (`password.js`:3,21)
+- Salt: random per-password via `crypto.randomBytes(16)` (`password.js`:20)
+- Format: `scrypt$<salt>$<hash>` (`password.js`:22)
+- Timing-safe comparison: **YES** -- `crypto.timingSafeEqual()` on Buffer-converted hex values (`password.js`:42-45), with length pre-check at line 44
+
+### License Key Integrity
+- Signing mechanism: HMAC-SHA256 via `crypto.createHmac('sha256', secret)` (`offlineKey.js`:82)
+- Key format: `GSLK-<base64url_payload>.<base64url_hmac_signature>` (`offlineKey.js`:111)
+- Signature comparison: timing-safe via `safeEqual()` helper using `crypto.timingSafeEqual()` (`offlineKey.js`:74-78, called at lines 131 and 138)
+- Secret hardcoded in source: **NO** -- resolved via a three-tier priority: (1) `GESTION_LICENSE_SECRET` env var, (2) per-installation `.license-secret` file in `userData`, (3) auto-generated `crypto.randomBytes(64)` persisted on first launch (`offlineKey.js`:30-62)
+- Validated per-call or only at startup: **activation-only** -- `decodeOfflineLicenseKey()` verifies the HMAC signature during `activateLicense()` (`service.js`:319). Subsequent `getLicenseStatus()` calls query the stored DB record by `license_key_hash` (SHA256 of the key) without re-verifying the HMAC signature (`service.js`:120-191)
+
+### Device Fingerprint
+- Attributes used: OS platform, CPU architecture, CPU model, CPU core count, total memory (bucketed to 0.5 GB), Windows MachineGuid (registry), BIOS serial number (wmic), baseboard serial number (wmic), MAC addresses (non-internal, non-null) (`deviceFingerprint.js`:44-74)
+- Stable across reboots: **YES** -- all attributes are hardware-based and persist across reboots; fuzzy matching with `REINSTALL_MATCH_THRESHOLD = 70` (`deviceFingerprint.js`:5) tolerates minor changes (e.g., MAC address changes from network adapter swaps) via weighted vector scoring (`deviceFingerprint.js`:121-156)
+
+### AWS Credentials
+- Not applicable -- no AWS services are used. The telemetry system (`ownerSync.js`) communicates with a custom HTTP server using bearer-style tokens passed in `x-owner-token` headers (`ownerSync.js`:339-341)
+- Sourced from env vars: **YES** -- `OWNER_SYNC_WRITE_TOKEN`, `OWNER_SYNC_READ_TOKEN`, `OWNER_SYNC_URL` (`ownerSync.js`:49-55)
+- Never hardcoded: **YES** -- `ownerSyncDefaults.js` sets all token defaults to empty strings (`ownerSyncDefaults.js`:5-11)
+
+### Findings
+
+**🟢 Good -- `password.js`:18-23 -- Password hashing follows all required conventions.**
+Uses `crypto.scryptSync` with 64-byte key length, random 16-byte salt via `crypto.randomBytes(16)`, and the documented `scrypt$<salt>$<hash>` format. The salt parameter defaults to random but accepts an explicit value for internal use; all production call sites rely on the default random generation.
+
+**🟢 Good -- `password.js`:42-45 -- Password verification uses `timingSafeEqual` with no `===` fallback.**
+The comparison converts both hex strings to Buffers and uses `crypto.timingSafeEqual()`. The length pre-check at line 44 (`if (a.length !== b.length) return false`) is required by Node.js (which throws on mismatched Buffer lengths) and does not leak timing information about the hash content, only the key length (which is always fixed at 64 bytes).
+
+**🟢 Good -- `offlineKey.js`:30-62 -- License signing secret is never hardcoded.**
+The `getSigningSecret()` function uses a strict three-tier resolution: env var first, then per-installation persistent file, then auto-generate and persist. There are no fallback string literals or default secrets anywhere in the source. When running outside Electron without the env var, an explicit error is thrown with instructions (`offlineKey.js`:57-60).
+
+**🟢 Good -- `offlineKey.js`:74-78 -- HMAC signature comparison is timing-safe.**
+The `safeEqual()` helper converts both strings to UTF-8 Buffers and uses `crypto.timingSafeEqual()`. This is used for all signature comparisons during license key decoding (lines 131 and 138).
+
+**🟢 Good -- `offlineKey.js`:51-53 -- Per-installation secret is generated with `crypto.randomBytes(64)` and written with restrictive permissions.**
+The auto-generated secret is 128 hex characters (64 random bytes) and the file is created with `mode: 0o600` (owner read/write only).
+
+**🟢 Good -- `ownerSyncDefaults.js`:1-18 -- All telemetry tokens default to empty strings.**
+No credentials are baked into the defaults file. Sync is disabled by default (`enabled: false` at line 15) and requires explicit configuration. The `ownerSync.js` bootstrap (`getBootstrapDefaults`) further enforces this: if `serverUrl` or `writeToken` is empty, sync is forced disabled (`ownerSync.js`:72-74).
+
+**🟢 Good -- `deviceFingerprint.js`:77-108 -- Fingerprint vector uses one-way SHA256 hashes.**
+Individual hardware attributes are hashed before storage, preventing reconstruction of raw hardware identifiers from the stored fingerprint vector. Only hashed values are persisted to the database or transmitted via telemetry.
+
+**🟡 Minor -- `offlineKey.js`:53 -- File permission `mode: 0o600` has limited effect on Windows.**
+The target platform is Windows (`CLAUDE.md` specifies Windows NSIS installer). Unix-style `mode` flags passed to `fs.writeFileSync` are not enforced by the Windows filesystem (NTFS uses ACLs, not POSIX permissions). The `.license-secret` file in `userData` is protected only by the user's profile directory ACLs, which is adequate for most threat models but is not an explicit restrictive permission as the code implies. On Linux/macOS if the app were ever ported, the `0o600` mode would work as intended.
+
+**🟡 Minor -- `offlineKey.js`:14 -- Signing secret is cached in module-level variable for process lifetime.**
+`_cachedSecret` retains the signing secret in process memory once loaded. This is standard practice for performance reasons and is not exploitable without process memory access, but it means the secret cannot be rotated without restarting the Electron app.
+
+**🟡 Minor -- `password.js`:18 -- `hashPassword` accepts an optional `saltHex` parameter.**
+The function signature `hashPassword(password, saltHex = null)` allows callers to supply a fixed salt, which would produce deterministic hashes. All current callers rely on the `null` default (random salt), so this is not an active vulnerability. However, the parameter is exported publicly via `module.exports` and could be misused by future code. Consider removing the parameter from the public API or adding a JSDoc warning.
+
+**🟡 Minor -- `service.js`:120-191 -- License status checks do not re-verify HMAC signature.**
+After initial activation (where the HMAC is verified), `getLicenseStatus()` trusts the DB record without re-verifying the original license key's signature. This means that if the SQLite database file is manually tampered with (e.g., modifying `plan_code`, `expires_at`, or `status` fields in the `licenses` table), the application would honor the tampered values. For a locally-installed desktop app where the user has full filesystem access, this is an accepted trade-off -- the user could also replace the entire application binary. However, storing a signature digest alongside the license record and re-verifying on status check would add a defense-in-depth layer against casual tampering.
+
+**🟡 Minor -- `offlineKey.js`:134-139 -- Fallback signature verification path broadens acceptance.**
+When the primary signing secret does not verify a license key, `decodeOfflineLicenseKey` falls back to the per-installation `.license-secret` file as a secondary verification source. This is documented as backward compatibility for old serials, but it means a key signed with any previous signing secret used on the same machine will be accepted even after the signing secret changes (e.g., after setting a new `GESTION_LICENSE_SECRET` env var). The window of exposure is narrow (limited to the same machine's history), but the fallback should be documented in the code with a comment explaining when it can be safely removed.
+
+### Summary
+
+The auth and licensing security implementation is well-executed across all critical requirements. Password hashing correctly uses `crypto.scryptSync` with random per-password salts and `timingSafeEqual` for comparison -- no `===` hash comparisons exist anywhere. License key signing uses HMAC-SHA256 with a secret that is never hardcoded in source: it is sourced from an environment variable or a per-installation auto-generated file. Telemetry credentials default to empty strings and are sourced from environment variables. No critical or important findings were identified. The minor findings -- Windows file permission semantics, module-level secret caching, public `saltHex` parameter, activation-only signature verification, and the fallback verification path -- are all low-risk items appropriate for a hardening pass rather than urgent remediation.
