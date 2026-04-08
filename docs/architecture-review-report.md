@@ -701,3 +701,57 @@ The entire test suite is a single `tests/smoke.js` file executed directly via `n
 ### Summary
 
 The test and CI health is good for a project of this type. The 15-check smoke suite provides unusually broad structural coverage for a no-framework test setup, and both smoke and lint pass cleanly with zero errors. The suite has grown organically to include behavioral tests for auth and validation modules, not just structural assertions. The main gap is the absence of any database integration test -- the 42-table schema with 44 migrations is validated only by text-parsing the migration source file, not by exercising the actual DDL against a real SQLite engine. Adding an in-memory DB round-trip test and Node-level export checks for the mandated renderer globals would close the two most significant coverage gaps without requiring a test framework migration.
+
+---
+
+## 8. Reports & Notifications
+
+### Report Engine
+- Uses shared print window (not per-report): **YES** -- `engine.js`:5 imports `printHTML` from `../print-window` and all reports funnel through the single `printHTML()` entry point at line 79
+- User data sanitized before HTML injection: **YES** (partial) -- `letterhead.js`:72-78 defines `esc()` (escapes `&`, `<`, `>`, `"`) used on all identity fields and document titles; `security.js`:103-116 defines both `esc()` and `escJs()` for HTML and JavaScript string contexts; `print-window.js`:583-584 defines `escapeHTML()` for the document `<title>`. However, `engine.js`:21 receives `bodyHTML` from callers and passes it through to `assembleDocumentBody()` at line 70 without engine-level sanitization -- escaping responsibility is delegated to individual template files
+- Error handling closes print window on failure: **YES** -- `print-window.js`:157-161 catches all errors, calls `printWin.close()` (with `isDestroyed()` guard), cleans up the temp HTML file via `_cleanupTmp()`, and returns `{ success: false, error }`. The engine layer at `engine.js`:91-94 has its own catch that logs and returns a failure result
+
+### Notification System
+- Persisted to SQLite: **YES** -- `store.js`:21-36 inserts into `notifications` table via `getDb()`, called from `dispatcher.js`:38 when the `center` channel is active
+- Notification schema in main migrations or own file: **both** -- migration `2026-03-015-notifications-table` in `migrations.js`:132-149 creates the table and indexes; `store.js`:3-15 also defines `CREATE TABLE IF NOT EXISTS notifications(...)` in an `init()` function, but `store.init()` is never called anywhere in the codebase (dead code)
+- Template strings XSS-safe: **YES** -- main-process templates (`templates.js`:91-96) use unescaped `{{key}}` interpolation to produce plain text strings, but the renderer-side display in `js/notifications.js`:290 passes all content through `escapeHtml()` (lines 308-312, uses the safe `textContent`/`innerHTML` DOM technique) before inserting into the DOM via `innerHTML`
+- Read/unread state tracked: **YES** -- `store.js`:8 defines `read INTEGER DEFAULT 0`; `markRead(id)` at line 43, `markAllRead()` at line 47, and `unreadCount()` at line 51 provide full read-state management; renderer at `js/notifications.js`:282 applies CSS class `unread` based on `data.read`, and click handler at line 299 calls `notifications.markRead(data.id)`
+
+### Findings
+
+**🟢 Good -- `letterhead.js`:72-78 and `security.js`:103-116 -- Consistent HTML escaping across all report modules.**
+Both `letterhead.js` and `security.js` define local `esc()` functions that escape the four critical HTML metacharacters (`&`, `<`, `>`, `"`). Every user-sourced value interpolated into their template literals passes through `esc()`: identity fields (`id.country`, `id.ministry`, `id.school_name`, `id.school_code`), document titles, document references, school year, and security bar metadata. The `security.js` module additionally defines `escJs()` for values interpolated into inline `<script>` contexts (QR code generation), which escapes backslashes, single quotes, and double quotes. This two-layer approach (HTML context + JS string context) is correct.
+
+**🟢 Good -- `print-window.js`:157-161 -- Print window is always closed on failure.**
+The `try/catch` at the end of `printHTML()` guards the entire print pipeline. The catch block checks `printWin.isDestroyed()` before calling `close()` (preventing double-close errors), calls `_cleanupTmp(tmpFile)` to remove the temporary HTML file, and returns a structured error result. For the `print` mode path (line 120), the window is also explicitly closed after the print callback resolves. For the `preview` mode path (line 98), the window cleanup is deferred to the `closed` event. All three modes handle cleanup correctly.
+
+**🟢 Good -- `dispatcher.js`:7-23 -- Notification deduplication prevents storm scenarios.**
+The dispatcher maintains an in-memory `recentSourceIds` Map with a 5-minute TTL (line 8). Events with a `sourceId` that was seen within the TTL are immediately deduplicated and return `{ status: 'deduplicated' }` without persisting or delivering. Stale entries are evicted on each dispatch (lines 21-23). This prevents rapid-fire operations (e.g., bulk imports) from flooding the notification center.
+
+**🟢 Good -- `js/notifications.js`:308-312 -- Renderer-side XSS protection uses the safe DOM technique.**
+The `escapeHtml()` function creates a temporary `div` element, sets its `textContent` (which cannot execute HTML), then reads back `innerHTML` (which returns the escaped representation). This is the standard browser-safe escaping pattern. It is applied to `data.body` and `data.title` at line 290 before insertion.
+
+**🟢 Good -- `store.js`:43-58 -- Complete read/unread lifecycle.**
+The store provides `markRead(id)` for individual notifications, `markAllRead()` for bulk operations, `unreadCount()` for badge display, and `deleteOlderThan(days)` for retention management. The renderer integrates all of these: the badge updates on page load (line 414), on center updates (line 398), and on mark-read actions (lines 300, 353).
+
+**🟠 Important -- `store.js`:17-19 -- `store.init()` is dead code; table creation relies solely on migration.**
+The `store.js` module defines an `init()` function (lines 17-19) that executes `CREATE TABLE IF NOT EXISTS notifications (...)`. However, searching the entire `main/` directory reveals that `store.init()` is never called -- not in `dispatcher.js`, not in `main/ipc/notifications.js`, and not in `main/db/init.js`. The notifications table is created exclusively by migration `2026-03-015-notifications-table` in `migrations.js`:132-149. The migration's DDL includes two indexes (`idx_notifications_created`, `idx_notifications_read`) that are absent from the `store.js` schema definition. This creates a divergence risk: if someone reads `store.js` to understand the schema, they will miss the indexes. The dead `init()` function should either be removed or integrated into the init sequence for defensive `IF NOT EXISTS` redundancy.
+
+**🟠 Important -- `engine.js`:21,70 -- `bodyHTML` parameter passes through without engine-level sanitization.**
+The `printDocument()` function accepts a `bodyHTML` parameter (line 21) and passes it directly to `assembleDocumentBody()` (line 70) without any escaping or validation. This design delegates XSS prevention entirely to each template that generates body content. While the engine's own components (letterhead, footer, security bar, watermark) all sanitize their inputs, the `bodyHTML` -- which is the largest surface area and most likely to contain user-sourced data (student names, grades, teacher names) -- has no defense-in-depth at the engine level. If any template omits escaping for a user field, the unescaped content flows into the final HTML document. A review of all template files in `main/reports/templates/` is recommended to verify each one escapes user data.
+
+**🟡 Minor -- `js/notifications.js`:286 -- Notification icon class name is not escaped before innerHTML insertion.**
+The `createNotificationItem` function at line 286 interpolates `data.icon || 'fa-bell'` directly into an `innerHTML` string as a CSS class: `'<i class="fas ' + (data.icon || 'fa-bell') + '"></i>'`. While the icon values originate from hardcoded template definitions in `templates.js` (e.g., `'fa-user-plus'`, `'fa-exclamation-triangle'`), a malicious or corrupted database record could inject HTML through this field. The risk is very low because the data path is main-process-controlled, but applying `escapeHtml()` to the icon field would close the gap for no cost.
+
+**🟡 Minor -- `security.js`:48-56 -- Inline `<script>` tag in security bar HTML for QR code generation.**
+The `generateSecurityBar` function injects an inline `<script>` block (lines 48-56) that instantiates a `QRCode` widget. While the interpolated values use `escJs()` for proper JS string escaping, embedding inline scripts in generated HTML is a fragile pattern. If a Content Security Policy (CSP) were ever added to the print window (defense-in-depth), this script would be blocked. The QR code could instead be generated as a base64 `data:` URL in the main process and inserted as an `<img>` tag.
+
+**🟡 Minor -- `store.js`:3-15 vs `migrations.js`:132-149 -- Schema definition divergence between store and migration.**
+The `store.js` schema (lines 3-15) defines the `notifications` table with 8 columns and no indexes. The migration (lines 132-149) defines the same table with 8 columns plus two indexes: `idx_notifications_created` on `created_at` and `idx_notifications_read` on `read`. Since only the migration is executed (as established above), the indexes exist at runtime, but a developer reading `store.js` alone would not know they exist. The two definitions should be consolidated into a single source of truth.
+
+**🟡 Minor -- `print-window.js`:94 -- Fixed 1-second delay for font/layout settling.**
+Line 94 uses `await new Promise((r) => setTimeout(r, 1000))` as a blanket wait for fonts and images. This adds 1 second to every print operation regardless of whether fonts are loaded. The preceding `document.fonts.ready` check (lines 87-91) already waits for fonts; the additional 1-second delay appears to be a safety margin for layout reflow. On fast machines with cached fonts, this is unnecessary latency. A shorter delay (200-300ms) with a content-ready check would be more responsive.
+
+### Summary
+
+The report engine and notification system are both well-architected. The report engine correctly uses the shared `print-window.js` utility for all document types, and all engine-owned components (letterhead, security bar, watermark, footer) consistently escape user data before HTML interpolation. Error handling properly closes the print window and cleans up temp files on all failure paths. The notification system is persisted to SQLite with full read/unread lifecycle management and a deduplication guard against notification storms. The renderer-side display uses the safe `textContent`/`innerHTML` DOM escaping technique for notification body and title content. The two most actionable findings are: (1) the `store.init()` function is dead code, creating a schema definition divergence with the migration; and (2) the engine's `bodyHTML` parameter passes through without engine-level sanitization, making XSS prevention dependent on each individual template's diligence -- a template audit is recommended to verify this assumption holds.
