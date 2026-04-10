@@ -808,6 +808,37 @@ const MIGRATIONS = [
                 )
             `);
         }
+    },
+    {
+        version: '2026-04-045-system-tags',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS system_tags (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tag_date        TEXT NOT NULL,
+                    entity_type     TEXT NOT NULL
+                                    CHECK(entity_type IN ('teacher','section')),
+                    entity_id       INTEGER,
+                    entity_name     TEXT NOT NULL,
+                    tag_key         TEXT NOT NULL,
+                    tag_label       TEXT NOT NULL,
+                    details         TEXT,
+                    school_year     TEXT NOT NULL,
+                    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(tag_date, entity_type, entity_name, tag_key, school_year)
+                )
+            `);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_system_tags_date ON system_tags(tag_date, school_year)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_system_tags_entity ON system_tags(entity_type, entity_name, school_year)`);
+        }
+    },
+    {
+        version: '2026-04-046-system-tags-notes',
+        up: () => {
+            ensureColumn('system_tags', 'note_group', 'TEXT');
+            ensureColumn('system_tags', 'note_text', 'TEXT');
+        }
     }
 ];
 

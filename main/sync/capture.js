@@ -134,6 +134,10 @@ const CHANNEL_REGISTRY = {
     'teacherAbsences:delete': { tables: ['teacher_absences'], operation: 'DEL', idExtractor: 'argId' },
     'schoolEvents:save': { tables: ['school_events'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'schoolEvents:delete': { tables: ['school_events'], operation: 'DEL', idExtractor: 'argId' },
+    'systemTags:save': { tables: ['system_tags'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
+    'systemTags:saveNote': { tables: ['system_tags'], operation: 'PUT', idExtractor: 'inputArray', bulk: true },
+    'systemTags:delete': { tables: ['system_tags'], operation: 'DEL', idExtractor: 'argId' },
+    'systemTags:deleteByGroup': { tables: ['system_tags'], operation: 'DEL', idExtractor: 'preQuery', preCapture: true, bulk: true },
     'compensation:saveBatch': {
         tables: ['compensation_tracking'],
         operation: 'PUT',

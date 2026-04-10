@@ -130,6 +130,15 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('schoolEvents:delete', id)
     },
 
+    // System tags (daily report)
+    systemTags: {
+        getByDate: (date, schoolYear) => ipcRenderer.invoke('systemTags:getByDate', date, schoolYear),
+        save: (payload) => ipcRenderer.invoke('systemTags:save', payload),
+        saveNote: (payload) => ipcRenderer.invoke('systemTags:saveNote', payload),
+        delete: (id) => ipcRenderer.invoke('systemTags:delete', id),
+        deleteByGroup: (noteGroup) => ipcRenderer.invoke('systemTags:deleteByGroup', noteGroup)
+    },
+
     // Compensation tracking
     compensation: {
         getByDate: (date, schoolYear) => ipcRenderer.invoke('compensation:getByDate', date, schoolYear),

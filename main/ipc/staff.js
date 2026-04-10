@@ -645,6 +645,18 @@ function registerStaffIpc(ipcMain) {
             )
             .all(date, year);
 
+        // 7. System tags for this date
+        let tags = [];
+        try {
+            tags = db
+                .prepare(
+                    `SELECT * FROM system_tags
+                     WHERE tag_date = ? AND school_year = ?
+                     ORDER BY entity_type, entity_name, id`
+                )
+                .all(date, year);
+        } catch { /* table may not exist yet */ }
+
         return {
             absences,
             staffAbsences,
@@ -653,7 +665,8 @@ function registerStaffIpc(ipcMain) {
             sectionStudentCounts,
             allSections,
             affectedSections,
-            events
+            events,
+            tags
         };
     });
 
@@ -1022,6 +1035,82 @@ function registerStaffIpc(ipcMain) {
 
         transaction();
         return { imported, skipped };
+    });
+
+    // ── System Tags CRUD ──
+
+    handleRead(ipcMain, 'systemTags:getByDate', (db, date, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        return db
+            .prepare(
+                `SELECT * FROM system_tags
+                 WHERE tag_date = ? AND school_year = ?
+                 ORDER BY entity_type, entity_name, id`
+            )
+            .all(date, year);
+    });
+
+    handleWriteSoftAuth(ipcMain, 'systemTags:save', ['admin', 'staff'], (db, payload) => {
+        const { id, tag_date, entity_type, entity_id, entity_name, tag_key, tag_label, details, school_year } = payload;
+        requireFields(payload, ['tag_date', 'entity_type', 'entity_name', 'tag_key', 'tag_label', 'school_year']);
+        const year = requireSchoolYear(school_year);
+
+        if (id) {
+            db.prepare(
+                `UPDATE system_tags
+                 SET tag_date = ?, entity_type = ?, entity_id = ?, entity_name = ?,
+                     tag_key = ?, tag_label = ?, details = ?, school_year = ?
+                 WHERE id = ?`
+            ).run(tag_date, entity_type, entity_id || null, entity_name, tag_key, tag_label, details || '', year, id);
+            return { success: true, id };
+        } else {
+            const result = db
+                .prepare(
+                    `INSERT INTO system_tags (tag_date, entity_type, entity_id, entity_name, tag_key, tag_label, details, school_year)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                )
+                .run(tag_date, entity_type, entity_id || null, entity_name, tag_key, tag_label, details || '', year);
+            return { success: true, id: result.lastInsertRowid };
+        }
+    });
+
+    handleWriteSoftAuth(ipcMain, 'systemTags:delete', ['admin', 'staff'], (db, tagId) => {
+        if (!tagId) return { success: false, error: 'Invalid ID' };
+        db.prepare('DELETE FROM system_tags WHERE id = ?').run(tagId);
+        return { success: true };
+    });
+
+    handleWriteSoftAuth(ipcMain, 'systemTags:saveNote', ['admin', 'staff'], (db, payload) => {
+        const { tag_date, tag_key, tag_label, note_text, mentions, school_year } = payload;
+        requireFields(payload, ['tag_date', 'tag_key', 'tag_label', 'note_text', 'school_year']);
+        const year = requireSchoolYear(school_year);
+
+        if (!mentions || !mentions.length) {
+            return { success: false, error: 'يجب ذكر أستاذ أو قسم واحد على الأقل باستخدام @' };
+        }
+
+        const noteGroup = require('crypto').randomUUID();
+
+        const stmt = db.prepare(
+            `INSERT INTO system_tags
+             (tag_date, entity_type, entity_id, entity_name, tag_key, tag_label, note_group, note_text, details, school_year)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?)`
+        );
+
+        const txn = db.transaction((items) => {
+            for (const m of items) {
+                stmt.run(tag_date, m.type, m.id || null, m.name, tag_key, tag_label, noteGroup, note_text, year);
+            }
+        });
+
+        txn(mentions);
+        return { success: true, noteGroup };
+    });
+
+    handleWriteSoftAuth(ipcMain, 'systemTags:deleteByGroup', ['admin', 'staff'], (db, noteGroup) => {
+        if (!noteGroup) return { success: false, error: 'Invalid group' };
+        db.prepare('DELETE FROM system_tags WHERE note_group = ?').run(noteGroup);
+        return { success: true };
     });
 }
 

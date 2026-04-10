@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind-output.css">
     <script src="js/data/ma-education-labels.js"></script>
+    <script src="js/data/system-tag-types.js"></script>
     <script src="js/utils.js" defer></script>
     <script src="js/notifications.js" defer></script>
     <script src="js/message-system.js" defer></script>
@@ -217,6 +218,63 @@
                     <tbody id="events-tbody">
                         <tr class="empty-row" id="events-empty-row">
                             <td colspan="5">لا توجد أحداث مسجلة لهذا اليوم</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- System Tags -->
+            <div class="report-section" id="tags-section">
+                <div class="report-section-header">
+                    <i class="fas fa-tags"></i>
+                    <h3>وسوم اليوم</h3>
+                    <span class="badge-count" id="tags-count">0</span>
+                    <button class="btn-primary no-print" id="add-tag-btn" type="button" style="margin-right: auto; padding: 4px 14px; font-size: 13px;">
+                        <i class="fas fa-plus"></i> إضافة وسم
+                    </button>
+                </div>
+
+                <!-- Note Form (hidden) -->
+                <div id="tag-note-form" class="no-print" style="display: none; padding: 14px 16px; background: var(--color-bg-secondary, #f8f9fa); border: 1px solid var(--color-border, #e2e8f0); border-radius: 10px; margin: 10px 0;">
+                    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 10px;">
+                        <label style="font-weight: 600; font-size: 13px; white-space: nowrap;"><i class="fas fa-tag" style="margin-left: 4px;"></i> نوع الوسم:</label>
+                        <select id="tag-note-type" style="flex: 1; max-width: 220px; padding: 6px 10px; border: 1px solid var(--color-border, #ddd); border-radius: 6px; font-size: 13px;"></select>
+                    </div>
+                    <div style="position: relative;">
+                        <textarea id="tag-note-textarea"
+                            rows="3"
+                            style="width: 100%; resize: vertical; font-size: 14px; padding: 10px 12px; border: 1px solid var(--color-border, #ddd); border-radius: 8px; font-family: inherit; line-height: 1.7; box-sizing: border-box;"
+                            placeholder="اكتب ملاحظة واستخدم @ لذكر أستاذ أو قسم... مثال: تم تنظيم نشاط من انجاز @اسم الأستاذ واستفاد منه @القسم"></textarea>
+                        <div id="mention-dropdown"
+                            style="display: none; position: absolute; bottom: 100%; right: 0; left: 0; max-height: 220px; overflow-y: auto;
+                                   background: var(--color-bg, #fff); border: 1px solid var(--color-border, #ddd); border-radius: 10px;
+                                   box-shadow: 0 -4px 16px rgba(0,0,0,0.12); z-index: 100; margin-bottom: 4px;"></div>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; align-items: center;">
+                        <span id="mention-hint" style="font-size: 12px; color: var(--color-muted, #888); margin-left: auto;">
+                            <i class="fas fa-info-circle"></i> استخدم <kbd style="background: var(--color-bg-secondary, #eee); padding: 1px 5px; border-radius: 3px; font-size: 11px;">@</kbd> لذكر أستاذ أو قسم
+                        </span>
+                        <button class="btn-primary" onclick="saveTagNote()" style="padding: 6px 18px; font-size: 13px;">
+                            <i class="fas fa-check"></i> حفظ
+                        </button>
+                        <button class="btn-delete-event" onclick="cancelTagNote()" style="padding: 6px 14px; font-size: 13px;">
+                            <i class="fas fa-times"></i> إلغاء
+                        </button>
+                    </div>
+                </div>
+
+                <table class="report-table" id="tags-table">
+                    <thead>
+                        <tr>
+                            <th class="col-index">#</th>
+                            <th style="width: 130px;">الوسم</th>
+                            <th>الملاحظة</th>
+                            <th class="no-print" style="width: 50px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tags-tbody">
+                        <tr class="empty-row" id="tags-empty-row">
+                            <td colspan="4">لا توجد وسوم لهذا اليوم</td>
                         </tr>
                     </tbody>
                 </table>
@@ -599,6 +657,9 @@
 
             const { absences, staffAbsences, staffTardiness, teacherSections: backendTeacherSections, sectionStudentCounts, allSections, affectedSections: backendAffected } = data;
 
+            // Cache sections for tag entity selector
+            _allSectionsCache = allSections || [];
+
             // Override teacher sections with timetable data filtered by actual day
             const teacherSectionsOverride = {};
             const affectedSections = {};
@@ -741,6 +802,11 @@
             document.getElementById('events-count').textContent = events.length;
             renderEventsTable(events);
 
+            // ── System Tags ──
+            const tags = data.tags || [];
+            document.getElementById('tags-count').textContent = tags.length;
+            renderTagsTable(tags);
+
             // ── Compensatory Hours by Section ──
             // Calculate how many hours each section lost due to absent teachers
             const sectionHoursMap = {}; // { sectionName: { hours: number, teachers: Set } }
@@ -859,6 +925,15 @@
             'زيارة رسمية',
             'أخرى'
         ];
+
+        // ── System Tag Definitions loaded from js/data/system-tag-types.js ──
+        // ALL_TAG_TYPES is now a centralized global from system-tag-types.js
+
+        let _teachersCache = null;
+        let _allSectionsCache = [];
+        let _mentionStartPos = -1;
+        let _confirmedMentions = [];
+        let _mentionActiveIndex = 0;
 
         function renderEventsTable(events) {
             const tbody = document.getElementById('events-tbody');
@@ -1075,9 +1150,332 @@
             }
         }
 
-        // Wire up "Add Event" button
+        // ── System Tags Functions (@mention) ──
+
+        function renderTagsTable(tags) {
+            const tbody = document.getElementById('tags-tbody');
+            if (!tags || tags.length === 0) {
+                tbody.innerHTML = '<tr class="empty-row" id="tags-empty-row"><td colspan="4">لا توجد وسوم لهذا اليوم</td></tr>';
+                return;
+            }
+
+            // Group by note_group
+            const groups = new Map();
+            const standalone = [];
+            for (const tag of tags) {
+                if (tag.note_group) {
+                    if (!groups.has(tag.note_group)) groups.set(tag.note_group, []);
+                    groups.get(tag.note_group).push(tag);
+                } else {
+                    standalone.push(tag);
+                }
+            }
+
+            let html = '';
+            let rowIndex = 1;
+
+            // Grouped notes
+            for (const [groupId, groupTags] of groups) {
+                const first = groupTags[0];
+                const tagDef = ALL_TAG_TYPES.find(d => d.key === first.tag_key);
+                const tagBadge = tagDef
+                    ? `${tagDef.icon} ${escapeHtml(first.tag_label)}`
+                    : escapeHtml(first.tag_label);
+
+                let displayText = escapeHtml(first.note_text || '');
+                for (const tag of groupTags) {
+                    const raw = '@' + escapeHtml(tag.entity_name);
+                    const icon = tag.entity_type === 'teacher' ? '👨‍🏫' : '🏫';
+                    const highlighted = `<span style="background: var(--color-primary-light, #e3f2fd); color: var(--color-primary); padding: 1px 6px; border-radius: 4px; font-weight: 600;">${icon} ${escapeHtml(tag.entity_name)}</span>`;
+                    displayText = displayText.replace(raw, highlighted);
+                }
+
+                html += `
+                    <tr data-note-group="${escapeHtml(groupId)}">
+                        <td class="col-index">${rowIndex++}</td>
+                        <td><span style="font-weight: 600; white-space: nowrap;">${tagBadge}</span></td>
+                        <td style="line-height: 1.7;">${displayText}</td>
+                        <td class="no-print">
+                            <button class="btn-delete-event" onclick="deleteTagNote('${escapeHtml(groupId)}')" style="font-size: 17px; padding: 6px 8px;" title="حذف">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            }
+
+            // Standalone tags (backward compat)
+            for (const tag of standalone) {
+                const tagDef = ALL_TAG_TYPES.find(d => d.key === tag.tag_key);
+                const tagBadge = tagDef
+                    ? `${tagDef.icon} ${escapeHtml(tag.tag_label)}`
+                    : escapeHtml(tag.tag_label);
+                const icon = tag.entity_type === 'teacher' ? '👨‍🏫' : '🏫';
+
+                html += `
+                    <tr data-tag-id="${tag.id}">
+                        <td class="col-index">${rowIndex++}</td>
+                        <td><span style="font-weight: 600; white-space: nowrap;">${tagBadge}</span></td>
+                        <td>${icon} <strong>${escapeHtml(tag.entity_name)}</strong> ${tag.details ? '— ' + escapeHtml(tag.details) : ''}</td>
+                        <td class="no-print">
+                            <button class="btn-delete-event" onclick="deleteTag(${tag.id})" style="font-size: 17px; padding: 6px 8px;" title="حذف">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            }
+
+            tbody.innerHTML = html;
+        }
+
+        async function ensureTeachersCache() {
+            if (!_teachersCache) {
+                try {
+                    _teachersCache = await window.api.teachers.getAll(year);
+                } catch { _teachersCache = []; }
+            }
+            return _teachersCache;
+        }
+
+        // ── Note Form ──
+
+        async function showTagNoteForm() {
+            await ensureTeachersCache();
+            const form = document.getElementById('tag-note-form');
+            const typeSelect = document.getElementById('tag-note-type');
+
+            typeSelect.innerHTML = ALL_TAG_TYPES.map(t =>
+                `<option value="${t.key}">${t.icon} ${escapeHtml(t.label)}</option>`
+            ).join('');
+
+            document.getElementById('tag-note-textarea').value = '';
+            _confirmedMentions = [];
+            form.style.display = 'block';
+
+            const textarea = document.getElementById('tag-note-textarea');
+            textarea.focus();
+            textarea.addEventListener('input', handleNoteInput);
+            textarea.addEventListener('keydown', handleNoteKeydown);
+        }
+
+        function cancelTagNote() {
+            document.getElementById('tag-note-form').style.display = 'none';
+            _confirmedMentions = [];
+            hideMentionDropdown();
+            const textarea = document.getElementById('tag-note-textarea');
+            textarea.removeEventListener('input', handleNoteInput);
+            textarea.removeEventListener('keydown', handleNoteKeydown);
+        }
+
+        async function saveTagNote() {
+            const tagKey = document.getElementById('tag-note-type').value;
+            const noteText = document.getElementById('tag-note-textarea').value.trim();
+            const tagDate = document.getElementById('report-date').value;
+
+            if (!noteText) {
+                showToast('اكتب ملاحظة', 'warning');
+                return;
+            }
+
+            const validMentions = _confirmedMentions.filter(m => noteText.includes('@' + m.name));
+
+            if (validMentions.length === 0) {
+                showToast('استخدم @ لذكر أستاذ أو قسم واحد على الأقل', 'warning');
+                return;
+            }
+
+            const tagDef = ALL_TAG_TYPES.find(t => t.key === tagKey);
+            const tagLabel = tagDef ? tagDef.label : tagKey;
+
+            try {
+                await window.api.systemTags.saveNote({
+                    tag_date: tagDate,
+                    tag_key: tagKey,
+                    tag_label: tagLabel,
+                    note_text: noteText,
+                    mentions: validMentions,
+                    school_year: year
+                });
+                showToast('تم حفظ الوسم بنجاح', 'success');
+                cancelTagNote();
+                loadReport();
+            } catch (err) {
+                console.error('Error saving tag note:', err);
+                showToast('خطأ في حفظ الوسم', 'error');
+            }
+        }
+
+        async function deleteTagNote(noteGroup) {
+            const { confirmed } = await showConfirm({
+                title: 'حذف الوسم',
+                message: 'هل أنت متأكد من حذف هذا الوسم؟',
+                detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                type: 'danger',
+                confirmText: 'حذف نهائي',
+                cancelText: 'إلغاء',
+            });
+            if (!confirmed) return;
+            try {
+                await window.api.systemTags.deleteByGroup(noteGroup);
+                showToast('تم حذف الوسم', 'success');
+                loadReport();
+            } catch (err) {
+                console.error('Error deleting tag note:', err);
+                showToast('خطأ في حذف الوسم', 'error');
+            }
+        }
+
+        async function deleteTag(tagId) {
+            const { confirmed } = await showConfirm({
+                title: 'حذف الوسم',
+                message: 'هل أنت متأكد من حذف هذا الوسم؟',
+                detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                type: 'danger',
+                confirmText: 'حذف نهائي',
+                cancelText: 'إلغاء',
+            });
+            if (!confirmed) return;
+            try {
+                await window.api.systemTags.delete(tagId);
+                showToast('تم حذف الوسم', 'success');
+                loadReport();
+            } catch (err) {
+                console.error('Error deleting tag:', err);
+                showToast('خطأ في حذف الوسم', 'error');
+            }
+        }
+
+        // ── @Mention Autocomplete ──
+
+        function handleNoteInput() {
+            const textarea = document.getElementById('tag-note-textarea');
+            const text = textarea.value;
+            const cursor = textarea.selectionStart;
+            const before = text.substring(0, cursor);
+
+            const lastAt = before.lastIndexOf('@');
+
+            if (lastAt >= 0 && (lastAt === 0 || /[\s\n]/.test(before[lastAt - 1]))) {
+                const query = before.substring(lastAt + 1);
+                if (query.length <= 40 && !query.includes('\n')) {
+                    _mentionStartPos = lastAt;
+                    _mentionActiveIndex = 0;
+                    showMentionSuggestions(query);
+                    return;
+                }
+            }
+            hideMentionDropdown();
+        }
+
+        function showMentionSuggestions(query) {
+            const dropdown = document.getElementById('mention-dropdown');
+            const teachers = (_teachersCache || []).filter(t => t.full_name);
+            const sections = _allSectionsCache || [];
+            const q = query.trim();
+
+            let items = [];
+
+            for (const t of teachers) {
+                if (!q || t.full_name.includes(q)) {
+                    items.push({ type: 'teacher', id: t.id, name: t.full_name, badge: '👨‍🏫' });
+                }
+            }
+            for (const s of sections) {
+                if (!q || s.includes(q) || s.toLowerCase().includes(q.toLowerCase())) {
+                    items.push({ type: 'section', id: null, name: s, badge: '🏫' });
+                }
+            }
+
+            items = items.slice(0, 12);
+
+            if (items.length === 0) {
+                hideMentionDropdown();
+                return;
+            }
+
+            dropdown.innerHTML = items.map((item, i) => `
+                <div class="mention-item${i === _mentionActiveIndex ? ' mention-item--active' : ''}"
+                     data-type="${item.type}" data-id="${item.id || ''}" data-name="${escapeHtml(item.name)}"
+                     onmousedown="selectMentionItem(this)"
+                     onmouseenter="_mentionActiveIndex=${i}; updateMentionHighlight();"
+                     style="padding: 9px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px;
+                            border-bottom: 1px solid var(--color-border-light, #f0f0f0);
+                            transition: background 0.1s;
+                            ${i === _mentionActiveIndex ? 'background: var(--color-primary-light, #e3f2fd);' : ''}">
+                    <span style="font-size: 16px;">${item.badge}</span>
+                    <span>${escapeHtml(item.name)}</span>
+                    <span style="margin-right: auto; font-size: 11px; color: var(--color-muted, #999);">${item.type === 'teacher' ? 'أستاذ' : 'قسم'}</span>
+                </div>
+            `).join('');
+
+            dropdown.style.display = 'block';
+        }
+
+        function selectMentionItem(el) {
+            const name = el.dataset.name;
+            const type = el.dataset.type;
+            const id = el.dataset.id ? Number(el.dataset.id) : null;
+
+            const textarea = document.getElementById('tag-note-textarea');
+            const text = textarea.value;
+            const cursor = textarea.selectionStart;
+
+            const before = text.substring(0, _mentionStartPos);
+            const after = text.substring(cursor);
+            textarea.value = before + '@' + name + ' ' + after;
+
+            // Track mention (deduplicate)
+            const exists = _confirmedMentions.some(m => m.type === type && m.name === name);
+            if (!exists) _confirmedMentions.push({ type, id, name });
+
+            const newCursor = _mentionStartPos + name.length + 2;
+            textarea.setSelectionRange(newCursor, newCursor);
+            textarea.focus();
+            hideMentionDropdown();
+        }
+
+        function handleNoteKeydown(e) {
+            const dropdown = document.getElementById('mention-dropdown');
+            if (!dropdown || dropdown.style.display === 'none') return;
+
+            const items = dropdown.querySelectorAll('.mention-item');
+            if (!items.length) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                _mentionActiveIndex = Math.min(_mentionActiveIndex + 1, items.length - 1);
+                updateMentionHighlight();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                _mentionActiveIndex = Math.max(_mentionActiveIndex - 1, 0);
+                updateMentionHighlight();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (items[_mentionActiveIndex]) selectMentionItem(items[_mentionActiveIndex]);
+            } else if (e.key === 'Escape') {
+                hideMentionDropdown();
+            }
+        }
+
+        function updateMentionHighlight() {
+            const items = document.querySelectorAll('#mention-dropdown .mention-item');
+            items.forEach((el, i) => {
+                el.style.background = i === _mentionActiveIndex ? 'var(--color-primary-light, #e3f2fd)' : '';
+            });
+            if (items[_mentionActiveIndex]) {
+                items[_mentionActiveIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function hideMentionDropdown() {
+            const dropdown = document.getElementById('mention-dropdown');
+            if (dropdown) dropdown.style.display = 'none';
+            _mentionActiveIndex = 0;
+        }
+
+        // Wire up buttons
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('add-event-btn').addEventListener('click', addEventRow);
+            document.getElementById('add-tag-btn').addEventListener('click', showTagNoteForm);
         });
     </script>
 </body>
