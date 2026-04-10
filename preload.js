@@ -133,6 +133,7 @@ contextBridge.exposeInMainWorld('api', {
     // Compensation tracking
     compensation: {
         getByDate: (date, schoolYear) => ipcRenderer.invoke('compensation:getByDate', date, schoolYear),
+        getAll: (schoolYear) => ipcRenderer.invoke('compensation:getAll', schoolYear),
         getPending: (schoolYear) => ipcRenderer.invoke('compensation:getPending', schoolYear),
         saveBatch: (sessions) => ipcRenderer.invoke('compensation:saveBatch', sessions),
         toggleCompensated: (id, compensated) => ipcRenderer.invoke('compensation:toggleCompensated', id, compensated)

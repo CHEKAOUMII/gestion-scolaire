@@ -36,6 +36,9 @@
                     <h2 class="tp-header-title"><i class="fas fa-ranking-star"></i> مؤشرات أداء الأساتذة</h2>
                 </div>
                 <div class="header-right">
+                    <button class="btn btn-secondary" id="tp-print-btn" title="طباعة / PDF">
+                        <i class="fas fa-print"></i> طباعة
+                    </button>
                     <button class="btn btn-secondary" id="tp-export-btn" title="تصدير التقرير">
                         <i class="fas fa-file-export"></i> تصدير
                     </button>
@@ -78,6 +81,14 @@
                 </div>
 
                 <!-- KPI Cards -->
+                <div class="tp-kpi-toggle" id="tp-kpi-toggle">
+                    <button class="tp-toggle-btn active" data-kpi-view="teacher">
+                        <i class="fas fa-chalkboard-teacher"></i> حسب الأستاذ
+                    </button>
+                    <button class="tp-toggle-btn" data-kpi-view="subject">
+                        <i class="fas fa-book-open"></i> حسب المادة
+                    </button>
+                </div>
                 <div id="tp-kpis" class="tp-kpis"></div>
 
                 <!-- Block 1: Comparison & Absence -->
@@ -193,7 +204,7 @@
                             <div class="tp-panel">
                                 <h3><i class="fas fa-wave-square"></i> تطور الأداء بين الفروض</h3>
                                 <p id="tp-trend-note" class="tp-panel-note">-</p>
-                                <div class="tp-chart-wrap tp-chart-short">
+                                <div class="tp-chart-wrap tp-chart-medium">
                                     <canvas id="tp-trend-chart" role="img" aria-describedby="tp-trend-note"></canvas>
                                 </div>
                             </div>
@@ -222,6 +233,36 @@
                                 <p id="tp-radar-note" class="tp-panel-note">-</p>
                                 <div class="tp-chart-wrap tp-chart-medium">
                                     <canvas id="tp-radar-chart" role="img" aria-describedby="tp-radar-note"></canvas>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Block 5: Compensation & Support -->
+                <details class="tp-block" open>
+                    <summary><i class="fas fa-exchange-alt"></i> الحصص التعويضية وحصص الدعم</summary>
+                    <div class="tp-block-body">
+                        <div class="tp-grid-three">
+                            <section class="tp-panel">
+                                <h3><i class="fas fa-calendar-times"></i> الحصص الضائعة حسب الأستاذ</h3>
+                                <p id="tp-comp-meta" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap tp-chart-medium">
+                                    <canvas id="tp-comp-chart" role="img" aria-describedby="tp-comp-meta"></canvas>
+                                </div>
+                            </section>
+                            <section class="tp-panel">
+                                <h3><i class="fas fa-school"></i> الأقسام المتضررة (غير معوّضة)</h3>
+                                <p id="tp-sections-comp-meta" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap tp-chart-medium">
+                                    <canvas id="tp-sections-comp-chart" role="img" aria-describedby="tp-sections-comp-meta"></canvas>
+                                </div>
+                            </section>
+                            <section class="tp-panel">
+                                <h3><i class="fas fa-chalkboard"></i> حصص الدعم المنجزة حسب الأستاذ</h3>
+                                <p id="tp-support-meta" class="tp-panel-note">-</p>
+                                <div class="tp-chart-wrap tp-chart-medium">
+                                    <canvas id="tp-support-chart" role="img" aria-describedby="tp-support-meta"></canvas>
                                 </div>
                             </section>
                         </div>

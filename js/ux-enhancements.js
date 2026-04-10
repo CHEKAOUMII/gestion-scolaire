@@ -625,7 +625,7 @@ async function openPrintPreview(options = {}) {
             // Strip UI controls from clone
             clone
                 .querySelectorAll(
-                    '.header, .print-header, .search-section, .sl-search-section, .search-form, .filter-section, .filters-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .loading-overlay, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, #export-btn, .btn-print, .btn-export, .pagination, .sl-pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state, .table-toolbar, .page-title-row, .sl-results-header, .sl-results-actions, .sl-action-btn'
+                    '.header, .print-header, .search-section, .sl-search-section, .search-form, .filter-section, .filters-section, .import-section, .stats-row, .edit-controls, .changes-summary-bar, .empty-state, .no-print, .toast-container, .loading-overlay, .menu-toggle, .theme-toggle, #print-btn, #print-preview-btn, #export-pdf-btn, #export-btn, .btn-print, .btn-export, .pagination, .sl-pagination, .report-empty-state, .timetable-print-actions, .filter-actions, .no-data-state, .table-toolbar, .page-title-row, .sl-results-header, .sl-results-actions, .sl-action-btn, .tp-filters-grid, .tp-kpi-toggle, .tp-state-line, .tp-loading-overlay, .tp-filters-actions'
                 )
                 .forEach((el) => el.remove());
             // Hide last column (actions) in any table inside the clone
@@ -641,7 +641,7 @@ async function openPrintPreview(options = {}) {
             // Force solid white backgrounds on glass/card elements (override CSS variables)
             clone
                 .querySelectorAll(
-                    '.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details, .analysis-panel, .analysis-kpi-card, .analysis-block'
+                    '.glass-panel, .stat-card, .report-panel, .report-kpi-card, .card, details, .analysis-panel, .analysis-kpi-card, .analysis-block, .tp-kpi, .tp-panel, .tp-teacher-card, .tp-cs-kpi, .tp-cs-card'
                 )
                 .forEach((el) => {
                     el.style.background = '#fff';
@@ -818,9 +818,13 @@ function _enablePrintMode(capturedSheet) {
     }
     root.replaceChildren();
     if (capturedSheet) {
-        Array.from(capturedSheet.childNodes).forEach((node) => {
-            root.appendChild(node.cloneNode(true));
-        });
+        const printSheet = capturedSheet.cloneNode(true);
+        printSheet.setAttribute('data-theme', 'light');
+        printSheet.style.boxShadow = 'none';
+        printSheet.style.borderRadius = '0';
+        printSheet.style.margin = '0 auto';
+        printSheet.style.overflow = 'visible';
+        root.appendChild(printSheet);
     }
     document.body.classList.add('ux-printing-active');
     document.body.classList.toggle('ux-print-landscape', _printPreviewLandscape);

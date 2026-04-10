@@ -1,0 +1,76 @@
+.ux-pp-sheet .tp-block {
+    break-inside: auto;
+    page-break-inside: auto;
+}
+
+.ux-pp-sheet .tp-block > summary {
+    break-after: avoid-page;
+    page-break-after: avoid;
+}
+
+.ux-pp-sheet .tp-grid-two {
+    grid-template-columns: 1.35fr 0.95fr !important;
+}
+
+.ux-pp-sheet .tp-grid-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+@media print {
+    .tp-grid-two {
+        grid-template-columns: 1.35fr 0.95fr !important;
+    }
+
+    .tp-grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    .tp-block {
+        break-inside: auto !important;
+        page-break-inside: auto !important;
+    }
+
+    .tp-block > summary {
+        break-after: avoid-page !important;
+        page-break-after: avoid !important;
+    }
+
+    .tp-teacher-card,
+    .tp-panel,
+    .tp-cs-kpi,
+    .tp-cs-card {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+}
+
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-block {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+}
+
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-block > summary {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+}
+
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-grid-two {
+    grid-template-columns: 1.35fr 0.95fr !important;
+}
+
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-grid-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-teacher-card,
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-panel,
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-cs-kpi,
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-cs-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+}
+
+#tp-teacher-name,
+.tp-teacher-name {
+    display: none !important;
+}

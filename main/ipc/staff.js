@@ -716,6 +716,28 @@ function registerStaffIpc(ipcMain) {
             .all(date, year);
     });
 
+    handleRead(ipcMain, 'compensation:getAll', (db, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        return db
+            .prepare(
+                `
+            SELECT c.*,
+                COALESCE(t.full_name, c.teacher_name) as teacher_name,
+                COALESCE(c.reason, sa.reason) as reason,
+                COALESCE(c.notes, sa.notes) as notes
+            FROM compensation_tracking c
+            LEFT JOIN teachers t ON t.id = c.teacher_id
+            LEFT JOIN staff_attendance sa
+                ON sa.attendance_date = c.absence_date
+                AND (sa.teacher_id = c.teacher_id OR sa.teacher_name = c.teacher_name)
+                AND sa.type = 'absence'
+            WHERE c.school_year = ?
+            ORDER BY c.absence_date DESC, c.section, c.period_slot
+        `
+            )
+            .all(year);
+    });
+
     handleRead(ipcMain, 'compensation:getPending', (db, schoolYear) => {
         const year = normalizeYear(schoolYear);
         return db

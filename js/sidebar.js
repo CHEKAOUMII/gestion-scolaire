@@ -36,7 +36,7 @@ function injectSidebar() {
                     <button type="button" class="nav-link nav-disclosure" aria-expanded="false" aria-controls="sidebar-staff-submenu"><i class="fas fa-users-cog"></i><span>تدبير الموظفين</span><i class="fas fa-chevron-down arrow"></i></button>
                     <ul class="sub-menu" id="sidebar-staff-submenu" hidden>
                         <li><a href="teachers-list.html"><i class="fas fa-users"></i> قائمة الأساتذة</a></li>
-                        <li><a href="teachers-performance.html"><i class="fas fa-chart-line"></i> مؤشرات الأداء</a></li>
+                        <li><a href="tracking-teachers-performance.html"><i class="fas fa-chart-line"></i> متابعة الأداء</a></li>
                         <li><a href="staff-attendance.html"><i class="fas fa-clipboard-check"></i> الحضور والغياب</a></li>
                         <li><a href="staff-daily-report.html"><i class="fas fa-file-alt"></i> التقرير اليومي</a></li>
                         <li><a href="compensation-tracking.html"><i class="fas fa-exchange-alt"></i> الحصص التعويضية</a></li>
@@ -88,6 +88,7 @@ function injectSidebar() {
                     <ul class="sub-menu" id="sidebar-reports-submenu" hidden>
                         <li><a href="reports-certificates.html"><i class="fas fa-certificate"></i> الشواهد المدرسية</a></li>
                         <li><a href="reports-forms.html"><i class="fas fa-file-invoice"></i> الاستمارات الإدارية</a></li>
+                        <li><a href="teachers-performance.html"><i class="fas fa-ranking-star"></i> تقرير أداء الأساتذة</a></li>
                         <li><a href="reports-semester.html"><i class="fas fa-chart-pie"></i> تقارير الفصل</a></li>
                     </ul>
                 </li>

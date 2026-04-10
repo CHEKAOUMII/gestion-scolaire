@@ -1,0 +1,155 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { direction: rtl; font-family: 'Segoe UI', Tahoma, sans-serif; }
+  .dash { padding: 1.5rem; background: var(--color-background-tertiary); min-height: 100vh; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+  .header h2 { font-size: 18px; font-weight: 500; color: var(--color-text-primary); display: flex; align-items: center; gap: 8px; }
+  .header-icon { width: 32px; height: 32px; background: #3266ad22; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .kpi-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 1.25rem; }
+  .kpi { background: var(--color-background-primary); border-radius: 12px; border: 0.5px solid var(--color-border-tertiary); padding: 1rem 1.25rem; }
+  .kpi-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: 500; color: var(--color-text-primary); }
+  .kpi-sub { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
+  .kpi-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 6px; margin-top: 6px; }
+  .badge-warn { background: #FAEEDA; color: #854F0B; }
+  .badge-ok { background: #EAF3DE; color: #3B6D11; }
+  .badge-alert { background: #FCEBEB; color: #A32D2D; }
+  .cards-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  .card { background: var(--color-background-primary); border-radius: 12px; border: 0.5px solid var(--color-border-tertiary); padding: 1.25rem; }
+  .card-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .card-title svg { flex-shrink: 0; }
+  .card-sub { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 1rem; border-bottom: 0.5px solid var(--color-border-tertiary); padding-bottom: 10px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-label { font-size: 12px; color: var(--color-text-secondary); width: 90px; text-align: right; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 20px; background: var(--color-background-secondary); border-radius: 4px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-left: 6px; transition: width 1s ease; }
+  .bar-val { font-size: 11px; font-weight: 500; color: #fff; padding-right: 6px; }
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 140px; gap: 8px; }
+  .empty-icon { width: 44px; height: 44px; border-radius: 50%; background: #EAF3DE; display: flex; align-items: center; justify-content: center; }
+  .empty-text { font-size: 13px; color: var(--color-text-secondary); text-align: center; }
+  .empty-hint { font-size: 11px; color: var(--color-text-tertiary); }
+  .divider-label { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .divider-line { flex: 1; height: 0.5px; background: var(--color-border-tertiary); }
+  .axis-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--color-text-tertiary); margin-bottom: 10px; }
+</style>
+
+<div class="dash">
+  <div class="header">
+    <div>
+      <div style="font-size:11px;color:var(--color-text-tertiary);">آخر تحديث: اليوم</div>
+    </div>
+    <h2>
+      <span>الحصص التعويضية وحصص الدعم</span>
+      <div class="header-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="4" width="12" height="9" rx="1.5" stroke="#3266ad" stroke-width="1.2"/>
+          <path d="M5 2v3M11 2v3" stroke="#3266ad" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </h2>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">إجمالي حصص الدعم</div>
+      <div class="kpi-value">12</div>
+      <div class="kpi-sub">20 ساعة · 4 أقسام</div>
+      <span class="kpi-badge badge-ok">منجزة</span>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">الحصص التعويضية</div>
+      <div class="kpi-value">0</div>
+      <div class="kpi-sub">في انتظار التسجيل</div>
+      <span class="kpi-badge badge-warn">معلّقة</span>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">تحتاج إلى تعويض</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-sub">قسمان متأخران</div>
+      <span class="kpi-badge badge-alert">يستوجب التدخل</span>
+    </div>
+  </div>
+
+  <div class="cards-row">
+    <div class="card">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="12" height="8" rx="1" stroke="#3266ad" stroke-width="1.2"/><path d="M4 1v3M10 1v3" stroke="#3266ad" stroke-width="1.2" stroke-linecap="round"/></svg>
+        حصص الدعم المنجزة
+      </div>
+      <div class="card-sub">12 حصة دعم · 20 ساعة · 4 أقسام</div>
+      <div class="axis-row">
+        <span>9h</span><span>7h</span><span>5h</span><span>3h</span><span>1h</span><span>0h</span>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1BACSEF-6</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:100%;background:#3266ad;"><span class="bar-val">9h</span></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1BACSH-7</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:72%;background:#4f80c4;"><span class="bar-val">6.5h</span></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1BACSMF-1</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:37%;background:#6f9ad6;"><span class="bar-val">3h</span></div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label">1BACSH-6</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:18%;background:#8fb4e6;"><span class="bar-val">1.5h</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#3B6D11" stroke-width="1.2"/><path d="M7 4.5v3l2 1.5" stroke="#3B6D11" stroke-width="1.2" stroke-linecap="round"/></svg>
+        الحصص التعويضية المسجّلة
+      </div>
+      <div class="card-sub">الأستاذ(ة) مغيب — لم يُسجَّل أي تعويض بعد</div>
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="#3B6D11" stroke-width="1.5"/><path d="M11 7v5l3 2" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="empty-text">لا توجد حصص تعويضية مسجّلة</div>
+        <div class="empty-hint">3 حصص في الانتظار</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2L2 12h10L7 2z" stroke="#A32D2D" stroke-width="1.2" stroke-linejoin="round"/><path d="M7 6v3M7 10.5v.5" stroke="#A32D2D" stroke-width="1.2" stroke-linecap="round"/></svg>
+        الحصص المتأخرة للتعويض
+      </div>
+      <div class="card-sub">3 حصص تحتاج تعويضًا · قسمان معنيّان</div>
+
+      <div style="margin-top:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-tertiary);margin-bottom:6px;">
+          <span>2</span><span>1</span><span>0</span>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">1BACSH-6</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:100%;background:#D85A30;"><span class="bar-val">2</span></div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">TCSF-3</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:55%;background:#E87955;"><span class="bar-val">1</span></div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding:10px 12px;background:#FCEBEB;border-radius:8px;border-right:3px solid #D85A30;">
+          <div style="font-size:12px;font-weight:500;color:#A32D2D;">تنبيه</div>
+          <div style="font-size:11px;color:#993C1D;margin-top:2px;">يجب جدولة التعويضات في أقرب وقت</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

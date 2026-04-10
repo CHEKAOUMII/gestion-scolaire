@@ -1,5 +1,7 @@
 /* ═══════════════════════════════════════════════════════
-   Teachers Performance – مؤشرات أداء الأساتذة
+   Tracking Teachers Performance – متابعة أداء الأساتذة
+   Lighter version: no detailed table, no comparison/absence block.
+   Teacher-specific data with meaningful empty states.
    ═══════════════════════════════════════════════════════ */
 
 const DEFAULT_YEAR = getSchoolYear();
@@ -11,13 +13,14 @@ let allAbsencesCache = [];
 let sectionToLevel = {};
 let teacherRowsCache = [];
 let selectedTeacherName = '';
-let kpiView = 'teacher';
 let lastBaseFiltered = [];
 
 const charts = {};
-const sortState = { key: 'passRate', direction: 'desc' };
 let currentSubjectFilter = '';
+let _compRecordsCache = [];
+let _supportSessionsCache = [];
 let _filterManager = null;
+const BASE_PAGE_TITLE = 'تتبع أداء الأستاذ(ة)';
 
 const gradeBands = [
     { label: 'ممتاز (16-20)', min: 16, max: 20, color: 'rgba(47, 179, 109, 0.85)' },
@@ -31,10 +34,11 @@ const gradeBands = [
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         bindEvents();
+        overridePrintPreviewHandler();
         await loadInitialData();
         await runAnalysis();
     } catch (error) {
-        console.error('Teacher performance init error:', error);
+        console.error('Tracking teacher performance init error:', error);
         showToast('تعذر تحميل مؤشرات الأداء', 'error');
     }
 });
@@ -43,8 +47,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 function bindEvents() {
     const analyzeBtn = document.getElementById('tp-analyze-btn');
     const resetBtn = document.getElementById('tp-reset-btn');
-    const levelFilter = document.getElementById('tp-level-filter');
-    const classFilter = document.getElementById('tp-class-filter');
     const subjectFilter = document.getElementById('tp-subject-filter');
     const semesterFilter = document.getElementById('tp-semester-filter');
     const teacherFilter = document.getElementById('tp-teacher-filter');
@@ -54,32 +56,14 @@ function bindEvents() {
     if (resetBtn)
         resetBtn.addEventListener('click', () => {
             if (_filterManager) _filterManager.reset();
-            [semesterFilter, teacherFilter].forEach((s) => {
-                if (s) s.value = '';
-            });
+            if (semesterFilter) semesterFilter.value = '';
             selectedTeacherName = '';
             renderSemesterFilter();
             renderTeacherFilter();
             runAnalysis();
         });
 
-    // Level/Class/Subject cascading handled by FilterManager.
-    // Page-specific: sync semester and teacher on level/class/subject change.
-    if (levelFilter)
-        levelFilter.addEventListener('change', () => {
-            renderSemesterFilter();
-            renderTeacherFilter();
-        });
-    if (classFilter)
-        classFilter.addEventListener('change', () => {
-            renderSemesterFilter();
-            renderTeacherFilter();
-        });
-    if (subjectFilter)
-        subjectFilter.addEventListener('change', () => {
-            renderSemesterFilter();
-            renderTeacherFilter();
-        });
+    // Subject filter cascading
     if (subjectFilter)
         subjectFilter.addEventListener('change', () => {
             renderSemesterFilter();
@@ -93,48 +77,49 @@ function bindEvents() {
             runAnalysis();
         });
 
-    // Table header sort
-    document.querySelectorAll('.tp-table th[data-sort-key]').forEach((th) => {
-        th.addEventListener('click', () => {
-            const key = th.dataset.sortKey;
-            if (sortState.key === key) {
-                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortState.key = key;
-                sortState.direction = 'desc';
-            }
-            renderTeacherTable(teacherRowsCache, currentSubjectFilter);
-        });
-    });
-
-    // Table row click
-    document.getElementById('tp-table-body')?.addEventListener('click', (e) => {
-        const row = e.target.closest('tr[data-teacher]');
-        if (!row) return;
-        selectedTeacherName = row.dataset.teacher;
-        if (teacherFilter) teacherFilter.value = selectedTeacherName;
-        runAnalysis();
-    });
-
     // Export
     if (exportBtn) exportBtn.addEventListener('click', exportReport);
 
-    // Print
-    const printBtn = document.getElementById('tp-print-btn');
-    if (printBtn) printBtn.addEventListener('click', printReport);
-
-    // KPI toggle
-    document.querySelectorAll('.tp-toggle-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            kpiView = btn.dataset.kpiView;
-            document.querySelectorAll('.tp-toggle-btn').forEach((b) => b.classList.remove('active'));
-            btn.classList.add('active');
-            renderKpis(lastBaseFiltered, teacherRowsCache);
+    // Print preview (shared system)
+    const printPreviewBtn = document.getElementById('tp-print-preview-btn');
+    if (printPreviewBtn)
+        printPreviewBtn.addEventListener('click', () => {
+            openPrintPreview({ title: 'متابعة أداء الأساتذة', pageSize: 'A4', landscape: false });
         });
-    });
+
 }
 
 /* ─── Data Loading ─── */
+function getSelectedTeacherDisplayName() {
+    const teacherSelect = document.getElementById('tp-teacher-filter');
+    if (!teacherSelect) return '';
+    return String(teacherSelect.options?.[teacherSelect.selectedIndex]?.textContent || '').trim();
+}
+
+function getTrackingPageTitle() {
+    const teacherName = getSelectedTeacherDisplayName();
+    return teacherName ? `${BASE_PAGE_TITLE} - ${teacherName}` : BASE_PAGE_TITLE;
+}
+
+function updateTrackingPageTitle() {
+    const title = getTrackingPageTitle();
+    const titleNode = document.getElementById('tp-page-title');
+    if (titleNode) {
+        titleNode.innerHTML = `<i class="fas fa-chart-line"></i> ${title}`;
+    }
+    document.title = `${title} | برنامج التدبير المدرسي`;
+}
+
+function overridePrintPreviewHandler() {
+    const oldButton = document.getElementById('tp-print-preview-btn');
+    if (!oldButton || !oldButton.parentNode) return;
+    const newButton = oldButton.cloneNode(true);
+    oldButton.parentNode.replaceChild(newButton, oldButton);
+    newButton.addEventListener('click', () => {
+            openPrintPreview({ title: getTrackingPageTitle(), pageSize: 'A4', landscape: false });
+        });
+}
+
 async function getCurrentYear() {
     try {
         if (typeof window.api?.settings?.get === 'function') {
@@ -150,11 +135,8 @@ async function getCurrentYear() {
 async function loadInitialData() {
     const year = await getCurrentYear();
 
-    // Use FilterManager for Level → Class → Subject (from grades)
     _filterManager = new FilterManager({
         selectors: {
-            level: 'tp-level-filter',
-            class: 'tp-class-filter',
             subject: 'tp-subject-filter'
         },
         subjectsFromGrades: true,
@@ -162,12 +144,10 @@ async function loadInitialData() {
     });
     await _filterManager.init();
 
-    // Sync caches from FilterManager
     const fmData = _filterManager.getData();
     allGradesCache = fmData.grades;
     sectionToLevel = _filterManager._levelsMapping || {};
 
-    // Enrich grades cache with computed fields
     const absencesRaw = await window.api.absences?.getAll?.(year).catch(() => []) ?? [];
     allAbsencesCache = (absencesRaw || []).map((a) => ({
         ...a,
@@ -203,16 +183,11 @@ async function loadInitialData() {
     renderSemesterFilter();
     renderTeacherFilter();
 
-    // Load compensation and support data — independent of grade filters
+    // Load compensation and support data
     loadCompensationAndSupportData().catch((err) => console.warn('comp/support load error:', err));
 }
 
-// renderLevelFilter, renderClassFilter, renderSubjectFilter are now handled by FilterManager.
-// Only renderSemesterFilter and renderTeacherFilter remain page-specific.
-
 function renderSemesterFilter() {
-    const level = document.getElementById('tp-level-filter')?.value || '';
-    const className = document.getElementById('tp-class-filter')?.value || '';
     const subject = document.getElementById('tp-subject-filter')?.value || '';
     const s = document.getElementById('tp-semester-filter');
     if (!s) return;
@@ -220,12 +195,7 @@ function renderSemesterFilter() {
     const semesters = Array.from(
         new Set(
             allGradesCache
-                .filter(
-                    (g) =>
-                        (!level || g._level === level) &&
-                        (!className || String(g.section || '') === className) &&
-                        (!subject || g._subject === subject)
-                )
+                .filter((g) => !subject || g._subject === subject)
                 .map((g) => Number(g.semester))
                 .filter((n) => Number.isFinite(n) && n > 0)
         )
@@ -246,12 +216,36 @@ function renderTeacherFilter() {
     if (!s) return;
     const prev = s.value || selectedTeacherName;
 
-    const allTeachers = populateTeachersBySubject(s, base, 'كل الأساتذة');
+    // Build unique teacher list from filtered grades (no "all" option)
+    const teacherMap = new Map();
+    base.forEach((g) => {
+        if (g._teacher && g._teacherKey && !teacherMap.has(g._teacherKey)) {
+            teacherMap.set(g._teacherKey, g._teacher);
+        }
+    });
 
-    if (prev && allTeachers.includes(prev)) {
+    const sorted = Array.from(teacherMap.entries()).sort((a, b) => a[1].localeCompare(b[1], 'ar'));
+
+    s.innerHTML = '';
+    sorted.forEach(([key, name]) => {
+        const o = document.createElement('option');
+        o.value = key;
+        o.textContent = name;
+        s.appendChild(o);
+    });
+
+    // Restore previous selection or auto-select first
+    if (prev && teacherMap.has(prev)) {
         s.value = prev;
         selectedTeacherName = prev;
-    } else if (selectedTeacherName && !allTeachers.includes(selectedTeacherName)) selectedTeacherName = '';
+    } else if (sorted.length) {
+        s.value = sorted[0][0];
+        selectedTeacherName = sorted[0][0];
+    } else {
+        selectedTeacherName = '';
+    }
+
+    updateTrackingPageTitle();
 }
 
 /* ─── Utility Functions ─── */
@@ -264,13 +258,9 @@ function _getLocalLevelName(section) {
 }
 
 function getBaseFilteredGrades() {
-    const level = document.getElementById('tp-level-filter')?.value || '';
-    const className = document.getElementById('tp-class-filter')?.value || '';
     const subject = document.getElementById('tp-subject-filter')?.value || '';
     const semester = Number(document.getElementById('tp-semester-filter')?.value || 0);
     return allGradesCache.filter((g) => {
-        if (level && g._level !== level) return false;
-        if (className && String(g.section || '') !== className) return false;
         if (subject && g._subject !== subject) return false;
         if (semester && Number(g.semester) !== semester) return false;
         return true;
@@ -280,8 +270,6 @@ function getBaseFilteredGrades() {
 function studentIdentity(record) {
     return String(record.student_id || record.student_code || record.full_name || 'غير محدد');
 }
-
-// normalizeSubjectName() — provided by js/utils.js
 
 function normalizeLoose(value) {
     return String(value || '')
@@ -300,37 +288,16 @@ function sanitizeTeacherName(value) {
         .trim();
     if (!raw) return '';
     if (/^\d+([.,]\d+)?$/.test(raw)) return '';
-    // Reject section/class names (e.g. 2BACSH-1, TCS-3, 1BACSEF-2)
     if (/^(TCS|[12]BAC[A-Z]*)\s*[-_]?\s*\d*$/i.test(raw.replace(/\s+/g, ''))) return '';
     const normalized = normalizeLoose(raw);
     if (!normalized) return '';
     const invalidExact = new Set(
         [
-            'teacher',
-            'teachername',
-            'enseignant',
-            'prof',
-            'professeur',
-            'استاذ',
-            'الاستاذ',
-            'الأستاذ',
-            'اساتذ',
-            'ملاحظات',
-            'ملاحظة',
-            'ملاحظاتالاستاذ',
-            'ملاحظاتالأستاذ',
-            'notes',
-            'note',
-            'observation',
-            'observations',
-            'comment',
-            'comments',
-            'remarque',
-            'remarques',
-            'غيرمحدد',
-            'unknown',
-            'na',
-            'n/a'
+            'teacher', 'teachername', 'enseignant', 'prof', 'professeur',
+            'استاذ', 'الاستاذ', 'الأستاذ', 'اساتذ', 'ملاحظات', 'ملاحظة',
+            'ملاحظاتالاستاذ', 'ملاحظاتالأستاذ', 'notes', 'note', 'observation',
+            'observations', 'comment', 'comments', 'remarque', 'remarques',
+            'غيرمحدد', 'unknown', 'na', 'n/a'
         ].map(normalizeLoose)
     );
     if (invalidExact.has(normalized)) return '';
@@ -511,61 +478,6 @@ function buildTeacherRows(grades) {
     });
 }
 
-/* ─── Sort ─── */
-function getSortedRows(rows) {
-    const sorted = [...rows];
-    const dir = sortState.direction === 'asc' ? 1 : -1;
-    const key = sortState.key;
-    sorted.sort((a, b) => {
-        let left, right;
-        if (key === 'subject') {
-            left = rowSubjectLabel(a, currentSubjectFilter);
-            right = rowSubjectLabel(b, currentSubjectFilter);
-        } else if (key === 'teacher') {
-            left = a.teacher;
-            right = b.teacher;
-        } else if (key === 'rating') {
-            left = a.rating.value;
-            right = b.rating.value;
-        } else if (key === 'semesterDiff') {
-            left = a.semesterDiff ?? -999;
-            right = b.semesterDiff ?? -999;
-        } else {
-            left = a[key];
-            right = b[key];
-        }
-        const ln = Number(left),
-            rn = Number(right);
-        if (Number.isFinite(ln) && Number.isFinite(rn)) {
-            if (ln === rn) return String(a.teacher).localeCompare(String(b.teacher), 'ar');
-            return (ln - rn) * dir;
-        }
-        return String(left || '').localeCompare(String(right || ''), 'ar') * dir;
-    });
-    return sorted;
-}
-
-function rowSubjectLabel(row, subjectFilter) {
-    if (subjectFilter) return subjectFilter;
-    if (!row.subjects.length) return '-';
-    if (row.subjects.length === 1) return row.subjects[0];
-    return `متعددة (${row.subjects.length})`;
-}
-
-function rowSectionLabel(row) {
-    if (!row.sections.length) return '-';
-    if (row.sections.length <= 2) return row.sections.join(' - ');
-    return `${row.sections[0]} - ${row.sections[1]} +${row.sections.length - 2}`;
-}
-
-function renderSortIndicators() {
-    document.querySelectorAll('.tp-sort-ind').forEach((el) => {
-        el.textContent = '';
-    });
-    const target = document.getElementById(`sort-${sortState.key}`);
-    if (target) target.textContent = sortState.direction === 'asc' ? '▲' : '▼';
-}
-
 /* ─── KPI Rendering ─── */
 function renderKpis(baseFiltered, rows) {
     const container = document.getElementById('tp-kpis');
@@ -578,59 +490,71 @@ function renderKpis(baseFiltered, rows) {
         return;
     }
 
-    if (kpiView === 'subject') {
-        renderKpisBySubject(baseFiltered, container);
+    // Find selected teacher row
+    const row = rows.find((r) => r.teacherKey === selectedTeacherName) || rows[0];
+    if (!row) {
+        container.innerHTML = `<div class="tp-empty-state"><i class="fas fa-user-slash"></i><p>لا يوجد أستاذ مختار</p></div>`;
         return;
     }
 
-    const studentCount = new Set(baseFiltered.map(studentIdentity)).size;
-    const teachersCount = rows.length;
-    const allGrades = baseFiltered.map((g) => g.grade);
-    const passRate = percentage(allGrades.filter((g) => g >= 10).length, allGrades.length);
-    const globalAvg = avg(allGrades);
-    const globalMedian = median(allGrades);
-    const globalStdDev = stdDev(allGrades);
+    // Rank among peers (same subject if single-subject teacher)
+    const peerRows = row.subjects.length === 1
+        ? rows.filter((r) => r.subjects.includes(row.subjects[0]))
+        : rows;
+    const sortedPeers = [...peerRows].sort((a, b) => b.avg - a.avg || b.passRate - a.passRate);
+    const rank = sortedPeers.findIndex((r) => r.teacherKey === row.teacherKey) + 1;
+    const peerLabel = row.subjects.length === 1 ? escapeHtml(row.subjects[0]) : 'كل المواد';
 
-    const sortedByAvg = [...rows].sort((a, b) => b.avg - a.avg || b.passRate - a.passRate);
-    const best = sortedByAvg[0];
-    const weakest = sortedByAvg[sortedByAvg.length - 1];
+    // Semester diff display
+    let semDiffHtml = '-';
+    let semDiffSub = 'لا تتوفر بيانات الدورتين';
+    if (row.semesterDiff !== null) {
+        const arrow = row.semesterDiff > 0 ? '↑' : row.semesterDiff < 0 ? '↓' : '→';
+        const sign = row.semesterDiff > 0 ? '+' : '';
+        semDiffHtml = `${arrow} ${sign}${row.semesterDiff.toFixed(2)}`;
+        semDiffSub = `د1: ${row.sem1Avg !== null ? row.sem1Avg.toFixed(2) : '-'} → د2: ${row.sem2Avg !== null ? row.sem2Avg.toFixed(2) : '-'}`;
+    }
+
+    // Student count for this teacher
+    const teacherGrades = baseFiltered.filter((g) => g._teacherKey === row.teacherKey);
+    const studentCount = new Set(teacherGrades.map(studentIdentity)).size;
 
     container.innerHTML = `
         <div class="tp-kpi">
-            <div class="tp-kpi-icon"><i class="fas fa-chalkboard-teacher"></i></div>
-            <div class="tp-kpi-label">عدد الأساتذة</div>
-            <div class="tp-kpi-value">${teachersCount}</div>
-            <div class="tp-kpi-sub">${studentCount} تلميذ · ${baseFiltered.length} نقطة</div>
-        </div>
-        <div class="tp-kpi">
             <div class="tp-kpi-icon"><i class="fas fa-calculator"></i></div>
-            <div class="tp-kpi-label">المتوسط العام</div>
-            <div class="tp-kpi-value">${globalAvg.toFixed(2)}</div>
-            <div class="tp-kpi-sub">الوسيط: ${globalMedian.toFixed(2)} · σ: ${globalStdDev.toFixed(2)}</div>
+            <div class="tp-kpi-label">المعدل العام</div>
+            <div class="tp-kpi-value">${row.avg.toFixed(2)}</div>
+            <div class="tp-kpi-sub">${row.gradeCount} نقطة · ${row.sectionsCount} قسم</div>
         </div>
         <div class="tp-kpi">
             <div class="tp-kpi-icon"><i class="fas fa-percentage"></i></div>
-            <div class="tp-kpi-label">نسبة النجاح العامة</div>
-            <div class="tp-kpi-value">${passRate.toFixed(1)}%</div>
+            <div class="tp-kpi-label">نسبة النجاح</div>
+            <div class="tp-kpi-value">${row.passRate.toFixed(1)}%</div>
             <div class="tp-kpi-sub">نقطة النجاح: 10/20</div>
         </div>
         <div class="tp-kpi">
-            <div class="tp-kpi-icon"><i class="fas fa-trophy"></i></div>
-            <div class="tp-kpi-label">أفضل أستاذ</div>
-            <div class="tp-kpi-value">${best ? escapeHtml(best.teacher) : '-'}</div>
-            <div class="tp-kpi-sub">${best ? `${best.avg.toFixed(2)} · ${best.passRate.toFixed(1)}%` : '-'}</div>
+            <div class="tp-kpi-icon"><i class="fas fa-user-graduate"></i></div>
+            <div class="tp-kpi-label">عدد التلاميذ</div>
+            <div class="tp-kpi-value">${studentCount}</div>
+            <div class="tp-kpi-sub">${row.subjects.length === 1 ? escapeHtml(row.subjects[0]) : row.subjects.length + ' مادة'}</div>
         </div>
         <div class="tp-kpi">
-            <div class="tp-kpi-icon"><i class="fas fa-book-open"></i></div>
-            <div class="tp-kpi-label">أفضل مادة</div>
-            <div class="tp-kpi-value">${getBestSubject(baseFiltered)}</div>
-            <div class="tp-kpi-sub">أعلى معدل بين المواد</div>
+            <div class="tp-kpi-icon"><i class="fas fa-ranking-star"></i></div>
+            <div class="tp-kpi-label">الترتيب</div>
+            <div class="tp-kpi-value">${rank} / ${peerRows.length}</div>
+            <div class="tp-kpi-sub">بين زملاء ${peerLabel}</div>
         </div>
         <div class="tp-kpi">
-            <div class="tp-kpi-icon"><i class="fas fa-arrow-trend-down"></i></div>
-            <div class="tp-kpi-label">أضعف أستاذ</div>
-            <div class="tp-kpi-value">${weakest && rows.length > 1 ? escapeHtml(weakest.teacher) : '-'}</div>
-            <div class="tp-kpi-sub">${weakest && rows.length > 1 ? `${weakest.avg.toFixed(2)} · ${weakest.passRate.toFixed(1)}%` : '-'}</div>
+            <div class="tp-kpi-icon"><i class="fas fa-arrow-trend-up"></i></div>
+            <div class="tp-kpi-label">تطور الدورات</div>
+            <div class="tp-kpi-value">${semDiffHtml}</div>
+            <div class="tp-kpi-sub">${semDiffSub}</div>
+        </div>
+        <div class="tp-kpi">
+            <div class="tp-kpi-icon"><i class="fas fa-star"></i></div>
+            <div class="tp-kpi-label">التصنيف</div>
+            <div class="tp-kpi-value"><span class="tp-rating ${row.rating.cls}">${row.rating.stars} ${row.rating.label}</span></div>
+            <div class="tp-kpi-sub">معدل ${row.avg.toFixed(2)} · نجاح ${row.passRate.toFixed(1)}%</div>
         </div>
     `;
 }
@@ -723,142 +647,6 @@ function getBestSubject(grades) {
     return escapeHtml(bestSub);
 }
 
-/* ─── Absence by Teacher Chart ─── */
-function renderAbsenceByTeacherChart(rows) {
-    const canvas = document.getElementById('tp-absence-by-teacher-chart');
-    const meta = document.getElementById('tp-absence-meta');
-    if (!canvas || !meta || !window.Chart) return;
-    destroyChart('absenceByTeacher');
-
-    if (!rows.length || !allAbsencesCache.length) {
-        meta.textContent = 'لا توجد بيانات غياب أو أساتذة للعرض.';
-        return;
-    }
-
-    // Build teacher → sections map from grades data
-    const teacherSections = new Map();
-    rows.forEach((row) => {
-        row.sections.forEach((sec) => {
-            if (!teacherSections.has(row.teacherKey))
-                teacherSections.set(row.teacherKey, { teacher: row.teacher, sections: new Set() });
-            teacherSections.get(row.teacherKey).sections.add(sec);
-        });
-    });
-
-    // Compute total & average absence hours per teacher's sections
-    const teacherAbsence = [];
-    teacherSections.forEach((entry, teacherKey) => {
-        let totalHours = 0;
-        allAbsencesCache.forEach((a) => {
-            if (a._section && entry.sections.has(a._section)) totalHours += a._hours;
-        });
-        // Student count from rows data
-        const rowData = rows.find((r) => r.teacherKey === teacherKey);
-        const studentCount = rowData ? rowData.studentCount : 0;
-        const avgHours = studentCount > 0 ? totalHours / studentCount : 0;
-        teacherAbsence.push({ teacher: entry.teacher, totalHours, studentCount, avgHours });
-    });
-
-    if (!teacherAbsence.length) {
-        meta.textContent = 'لا توجد بيانات غياب مرتبطة بالأساتذة.';
-        return;
-    }
-
-    // Sort by average and pick top 5 most + top 5 least
-    const sorted = [...teacherAbsence].sort((a, b) => b.avgHours - a.avgHours);
-    const top5Most = sorted.slice(0, 5);
-    const top5Least = sorted
-        .filter((t) => t.avgHours >= 0)
-        .slice(-5)
-        .reverse();
-
-    // Merge: most first, then least (avoid duplicates)
-    const leastNames = new Set(top5Least.map((t) => t.teacher));
-    const mostFiltered = top5Most.filter((t) => !leastNames.has(t.teacher));
-    const combined = [...mostFiltered, ...top5Least];
-
-    // If all are the same (e.g. < 10 teachers), just show sorted
-    const finalList = combined.length > 0 ? combined : sorted.slice(0, 10);
-
-    const labels = finalList.map((t) => t.teacher);
-    const data = finalList.map((t) => t.avgHours);
-    const colors = finalList.map((t) => {
-        const isMost = top5Most.some((m) => m.teacher === t.teacher);
-        return isMost ? 'rgba(231, 76, 60, 0.80)' : 'rgba(47, 179, 109, 0.80)';
-    });
-
-    charts.absenceByTeacher = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'متوسط ساعات الغياب / تلميذ',
-                    data,
-                    backgroundColor: colors,
-                    borderRadius: 6,
-                    borderSkipped: false
-                }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 700, easing: 'easeOutQuart' },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    rtl: true,
-                    textDirection: 'rtl',
-                    callbacks: {
-                        label: (ctx) => `متوسط: ${Number(ctx.raw).toFixed(2)} ساعة / تلميذ`,
-                        afterBody: (items) => {
-                            const t = finalList[items[0]?.dataIndex];
-                            if (!t) return '';
-                            const isMost = top5Most.some((m) => m.teacher === t.teacher);
-                            return [
-                                `الإجمالي: ${t.totalHours.toFixed(0)} ساعة  |  ${t.studentCount} تلميذ`,
-                                isMost ? '🔴 من الأكثر غياباً' : '🟢 من الأقل غياباً'
-                            ];
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    position: 'top',
-                    reverse: true,
-                    min: 0,
-                    ticks: { callback: (v) => `${v}h` },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
-                },
-                y: {
-                    position: 'right',
-                    grid: { display: false },
-                    ticks: {
-                        crossAlign: 'far',
-                        font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' },
-                        textDirection: 'rtl'
-                    }
-                }
-            }
-        }
-    });
-
-    const totalAbsAllTeachers = teacherAbsence.reduce((s, t) => s + t.totalHours, 0);
-    const globalAvgAbs = teacherAbsence.length
-        ? teacherAbsence.reduce((s, t) => s + t.avgHours, 0) / teacherAbsence.length
-        : 0;
-    meta.textContent = `${teacherAbsence.length} أستاذ · متوسط الغياب: ${globalAvgAbs.toFixed(2)} ساعة/تلميذ · الإجمالي: ${totalAbsAllTeachers.toFixed(0)} ساعة. 🔴 الأكثر  🟢 الأقل`;
-    updateChartAccessibility(
-        'tp-absence-by-teacher-chart',
-        'رسم بياني يوضح غيابات التلاميذ حسب الأستاذ',
-        'tp-absence-meta',
-        meta.textContent
-    );
-}
-
 /* ─── Chart.js Loading ─── */
 async function ensureChartJsLoaded() {
     if (window.Chart) return window.Chart;
@@ -917,140 +705,6 @@ function destroyChart(key) {
     charts[key] = null;
 }
 
-/* ─── Comparison Chart ─── */
-function renderComparisonChart(rows) {
-    const canvas = document.getElementById('tp-teacher-compare-chart');
-    const meta = document.getElementById('tp-comparison-meta');
-    if (!canvas || !meta || !window.Chart) return;
-    destroyChart('comparison');
-    if (!rows.length) {
-        meta.textContent = 'لا توجد أسماء أساتذة صالحة للمقارنة.';
-        return;
-    }
-
-    const sorted = [...rows].sort((a, b) => b.passRate - a.passRate || b.avg - a.avg);
-    const top5Best = sorted.slice(0, 5);
-    const top5Worst = sorted.slice(-5).reverse();
-
-    // Remove duplicates (if < 10 teachers)
-    const worstNames = new Set(top5Worst.map((r) => r.teacher));
-    const bestFiltered = top5Best.filter((r) => !worstNames.has(r.teacher));
-    const combined = [...bestFiltered, ...top5Worst];
-    const finalList = combined.length > 0 ? combined : sorted.slice(0, 10);
-
-    const labels = finalList.map((r) => r.teacher);
-    const data = finalList.map((r) => Number(r.passRate.toFixed(1)));
-    const colors = finalList.map((r) => {
-        if (r.teacherKey === selectedTeacherName) return 'rgba(59, 106, 197, 0.95)';
-        const isBest = top5Best.some((b) => b.teacher === r.teacher);
-        return isBest ? 'rgba(47, 179, 109, 0.85)' : 'rgba(231, 76, 60, 0.85)';
-    });
-
-    charts.comparison = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                { label: 'نسبة النجاح (%)', data, backgroundColor: colors, borderRadius: 6, borderSkipped: false }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 700, easing: 'easeOutQuart' },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    rtl: true,
-                    textDirection: 'rtl',
-                    callbacks: {
-                        label: (ctx) => `نسبة النجاح: ${Number(ctx.raw).toFixed(1)}%`,
-                        afterBody: (items) => {
-                            const idx = items[0]?.dataIndex ?? -1;
-                            const r = finalList[idx];
-                            if (!r) return '';
-                            const isBest = top5Best.some((b) => b.teacher === r.teacher);
-                            return [
-                                `متوسط النقاط: ${r.avg.toFixed(2)}`,
-                                `التلاميذ: ${r.studentCount}`,
-                                `التصنيف: ${r.rating.stars} ${r.rating.label}`,
-                                isBest ? '🟢 من الأفضل' : '🔴 من الأضعف'
-                            ];
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    position: 'top',
-                    reverse: true,
-                    min: 0,
-                    max: 100,
-                    ticks: { stepSize: 20, callback: (v) => `${v}%` },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
-                },
-                y: {
-                    position: 'right',
-                    grid: { display: false },
-                    ticks: {
-                        crossAlign: 'far',
-                        font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' },
-                        textDirection: 'rtl'
-                    }
-                }
-            }
-        }
-    });
-
-    const globalPassRate = avg(rows.map((r) => r.passRate));
-    meta.textContent = `${rows.length} أستاذ. 🟢 الأفضل: ${top5Best[0].teacher} (${top5Best[0].passRate.toFixed(1)}%) · 🔴 الأضعف: ${sorted[sorted.length - 1].teacher} (${sorted[sorted.length - 1].passRate.toFixed(1)}%) · متوسط: ${globalPassRate.toFixed(1)}%`;
-    updateChartAccessibility(
-        'tp-teacher-compare-chart',
-        'رسم بياني يقارن نسب نجاح الأساتذة',
-        'tp-comparison-meta',
-        meta.textContent
-    );
-}
-
-/* ─── Teacher Table ─── */
-function renderTeacherTable(rows, subjectFilter) {
-    const body = document.getElementById('tp-table-body');
-    if (!body) return;
-    renderSortIndicators();
-
-    if (!rows.length) {
-        body.innerHTML =
-            '<tr><td colspan="9" style="text-align:center;padding:16px;"><div class="tp-empty-state"><i class="fas fa-table"></i><p>لا توجد معطيات</p></div></td></tr>';
-        return;
-    }
-
-    const sorted = getSortedRows(rows);
-    body.innerHTML = sorted
-        .map((row) => {
-            const pillAvg = getAvgPillClass(row.avg);
-            const pillPass = getPassRatePillClass(row.passRate);
-            const diffHtml =
-                row.semesterDiff !== null
-                    ? `<span style="color:${row.semesterDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)'};font-weight:700;">${row.semesterDiff >= 0 ? '+' : ''}${row.semesterDiff.toFixed(2)}</span>`
-                    : '<span style="color:var(--color-text-light);">-</span>';
-            return `
-            <tr data-teacher="${escapeHtml(row.teacherKey)}" class="${row.teacherKey === selectedTeacherName ? 'tp-row-selected' : ''}">
-                <td>${escapeHtml(row.teacher)}</td>
-                <td>${escapeHtml(rowSubjectLabel(row, subjectFilter))}</td>
-                <td title="${escapeHtml(row.sections.join(' - '))}">${escapeHtml(rowSectionLabel(row))}</td>
-                <td>${row.studentCount}</td>
-                <td><span class="tp-pill ${pillAvg}">${row.avg.toFixed(2)}</span></td>
-                <td><span class="tp-pill ${pillPass}">${row.passRate.toFixed(1)}%</span></td>
-                <td><span class="tp-rating ${row.rating.cls}">${row.rating.stars} ${row.rating.label}</span></td>
-                <td>${diffHtml}</td>
-                <td>${escapeHtml(formatDateTime(row.lastImportedMs))}</td>
-            </tr>
-        `;
-        })
-        .join('');
-}
-
 /* ─── Teacher Card ─── */
 function renderTeacherCard(baseFiltered, rows) {
     const nameNode = document.getElementById('tp-teacher-name');
@@ -1077,7 +731,7 @@ function renderTeacherCard(baseFiltered, rows) {
     const teacherGrades = baseFiltered.filter((g) => g._teacherKey === row.teacherKey);
     const studentCount = new Set(teacherGrades.map(studentIdentity)).size;
 
-    // Calculate benchmark: what % of same-subject teachers does this teacher beat?
+    // Benchmark
     const sameSubjectRows = rows.filter((r) => {
         if (row.subjects.length === 1 && r.subjects.length >= 1) return r.subjects.includes(row.subjects[0]);
         return true;
@@ -1085,7 +739,7 @@ function renderTeacherCard(baseFiltered, rows) {
     const rank = sameSubjectRows.filter((r) => r.avg <= row.avg).length;
     const benchmarkPct = sameSubjectRows.length > 1 ? Math.round(percentage(rank, sameSubjectRows.length)) : 100;
 
-    nameNode.innerHTML = `${escapeHtml(row.teacher)} <span class="tp-rating ${row.rating.cls}" style="font-size:14px;">${row.rating.stars} ${row.rating.label}</span>`;
+    nameNode.textContent = '';
     metaNode.innerHTML = `
         <span class="tp-badge"><i class="fas fa-percent"></i> ${row.passRate.toFixed(1)}%</span>
         <span class="tp-badge"><i class="fas fa-calculator"></i> ${row.avg.toFixed(2)} / 20</span>
@@ -1094,7 +748,6 @@ function renderTeacherCard(baseFiltered, rows) {
         <span class="tp-badge"><i class="fas fa-table-cells"></i> ${row.sectionsCount} قسم</span>
     `;
 
-    // Benchmark bar
     if (benchmarkNode) {
         const subjectName = row.subjects.length === 1 ? row.subjects[0] : 'كل المواد';
         benchmarkNode.innerHTML = `
@@ -1113,6 +766,12 @@ function renderTeacherSectionChart(teacherGrades) {
     const canvas = document.getElementById('tp-section-chart');
     if (!canvas || !window.Chart) return;
     destroyChart('section');
+
+    if (!teacherGrades.length) {
+        updateChartAccessibility('tp-section-chart', 'لا توجد بيانات', 'tp-section-note', 'لم يتم العثور على نقط لهذا الأستاذ.');
+        return;
+    }
+
     const bySection = {};
     teacherGrades.forEach((g) => {
         const s = String(g.section || 'غير محدد');
@@ -1163,6 +822,12 @@ function renderTeacherDistributionChart(teacherGrades) {
     const canvas = document.getElementById('tp-distribution-chart');
     if (!canvas || !window.Chart) return;
     destroyChart('distribution');
+
+    if (!teacherGrades.length) {
+        updateChartAccessibility('tp-distribution-chart', 'لا توجد بيانات', 'tp-distribution-note', 'لم يتم العثور على نقط لهذا الأستاذ.');
+        return;
+    }
+
     const distribution = gradeBands.map((band) => ({
         ...band,
         count: teacherGrades.filter((g) => g.grade >= band.min && g.grade < band.max + (band.max === 20 ? 0.001 : 0))
@@ -1217,6 +882,11 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
     if (!canvas || !window.Chart || !noteNode) return;
     destroyChart('trend');
 
+    if (!teacherGrades.length) {
+        noteNode.textContent = 'لم يتم العثور على نقط لهذا الأستاذ.';
+        return;
+    }
+
     const byExam = {};
     const bySectionExam = {};
 
@@ -1236,7 +906,7 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
         .filter((n) => Number.isFinite(n))
         .sort((a, b) => a - b);
     if (!examKeys.length) {
-        noteNode.textContent = 'لا توجد فروض مرقمة لعرض تطور زمني.';
+        noteNode.textContent = 'لا توجد فروض مرقمة لعرض تطور زمني لهذا الأستاذ.';
         return;
     }
 
@@ -1251,8 +921,10 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
 
     const sections = Object.keys(bySectionExam).sort((a, b) => a.localeCompare(b, 'ar'));
     const showSections = sections.length > 1;
+    const displayedSections = sections.slice(0, 8);
+    const sectionsTruncated = sections.length > 8;
 
-    const sectionDatasets = !showSections ? [] : sections.slice(0, 8).map((sec, i) => ({
+    const sectionDatasets = !showSections ? [] : displayedSections.map((sec, i) => ({
         label: sec,
         data: examKeys.map((n) => {
             const vals = bySectionExam[sec]?.[n];
@@ -1304,7 +976,8 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
     });
 
     const sectionInfo = showSections ? ` · ${sections.length} قسم` : '';
-    noteNode.textContent = `تطور عبر ${examKeys.length} فروض مرقمة${sectionInfo}.`;
+    const truncNote = sectionsTruncated ? ` (يُعرض 8 من أصل ${sections.length})` : '';
+    noteNode.textContent = `تطور عبر ${examKeys.length} فروض مرقمة${sectionInfo}${truncNote}.`;
     updateChartAccessibility(
         'tp-trend-chart',
         'رسم بياني يوضح تطور الأداء بين الفروض حسب القسم',
@@ -1313,12 +986,30 @@ function renderTeacherTrendChart(teacherGrades, noteNode) {
     );
 }
 
-/* ─── Semester Comparison Chart (NEW) ─── */
+/* ─── Semester Comparison Chart ─── */
 function renderSemesterCompareChart(rows) {
     const canvas = document.getElementById('tp-semester-compare-chart');
     const note = document.getElementById('tp-semester-compare-note');
     if (!canvas || !note || !window.Chart) return;
     destroyChart('semesterCompare');
+
+    // If a teacher is selected, show only their data
+    const selectedRow = selectedTeacherName ? rows.find((r) => r.teacherKey === selectedTeacherName) : null;
+
+    if (selectedRow) {
+        if (selectedRow.sem1Avg === null && selectedRow.sem2Avg === null) {
+            note.textContent = `الأستاذ ${selectedRow.teacher} لا تتوفر لديه بيانات للدورتين بعد.`;
+            return;
+        }
+        if (selectedRow.sem1Avg === null) {
+            note.textContent = `الأستاذ ${selectedRow.teacher} لا تتوفر لديه بيانات للدورة الأولى بعد.`;
+            return;
+        }
+        if (selectedRow.sem2Avg === null) {
+            note.textContent = `الأستاذ ${selectedRow.teacher} لا تتوفر لديه بيانات للدورة الثانية بعد.`;
+            return;
+        }
+    }
 
     const withBoth = rows.filter((r) => r.sem1Avg !== null && r.sem2Avg !== null);
     if (!withBoth.length) {
@@ -1375,7 +1066,7 @@ function renderSemesterCompareChart(rows) {
     );
 }
 
-/* ─── Radar Chart (NEW) ─── */
+/* ─── Radar Chart ─── */
 function renderRadarChart(rows) {
     const canvas = document.getElementById('tp-radar-chart');
     const note = document.getElementById('tp-radar-note');
@@ -1383,10 +1074,16 @@ function renderRadarChart(rows) {
     destroyChart('radar');
 
     if (!selectedTeacherName || !rows.length) {
-        note.textContent = 'اختر أستاذ من الجدول.';
+        note.textContent = 'اختر أستاذ لعرض ملف الأداء الشامل.';
         return;
     }
     const row = rows.find((r) => r.teacherKey === selectedTeacherName) || rows[0];
+
+    if (!row.gradeValues || !row.gradeValues.length) {
+        note.textContent = `لا تتوفر بيانات كافية لعرض ملف الأداء الشامل لـ ${row.teacher}.`;
+        return;
+    }
+
     const sd = row.gradeValues ? stdDev(row.gradeValues) : 0;
     const consistency = Math.max(0, Math.min(100, (1 - sd / 10) * 100));
     const semProgress = row.semesterDiff !== null ? Math.max(0, Math.min(100, 50 + row.semesterDiff * 10)) : 50;
@@ -1458,30 +1155,21 @@ function exportReport() {
         showToast('لا توجد بيانات للتصدير', 'error');
         return;
     }
-    const headers = [
-        'الأستاذ',
-        'المادة',
-        'الأقسام',
-        'التلاميذ',
-        'المعدل',
-        'نسبة النجاح',
-        'التصنيف',
-        'فرق الدورتين',
-        'آخر استيراد'
-    ];
+    const headers = ['الأستاذ', 'المادة', 'الأقسام', 'التلاميذ', 'المعدل', 'نسبة النجاح', 'التصنيف', 'فرق الدورتين'];
     const csvRows = ['\uFEFF' + headers.join(',')];
-    getSortedRows(teacherRowsCache).forEach((row) => {
+    const sorted = [...teacherRowsCache].sort((a, b) => b.passRate - a.passRate || b.avg - a.avg);
+    sorted.forEach((row) => {
+        const subjectLabel = row.subjects.length === 1 ? row.subjects[0] : row.subjects.length ? `متعددة (${row.subjects.length})` : '-';
         csvRows.push(
             [
                 csvEscape(row.teacher),
-                csvEscape(rowSubjectLabel(row, currentSubjectFilter)),
+                csvEscape(subjectLabel),
                 row.sectionsCount,
                 row.studentCount,
                 row.avg.toFixed(2),
                 row.passRate.toFixed(1) + '%',
                 csvEscape(row.rating.label),
-                row.semesterDiff !== null ? row.semesterDiff.toFixed(2) : '-',
-                csvEscape(formatDateTime(row.lastImportedMs))
+                row.semesterDiff !== null ? row.semesterDiff.toFixed(2) : '-'
             ].join(',')
         );
     });
@@ -1489,73 +1177,10 @@ function exportReport() {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.href = url;
-    link.download = `teachers-performance-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `tracking-teachers-performance-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     showToast('تم تصدير التقرير بنجاح', 'success');
-}
-
-/* ─── Print / PDF ─── */
-function buildPrintHTML() {
-    const kpisHtml = document.getElementById('tp-kpis')?.innerHTML || '';
-    const tableHtml = document.querySelector('.tp-table-wrap')?.innerHTML || '';
-
-    const canvasImages = [];
-    document.querySelectorAll('.tp-chart-wrap canvas').forEach((canvas) => {
-        try {
-            canvasImages.push(`<div style="margin:12px 0;"><img src="${canvas.toDataURL('image/png')}" style="max-width:100%;height:auto;" /></div>`);
-        } catch (_) {}
-    });
-
-    return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8"/>
-<title>تقرير مؤشرات أداء الأساتذة</title>
-<style>
-  body { font-family: 'IBM Plex Sans Arabic', Arial, sans-serif; font-size: 13px; color: #222; direction: rtl; }
-  h1 { font-size: 18px; margin-bottom: 12px; }
-  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
-  .kpi-card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; text-align: center; }
-  .kpi-label { font-size: 11px; color: #666; }
-  .kpi-value { font-size: 20px; font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-  th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: right; }
-  th { background: #f5f5f5; font-weight: 600; }
-</style>
-</head>
-<body>
-<h1><i>مؤشرات أداء الأساتذة</i> — تقرير ${new Date().toLocaleDateString('ar-MA')}</h1>
-<div class="kpi-grid">${kpisHtml}</div>
-<h2 style="font-size:14px;margin:16px 0 8px;">الجدول التفصيلي</h2>
-<table>${tableHtml}</table>
-<h2 style="font-size:14px;margin:16px 0 8px;">الرسوم البيانية</h2>
-${canvasImages.join('')}
-</body>
-</html>`;
-}
-
-async function printReport() {
-    if (!teacherRowsCache.length) {
-        showToast('لا توجد بيانات للطباعة', 'error');
-        return;
-    }
-    const handle = showToast.loading('جاري تجهيز التقرير...');
-    try {
-        const html = buildPrintHTML();
-        const result = await window.electronAPI.printHTML({
-            htmlContent: html,
-            title: 'تقرير مؤشرات أداء الأساتذة',
-            pageSize: 'A4',
-            landscape: true,
-            mode: 'preview',
-            defaultFileName: `teachers-performance-${new Date().toISOString().slice(0, 10)}.pdf`
-        });
-        if (result?.success) handle.success('تم تصدير التقرير');
-        else handle.error(result?.error || 'فشل التصدير');
-    } catch (_) {
-        handle.error('فشل التصدير');
-    }
 }
 
 /* ─── Main Analysis ─── */
@@ -1585,30 +1210,27 @@ async function runAnalysis() {
         if (teacherSelect?.value) selectedTeacherName = teacherSelect.value;
         if (rows.length && (!selectedTeacherName || !rows.some((r) => r.teacherKey === selectedTeacherName)))
             selectedTeacherName = rows[0].teacherKey;
+        updateTrackingPageTitle();
         teacherRowsCache = rows;
 
         renderStateLine(baseFiltered, rows);
         renderKpis(baseFiltered, rows);
         if (chartLoadFailed) {
             const chartMsg = 'تعذر تحميل مكتبة الرسوم البيانية';
-            showChartFallback('tp-teacher-compare-chart', chartMsg);
-            showChartFallback('tp-absence-by-teacher-chart', chartMsg);
             showChartFallback('tp-section-chart', chartMsg);
             showChartFallback('tp-distribution-chart', chartMsg);
             showChartFallback('tp-trend-chart', chartMsg);
             showChartFallback('tp-semester-compare-chart', chartMsg);
             showChartFallback('tp-radar-chart', chartMsg);
         } else {
-            renderComparisonChart(rows);
-            renderAbsenceByTeacherChart(rows);
             renderTeacherCard(baseFiltered, rows);
             renderSemesterCompareChart(rows);
             renderRadarChart(rows);
         }
-
-        renderTeacherTable(rows, currentSubjectFilter);
+        // Compensation/support dashboard (pure HTML, no Chart.js dependency)
+        renderCompSupportCharts();
     } catch (error) {
-        console.error('Teacher performance analysis error:', error);
+        console.error('Tracking teacher performance analysis error:', error);
         showToast('تعذر تنفيذ التحليل', 'error');
     } finally {
         hideLoading();
@@ -1619,248 +1241,347 @@ async function runAnalysis() {
     }
 }
 
-/* ─── Compensation & Support Block ─── */
+/* ─── Compensation & Support Block (teacher-specific empty states) ─── */
 async function loadCompensationAndSupportData() {
     const year = await getCurrentYear();
 
-    let compRecords = [];
     try {
-        compRecords = (await window.api.compensation.getPending(year)) ?? [];
-    } catch (_) {}
+        _compRecordsCache = (await window.api.compensation.getAll(year)) ?? [];
+    } catch (_) {
+        _compRecordsCache = [];
+    }
 
-    let supportSessions = [];
     try {
-        supportSessions = (await window.api.supportSessions.list({ school_year: year })) ?? [];
-    } catch (_) {}
+        _supportSessionsCache = (await window.api.supportSessions.list({ school_year: year })) ?? [];
+    } catch (_) {
+        _supportSessionsCache = [];
+    }
 
     await ensureChartJsLoaded().catch(() => {});
     if (!window.Chart) return;
 
-    renderCompensationByTeacherChart(compRecords);
-    renderAffectedSectionsChart(compRecords);
-    renderSupportSessionsChart(supportSessions);
+    renderCompSupportCharts();
 }
 
-function renderCompensationByTeacherChart(records) {
-    const canvas = document.getElementById('tp-comp-chart');
-    const meta = document.getElementById('tp-comp-meta');
-    if (!canvas || !meta || !window.Chart) return;
-    destroyChart('compByTeacher');
+function _getSelectedTeacherDisplayName() {
+    if (!selectedTeacherName) return null;
+    const row = teacherRowsCache.find((r) => r.teacherKey === selectedTeacherName);
+    return row ? row.teacher : null;
+}
 
-    if (!records.length) {
-        meta.textContent = 'لا توجد بيانات حصص تعويضية.';
-        return;
+function _getTeacherNameForMatching() {
+    const row = teacherRowsCache.find((r) => r.teacherKey === selectedTeacherName);
+    return row ? row.teacher : null;
+}
+
+function renderCompSupportCharts() {
+    const teacherName = _getTeacherNameForMatching();
+    const compAll = teacherName
+        ? _compRecordsCache.filter((r) => (r.teacher_name || '').trim() === teacherName)
+        : _compRecordsCache;
+    const supportAll = teacherName
+        ? _supportSessionsCache.filter((s) => (s.teacher_name || '').trim() === teacherName)
+        : _supportSessionsCache;
+
+    const pending = compAll.filter((r) => !r.compensated);
+    const done = compAll.filter((r) => r.compensated);
+    const totalSupportHours = supportAll.reduce((s, r) => s + (Number(r.duration_hours) || 0), 0);
+    const supportSections = new Set(supportAll.map((s) => s.section || 'غير محدد'));
+
+    _renderCSKpis(teacherName, pending, done, supportAll, totalSupportHours, supportSections);
+    _renderCSCards(teacherName, pending, done, supportAll, totalSupportHours, supportSections);
+}
+
+function _renderCSKpis(teacherName, pending, done, supportAll, totalSupportHours, supportSections) {
+    const container = document.getElementById('tp-cs-kpis');
+    if (!container) return;
+
+    // KPI 1: Support sessions
+    const supportCount = supportAll.length;
+    let supportBadge = '', supportBadgeClass = '';
+    if (supportCount > 0) {
+        supportBadge = 'منجزة';
+        supportBadgeClass = 'tp-cs-badge-ok';
+    } else {
+        supportBadge = 'لم تُسجَّل بعد';
+        supportBadgeClass = 'tp-cs-badge-warn';
     }
 
-    const pending = records.filter((r) => !r.compensated);
-    const done = records.filter((r) => r.compensated);
+    // KPI 2: Compensated sessions
+    const doneCount = done.length;
+    let compBadge = '', compBadgeClass = '';
+    if (doneCount > 0 && pending.length === 0) {
+        compBadge = 'مكتملة';
+        compBadgeClass = 'tp-cs-badge-ok';
+    } else if (doneCount > 0) {
+        compBadge = 'جزئية';
+        compBadgeClass = 'tp-cs-badge-warn';
+    } else {
+        compBadge = pending.length > 0 ? 'معلّقة' : 'لا شيء';
+        compBadgeClass = pending.length > 0 ? 'tp-cs-badge-warn' : 'tp-cs-badge-ok';
+    }
 
-    const byTeacher = {};
-    records.forEach((r) => {
-        const t = r.teacher_name || 'غير محدد';
-        if (!byTeacher[t]) byTeacher[t] = { pending: 0, done: 0 };
-        if (r.compensated) byTeacher[t].done++;
-        else byTeacher[t].pending++;
-    });
+    // KPI 3: Pending
+    const pendingCount = pending.length;
+    const pendingSections = new Set(pending.map((r) => r.section || 'غير محدد'));
+    let pendingBadge = '', pendingBadgeClass = '';
+    if (pendingCount === 0) {
+        pendingBadge = 'لا شيء معلّق';
+        pendingBadgeClass = 'tp-cs-badge-ok';
+    } else if (pendingCount <= 2) {
+        pendingBadge = 'يستوجب المتابعة';
+        pendingBadgeClass = 'tp-cs-badge-warn';
+    } else {
+        pendingBadge = 'يستوجب التدخل';
+        pendingBadgeClass = 'tp-cs-badge-alert';
+    }
 
-    const sorted = Object.entries(byTeacher)
-        .sort((a, b) => b[1].pending + b[1].done - (a[1].pending + a[1].done))
-        .slice(0, 10);
-
-    const labels = sorted.map(([name]) => name);
-    charts.compByTeacher = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                {
-                    label: 'في الانتظار',
-                    data: sorted.map(([, v]) => v.pending),
-                    backgroundColor: 'rgba(231,76,60,0.80)',
-                    borderRadius: 4,
-                    borderSkipped: false
-                },
-                {
-                    label: 'تم التعويض',
-                    data: sorted.map(([, v]) => v.done),
-                    backgroundColor: 'rgba(47,179,109,0.80)',
-                    borderRadius: 4,
-                    borderSkipped: false
-                }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 650 },
-            plugins: {
-                legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } },
-                tooltip: { rtl: true, textDirection: 'rtl' }
-            },
-            scales: {
-                x: {
-                    position: 'top',
-                    reverse: true,
-                    ticks: { precision: 0 },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
-                },
-                y: {
-                    position: 'right',
-                    grid: { display: false },
-                    ticks: { font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' } }
-                }
-            }
-        }
-    });
-
-    meta.textContent = `${records.length} حصة إجمالاً · ${pending.length} في الانتظار · ${done.length} معوَّضة`;
-    updateChartAccessibility('tp-comp-chart', 'رسم يوضح الحصص التعويضية حسب الأستاذ', 'tp-comp-meta', meta.textContent);
+    container.innerHTML = `
+        <div class="tp-cs-kpi">
+            <div class="tp-cs-kpi-label">إجمالي حصص الدعم</div>
+            <div class="tp-cs-kpi-value">${supportCount}</div>
+            <div class="tp-cs-kpi-sub">${totalSupportHours.toFixed(1)} ساعة · ${supportSections.size} ${supportSections.size === 1 ? 'قسم' : 'أقسام'}</div>
+            <span class="tp-cs-badge ${supportBadgeClass}">${supportBadge}</span>
+        </div>
+        <div class="tp-cs-kpi">
+            <div class="tp-cs-kpi-label">الحصص التعويضية المنجزة</div>
+            <div class="tp-cs-kpi-value">${doneCount}</div>
+            <div class="tp-cs-kpi-sub">${doneCount > 0 ? `من أصل ${doneCount + pendingCount}` : 'في انتظار التسجيل'}</div>
+            <span class="tp-cs-badge ${compBadgeClass}">${compBadge}</span>
+        </div>
+        <div class="tp-cs-kpi">
+            <div class="tp-cs-kpi-label">تحتاج إلى تعويض</div>
+            <div class="tp-cs-kpi-value">${pendingCount}</div>
+            <div class="tp-cs-kpi-sub">${pendingCount > 0 ? `${pendingSections.size} ${pendingSections.size === 1 ? 'قسم معني' : 'أقسام معنية'}` : 'لا حصص معلّقة'}</div>
+            <span class="tp-cs-badge ${pendingBadgeClass}">${pendingBadge}</span>
+        </div>
+    `;
 }
 
-function renderAffectedSectionsChart(records) {
-    const canvas = document.getElementById('tp-sections-comp-chart');
-    const meta = document.getElementById('tp-sections-comp-meta');
-    if (!canvas || !meta || !window.Chart) return;
-    destroyChart('sectionsComp');
+function _renderCSCards(teacherName, pending, done, supportAll, totalSupportHours, supportSections) {
+    const container = document.getElementById('tp-cs-cards');
+    if (!container) return;
 
-    const pending = records.filter((r) => !r.compensated);
+    const displayName = teacherName ? escapeHtml(_getSelectedTeacherDisplayName() || teacherName) : '';
+
+    // Card 1: Support sessions detail
+    const card1 = _buildSupportCard(supportAll, totalSupportHours, supportSections, displayName);
+
+    // Card 2: Compensated sessions detail
+    const card2 = _buildCompensatedCard(done, pending, displayName);
+
+    // Card 3: Pending sessions detail
+    const card3 = _buildPendingCard(pending, displayName);
+
+    container.innerHTML = card1 + card2 + card3;
+}
+
+function _buildSupportCard(sessions, totalHours, sections, displayName) {
+    const svgIcon = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="12" height="8" rx="1" stroke="#3266ad" stroke-width="1.2"/><path d="M4 1v3M10 1v3" stroke="#3266ad" stroke-width="1.2" stroke-linecap="round"/></svg>';
+
+    if (!sessions.length) {
+        const hint = displayName
+            ? `الأستاذ(ة) ${displayName} لم يُنجز أي حصة دعم بعد`
+            : 'لا توجد حصص دعم مسجلة';
+        return `
+            <div class="tp-cs-card">
+                <div class="tp-cs-card-title">${svgIcon} حصص الدعم المنجزة</div>
+                <div class="tp-cs-card-sub">${hint}</div>
+                <div class="tp-cs-empty">
+                    <div class="tp-cs-empty-icon tp-cs-empty-icon--blue">
+                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="6" width="16" height="12" rx="2" stroke="#3266ad" stroke-width="1.5"/><path d="M7 3v4M15 3v4" stroke="#3266ad" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </div>
+                    <div class="tp-cs-empty-text">لا توجد حصص دعم مسجّلة</div>
+                    <div class="tp-cs-empty-hint">يمكن تسجيلها من صفحة "حصص الدعم والتقوية"</div>
+                </div>
+            </div>`;
+    }
+
+    // Group by section
+    const bySection = {};
+    sessions.forEach((s) => {
+        const sec = s.section || 'غير محدد';
+        if (!bySection[sec]) bySection[sec] = { hours: 0, count: 0 };
+        bySection[sec].hours += Number(s.duration_hours) || 0;
+        bySection[sec].count++;
+    });
+
+    const sorted = Object.entries(bySection).sort((a, b) => b[1].hours - a[1].hours).slice(0, 6);
+    const maxVal = sorted.length ? sorted[0][1].hours : 1;
+
+    const COLORS = ['#3266ad', '#4f80c4', '#6f9ad6', '#8fb4e6', '#a8c6ee', '#c0d8f5'];
+
+    // Build axis
+    const axisSteps = _buildAxisLabels(maxVal, 'h');
+
+    let barsHtml = sorted.map(([sec, data], i) => {
+        const pct = maxVal > 0 ? Math.max(5, (data.hours / maxVal) * 100) : 5;
+        return `
+            <div class="tp-cs-bar-row">
+                <div class="tp-cs-bar-label">${escapeHtml(sec)}</div>
+                <div class="tp-cs-bar-track">
+                    <div class="tp-cs-bar-fill" style="width:${pct}%;background:${COLORS[i % COLORS.length]};">
+                        <span class="tp-cs-bar-val">${data.hours.toFixed(1)}h</span>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+
+    return `
+        <div class="tp-cs-card">
+            <div class="tp-cs-card-title">${svgIcon} حصص الدعم المنجزة</div>
+            <div class="tp-cs-card-sub">${sessions.length} حصة دعم · ${totalHours.toFixed(1)} ساعة · ${sections.size} ${sections.size === 1 ? 'قسم' : 'أقسام'}</div>
+            <div class="tp-cs-axis-row">${axisSteps}</div>
+            ${barsHtml}
+        </div>`;
+}
+
+function _buildCompensatedCard(done, pending, displayName) {
+    const svgIcon = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="#3B6D11" stroke-width="1.2"/><path d="M4.5 7l2 2 3-4" stroke="#3B6D11" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    if (!done.length) {
+        const pendingHint = pending.length > 0 ? `${pending.length} حصة في الانتظار` : '';
+        const subText = displayName
+            ? `الأستاذ(ة) ${displayName} لم يُسجَّل أي تعويض بعد`
+            : 'لا توجد حصص تعويضية منجزة';
+        return `
+            <div class="tp-cs-card">
+                <div class="tp-cs-card-title">${svgIcon} الحصص التعويضية المنجزة</div>
+                <div class="tp-cs-card-sub">${subText}</div>
+                <div class="tp-cs-empty">
+                    <div class="tp-cs-empty-icon tp-cs-empty-icon--green">
+                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="#3B6D11" stroke-width="1.5"/><path d="M11 7v5l3 2" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </div>
+                    <div class="tp-cs-empty-text">لا توجد حصص تعويضية مسجّلة</div>
+                    ${pendingHint ? `<div class="tp-cs-empty-hint">${pendingHint}</div>` : ''}
+                </div>
+            </div>`;
+    }
+
+    // Group by section
+    const bySection = {};
+    done.forEach((r) => {
+        const sec = r.section || 'غير محدد';
+        bySection[sec] = (bySection[sec] || 0) + 1;
+    });
+
+    const sorted = Object.entries(bySection).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const maxVal = sorted.length ? sorted[0][1] : 1;
+    const total = done.length + pending.length;
+    const pctDone = total > 0 ? Math.round((done.length / total) * 100) : 100;
+
+    const COLORS = ['#3B6D11', '#4F8A1A', '#6BA330', '#85BA4A', '#A0D068', '#BBE688'];
+
+    const axisSteps = _buildAxisLabels(maxVal, '');
+
+    let barsHtml = sorted.map(([sec, count], i) => {
+        const pct = maxVal > 0 ? Math.max(5, (count / maxVal) * 100) : 5;
+        return `
+            <div class="tp-cs-bar-row">
+                <div class="tp-cs-bar-label">${escapeHtml(sec)}</div>
+                <div class="tp-cs-bar-track">
+                    <div class="tp-cs-bar-fill" style="width:${pct}%;background:${COLORS[i % COLORS.length]};">
+                        <span class="tp-cs-bar-val">${count}</span>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+
+    // Success alert if all done
+    let alertHtml = '';
+    if (pending.length === 0) {
+        alertHtml = `
+            <div class="tp-cs-alert-box tp-cs-alert-box--ok">
+                <div class="tp-cs-alert-title">✓ مكتملة</div>
+                <div class="tp-cs-alert-text">تم تعويض جميع الحصص بنجاح</div>
+            </div>`;
+    }
+
+    return `
+        <div class="tp-cs-card">
+            <div class="tp-cs-card-title">${svgIcon} الحصص التعويضية المنجزة</div>
+            <div class="tp-cs-card-sub">${done.length} حصة منجزة · نسبة الإنجاز ${pctDone}%</div>
+            <div class="tp-cs-axis-row">${axisSteps}</div>
+            ${barsHtml}
+            ${alertHtml}
+        </div>`;
+}
+
+function _buildPendingCard(pending, displayName) {
+    const svgIcon = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2L2 12h10L7 2z" stroke="#A32D2D" stroke-width="1.2" stroke-linejoin="round"/><path d="M7 6v3M7 10.5v.5" stroke="#A32D2D" stroke-width="1.2" stroke-linecap="round"/></svg>';
+
     if (!pending.length) {
-        meta.textContent = 'لا توجد أقسام متضررة بدون تعويض.';
-        return;
+        const subText = displayName
+            ? `لا توجد حصص معلّقة للأستاذ(ة) ${displayName}`
+            : 'لا توجد حصص في انتظار التعويض';
+        return `
+            <div class="tp-cs-card">
+                <div class="tp-cs-card-title">${svgIcon} الحصص المتأخرة للتعويض</div>
+                <div class="tp-cs-card-sub">${subText}</div>
+                <div class="tp-cs-empty">
+                    <div class="tp-cs-empty-icon tp-cs-empty-icon--green">
+                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9" stroke="#3B6D11" stroke-width="1.5"/><path d="M7 11l3 3 5-6" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="tp-cs-empty-text">لا توجد حصص معلّقة</div>
+                    <div class="tp-cs-empty-hint">جميع الحصص تم تعويضها ✓</div>
+                </div>
+            </div>`;
     }
 
+    // Group by section
     const bySection = {};
     pending.forEach((r) => {
         const sec = r.section || 'غير محدد';
         bySection[sec] = (bySection[sec] || 0) + 1;
     });
 
-    const sorted = Object.entries(bySection)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 12);
+    const sorted = Object.entries(bySection).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const maxVal = sorted.length ? sorted[0][1] : 1;
+    const sectionCount = sorted.length;
 
-    charts.sectionsComp = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels: sorted.map(([sec]) => sec),
-            datasets: [
-                {
-                    label: 'حصص غير معوَّضة',
-                    data: sorted.map(([, n]) => n),
-                    backgroundColor: 'rgba(231,76,60,0.75)',
-                    borderRadius: 4,
-                    borderSkipped: false
-                }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 650 },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    rtl: true,
-                    textDirection: 'rtl',
-                    callbacks: { label: (ctx) => `${ctx.raw} حصة غير معوَّضة` }
-                }
-            },
-            scales: {
-                x: {
-                    position: 'top',
-                    reverse: true,
-                    ticks: { precision: 0 },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
-                },
-                y: {
-                    position: 'right',
-                    grid: { display: false },
-                    ticks: { font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' } }
-                }
-            }
-        }
-    });
+    const COLORS = ['#D85A30', '#E87955', '#F0936F', '#F5AD8A', '#FAC7A5', '#FFE0C0'];
 
-    meta.textContent = `${sorted.length} قسم متضرر · ${pending.length} حصة لم تُعوَّض بعد`;
-    updateChartAccessibility('tp-sections-comp-chart', 'رسم يوضح الأقسام المتضررة بدون تعويض', 'tp-sections-comp-meta', meta.textContent);
+    const axisSteps = _buildAxisLabels(maxVal, '');
+
+    let barsHtml = sorted.map(([sec, count], i) => {
+        const pct = maxVal > 0 ? Math.max(5, (count / maxVal) * 100) : 5;
+        return `
+            <div class="tp-cs-bar-row">
+                <div class="tp-cs-bar-label">${escapeHtml(sec)}</div>
+                <div class="tp-cs-bar-track">
+                    <div class="tp-cs-bar-fill" style="width:${pct}%;background:${COLORS[i % COLORS.length]};">
+                        <span class="tp-cs-bar-val">${count}</span>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+
+    // Alert box
+    const alertHtml = `
+        <div class="tp-cs-alert-box tp-cs-alert-box--warn">
+            <div class="tp-cs-alert-title">تنبيه</div>
+            <div class="tp-cs-alert-text">يجب جدولة التعويضات في أقرب وقت</div>
+        </div>`;
+
+    return `
+        <div class="tp-cs-card">
+            <div class="tp-cs-card-title">${svgIcon} الحصص المتأخرة للتعويض</div>
+            <div class="tp-cs-card-sub">${pending.length} حصة تحتاج تعويضًا · ${sectionCount} ${sectionCount === 1 ? 'قسم معني' : 'أقسام معنية'}</div>
+            <div class="tp-cs-axis-row">${axisSteps}</div>
+            ${barsHtml}
+            ${alertHtml}
+        </div>`;
 }
 
-function renderSupportSessionsChart(sessions) {
-    const canvas = document.getElementById('tp-support-chart');
-    const meta = document.getElementById('tp-support-meta');
-    if (!canvas || !meta || !window.Chart) return;
-    destroyChart('supportSessions');
-
-    if (!sessions.length) {
-        meta.textContent = 'لا توجد بيانات حصص دعم مسجلة.';
-        return;
+function _buildAxisLabels(maxVal, suffix) {
+    const ceil = Math.ceil(maxVal);
+    if (ceil <= 0) return '<span>0</span>';
+    const steps = Math.min(ceil, 6);
+    const stepSize = ceil / steps;
+    const labels = [];
+    for (let i = steps; i >= 0; i--) {
+        const v = Math.round(stepSize * i * 10) / 10;
+        labels.push(`<span>${v}${suffix}</span>`);
     }
-
-    const byTeacher = {};
-    sessions.forEach((s) => {
-        const t = s.teacher_name || 'غير محدد';
-        if (!byTeacher[t]) byTeacher[t] = { hours: 0, count: 0 };
-        byTeacher[t].hours += Number(s.duration_hours) || 0;
-        byTeacher[t].count++;
-    });
-
-    const sorted = Object.entries(byTeacher)
-        .sort((a, b) => b[1].hours - a[1].hours)
-        .slice(0, 10);
-
-    charts.supportSessions = new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels: sorted.map(([name]) => name),
-            datasets: [
-                {
-                    label: 'ساعات الدعم',
-                    data: sorted.map(([, v]) => Number(v.hours.toFixed(1))),
-                    backgroundColor: 'rgba(59,106,197,0.80)',
-                    borderRadius: 4,
-                    borderSkipped: false
-                }
-            ]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 650 },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    rtl: true,
-                    textDirection: 'rtl',
-                    callbacks: {
-                        label: (ctx) => `${ctx.raw} ساعة`,
-                        afterBody: (items) => {
-                            const t = sorted[items[0]?.dataIndex];
-                            return t ? [`${t[1].count} حصة`] : '';
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    position: 'top',
-                    reverse: true,
-                    ticks: { callback: (v) => `${v}h` },
-                    grid: { color: 'rgba(0,0,0,0.05)' }
-                },
-                y: {
-                    position: 'right',
-                    grid: { display: false },
-                    ticks: { font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' } }
-                }
-            }
-        }
-    });
-
-    const totalHours = sessions.reduce((s, r) => s + (Number(r.duration_hours) || 0), 0);
-    const uniqueTeachers = new Set(sessions.map((s) => s.teacher_name)).size;
-    meta.textContent = `${sessions.length} حصة دعم · ${totalHours.toFixed(1)} ساعة · ${uniqueTeachers} أستاذ`;
-    updateChartAccessibility('tp-support-chart', 'رسم يوضح حصص الدعم المنجزة حسب الأستاذ', 'tp-support-meta', meta.textContent);
+    return labels.join('');
 }

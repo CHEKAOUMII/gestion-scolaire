@@ -42,7 +42,8 @@
       "Bash(git fetch:*)",
       "Bash(git pull:*)",
       "Bash(git push:*)",
-      "Bash(grep -n \"^} *$\" \"D:/gestionScholaire/css/tailwind-input.css\")"
+      "Bash(grep -n \"^} *$\" \"D:/gestionScholaire/css/tailwind-input.css\")",
+      "Bash(ls d:/gestionScholaire/*.html)"
     ]
   },
   "enabledPlugins": {
