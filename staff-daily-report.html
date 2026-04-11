@@ -240,6 +240,14 @@
                         <label style="font-weight: 600; font-size: 13px; white-space: nowrap;"><i class="fas fa-tag" style="margin-left: 4px;"></i> نوع الوسم:</label>
                         <select id="tag-note-type" style="flex: 1; max-width: 220px; padding: 6px 10px; border: 1px solid var(--color-border, #ddd); border-radius: 6px; font-size: 13px;"></select>
                     </div>
+                    <div id="tag-activity-title-wrapper" style="margin-bottom: 10px;">
+                        <label id="tag-detail-label" style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">
+                            <i class="fas fa-heading" style="margin-left: 4px;"></i> <span id="tag-detail-label-text">تفاصيل:</span>
+                        </label>
+                        <input type="text" id="tag-activity-title"
+                            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border, #ddd); border-radius: 6px; font-size: 13px; font-family: inherit; box-sizing: border-box;"
+                            placeholder="">
+                    </div>
                     <div style="position: relative;">
                         <textarea id="tag-note-textarea"
                             rows="3"
@@ -1182,6 +1190,12 @@
                     ? `${tagDef.icon} ${escapeHtml(first.tag_label)}`
                     : escapeHtml(first.tag_label);
 
+                // Activity title from details column
+                const activityTitle = first.details ? first.details.trim() : '';
+                const titleBadge = activityTitle
+                    ? `<div style="font-size: 12px; color: var(--color-primary); font-weight: 600; margin-top: 2px;"><i class="fas fa-bookmark" style="margin-left: 3px;"></i> ${escapeHtml(activityTitle)}</div>`
+                    : '';
+
                 let displayText = escapeHtml(first.note_text || '');
                 for (const tag of groupTags) {
                     const raw = '@' + escapeHtml(tag.entity_name);
@@ -1193,7 +1207,7 @@
                 html += `
                     <tr data-note-group="${escapeHtml(groupId)}">
                         <td class="col-index">${rowIndex++}</td>
-                        <td><span style="font-weight: 600; white-space: nowrap;">${tagBadge}</span></td>
+                        <td><span style="font-weight: 600; white-space: nowrap;">${tagBadge}</span>${titleBadge}</td>
                         <td style="line-height: 1.7;">${displayText}</td>
                         <td class="no-print">
                             <button class="btn-delete-event" onclick="deleteTagNote('${escapeHtml(groupId)}')" style="font-size: 17px; padding: 6px 8px;" title="حذف">
@@ -1248,13 +1262,39 @@
             ).join('');
 
             document.getElementById('tag-note-textarea').value = '';
+            document.getElementById('tag-activity-title').value = '';
             _confirmedMentions = [];
             form.style.display = 'block';
+            toggleActivityTitleField(typeSelect.value);
+
+            typeSelect.addEventListener('change', () => toggleActivityTitleField(typeSelect.value));
 
             const textarea = document.getElementById('tag-note-textarea');
             textarea.focus();
             textarea.addEventListener('input', handleNoteInput);
             textarea.addEventListener('keydown', handleNoteKeydown);
+        }
+
+        const TAG_DETAIL_CONFIG = {
+            educational_activity: { label: 'عنوان النشاط',        placeholder: 'مثال: نشاط بيئي حول إعادة التدوير...' },
+            cultural_activity:    { label: 'عنوان النشاط',        placeholder: 'مثال: مسابقة في القراءة...' },
+            sports_activity:      { label: 'عنوان النشاط',        placeholder: 'مثال: دوري كرة القدم...' },
+            inspection:           { label: 'اسم المفتش',          placeholder: 'اسم المفتش التربوي...' },
+            meeting:              { label: 'موضوع الاجتماع',      placeholder: 'مثال: مجلس القسم...' },
+            competition:          { label: 'اسم المسابقة',        placeholder: 'مثال: الأولمبياد الجهوية للرياضيات...' },
+            training:             { label: 'موضوع التكوين',      placeholder: 'مثال: ورشة الرقمنة...' },
+            field_trip:           { label: 'وجهة الخرجة',        placeholder: 'مثال: زيارة متحف...' },
+            disciplinary_council: { label: 'موضوع المجلس',      placeholder: 'مثال: اسم التلميذ...' },
+            early_release:        { label: 'السبب',             placeholder: 'سبب الخروج المبكر...' },
+            short_session:        { label: 'تفاصيل',           placeholder: 'تفاصيل إضافية...' },
+            cancelled_session:    { label: 'السبب',             placeholder: 'سبب الإلغاء...' },
+            other:                { label: 'تفاصيل',           placeholder: 'تفاصيل إضافية...' }
+        };
+
+        function toggleActivityTitleField(tagKey) {
+            const config = TAG_DETAIL_CONFIG[tagKey] || { label: 'تفاصيل', placeholder: 'تفاصيل إضافية...' };
+            document.getElementById('tag-detail-label-text').textContent = config.label + ':';
+            document.getElementById('tag-activity-title').placeholder = config.placeholder;
         }
 
         function cancelTagNote() {
@@ -1269,6 +1309,7 @@
         async function saveTagNote() {
             const tagKey = document.getElementById('tag-note-type').value;
             const noteText = document.getElementById('tag-note-textarea').value.trim();
+            const activityTitle = document.getElementById('tag-activity-title').value.trim();
             const tagDate = document.getElementById('report-date').value;
 
             if (!noteText) {
@@ -1293,7 +1334,8 @@
                     tag_label: tagLabel,
                     note_text: noteText,
                     mentions: validMentions,
-                    school_year: year
+                    school_year: year,
+                    details: activityTitle || ''
                 });
                 showToast('تم حفظ الوسم بنجاح', 'success');
                 cancelTagNote();

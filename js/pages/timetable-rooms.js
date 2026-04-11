@@ -63,7 +63,7 @@ const RoomTimetable = (function() {
 
     async function loadTimetableData() {
         try {
-            const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+            const schoolYear = getSchoolYear();
             const parsed = await window.api?.timetable?.get?.(schoolYear);
             if (!parsed || !parsed.timetables) {
                 showNoImportState();
@@ -109,7 +109,11 @@ const RoomTimetable = (function() {
 
             const badge = document.getElementById('room-count-badge');
             if (roomNames.length > 0) {
-                // Toasts handled externally if needed
+                // Re-render currently selected room if any (handles data refresh after teacher edits)
+                const roomSelect = document.getElementById('room-room-select');
+                if (roomSelect && roomSelect.value && roomsIndex[roomSelect.value]) {
+                    showRoomSchedule(roomSelect.value);
+                }
             } else {
                 showNoRoomsState();
             }

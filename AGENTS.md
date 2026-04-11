@@ -56,7 +56,7 @@ A note-based tagging system for recording structured daily observations about te
 
 Always import this file in any page that needs tag type definitions. **Never** define tag types inline.
 
-Available keys: `educational_activity`, `meeting`, `competition`, `training`, `inspection`, `field_trip`, `early_release`, `short_session`, `cancelled_session`, `cultural_activity`, `sports_activity`, `other`
+Available keys: `educational_activity`, `meeting`, `competition`, `training`, `inspection`, `field_trip`, `early_release`, `short_session`, `cancelled_session`, `cultural_activity`, `sports_activity`, `disciplinary_council`, `other`
 
 ### IPC Channels
 

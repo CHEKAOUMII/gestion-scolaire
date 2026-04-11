@@ -1081,7 +1081,7 @@ function registerStaffIpc(ipcMain) {
     });
 
     handleWriteSoftAuth(ipcMain, 'systemTags:saveNote', ['admin', 'staff'], (db, payload) => {
-        const { tag_date, tag_key, tag_label, note_text, mentions, school_year } = payload;
+        const { tag_date, tag_key, tag_label, note_text, mentions, school_year, details } = payload;
         requireFields(payload, ['tag_date', 'tag_key', 'tag_label', 'note_text', 'school_year']);
         const year = requireSchoolYear(school_year);
 
@@ -1094,12 +1094,12 @@ function registerStaffIpc(ipcMain) {
         const stmt = db.prepare(
             `INSERT INTO system_tags
              (tag_date, entity_type, entity_id, entity_name, tag_key, tag_label, note_group, note_text, details, school_year)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?)`
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         );
 
         const txn = db.transaction((items) => {
             for (const m of items) {
-                stmt.run(tag_date, m.type, m.id || null, m.name, tag_key, tag_label, noteGroup, note_text, year);
+                stmt.run(tag_date, m.type, m.id || null, m.name, tag_key, tag_label, noteGroup, note_text, details || '', year);
             }
         });
 

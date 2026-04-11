@@ -840,7 +840,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const raw = localStorage.getItem('timetableData');
         if (raw) {
             const parsed = JSON.parse(raw);
-            const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+            const schoolYear = getSchoolYear();
             const existing = await window.api?.timetable?.get?.(schoolYear);
             if (!existing) {
                 await window.api?.timetable?.save?.({ school_year: schoolYear, data: parsed });
@@ -864,7 +864,7 @@ async function saveDataToStorage() {
             teacherMetaByKey: fetData.teacherMetaByKey || {},
             unresolvedTeacherKeys: Array.isArray(fetData.unresolvedTeacherKeys) ? fetData.unresolvedTeacherKeys : []
         };
-        const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+        const schoolYear = getSchoolYear();
         await window.api?.timetable?.save?.({ school_year: schoolYear, data: dataToSave });
         console.log('Data saved to database');
     } catch (e) {
@@ -875,7 +875,7 @@ async function saveDataToStorage() {
 // Load saved data from database
 async function loadSavedData() {
     try {
-        const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+        const schoolYear = getSchoolYear();
         const parsed = await window.api?.timetable?.get?.(schoolYear);
         if (parsed) {
             fetData.teachers = (parsed.teachers || []).map(normalizeImportedTeacherEntry);
@@ -920,7 +920,7 @@ async function loadSavedData() {
 // Clear saved data
 async function clearSavedData() {
     try {
-        const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+        const schoolYear = getSchoolYear();
         await window.api?.timetable?.delete?.(schoolYear);
     } catch (e) {
         console.error('Error clearing timetable data:', e);
@@ -1732,7 +1732,8 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
             const dataStart = cell.hourKey;
             const dataEnd = cell.hourKeyEnd || cell.hourKey;
             const dataPeriodEnd = dataEnd !== dataStart ? ` data-period-end="${dataEnd}"` : '';
-            const dataAttrs = `data-day="${day}" data-period="${dataStart}" data-period-type="${cell.period}"${dataPeriodEnd}`;
+            const dataDuration = ` data-duration="${cell.colspan}"`;
+            const dataAttrs = `data-day="${day}" data-period="${dataStart}" data-period-type="${cell.period}"${dataPeriodEnd}${dataDuration}`;
 
             const colspanPart = cell.colspan > 1 ? ` colspan="${cell.colspan}"` : '';
             const mergedClass = cell.colspan > 1 ? ' merged-cell' : '';
@@ -1964,12 +1965,9 @@ function exitEditMode() {
 }
 
 function addCellClickHandlers() {
-    const cells = document.querySelectorAll('#timetable tbody td');
+    const cells = document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
     cells.forEach((cell) => {
         cell.addEventListener('click', handleCellClick);
-
-        // Skip period header cells
-        if (cell.parentElement && cell.parentElement.children[0] === cell) return;
 
         // Add drag and drop functionality
         cell.setAttribute('draggable', 'true');
@@ -1990,7 +1988,7 @@ function addCellClickHandlers() {
 }
 
 function removeCellClickHandlers() {
-    const cells = document.querySelectorAll('#timetable tbody td');
+    const cells = document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
     cells.forEach((cell) => {
         cell.removeEventListener('click', handleCellClick);
 
@@ -2061,7 +2059,7 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
     });
 
     // Populate classes
-    const classes = Array.from(fetData.classes).sort();
+    const classes = Array.from(fetData.classes);
     setSelectOptions(classSelect, classes, {
         placeholder: '-- اختر القسم --',
         getValue: (cls) => cls,
@@ -2091,6 +2089,15 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
     // Get current slot data using the correct periodType
     const timetable = fetData.timetables[editMode.currentTeacher];
     const currentActivity = timetable?.[day]?.[periodType]?.[period];
+    if (currentActivity?.students && !classes.includes(currentActivity.students)) {
+        classes.push(currentActivity.students);
+    }
+    classes.sort();
+    setSelectOptions(classSelect, classes, {
+        placeholder: '-- اختر القسم --',
+        getValue: (cls) => cls,
+        getLabel: (cls) => cls
+    });
 
     if (currentActivity) {
         subjectSelect.value = currentActivity.subject || '';
@@ -2114,7 +2121,13 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
     classSelect.parentNode.replaceChild(newClassSelect, classSelect);
     newClassSelect.value = currentActivity?.students || '';
     newClassSelect.addEventListener('change', function () {
-        highlightAvailableSlots(this.value);
+        highlightAvailableSlots(this.value, {
+            sourceDay: day,
+            sourcePeriod: period,
+            sourcePeriodEnd: periodEnd,
+            sourcePeriodType: periodType,
+            room: roomSelect.value || currentActivity?.room || ''
+        });
     });
 
     if (window.UXEnhancements?.openDialog) {
@@ -2129,7 +2142,13 @@ function openEditModal(day, period, periodType, cell, periodEnd) {
 
     // If there's already a class selected, highlight immediately
     if (newClassSelect.value) {
-        highlightAvailableSlots(newClassSelect.value);
+        highlightAvailableSlots(newClassSelect.value, {
+            sourceDay: day,
+            sourcePeriod: period,
+            sourcePeriodEnd: periodEnd,
+            sourcePeriodType: periodType,
+            room: roomSelect.value || currentActivity?.room || ''
+        });
     }
 }
 
@@ -2154,6 +2173,8 @@ function closeEditModal() {
 function startMoveMode() {
     const slot = editMode.currentEditSlot;
     if (!slot) return;
+    const movePeriods = buildPeriodRange(slot.period, slot.periodEnd || slot.period);
+    const durationLabel = movePeriods.length > 1 ? 'الحصة المزدوجة' : 'الحصة';
 
     // Close modal WITHOUT clearing highlights
     if (window.UXEnhancements?.closeDialog) {
@@ -2217,10 +2238,20 @@ function startMoveMode() {
         document.body.appendChild(cancelBar);
     }
     cancelBar.style.display = 'flex';
+    const cancelBarText = cancelBar.querySelector('span');
+    if (cancelBarText) {
+        cancelBarText.textContent = `انقر على خانة خضراء لنقل ${durationLabel} إليها`;
+    }
 
     // Highlight available destination slots for this class
     if (editMode.moveMode.sourceData?.students) {
-        highlightAvailableSlots(editMode.moveMode.sourceData.students);
+        highlightAvailableSlots(editMode.moveMode.sourceData.students, {
+            sourceDay: editMode.moveMode.sourceDay,
+            sourcePeriod: editMode.moveMode.sourcePeriod,
+            sourcePeriodEnd: editMode.moveMode.sourcePeriodEnd,
+            sourcePeriodType: editMode.moveMode.sourcePeriodType,
+            room: editMode.moveMode.sourceData.room || ''
+        });
     }
 
     showToast('انقر على المكان الجديد أو اضغط إلغاء للتراجع', 'info');
@@ -2377,7 +2408,13 @@ function handleDragStart(e) {
 
     // Highlight available slots for this class so user sees valid destinations
     if (srcData.students) {
-        highlightAvailableSlots(srcData.students);
+        highlightAvailableSlots(srcData.students, {
+            sourceDay: day,
+            sourcePeriod: period,
+            sourcePeriodEnd: periodEnd,
+            sourcePeriodType: periodType,
+            room: srcData.room || ''
+        });
     }
 }
 
@@ -2664,6 +2701,354 @@ function clearSlotHighlighting() {
     });
 }
 
+function getRenderedTimetableCells() {
+    return document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
+}
+
+function buildTimetableSlotKey(day, periodType, period) {
+    return `${day}|${periodType}|${period}`;
+}
+
+function getConsecutivePeriods(periodStart, count) {
+    const startIdx = periods.indexOf(periodStart);
+    if (startIdx === -1 || count <= 0) return [];
+
+    const result = [];
+    for (let i = 0; i < count; i++) {
+        const period = periods[startIdx + i];
+        if (!period) break;
+        result.push(period);
+    }
+    return result;
+}
+
+function getRenderedCellForSlot(day, periodType, period) {
+    const directCell = document.querySelector(
+        `#timetable tbody td[data-day="${day}"][data-period="${period}"][data-period-type="${periodType}"]`
+    );
+    if (directCell) return directCell;
+
+    const candidateCells = document.querySelectorAll(
+        `#timetable tbody td[data-day="${day}"][data-period-type="${periodType}"]`
+    );
+    const targetIndex = periods.indexOf(period);
+    if (targetIndex === -1) return null;
+
+    for (const cell of candidateCells) {
+        const startIndex = periods.indexOf(cell.dataset.period);
+        const endIndex = periods.indexOf(cell.dataset.periodEnd || cell.dataset.period);
+        if (startIndex !== -1 && endIndex !== -1 && targetIndex >= startIndex && targetIndex <= endIndex) {
+            return cell;
+        }
+    }
+
+    return null;
+}
+
+function hasInternalGap(occupancy) {
+    const firstIndex = occupancy.findIndex(Boolean);
+    if (firstIndex === -1) return false;
+
+    let lastIndex = -1;
+    for (let index = occupancy.length - 1; index >= 0; index--) {
+        if (occupancy[index]) {
+            lastIndex = index;
+            break;
+        }
+    }
+
+    if (lastIndex <= firstIndex) return false;
+
+    for (let index = firstIndex + 1; index < lastIndex; index++) {
+        if (!occupancy[index]) return true;
+    }
+
+    return false;
+}
+
+function buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
+    return periods.map((period) => {
+        const slotKey = buildTimetableSlotKey(day, periodType, period);
+        if (destinationKeys.has(slotKey)) return true;
+        if (sourceKeys.has(slotKey)) return false;
+        return !!classTimetable[day]?.[periodType]?.[period];
+    });
+}
+
+function causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
+    const occupancy = buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys);
+    return hasInternalGap(occupancy);
+}
+
+function validateMoveTarget({
+    teacher,
+    className,
+    room,
+    sourceDay,
+    sourcePeriodType,
+    sourcePeriods,
+    destDay,
+    destPeriod,
+    destPeriodType
+}) {
+    if (!teacher || !destDay || !destPeriod || !destPeriodType || !Array.isArray(sourcePeriods) || sourcePeriods.length === 0) {
+        return { valid: false, message: 'الوجهة غير صالحة.' };
+    }
+
+    const destPeriods = getConsecutivePeriods(destPeriod, sourcePeriods.length);
+    if (destPeriods.length !== sourcePeriods.length) {
+        return {
+            valid: false,
+            message: `لا يمكن النقل: تحتاج ${sourcePeriods.length} خانات متتالية داخل نفس الفترة.`
+        };
+    }
+
+    const sourceKeys = new Set(sourcePeriods.map((period) => buildTimetableSlotKey(sourceDay, sourcePeriodType, period)));
+    const destinationKeys = new Set(destPeriods.map((period) => buildTimetableSlotKey(destDay, destPeriodType, period)));
+    const classTimetable = className ? buildClassTimetable(className) : null;
+
+    for (const period of destPeriods) {
+        const slotKey = buildTimetableSlotKey(destDay, destPeriodType, period);
+        const teacherActivity = getSlotData(teacher, destDay, period, destPeriodType);
+        if (teacherActivity && !sourceKeys.has(slotKey)) {
+            return {
+                valid: false,
+                message: `غير متاح: الأستاذ مشغول في ${destDay} ${period}.`
+            };
+        }
+
+        if (classTimetable) {
+            const classActivity = classTimetable[destDay]?.[destPeriodType]?.[period];
+            const isVacatedSourceSlot = sourceKeys.has(slotKey) && classActivity?.teacher === teacher;
+            if (classActivity && !isVacatedSourceSlot) {
+                return {
+                    valid: false,
+                    message: `غير متاح: القسم مشغول في ${destDay} ${period} مع ${classActivity.teacher}.`
+                };
+            }
+        }
+
+        if (room) {
+            const roomCheck = isRoomOccupied(room, destDay, period, destPeriodType, teacher);
+            if (roomCheck.occupied) {
+                return {
+                    valid: false,
+                    message: `غير متاح: القاعة ${room} مشغولة في ${destDay} ${period}.`
+                };
+            }
+        }
+    }
+
+    if (classTimetable) {
+        const affectedSlices = new Set([`${sourceDay}|${sourcePeriodType}`, `${destDay}|${destPeriodType}`]);
+        for (const slice of affectedSlices) {
+            const [day, periodType] = slice.split('|');
+            if (causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys)) {
+                return {
+                    valid: false,
+                    message: `غير متاح: النقل سيُحدث فراغًا في جدول القسم خلال ${day} ${periodType === 'morning' ? 'الصباح' : 'المساء'}.`
+                };
+            }
+        }
+    }
+
+    return { valid: true, destPeriods };
+}
+
+function highlightAvailableSlots(className, options = {}) {
+    if (!className) {
+        clearSlotHighlighting();
+        return;
+    }
+
+    const fallbackSlot = editMode.currentEditSlot || {};
+    const sourceDay = options.sourceDay || fallbackSlot.day;
+    const sourcePeriod = options.sourcePeriod || fallbackSlot.period;
+    const sourcePeriodEnd = options.sourcePeriodEnd || fallbackSlot.periodEnd || sourcePeriod;
+    const sourcePeriodType = options.sourcePeriodType || fallbackSlot.periodType;
+    const room = options.room || '';
+    const sourcePeriods = buildPeriodRange(sourcePeriod, sourcePeriodEnd);
+
+    getRenderedTimetableCells().forEach((cell) => {
+        cell.classList.remove('slot-available', 'slot-occupied', 'slot-current', 'slot-gap-warning');
+        cell.removeAttribute('title');
+
+        const day = cell.dataset.day;
+        const period = cell.dataset.period;
+        const periodType = cell.dataset.periodType;
+
+        if (day === sourceDay && period === sourcePeriod && periodType === sourcePeriodType) {
+            cell.classList.add('slot-current');
+            cell.title = sourcePeriods.length > 1 ? 'الحصة الحالية: حصتان متصلتان' : 'الحصة الحالية';
+            return;
+        }
+
+        const validation = validateMoveTarget({
+            teacher: editMode.currentTeacher,
+            className,
+            room,
+            sourceDay,
+            sourcePeriodType,
+            sourcePeriods,
+            destDay: day,
+            destPeriod: period,
+            destPeriodType: periodType
+        });
+
+        if (validation.valid) {
+            cell.classList.add('slot-available');
+            cell.title =
+                sourcePeriods.length > 1
+                    ? `متاح للحصة المزدوجة (${validation.destPeriods[0]}-${validation.destPeriods[validation.destPeriods.length - 1]})`
+                    : 'متاح للحصة';
+        } else {
+            cell.classList.add('slot-occupied');
+            cell.title = validation.message;
+        }
+    });
+}
+
+function clearSlotHighlighting() {
+    getRenderedTimetableCells().forEach((cell) => {
+        cell.classList.remove('slot-available', 'slot-occupied', 'slot-current', 'slot-gap-warning');
+        cell.removeAttribute('title');
+    });
+}
+
+function performMoveToDestination(destDay, destPeriod, destPeriodType) {
+    const mv = editMode.moveMode;
+    if (!mv || !mv.sourceData) return;
+
+    const srcPeriods = buildPeriodRange(mv.sourcePeriod, mv.sourcePeriodEnd);
+    const teacher = editMode.currentTeacher;
+    const validation = validateMoveTarget({
+        teacher,
+        className: mv.sourceData.students || '',
+        room: mv.sourceData.room || '',
+        sourceDay: mv.sourceDay,
+        sourcePeriodType: mv.sourcePeriodType,
+        sourcePeriods: srcPeriods,
+        destDay,
+        destPeriod,
+        destPeriodType
+    });
+
+    if (!validation.valid) {
+        showToast(validation.message, 'error');
+        return;
+    }
+
+    const destPeriods = validation.destPeriods;
+
+    if (!fetData.timetables[teacher][destDay]) {
+        fetData.timetables[teacher][destDay] = { morning: {}, afternoon: {} };
+    }
+
+    const groupId = Date.now() + '_' + Math.random().toString(36).slice(2);
+
+    srcPeriods.forEach((sp) => {
+        const oldData = getSlotData(teacher, mv.sourceDay, sp, mv.sourcePeriodType);
+        editMode.pendingChanges.push({
+            teacher,
+            day: mv.sourceDay,
+            period: sp,
+            periodType: mv.sourcePeriodType,
+            oldData,
+            newData: null,
+            timestamp: new Date().toISOString(),
+            type: 'delete',
+            groupId,
+            cell: null
+        });
+        delete fetData.timetables[teacher][mv.sourceDay][mv.sourcePeriodType][sp];
+    });
+
+    destPeriods.forEach((dp) => {
+        const oldData = getSlotData(teacher, destDay, dp, destPeriodType);
+        const newData = { ...mv.sourceData };
+        editMode.pendingChanges.push({
+            teacher,
+            day: destDay,
+            period: dp,
+            periodType: destPeriodType,
+            oldData,
+            newData,
+            timestamp: new Date().toISOString(),
+            type: oldData ? 'edit' : 'add',
+            groupId,
+            cell: null
+        });
+        fetData.timetables[teacher][destDay][destPeriodType][dp] = newData;
+    });
+
+    const subjectFilter = document.getElementById('subject-filter')?.value || '';
+    renderTeacherTimetable(teacher, subjectFilter);
+    if (editMode.active) {
+        addCellClickHandlers();
+        document.getElementById('timetable-wrapper').classList.add('edit-mode-active');
+    }
+
+    updateUndoButton();
+    editMode.moveMode = { active: false };
+    const bar = document.getElementById('move-mode-bar');
+    if (bar) bar.style.display = 'none';
+    clearSlotHighlighting();
+
+    const srcLabel =
+        mv.sourcePeriodEnd !== mv.sourcePeriod ? `${mv.sourcePeriod}-${mv.sourcePeriodEnd}` : mv.sourcePeriod;
+    const destLabel =
+        destPeriods.length > 1 ? `${destPeriods[0]}-${destPeriods[destPeriods.length - 1]}` : destPeriods[0];
+    const durationLabel = destPeriods.length > 1 ? 'الحصة المزدوجة' : 'الحصة';
+    showToast(`تم نقل ${durationLabel} من ${mv.sourceDay} ${srcLabel} إلى ${destDay} ${destLabel} بنجاح`, 'success');
+}
+
+function _getDragOverCells(targetCell) {
+    if (!_dragSource) return [targetCell];
+
+    const day = targetCell.dataset.day;
+    const periodType = targetCell.dataset.periodType;
+    const startPeriod = targetCell.dataset.period;
+    if (!day || !periodType || !startPeriod) return [targetCell];
+
+    const periodsToCover = getConsecutivePeriods(startPeriod, _dragSource.numPeriods);
+    const result = [];
+    periodsToCover.forEach((period) => {
+        const cell = getRenderedCellForSlot(day, periodType, period);
+        if (cell && !result.includes(cell)) {
+            result.push(cell);
+        }
+    });
+
+    return result.length > 0 ? result : [targetCell];
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    if (!_dragSource) return;
+
+    const validation = validateMoveTarget({
+        teacher: editMode.currentTeacher,
+        className: _dragSource.srcData?.students || '',
+        room: _dragSource.srcData?.room || '',
+        sourceDay: _dragSource.day,
+        sourcePeriodType: _dragSource.periodType,
+        sourcePeriods: buildPeriodRange(_dragSource.period, _dragSource.periodEnd),
+        destDay: e.currentTarget.dataset.day,
+        destPeriod: e.currentTarget.dataset.period,
+        destPeriodType: e.currentTarget.dataset.periodType
+    });
+
+    e.dataTransfer.dropEffect = validation.valid ? 'move' : 'none';
+    document
+        .querySelectorAll('#timetable tbody td.drag-over, #timetable tbody td.drag-over-ext')
+        .forEach((cell) => cell.classList.remove('drag-over', 'drag-over-ext'));
+
+    if (!validation.valid) return;
+
+    const cells = _getDragOverCells(e.currentTarget);
+    cells.forEach((cell, index) => cell.classList.add(index === 0 ? 'drag-over' : 'drag-over-ext'));
+}
+
 // Confirm slot edit — applies changes LIVE to fetData then re-renders
 function confirmSlotEdit() {
     const subject = document.getElementById('edit-subject').value;
@@ -2742,10 +3127,12 @@ function confirmSlotEdit() {
 }
 
 function getSlotData(teacher, day, period, periodType = null) {
-    // If periodType not provided, calculate from period name (for backwards compatibility)
-    // But this is only accurate when period names are unique (not H1 morning and H1 afternoon)
     if (!periodType) {
-        periodType = ['H1', 'H2'].includes(period) ? 'morning' : 'afternoon';
+        return (
+            fetData.timetables[teacher]?.[day]?.morning?.[period] ||
+            fetData.timetables[teacher]?.[day]?.afternoon?.[period] ||
+            null
+        );
     }
     return fetData.timetables[teacher]?.[day]?.[periodType]?.[period] || null;
 }

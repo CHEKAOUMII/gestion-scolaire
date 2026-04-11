@@ -21,5 +21,6 @@ const ALL_TAG_TYPES = [
     { key: 'cancelled_session',    label: 'إلغاء حصة',   icon: '🚫' },
     { key: 'cultural_activity',    label: 'نشاط ثقافي',  icon: '🎭' },
     { key: 'sports_activity',      label: 'نشاط رياضي',  icon: '🏃' },
+    { key: 'disciplinary_council', label: 'مجلس انضباطي', icon: '⚖️' },
     { key: 'other',                label: 'أخرى',        icon: '📌' }
 ];

@@ -95,7 +95,7 @@ const StudentTimetable = (function() {
 
     async function loadTimetableData() {
         try {
-            const schoolYear = typeof getCurrentSchoolYear === 'function' ? getCurrentSchoolYear() : '';
+            const schoolYear = getSchoolYear();
             const parsed = await window.api?.timetable?.get?.(schoolYear);
             if (!parsed || !parsed.timetables) {
                 showNoImportState();
@@ -159,7 +159,12 @@ const StudentTimetable = (function() {
             const badge = document.getElementById('student-class-count-badge');
             if (classNames.length > 0) {
                 if (badge) badge.innerHTML = `<i class="fas fa-info-circle"></i> ${classNames.length} قسم متوفر`;
-                // Only show toast if specifically loading the students tab to prevent multiple toasts on page load
+
+                // Re-render currently selected class if any (handles data refresh after teacher edits)
+                const classSelect = document.getElementById('student-class-select');
+                if (classSelect && classSelect.value && classesIndex[classSelect.value]) {
+                    showClassSchedule(classSelect.value);
+                }
             } else {
                 showNoClassesState();
             }
