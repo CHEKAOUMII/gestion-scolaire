@@ -22,5 +22,10 @@ const ALL_TAG_TYPES = [
     { key: 'cultural_activity',    label: 'نشاط ثقافي',  icon: '🎭' },
     { key: 'sports_activity',      label: 'نشاط رياضي',  icon: '🏃' },
     { key: 'disciplinary_council', label: 'مجلس انضباطي', icon: '⚖️' },
+    { key: 'school_incident',      label: 'حادثة مدرسية', icon: '🚨' },
+    { key: 'holiday',               label: 'عطلة / توقف',  icon: '🏖️' },
+    { key: 'strike',                label: 'إضراب',        icon: '✊' },
+    { key: 'exam',                  label: 'امتحان',       icon: '📝' },
+    { key: 'official_visit',        label: 'زيارة رسمية',  icon: '🏛️' },
     { key: 'other',                label: 'أخرى',        icon: '📌' }
 ];

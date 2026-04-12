@@ -657,6 +657,42 @@ function registerStaffIpc(ipcMain) {
                 .all(date, year);
         } catch { /* table may not exist yet */ }
 
+        // 8. Merge legacy school_events into tags format
+        const EVENT_TYPE_TO_TAG_KEY = {
+            'زيارة تفتيشية': 'inspection',
+            'اجتماع': 'meeting',
+            'نشاط تربوي': 'educational_activity',
+            'عطلة / توقف': 'holiday',
+            'حادث مدرسي': 'school_incident',
+            'إضراب': 'strike',
+            'تكوين / ورشة': 'training',
+            'امتحان': 'exam',
+            'زيارة رسمية': 'official_visit',
+            'أخرى': 'other'
+        };
+        for (const ev of events) {
+            const tagKey = EVENT_TYPE_TO_TAG_KEY[ev.event_type] || 'other';
+            const eventDetails = ev.details || '';
+            const detailsField = ev.event_time
+                ? `time::${ev.event_time}|${eventDetails}`
+                : eventDetails;
+            tags.push({
+                id: -ev.id,
+                tag_date: ev.event_date,
+                entity_type: 'general',
+                entity_id: null,
+                entity_name: ev.event_type || 'أخرى',
+                tag_key: tagKey,
+                tag_label: ev.event_type || 'أخرى',
+                note_group: `legacy-event-${ev.id}`,
+                note_text: eventDetails,
+                details: detailsField,
+                school_year: ev.school_year,
+                created_at: ev.created_at || null,
+                _legacy_event: true
+            });
+        }
+
         return {
             absences,
             staffAbsences,
@@ -1082,12 +1118,8 @@ function registerStaffIpc(ipcMain) {
 
     handleWriteSoftAuth(ipcMain, 'systemTags:saveNote', ['admin', 'staff'], (db, payload) => {
         const { tag_date, tag_key, tag_label, note_text, mentions, school_year, details } = payload;
-        requireFields(payload, ['tag_date', 'tag_key', 'tag_label', 'note_text', 'school_year']);
+        requireFields(payload, ['tag_date', 'tag_key', 'tag_label', 'school_year']);
         const year = requireSchoolYear(school_year);
-
-        if (!mentions || !mentions.length) {
-            return { success: false, error: 'يجب ذكر أستاذ أو قسم واحد على الأقل باستخدام @' };
-        }
 
         // Accept a caller-supplied idempotency key so retries reuse the same group
         // and are blocked by uidx_system_tags_note_entity; fall back to a fresh UUID.
@@ -1102,12 +1134,17 @@ function registerStaffIpc(ipcMain) {
         );
 
         const txn = db.transaction((items) => {
-            for (const m of items) {
-                stmt.run(tag_date, m.type, m.id || null, m.name, tag_key, tag_label, noteGroup, note_text, details || '', year);
+            if (items && items.length > 0) {
+                for (const m of items) {
+                    stmt.run(tag_date, m.type, m.id || null, m.name, tag_key, tag_label, noteGroup, note_text, details || '', year);
+                }
+            } else {
+                // No mentions — save as a general entry
+                stmt.run(tag_date, 'general', null, tag_label, tag_key, tag_label, noteGroup, note_text, details || '', year);
             }
         });
 
-        txn(mentions);
+        txn(mentions || []);
         return { success: true, noteGroup };
     });
 
