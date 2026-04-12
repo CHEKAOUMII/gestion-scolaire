@@ -941,6 +941,8 @@
         let _allSectionsCache = [];
         let _mentionStartPos = -1;
         let _confirmedMentions = [];
+        let _currentNoteGroup = null;
+        let _saveTagNoteInFlight = false;
         let _mentionActiveIndex = 0;
 
         function renderEventsTable(events) {
@@ -1264,6 +1266,7 @@
             document.getElementById('tag-note-textarea').value = '';
             document.getElementById('tag-activity-title').value = '';
             _confirmedMentions = [];
+            _currentNoteGroup = crypto.randomUUID();
             form.style.display = 'block';
             toggleActivityTitleField(typeSelect.value);
 
@@ -1300,6 +1303,7 @@
         function cancelTagNote() {
             document.getElementById('tag-note-form').style.display = 'none';
             _confirmedMentions = [];
+            _currentNoteGroup = null;
             hideMentionDropdown();
             const textarea = document.getElementById('tag-note-textarea');
             textarea.removeEventListener('input', handleNoteInput);
@@ -1307,6 +1311,8 @@
         }
 
         async function saveTagNote() {
+            if (_saveTagNoteInFlight) return;
+
             const tagKey = document.getElementById('tag-note-type').value;
             const noteText = document.getElementById('tag-note-textarea').value.trim();
             const activityTitle = document.getElementById('tag-activity-title').value.trim();
@@ -1317,7 +1323,7 @@
                 return;
             }
 
-            const validMentions = _confirmedMentions.filter(m => noteText.includes('@' + m.name));
+            const validMentions = _confirmedMentions.filter(m => noteText.includes(m._token));
 
             if (validMentions.length === 0) {
                 showToast('استخدم @ لذكر أستاذ أو قسم واحد على الأقل', 'warning');
@@ -1327,6 +1333,7 @@
             const tagDef = ALL_TAG_TYPES.find(t => t.key === tagKey);
             const tagLabel = tagDef ? tagDef.label : tagKey;
 
+            _saveTagNoteInFlight = true;
             try {
                 await window.api.systemTags.saveNote({
                     tag_date: tagDate,
@@ -1335,7 +1342,8 @@
                     note_text: noteText,
                     mentions: validMentions,
                     school_year: year,
-                    details: activityTitle || ''
+                    details: activityTitle || '',
+                    note_group: _currentNoteGroup
                 });
                 showToast('تم حفظ الوسم بنجاح', 'success');
                 cancelTagNote();
@@ -1343,6 +1351,8 @@
             } catch (err) {
                 console.error('Error saving tag note:', err);
                 showToast('خطأ في حفظ الوسم', 'error');
+            } finally {
+                _saveTagNoteInFlight = false;
             }
         }
 
@@ -1457,19 +1467,25 @@
             const type = el.dataset.type;
             const id = el.dataset.id ? Number(el.dataset.id) : null;
 
+            // Build a stable token that uniquely identifies this entity in the textarea text.
+            // For teachers (who have a numeric id), embed the id so two teachers sharing the
+            // same display name produce distinct tokens.  Sections have no id so fall back to
+            // the plain @name form (section names are already unique by construction).
+            const token = id ? `@${name}[id:${id}]` : `@${name}`;
+
             const textarea = document.getElementById('tag-note-textarea');
             const text = textarea.value;
             const cursor = textarea.selectionStart;
 
             const before = text.substring(0, _mentionStartPos);
             const after = text.substring(cursor);
-            textarea.value = before + '@' + name + ' ' + after;
+            textarea.value = before + token + ' ' + after;
 
-            // Track mention (deduplicate)
-            const exists = _confirmedMentions.some(m => m.type === type && m.name === name);
-            if (!exists) _confirmedMentions.push({ type, id, name });
+            // Track mention keyed by the same token so validation is exact, not substring.
+            const exists = _confirmedMentions.some(m => m._token === token);
+            if (!exists) _confirmedMentions.push({ type, id, name, _token: token });
 
-            const newCursor = _mentionStartPos + name.length + 2;
+            const newCursor = _mentionStartPos + token.length + 1;
             textarea.setSelectionRange(newCursor, newCursor);
             textarea.focus();
             hideMentionDropdown();

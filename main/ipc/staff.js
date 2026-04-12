@@ -1089,7 +1089,11 @@ function registerStaffIpc(ipcMain) {
             return { success: false, error: 'يجب ذكر أستاذ أو قسم واحد على الأقل باستخدام @' };
         }
 
-        const noteGroup = require('crypto').randomUUID();
+        // Accept a caller-supplied idempotency key so retries reuse the same group
+        // and are blocked by uidx_system_tags_note_entity; fall back to a fresh UUID.
+        const noteGroup = (payload.note_group && typeof payload.note_group === 'string')
+            ? payload.note_group
+            : require('crypto').randomUUID();
 
         const stmt = db.prepare(
             `INSERT INTO system_tags

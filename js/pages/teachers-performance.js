@@ -1625,7 +1625,7 @@ async function loadCompensationAndSupportData() {
 
     let compRecords = [];
     try {
-        compRecords = (await window.api.compensation.getPending(year)) ?? [];
+        compRecords = (await window.api.compensation.getAll(year)) ?? [];
     } catch (_) {}
 
     let supportSessions = [];
