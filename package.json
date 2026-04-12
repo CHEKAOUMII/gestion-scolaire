@@ -56,7 +56,7 @@
         },
         "files": [
             "**/*",
-            ".env",
+            "!.env",
             "!postcss.config.js",
             "!css/tailwind-input.css"
         ],

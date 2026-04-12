@@ -303,8 +303,7 @@ function createTables() {
             `
         ).run(hashPassword(adminPassword));
 
-        console.log('[SETUP] Initial admin password: ' + adminPassword);
-        console.log('[SETUP] You will be required to change this password on first login.');
+        console.log('[SETUP] Initial admin account created (admin@school.local). Password will be required on first login.');
     }
 
     // Safety net: if admin exists but has no password (e.g. corrupted data), reset it
@@ -316,7 +315,7 @@ function createTables() {
         db.prepare(`UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = 1`).run(
             hashPassword(resetPassword)
         );
-        console.log('[SETUP] Admin password was missing — reset to: ' + resetPassword);
+        console.log('[SETUP] Admin password was missing — a new password has been generated. Must change on login.');
     }
 
     // ── Performance indexes ──

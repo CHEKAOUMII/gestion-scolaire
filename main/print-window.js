@@ -75,7 +75,8 @@ async function printHTML(opts = {}) {
         show: mode === 'preview',
         webPreferences: {
             nodeIntegration: false,
-            contextIsolation: true
+            contextIsolation: true,
+            sandbox: true
         }
     });
 
