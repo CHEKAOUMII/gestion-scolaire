@@ -1,7 +1,9 @@
 # gestionScholaire — Architecture Review Report
-**Date:** 2026-04-12
+**Date:** 2026-04-12  |  **Remediation:** 2026-04-12
 **Reviewer:** Multi-Agent Architecture Review (security-auditor, backend-specialist, frontend-specialist, project-planner)
 **Scope:** Full codebase — process boundary, IPC, DB, auth, renderer, CSS, tests, reports, notifications
+
+> **Remediation Status:** All Critical and Important issues have been fixed. See commit `55a52ec`.
 
 ---
 
@@ -22,20 +24,20 @@
 - 🟢 **`contextIsolation: true`** — `main.js:146` — Correctly enabled. Renderer cannot access Node.js directly.
 - 🟢 **`nodeIntegration: false`** — `main.js:145` — Correctly disabled. No Node.js APIs in renderer.
 - 🟢 **`webSecurity` not disabled** — Not explicitly set in `main.js:144-148`, but Electron 35 defaults to `true`. Same-origin policy enforced.
-- 🟡 **`sandbox` not explicitly set** — `main.js:144-148` — Electron 35 defaults to `true` when `nodeIntegration: false`, but explicit declaration is recommended for defense-in-depth.
+- ~~🟡 **`sandbox` not explicitly set**~~ — ✅ **FIXED** — `sandbox: true` now explicit in `main.js:146`.
 - 🟢 **No raw APIs in preload** — `preload.js` only uses `contextBridge.exposeInMainWorld` and `ipcRenderer.invoke()`. No `require`, `fs`, or `shell` exposed.
 - 🟢 **`devTools` disabled in production** — `main.js:179` — `openDevTools()` is commented out.
 - 🟢 **`shell.openExternal()` sanitized** — `main.js:44` — Only allows `http:`, `https:`, `mailto:`, `tel:` protocols.
 - 🟢 **Navigation guards installed** — `main.js:51-73` — `will-navigate` and `setWindowOpenHandler` block non-local URLs. WebView tags blocked via `will-attach-webview`.
 - 🟢 **Single instance lock** — `main.js:23` — Prevents multiple app instances.
-- 🟡 **Print window security** — `main/print-window.js:76-79` — Print window correctly sets `nodeIntegration: false` and `contextIsolation: true`, but does not set `sandbox: true` explicitly.
-- 🔴 **`.env` included in build files** — `package.json:59` — The `build.files` array includes `".env"`, which means the `.env` file (containing `GH_TOKEN=ghp_bNh...`) is shipped in production builds. This leaks a GitHub Personal Access Token to all end users.
+- ~~🟡 **Print window security**~~ — ✅ **FIXED** — `sandbox: true` now explicit in `main/print-window.js:78`.
+- ~~🔴 **`.env` included in build files**~~ — ✅ **FIXED** — Changed to `"!.env"` in `package.json:59`. Token no longer shipped.
 
 ### Checklist
 - [x] `contextIsolation: true` — **PASS**
 - [x] `nodeIntegration: false` — **PASS**
 - [x] `webSecurity: true` (not disabled) — **PASS** (default)
-- [ ] `sandbox: true` — **PASS** (default, but not explicit)
+- [x] `sandbox: true` — **PASS** (now explicit)
 - [x] No raw `require`/`fs`/`shell` exposed in preload — **PASS**
 - [x] `devTools` disabled in production — **PASS**
 - [x] `shell.openExternal()` inputs sanitized — **PASS**
@@ -149,11 +151,11 @@ The IPC layer is mature and well-organized. The helper pattern (`handleRead`/`ha
 - 🟢 **True DB singleton** — `context.js` exports `getDb()`/`setDb()` with a module-level `let db`.
 - 🟢 **userData path** — DB stored at `app.getPath('userData')/gestion-scolaire.db`.
 - 🟢 **Comprehensive indexing** — 15+ indexes covering `school_year` composite queries.
-- 🟡 **`grades` table lacks UNIQUE constraint** — No composite unique on `(student_code, subject, semester, school_year)`. Could allow duplicate grade entries.
-- 🟡 **`absences` table lacks UNIQUE constraint** — No composite unique preventing duplicate absence records.
+- ~~🟡 **`grades` table lacks UNIQUE constraint**~~ — ✅ **ALREADY FIXED** — Migration `2026-03-016` adds `idx_grades_unique(student_code, subject, semester, school_year)`.
+- ~~🟡 **`absences` table lacks UNIQUE constraint**~~ — ✅ **ALREADY FIXED** — Migration `2026-03-017` adds `idx_absences_unique(student_code, month, school_year, absence_type)`.
 - 🟡 **Several tables missing `school_year` indexes** — `student_files`, `student_movements`, `teacher_absences`, `exams`, `exam_proctors`, `exam_rooms` have `school_year` columns but no indexes on them.
 - 🟢 **`ensureColumn()` is idempotent** — `schema.js:660-667` — Checks `table_info` before altering.
-- 🟡 **Notifications table uses own schema** — `main/notifications/store.js:3-15` has its own `CREATE TABLE IF NOT EXISTS` that runs outside the main `schema.js`/`migrations.js` flow. This schema is not versioned.
+- ~~🟡 **Notifications table uses own schema**~~ — ✅ **ALREADY FIXED** — Migration `2026-03-015` now creates the `notifications` table with indexes in the versioned migration system.
 
 ### Summary
 The database layer is well-designed with proper pragmas, singleton pattern, and comprehensive indexing. Key concerns are missing UNIQUE constraints on `grades` and `absences` (data integrity risk) and the notifications table having its own unversioned schema.
@@ -206,7 +208,7 @@ The database layer is well-designed with proper pragmas, singleton pattern, and 
 - 🟢 **Device fingerprinting is robust** — Multi-attribute weighted scoring with fuzzy reinstall detection.
 - 🟢 **License secret file permissions** — `0o600` on creation.
 - 🟡 **License not validated per-IPC-call** — License status is checked on-demand, not enforced by IPC middleware. A determined user could bypass license checks by calling IPC channels directly if they know the channel names. However, this is a local desktop app where the user already has full DB access, so the risk is low.
-- 🟡 **Admin password logged to console** — `schema.js:306` — Initial admin password is printed to stdout. In production builds, this console output is not visible to end users, but if logs are captured, the password could be exposed.
+- ~~🟡 **Admin password logged to console**~~ — ✅ **FIXED** — Console messages no longer include the plaintext password.
 
 ### Summary
 Auth and licensing security is strong. Password hashing, license key signing, and device fingerprinting all follow best practices. The `.env` token leak (reported in Section 1) is the only critical credential issue.
@@ -343,16 +345,13 @@ CSS architecture is exemplary. Zero inline styles, zero JS style mutations, zero
 
 ### Lint Result
 ```
-D:\gestionScholaire\js\pages\timetable.js
-  2858:10  error  Parsing error: Identifier 'highlightAvailableSlots' has already been declared
-
-✖ 1 problem (1 error, 0 warnings)
+✅ 0 problems (0 errors, 0 warnings) — FIXED
 ```
 
 ### Findings
 
 - 🟢 **All 15 smoke checks pass** — Comprehensive coverage for a non-framework Electron app.
-- 🟠 **1 lint error** — `timetable.js:2858` — `highlightAvailableSlots` declared twice. This is a parse error that prevents ESLint from checking the rest of the file.
+- ~~🟠 **1 lint error**~~ — ✅ **FIXED** — Removed 5 duplicate function declarations (`highlightAvailableSlots`, `clearSlotHighlighting`, `performMoveToDestination`, `_getDragOverCells`, `handleDragOver`).
 - 🟡 **No integration tests** — Only smoke tests (static analysis + module loading). No tests that exercise DB queries, IPC round-trips, or UI flows.
 - 🟡 **No test for license key round-trip** — `createOfflineLicenseKey → decodeOfflineLicenseKey` is not verified in tests.
 
@@ -391,7 +390,7 @@ Test infrastructure is strong for a vanilla JS Electron app. The 15 smoke checks
 
 - 🟢 **Report engine architecture is clean** — Single `printHTML()` function, shared across all report types.
 - 🟡 **`bodyHTML` not sanitized before print injection** — `print-window.js:48` — The body HTML from the renderer is inserted directly into the print document. Since both the renderer and print window are local file:// contexts with no user-uploaded content, XSS risk is low. But if user-provided data (student names, teacher names) contains HTML, it could break print layout.
-- 🟠 **Notification schema outside main migrations** — `store.js:3-15` — The `notifications` table is created via `CREATE TABLE IF NOT EXISTS` inside the `init()` function, not through the versioned `migrations.js` system. This means the table structure cannot be altered via migrations.
+- ~~🟠 **Notification schema outside main migrations**~~ — ✅ **ALREADY FIXED** — Migration `2026-03-015` handles notifications table creation with indexes. The `store.js` `init()` call is a safe `CREATE TABLE IF NOT EXISTS` fallback.
 - 🟢 **Template interpolation is safe** — `templates.js:91-95` — Values coerced to `String()`, no raw HTML injection.
 - 🟢 **Deduplication prevents notification storms** — `dispatcher.js:15-23`.
 
@@ -403,43 +402,43 @@ Reports and notifications are well-architected. The notification schema being ou
 ## 9. Executive Summary
 
 ### Findings Tally
-| Severity | Count |
-|---|---|
-| 🔴 Critical | 1 |
-| 🟠 Important | 2 |
-| 🟡 Minor | 10 |
-| 🟢 Good | 25 |
+| Severity | Found | Fixed |
+|---|---|---|
+| 🔴 Critical | 1 | ✅ 1 |
+| 🟠 Important | 2 | ✅ 2 |
+| 🟡 Minor | 10 | ✅ 5 |
+| 🟢 Good | 25 | — |
 
 ### Overall Assessment
 The gestionScholaire codebase demonstrates **strong architectural discipline** for a vanilla JavaScript Electron application. The security posture is excellent — process isolation, credential handling, and authentication all follow industry best practices. The IPC helper pattern, DB singleton with WAL mode, and zero-inline-style CSS architecture are particularly noteworthy. The codebase has far more positive patterns (25 🟢) than issues, indicating mature engineering practices.
 
 The **highest-priority risk** is the `.env` file (containing a GitHub PAT) being bundled into production builds. The most impactful structural improvements would be incorporating the notification schema into the main migration system and fixing the duplicate declaration lint error in `timetable.js`.
 
-### Sprint 1 — Fix Immediately
+### Sprint 1 — Fix Immediately ✅ DONE
 
-| # | Severity | File:Line | Fix |
-|---|---|---|---|
-| 1 | 🔴 Critical | `package.json:59` | Remove `".env"` from `build.files` array. The `.env` file should not be shipped in production builds. The `GH_TOKEN` is only needed at build time by `electron-builder`, not at runtime. |
+| # | Severity | File:Line | Fix | Status |
+|---|---|---|---|---|
+| 1 | 🔴 Critical | `package.json:59` | Changed `".env"` → `"!.env"` in `build.files`. | ✅ Fixed |
 
-### Sprint 2 — Fix Before Next Release
+### Sprint 2 — Fix Before Next Release ✅ DONE
 
-| # | Severity | File:Line | Fix |
-|---|---|---|---|
-| 1 | 🟠 Important | `js/pages/timetable.js:2858` | Fix duplicate `highlightAvailableSlots` declaration — rename or remove the duplicate. This blocks ESLint from linting the entire 147KB file. |
-| 2 | 🟠 Important | `main/notifications/store.js:3-15` | Move `notifications` table DDL into `main/db/schema.js` and create a migration entry in `migrations.js` for any future schema changes. |
+| # | Severity | File:Line | Fix | Status |
+|---|---|---|---|---|
+| 1 | 🟠 Important | `js/pages/timetable.js` | Removed 5 duplicate function declarations. ESLint now passes (0 errors). | ✅ Fixed |
+| 2 | 🟠 Important | `main/notifications/store.js` | Migration `2026-03-015` already handles this. | ✅ Already fixed |
 
 ### Sprint 3 — Cleanup Sprint
 
 **Process Boundary:**
-- Add explicit `sandbox: true` to BrowserWindow options in `main.js:144-148` and `main/print-window.js:76-79`
+- ~~Add explicit `sandbox: true` to BrowserWindow options~~ — ✅ **FIXED**
 
 **IPC Layer:**
 - Document the `setup` → `linking` namespace aliasing in `preload.js:339-344`
 - Evaluate whether the 7 raw `ipcMain.handle()` files should use helper wrappers for sync capture consistency
 
 **Database:**
-- Add UNIQUE constraint to `grades(student_code, subject, semester, school_year)`
-- Add UNIQUE constraint to `absences` to prevent duplicates
+- ~~Add UNIQUE constraint to `grades`~~ — ✅ **Already exists** via migration `2026-03-016`
+- ~~Add UNIQUE constraint to `absences`~~ — ✅ **Already exists** via migration `2026-03-017`
 - Add missing indexes for `student_files`, `student_movements`, `teacher_absences`, `exams`, `exam_proctors`, `exam_rooms` on `school_year`
 
 **Renderer:**
@@ -450,7 +449,7 @@ The **highest-priority risk** is the `.env` file (containing a GitHub PAT) being
 - Consider splitting `css/tailwind-input.css` (682KB) into partial imports
 
 **Auth:**
-- Suppress admin password console.log in `schema.js:306` or use a more secure initial setup flow
+- ~~Suppress admin password console.log~~ — ✅ **FIXED**
 
 **Tests:**
 - Add license key round-trip integration test
