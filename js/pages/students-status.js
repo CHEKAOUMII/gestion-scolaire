@@ -78,7 +78,7 @@
 
     function bindEvents() {
         document.getElementById('search-btn').addEventListener('click', loadData);
-        document.getElementById('print-btn').addEventListener('click', () => window.print());
+        document.getElementById('print-btn').addEventListener('click', () => PrintSystem.preview());
 
         // Level change → FilterManager handles section cascading, just reload data
         levelSelect.addEventListener('change', () => {

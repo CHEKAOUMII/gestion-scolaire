@@ -13,6 +13,7 @@
     <script src="js/message-system.js" defer></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
+    <script src="js/print-system.js"></script>
 </head>
 
 <body>
@@ -90,7 +91,7 @@
                 '<p>القسم: ' + (student.class_name || student.section || '-') + '</p>' +
                 '<p>رمز مسار: ' + (student.massar_code || student.code || '-') + '</p>' +
                 '<p style="margin-top: 20px;">نحيطكم علماً بأن ابنكم/ابنتكم قد تجاوز عدد ساعات الغياب المسموح بها...</p>' +
-                '<button class="btn btn-primary" onclick="openPrintPreview({title:\'مراسلة الغياب\',pageSize:\'A4\'})" style="margin-top: 30px;"><i class="fas fa-eye"></i> معاينة الطباعة</button>' +
+                '<button class="btn btn-primary" onclick="PrintSystem.preview({title:\'مراسلة الغياب\',pageSize:\'A4\'})" style="margin-top: 30px;"><i class="fas fa-eye"></i> معاينة الطباعة</button>' +
                 '</div>';
 
             showToast('تم توليد الرسالة', 'success');

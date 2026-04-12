@@ -13,6 +13,7 @@
         <script src="js/sidebar.js" defer></script>
         <script src="js/cc-rules.js"></script>
         <script src="js/ux-enhancements.js" defer></script>
+    <script src="js/print-system.js"></script>
     </head>
 
     <body>
@@ -1313,21 +1314,13 @@
                     </div></div>`;
                     printDiv.style.display = 'block';
 
-                    const previewFn =
-                        (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
-                        (typeof window.UXEnhancements?.openPrintPreview === 'function' &&
-                            window.UXEnhancements.openPrintPreview);
-                    if (previewFn) {
-                        previewFn({
+                    PrintSystem.preview({
                             contentSelector: '#rh-zeros-sheet',
                             title: 'الحاصلون على صفر',
                             pageSize: 'A4',
                             noHeader: true,
                             defaultFileName: `تلاميذ_الصفر_${year.replace('/', '-')}`
                         });
-                    } else {
-                        window.print();
-                    }
                     setTimeout(() => {
                         printDiv.style.display = 'none';
                     }, 500);

@@ -546,7 +546,7 @@ function openTimetablePrintPreview() {
     }
     const teacherName = document.getElementById('current-teacher-name')?.textContent?.trim() || '';
     const title = teacherName ? `الجدول الزمني - ${teacherName}` : 'الجدول الزمني';
-    electronPrint({ mode: 'preview', title, pageSize: 'A4', landscape: true });
+    PrintSystem.window({ mode: 'preview', title, pageSize: 'A4', landscape: true });
 }
 
 // ==================== Multi-Select Cells ====================

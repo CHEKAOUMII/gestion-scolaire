@@ -13,6 +13,7 @@
     <script src="js/message-system.js" defer></script>
   <script src="js/sidebar.js" defer></script>
   <script src="js/ux-enhancements.js" defer></script>
+    <script src="js/print-system.js"></script>
   </head>
 
 <body>
@@ -122,7 +123,7 @@
       });
 
       document.getElementById('print-preview-btn').addEventListener('click', () => {
-        window.print();
+        PrintSystem.preview();
       });
     });
 

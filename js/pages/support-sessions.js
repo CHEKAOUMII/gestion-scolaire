@@ -714,7 +714,7 @@
         document.getElementById('print-filters-sessions').textContent = filterParts.length
             ? filterParts.join(' | ')
             : 'بدون عوامل بحث';
-        window.print();
+        PrintSystem.preview();
     });
 
     try {

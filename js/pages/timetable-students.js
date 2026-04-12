@@ -76,7 +76,7 @@ const StudentTimetable = (function() {
             printBtn.addEventListener('click', () => {
                 const className = document.getElementById('student-class-select')?.value || '';
                 const title = className ? `جدول حصص التلاميذ - ${className}` : 'جدول حصص التلاميذ';
-                electronPrint({ mode: 'preview', title, pageSize: 'A4', landscape: true });
+                PrintSystem.window({ mode: 'preview', title, pageSize: 'A4', landscape: true });
             });
         }
 

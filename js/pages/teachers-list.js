@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     </div>
                                 `;
         printDiv.style.display = 'block';
-        openPrintPreview({
+        PrintSystem.preview({
             contentSelector: '#tl-sheet-content',
             title: 'لائحة الإدارة التربوية',
             pageSize: 'A4',

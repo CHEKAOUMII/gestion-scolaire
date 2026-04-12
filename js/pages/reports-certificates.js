@@ -127,7 +127,7 @@ async function dispatchCertificate(mode) {
         return;
     }
 
-    openPrintPreview({ title: typeLabel, pageSize: 'A4', landscape: false });
+    PrintSystem.preview({ title: typeLabel, pageSize: 'A4', landscape: false });
 }
 
 async function handleCertificateSubmit(event) {

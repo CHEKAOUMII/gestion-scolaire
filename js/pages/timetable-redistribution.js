@@ -59,7 +59,7 @@
 
     function bindEvents() {
         els.searchBtn?.addEventListener('click', applyFilters);
-        els.printBtn?.addEventListener('click', () => window.print());
+        els.printBtn?.addEventListener('click', () => PrintSystem.preview());
         els.resetBtn?.addEventListener('click', resetPendingAssignments);
         els.saveBtn?.addEventListener('click', saveChanges);
 

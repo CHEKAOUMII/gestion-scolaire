@@ -12,6 +12,7 @@
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+    <script src="js/print-system.js"></script>
     </head>
 
     <body>
@@ -639,7 +640,7 @@
                     });
 
                 getEl('print-btn').onclick = () =>
-                    openPrintPreview({
+                    PrintSystem.preview({
                         title: '\u062a\u0642\u0631\u064a\u0631 \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u063a\u064a\u0627\u0628',
                         pageSize: 'A4'
                     });

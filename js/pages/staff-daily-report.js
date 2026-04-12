@@ -1117,7 +1117,7 @@
         dateInput.addEventListener('change', loadReport);
 
         document.getElementById('print-btn').addEventListener('click', () => {
-            openPrintPreview({ title: 'التقرير اليومي', pageSize: 'A4' });
+            PrintSystem.preview({ title: 'التقرير اليومي', pageSize: 'A4' });
         });
 
         document.getElementById('add-tag-btn').addEventListener('click', showTagNoteForm);

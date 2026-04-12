@@ -91,14 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Print button
     document.getElementById('sp-print-btn')?.addEventListener('click', () => {
-        const previewFn =
-            (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
-            (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
-        if (previewFn) {
-            previewFn({ title: 'ملف التلميذ', pageSize: 'A4' });
-        } else {
-            window.print();
-        }
+        PrintSystem.preview({ title: 'ملف التلميذ', pageSize: 'A4' });
     });
 
     if (!code) {

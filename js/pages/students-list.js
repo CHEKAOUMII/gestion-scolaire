@@ -848,7 +848,7 @@ async function openSlPrintPreview() {
             defaultFileName: `لائحة_التلاميذ_${year.replace('/', '-')}`
         });
     } else {
-        window.print();
+        PrintSystem.preview();
     }
 
     // Hide after openPrintPreview clones it

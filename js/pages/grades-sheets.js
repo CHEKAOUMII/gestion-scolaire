@@ -262,7 +262,7 @@
         if (!sheetEl) return;
 
         // Use the shared print preview system which has Print + PDF export
-        openPrintPreview({
+        PrintSystem.preview({
             contentSelector: '#gs-sheet-content',
             title: 'ورقة التنقيط',
             pageSize: 'A4',

@@ -1,0 +1,2672 @@
+/* ============================================================
+   print.css — كل CSS المتعلقة بالطباعة في مكان واحد
+   المصدر: مستخرج من tailwind-input.css ومدمج لتجنب التكرار
+   ============================================================ */
+
+/* === 1. @media print — قواعد محرك الطباعة === */
+/* Print Styles */
+@media print {
+    @page {
+        margin: 0.5cm;
+        size: A4 portrait;
+    }
+
+    body {
+        background: white;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    body
+        > *:not(#printable-bulletin):not(#electron-print-content):not(#printable-report-root):not(#ux-print-root):not(
+            #sl-print-root
+        ):not(.print-area) {
+        display: none !important;
+    }
+
+    body.printing-active
+        > *:not(#electron-print-content):not(#printable-report-root):not(#ux-print-root):not(#sl-print-root):not(
+            .print-area
+        ) {
+        display: none !important;
+    }
+
+    #printable-bulletin {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        min-height: 100vh;
+        background: white;
+        font-family: 'Times New Roman', serif;
+        color: black;
+        direction: rtl;
+        z-index: 9999;
+    }
+
+    #electron-print-content,
+    #printable-report-root,
+    #ux-print-root,
+    #sl-print-root,
+    .print-area {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        min-height: 100vh;
+        background: white;
+        color: black;
+        direction: rtl;
+        z-index: 9999;
+    }
+
+    .bulletin-container {
+        border: 2px solid #000;
+        padding: 5px;
+        margin: 0 auto;
+        max-width: 21cm;
+    }
+
+    .bulletin-header {
+        text-align: center;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-logo img {
+        height: 80px;
+    }
+
+    .header-text h1,
+    .header-text h2,
+    .header-text h3 {
+        margin: 2px 0;
+        text-transform: uppercase;
+    }
+
+    .header-text h1 {
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    .header-text h2 {
+        font-size: 14px;
+    }
+
+    .student-info-box {
+        border: 1px solid #000;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        background-color: #f0f0f0;
+    }
+
+    .student-info-col {
+        flex: 1;
+    }
+
+    .student-info-row {
+        margin-bottom: 5px;
+        font-size: 14px;
+    }
+
+    .student-info-label {
+        font-weight: bold;
+        min-width: 100px;
+        display: inline-block;
+    }
+
+    .bulletin-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        font-size: 13px;
+    }
+
+    .bulletin-table th,
+    .bulletin-table td {
+        border: 1px solid #000;
+        padding: 6px 4px;
+        text-align: center;
+    }
+
+    .bulletin-table th {
+        background-color: #e0e0e0 !important;
+        font-weight: bold;
+    }
+
+    .subject-cell {
+        text-align: right !important;
+        font-weight: bold;
+        padding-right: 8px !important;
+        width: 25%;
+    }
+
+    .total-row {
+        background-color: #d0d0d0 !important;
+        font-weight: bold;
+    }
+
+    .bulletin-footer {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 30px;
+        border-top: 1px solid #000;
+        padding-top: 20px;
+    }
+
+    .signature-box {
+        text-align: center;
+        width: 30%;
+        height: 100px;
+    }
+
+    .decision-box {
+        border: 2px solid #000;
+        padding: 10px;
+        width: 100%;
+        text-align: center;
+        margin-top: 10px;
+        font-weight: bold;
+        font-size: 16px;
+        background-color: #f9f9f9;
+    }
+
+    .print-watermark {
+        position: absolute;
+        top: 40%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 80px;
+        opacity: 0.05;
+        pointer-events: none;
+        white-space: nowrap;
+    }
+}
+
+/* === 2. Modal المعاينة (.ux-pp-modal و .ux-pp-*) === */
+.ux-pp-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.ux-pp-modal.active {
+    display: flex;
+}
+
+body.ux-preview-open {
+    overflow: hidden;
+}
+
+.ux-pp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.ux-pp-dialog {
+    position: relative;
+    width: min(1180px, 95vw);
+    max-height: 92vh;
+    background: #fff;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.ux-pp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #3b6ac5, #5b84d6);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ux-pp-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ux-pp-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
+}
+
+.ux-pp-close:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: rotate(90deg);
+}
+
+.ux-pp-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: #f8fafb;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 12px;
+}
+
+.ux-pp-orient-toggle {
+    display: inline-flex;
+    background: #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ux-pp-orient-btn {
+    padding: 8px 18px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #6b7280;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
+    font-family: inherit;
+}
+
+.ux-pp-orient-btn.active {
+    background: #fff;
+    color: #3b6ac5;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ux-pp-actions > div:last-child {
+    display: flex;
+    gap: 8px;
+}
+
+.ux-pp-print-btn,
+.ux-pp-pdf-btn {
+    padding: 9px 20px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 100px;
+    justify-content: center;
+}
+
+.ux-pp-page {
+    padding: 20px;
+    background: #eef2f7;
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.ux-pp-page.landscape .ux-pp-sheet {
+    width: 297mm;
+    min-height: 210mm;
+}
+
+.ux-pp-sheet {
+    background: #fff;
+    color: #111;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 10mm;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* ─── Timetable content sizing inside print preview sheet ─── */
+.ux-pp-sheet .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+}
+
+/* ─── Analytics-specific print preview compact rules ─── */
+.ux-pp-sheet .kpi-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 10px !important;
+}
+
+.ux-pp-sheet .kpi-card {
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+}
+
+.ux-pp-sheet .kpi-value {
+    font-size: 18px !important;
+    margin: 4px 0 !important;
+}
+
+.ux-pp-sheet .kpi-title {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .kpi-subtitle,
+.ux-pp-sheet .kpi-trend {
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .kpi-icon {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 14px !important;
+}
+
+.ux-pp-sheet .charts-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+}
+
+/* Force first row (trend+histogram | top5) to single column for print */
+.ux-pp-sheet .charts-column {
+    gap: 8px !important;
+}
+
+.ux-pp-sheet .charts-row.wide-narrow {
+    grid-template-columns: 1fr 1fr !important;
+}
+
+.ux-pp-sheet .section-card {
+    margin-bottom: 8px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+}
+
+.ux-pp-sheet .section-header {
+    padding: 6px 10px !important;
+}
+
+.ux-pp-sheet .section-header h3 {
+    font-size: 11px !important;
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .section-body {
+    padding: 8px !important;
+}
+
+.ux-pp-sheet .section-body-scroll {
+    padding: 8px !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+.ux-pp-sheet .section-card img {
+    max-height: 130px !important;
+}
+
+/* Student risk cards — compact for print */
+.ux-pp-sheet .student-item {
+    padding: 5px 8px !important;
+    margin-bottom: 3px !important;
+    gap: 6px !important;
+}
+
+.ux-pp-sheet .student-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .student-info h4 {
+    font-size: 10px !important;
+    margin: 0 !important;
+}
+
+.ux-pp-sheet .student-meta {
+    font-size: 8px !important;
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .student-stats {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .student-hours {
+    font-size: 16px !important;
+}
+
+.ux-pp-sheet .student-percent {
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .badge {
+    font-size: 7px !important;
+    padding: 1px 5px !important;
+}
+
+/* Stats / histogram / heatmap — compact */
+.ux-pp-sheet .stats-mini-grid {
+    gap: 6px !important;
+}
+
+.ux-pp-sheet .stats-mini-grid .stat-item {
+    padding: 6px !important;
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .histogram-container {
+    gap: 3px !important;
+}
+
+.ux-pp-sheet .histogram-bar-wrapper {
+    height: 80px !important;
+}
+
+.ux-pp-sheet .heatmap-grid {
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .change-cards {
+    gap: 4px !important;
+}
+
+/* Tables in print preview — compact */
+.ux-pp-sheet .level-table th,
+.ux-pp-sheet .level-table td {
+    padding: 3px 6px !important;
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .hidden-card {
+    display: none !important;
+}
+
+.ux-pp-sheet .timetable-container {
+    padding: 0 !important;
+}
+
+.ux-pp-sheet .timetable-wrapper {
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+}
+
+.ux-pp-sheet .table-responsive {
+    overflow: visible !important;
+    padding: 4px !important;
+}
+
+.ux-pp-sheet .timetable {
+    width: 100% !important;
+    table-layout: fixed !important;
+    font-size: 9px !important;
+    border-collapse: collapse !important;
+    min-width: 0 !important;
+}
+
+.ux-pp-sheet .timetable th {
+    padding: 5px 3px !important;
+    font-size: 9px !important;
+    min-width: 0 !important;
+    position: static !important;
+    letter-spacing: 0 !important;
+}
+
+.ux-pp-sheet .timetable td {
+    padding: 3px 2px !important;
+    font-size: 8px !important;
+    min-width: 0 !important;
+    line-height: 1.3 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+}
+
+.ux-pp-sheet .timetable th:first-child {
+    width: 45px !important;
+    min-width: 45px !important;
+}
+
+.ux-pp-sheet .timetable .period-cell {
+    font-size: 7.5px !important;
+    min-width: 0 !important;
+    width: 45px !important;
+    padding: 3px 2px !important;
+}
+
+.ux-pp-sheet .activity-cell {
+    padding: 2px 3px !important;
+    margin: 1px !important;
+    border-right-width: 2px !important;
+}
+
+.ux-pp-sheet .activity-cell .subject {
+    font-size: 8px !important;
+    margin-bottom: 1px !important;
+}
+
+.ux-pp-sheet .activity-cell .class,
+.ux-pp-sheet .activity-cell .class-name {
+    font-size: 7px !important;
+}
+
+.ux-pp-sheet .activity-cell .room {
+    font-size: 6.5px !important;
+    margin-top: 0 !important;
+}
+
+.ux-pp-sheet .empty-cell {
+    font-size: 7px !important;
+}
+
+.ux-pp-sheet .timetable .separator-row td {
+    height: 2px !important;
+    padding: 0 !important;
+}
+
+/* Multi-group activities in print preview */
+.ux-pp-sheet .multi-activity-cell {
+    gap: 3px !important;
+}
+
+.ux-pp-sheet .activity-group {
+    padding: 2px 3px !important;
+    border-right-width: 2px !important;
+}
+
+.ux-pp-sheet .group-header {
+    font-size: 6.5px !important;
+    padding: 1px 4px !important;
+    margin-bottom: 2px !important;
+}
+
+.ux-pp-sheet .activity-group .subject {
+    font-size: 7.5px !important;
+}
+
+.ux-pp-sheet .activity-group .teacher-name {
+    font-size: 6.5px !important;
+}
+
+.ux-pp-sheet .activity-group .room {
+    font-size: 6px !important;
+}
+
+/* Timetable header info inside preview */
+.ux-pp-sheet .timetable-header-info {
+    padding: 8px 12px !important;
+}
+
+.ux-pp-sheet .timetable-header-info h3 {
+    font-size: 12px !important;
+}
+
+/* Stats row in print preview */
+.ux-pp-sheet .stats-row {
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+}
+
+.ux-pp-sheet .stat-card {
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+}
+
+.ux-pp-sheet .stat-card > i {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 0.8rem !important;
+    border-radius: 8px !important;
+}
+
+.ux-pp-sheet .stat-info .stat-value {
+    font-size: 1rem !important;
+}
+
+.ux-pp-sheet .stat-info .stat-label {
+    font-size: 0.7rem !important;
+}
+
+/* Timetable tabs in preview */
+.ux-pp-sheet .timetable-tabs {
+    display: none !important;
+}
+
+.ux-pp-sheet .filter-section,
+.ux-pp-sheet .filters-section,
+.ux-pp-sheet .edit-controls,
+.ux-pp-sheet .changes-summary-bar,
+.ux-pp-sheet .color-legend,
+.ux-pp-sheet .timetable-summary,
+.ux-pp-sheet .import-section,
+.ux-pp-sheet .header,
+.ux-pp-sheet .no-print,
+.ux-pp-sheet .search-section,
+.ux-pp-sheet .class-stats-grid,
+.ux-pp-sheet .room-stats-grid,
+.ux-pp-sheet .no-data-state {
+    display: none !important;
+}
+
+/* ─── Analytics page content sizing inside print preview ─── */
+.ux-pp-sheet .analytics-page {
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .analytics-page .grades-container,
+.ux-pp-sheet .grades-container {
+    padding: 0 !important;
+    gap: 8px !important;
+}
+
+/* Analytics KPI cards — compact for A4 */
+.ux-pp-sheet .analysis-kpis {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-card {
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    animation: none !important;
+}
+
+.ux-pp-sheet .analysis-kpi-card::before {
+    height: 2px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-icon {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 12px !important;
+    border-radius: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-label {
+    font-size: 8px !important;
+    margin-bottom: 3px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-value {
+    font-size: 14px !important;
+    margin-bottom: 2px !important;
+}
+
+.ux-pp-sheet .analysis-kpi-sub {
+    font-size: 7px !important;
+    margin-top: 2px !important;
+}
+
+/* Analytics grid layouts — compact */
+.ux-pp-sheet .analysis-grid-two {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+.ux-pp-sheet .analysis-grid-three {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+/* Analytics panels — compact */
+.ux-pp-sheet .analysis-panel {
+    padding: 8px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.ux-pp-sheet .analysis-panel h4 {
+    font-size: 9px !important;
+    margin: 0 0 6px !important;
+    padding-bottom: 4px !important;
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .analysis-panel h4 i {
+    font-size: 10px !important;
+}
+
+/* Analytics chart images — constrain height */
+.ux-pp-sheet .analysis-panel img {
+    max-height: 140px !important;
+    width: 100% !important;
+    object-fit: contain !important;
+}
+
+.ux-pp-sheet .analysis-detail-chart,
+.ux-pp-sheet .analysis-canvas {
+    max-height: 140px !important;
+    height: auto !important;
+}
+
+/* Analytics collapsible blocks — compact */
+.ux-pp-sheet .analysis-block {
+    margin-bottom: 6px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    animation: none !important;
+}
+
+.ux-pp-sheet .analysis-block > summary {
+    padding: 6px 10px !important;
+    font-size: 10px !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    background: #f5f8fa !important;
+    color: #162730 !important;
+}
+
+.ux-pp-sheet .analysis-block-body {
+    padding: 6px !important;
+}
+
+/* Analytics progress bars — compact */
+.ux-pp-sheet .analysis-progress-item {
+    padding: 6px 8px !important;
+    border-radius: 6px !important;
+}
+
+.ux-pp-sheet .analysis-progress-title {
+    font-size: 9px !important;
+    margin-bottom: 4px !important;
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .analysis-progress-title i {
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .analysis-progress-track {
+    height: 10px !important;
+    margin-bottom: 3px !important;
+}
+
+.ux-pp-sheet .analysis-progress-value {
+    font-size: 7px !important;
+}
+
+.ux-pp-sheet .analysis-progress-meta {
+    font-size: 8px !important;
+}
+
+/* Analytics zero-students list — compact */
+.ux-pp-sheet .analysis-zero-list {
+    gap: 3px !important;
+}
+
+.ux-pp-sheet .analysis-zero-item {
+    padding: 5px 8px !important;
+    border-radius: 6px !important;
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .analysis-zero-badge {
+    padding: 2px 8px !important;
+    font-size: 8px !important;
+}
+
+/* Analytics summary table — compact */
+.ux-pp-sheet .analysis-summary-table th,
+.ux-pp-sheet .analysis-summary-table td {
+    padding: 4px 8px !important;
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .analysis-grade-pill {
+    padding: 2px 8px !important;
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .analysis-panel-note {
+    font-size: 7px !important;
+}
+
+.ux-pp-sheet .kpi-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+}
+
+.ux-pp-sheet .kpi-card {
+    padding: 6px 8px !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    min-height: auto !important;
+}
+
+.ux-pp-sheet .kpi-card::before {
+    height: 2px !important;
+}
+
+.ux-pp-sheet .kpi-icon {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 11px !important;
+    border-radius: 6px !important;
+}
+
+.ux-pp-sheet .kpi-title {
+    font-size: 8px !important;
+    margin-bottom: 2px !important;
+}
+
+.ux-pp-sheet .kpi-value {
+    font-size: 14px !important;
+    margin: 2px 0 !important;
+}
+
+.ux-pp-sheet .kpi-subtitle {
+    font-size: 7.5px !important;
+}
+
+.ux-pp-sheet .kpi-trend {
+    font-size: 7.5px !important;
+    padding: 1px 4px !important;
+    margin-top: 2px !important;
+}
+
+.ux-pp-sheet .kpi-header {
+    margin-bottom: 4px !important;
+}
+
+.ux-pp-sheet .charts-row {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+}
+
+.ux-pp-sheet .section-card {
+    margin-bottom: 6px !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    page-break-inside: avoid;
+}
+
+.ux-pp-sheet .section-header {
+    padding: 6px 8px !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+}
+
+.ux-pp-sheet .section-header h3 {
+    font-size: 9px !important;
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .section-header h3 i {
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .section-body {
+    padding: 6px 8px !important;
+}
+
+.ux-pp-sheet .section-card img {
+    max-height: 120px !important;
+}
+
+.ux-pp-sheet .chart-full {
+    margin-bottom: 6px !important;
+}
+
+.ux-pp-sheet .chart-full img {
+    max-height: 140px !important;
+}
+
+.ux-pp-sheet .student-item {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    border-radius: 6px !important;
+}
+
+.ux-pp-sheet .student-avatar {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 11px !important;
+    border-radius: 6px !important;
+}
+
+.ux-pp-sheet .student-info h4 {
+    font-size: 11px !important;
+}
+
+.ux-pp-sheet .student-meta {
+    font-size: 9px !important;
+    gap: 6px !important;
+}
+
+.ux-pp-sheet .student-hours {
+    font-size: 14px !important;
+}
+
+.ux-pp-sheet .student-percent {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .students-list {
+    gap: 6px !important;
+}
+
+.ux-pp-sheet .heatmap-grid {
+    gap: 4px !important;
+}
+
+.ux-pp-sheet .heatmap-cell {
+    font-size: 11px !important;
+    border-radius: 6px !important;
+}
+
+.ux-pp-sheet .heatmap-cell .day-name {
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .histogram-container {
+    height: 120px !important;
+}
+
+.ux-pp-sheet .histogram-label {
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .histogram-bar .bar-count {
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .stats-mini-grid {
+    gap: 6px !important;
+    margin-top: 8px !important;
+}
+
+.ux-pp-sheet .stats-mini-item {
+    padding: 6px !important;
+    border-radius: 6px !important;
+}
+
+.ux-pp-sheet .stats-mini-item .value {
+    font-size: 14px !important;
+}
+
+.ux-pp-sheet .stats-mini-item .label {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .level-table {
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .level-table th,
+.ux-pp-sheet .level-table td {
+    padding: 5px 8px !important;
+}
+
+.ux-pp-sheet .level-table th {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .data-table {
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .data-table th,
+.ux-pp-sheet .data-table td {
+    padding: 5px 6px !important;
+}
+
+.ux-pp-sheet .data-table th {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .week-cell {
+    padding: 3px 4px !important;
+    font-size: 9px !important;
+    border-radius: 4px !important;
+}
+
+.ux-pp-sheet .badge {
+    padding: 2px 6px !important;
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .progress-bar {
+    height: 4px !important;
+}
+
+.ux-pp-sheet .change-cards {
+    gap: 8px !important;
+}
+
+.ux-pp-sheet .change-card {
+    padding: 10px !important;
+    border-radius: 8px !important;
+}
+
+.ux-pp-sheet .change-card h4 {
+    font-size: 11px !important;
+    margin-bottom: 6px !important;
+}
+
+.ux-pp-sheet .change-list {
+    font-size: 10px !important;
+}
+
+.ux-pp-sheet .change-delta {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .note-box {
+    padding: 8px 10px !important;
+    font-size: 10px !important;
+    margin-bottom: 8px !important;
+}
+
+.ux-pp-sheet .print-header {
+    display: none !important;
+}
+
+.ux-pp-sheet .loading-overlay {
+    display: none !important;
+}
+
+/* ─── Analytics print mode (actual print / PDF export) ─── */
+
+/* === 3. scope موحد: .ux-pp-sheet و #ux-print-root معاً ===
+   النمط: دمج نطاقي المعاينة (ux-pp-sheet) والطباعة الفعلية (ux-print-root)
+   من كتلة body.ux-printing-active #ux-print-root في tailwind-input.css
+   بدلاً من scope مكرر لكل منهما */
+body.ux-printing-active #ux-print-root {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+}
+
+body.ux-printing-active #ux-print-root .kpi-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .kpi-card {
+    padding: 8px !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .kpi-value {
+    font-size: 18px !important;
+}
+
+body.ux-printing-active #ux-print-root .kpi-title {
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .kpi-subtitle,
+body.ux-printing-active #ux-print-root .kpi-trend {
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .charts-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .charts-row.wide-narrow {
+    grid-template-columns: 3fr 2fr !important;
+}
+
+body.ux-printing-active #ux-print-root .charts-column {
+    gap: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .section-card {
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
+    margin-bottom: 8px !important;
+    border-radius: 8px !important;
+    page-break-inside: avoid;
+}
+
+body.ux-printing-active #ux-print-root .section-header {
+    padding: 6px 10px !important;
+}
+
+body.ux-printing-active #ux-print-root .section-header h3 {
+    font-size: 11px !important;
+}
+
+body.ux-printing-active #ux-print-root .section-body,
+body.ux-printing-active #ux-print-root .section-body-scroll {
+    padding: 8px !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+body.ux-printing-active #ux-print-root .section-card img {
+    max-height: 140px !important;
+}
+
+body.ux-printing-active #ux-print-root .histogram-container {
+    gap: 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .histogram-bar-wrapper {
+    height: 100px !important;
+}
+
+body.ux-printing-active #ux-print-root .heatmap-grid {
+    gap: 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .student-item {
+    padding: 5px 8px !important;
+    margin-bottom: 3px !important;
+    gap: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .student-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    font-size: 10px !important;
+}
+
+body.ux-printing-active #ux-print-root .student-info h4 {
+    font-size: 10px !important;
+}
+
+body.ux-printing-active #ux-print-root .student-meta {
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .student-hours {
+    font-size: 16px !important;
+}
+
+body.ux-printing-active #ux-print-root .student-percent {
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .stats-mini-grid {
+    gap: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .change-cards {
+    gap: 4px !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+body.ux-printing-active #ux-print-root .change-card {
+    padding: 6px 8px !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+}
+
+body.ux-printing-active #ux-print-root .change-card h4 {
+    font-size: 9px !important;
+    margin-bottom: 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .change-list {
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .change-delta {
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .note-box {
+    padding: 4px 8px !important;
+    font-size: 8px !important;
+    margin-bottom: 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .level-table th,
+body.ux-printing-active #ux-print-root .level-table td {
+    padding: 3px 4px !important;
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .filters-section,
+body.ux-printing-active #ux-print-root .table-toolbar,
+body.ux-printing-active #ux-print-root .loading-overlay,
+body.ux-printing-active #ux-print-root .print-header,
+body.ux-printing-active #ux-print-root .pagination,
+body.ux-printing-active #ux-print-root .page-title-row {
+    display: none !important;
+}
+
+/* ─── Class & Room timetable content sizing inside print preview ─── */
+.ux-pp-sheet .grades-container {
+    padding: 0 !important;
+}
+
+.ux-pp-sheet .class-timetable-wrapper,
+.ux-pp-sheet .room-timetable-wrapper {
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    animation: none !important;
+}
+
+.ux-pp-sheet .class-timetable,
+.ux-pp-sheet .room-timetable {
+    width: 100% !important;
+    table-layout: fixed !important;
+    font-size: 9px !important;
+    border-collapse: collapse !important;
+    min-width: 0 !important;
+}
+
+.ux-pp-sheet .class-timetable thead th,
+.ux-pp-sheet .room-timetable thead th {
+    padding: 5px 3px !important;
+    font-size: 9px !important;
+    min-width: 0 !important;
+    position: static !important;
+    letter-spacing: 0 !important;
+}
+
+.ux-pp-sheet .class-timetable tbody td,
+.ux-pp-sheet .room-timetable tbody td {
+    padding: 3px 2px !important;
+    font-size: 8px !important;
+    min-width: 0 !important;
+    line-height: 1.3 !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+.ux-pp-sheet .class-timetable tbody td.day-cell,
+.ux-pp-sheet .room-timetable tbody td.day-cell {
+    font-size: 9px !important;
+    min-width: 60px !important;
+    width: 70px !important;
+}
+
+.ux-pp-sheet .subject-cell {
+    padding: 3px 2px !important;
+    border-radius: 4px !important;
+    min-height: 0 !important;
+    gap: 1px !important;
+}
+
+.ux-pp-sheet .subject-cell .subject-name {
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .subject-cell .teacher-name {
+    font-size: 7px !important;
+}
+
+.ux-pp-sheet .subject-cell .room-name,
+.ux-pp-sheet .subject-cell .class-name {
+    font-size: 6.5px !important;
+}
+
+.ux-pp-sheet .tafwij-cell {
+    min-height: 0 !important;
+}
+
+.ux-pp-sheet .tafwij-cell .tafwij-group {
+    padding: 2px !important;
+}
+
+.ux-pp-sheet .tafwij-cell .tafwij-group .subject-name {
+    font-size: 7px !important;
+}
+
+.ux-pp-sheet .tafwij-cell .tafwij-group .room-name {
+    font-size: 6px !important;
+}
+
+.ux-pp-sheet .tafwij-cell .tafwij-group .group-label {
+    font-size: 5.5px !important;
+}
+
+.ux-pp-sheet .subject-stack .subject-cell {
+    padding: 2px 3px !important;
+}
+
+.ux-pp-sheet .empty-cell {
+    font-size: 8px !important;
+}
+
+.ux-pp-sheet .period-separator td {
+    height: 2px !important;
+    padding: 0 !important;
+}
+
+/* Info bars in preview */
+.ux-pp-sheet .class-info-bar,
+.ux-pp-sheet .room-info-bar {
+    padding: 8px 12px !important;
+    margin-bottom: 8px !important;
+    gap: 10px !important;
+}
+
+.ux-pp-sheet .class-info-bar .class-avatar,
+.ux-pp-sheet .room-info-bar .room-avatar {
+    display: none !important;
+}
+
+.ux-pp-sheet .class-info-bar .class-details h4,
+.ux-pp-sheet .room-info-bar .room-details h4 {
+    font-size: 12px !important;
+}
+
+.ux-pp-sheet .class-info-bar .class-details span,
+.ux-pp-sheet .room-info-bar .room-details span {
+    font-size: 9px !important;
+}
+
+.ux-pp-sheet .class-info-bar .total-hours-badge,
+.ux-pp-sheet .room-info-bar .total-hours-badge,
+.ux-pp-sheet .room-info-bar .usage-badge {
+    font-size: 10px !important;
+    padding: 4px 10px !important;
+}
+
+.ux-pp-sheet .students-results h3 {
+    font-size: 12px !important;
+    margin: 0 0 6px !important;
+}
+
+/* ─── Shared Print Preview Trigger Button ─── */
+.ux-print-preview-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px !important;
+    min-height: 44px;
+    font-size: 14px !important;
+    font-weight: 600;
+    border-radius: 10px !important;
+    background: var(--color-primary) !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(59, 106, 197, 0.16);
+    cursor: pointer;
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+    white-space: nowrap;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.ux-print-preview-btn:hover:not(:disabled) {
+    background: var(--color-primary-dark) !important;
+    box-shadow: 0 4px 12px rgba(59, 106, 197, 0.2);
+    transform: translateY(-1px);
+}
+
+.ux-print-preview-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(59, 106, 197, 0.2);
+}
+
+.ux-print-preview-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.ux-print-preview-btn i {
+    font-size: 15px;
+}
+
+/* ==================== Theme Toggle Button ==================== */
+.theme-toggle {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 2px solid var(--ux-border);
+    background: var(--ux-bg-glass);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--ux-text-secondary);
+    transition: var(--ux-transition);
+}
+
+.theme-toggle:hover {
+    background: var(--ux-accent);
+    color: white;
+    border-color: var(--ux-accent);
+    transform: scale(1.05);
+}
+
+/* ==================== Keyboard Shortcuts Modal ==================== */
+.shortcuts-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10001;
+    align-items: center;
+    justify-content: center;
+}
+
+.shortcuts-modal.active {
+    display: flex;
+}
+
+.shortcuts-content {
+    background: var(--color-surface);
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: var(--shadow-elevated);
+    border: 1px solid var(--ux-border);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.shortcuts-content .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--ux-border);
+}
+
+.shortcuts-content .modal-header h3 {
+    margin: 0;
+    color: var(--ux-text-primary);
+    font-size: 1.3rem;
+}
+
+.shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: var(--ux-bg-secondary);
+    border-radius: 10px;
+    border: 1px solid var(--ux-border);
+}
+
+.shortcut-item span {
+    color: var(--ux-text-primary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.shortcut-keys {
+    display: flex;
+    gap: 5px;
+}
+
+.shortcut-key {
+    background: var(--color-primary-mist);
+    color: var(--ux-accent);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    font-family: monospace;
+    line-height: 1.2;
+    border: 1px solid rgba(59, 106, 197, 0.16);
+}
+
+/* ==================== Quick Navigation Panel ==================== */
+.quick-nav-panel {
+    position: fixed;
+    top: 0;
+    left: -320px;
+    width: 300px;
+    height: 100vh;
+    background: var(--color-surface);
+    border-right: 1px solid var(--ux-border);
+    z-index: 10000;
+    transition: left 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-elevated);
+}
+
+.quick-nav-panel.open {
+    left: 0;
+}
+
+.quick-nav-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--ux-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-surface-alt);
+    color: var(--ux-text-primary);
+}
+
+.quick-nav-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.quick-nav-close {
+    background: transparent;
+    border: 1px solid var(--ux-border);
+    color: var(--ux-text-primary);
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: var(--ux-transition);
+}
+
+.quick-nav-close:hover {
+    background: var(--color-primary-mist);
+}
+
+.quick-nav-search {
+    padding: 15px;
+    border-bottom: 1px solid var(--ux-border);
+}
+
+.quick-nav-search input {
+    width: 100%;
+    padding: 10px 15px;
+    border: 2px solid var(--ux-border);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    background: var(--ux-bg-secondary);
+    color: var(--ux-text-primary);
+    transition: var(--ux-transition);
+}
+
+.quick-nav-search input:focus {
+    border-color: var(--ux-accent);
+    box-shadow: var(--focus-ring);
+}
+
+.quick-nav-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--ux-border);
+}
+
+.quick-nav-tab {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    color: var(--ux-text-secondary);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: var(--ux-transition);
+}
+
+.quick-nav-tab.active {
+    background: var(--ux-accent);
+    color: white;
+}
+
+.quick-nav-tab:hover:not(.active) {
+    background: var(--ux-bg-secondary);
+}
+
+.quick-nav-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.quick-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: var(--ux-transition);
+    color: var(--ux-text-primary);
+    margin-bottom: 5px;
+}
+
+.quick-nav-item:hover {
+    background: var(--ux-accent);
+    color: white;
+}
+
+.quick-nav-item i {
+    font-size: 1.1rem;
+    opacity: 0.8;
+}
+
+/* Quick Nav Toggle Button */
+.quick-nav-toggle {
+    position: fixed;
+    bottom: 25px;
+    left: 25px;
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--ux-accent), var(--ux-accent-light));
+    color: white;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(59, 106, 197, 0.3);
+    z-index: 9999;
+    transition: var(--ux-transition);
+}
+
+.quick-nav-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 25px rgba(59, 106, 197, 0.4);
+}
+
+.quick-nav-toggle.active {
+    background: linear-gradient(135deg, #ef4444, #f87171);
+}
+
+/* ==================== Enhanced Glassmorphism ==================== */
+.glass-effect {
+    background: var(--ux-bg-glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--ux-border);
+    border-radius: 15px;
+}
+
+/* ==================== Smooth Animations ==================== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+/* ==================== Responsive Design ==================== */
+@media (max-width: 992px) {
+    .shortcuts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-nav-panel {
+        width: 280px;
+    }
+
+    .quick-nav-toggle {
+        bottom: 15px;
+        left: 15px;
+        width: 48px;
+        height: 48px;
+        font-size: 17px;
+    }
+
+    .theme-toggle {
+        width: 42px;
+        height: 42px;
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 768px) {
+    .shortcuts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-nav-panel {
+        width: 100%;
+        left: -100%;
+    }
+
+    .quick-nav-toggle {
+        bottom: 15px;
+        left: 15px;
+        width: 50px;
+        height: 50px;
+        font-size: 18px;
+    }
+
+    .theme-toggle {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+}
+
+/* ==================== Toast Notifications Enhancement ==================== */
+.toast {
+    transition: var(--ux-transition);
+}
+
+/* ==================== Auto-Updater Notification Banner ==================== */
+.ux-update-banner {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 340px;
+    max-width: 480px;
+    padding: 14px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(245, 248, 250, 0.97));
+    border: 1px solid rgba(59, 106, 197, 0.2);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        0 2px 8px rgba(59, 106, 197, 0.1);
+    backdrop-filter: blur(12px);
+    font-family: inherit;
+    direction: rtl;
+    transform: translateY(120%);
+    opacity: 0;
+    transition:
+        transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.ux-update-banner.visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ux-update-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #3b6ac5, #5b84d6);
+    color: #fff;
+    font-size: 18px;
+}
+
+.ux-update-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ux-update-title {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: #1a2e23;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ux-update-subtitle {
+    font-size: 0.8rem;
+    color: #6b7c72;
+}
+
+.ux-update-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.ux-update-progress-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #e0e7e3;
+    overflow: hidden;
+}
+
+.ux-update-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #3b6ac5, #5b84d6);
+    transition: width 0.3s ease;
+    width: 0;
+}
+
+.ux-update-progress-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #3b6ac5;
+    min-width: 32px;
+    text-align: left;
+}
+
+.ux-update-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.ux-update-btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
+    white-space: nowrap;
+}
+
+.ux-update-download {
+    background: linear-gradient(135deg, #3b6ac5, #5b84d6);
+    color: #fff;
+}
+
+.ux-update-download:hover:not(:disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(59, 106, 197, 0.3);
+}
+
+.ux-update-download:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ux-update-install {
+    background: linear-gradient(135deg, #1a8cd8, #2da4ef);
+    color: #fff;
+}
+
+.ux-update-install:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(26, 140, 216, 0.3);
+}
+
+.ux-update-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #9ca8a0;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
+}
+
+.ux-update-close:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #4a4a4a;
+}
+
+/* ==================== Print Mode (injected content) ==================== */
+#ux-print-root {
+    display: none;
+}
+
+body.ux-printing-active {
+    background: #fff !important;
+    background-image: none !important;
+    overflow: visible !important;
+}
+
+body.ux-printing-active > #ux-print-root {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-size: 9px;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+}
+
+body.ux-printing-active.ux-print-landscape > #ux-print-root {
+    width: 100% !important;
+}
+
+body.ux-printing-active > *:not(#ux-print-root) {
+    display: none !important;
+}
+
+body.ux-printing-active #ux-print-root * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    animation: none !important;
+    transition: none !important;
+}
+
+body.ux-printing-active #ux-print-root .glass-panel,
+body.ux-printing-active #ux-print-root .stat-card,
+body.ux-printing-active #ux-print-root .report-panel,
+body.ux-printing-active #ux-print-root .report-kpi-card,
+body.ux-printing-active #ux-print-root .card,
+body.ux-printing-active #ux-print-root .class-stat-card,
+body.ux-printing-active #ux-print-root .room-stat-card,
+body.ux-printing-active #ux-print-root .analysis-panel,
+body.ux-printing-active #ux-print-root .analysis-kpi-card,
+body.ux-printing-active #ux-print-root .analysis-block {
+    background: #fff !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid #dde5ea !important;
+}
+
+/* Analytics compact rules for print/PDF export */
+body.ux-printing-active #ux-print-root .analysis-kpis {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-card {
+    padding: 8px 10px !important;
+    animation: none !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-card::before {
+    height: 2px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-icon {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 12px !important;
+    margin-bottom: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-label {
+    font-size: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-value {
+    font-size: 14px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-kpi-sub {
+    font-size: 7px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-grid-two {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-grid-three {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-panel {
+    padding: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-panel h4 {
+    font-size: 9px !important;
+    margin: 0 0 6px !important;
+    padding-bottom: 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-panel img {
+    max-height: 140px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-block > summary {
+    padding: 6px 10px !important;
+    font-size: 10px !important;
+    background: #f5f8fa !important;
+    color: #162730 !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-block-body {
+    padding: 6px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-progress-track {
+    height: 10px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-progress-title {
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-zero-item {
+    padding: 5px 8px !important;
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .analysis-summary-table th,
+body.ux-printing-active #ux-print-root .analysis-summary-table td {
+    padding: 4px 8px !important;
+    font-size: 9px !important;
+}
+
+body.ux-printing-active #ux-print-root .grades-container {
+    padding: 0 !important;
+    gap: 8px !important;
+}
+
+body.ux-printing-active #ux-print-root .class-stats-grid,
+body.ux-printing-active #ux-print-root .room-stats-grid {
+    opacity: 1 !important;
+    transform: none !important;
+}
+
+body.ux-printing-active #ux-print-root table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+}
+
+body.ux-printing-active #ux-print-root th {
+    background: #1a5276 !important;
+    color: #fff !important;
+    padding: 5px 8px !important;
+}
+
+body.ux-printing-active #ux-print-root td {
+    padding: 5px 8px !important;
+    color: #111 !important;
+    border-bottom: 1px solid #e5e7eb !important;
+}
+
+body.ux-printing-active #ux-print-root tbody tr:nth-child(even) {
+    background: #f5f8fa !important;
+}
+
+/* Timetable-specific compact overrides for PDF/print */
+body.ux-printing-active #ux-print-root .timetable,
+body.ux-printing-active #ux-print-root .class-timetable,
+body.ux-printing-active #ux-print-root .room-timetable,
+body.ux-printing-active #ux-print-root .class-timetable-wrapper table,
+body.ux-printing-active #ux-print-root .room-timetable-wrapper table,
+body.ux-printing-active #ux-print-root .timetable-wrapper table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    page-break-inside: avoid;
+}
+
+body.ux-printing-active #ux-print-root .timetable th,
+body.ux-printing-active #ux-print-root .class-timetable th,
+body.ux-printing-active #ux-print-root .room-timetable th,
+body.ux-printing-active #ux-print-root .class-timetable-wrapper th,
+body.ux-printing-active #ux-print-root .room-timetable-wrapper th,
+body.ux-printing-active #ux-print-root .timetable-wrapper th {
+    background: linear-gradient(135deg, #3b6ac5, #5b84d6) !important;
+    color: #fff !important;
+    padding: 5px 3px !important;
+    font-size: 9px !important;
+    font-weight: 600 !important;
+}
+
+body.ux-printing-active #ux-print-root .timetable td,
+body.ux-printing-active #ux-print-root .class-timetable td,
+body.ux-printing-active #ux-print-root .room-timetable td,
+body.ux-printing-active #ux-print-root .class-timetable-wrapper td,
+body.ux-printing-active #ux-print-root .room-timetable-wrapper td,
+body.ux-printing-active #ux-print-root .timetable-wrapper td {
+    padding: 3px 2px !important;
+    font-size: 8px !important;
+    min-width: 0 !important;
+    border: 1px solid #ddd !important;
+    line-height: 1.3 !important;
+    vertical-align: middle !important;
+}
+
+body.ux-printing-active #ux-print-root .lesson-cell {
+    padding: 3px 2px !important;
+    border-radius: 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .lesson-cell .lesson-subject {
+    font-size: 8px !important;
+    margin-bottom: 1px !important;
+}
+
+body.ux-printing-active #ux-print-root .lesson-cell .lesson-teacher {
+    font-size: 7px !important;
+    margin-bottom: 1px !important;
+}
+
+body.ux-printing-active #ux-print-root .lesson-cell .lesson-room,
+body.ux-printing-active #ux-print-root .lesson-cell .lesson-class {
+    font-size: 6.5px !important;
+    padding: 1px 4px !important;
+}
+
+body.ux-printing-active #ux-print-root .period-separator td {
+    height: 2px !important;
+    padding: 0 !important;
+}
+
+body.ux-printing-active #ux-print-root .timetable-wrapper,
+body.ux-printing-active #ux-print-root .class-timetable-wrapper,
+body.ux-printing-active #ux-print-root .room-timetable-wrapper {
+    overflow: visible !important;
+    border-radius: 0 !important;
+    animation: none !important;
+}
+
+/* ==================== Print Styles ==================== */
+
+/* === 4. @media print — قواعد إضافية (الكتلة الثانية) === */
+@media print {
+    @page {
+        size: A4;
+        margin: 0;
+    }
+
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Force light theme: disable ALL dark mode overrides during printing */
+    [data-theme='dark'],
+    [data-theme='dark'] body,
+    [data-theme='dark'] .main-content,
+    [data-theme='dark'] .header {
+        background: #fff !important;
+        background-image: none !important;
+        color: #111 !important;
+        border-color: #dde5ea !important;
+    }
+
+    [data-theme='dark'] table,
+    [data-theme='dark'] th,
+    [data-theme='dark'] td,
+    [data-theme='dark'] h1,
+    [data-theme='dark'] h2,
+    [data-theme='dark'] h3,
+    [data-theme='dark'] h4,
+    [data-theme='dark'] p,
+    [data-theme='dark'] span,
+    [data-theme='dark'] div,
+    [data-theme='dark'] label,
+    [data-theme='dark'] a {
+        color: inherit !important;
+    }
+
+    [data-theme='dark'] .stat-card,
+    [data-theme='dark'] .glass-panel,
+    [data-theme='dark'] .report-panel,
+    [data-theme='dark'] .report-kpi-card,
+    [data-theme='dark'] .card,
+    [data-theme='dark'] details,
+    [data-theme='dark'] .search-section,
+    [data-theme='dark'] .students-results,
+    [data-theme='dark'] .analysis-panel,
+    [data-theme='dark'] .analysis-kpi-card,
+    [data-theme='dark'] .analysis-block {
+        background: #fff !important;
+        border-color: #dde5ea !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+    }
+
+    .theme-toggle,
+    .quick-nav-toggle,
+    .quick-nav-panel,
+    .shortcuts-modal,
+    .ux-pp-modal,
+    .ux-update-banner,
+    .toast-container,
+    .menu-toggle,
+    .no-print {
+        display: none !important;
+    }
+
+    /* Force exact color reproduction */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* White background on body and main content */
+    body {
+        background: #fff !important;
+        background-image: none !important;
+        color: #111 !important;
+    }
+
+    .main-content {
+        margin: 0 !important;
+        width: 100% !important;
+        background: #fff !important;
+        color: #111 !important;
+    }
+
+    /* Glass panels / stat cards / report panels — solid white */
+    .glass-panel,
+    .stat-card,
+    .report-panel,
+    .report-kpi-card,
+    .card,
+    .analysis-panel,
+    .analysis-kpi-card {
+        background: #fff !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: 1px solid #dde5ea !important;
+        animation: none !important;
+    }
+
+    /* Analytics compact rules for @media print */
+    .analysis-kpis {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .analysis-kpi-card {
+        padding: 8px 10px !important;
+    }
+
+    .analysis-kpi-card::before {
+        height: 2px !important;
+    }
+
+    .analysis-kpi-icon {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 12px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-kpi-label {
+        font-size: 8px !important;
+    }
+
+    .analysis-kpi-value {
+        font-size: 14px !important;
+    }
+
+    .analysis-kpi-sub {
+        font-size: 7px !important;
+    }
+
+    .analysis-grid-two {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-grid-three {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-panel {
+        padding: 8px !important;
+    }
+
+    .analysis-panel h4 {
+        font-size: 9px !important;
+        margin: 0 0 6px !important;
+        padding-bottom: 4px !important;
+    }
+
+    .analysis-panel img {
+        max-height: 140px !important;
+    }
+
+    .analysis-block {
+        margin-bottom: 6px !important;
+    }
+
+    .analysis-block > summary {
+        padding: 6px 10px !important;
+        font-size: 10px !important;
+    }
+
+    .analysis-block-body {
+        padding: 6px !important;
+    }
+
+    .analysis-progress-track {
+        height: 10px !important;
+    }
+
+    .analysis-progress-title {
+        font-size: 9px !important;
+    }
+
+    .analysis-zero-item {
+        padding: 5px 8px !important;
+        font-size: 9px !important;
+    }
+
+    .analysis-summary-table th,
+    .analysis-summary-table td {
+        padding: 4px 8px !important;
+        font-size: 9px !important;
+    }
+
+    .grades-container {
+        padding: 0 !important;
+        gap: 8px !important;
+    }
+
+    /* Details blocks — open, visible, compact */
+    details {
+        display: block !important;
+        overflow: visible !important;
+        margin-bottom: 2px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        animation: none !important;
+    }
+
+    details > summary {
+        display: block !important;
+        background: #edf2f6 !important;
+        color: #162730 !important;
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        border-bottom: 1px solid #d6dde3 !important;
+    }
+
+    details > summary::after,
+    details > summary::marker,
+    details > summary::-webkit-details-marker {
+        display: none !important;
+    }
+
+    /* Tables — solid backgrounds */
+    .students-table,
+    .report-summary-table,
+    table {
+        border-collapse: collapse !important;
+        background: #fff !important;
+    }
+
+    .students-table th,
+    .report-summary-table th,
+    table thead th {
+        background: #1a5276 !important;
+        color: #fff !important;
+        padding: 5px 8px !important;
+        font-size: 10px !important;
+    }
+
+    .students-table td,
+    .report-summary-table td,
+    table tbody td {
+        padding: 5px 8px !important;
+        font-size: 10px !important;
+        color: #111 !important;
+        border-bottom: 1px solid #e5e7eb !important;
+    }
+
+    /* Timetable tables — compact for A4 landscape */
+    .timetable,
+    .class-timetable,
+    .room-timetable,
+    .class-timetable-wrapper table,
+    .room-timetable-wrapper table,
+    .timetable-wrapper table {
+        width: 100% !important;
+        table-layout: fixed !important;
+        page-break-inside: avoid;
+    }
+
+    .timetable th,
+    .class-timetable th,
+    .room-timetable th {
+        padding: 5px 3px !important;
+        font-size: 9px !important;
+        background: linear-gradient(135deg, #3b6ac5, #5b84d6) !important;
+    }
+
+    .timetable td,
+    .class-timetable td,
+    .room-timetable td {
+        padding: 3px 2px !important;
+        font-size: 8px !important;
+        min-width: 0 !important;
+        line-height: 1.3 !important;
+    }
+
+    .lesson-cell {
+        padding: 3px 2px !important;
+    }
+
+    .lesson-cell .lesson-subject {
+        font-size: 8px !important;
+    }
+
+    .lesson-cell .lesson-teacher {
+        font-size: 7px !important;
+    }
+
+    .lesson-cell .lesson-room,
+    .lesson-cell .lesson-class {
+        font-size: 6.5px !important;
+    }
+
+    table tbody tr:nth-child(even) {
+        background: #f5f8fa !important;
+    }
+
+    /* Grids — compact */
+    .report-grid-two {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 2px !important;
+    }
+
+    .report-grid-three {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 2px !important;
+    }
+
+    .report-kpis {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+    }
+
+    /* Progress bars */
+    .report-progress-item {
+        background: #fff !important;
+        border: 1px solid #dde5ea !important;
+    }
+
+    .report-progress-track {
+        background: #eef2f5 !important;
+    }
+
+    /* Headings */
+    h2,
+    h3,
+    h4 {
+        color: #162730 !important;
+    }
+
+    /* ==================== Print CSS Overrides for Multi-Page Printing ==================== */
+    /* ألغِ قيود الارتفاع والاقتطاع عن جميع حاويات المعاينة */
+    body.ux-preview-open {
+        overflow: visible !important;
+    }
+
+    .ux-pp-modal,
+    .ux-pp-dialog,
+    .ux-pp-page,
+    .ux-pp-sheet {
+        position: static !important;
+        height: auto !important;
+        min-height: none !important;
+        max-height: none !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .ux-pp-sheet {
+        padding: 2mm 2mm !important;
+    }
+
+    @page {
+        margin: 5mm 5mm;
+    }
+
+    /* إخفاء عناصر واجهة المعاينة (الرأس والأزرار) أثناء الطباعة الفعلية */
+    .ux-pp-header,
+    .ux-pp-actions,
+    .ux-pp-close,
+    .ux-pp-overlay {
+        display: none !important;
+    }
+
+    /* السماح للجدول داخل الورقة بالتمدد دون قيود */
+    .ux-pp-sheet .timetable-wrapper,
+    .ux-pp-sheet .table-responsive {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        page-break-inside: auto;
+    }
+}

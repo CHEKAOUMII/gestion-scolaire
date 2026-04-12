@@ -44,7 +44,7 @@ const RoomTimetable = (function() {
             printBtn.addEventListener('click', () => {
                 const roomName = document.getElementById('room-room-select')?.value || '';
                 const title = roomName ? `جدول القاعة - ${roomName}` : 'جدول القاعات';
-                electronPrint({ mode: 'preview', title, pageSize: 'A4', landscape: true });
+                PrintSystem.window({ mode: 'preview', title, pageSize: 'A4', landscape: true });
             });
         }
 

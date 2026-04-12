@@ -84,7 +84,7 @@ function bindEvents() {
     const printPreviewBtn = document.getElementById('tp-print-preview-btn');
     if (printPreviewBtn)
         printPreviewBtn.addEventListener('click', () => {
-            openPrintPreview({ title: 'متابعة أداء الأساتذة', pageSize: 'A4', landscape: false });
+            PrintSystem.preview({ title: 'متابعة أداء الأساتذة', pageSize: 'A4', landscape: false });
         });
 
 }
@@ -116,7 +116,7 @@ function overridePrintPreviewHandler() {
     const newButton = oldButton.cloneNode(true);
     oldButton.parentNode.replaceChild(newButton, oldButton);
     newButton.addEventListener('click', () => {
-            openPrintPreview({ title: getTrackingPageTitle(), pageSize: 'A4', landscape: false });
+            PrintSystem.preview({ title: getTrackingPageTitle(), pageSize: 'A4', landscape: false });
         });
 }
 

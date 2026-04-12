@@ -13,6 +13,7 @@
         <script src="js/sidebar.js" defer></script>
         <script src="js/cc-rules.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+    <script src="js/print-system.js"></script>
     </head>
 
     <body>
@@ -62,7 +63,7 @@
                         <button
                             class="btn btn-secondary"
                             type="button"
-                            onclick="openPrintPreview({ title: 'تحليل النتائج', pageSize: 'A4' })"
+                            onclick="PrintSystem.preview({ title: 'تحليل النتائج', pageSize: 'A4' })"
                             style="margin-right: 6px"
                         >
                             <i class="fas fa-print"></i> معاينة الطباعة
