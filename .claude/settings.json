@@ -43,7 +43,13 @@
       "Bash(git pull:*)",
       "Bash(git push:*)",
       "Bash(grep -n \"^} *$\" \"D:/gestionScholaire/css/tailwind-input.css\")",
-      "Bash(ls d:/gestionScholaire/*.html)"
+      "Bash(ls d:/gestionScholaire/*.html)",
+      "Read(//c/Users/cheka/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/**)",
+      "Bash(C:\\\\Users\\\\cheka\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.0.7\\\\scripts\\\\start-server.sh --project-dir d:/gestionScholaire)",
+      "Read(//c/Users/cheka/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/scripts/**)",
+      "Bash(python3 -c ':*)",
+      "Bash(python3 -)",
+      "Bash(awk -F: '$1 >= 3446 && $1 <= 3700 {print}')"
     ]
   },
   "enabledPlugins": {

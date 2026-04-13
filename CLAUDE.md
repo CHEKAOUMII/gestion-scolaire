@@ -322,6 +322,56 @@ function renderPaginationControls(total, totalPages) {
 - Pagination controls must be RTL-aware (previous = right arrow in Arabic layout).
 - When the result set is empty, hide pagination controls entirely and show an empty-state message.
 
+### Print System (mandatory for all print/export actions)
+
+Whenever a page needs to print or export to PDF, use **`PrintSystem`** from `js/print-system.js`. This is the single API for all print operations. Never call `openPrintPreview()`, `electronPrint()`, or `window.print()` directly — they are internal implementation details.
+
+**Two methods only:**
+
+- **`PrintSystem.preview(options)`** — For pages that print their own DOM content (analytics, absences, students, grades, etc.). Opens the preview modal, then prints or exports PDF.
+  ```js
+  await PrintSystem.preview({
+      contentSelector: '#my-table',  // CSS selector for source element (optional, auto-detected)
+      title: 'تقرير الغياب',         // shown in letterhead
+      landscape: false,               // true for wide tables
+      pageSize: 'A4',                 // default
+      noHeader: false,                // skip school letterhead
+      waitFor: somePromise,           // await before capturing (optional)
+  });
+  ```
+
+- **`PrintSystem.window(options)`** — For pages that build their own HTML before printing (timetables, certificates, complex reports). Sends HTML to the main process via a hidden BrowserWindow.
+  ```js
+  await PrintSystem.window({
+      htmlContent: builtHTML,         // REQUIRED — the HTML body content
+      title: 'جدول الحصص',
+      mode: 'pdf',                    // 'pdf' | 'print' | 'preview'
+      landscape: true,
+      pageSize: 'A4',
+      defaultFileName: 'timetable',  // suggested PDF filename (optional)
+      inlineStyles: '',               // extra CSS injected into the document (optional)
+      skipAutoLetterhead: false,      // letterhead is added automatically unless true
+  });
+  ```
+
+**Which method to use:**
+
+| Situation | Method |
+|-----------|--------|
+| Page renders data in the DOM (tables, charts, KPI cards) | `PrintSystem.preview()` |
+| Page builds an HTML string before printing (timetables, certificates) | `PrintSystem.window()` |
+
+**Rules:**
+- `window.print()` is **prohibited** — use `PrintSystem.preview()`.
+- `openPrintPreview()` is **prohibited** — use `PrintSystem.preview()`.
+- `electronPrint()` is **prohibited** — use `PrintSystem.window()`.
+- `window.api.system.printHTML()` called directly is **prohibited** — use `PrintSystem.window()`.
+- Every print button MUST show a loading state via `showToast.loading()` while the operation is in progress.
+- `js/print-system.js` must be included via `<script src="js/print-system.js">` on every page that prints — do not add it to pages that don't need it.
+
+**Architecture note (3 internal modes — do not replicate):**
+`PrintSystem` hides three internal rendering contexts: `.ux-pp-sheet` (visual preview modal), `@media print` CSS rules (browser print engine), and `body.ux-printing-active #ux-print-root` (live DOM export container). These are implementation details of `js/print-system.js` and `css/print.css` — never reference or duplicate them in page code.
+
 ### CRUD Completeness (mandatory)
 
 Whenever an **insert/add** (إضافة) feature is created for any entity, an **edit/update** (تعديل) feature MUST also be implemented alongside it. No entity should be add-only without the ability to correct mistakes.
