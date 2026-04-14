@@ -60,13 +60,20 @@ function getInitial(name) {
     return parts[0].charAt(0).toUpperCase();
 }
 
-// ─── Grade color helper ───
+// ─── Grade color helpers ───
 function gradeColor(val) {
-    if (val >= 16) return '#2ECC71';
-    if (val >= 14) return '#3b82f6';
-    if (val >= 12) return '#f59e0b';
-    if (val >= 10) return '#f97316';
-    return '#E85D5D';
+    if (val >= 16) return 'grade-excellent';
+    if (val >= 14) return 'grade-good';
+    if (val >= 12) return 'grade-average';
+    if (val >= 10) return 'grade-pass';
+    return 'grade-poor';
+}
+function gradeHex(val) {
+    if (val >= 16) return '#4caf50';
+    if (val >= 14) return '#8bc34a';
+    if (val >= 12) return '#ff9800';
+    if (val >= 10) return '#ffc107';
+    return '#f44336';
 }
 
 // normalizeSubjectName() — provided by js/utils.js
@@ -99,24 +106,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    // Initialize profile save system
+    initSaveButtons();
+    initDirtyTracking();
+    initUnsavedWarning();
+
     await loadStudentProfile(code);
 });
 
 // ─── Tab Switching ───
 function initTabs() {
     const tabBtns = document.querySelectorAll('.sp-tab-btn');
-    tabBtns.forEach((btn) => {
-        btn.addEventListener('click', () => {
-            // Deactivate all
-            tabBtns.forEach((b) => b.classList.remove('active'));
-            document.querySelectorAll('.sp-tab-content').forEach((c) => c.classList.remove('active'));
+    const tabList = document.querySelector('.sp-tabs-nav');
 
-            // Activate clicked
-            btn.classList.add('active');
-            const target = btn.dataset.tab;
-            document.getElementById(target)?.classList.add('active');
+    function activateTab(btn) {
+        tabBtns.forEach((b) => {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+            b.setAttribute('tabindex', '-1');
         });
+        document.querySelectorAll('.sp-tab-content').forEach((c) => c.classList.remove('active'));
+
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        btn.setAttribute('tabindex', '0');
+        btn.focus();
+        const target = btn.dataset.tab;
+        document.getElementById(target)?.classList.add('active');
+    }
+
+    tabBtns.forEach((btn, idx) => {
+        btn.setAttribute('tabindex', idx === 0 ? '0' : '-1');
+        btn.addEventListener('click', () => activateTab(btn));
     });
+
+    if (tabList) {
+        tabList.addEventListener('keydown', (e) => {
+            const tabs = Array.from(tabBtns);
+            const current = tabs.indexOf(document.activeElement);
+            if (current < 0) return;
+            let next = -1;
+            if (e.key === 'ArrowLeft') next = (current + 1) % tabs.length;
+            else if (e.key === 'ArrowRight') next = (current - 1 + tabs.length) % tabs.length;
+            else if (e.key === 'Home') next = 0;
+            else if (e.key === 'End') next = tabs.length - 1;
+            if (next >= 0) {
+                e.preventDefault();
+                activateTab(tabs[next]);
+            }
+        });
+    }
 }
 
 // ─── No Student State ───
@@ -178,6 +217,9 @@ async function loadStudentProfile(code) {
 
         // Render mini stats
         renderMiniStats(studentGrades, studentAbsences, student);
+
+        // Load saved profile tab data
+        await loadAllProfileTabs(code, student.id || 0);
     } catch (err) {
         console.error('Error loading student profile:', err);
         if (typeof showToast === 'function') showToast('خطأ في تحميل ملف التلميذ', 'error');
@@ -217,7 +259,7 @@ function renderPersonalInfo(student) {
     infoCard.innerHTML = `
         <div class="sp-info-row">
             <span class="sp-info-label">الجنس</span>
-            <span class="sp-info-value"><i class="fas ${getGenderIcon(student.gender)}" style="margin-left: 6px;"></i>${genderLabel}</span>
+            <span class="sp-info-value"><i class="fas ${getGenderIcon(student.gender)}" style="margin-inline-end: 6px;"></i>${genderLabel}</span>
         </div>
         <div class="sp-info-row">
             <span class="sp-info-label">تاريخ الازدياد</span>
@@ -302,13 +344,13 @@ function renderMiniStats(grades, absences, student) {
     const absEl = document.getElementById('sp-stat-absence');
 
     if (avgEl) {
-        avgEl.innerHTML = `<span style="color: ${gradeColor(generalAvg)}">${generalAvg.toFixed(2)}</span>`;
+        avgEl.innerHTML = `<span style="color:${gradeHex(generalAvg)}">${generalAvg.toFixed(2)}</span>`;
     }
     if (subjectsEl) {
         subjectsEl.textContent = subjects.length;
     }
     if (absEl) {
-        absEl.innerHTML = `<span style="color: ${totalAbsHours > 10 ? '#E85D5D' : '#2ECC71'}">${totalAbsHours}</span>`;
+        absEl.innerHTML = `<span style="color:${totalAbsHours > 10 ? '#f44336' : '#4caf50'}">${totalAbsHours}</span>`;
     }
 }
 
@@ -373,7 +415,7 @@ function renderGradesTab(student, rawGrades) {
     let html = `
         <div class="sp-kpis-row">
             <div class="sp-kpi">
-                <div class="sp-kpi-val" style="color: ${gradeColor(generalAvg)}">${generalAvg.toFixed(2)}</div>
+                <div class="sp-kpi-val" style="color:${gradeHex(generalAvg)}">${generalAvg.toFixed(2)}</div>
                 <div class="sp-kpi-label">المعدل العام</div>
             </div>
             <div class="sp-kpi">
@@ -385,11 +427,11 @@ function renderGradesTab(student, rawGrades) {
                 <div class="sp-kpi-label">عدد النقط</div>
             </div>
             <div class="sp-kpi">
-                <div class="sp-kpi-val" style="color: #2ECC71">${maxGrade.toFixed(1)}</div>
+                <div class="sp-kpi-val" style="color:#4caf50">${maxGrade.toFixed(1)}</div>
                 <div class="sp-kpi-label">أعلى نقطة</div>
             </div>
             <div class="sp-kpi">
-                <div class="sp-kpi-val" style="color: #E85D5D">${minGrade.toFixed(1)}</div>
+                <div class="sp-kpi-val" style="color:#f44336">${minGrade.toFixed(1)}</div>
                 <div class="sp-kpi-label">أدنى نقطة</div>
             </div>
         </div>
@@ -399,14 +441,13 @@ function renderGradesTab(student, rawGrades) {
     html += `<div class="sp-subjects-chart">`;
     subjectAvgsArr.forEach(({ subject, avg }) => {
         const pct = Math.min((avg / 20) * 100, 100);
-        const clr = gradeColor(avg);
         html += `
             <div class="sp-chart-row">
                 <span class="sp-chart-label">${escapeHtml(subject)}</span>
                 <div class="sp-chart-bar-track">
-                    <div class="sp-chart-bar-fill" style="width: ${pct}%; background: ${clr};"></div>
+                    <div class="sp-chart-bar-fill" style="width: ${pct}%; background: ${gradeHex(avg)}"></div>
                 </div>
-                <span class="sp-chart-val" style="color: ${clr}">${avg.toFixed(2)}</span>
+                <span class="sp-chart-val" style="color:${gradeHex(avg)}">${avg.toFixed(2)}</span>
             </div>
         `;
     });
@@ -420,7 +461,6 @@ function renderGradesTab(student, rawGrades) {
             typeof computeSubjectAverage === 'function'
                 ? computeSubjectAverage(subj, grades)
                 : grades.reduce((a, g) => a + g.grade, 0) / grades.length;
-        const clr = gradeColor(avg);
 
         // Group by semester
         const bySemester = {};
@@ -441,14 +481,13 @@ function renderGradesTab(student, rawGrades) {
                     let examIdx = 0;
                     const chips = bySemester[sem]
                         .map((g) => {
-                            const gc = gradeColor(g.grade);
                             const pct = Math.min((g.grade / 20) * 100, 100);
                             const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
                             const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
                             return `<div class="sp-grade-chip">
                         <span class="chip-label">${chipLabel}</span>
-                        <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
-                        <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                        <span class="chip-value" style="color:${gradeHex(g.grade)}">${g.grade.toFixed(2)}</span>
+                        <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gradeHex(g.grade)}"></div></div>
                     </div>`;
                         })
                         .join('');
@@ -463,14 +502,13 @@ function renderGradesTab(student, rawGrades) {
             let examIdx = 0;
             const chips = grades
                 .map((g) => {
-                    const gc = gradeColor(g.grade);
                     const pct = Math.min((g.grade / 20) * 100, 100);
                     const isActv = typeof ccIsActivity === 'function' && ccIsActivity(g.subject);
                     const chipLabel = isActv ? 'أنشطة مندمجة' : `فرض ${++examIdx}`;
                     return `<div class="sp-grade-chip">
                     <span class="chip-label">${chipLabel}</span>
-                    <span class="chip-value" style="color:${gc}">${g.grade.toFixed(2)}</span>
-                    <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gc}"></div></div>
+                    <span class="chip-value" style="color:${gradeHex(g.grade)}">${g.grade.toFixed(2)}</span>
+                    <div class="chip-bar"><div class="chip-bar-fill" style="width:${pct}%;background:${gradeHex(g.grade)}"></div></div>
                 </div>`;
                 })
                 .join('');
@@ -481,7 +519,7 @@ function renderGradesTab(student, rawGrades) {
             <div class="sp-subject-block">
                 <div class="sp-subject-header">
                     <span class="sp-subj-name"><i class="fas fa-book"></i> ${escapeHtml(subj)}</span>
-                    <span class="sp-subj-avg" style="background: ${clr}">${avg.toFixed(2)}</span>
+                    <span class="sp-subj-avg" style="background: ${gradeHex(avg)}">${avg.toFixed(2)}</span>
                 </div>
                 <div class="sp-subject-body">${bodyHtml}</div>
             </div>
@@ -499,7 +537,7 @@ function renderAbsenceTab(absences) {
     if (!absences.length) {
         container.innerHTML = `
             <div class="sp-empty-tab">
-                <i class="fas fa-check-circle" style="color: #2ECC71;"></i>
+                <i class="fas fa-check-circle grade-excellent"></i>
                 <p>لا يوجد غياب مسجل لهذا التلميذ</p>
             </div>
         `;
@@ -526,15 +564,15 @@ function renderAbsenceTab(absences) {
     let html = `
         <div class="sp-kpis-row">
             <div class="sp-kpi">
-                <div class="sp-kpi-val" style="color: ${totalHours > 10 ? '#E85D5D' : '#2ECC71'}">${totalHours}</div>
+                <div class="sp-kpi-val" style="color:${totalHours > 10 ? '#f44336' : '#4caf50'}">${totalHours}</div>
                 <div class="sp-kpi-label">مجموع الساعات</div>
             </div>
             <div class="sp-kpi">
-                <div class="sp-kpi-val" style="color: #2ECC71">${justifiedHours}</div>
+                <div class="sp-kpi-val" style="color:#4caf50">${justifiedHours}</div>
                 <div class="sp-kpi-label">ساعات مبررة</div>
             </div>
             <div class="sp-kpi">
-                <div class="sp-kpi-val" style="color: #E85D5D">${unjustifiedHours}</div>
+                <div class="sp-kpi-val" style="color:#f44336">${unjustifiedHours}</div>
                 <div class="sp-kpi-label">ساعات غير مبررة</div>
             </div>
             <div class="sp-kpi">
@@ -566,8 +604,8 @@ function renderAbsenceTab(absences) {
                                 const total = data.justified + data.unjustified;
                                 return `<tr>
                                 <td><strong>${escapeHtml(m)}</strong></td>
-                                <td style="color: #2ECC71; font-weight: 700;">${data.justified}</td>
-                                <td style="color: #E85D5D; font-weight: 700;">${data.unjustified}</td>
+                                <td style="color:#4caf50; font-weight: 700;">${data.justified}</td>
+                                <td style="color:#f44336; font-weight: 700;">${data.unjustified}</td>
                                 <td style="font-weight: 800;">${total}</td>
                             </tr>`;
                             })
@@ -606,3 +644,483 @@ function renderAbsenceTab(absences) {
 
     container.innerHTML = html;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// ── Profile Data Persistence (Bataqa Mutabaat) ──
+// ═══════════════════════════════════════════════════════════════
+
+let _currentStudentCode = '';
+let _currentStudentId = 0;
+const _dirtyTabs = new Set();
+
+// ── Helper: get selected radio value ──
+function bmRadio(name) {
+    const el = document.querySelector(`input[name="${name}"]:checked`);
+    return el ? el.value : null;
+}
+
+// ── Helper: set radio value ──
+function bmSetRadio(name, val) {
+    if (!val) return;
+    const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
+    if (el) el.checked = true;
+}
+
+// ── Helper: get checked checkboxes as array ──
+function bmCheckboxes(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(el => el.value)
+        .filter(Boolean);
+}
+
+// ── Helper: set checkboxes from array ──
+function bmSetCheckboxes(containerId, values) {
+    if (!Array.isArray(values)) return;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('input[type="checkbox"]').forEach(el => {
+        el.checked = values.includes(el.value);
+    });
+}
+
+// ── Helper: get active badges (data-value) from a container ──
+function bmBadges(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('.bm-badge:not(.bm-badge-off)'))
+        .map(el => el.dataset.value)
+        .filter(Boolean);
+}
+
+// ── Helper: set badges from array ──
+function bmSetBadges(containerId, values, colorMap) {
+    if (!Array.isArray(values)) return;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.bm-badge').forEach(el => {
+        const val = el.dataset.value;
+        if (values.includes(val)) {
+            const color = colorMap?.[val] || el.className.replace(/bm-badge\s*bm-badge-off/, '').trim();
+            // Extract color from onclick attribute
+            const onclickStr = el.getAttribute('onclick') || '';
+            const colorMatch = onclickStr.match(/bmTog\(this,'(\w+)'/);
+            const badgeColor = colorMatch ? colorMatch[1] : 'blue';
+            el.className = 'bm-badge bm-badge-' + badgeColor;
+            el.setAttribute('aria-checked', 'true');
+        } else {
+            el.className = 'bm-badge bm-badge-off';
+            el.setAttribute('aria-checked', 'false');
+        }
+    });
+}
+
+// ── Helper: input value ──
+function bmVal(id) {
+    const el = document.getElementById(id);
+    return el ? el.value : '';
+}
+
+function bmSetVal(id, val) {
+    const el = document.getElementById(id);
+    if (el && val != null) el.value = val;
+}
+
+// ── Data Collectors per Tab ──
+
+function collectEconomicData() {
+    return {
+        eco_status: bmRadio('bm-eco'),
+        income_source: bmRadio('bm-income'),
+        family_size: bmVal('bm-family-size'),
+        schooling_children: bmVal('bm-schooling-children'),
+        distance_km: bmVal('bm-distance-km'),
+        transport: bmRadio('bm-transport'),
+        support_programs: bmCheckboxes('bm-support-programs'),
+        unmet_needs: bmCheckboxes('bm-unmet-needs'),
+        notes: bmVal('bm-eco-notes')
+    };
+}
+
+function collectSocialData() {
+    return {
+        family_status: bmRadio('bm-family'),
+        parents_edu: bmRadio('bm-parents-edu'),
+        housing: bmRadio('bm-housing'),
+        study_place: bmRadio('bm-study-place'),
+        teachers_rel: bmRadio('bm-teachers-rel'),
+        peers_rel: bmRadio('bm-peers-rel'),
+        social_risks: bmBadges('bm-social-risks'),
+        notes: bmVal('bm-social-notes')
+    };
+}
+
+function collectHealthData() {
+    return {
+        health_gen: bmRadio('bm-health-gen'),
+        disability: bmRadio('bm-disability'),
+        learning_disorders: bmBadges('bm-learning-disorders'),
+        sleep: bmRadio('bm-sleep'),
+        nutrition: bmRadio('bm-nutrition'),
+        substances: bmBadges('bm-substances'),
+        chronic: bmVal('bm-chronic'),
+        treatment: bmRadio('bm-treatment'),
+        mood: typeof bmScaleVals !== 'undefined' ? bmScaleVals.mood : null,
+        motivation: typeof bmScaleVals !== 'undefined' ? bmScaleVals.motiv : null,
+        confidence: typeof bmScaleVals !== 'undefined' ? bmScaleVals.conf : null,
+        psych_symptoms: bmBadges('bm-psych-symptoms'),
+        psych_support: bmRadio('bm-psych-supp'),
+        psych_referral: bmRadio('bm-psych-ref'),
+        health_notes: bmVal('bm-health-notes'),
+        psych_notes: bmVal('bm-psych-notes')
+    };
+}
+
+function collectFollowupData() {
+    return {
+        guardian_name: bmVal('bm-guardian-name'),
+        guardian_phone: bmVal('bm-guardian-phone'),
+        calls_count: bmVal('bm-calls-count'),
+        meetings_count: bmVal('bm-meetings-count'),
+        last_contact: bmVal('bm-last-contact'),
+        actions_taken: bmBadges('bm-actions-taken'),
+        interview_notes: bmVal('bm-interview-notes'),
+        plan_notes: bmVal('bm-plan-notes'),
+        next_date: bmVal('bm-next-date')
+    };
+}
+
+const TAB_COLLECTORS = {
+    economic: collectEconomicData,
+    social: collectSocialData,
+    health: collectHealthData,
+    followup: collectFollowupData
+};
+
+// ── Populate Form from Saved Data ──
+
+function populateEconomicData(data) {
+    bmSetRadio('bm-eco', data.eco_status);
+    bmSetRadio('bm-income', data.income_source);
+    bmSetVal('bm-family-size', data.family_size);
+    bmSetVal('bm-schooling-children', data.schooling_children);
+    bmSetVal('bm-distance-km', data.distance_km);
+    bmSetRadio('bm-transport', data.transport);
+    bmSetCheckboxes('bm-support-programs', data.support_programs);
+    bmSetCheckboxes('bm-unmet-needs', data.unmet_needs);
+    bmSetVal('bm-eco-notes', data.notes);
+}
+
+function populateSocialData(data) {
+    bmSetRadio('bm-family', data.family_status);
+    bmSetRadio('bm-parents-edu', data.parents_edu);
+    bmSetRadio('bm-housing', data.housing);
+    bmSetRadio('bm-study-place', data.study_place);
+    bmSetRadio('bm-teachers-rel', data.teachers_rel);
+    bmSetRadio('bm-peers-rel', data.peers_rel);
+    bmSetBadges('bm-social-risks', data.social_risks);
+    bmSetVal('bm-social-notes', data.notes);
+}
+
+function populateHealthData(data) {
+    bmSetRadio('bm-health-gen', data.health_gen);
+    bmSetRadio('bm-disability', data.disability);
+    bmSetBadges('bm-learning-disorders', data.learning_disorders);
+    bmSetRadio('bm-sleep', data.sleep);
+    bmSetRadio('bm-nutrition', data.nutrition);
+    bmSetBadges('bm-substances', data.substances);
+    bmSetVal('bm-chronic', data.chronic);
+    bmSetRadio('bm-treatment', data.treatment);
+    if (data.mood && typeof bmSelectScale === 'function') {
+        const btn = document.querySelector(`#bm-mood-scale .bm-scale-btn:nth-child(${data.mood})`);
+        if (btn) bmSelectScale('mood', data.mood, btn);
+    }
+    if (data.motivation && typeof bmSelectScale === 'function') {
+        const btn = document.querySelector(`#bm-motiv-scale .bm-scale-btn:nth-child(${data.motivation})`);
+        if (btn) bmSelectScale('motiv', data.motivation, btn);
+    }
+    if (data.confidence && typeof bmSelectScale === 'function') {
+        const btn = document.querySelector(`#bm-conf-scale .bm-scale-btn:nth-child(${data.confidence})`);
+        if (btn) bmSelectScale('conf', data.confidence, btn);
+    }
+    bmSetBadges('bm-psych-symptoms', data.psych_symptoms);
+    bmSetRadio('bm-psych-supp', data.psych_support);
+    bmSetRadio('bm-psych-ref', data.psych_referral);
+    bmSetVal('bm-health-notes', data.health_notes);
+    bmSetVal('bm-psych-notes', data.psych_notes);
+}
+
+function populateFollowupData(data) {
+    bmSetVal('bm-guardian-name', data.guardian_name);
+    bmSetVal('bm-guardian-phone', data.guardian_phone);
+    bmSetVal('bm-calls-count', data.calls_count);
+    bmSetVal('bm-meetings-count', data.meetings_count);
+    bmSetVal('bm-last-contact', data.last_contact);
+    bmSetBadges('bm-actions-taken', data.actions_taken);
+    bmSetVal('bm-interview-notes', data.interview_notes);
+    bmSetVal('bm-plan-notes', data.plan_notes);
+    bmSetVal('bm-next-date', data.next_date);
+}
+
+const TAB_POPULATORS = {
+    economic: populateEconomicData,
+    social: populateSocialData,
+    health: populateHealthData,
+    followup: populateFollowupData
+};
+
+// ── Save All Tabs ──
+
+const TAB_LABELS = {
+    economic: 'الجانب الاقتصادي',
+    social: 'الجانب الاجتماعي',
+    health: 'الجانب الصحي والنفسي',
+    followup: 'المتابعة'
+};
+const ALL_TAB_KEYS = ['economic', 'social', 'health', 'followup'];
+
+async function saveAllTabs() {
+    if (!_currentStudentCode) return;
+
+    // Disable all save buttons + show spinner
+    const btns = ALL_TAB_KEYS.map(k => document.getElementById('bm-save-' + k)).filter(Boolean);
+    btns.forEach(btn => {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
+    });
+
+    let savedCount = 0;
+    let errorCount = 0;
+
+    for (const tabKey of ALL_TAB_KEYS) {
+        if (!TAB_COLLECTORS[tabKey]) continue;
+        const data = TAB_COLLECTORS[tabKey]();
+        try {
+            const result = await window.api.studentProfile.saveTab({
+                student_id: _currentStudentId,
+                student_code: _currentStudentCode,
+                tab_key: tabKey,
+                data_json: data,
+                school_year: SCHOOL_YEAR
+            });
+
+            if (result && result.success !== false) {
+                savedCount++;
+                _dirtyTabs.delete(tabKey);
+                const savedEl = document.getElementById('bm-saved-' + tabKey);
+                if (savedEl) {
+                    const now = new Date();
+                    savedEl.innerHTML = '<i class="fas fa-check-circle" style="color:#2ECC71"></i> آخر حفظ: ' +
+                        now.toLocaleTimeString('ar-MA', { hour: '2-digit', minute: '2-digit' });
+                }
+            } else {
+                errorCount++;
+            }
+        } catch (err) {
+            console.error('Save tab error (' + tabKey + '):', err);
+            errorCount++;
+        }
+    }
+
+    // Restore all buttons
+    ALL_TAB_KEYS.forEach(tabKey => {
+        const btn = document.getElementById('bm-save-' + tabKey);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> حفظ جميع البيانات';
+        }
+    });
+
+    // Show result
+    if (errorCount === 0) {
+        if (typeof showToast === 'function') showToast('تم حفظ جميع البيانات بنجاح (' + savedCount + ' تبويبات)', 'success');
+    } else {
+        if (typeof showToast === 'function') showToast('تم حفظ ' + savedCount + ' تبويبات، فشل ' + errorCount, 'warning');
+    }
+
+    // Auto-update risk indicator
+    if (typeof bmUpdateRisk === 'function') bmAutoRiskFromTabs();
+}
+
+// ── Load All Tabs ──
+
+async function loadAllProfileTabs(studentCode, studentId) {
+    _currentStudentCode = studentCode;
+    _currentStudentId = studentId;
+
+    try {
+        const tabs = await window.api.studentProfile.getAllTabs(studentCode, SCHOOL_YEAR);
+        if (!Array.isArray(tabs)) return;
+
+        for (const row of tabs) {
+            const populator = TAB_POPULATORS[row.tab_key];
+            if (!populator) continue;
+            try {
+                const data = typeof row.data_json === 'string' ? JSON.parse(row.data_json) : row.data_json;
+                populator(data);
+                // Show last-saved timestamp
+                const savedEl = document.getElementById('bm-saved-' + row.tab_key);
+                if (savedEl && row.updated_at) {
+                    const d = new Date(row.updated_at);
+                    savedEl.innerHTML = '<i class="fas fa-check-circle" style="color:#2ECC71"></i> آخر حفظ: ' +
+                        d.toLocaleDateString('ar-MA') + ' ' + d.toLocaleTimeString('ar-MA', { hour: '2-digit', minute: '2-digit' });
+                }
+            } catch (parseErr) {
+                console.warn('Parse error for tab', row.tab_key, parseErr);
+            }
+        }
+
+        // Auto-update risk from profile data
+        bmAutoRiskFromTabs();
+    } catch (err) {
+        console.error('Load profile tabs error:', err);
+    }
+}
+
+// ── Auto Risk from All Tabs ──
+// Reads profile data to auto-activate risk badges
+
+function bmAutoRiskFromTabs() {
+    // Read economic data
+    const ecoStatus = bmRadio('bm-eco');
+    if (ecoStatus === 'poor' || ecoStatus === 'vpoor') {
+        activateRiskBadge('economic_fragile');
+    }
+
+    // Read social data
+    const socialRisks = bmBadges('bm-social-risks');
+    if (socialRisks.includes('domestic_violence') || socialRisks.includes('neglect') || socialRisks.includes('harassment')) {
+        activateRiskBadge('family_issues');
+    }
+
+    // Read health/psych data
+    const psychSymptoms = bmBadges('bm-psych-symptoms');
+    if (psychSymptoms.length >= 2) {
+        activateRiskBadge('psych_symptoms');
+    }
+
+    const healthGen = bmRadio('bm-health-gen');
+    const learningDisorders = bmBadges('bm-learning-disorders');
+    if (healthGen === 'bad' || learningDisorders.length >= 2) {
+        activateRiskBadge('health_issues');
+    }
+
+    // Recalculate risk score
+    if (typeof bmUpdateRisk === 'function') bmUpdateRisk();
+}
+
+function activateRiskBadge(dataValue) {
+    const badge = document.querySelector(`#tab-risk .bm-badge[data-value="${dataValue}"]`);
+    if (badge && badge.classList.contains('bm-badge-off')) {
+        const onclickStr = badge.getAttribute('onclick') || '';
+        const colorMatch = onclickStr.match(/bmTog\(this,'(\w+)'/);
+        const color = colorMatch ? colorMatch[1] : 'amber';
+        badge.className = 'bm-badge bm-badge-' + color;
+        badge.setAttribute('aria-checked', 'true');
+    }
+}
+
+// ── Dirty Tracking ──
+
+function initDirtyTracking() {
+    const tabMapping = {
+        'tab-economic': 'economic',
+        'tab-social': 'social',
+        'tab-health': 'health',
+        'tab-followup': 'followup'
+    };
+
+    Object.entries(tabMapping).forEach(([tabId, tabKey]) => {
+        const tabEl = document.getElementById(tabId);
+        if (!tabEl) return;
+
+        tabEl.addEventListener('change', () => _dirtyTabs.add(tabKey));
+        tabEl.addEventListener('input', (e) => {
+            if (e.target.matches('input, textarea')) _dirtyTabs.add(tabKey);
+        });
+        // Badge clicks
+        tabEl.addEventListener('click', (e) => {
+            if (e.target.closest('.bm-badge')) _dirtyTabs.add(tabKey);
+        });
+    });
+}
+
+function initUnsavedWarning() {
+    const tabBtns = document.querySelectorAll('.sp-tab-btn');
+    const tabMapping = {
+        'tab-economic': 'economic',
+        'tab-social': 'social',
+        'tab-health': 'health',
+        'tab-followup': 'followup'
+    };
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Check if current active tab has unsaved changes
+            const activePanel = document.querySelector('.sp-tab-content.active');
+            if (activePanel) {
+                const currentTabKey = tabMapping[activePanel.id];
+                if (currentTabKey && _dirtyTabs.has(currentTabKey)) {
+                    if (typeof showToast === 'function') {
+                        showToast('⚠️ يوجد تغييرات غير محفوظة في التبويب السابق', 'warning');
+                    }
+                }
+            }
+        });
+    });
+}
+
+// ── Initialize Save Buttons ──
+
+function initSaveButtons() {
+    ALL_TAB_KEYS.forEach(tabKey => {
+        const btn = document.getElementById('bm-save-' + tabKey);
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-save"></i> حفظ جميع البيانات';
+            btn.addEventListener('click', () => saveAllTabs());
+        }
+    });
+}
+
+// ── Save bar CSS (injected) ──
+(function injectSaveBarStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .bm-save-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--color-border, rgba(0,0,0,0.08));
+        }
+        .bm-save-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .bm-save-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .bm-save-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .bm-last-saved {
+            font-size: 12px;
+            color: var(--color-text-muted, #888);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+    `;
+    document.head.appendChild(style);
+})();

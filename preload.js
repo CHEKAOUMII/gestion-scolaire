@@ -18,6 +18,12 @@ contextBridge.exposeInMainWorld('api', {
         updateStatusBulk: (items) => ipcRenderer.invoke('students:updateStatusBulk', items)
     },
 
+    // Student Profile Data (bataqa mutabaat)
+    studentProfile: {
+        getAllTabs: (studentCode, schoolYear) => ipcRenderer.invoke('studentProfile:getAllTabs', studentCode, schoolYear),
+        saveTab: (payload) => ipcRenderer.invoke('studentProfile:saveTab', payload)
+    },
+
     // Lookup catalogs
     classes: {
         getAll: (schoolYear) => ipcRenderer.invoke('classes:getAll', schoolYear)

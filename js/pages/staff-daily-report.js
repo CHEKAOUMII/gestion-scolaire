@@ -844,7 +844,7 @@
                 }
                 _editDeleteOnSave = null;
             }
-            await window.api.systemTags.saveNote({
+            const result = await window.api.systemTags.saveNote({
                 tag_date: tagDate,
                 tag_key: tagKey,
                 tag_label: tagLabel,
@@ -854,6 +854,9 @@
                 details: eventTime ? `time::${eventTime}|${activityTitle || ''}` : (activityTitle || ''),
                 note_group: _currentNoteGroup
             });
+            if (result && result.success === false) {
+                throw new Error(result.error || 'فشل في حفظ الوسم');
+            }
             showToast('تم حفظ الوسم بنجاح', 'success');
             cancelTagNote();
             loadReport();

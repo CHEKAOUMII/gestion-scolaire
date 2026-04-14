@@ -835,23 +835,15 @@ async function openSlPrintPreview() {
     `;
     printDiv.style.display = 'block';
 
-    const previewFn =
-        (typeof window.openPrintPreview === 'function' && window.openPrintPreview) ||
-        (typeof window.UXEnhancements?.openPrintPreview === 'function' && window.UXEnhancements.openPrintPreview);
+    PrintSystem.preview({
+        contentSelector: '#sl-sheet-content',
+        title: 'لائحة التلاميذ',
+        pageSize: 'A4',
+        noHeader: true,
+        defaultFileName: `لائحة_التلاميذ_${year.replace('/', '-')}`
+    });
 
-    if (previewFn) {
-        previewFn({
-            contentSelector: '#sl-sheet-content',
-            title: 'لائحة التلاميذ',
-            pageSize: 'A4',
-            noHeader: true,
-            defaultFileName: `لائحة_التلاميذ_${year.replace('/', '-')}`
-        });
-    } else {
-        PrintSystem.preview();
-    }
-
-    // Hide after openPrintPreview clones it
+    // Hide after PrintSystem.preview clones it
     setTimeout(() => {
         printDiv.style.display = 'none';
     }, 500);

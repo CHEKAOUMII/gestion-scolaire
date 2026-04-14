@@ -162,6 +162,7 @@ const CHANNEL_REGISTRY = {
         bulk: true
     },
     'students:updateStatusBulk': { tables: ['students'], operation: 'PUT', idExtractor: 'inputArray', bulk: true },
+    'studentProfile:saveTab': { tables: ['student_profile_data'], operation: 'UPSERT', idExtractor: 'compositeKey' },
     'settings:set': { tables: ['settings'], operation: 'PUT', idExtractor: 'argKey' },
     'settings:setSchoolYear': { tables: ['settings'], operation: 'PUT', idExtractor: 'literal' },
     'grades:save': { tables: ['grades'], operation: 'PUT', idExtractor: 'compositeKey' },

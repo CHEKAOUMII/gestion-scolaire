@@ -136,7 +136,7 @@
         color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
         border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
         transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    --transition-spring: 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, #3b6ac5 0%, #5b84d6 100%);
@@ -16812,7 +16812,6 @@ body {
     position: relative;
     overflow: hidden;
     box-shadow: var(--shadow-card);
-    animation: fadeInUp 0.4s ease-out both;
 }
 
 /* Subtle accent glow on the top edge */
@@ -16820,24 +16819,15 @@ body {
     content: '';
     position: absolute;
     top: 0;
-    left: 0;
-    right: 0;
+    inset-inline: 0;
     height: 3px;
     background: var(--gradient-primary);
     border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
-/* Soft decorative circle (very subtle) */
+/* Decorative circle suppressed */
 .sp-header-card::after {
-    content: '';
-    position: absolute;
-    bottom: -50px;
-    right: -50px;
-    width: 180px;
-    height: 180px;
-    background: var(--color-primary-mist);
-    border-radius: 50%;
-    pointer-events: none;
+    content: none;
 }
 
 .sp-avatar {
@@ -16850,7 +16840,7 @@ body {
     justify-content: center;
     font-size: 40px;
     font-weight: 800;
-    color: var(--color-primary);
+    color: #fff;
     background: var(--color-primary-mist);
     box-shadow: 0 4px 16px rgba(59, 106, 197, 0.15);
     flex-shrink: 0;
@@ -16901,9 +16891,9 @@ body {
 .sp-status-badge {
     position: absolute;
     top: 24px;
-    left: 24px;
+    inset-inline-start: 24px;
     background: var(--color-success-bg);
-    color: white;
+    color: var(--color-success-text);
     padding: 5px 14px;
     border-radius: 20px;
     font-weight: 700;
@@ -16918,17 +16908,23 @@ body {
 /* --- Grid Layout --- */
 .sp-grid {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: clamp(260px, 28%, 340px) 1fr;
     gap: 20px;
-    animation: fadeInUp 0.45s ease-out 0.05s both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .sp-header-card {
+        animation: fadeInUp 0.4s ease-out both;
+    }
+    .sp-grid {
+        animation: fadeInUp 0.45s ease-out 0.05s both;
+    }
 }
 
 /* --- Sidebar Column --- */
 
 .sp-card {
     background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
     padding: 22px;
@@ -16992,6 +16988,22 @@ body {
     border-radius: var(--radius-sm);
     text-align: center;
     border: 1px solid var(--color-accent);
+    border-top-width: 3px;
+}
+
+/* Stat 1: Average — primary blue */
+.sp-mini-stat:nth-child(1) {
+    border-top-color: var(--color-primary);
+}
+
+/* Stat 2: Subjects count — teal/success */
+.sp-mini-stat:nth-child(2) {
+    border-top-color: #1D9E75;
+}
+
+/* Stat 3: Absence hours — amber warning */
+.sp-mini-stat:nth-child(3) {
+    border-top-color: var(--color-warning-solid);
 }
 
 .sp-mini-stat h4 {
@@ -17004,9 +17016,12 @@ body {
 .sp-mini-stat .val {
     font-size: 18px;
     font-weight: 800;
-    color: var(--color-primary);
     font-family: var(--font-display);
 }
+
+.sp-mini-stat:nth-child(1) .val { color: var(--color-primary); }
+.sp-mini-stat:nth-child(2) .val { color: #1D9E75; }
+.sp-mini-stat:nth-child(3) .val { color: var(--color-warning-text); }
 
 /* --- Academic Timeline --- */
 .sp-timeline {
@@ -17017,13 +17032,14 @@ body {
 
 .sp-timeline li {
     position: relative;
-    padding: 0 20px 16px 0;
+    padding-block-end: 16px;
+    padding-inline-start: 20px;
 }
 
 .sp-timeline li::before {
     content: '';
     position: absolute;
-    right: 0;
+    inset-inline-start: 0;
     top: 6px;
     width: 10px;
     height: 10px;
@@ -17034,7 +17050,7 @@ body {
 .sp-timeline li::after {
     content: '';
     position: absolute;
-    right: 4px;
+    inset-inline-start: 4px;
     top: 18px;
     width: 2px;
     height: calc(100% - 12px);
@@ -17046,7 +17062,15 @@ body {
 }
 
 .sp-timeline li:not(:first-child)::before {
-    background: var(--color-text-muted);
+    background: var(--color-text-light);
+    width: 8px;
+    height: 8px;
+}
+
+/* Current year = active green dot */
+.sp-timeline li:first-child::before {
+    background: var(--color-success-solid);
+    box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.2);
 }
 
 .sp-timeline-year {
@@ -17068,6 +17092,12 @@ body {
     margin-bottom: 18px;
     border-bottom: 2px solid var(--color-accent);
     padding-bottom: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.sp-tabs-nav::-webkit-scrollbar {
+    display: none;
 }
 
 .sp-tab-btn {
@@ -17188,8 +17218,21 @@ body {
 .sp-chart-bar-fill {
     height: 100%;
     border-radius: 4px;
-    transition: width 0.6s ease;
+    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Grade color utility classes — used as class="" on bars/text */
+.grade-excellent { color: #4caf50; }
+.grade-good      { color: #8bc34a; }
+.grade-average   { color: #ff9800; }
+.grade-pass      { color: #ffc107; }
+.grade-poor      { color: #f44336; }
+
+.sp-chart-bar-fill.grade-excellent { background: #4caf50; }
+.sp-chart-bar-fill.grade-good      { background: #8bc34a; }
+.sp-chart-bar-fill.grade-average   { background: #ff9800; }
+.sp-chart-bar-fill.grade-pass      { background: #ffc107; }
+.sp-chart-bar-fill.grade-poor      { background: #f44336; }
 
 .sp-chart-val {
     width: 42px;
@@ -17553,6 +17596,328 @@ body {
         width: 80px;
         font-size: 11px;
     }
+}
+
+/* ============================================================================
+   Bataqa Mutabaat Components (bm- prefix)
+   Student profile follow-up card widgets — Economic, Social, Health,
+   Psychological, Follow-up, Risk tabs.
+   ============================================================================ */
+
+/* --- Section Titles --- */
+.bm-sec-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 0.5px solid var(--color-accent);
+    padding-bottom: 6px;
+}
+
+/* Section title text color matches its semantic dot */
+.bm-sec-title:has(.bm-dot-amber)  { color: #854F0B; }
+.bm-sec-title:has(.bm-dot-teal)   { color: #0F6E56; }
+.bm-sec-title:has(.bm-dot-purple) { color: #3C3489; }
+.bm-sec-title:has(.bm-dot-green)  { color: #4a7018; }
+.bm-sec-title:has(.bm-dot-blue)   { color: #185FA5; }
+.bm-sec-title:has(.bm-dot-red)    { color: #A32D2D; }
+
+[data-theme="dark"] .bm-sec-title:has(.bm-dot-amber)  { color: #f5c97a; }
+[data-theme="dark"] .bm-sec-title:has(.bm-dot-teal)   { color: #60d4a8; }
+[data-theme="dark"] .bm-sec-title:has(.bm-dot-purple) { color: #b0aaf0; }
+[data-theme="dark"] .bm-sec-title:has(.bm-dot-green)  { color: #9ed25a; }
+[data-theme="dark"] .bm-sec-title:has(.bm-dot-blue)   { color: #80b9f0; }
+[data-theme="dark"] .bm-sec-title:has(.bm-dot-red)    { color: #f0a0a0; }
+
+.bm-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.bm-dot-red    { background: #E24B4A; }
+.bm-dot-amber  { background: #EF9F27; }
+.bm-dot-blue   { background: #378ADD; }
+.bm-dot-purple { background: #7F77DD; }
+.bm-dot-teal   { background: #1D9E75; }
+.bm-dot-green  { background: #639922; }
+
+/* --- Grid Layouts --- */
+.bm-g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bm-g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.bm-mt8 { margin-top: 8px; }
+.bm-mb8 { margin-bottom: 8px; }
+
+/* --- Metric Cards --- */
+.bm-mc {
+    background: var(--color-surface-alt, var(--color-secondary));
+    border-radius: var(--radius-md);
+    padding: 0.6rem 0.8rem;
+    text-align: center;
+}
+
+.bm-mc-lbl {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-bottom: 4px;
+}
+
+.bm-mc-inp {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-text-main);
+    width: 100%;
+    text-align: center;
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed var(--color-accent);
+}
+
+.bm-mc-inp:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-bottom-color: var(--color-primary);
+}
+
+/* --- Radio Groups --- */
+.bm-rg { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.bm-ri {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.bm-ri input { cursor: pointer; }
+
+/* --- Toggle Badges --- */
+.bm-badge {
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    border: 0.5px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+}
+
+.bm-badge:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.bm-badge-off {
+    background: var(--color-surface-alt, var(--color-secondary));
+    color: var(--color-text-light);
+    border-color: var(--color-accent);
+}
+
+.bm-badge-red    { background: #FCEBEB; color: #A32D2D; border-color: #F09595; }
+.bm-badge-amber  { background: #FAEEDA; color: #854F0B; border-color: #FAC775; }
+.bm-badge-blue   { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; }
+.bm-badge-teal   { background: #E1F5EE; color: #0F6E56; border-color: #9FE1CB; }
+.bm-badge-purple { background: #EEEDFE; color: #3C3489; border-color: #AFA9EC; }
+.bm-badge-pink   { background: #FBEAF0; color: #72243E; border-color: #ED93B1; }
+
+[data-theme="dark"] .bm-badge-red    { background: rgba(226,75,74,0.15);   color: #f0a0a0; border-color: rgba(226,75,74,0.35); }
+[data-theme="dark"] .bm-badge-amber  { background: rgba(239,159,39,0.15);  color: #f5c97a; border-color: rgba(239,159,39,0.35); }
+[data-theme="dark"] .bm-badge-blue   { background: rgba(55,138,221,0.15);  color: #80b9f0; border-color: rgba(55,138,221,0.35); }
+[data-theme="dark"] .bm-badge-teal   { background: rgba(29,158,117,0.15);  color: #60d4a8; border-color: rgba(29,158,117,0.35); }
+[data-theme="dark"] .bm-badge-purple { background: rgba(127,119,221,0.15); color: #b0aaf0; border-color: rgba(127,119,221,0.35); }
+[data-theme="dark"] .bm-badge-pink   { background: rgba(237,147,177,0.15); color: #f0a8c4; border-color: rgba(237,147,177,0.35); }
+
+/* --- Textareas --- */
+.bm-ta {
+    width: 100%;
+    border: 0.5px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    padding: 8px;
+    font-size: 12px;
+    resize: vertical;
+    min-height: 60px;
+    background: var(--color-surface);
+    color: var(--color-text-main);
+    font-family: var(--font-main);
+    direction: rtl;
+}
+
+.bm-ta:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-color: var(--color-primary);
+}
+
+/* --- Text Inputs --- */
+.bm-inp {
+    border: 0.5px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    padding: 5px 8px;
+    font-size: 13px;
+    background: var(--color-surface);
+    color: var(--color-text-main);
+    width: 100%;
+}
+
+.bm-inp:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-color: var(--color-primary);
+}
+
+/* --- Field Row --- */
+.bm-field-row { display: flex; flex-direction: column; gap: 3px; }
+.bm-sub-lbl { font-size: 11px; color: var(--color-text-muted); margin-bottom: 4px; }
+
+/* --- Checkbox Groups --- */
+.bm-check-group { display: flex; flex-direction: column; gap: 6px; }
+
+.bm-check-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.bm-check-item input { cursor: pointer; }
+
+/* --- Scale Buttons (1-5 rating) --- */
+.bm-scale-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+
+.bm-scale-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    border: 0.5px solid var(--color-accent);
+    background: var(--color-surface-alt, var(--color-secondary));
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: all 0.15s;
+    text-align: center;
+    line-height: 44px;
+    user-select: none;
+    font-weight: 500;
+}
+
+.bm-scale-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+.bm-scale-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* Scale value 1 = danger-tinted, 3 = amber-tinted, 5 = teal-tinted */
+.bm-scale-btn:nth-child(1).bm-sel-scale { background: #FCEBEB; color: #A32D2D; border-color: #F09595; font-weight: 700; }
+.bm-scale-btn:nth-child(2).bm-sel-scale { background: #FAEEDA; color: #854F0B; border-color: #FAC775; font-weight: 700; }
+.bm-scale-btn:nth-child(3).bm-sel-scale { background: #FEF3C7; color: #92400E; border-color: #FCD34D; font-weight: 700; }
+.bm-scale-btn:nth-child(4).bm-sel-scale { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; font-weight: 700; }
+.bm-scale-btn:nth-child(5).bm-sel-scale { background: #E1F5EE; color: #0F6E56; border-color: #9FE1CB; font-weight: 700; }
+
+/* --- Risk Assessment --- */
+.bm-risk-wrap {
+    background: var(--color-surface-alt, var(--color-secondary));
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    margin-bottom: 8px;
+}
+
+.bm-risk-bar-bg {
+    flex: 1;
+    height: 10px;
+    background: var(--color-surface);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 0.5px solid var(--color-accent);
+}
+
+.bm-risk-bar-fill { height: 100%; border-radius: 5px; transition: width 0.4s; }
+
+.bm-progress-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.bm-progress-lbl { font-size: 12px; color: var(--color-text-muted); min-width: 120px; }
+
+.bm-progress-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--color-surface-alt, var(--color-secondary));
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.bm-progress-fill { height: 100%; border-radius: 3px; }
+
+/* --- Scrollable tabs nav (overrides for student-profile) --- */
+.sp-tabs-nav { overflow-x: auto; white-space: nowrap; display: flex; flex-wrap: nowrap; scrollbar-width: thin; }
+.sp-tabs-nav .sp-tab-btn { flex-shrink: 0; }
+
+/* --- Save Bar (bm) --- */
+.bm-save-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-accent);
+}
+
+.bm-save-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.bm-last-saved {
+    font-size: 11px;
+    color: var(--color-text-light);
+}
+
+/* --- Tab semantic top-borders (match each domain's color) --- */
+#tab-economic { border-top: 3px solid #EF9F27; border-radius: 0; padding-top: 14px; }
+#tab-social   { border-top: 3px solid #1D9E75; border-radius: 0; padding-top: 14px; }
+#tab-health   { border-top: 3px solid #639922; border-radius: 0; padding-top: 14px; }
+#tab-followup { border-top: 3px solid #378ADD; border-radius: 0; padding-top: 14px; }
+#tab-risk     { border-top: 3px solid #E24B4A; border-radius: 0; padding-top: 14px; }
+
+/* Timeline current-year label */
+.sp-timeline li:first-child .sp-timeline-year {
+    color: var(--color-success-solid);
+}
+
+/* --- Dark Mode: Bataqa Mutabaat --- */
+[data-theme='dark'] .bm-badge-red    { background: rgba(226, 75, 74, 0.18); color: #fca5a5; border-color: rgba(226, 75, 74, 0.4); }
+[data-theme='dark'] .bm-badge-amber  { background: rgba(239, 159, 39, 0.18); color: #fcd34d; border-color: rgba(239, 159, 39, 0.4); }
+[data-theme='dark'] .bm-badge-blue   { background: rgba(55, 138, 221, 0.18); color: #93c5fd; border-color: rgba(55, 138, 221, 0.4); }
+[data-theme='dark'] .bm-badge-teal   { background: rgba(29, 158, 117, 0.18); color: #6ee7b7; border-color: rgba(29, 158, 117, 0.4); }
+[data-theme='dark'] .bm-badge-purple { background: rgba(127, 119, 221, 0.18); color: #c4b5fd; border-color: rgba(127, 119, 221, 0.4); }
+[data-theme='dark'] .bm-badge-pink   { background: rgba(237, 147, 177, 0.18); color: #fda4af; border-color: rgba(237, 147, 177, 0.4); }
+[data-theme='dark'] .bm-scale-btn:nth-child(1).bm-sel-scale { background: rgba(226,75,74,0.18); color: #fca5a5; border-color: rgba(226,75,74,0.4); }
+[data-theme='dark'] .bm-scale-btn:nth-child(2).bm-sel-scale { background: rgba(239,159,39,0.18); color: #fcd34d; border-color: rgba(239,159,39,0.4); }
+[data-theme='dark'] .bm-scale-btn:nth-child(3).bm-sel-scale { background: rgba(239,159,39,0.14); color: #fde68a; border-color: rgba(252,211,77,0.38); }
+[data-theme='dark'] .bm-scale-btn:nth-child(4).bm-sel-scale { background: rgba(55,138,221,0.18); color: #93c5fd; border-color: rgba(55,138,221,0.4); }
+[data-theme='dark'] .bm-scale-btn:nth-child(5).bm-sel-scale { background: rgba(29,158,117,0.18); color: #6ee7b7; border-color: rgba(29,158,117,0.4); }
+
+/* --- Responsive: Bataqa Mutabaat --- */
+@media (max-width: 768px) {
+    .bm-g3 { grid-template-columns: 1fr 1fr; }
+    .bm-badge { padding: 8px 14px; font-size: 12px; }
+    .bm-scale-btn { width: 44px; height: 44px; line-height: 44px; font-size: 14px; }
+}
+
+@media (max-width: 600px) {
+    .bm-g2, .bm-g3 { grid-template-columns: 1fr; }
+}
+
+/* --- Print: Bataqa Mutabaat --- */
+@media print {
+    .bm-badge { border-width: 1px; }
+    .bm-badge-off { display: none; }
+    .bm-scale-btn { border-width: 1px; }
+    .bm-scale-btn:not(.bm-sel-scale) { display: none; }
+    .bm-ta { min-height: 30px; border-width: 1px; }
+    .bm-risk-bar-bg { border-width: 1px; }
 }
 
 @media print {

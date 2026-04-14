@@ -14,6 +14,8 @@
     <script src="js/sidebar.js" defer></script>
     <script src="js/cc-rules.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
+    <script src="js/print-system.js" defer></script>
+    <!-- bm- styles moved to css/tailwind-input.css -->
     </head>
 
 <body>
@@ -60,7 +62,7 @@
             <!-- Grid: Sidebar + Main Content -->
             <div class="sp-grid">
                 <!-- Left Column: Quick Info -->
-                <div class="sp-sidebar-col">
+                <div class="sp-sidebar-col" role="complementary" aria-label="معلومات التلميذ">
                     <!-- Personal Info Card -->
                     <div class="sp-card">
                         <h3 class="sp-card-title"><i class="fas fa-info-circle"></i> معلومات شخصية</h3>
@@ -105,28 +107,37 @@
                 </div>
 
                 <!-- Right Column: Interactive Tabs -->
-                <div class="sp-main-col">
+                <div class="sp-main-col" role="region" aria-label="تفاصيل ملف التلميذ">
                     <div class="sp-card">
-                        <div class="sp-tabs-nav">
-                            <button class="sp-tab-btn active" data-tab="tab-grades">
-                                <i class="fas fa-star"></i> النتائج الدراسية
+                        <div class="sp-tabs-nav" role="tablist" aria-label="أقسام ملف التلميذ">
+                            <button class="sp-tab-btn active" data-tab="tab-grades" role="tab" aria-selected="true" aria-controls="tab-grades" id="sp-tab-grades">
+                                <i class="fas fa-star" aria-hidden="true"></i> النتائج الدراسية
                             </button>
-                            <button class="sp-tab-btn" data-tab="tab-absence">
-                                <i class="fas fa-user-clock"></i> الغياب والمواظبة
+                            <button class="sp-tab-btn" data-tab="tab-absence" role="tab" aria-selected="false" aria-controls="tab-absence" id="sp-tab-absence">
+                                <i class="fas fa-user-clock" aria-hidden="true"></i> الغياب والمواظبة
                             </button>
-                            <button class="sp-tab-btn" data-tab="tab-documents">
-                                <i class="fas fa-file-alt"></i> الوثائق
+                            <button class="sp-tab-btn" data-tab="tab-economic" role="tab" aria-selected="false" aria-controls="tab-economic" id="sp-tab-economic">
+                                <i class="fas fa-hand-holding-usd" aria-hidden="true"></i> الجانب الاقتصادي
                             </button>
-                            <button class="sp-tab-btn" data-tab="tab-communication">
-                                <i class="fas fa-comments"></i> التواصل
+                            <button class="sp-tab-btn" data-tab="tab-social" role="tab" aria-selected="false" aria-controls="tab-social" id="sp-tab-social">
+                                <i class="fas fa-users" aria-hidden="true"></i> الجانب الاجتماعي
+                            </button>
+                            <button class="sp-tab-btn" data-tab="tab-health" role="tab" aria-selected="false" aria-controls="tab-health" id="sp-tab-health">
+                                <i class="fas fa-heartbeat" aria-hidden="true"></i> الجانب الصحي والنفسي
+                            </button>
+                            <button class="sp-tab-btn" data-tab="tab-followup" role="tab" aria-selected="false" aria-controls="tab-followup" id="sp-tab-followup">
+                                <i class="fas fa-tasks" aria-hidden="true"></i> المتابعة والتدخل
+                            </button>
+                            <button class="sp-tab-btn" data-tab="tab-risk" role="tab" aria-selected="false" aria-controls="tab-risk" id="sp-tab-risk">
+                                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i> مؤشر الخطر
                             </button>
                         </div>
 
                         <!-- Tab: Grades -->
-                        <div class="sp-tab-content active" id="tab-grades">
-                            <div id="sp-grades-content">
+                        <div class="sp-tab-content active" id="tab-grades" role="tabpanel" aria-labelledby="sp-tab-grades">
+                            <div id="sp-grades-content" aria-live="polite">
                                 <div style="text-align: center; padding: 40px;">
-                                    <i class="fas fa-spinner fa-spin"
+                                    <i class="fas fa-spinner fa-spin" aria-hidden="true"
                                         style="font-size: 28px; color: var(--color-primary);"></i>
                                     <p style="color: var(--color-text-muted); margin-top: 12px;">جاري تحميل النقط...</p>
                                 </div>
@@ -134,10 +145,10 @@
                         </div>
 
                         <!-- Tab: Absence -->
-                        <div class="sp-tab-content" id="tab-absence">
-                            <div id="sp-absence-content">
+                        <div class="sp-tab-content" id="tab-absence" role="tabpanel" aria-labelledby="sp-tab-absence">
+                            <div id="sp-absence-content" aria-live="polite">
                                 <div style="text-align: center; padding: 40px;">
-                                    <i class="fas fa-spinner fa-spin"
+                                    <i class="fas fa-spinner fa-spin" aria-hidden="true"
                                         style="font-size: 28px; color: var(--color-primary);"></i>
                                     <p style="color: var(--color-text-muted); margin-top: 12px;">جاري تحميل بيانات
                                         الغياب...</p>
@@ -145,23 +156,377 @@
                             </div>
                         </div>
 
-                        <!-- Tab: Documents (Placeholder) -->
-                        <div class="sp-tab-content" id="tab-documents">
-                            <div class="sp-coming-soon">
-                                <i class="fas fa-folder-open"></i>
-                                <h4>الوثائق والتقارير</h4>
-                                <p>سيتم إضافة هذه الميزة قريباً — إدارة الوثائق المدرسية</p>
+                        <!-- Tab: Economic -->
+                        <div class="sp-tab-content" id="tab-economic" role="tabpanel" aria-labelledby="sp-tab-economic">
+                            <div class="bm-sec-title"><span class="bm-dot bm-dot-amber"></span> الوضع الاقتصادي للأسرة</div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">الوضع الاقتصادي العام</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-eco" value="good"> ميسور</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-eco" value="avg"> متوسط</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-eco" value="poor"> هش</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-eco" value="vpoor"> فقر مدقع</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">مصدر الدخل الأساسي</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-income" value="stable"> موظف / دائم</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-income" value="unstable"> غير منتظم</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-income" value="none"> بدون دخل</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bm-g3 bm-mb8">
+                                <div class="bm-mc"><div class="bm-mc-lbl">عدد أفراد الأسرة</div><input class="bm-mc-inp" id="bm-family-size" type="number" placeholder="0"></div>
+                                <div class="bm-mc"><div class="bm-mc-lbl">عدد الأبناء في التمدرس</div><input class="bm-mc-inp" id="bm-schooling-children" type="number" placeholder="0"></div>
+                                <div class="bm-mc"><div class="bm-mc-lbl">مسافة المنزل (كم)</div><input class="bm-mc-inp" id="bm-distance-km" type="number" placeholder="0"></div>
+                            </div>
+                            <div class="bm-mb8">
+                                <div class="bm-sub-lbl">وسيلة التنقل إلى المؤسسة</div>
+                                <div class="bm-rg">
+                                    <label class="bm-ri"><input type="radio" name="bm-transport" value="walk"> مشياً</label>
+                                    <label class="bm-ri"><input type="radio" name="bm-transport" value="bus"> حافلة عامة</label>
+                                    <label class="bm-ri"><input type="radio" name="bm-transport" value="private"> سيارة خاصة</label>
+                                    <label class="bm-ri"><input type="radio" name="bm-transport" value="bike"> دراجة</label>
+                                    <label class="bm-ri"><input type="radio" name="bm-transport" value="other"> أخرى</label>
+                                </div>
+                            </div>
+                            <div class="bm-sec-title bm-mt8"><span class="bm-dot bm-dot-amber"></span> المساعدات والدعم الاجتماعي</div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">يستفيد من برامج الدعم</div>
+                                    <div class="bm-check-group" id="bm-support-programs">
+                                        <label class="bm-check-item"><input type="checkbox" value="tayssir"> تيسير (مكيف / مساعدة مالية)</label>
+                                        <label class="bm-check-item"><input type="checkbox" value="boarding"> داخلية / إيواء</label>
+                                        <label class="bm-check-item"><input type="checkbox" value="meal"> وجبة مدرسية</label>
+                                        <label class="bm-check-item"><input type="checkbox" value="transport"> نقل مدرسي</label>
+                                        <label class="bm-check-item"><input type="checkbox" value="scholarship"> منحة دراسية</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">الاحتياجات غير المُغطاة</div>
+                                    <div class="bm-check-group" id="bm-unmet-needs">
+                                        <label class="bm-check-item"><input type="checkbox" name="bm-unmet" value="supplies"> أدوات مدرسية</label>
+                                        <label class="bm-check-item"><input type="checkbox" name="bm-unmet" value="clothing"> ملابس / تجهيزات</label>
+                                        <label class="bm-check-item"><input type="checkbox" name="bm-unmet" value="allowance"> مصروف يومي</label>
+                                        <label class="bm-check-item"><input type="checkbox" name="bm-unmet" value="books"> كتب مدرسية</label>
+                                        <label class="bm-check-item"><input type="checkbox" name="bm-unmet" value="internet"> إنترنت / حاسوب</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <label class="bm-sub-lbl" for="bm-eco-notes">ملاحظات اقتصادية</label>
+                            <textarea class="bm-ta" id="bm-eco-notes" name="bm-eco-notes" placeholder="تفاصيل الوضع المادي للأسرة..."></textarea>
+                            <div class="bm-save-bar">
+                                <button type="button" class="btn btn-primary bm-save-btn" id="bm-save-economic"><i class="fas fa-save"></i> حفظ جميع البيانات</button>
+                                <span class="bm-last-saved" id="bm-saved-economic"></span>
                             </div>
                         </div>
 
-                        <!-- Tab: Communication (Placeholder) -->
-                        <div class="sp-tab-content" id="tab-communication">
-                            <div class="sp-coming-soon">
-                                <i class="fas fa-envelope-open-text"></i>
-                                <h4>مركز التواصل</h4>
-                                <p>سيتم إضافة هذه الميزة قريباً — التواصل مع أولياء الأمور</p>
+                        <!-- Tab: Social -->
+                        <div class="sp-tab-content" id="tab-social" role="tabpanel" aria-labelledby="sp-tab-social">
+                            <div class="bm-sec-title"><span class="bm-dot bm-dot-teal"></span> البيئة الأسرية</div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">الوضع الأسري</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-family" value="complete"> أسرة مكتملة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-family" value="divorced"> مطلقون</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-family" value="widow"> أرملة / أرمل</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-family" value="absent"> أحد الوالدين غائب</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">المستوى التعليمي للوالدين</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-parents-edu" value="high"> عالٍ</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-parents-edu" value="mid"> متوسط</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-parents-edu" value="low"> ابتدائي</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-parents-edu" value="none"> بدون تعليم</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">مساحة السكن</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-housing" value="good"> ملائمة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-housing" value="crowded"> مكتظة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-housing" value="bad"> غير لائقة</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">توفر مكان للمراجعة بالمنزل</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-study-place" value="yes"> نعم</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-study-place" value="no"> لا</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-study-place" value="partial"> أحياناً</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bm-sec-title bm-mt8"><span class="bm-dot bm-dot-teal"></span> العلاقات الاجتماعية</div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">العلاقة مع الأساتذة</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-teachers-rel" value="good"> جيدة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-teachers-rel" value="neutral"> عادية</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-teachers-rel" value="bad"> متوترة</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">العلاقة مع الزملاء</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-peers-rel" value="good"> جيدة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-peers-rel" value="neutral"> عادية</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-peers-rel" value="bad"> متوترة</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bm-mb8">
+                                <div class="bm-sub-lbl">مخاطر اجتماعية مرصودة</div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap" id="bm-social-risks">
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="vagrancy" onclick="bmTog(this,'red')">تشرد / تسكع</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bad_company" onclick="bmTog(this,'red')">رفقاء سوء</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="child_labor" onclick="bmTog(this,'amber')">عمل خارجي للتلميذ</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="domestic_violence" onclick="bmTog(this,'amber')">عنف داخل الأسرة</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="neglect" onclick="bmTog(this,'amber')">إهمال أسري</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="harassment" onclick="bmTog(this,'purple')">تحرش / تنمر</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bereavement" onclick="bmTog(this,'purple')">وفاة في الأسرة</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="recent_move" onclick="bmTog(this,'blue')">انتقال حديث</button>
+                                </div>
+                            </div>
+                            <label class="bm-sub-lbl" for="bm-social-notes">ملاحظات اجتماعية</label>
+                            <textarea class="bm-ta" id="bm-social-notes" placeholder="تفاصيل الوضع الاجتماعي والأسري..."></textarea>
+                            <div class="bm-save-bar">
+                                <button type="button" class="btn btn-primary bm-save-btn" id="bm-save-social"><i class="fas fa-save"></i> حفظ جميع البيانات</button>
+                                <span class="bm-last-saved" id="bm-saved-social"></span>
                             </div>
                         </div>
+
+                        <!-- Tab: Health -->
+                        <div class="sp-tab-content" id="tab-health" role="tabpanel" aria-labelledby="sp-tab-health">
+                            <div class="bm-sec-title"><span class="bm-dot bm-dot-green"></span> الحالة الصحية العامة</div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">الحالة الصحية العامة</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-health-gen" value="good"> جيدة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-health-gen" value="avg"> متوسطة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-health-gen" value="bad"> ضعيفة</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">الإعاقات أو الأمراض المزمنة</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-disability" value="none"> لا يوجد</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-disability" value="yes"> نعم</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bm-mb8">
+                                <div class="bm-sub-lbl">اضطرابات التعلم المشخصة</div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap" id="bm-learning-disorders">
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="dyslexia" onclick="bmTog(this,'amber')">عسر القراءة (Dyslexie)</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="dysgraphia" onclick="bmTog(this,'amber')">عسر الكتابة</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="adhd" onclick="bmTog(this,'amber')">TDAH (فرط النشاط)</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_vision" onclick="bmTog(this,'amber')">ضعف البصر</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_hearing" onclick="bmTog(this,'amber')">ضعف السمع</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="speech" onclick="bmTog(this,'amber')">اضطراب الكلام</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="motor" onclick="bmTog(this,'amber')">إعاقة حركية</button>
+                                </div>
+                            </div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">النوم والراحة</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-sleep" value="good"> كافٍ</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-sleep" value="avg"> متقطع</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-sleep" value="bad"> غير كافٍ</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">التغذية</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-nutrition" value="good"> جيدة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-nutrition" value="avg"> متوسطة</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-nutrition" value="bad"> غير كافية</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bm-mb8">
+                                <div class="bm-sub-lbl">استهلاك مواد ضارة (حسب الملاحظة أو التقرير)</div>
+                                <div style="display:flex;gap:6px;flex-wrap:wrap" id="bm-substances">
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="smoking" onclick="bmTog(this,'red')">تدخين</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="drugs" onclick="bmTog(this,'red')">مخدرات</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="alcohol" onclick="bmTog(this,'red')">كحول</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="digital_addiction" onclick="bmTog(this,'red')">إدمان رقمي مفرط</button>
+                                </div>
+                            </div>
+                            <div class="bm-g2 bm-mb8">
+                                <div class="bm-field-row"><label class="bm-sub-lbl" for="bm-chronic">مرض مزمن أو حالة طبية</label><input class="bm-inp" id="bm-chronic" type="text" placeholder="التفاصيل إن وجد..."></div>
+                                <div class="bm-field-row"><span class="bm-sub-lbl">هل يتابع علاجاً منتظماً؟</span>
+                                    <div class="bm-rg bm-mt8">
+                                        <label class="bm-ri"><input type="radio" name="bm-treatment" value="yes"> نعم</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-treatment" value="no"> لا</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <label class="bm-sub-lbl" for="bm-health-notes">ملاحظات صحية</label>
+                            <textarea class="bm-ta" id="bm-health-notes" placeholder="معلومات صحية إضافية..."></textarea>
+
+                            <div class="bm-sec-title bm-mt8"><span class="bm-dot bm-dot-purple"></span> الحالة النفسية والعاطفية</div>
+                            <div class="bm-mb8">
+                                <div class="bm-sub-lbl">الحالة المزاجية العامة (1 = سيء جداً، 5 = ممتاز)</div>
+                                <div class="bm-scale-row" id="bm-mood-scale" role="radiogroup" aria-label="الحالة المزاجية العامة">
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('mood',1,this)">1</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('mood',2,this)">2</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('mood',3,this)">3</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('mood',4,this)">4</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('mood',5,this)">5</button>
+                                    <span id="bm-mood-lbl" style="font-size:12px;color:var(--color-text-muted);margin-inline-end:8px"></span>
+                                </div>
+                            </div>
+                            <div class="bm-mb8">
+                                <div class="bm-sub-lbl">الدافعية نحو الدراسة (1 = معدومة، 5 = عالية)</div>
+                                <div class="bm-scale-row" id="bm-motiv-scale" role="radiogroup" aria-label="الدافعية نحو الدراسة">
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('motiv',1,this)">1</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('motiv',2,this)">2</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('motiv',3,this)">3</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('motiv',4,this)">4</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('motiv',5,this)">5</button>
+                                    <span id="bm-motiv-lbl" style="font-size:12px;color:var(--color-text-muted);margin-inline-end:8px"></span>
+                                </div>
+                            </div>
+                            <div class="bm-mb8">
+                                <div class="bm-sub-lbl">مستوى الثقة بالنفس (1 = منخفض جداً، 5 = عالٍ)</div>
+                                <div class="bm-scale-row" id="bm-conf-scale" role="radiogroup" aria-label="مستوى الثقة بالنفس">
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('conf',1,this)">1</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('conf',2,this)">2</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('conf',3,this)">3</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('conf',4,this)">4</button>
+                                    <button type="button" class="bm-scale-btn" role="radio" aria-checked="false" onclick="bmSelectScale('conf',5,this)">5</button>
+                                    <span id="bm-conf-lbl" style="font-size:12px;color:var(--color-text-muted);margin-inline-end:8px"></span>
+                                </div>
+                            </div>
+                            <div class="bm-sec-title bm-mt8"><span class="bm-dot bm-dot-purple"></span> الأعراض النفسية الملاحظة</div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="bm-psych-symptoms">
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="anxiety" onclick="bmTog(this,'purple')">قلق واضح</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="depression" onclick="bmTog(this,'purple')">اكتئاب / حزن دائم</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="aggression" onclick="bmTog(this,'purple')">عدوانية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="withdrawal" onclick="bmTog(this,'purple')">انسحاب اجتماعي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="crying" onclick="bmTog(this,'purple')">بكاء متكرر</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="negative_thoughts" onclick="bmTog(this,'purple')">أفكار سلبية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="self_harm" onclick="bmTog(this,'red')">إيذاء الذات</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="anger" onclick="bmTog(this,'purple')">نوبات غضب</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="concentration" onclick="bmTog(this,'amber')">صعوبات تركيز</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="distraction" onclick="bmTog(this,'amber')">شرود ذهني</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="exam_stress" onclick="bmTog(this,'amber')">ضغط الامتحانات</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="lost_future" onclick="bmTog(this,'blue')">توهان في المستقبل</button>
+                            </div>
+                            <div class="bm-g2 bm-mb8">
+                                <div>
+                                    <div class="bm-sub-lbl">هل سبق أن تلقى دعماً نفسياً؟</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-psych-supp" value="yes"> نعم</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-psych-supp" value="no"> لا</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="bm-sub-lbl">هل يحتاج إحالة لأخصائي؟</div>
+                                    <div class="bm-rg">
+                                        <label class="bm-ri"><input type="radio" name="bm-psych-ref" value="yes"> نعم</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-psych-ref" value="no"> لا</label>
+                                        <label class="bm-ri"><input type="radio" name="bm-psych-ref" value="maybe"> ربما</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <label class="bm-sub-lbl" for="bm-psych-notes">ملاحظات نفسية</label>
+                            <textarea class="bm-ta" id="bm-psych-notes" placeholder="وصف الحالة النفسية، الصدمات، الأحداث المؤثرة..."></textarea>
+                            <div class="bm-save-bar">
+                                <button type="button" class="btn btn-primary bm-save-btn" id="bm-save-health"><i class="fas fa-save"></i> حفظ جميع البيانات</button>
+                                <span class="bm-last-saved" id="bm-saved-health"></span>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Follow-up -->
+                        <div class="sp-tab-content" id="tab-followup" role="tabpanel" aria-labelledby="sp-tab-followup">
+                            <div class="bm-sec-title"><span class="bm-dot bm-dot-blue"></span> التواصل مع الأسرة</div>
+                            <div class="bm-g2 bm-mb8">
+                                <div class="bm-field-row"><label class="bm-sub-lbl" for="bm-guardian-name">اسم ولي الأمر</label><input class="bm-inp" id="bm-guardian-name" type="text" placeholder="الاسم..."></div>
+                                <div class="bm-field-row"><label class="bm-sub-lbl" for="bm-guardian-phone">رقم الهاتف</label><input class="bm-inp" id="bm-guardian-phone" type="tel" placeholder="06XXXXXXXX"></div>
+                            </div>
+                            <div class="bm-g3 bm-mb8">
+                                <div class="bm-mc"><div class="bm-mc-lbl">عدد الاتصالات</div><input class="bm-mc-inp" id="bm-calls-count" type="number" placeholder="0"></div>
+                                <div class="bm-mc"><div class="bm-mc-lbl">عدد الاجتماعات</div><input class="bm-mc-inp" id="bm-meetings-count" type="number" placeholder="0"></div>
+                                <div class="bm-mc"><div class="bm-mc-lbl">آخر تواصل</div><input class="bm-mc-inp" id="bm-last-contact" type="date" style="font-size:11px"></div>
+                            </div>
+                            <div class="bm-sec-title bm-mt8"><span class="bm-dot bm-dot-blue"></span> الإجراءات المتخذة</div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="bm-actions-taken">
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="student_interview" onclick="bmTog(this,'blue')">مقابلة التلميذ</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="family_notice" onclick="bmTog(this,'blue')">إخبار الأسرة</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="counselor_ref" onclick="bmTog(this,'blue')">إحالة للمرشد التربوي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="academic_support" onclick="bmTog(this,'blue')">دعم دراسي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="class_council" onclick="bmTog(this,'blue')">اجتماع مجلس القسم</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="social_worker" onclick="bmTog(this,'teal')">إحالة للمساعد الاجتماعي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="economic_aid" onclick="bmTog(this,'teal')">طلب دعم اقتصادي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="psych_ref" onclick="bmTog(this,'purple')">إحالة لأخصائي نفسي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="formal_warning" onclick="bmTog(this,'red')">إنذار رسمي</button>
+                            </div>
+                            <div class="bm-mb8">
+                                <label class="bm-sub-lbl" for="bm-interview-notes">ملاحظات المقابلة</label>
+                                <textarea class="bm-ta" id="bm-interview-notes" placeholder="ما قاله التلميذ، ملاحظات السلوك..."></textarea>
+                            </div>
+                            <div class="bm-mb8">
+                                <label class="bm-sub-lbl" for="bm-plan-notes">خطة المتابعة والتوصيات</label>
+                                <textarea class="bm-ta" id="bm-plan-notes" placeholder="الخطوات القادمة، التدخلات المقررة..."></textarea>
+                            </div>
+                            <div>
+                                <label class="bm-sub-lbl" for="bm-next-date">موعد المتابعة القادمة</label>
+                                <input class="bm-inp" id="bm-next-date" type="date" style="max-width:200px">
+                            </div>
+                            <div class="bm-save-bar">
+                                <button type="button" class="btn btn-primary bm-save-btn" id="bm-save-followup"><i class="fas fa-save"></i> حفظ جميع البيانات</button>
+                                <span class="bm-last-saved" id="bm-saved-followup"></span>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Risk -->
+                        <div class="sp-tab-content" id="tab-risk" role="tabpanel" aria-labelledby="sp-tab-risk">
+                            <div class="bm-sec-title"><span class="bm-dot bm-dot-red"></span> مؤشر خطر الانقطاع الشامل</div>
+                            <div class="bm-risk-wrap">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                                    <span style="font-size:13px;color:var(--color-text-muted)">المستوى الإجمالي</span>
+                                    <span id="bm-risk-main-lbl" style="font-size:14px;font-weight:500">—</span>
+                                </div>
+                                <div class="bm-risk-bar-bg"><div id="bm-risk-bar" class="bm-risk-bar-fill" style="width:0%;background:var(--color-accent)"></div></div>
+                                <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--color-text-light)">
+                                    <span>0 — منخفض</span><span>40 — متوسط</span><span>70 — مرتفع</span><span>100 — حرج</span>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:12px">
+                                <div class="bm-progress-row"><span class="bm-progress-lbl">الغيابات</span><div class="bm-progress-bg"><div id="bm-pb-abs" class="bm-progress-fill" style="width:0%;background:var(--color-danger-solid)"></div></div><span id="bm-pt-abs" style="font-size:11px;min-width:30px;color:var(--color-text-muted)">0</span></div>
+                                <div class="bm-progress-row"><span class="bm-progress-lbl">النتائج الدراسية</span><div class="bm-progress-bg"><div id="bm-pb-gr" class="bm-progress-fill" style="width:0%;background:var(--color-warning-solid)"></div></div><span id="bm-pt-gr" style="font-size:11px;min-width:30px;color:var(--color-text-muted)">0</span></div>
+                            </div>
+                            <div class="bm-sub-lbl" style="margin-bottom:6px">علامات الخطر النشطة</div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="excessive_absence" onclick="bmTog(this,'red');bmUpdateRisk()">غياب مفرط</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_grades" onclick="bmTog(this,'red');bmUpdateRisk()">نقط ضعيفة جداً</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="economic_fragile" onclick="bmTog(this,'amber');bmUpdateRisk()">وضع اقتصادي هش</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="family_issues" onclick="bmTog(this,'amber');bmUpdateRisk()">مشاكل أسرية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="psych_symptoms" onclick="bmTog(this,'purple');bmUpdateRisk()">أعراض نفسية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="health_issues" onclick="bmTog(this,'teal');bmUpdateRisk()">مشاكل صحية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="declining" onclick="bmTog(this,'red');bmUpdateRisk()">تراجع مستمر</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bullying" onclick="bmTog(this,'pink');bmUpdateRisk()">تنمر أو عنف</button>
+                            </div>
+                            <div class="bm-sub-lbl" style="margin-bottom:6px">التوصية الفورية</div>
+                            <div id="bm-recommendation" style="background:var(--color-surface-alt, var(--color-secondary));border-radius:var(--radius-md);padding:0.75rem;font-size:13px;color:var(--color-text-muted);border-inline-end:3px solid var(--color-accent)">
+                                تُحسب التوصية تلقائياً من بيانات الغياب والنقط في التبويبات الأخرى.
+                            </div>
+                        </div>
+
+
                     </div>
                 </div>
             </div>
@@ -170,6 +535,89 @@
 
     <script src="js/data/ma-education-labels.js"></script>
     <script src="js/pages/student-profile.js" defer></script>
+    <script>
+        /* ── Bataqa Mutabaat JS (prefixed bm) ── */
+        function bmTog(el, type) {
+            var isOff = el.classList.contains('bm-badge-off');
+            if (isOff) {
+                el.className = 'bm-badge bm-badge-' + type;
+                el.setAttribute('aria-checked', 'true');
+            } else {
+                el.className = 'bm-badge bm-badge-off';
+                el.setAttribute('aria-checked', 'false');
+            }
+        }
+
+        const bmScaleVals = {};
+        function bmSelectScale(name, val, btn) {
+            bmScaleVals[name] = val;
+            btn.parentElement.querySelectorAll('.bm-scale-btn').forEach(function(b) {
+                b.classList.remove('bm-sel-scale');
+                b.setAttribute('aria-checked', 'false');
+            });
+            btn.classList.add('bm-sel-scale');
+            btn.setAttribute('aria-checked', 'true');
+            const lbls = { 1: 'سيء جداً', 2: 'ضعيف', 3: 'متوسط', 4: 'جيد', 5: 'ممتاز' };
+            const lbl = document.getElementById('bm-' + name + '-lbl');
+            if (lbl) lbl.textContent = '← ' + lbls[val];
+            bmUpdateRisk();
+        }
+
+        function bmUpdateRisk() {
+            /* Read absence/grade totals from the existing sp-stat elements populated by student-profile.js */
+            const totAbsEl = document.getElementById('sp-stat-absence');
+            const avgEl = document.getElementById('sp-stat-avg');
+            const totAbs = parseFloat(totAbsEl ? totAbsEl.textContent : 0) || 0;
+            const avg = parseFloat(avgEl ? avgEl.textContent : 0) || 0;
+
+            let absScore = 0, grScore = 0;
+            if (totAbs > 40) absScore = 35; else if (totAbs > 20) absScore = 25; else if (totAbs > 10) absScore = 15; else if (totAbs > 5) absScore = 8;
+            if (avg > 0 && avg < 8) grScore = 35; else if (avg >= 8 && avg < 10) grScore = 22; else if (avg >= 10 && avg < 12) grScore = 10;
+
+            /* Add points for active danger badges */
+            document.querySelectorAll('#tab-risk .bm-badge:not(.bm-badge-off)').forEach(() => { grScore = Math.min(grScore + 5, 50); });
+
+            const total = Math.min(absScore + grScore, 100);
+            const bar = document.getElementById('bm-risk-bar');
+            const lbl = document.getElementById('bm-risk-main-lbl');
+            const rec = document.getElementById('bm-recommendation');
+            const pbAbs = document.getElementById('bm-pb-abs');
+            const pbGr = document.getElementById('bm-pb-gr');
+            const ptAbs = document.getElementById('bm-pt-abs');
+            const ptGr = document.getElementById('bm-pt-gr');
+
+            if (!bar) return;
+            bar.style.width = total + '%';
+            if (pbAbs) pbAbs.style.width = Math.min(absScore * 2, 100) + '%';
+            if (pbGr) pbGr.style.width = Math.min(grScore * 2, 100) + '%';
+            if (ptAbs) ptAbs.textContent = absScore;
+            if (ptGr) ptGr.textContent = grScore;
+
+            if (total >= 70) {
+                bar.style.background = 'var(--color-danger-solid)'; lbl.style.color = 'var(--color-danger-text)';
+                lbl.textContent = 'خطر حرج — ' + total + '%';
+                rec.style.borderInlineEndColor = 'var(--color-danger-solid)';
+                rec.textContent = 'تدخل فوري مطلوب: اجتماع عاجل مع الأسرة، إحالة للمرشد التربوي والأخصائي النفسي، وضع خطة فردية للدعم.';
+            } else if (total >= 40) {
+                bar.style.background = 'var(--color-warning-solid)'; lbl.style.color = 'var(--color-warning-text)';
+                lbl.textContent = 'خطر متوسط — ' + total + '%';
+                rec.style.borderInlineEndColor = 'var(--color-warning-solid)';
+                rec.textContent = 'متابعة أسبوعية، التواصل مع الأسرة، تفعيل دعم تربوي داخل المؤسسة، رصد التطورات.';
+            } else if (total > 0) {
+                bar.style.background = 'var(--color-success-solid)'; lbl.style.color = 'var(--color-success-text)';
+                lbl.textContent = 'خطر منخفض — ' + total + '%';
+                rec.style.borderInlineEndColor = 'var(--color-success-solid)';
+                rec.textContent = 'الوضع تحت السيطرة. متابعة دورية شهرية مع تعزيز الإيجابيات.';
+            } else {
+                bar.style.background = 'var(--color-accent)'; lbl.textContent = '—';
+                rec.style.borderInlineEndColor = 'var(--color-accent)';
+                rec.textContent = 'تُحسب التوصية تلقائياً من بيانات الغياب والنقط في التبويبات الأخرى.';
+            }
+        }
+
+        /* Recompute risk whenever the grades/absence tabs update their stats */
+        document.addEventListener('sp-stats-updated', bmUpdateRisk);
+    </script>
 </body>
 
 </html>

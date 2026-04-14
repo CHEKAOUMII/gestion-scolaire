@@ -769,6 +769,50 @@ function registerStudentsIpc(ipcMain) {
             .sort((a, b) => a.localeCompare(b, 'ar'))
             .map((name) => ({ name }));
     });
+
+    // ── Student profile data (read = open, write = admin/staff) ──
+
+    handleRead(ipcMain, 'studentProfile:getAllTabs', (db, studentCode, schoolYear) => {
+        const code = String(studentCode || '').trim();
+        const year = normalizeYear(schoolYear);
+        if (!code) return [];
+        return db
+            .prepare('SELECT * FROM student_profile_data WHERE student_code = ? AND school_year = ?')
+            .all(code, year);
+    });
+
+    handleWriteSoftAuth(ipcMain, 'studentProfile:saveTab', ['admin', 'staff'], (db, payload) => {
+        requireFields(payload, ['student_code', 'tab_key', 'school_year']);
+        requireSchoolYear(payload.school_year);
+
+        const validTabs = ['economic', 'social', 'health', 'followup'];
+        const tabKey = String(payload.tab_key || '').trim();
+        if (!validTabs.includes(tabKey)) {
+            return { success: false, error: 'Invalid tab_key' };
+        }
+
+        const studentCode = String(payload.student_code).trim();
+        const dataJson = typeof payload.data_json === 'string'
+            ? payload.data_json
+            : JSON.stringify(payload.data_json || {});
+
+        db.prepare(`
+            INSERT INTO student_profile_data (student_id, student_code, tab_key, data_json, school_year, updated_at, updated_by)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(student_code, tab_key, school_year) DO UPDATE SET
+                data_json = excluded.data_json,
+                updated_at = CURRENT_TIMESTAMP,
+                updated_by = excluded.updated_by
+        `).run(
+            Number(payload.student_id) || 0,
+            studentCode,
+            tabKey,
+            dataJson,
+            payload.school_year,
+            payload.updated_by || null
+        );
+        return { success: true };
+    });
 }
 
 module.exports = { registerStudentsIpc };
