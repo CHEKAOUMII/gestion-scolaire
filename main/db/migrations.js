@@ -940,7 +940,15 @@ const MIGRATIONS = [
                      ON system_tags(note_group, entity_type, COALESCE(entity_id, -1), entity_name)
                      WHERE note_group IS NOT NULL`);
         }
-    }
+    },
+    {
+        version: '2026-04-050-role-hierarchy',
+        up(db) {
+            // Rename legacy 'staff' rows to 'principal' as safest default upgrade.
+            // Admins should reassign roles via settings-users.html after deployment.
+            db.prepare("UPDATE users SET role = 'principal' WHERE role = 'staff'").run();
+        },
+    },
 ];
 
 function ensureMigrationsTable() {
