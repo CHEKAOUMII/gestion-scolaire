@@ -28,8 +28,9 @@ const ROLE_LABELS = {
     'viewer':               'مشاهد فقط',
 };
 
-// Alias: 'director' stored in legacy rows resolves to 'principal'.
-const ROLE_ALIASES = { director: 'principal' };
+// Aliases: legacy role slugs stored in DB rows resolve to current slugs.
+// 'staff' → 'principal': safety net before migration 050 runs (prevents lockout).
+const ROLE_ALIASES = { director: 'principal', staff: 'principal' };
 
 const PAGE_PERMISSIONS = {
     'index':                         [...ALL_STAFF],
@@ -69,10 +70,10 @@ const PAGE_PERMISSIONS = {
     'reports-semester':              ['principal','supervisor','external-guardian','admin-assistant','educational-specialist'],
     'settings-school':               ['principal','external-guardian'],
     'settings-imports':              ['principal','supervisor','external-guardian'],
-    'settings-users':                [], // admin + developer only — handled by canAccessPage bypass
-    'settings-license':              [],
-    'settings-logs':                 [],
-    'settings-sync':                 [],
+    'settings-users':                [], // admin + developer — both bypass via canAccessPage(); no staff role may access
+    'settings-license':              [], // developer only — bypass; admin excluded by design
+    'settings-logs':                 [], // developer only — bypass; admin excluded by design
+    'settings-sync':                 [], // developer only — bypass; admin excluded by design
 };
 
 // Scoped restrictions applied on top of page access (enforced individually in each IPC handler).
