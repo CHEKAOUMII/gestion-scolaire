@@ -942,7 +942,7 @@ const MIGRATIONS = [
         }
     },
     {
-        version: '2026-04-050-role-hierarchy',
+        version: '2026-04-15-role-hierarchy',
         up(db) {
             // Rename legacy 'staff' rows to 'principal' as safest default upgrade.
             // Admins should reassign roles via settings-users.html after deployment.
