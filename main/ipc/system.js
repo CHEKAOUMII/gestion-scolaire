@@ -3,6 +3,7 @@ const { printHTML } = require('../print-window');
 const { requireRole, getSessionByEvent } = require('./auth');
 const { hashPassword, generateRandomPassword } = require('../auth/password');
 const { authErrorResponse, handleWrite, handleRead } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
 
 function registerSystemIpc(ipcMain) {
     // IPC Handlers - System logs
@@ -47,6 +48,10 @@ function registerSystemIpc(ipcMain) {
             const password = String(payload?.password || '').trim();
             const usedGenerated = !password;
             const finalPassword = password || generateRandomPassword();
+            const role = payload.role || 'principal'; // default when role field is omitted
+            if (!ALLOWED_ROLES.includes(role)) {
+                return { success: false, error: `دور غير صالح: ${role}` };
+            }
             db.prepare(
                 `
                 INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
@@ -55,7 +60,7 @@ function registerSystemIpc(ipcMain) {
             ).run(
                 payload.name,
                 payload.email || null,
-                payload.role || 'staff',
+                role,
                 hashPassword(finalPassword),
                 payload.disabled ? 1 : 0,
                 usedGenerated ? 1 : 0
@@ -75,6 +80,9 @@ function registerSystemIpc(ipcMain) {
     ipcMain.handle('users:updateRole', async (event, id, role) => {
         try {
             requireRole(event, ['admin']);
+            if (!ALLOWED_ROLES.includes(role)) {
+                return { success: false, error: `دور غير صالح: ${role}` };
+            }
             const db = getDb();
             db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
             return { success: true };
