@@ -25,7 +25,7 @@ const {
 } = require('../linking/server');
 
 const OTP_REGEX = /^\d{6}$/;
-const LINKING_READ_ROLES = ['admin', 'staff', 'viewer'];
+const LINKING_READ_ROLES = [...require('../auth/permissions').ALLOWED_ROLES];
 
 const ERROR_MESSAGES = {
     ALREADY_CONFIGURED: 'تم إعداد المؤسسة مسبقاً على هذا الجهاز',
@@ -219,7 +219,7 @@ function normalizeUserRecord(rawUser) {
 
     const name = String(rawUser.name || '').trim();
     const email = String(rawUser.email || '').trim() || null;
-    const role = String(rawUser.role || 'staff').trim() || 'staff';
+    const role = String(rawUser.role || 'principal').trim() || 'principal';
     const passwordHash = String(rawUser.password_hash ?? rawUser.passwordHash ?? '').trim() || null;
     const pinHash = String(rawUser.pin_hash ?? rawUser.pinHash ?? '').trim() || null;
     const mustChangePassword = Number(rawUser.must_change_password ?? rawUser.mustChangePassword) ? 1 : 0;
@@ -498,7 +498,7 @@ function registerLinkingIpc(ipcMain) {
             db.prepare(
                 `
                     UPDATE users
-                    SET name = ?, email = ?, role = 'staff', password_hash = ?, must_change_password = 0, disabled = 0
+                    SET name = ?, email = ?, role = 'principal', password_hash = ?, must_change_password = 0, disabled = 0
                     WHERE id = 1
                 `
             ).run(adminName, adminEmail, passwordHash);
@@ -555,9 +555,9 @@ function registerLinkingIpc(ipcMain) {
         const linkUserName = String(payload?.userName || '').trim();
         const linkUserEmail = String(payload?.userEmail || '').trim().toLowerCase();
         const linkUserPassword = String(payload?.userPassword || '');
-        const linkUserRole = ['staff', 'viewer'].includes(String(payload?.userRole || '').toLowerCase())
+        const linkUserRole = ['principal', 'viewer'].includes(String(payload?.userRole || '').toLowerCase())
             ? payload.userRole.toLowerCase()
-            : 'staff';
+            : 'principal';
 
         console.log('[linking:verify-and-link] Parsed:', { massarCode, otpLen: otp.length, linkUserName, linkUserRole });
 

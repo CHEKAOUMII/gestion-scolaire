@@ -1,4 +1,6 @@
 const { handleRead, handleWrite, normalizeYear } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 
 function registerSchoolOpsIpc(ipcMain) {
     // ── Read handlers (no auth required) ──
@@ -27,7 +29,7 @@ function registerSchoolOpsIpc(ipcMain) {
 
     // ── Write handlers (require admin or staff role) ──
 
-    handleWrite(ipcMain, 'studentFiles:upsert', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'studentFiles:upsert', WRITE_ROLES, (db, _event, payload) => {
         db.prepare(
             `
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
@@ -39,7 +41,7 @@ function registerSchoolOpsIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'studentFiles:upsertBulk', ['admin', 'staff'], (db, _event, items) => {
+    handleWrite(ipcMain, 'studentFiles:upsertBulk', WRITE_ROLES, (db, _event, items) => {
         const upsert = db.prepare(`
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
                 VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -55,7 +57,7 @@ function registerSchoolOpsIpc(ipcMain) {
         return { success: true, count: items.length };
     });
 
-    handleWrite(ipcMain, 'studentFiles:setDocumentStatus', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'studentFiles:setDocumentStatus', WRITE_ROLES, (db, _event, payload) => {
         db.prepare(
             `
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
@@ -83,7 +85,7 @@ function registerSchoolOpsIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleWrite(ipcMain, 'studentMovements:add', ['admin', 'staff'], (db, _event, movement) => {
+    handleWrite(ipcMain, 'studentMovements:add', WRITE_ROLES, (db, _event, movement) => {
         const addMovement = db.transaction(() => {
             db.prepare(
                 `

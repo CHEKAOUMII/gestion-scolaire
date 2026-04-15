@@ -1,4 +1,6 @@
 const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields, validateRange } = require('./validation');
 const { normalizeSubjectName } = require('../../js/data/ma-education-labels');
 const { resolveTeacherIdentity } = require('../teachers/identity');
@@ -75,7 +77,7 @@ function registerStudentsIpc(ipcMain) {
 
     // ── Write handlers (require admin or staff role) ──
 
-    handleWrite(ipcMain, 'students:add', ['admin', 'staff'], (db, _event, student) => {
+    handleWrite(ipcMain, 'students:add', WRITE_ROLES, (db, _event, student) => {
         requireFields(student, ['code', 'full_name', 'school_year']);
         requireSchoolYear(student.school_year);
         db.prepare(
@@ -99,7 +101,7 @@ function registerStudentsIpc(ipcMain) {
     });
 
     // No auth: bulk-import is used by settings-imports page before login
-    handleWriteSoftAuth(ipcMain, 'students:addBulk', ['admin', 'staff'], (db, students) => {
+    handleWriteSoftAuth(ipcMain, 'students:addBulk', WRITE_ROLES, (db, students) => {
         if (!Array.isArray(students)) {
             return { success: false, error: 'Expected an array' };
         }
@@ -141,7 +143,7 @@ function registerStudentsIpc(ipcMain) {
         return { success: true, count: students.length };
     });
 
-    handleWrite(ipcMain, 'students:update', ['admin', 'staff'], (db, _event, id, data) => {
+    handleWrite(ipcMain, 'students:update', WRITE_ROLES, (db, _event, id, data) => {
         const studentId = Number(id);
         if (!Number.isFinite(studentId) || studentId <= 0) {
             return { success: false, error: 'Invalid student id' };
@@ -180,7 +182,7 @@ function registerStudentsIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'students:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'students:delete', WRITE_ROLES, (db, _event, id) => {
         const studentId = Number(id);
         if (!Number.isFinite(studentId) || studentId <= 0) {
             return { success: false, error: 'Invalid student id' };
@@ -191,7 +193,7 @@ function registerStudentsIpc(ipcMain) {
     });
 
     // No auth: delete is used from settings-imports page which may be opened before login
-    handleWriteSoftAuth(ipcMain, 'students:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
+    handleWriteSoftAuth(ipcMain, 'students:deleteByYear', WRITE_ROLES, (db, schoolYear) => {
         const year = requireSchoolYear(schoolYear);
         const runDelete = db.transaction((targetYear) => {
             db.prepare('DELETE FROM grades WHERE school_year = ?').run(targetYear);
@@ -294,7 +296,7 @@ function registerStudentsIpc(ipcMain) {
         };
     });
 
-    handleWriteSoftAuth(ipcMain, 'students:updateStatusBulk', ['admin', 'staff'], (db, items) => {
+    handleWriteSoftAuth(ipcMain, 'students:updateStatusBulk', WRITE_ROLES, (db, items) => {
         if (!Array.isArray(items)) {
             return { success: false, error: 'Expected an array' };
         }
@@ -347,7 +349,7 @@ function registerStudentsIpc(ipcMain) {
     });
 
     // No auth: allow changing the current school year without requiring admin session
-    handleWriteSoftAuth(ipcMain, 'settings:setSchoolYear', ['admin', 'staff'], (db, year) => {
+    handleWriteSoftAuth(ipcMain, 'settings:setSchoolYear', WRITE_ROLES, (db, year) => {
         const nextYear = requireSchoolYear(year);
         db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('currentSchoolYear', ?)").run(nextYear);
         return { success: true };
@@ -511,7 +513,7 @@ function registerStudentsIpc(ipcMain) {
         };
     });
 
-    handleWrite(ipcMain, 'grades:save', ['admin', 'staff'], (db, _event, grade) => {
+    handleWrite(ipcMain, 'grades:save', WRITE_ROLES, (db, _event, grade) => {
         validateRange('grade', grade.grade, 0, 20);
         requireSchoolYear(grade.school_year);
         const resolvedTeacher = resolveTeacherIdentity(db, {
@@ -541,7 +543,7 @@ function registerStudentsIpc(ipcMain) {
     });
 
     // No auth: bulk-import is used by settings-imports page before login
-    handleWriteSoftAuth(ipcMain, 'grades:saveBulk', ['admin', 'staff'], (db, grades) => {
+    handleWriteSoftAuth(ipcMain, 'grades:saveBulk', WRITE_ROLES, (db, grades) => {
         if (!Array.isArray(grades)) {
             return { success: false, error: 'Expected an array' };
         }
@@ -581,7 +583,7 @@ function registerStudentsIpc(ipcMain) {
         return { success: true, count: grades.length };
     });
 
-    handleWriteSoftAuth(ipcMain, 'grades:reassignTeacherBulk', ['admin', 'staff'], (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'grades:reassignTeacherBulk', WRITE_ROLES, (db, payload) => {
         const year = requireSchoolYear(payload?.school_year || payload?.schoolYear);
         const changes = Array.isArray(payload?.changes) ? payload.changes : [];
         if (!changes.length) {
@@ -678,12 +680,12 @@ function registerStudentsIpc(ipcMain) {
     });
 
     // No auth: delete is used from settings-imports page which may be opened before login
-    handleWriteSoftAuth(ipcMain, 'grades:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
+    handleWriteSoftAuth(ipcMain, 'grades:deleteByYear', WRITE_ROLES, (db, schoolYear) => {
         const info = db.prepare('DELETE FROM grades WHERE school_year = ?').run(requireSchoolYear(schoolYear));
         return { success: true, count: info.changes };
     });
 
-    handleWriteSoftAuth(ipcMain, 'grades:deleteBySemester', ['admin', 'staff'], (db, schoolYear, semester) => {
+    handleWriteSoftAuth(ipcMain, 'grades:deleteBySemester', WRITE_ROLES, (db, schoolYear, semester) => {
         const year = requireSchoolYear(schoolYear);
         const sem = parseInt(semester, 10) || 1;
         const info = db
@@ -781,7 +783,7 @@ function registerStudentsIpc(ipcMain) {
             .all(code, year);
     });
 
-    handleWriteSoftAuth(ipcMain, 'studentProfile:saveTab', ['admin', 'staff'], (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'studentProfile:saveTab', WRITE_ROLES, (db, payload) => {
         requireFields(payload, ['student_code', 'tab_key', 'school_year']);
         requireSchoolYear(payload.school_year);
 
