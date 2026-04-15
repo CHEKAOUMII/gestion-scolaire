@@ -555,9 +555,10 @@ function registerLinkingIpc(ipcMain) {
         const linkUserName = String(payload?.userName || '').trim();
         const linkUserEmail = String(payload?.userEmail || '').trim().toLowerCase();
         const linkUserPassword = String(payload?.userPassword || '');
-        const linkUserRole = ['principal', 'viewer'].includes(String(payload?.userRole || '').toLowerCase())
+        const { ALLOWED_ROLES: _linkAllowedRoles } = require('../auth/permissions');
+        const linkUserRole = _linkAllowedRoles.includes(String(payload?.userRole || '').toLowerCase())
             ? payload.userRole.toLowerCase()
-            : 'principal';
+            : 'viewer'; // default to lowest privilege when role is absent or unrecognised
 
         console.log('[linking:verify-and-link] Parsed:', { massarCode, otpLen: otp.length, linkUserName, linkUserRole });
 

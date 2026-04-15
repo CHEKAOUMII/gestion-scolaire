@@ -311,7 +311,7 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Self-registration (creates staff user, never admin) ──
+    // ── Self-registration (creates viewer user, never admin) ──
     ipcMain.handle('auth:register', async (event, payload) => {
         try {
             const name = String(payload?.name || '').trim();
@@ -337,7 +337,7 @@ function registerAuthIpc(ipcMain) {
             const result = db
                 .prepare(
                     `INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
-                 VALUES(?, ?, 'principal', ?, 0, 0)`
+                 VALUES(?, ?, 'viewer', ?, 0, 0)`
                 )
                 .run(name, email, hashPassword(password));
 
