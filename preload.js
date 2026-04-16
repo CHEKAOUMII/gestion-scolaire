@@ -226,7 +226,8 @@ contextBridge.exposeInMainWorld('api', {
         removePin: () => ipcRenderer.invoke('auth:removePin'),
         getPinStatus: () => ipcRenderer.invoke('auth:getPinStatus'),
         lockSession: () => ipcRenderer.invoke('auth:lockSession'),
-        unlockWithPassword: (payload) => ipcRenderer.invoke('auth:unlockWithPassword', payload)
+        unlockWithPassword: (payload) => ipcRenderer.invoke('auth:unlockWithPassword', payload),
+        getAllowedPages: () => ipcRenderer.invoke('auth:getAllowedPages')
     },
 
     // Users

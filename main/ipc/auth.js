@@ -538,6 +538,14 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
+    // ── Allowed pages for the current session's role ──
+    ipcMain.handle('auth:getAllowedPages', (event) => {
+        const { getAllowedPages } = require('../auth/permissions');
+        const session = getSessionByEvent(event);
+        if (!session) return [];
+        return getAllowedPages(session.role);
+    });
+
     // ── Unlock with password (fallback when PIN is locked out) ──
     ipcMain.handle('auth:unlockWithPassword', async (event, payload) => {
         try {
