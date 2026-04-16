@@ -161,7 +161,7 @@ const TRIAL_BANNER_SHOWN_ON_OPEN_KEY = 'trial_banner_shown_on_open';
 // ── Separated State Model ──
 // appAccessState: 'blocked' | 'trial' | 'licensed'  (from licensing, never a role)
 // authState: 'anonymous' | 'authenticated'           (from session)
-// userRole: 'admin' | 'staff' | 'viewer' | null      (only real DB roles)
+// userRole: 'admin' | 'principal' | 'supervisor' | ... | 'viewer' | null  (only real DB roles)
 // sessionLockState: 'unlocked' | 'locked'             (PIN lock)
 const LEGACY_PSEUDO_ROLES = new Set(['limited', 'guest', 'trial', 'licensed']);
 
@@ -239,7 +239,7 @@ function isAuthSessionActive() {
 
 function getAuthRole() {
     const session = getAuthSessionData();
-    return _normalizeRole(session?.role || 'staff');
+    return _normalizeRole(session?.role || '');
 }
 
 function _normalizeHref(href) {
@@ -541,14 +541,14 @@ function _isDeveloperRole(role) {
 }
 
 function _isAuthenticatedRole(role) {
-    return ['admin', 'staff', 'viewer', 'developer'].includes(String(role || '').toLowerCase());
+    const ALL_KNOWN = ['developer','admin','principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','teacher','viewer'];
+    return ALL_KNOWN.includes(String(role || '').toLowerCase());
 }
 
 function _deriveAuthRoleFromSession(session) {
     if (!session || !isAuthSessionActive()) return null;
-    const normalized = _normalizeRole(session.role || 'staff');
-    if (['admin', 'staff', 'viewer'].includes(normalized)) return normalized;
-    return null;
+    const normalized = _normalizeRole(session.role || '');
+    return normalized || null;
 }
 
 function setAppAccessState(state) {
@@ -571,8 +571,7 @@ function getCurrentAppRole() {
     const session = getAuthSessionData();
     if (!session || !isAuthSessionActive()) return null;
     const normalized = _normalizeRole(session.role || '');
-    if (['admin', 'staff', 'viewer', 'developer'].includes(normalized)) return normalized;
-    return null;
+    return normalized || null;
 }
 
 function setAuthSession(email = '', user = {}) {
@@ -584,7 +583,7 @@ function setAuthSession(email = '', user = {}) {
             email: String(safeUser.email || email || '')
                 .trim()
                 .toLowerCase(),
-            role: _normalizeRole(safeUser.role || 'staff'),
+            role: _normalizeRole(safeUser.role || ''),
             loggedAt: Date.now(),
             source: 'sqlite'
         };
@@ -1187,24 +1186,44 @@ function _normalizeRole(raw) {
     const r = String(raw || '')
         .trim()
         .toLowerCase();
-    if (['admin', 'مشرف'].includes(r)) return 'admin';
-    if (['staff', 'موظف'].includes(r)) return 'staff';
-    if (['viewer', 'مشاهد'].includes(r)) return 'viewer';
-    return r || 'staff';
+    const KNOWN = ['developer','admin','principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','teacher','viewer'];
+    // Legacy aliases
+    if (r === 'staff' || r === 'director') return 'principal';
+    return KNOWN.includes(r) ? r : 'viewer';
 }
 
 function _roleLabel(normalized) {
-    const labels = { admin: 'مشرف', staff: 'موظف', viewer: 'مشاهد' };
+    const labels = {
+        'developer':             'مطوّر',
+        'admin':                 'مدير التطبيق',
+        'principal':             'مدير المؤسسة',
+        'supervisor':            'الناظر',
+        'external-guardian':     'حارس الخارجية',
+        'internal-guardian':     'حارس الداخلية',
+        'admin-assistant':       'مساعد إداري',
+        'educational-specialist':'مختص تربوي',
+        'social-specialist':     'مختص اجتماعي',
+        'teacher':               'أستاذ',
+        'viewer':                'مشاهد',
+    };
     return labels[normalized] || normalized;
 }
 
 function _roleTone(normalized) {
     const tones = {
-        admin: { bg: '#EBF4FF', fg: '#1E40AF', border: '#93B3F2' },
-        staff: { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
-        viewer: { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' }
+        'developer':             { bg: '#F3E8FF', fg: '#6B21A8', border: '#C4B5FD' },
+        'admin':                 { bg: '#EBF4FF', fg: '#1E40AF', border: '#93B3F2' },
+        'principal':             { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'supervisor':            { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'external-guardian':     { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'internal-guardian':     { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'admin-assistant':       { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'educational-specialist':{ bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'social-specialist':     { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'teacher':               { bg: '#e7f7ed', fg: '#0f6a35', border: '#b7e5c8' },
+        'viewer':                { bg: '#FEF9C3', fg: '#854D0E', border: '#FDE68A' },
     };
-    return tones[normalized] || tones.staff;
+    return tones[normalized] || tones['viewer'];
 }
 
 // ── Change password modal ──
@@ -1720,7 +1739,7 @@ function applyAppUi(authRole, accessState, session) {
         try {
             const authRes = await window.api.auth.getSession();
             const role = _normalizeRole(authRes?.user?.role || '');
-            const isAuth = ['admin', 'staff', 'viewer', 'developer'].includes(role);
+            const isAuth = _isAuthenticatedRole(role);
             if (authRes?.success && authRes?.authenticated && isAuth) {
                 session = authRes.user || {};
                 setAuthSession(session.email || '', session);
