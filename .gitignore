@@ -38,6 +38,7 @@ school_backup_*.json
 *.db-wal
 *.pdf
 server/owner-telemetry.json
+firebase/service-account.json
 
 # Project specific ignores
 "نتائج/"

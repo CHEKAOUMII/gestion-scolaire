@@ -31,9 +31,8 @@
         "tailwindcss": "^4.2.1"
     },
     "dependencies": {
-        "@aws-sdk/client-cognito-identity": "^3.1014.0",
-        "@aws-sdk/client-dynamodb": "^3.1014.0",
-        "@aws-sdk/lib-dynamodb": "^3.1014.0",
+        "firebase": "^11.0.0",
+        "firebase-admin": "^13.0.0",
         "better-sqlite3": "^12.0.0",
         "dotenv": "^17.3.1",
         "electron-updater": "^6.8.3",
@@ -58,7 +57,9 @@
             "**/*",
             "!.env",
             "!postcss.config.js",
-            "!css/tailwind-input.css"
+            "!css/tailwind-input.css",
+            "!firebase/",
+            "!firebase/service-account.json"
         ],
         "win": {
             "target": "nsis",
