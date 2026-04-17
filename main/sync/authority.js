@@ -1,83 +1,60 @@
+'use strict';
+
+const { buildDocumentId: buildDocId, getCollectionName } = require('../firebase/collections');
+
 const WRITER_AUTHORITY = {
-    students: ['admin'],
-    correspondence: ['admin'],
-    student_files: ['admin'],
-    student_movements: ['admin'],
-    grades: ['admin', 'staff'],
-    absences: ['admin', 'staff'],
-    teachers: ['admin'],
-    teacher_aliases: ['admin'],
-    staff_attendance: ['admin'],
+    students:              ['admin'],
+    grades:                ['admin', 'staff'],
+    absences:              ['admin', 'staff'],
+    teachers:              ['admin'],
+    teacher_aliases:       ['admin'],
+    staff_attendance:      ['admin'],
+    teacher_absences:      ['admin'],
+    exams:                 ['admin'],
+    exam_proctors:         ['admin'],
+    exam_rooms:            ['admin'],
+    tests:                 ['admin'],
+    correspondence:        ['admin'],
+    student_files:         ['admin'],
+    student_movements:     ['admin'],
     compensation_tracking: ['admin'],
-    teacher_absences: ['admin'],
-    exams: ['admin'],
-    exam_proctors: ['admin'],
-    exam_rooms: ['admin'],
-    tests: ['admin'],
-    settings: ['admin'],
-    page_visibility: ['admin'],
-    device_revocation: ['admin']
+    settings:              ['admin'],
+    page_visibility:       ['admin'],
+    device_revocation:     ['admin']
 };
 
 const ENTITY_TYPE_REGISTRY = {
-    students: { entityType: 'student', skPrefix: 'STUDENT', keyFields: ['code'] },
-    grades: {
-        entityType: 'grade',
-        skPrefix: 'GRADE',
-        keyFields: ['student_code', 'subject', 'semester', 'school_year']
-    },
-    absences: {
-        entityType: 'absence',
-        skPrefix: 'ABSENCE',
-        keyFields: ['student_code', 'month', 'school_year', 'absence_type']
-    },
-    teachers: { entityType: 'teacher', skPrefix: 'TEACHER', keyFields: ['id'] },
-    teacher_aliases: { entityType: 'teacher_alias', skPrefix: 'TEACHER_ALIAS', keyFields: ['id'] },
-    staff_attendance: {
-        entityType: 'staff_attendance',
-        skPrefix: 'STAFF_ATTENDANCE',
-        keyFields: ['teacher_id', 'date']
-    },
-    teacher_absences: {
-        entityType: 'teacher_absence',
-        skPrefix: 'TEACHER_ABSENCE',
-        keyFields: ['teacher_id', 'date']
-    },
-    exams: { entityType: 'exam', skPrefix: 'EXAM', keyFields: ['id'] },
-    exam_proctors: {
-        entityType: 'exam_proctor',
-        skPrefix: 'EXAM_PROCTOR',
-        keyFields: ['exam_id', 'teacher_id']
-    },
-    exam_rooms: { entityType: 'exam_room', skPrefix: 'EXAM_ROOM', keyFields: ['exam_id', 'room_id'] },
-    tests: { entityType: 'test', skPrefix: 'TEST', keyFields: ['id'] },
-    correspondence: { entityType: 'correspondence', skPrefix: 'CORRESPONDENCE', keyFields: ['id'] },
-    student_files: { entityType: 'student_file', skPrefix: 'STUDENT_FILE', keyFields: ['student_code', 'id'] },
-    student_movements: { entityType: 'student_movement', skPrefix: 'STUDENT_MOVEMENT', keyFields: ['id'] },
-    compensation_tracking: { entityType: 'compensation', skPrefix: 'COMPENSATION', keyFields: ['id'] },
-    settings: { entityType: 'settings', skPrefix: 'SETTINGS', keyFields: ['key'] },
-    page_visibility: { entityType: 'page_visibility', skPrefix: 'PAGE_VISIBILITY', keyFields: ['key'] },
-    device_revocation: { entityType: 'device_revocation', skPrefix: 'REVOCATION', keyFields: ['revokedDeviceHash'] }
+    students:              { entityType: 'student' },
+    grades:                { entityType: 'grade' },
+    absences:              { entityType: 'absence' },
+    teachers:              { entityType: 'teacher' },
+    teacher_aliases:       { entityType: 'teacher_alias' },
+    staff_attendance:      { entityType: 'staff_attendance' },
+    teacher_absences:      { entityType: 'teacher_absence' },
+    exams:                 { entityType: 'exam' },
+    exam_proctors:         { entityType: 'exam_proctor' },
+    exam_rooms:            { entityType: 'exam_room' },
+    tests:                 { entityType: 'test' },
+    correspondence:        { entityType: 'correspondence' },
+    student_files:         { entityType: 'student_file' },
+    student_movements:     { entityType: 'student_movement' },
+    compensation_tracking: { entityType: 'compensation' },
+    settings:              { entityType: 'settings' },
+    page_visibility:       { entityType: 'page_visibility' },
+    device_revocation:     { entityType: 'device_revocation' }
 };
 
 function canPush(tableName, role) {
-    if (!WRITER_AUTHORITY[tableName]) return false;
-    if (!role) return false;
-    return WRITER_AUTHORITY[tableName].includes(role);
+    const allowed = WRITER_AUTHORITY[tableName];
+    return allowed ? allowed.includes(role) : false;
 }
 
 function getAuthorizedTables(role) {
-    if (!role) return [];
-    return Object.entries(WRITER_AUTHORITY)
-        .filter(([, roles]) => roles.includes(role))
-        .map(([table]) => table);
+    return Object.keys(WRITER_AUTHORITY).filter((t) => WRITER_AUTHORITY[t].includes(role));
 }
 
-function buildSortKey(tableName, rowData) {
-    const entry = ENTITY_TYPE_REGISTRY[tableName];
-    if (!entry) return null;
-    const values = entry.keyFields.map((field) => rowData?.[field] ?? '');
-    return `${entry.skPrefix}#${values.join('#')}`;
+function buildDocumentId(tableName, rowData) {
+    return buildDocId(tableName, rowData);
 }
 
 function getEntityType(tableName) {
@@ -89,6 +66,6 @@ module.exports = {
     ENTITY_TYPE_REGISTRY,
     canPush,
     getAuthorizedTables,
-    buildSortKey,
+    buildDocumentId,
     getEntityType
 };
