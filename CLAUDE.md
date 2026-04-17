@@ -222,7 +222,19 @@ await fm.init();
 
 ### Environment Variables
 
-`.env` is gitignored. Required values: `GH_TOKEN` (auto-updater GitHub Releases), `OWNER_SYNC_WRITE_TOKEN` / `OWNER_SYNC_READ_TOKEN` (telemetry server).
+`.env` is gitignored. Required values:
+
+- `GH_TOKEN` — auto-updater GitHub Releases
+- `OWNER_SYNC_WRITE_TOKEN` / `OWNER_SYNC_READ_TOKEN` — telemetry server
+- `FIREBASE_API_KEY` — Firebase client SDK key
+- `FIREBASE_AUTH_DOMAIN` — e.g. `gestionscholaire.firebaseapp.com`
+- `FIREBASE_PROJECT_ID` — Firebase project ID (e.g. `gestionscholaire`)
+- `FIREBASE_STORAGE_BUCKET` — e.g. `gestionscholaire.firebasestorage.app`
+- `FIREBASE_MESSAGING_SENDER_ID` — Firebase sender ID
+- `FIREBASE_APP_ID` — Firebase app ID
+- `FIREBASE_FUNCTIONS_URL` — deployed Cloud Functions base URL (e.g. `https://us-central1-gestionscholaire.cloudfunctions.net`)
+- `FIREBASE_SERVICE_ACCOUNT_PATH` — path to service account JSON (main process only, never bundled into the installer)
+- `GESTION_LICENSE_SECRET` — HMAC secret for license key validation; set via Firebase Secrets Manager (`firebase functions:secrets:set GESTION_LICENSE_SECRET`), not in `.env`
 
 ### Auto-updater
 
