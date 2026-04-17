@@ -950,6 +950,13 @@ const MIGRATIONS = [
             db.prepare("UPDATE users SET role = 'principal' WHERE role = 'staff'").run();
         },
     },
+    {
+        version: '2026-04-17-firebase-sync-config',
+        up() {
+            ensureColumn('sync_config', 'firebase_functions_url', "TEXT DEFAULT ''");
+            ensureColumn('sync_config', 'firebase_project_id', "TEXT DEFAULT ''");
+        }
+    },
 ];
 
 function ensureMigrationsTable() {
