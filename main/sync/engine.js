@@ -1,20 +1,20 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, BatchWriteCommand, PutCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+'use strict';
+
+const { doc, setDoc, getDoc, writeBatch } = require('firebase/firestore');
+const { getFirestoreDb } = require('../firebase/config');
+const { getCollectionPath, buildDocumentId } = require('../firebase/collections');
+const { logChangeBatch, pullChanges } = require('../firebase/sync-log');
 const { getDb } = require('../db/context');
 const { getCredentials, clearCredentials } = require('./credentials');
 const { getDeviceHash, stripSensitiveFields, ensureSyncIdMapping, CHANNEL_REGISTRY } = require('./capture');
-const { canPush, buildSortKey, getEntityType, ENTITY_TYPE_REGISTRY } = require('./authority');
+const { canPush, getEntityType, ENTITY_TYPE_REGISTRY } = require('./authority');
 const { threeWayMerge, computeRowChecksum } = require('./merge');
 const { SENSITIVE_FIELDS } = require('./capture');
-
-const SYNC_TABLE_NAME = 'pencil2-sync';
 
 let _syncTimer = null;
 let _flushRunning = false;
 let _pullTimer = null;
 let _pullRunning = false;
-let _dynamoClient = null;
-let _lastAccessKeyId = null;
 
 // Topological order for FK-safe insert/update (parents before children)
 const TOPO_ORDER_PUT = [
@@ -78,28 +78,6 @@ function updateDeviceHeartbeat(db) {
     }
 }
 
-function getDynamoClient(region, credentials) {
-    if (_dynamoClient && credentials.accessKeyId === _lastAccessKeyId) {
-        return _dynamoClient;
-    }
-
-    const client = new DynamoDBClient({
-        region,
-        credentials: {
-            accessKeyId: credentials.accessKeyId,
-            secretAccessKey: credentials.secretAccessKey,
-            sessionToken: credentials.sessionToken
-        }
-    });
-
-    _dynamoClient = DynamoDBDocumentClient.from(client, {
-        marshallOptions: { removeUndefinedValues: true }
-    });
-    _lastAccessKeyId = credentials.accessKeyId;
-
-    return _dynamoClient;
-}
-
 function parseLocalIdFromRowSyncId(rowSyncId, tableName) {
     const prefix = `:${tableName}:`;
     const index = String(rowSyncId || '').indexOf(prefix);
@@ -152,9 +130,8 @@ function normalizeSortKeyRowData(entry, rowData) {
     return normalized;
 }
 
-function buildDynamoItem(db, entry, schoolId, deviceHash) {
+function buildFirestoreDoc(db, entry, schoolId, deviceHash) {
     let parsedRowData = {};
-
     try {
         parsedRowData = entry.row_data ? JSON.parse(entry.row_data) : {};
     } catch (err) {
@@ -169,106 +146,84 @@ function buildDynamoItem(db, entry, schoolId, deviceHash) {
         return null;
     }
 
-    const sortKey = buildSortKey(entry.table_name, normalizeSortKeyRowData(entry, rowData));
-    if (!sortKey) {
-        console.warn(`[sync:push] Failed to build sort key for table '${entry.table_name}'`);
+    const normalizedData = normalizeSortKeyRowData(entry, rowData);
+    const documentId = buildDocumentId(entry.table_name, normalizedData);
+    if (!documentId) {
+        console.warn(`[sync:push] Failed to build document ID for table '${entry.table_name}'`);
         return null;
     }
 
     const mapping = db.prepare('SELECT version FROM sync_id_map WHERE row_sync_id = ?').get(entry.row_sync_id);
     const currentVersion = Number(mapping?.version || 0);
     const newVersion = currentVersion + 1;
-
     const updatedAt = Math.floor(Date.now() / 1000);
-    const expiresAt = entry.operation === 'DEL' ? updatedAt + 259200 : updatedAt + 30 * 86400;
 
     return {
-        PK: `SCHOOL#${schoolId}`,
-        SK: sortKey,
-        GSI1PK: `SCHOOL#${schoolId}`,
-        GSI1SK: `${updatedAt}#${entityType}#${entry.row_sync_id}`,
+        collectionPath: getCollectionPath(schoolId, entry.table_name),
+        documentId,
         entityType,
-        schoolYear: entry.school_year || '',
-        updatedAt,
+        data: normalizedData,
         version: newVersion,
         operation: entry.operation,
         rowSyncId: entry.row_sync_id,
         deviceHash: String(deviceHash || '').substring(0, 16),
-        data: rowData,
-        expiresAt
+        schoolYear: entry.school_year || '',
+        updatedAt
     };
 }
 
-async function writeBatchToDynamo(docClient, items) {
-    if (!items.length) return { success: true, failedItems: [] };
-
-    const requestItems = {
-        [SYNC_TABLE_NAME]: items.map((item) => ({
-            PutRequest: { Item: item }
-        }))
-    };
+async function writeBatchToFirestore(firestoreDb, items) {
+    if (!items.length) return { success: true, failedItems: [], isAccessDenied: false };
 
     try {
-        const result = await docClient.send(new BatchWriteCommand({ RequestItems: requestItems }));
-        const unprocessed = result.UnprocessedItems?.[SYNC_TABLE_NAME] || [];
-        return {
-            success: unprocessed.length === 0,
-            failedItems: unprocessed,
-            error: unprocessed.length ? 'Batch write returned unprocessed items' : null,
-            errorName: null,
-            isThrottle: false,
-            isAccessDenied: false
-        };
-    } catch (err) {
-        const isThrottle = err.name === 'ProvisionedThroughputExceededException' || err.name === 'ThrottlingException';
-        const isAccessDenied = err.name === 'AccessDeniedException';
-        if (isAccessDenied) {
-            clearCredentials();
+        const batch = writeBatch(firestoreDb);
+        for (const item of items) {
+            const docRef = doc(firestoreDb, item.collectionPath, item.documentId);
+            batch.set(docRef, {
+                ...item.data,
+                version: item.version,
+                operation: item.operation,
+                rowSyncId: item.rowSyncId,
+                deviceHash: item.deviceHash,
+                schoolYear: item.schoolYear,
+                updatedAt: item.updatedAt
+            }, { merge: true });
         }
-        return {
-            success: false,
-            error: err.message,
-            errorName: err.name,
-            isThrottle,
-            isAccessDenied,
-            failedItems: items.map((item) => ({ PutRequest: { Item: item } }))
-        };
+        await batch.commit();
+        return { success: true, failedItems: [], isAccessDenied: false };
+    } catch (err) {
+        const isAccessDenied = err.code === 'permission-denied';
+        return { success: false, error: err.message, errorName: err.code, isAccessDenied, failedItems: items };
     }
 }
 
-async function writeItemWithCondition(docClient, item) {
+async function writeItemWithVersionCheck(firestoreDb, item) {
     try {
-        await docClient.send(
-            new PutCommand({
-                TableName: SYNC_TABLE_NAME,
-                Item: item,
-                ConditionExpression: 'attribute_not_exists(version) OR version < :v',
-                ExpressionAttributeValues: { ':v': item.version }
-            })
-        );
+        const docRef = doc(firestoreDb, item.collectionPath, item.documentId);
+        const existing = await getDoc(docRef);
+
+        if (existing.exists() && existing.data().version >= item.version) {
+            return { success: false, conflict: true, error: 'Version conflict', errorName: 'VERSION_CONFLICT' };
+        }
+
+        await setDoc(docRef, {
+            ...item.data,
+            version: item.version,
+            operation: item.operation,
+            rowSyncId: item.rowSyncId,
+            deviceHash: item.deviceHash,
+            schoolYear: item.schoolYear,
+            updatedAt: item.updatedAt
+        }, { merge: true });
+
         return { success: true };
     } catch (err) {
-        if (err.name === 'ConditionalCheckFailedException') {
-            return { success: false, conflict: true, error: 'Version conflict', errorName: err.name };
-        }
-
-        const isThrottle = err.name === 'ProvisionedThroughputExceededException' || err.name === 'ThrottlingException';
-        const isAccessDenied = err.name === 'AccessDeniedException';
-        if (isAccessDenied) {
-            clearCredentials();
-        }
-
-        return {
-            success: false,
-            error: err.message,
-            errorName: err.name,
-            isThrottle,
-            isAccessDenied
-        };
+        const isAccessDenied = err.code === 'permission-denied';
+        return { success: false, error: err.message, errorName: err.code, isAccessDenied, isThrottle: false };
     }
 }
 
-async function pushDeviceRevocations(db, docClient, schoolId, deviceHash) {
+async function pushDeviceRevocations(db, firestoreDb, schoolId, deviceHash) {
     const result = {
         sentCount: 0,
         failedCount: 0,
@@ -284,28 +239,25 @@ async function pushDeviceRevocations(db, docClient, schoolId, deviceHash) {
         for (const revoked of revokedDevices) {
             const revokedDeviceHash = String(revoked.device_hash || '').trim();
             const revokedAt = revoked.revoked_at;
-            const sortKey = buildSortKey('device_revocation', { revokedDeviceHash });
 
-            if (!revokedDeviceHash || !revokedAt || !sortKey) {
+            if (!revokedDeviceHash || !revokedAt) {
                 continue;
             }
 
             const revocationItem = {
-                PK: `SCHOOL#${schoolId}`,
-                SK: sortKey,
-                GSI1PK: `SCHOOL#${schoolId}`,
-                GSI1SK: `${Math.floor(Date.now() / 1000)}#device_revocation#${revokedDeviceHash}`,
+                collectionPath: `schools/${schoolId}/deviceRevocations`,
+                documentId: revokedDeviceHash,
                 entityType: 'device_revocation',
-                revokedDeviceHash,
-                revokedAt,
-                revokedBy: String(deviceHash || '').substring(0, 16),
-                operation: 'PUT',
-                deviceHash: String(deviceHash || '').substring(0, 16),
+                data: { revokedDeviceHash, revokedAt },
                 version: 1,
-                expiresAt: Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60
+                operation: 'PUT',
+                rowSyncId: revokedDeviceHash,
+                deviceHash: String(deviceHash || '').substring(0, 16),
+                schoolYear: '',
+                updatedAt: Math.floor(Date.now() / 1000)
             };
 
-            const writeResult = await writeItemWithCondition(docClient, revocationItem);
+            const writeResult = await writeItemWithVersionCheck(firestoreDb, revocationItem);
             if (writeResult.success) {
                 result.sentCount += 1;
                 continue;
@@ -385,10 +337,10 @@ function getCurrentRole() {
 }
 
 function buildItemKey(item) {
-    return `${item.PK}||${item.SK}`;
+    return `${item.collectionPath}||${item.documentId}`;
 }
 
-async function flushPreparedItems(db, docClient, preparedItems, maxRetries) {
+async function flushPreparedItems(db, firestoreDb, preparedItems, maxRetries, schoolId) {
     if (!preparedItems.length) {
         return { sentCount: 0, failedCount: 0, lastError: null, abort: false };
     }
@@ -398,12 +350,14 @@ async function flushPreparedItems(db, docClient, preparedItems, maxRetries) {
         let sentCount = 0;
         let failedCount = 0;
         let lastError = null;
+        const successfulItems = [];
 
         for (const prepared of preparedItems) {
-            const result = await writeItemWithCondition(docClient, prepared.item);
+            const result = await writeItemWithVersionCheck(firestoreDb, prepared.item);
             if (result.success) {
                 markEntrySent(db, prepared.entryId);
                 sentCount += 1;
+                successfulItems.push(prepared.item);
                 continue;
             }
 
@@ -452,6 +406,15 @@ async function flushPreparedItems(db, docClient, preparedItems, maxRetries) {
 
             if (result.isAccessDenied) {
                 return { sentCount, failedCount, lastError, abort: true };
+            }
+        }
+
+        // Batch-log successfully sent items to syncLog
+        if (successfulItems.length > 0 && schoolId) {
+            try {
+                await logChangeBatch(firestoreDb, schoolId, successfulItems);
+            } catch {
+                // Non-critical — sync log failure should not abort push
             }
         }
 
@@ -523,7 +486,7 @@ function expandBulkEntry(db, entry, _deviceHash) {
     return expanded;
 }
 
-async function flushExpandedEntries(db, docClient, entryId, expandedEntries, schoolId, deviceHash, maxRetries, role) {
+async function flushExpandedEntries(db, firestoreDb, entryId, expandedEntries, schoolId, deviceHash, maxRetries, role) {
     let sentCount = 0;
     let failedCount = 0;
     let skippedCount = 0;
@@ -540,22 +503,22 @@ async function flushExpandedEntries(db, docClient, entryId, expandedEntries, sch
                 continue;
             }
 
-            const dynamoItem = buildDynamoItem(db, expanded, schoolId, deviceHash);
-            if (!dynamoItem) {
+            const firestoreDoc = buildFirestoreDoc(db, expanded, schoolId, deviceHash);
+            if (!firestoreDoc) {
                 failedCount += 1;
-                lastError = 'Failed to build DynamoDB item — unknown entity type';
+                lastError = 'Failed to build Firestore document — unknown entity type';
                 continue;
             }
-            items.push(dynamoItem);
+            items.push(firestoreDoc);
         }
 
         if (!items.length) {
             continue;
         }
 
-        const result = await writeBatchToDynamo(docClient, items);
+        const result = await writeBatchToFirestore(firestoreDb, items);
         const failedItemKeys = new Set(
-            (result.failedItems || []).map((request) => buildItemKey(request.PutRequest?.Item || {}))
+            (result.failedItems || []).map((item) => buildItemKey(item))
         );
 
         for (const item of items) {
@@ -606,14 +569,13 @@ async function flushSyncOutbox(limit) {
         const effectiveLimit = Number(limit) || batchSize;
         const deviceHash = getDeviceHash();
         const schoolId = credentials.schoolId || config.school_id;
-        const awsRegion = config.aws_region || 'us-east-1';
 
         if (!schoolId) {
             updatePushMeta(db, null, 'Missing school identifier');
             return { success: false, error: 'school_id_unavailable' };
         }
 
-        const docClient = getDynamoClient(awsRegion, credentials);
+        const firestoreDb = getFirestoreDb();
         let sentCount = 0;
         let failedCount = 0;
         let skippedCount = 0;
@@ -626,7 +588,7 @@ async function flushSyncOutbox(limit) {
         const flushBuffer = async () => {
             if (!batchBuffer.length) return false;
 
-            const result = await flushPreparedItems(db, docClient, batchBuffer, maxRetries);
+            const result = await flushPreparedItems(db, firestoreDb, batchBuffer, maxRetries, schoolId);
             sentCount += result.sentCount;
             failedCount += result.failedCount;
             lastError = result.lastError || lastError;
@@ -671,7 +633,7 @@ async function flushSyncOutbox(limit) {
 
                 const expandedResult = await flushExpandedEntries(
                     db,
-                    docClient,
+                    firestoreDb,
                     row.id,
                     expandedEntries,
                     schoolId,
@@ -695,15 +657,15 @@ async function flushSyncOutbox(limit) {
                 'UPDATE sync_outbox SET retries = retries + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE id = ?'
             ).run(row.id);
 
-            const dynamoItem = buildDynamoItem(db, row, schoolId, deviceHash);
-            if (!dynamoItem) {
-                markEntryFailed(db, row.id, 'Failed to build DynamoDB item — unknown entity type', maxRetries);
+            const firestoreDoc = buildFirestoreDoc(db, row, schoolId, deviceHash);
+            if (!firestoreDoc) {
+                markEntryFailed(db, row.id, 'Failed to build Firestore document — unknown entity type', maxRetries);
                 failedCount += 1;
-                lastError = 'Failed to build DynamoDB item — unknown entity type';
+                lastError = 'Failed to build Firestore document — unknown entity type';
                 continue;
             }
 
-            batchBuffer.push({ entryId: row.id, item: dynamoItem });
+            batchBuffer.push({ entryId: row.id, item: firestoreDoc });
 
             if (batchBuffer.length >= 25) {
                 const aborted = await flushBuffer();
@@ -716,7 +678,7 @@ async function flushSyncOutbox(limit) {
             lastError = lastError || 'Access denied';
         }
 
-        const revocationResult = await pushDeviceRevocations(db, docClient, schoolId, deviceHash);
+        const revocationResult = await pushDeviceRevocations(db, firestoreDb, schoolId, deviceHash);
         failedCount += revocationResult.failedCount;
         lastError = revocationResult.lastError || lastError;
         updateDeviceHeartbeat(db);
@@ -755,7 +717,7 @@ function startSyncPushBackground() {
         const db = getDb();
         const config = readSyncConfig(db);
 
-        if (!Number(config.enabled) || !config.auth_lambda_url) {
+        if (!Number(config.enabled) || !(config.firebase_functions_url || config.auth_lambda_url)) {
             return;
         }
 
@@ -838,32 +800,13 @@ async function pullRemoteChanges() {
             };
         }
 
-        const region = config.aws_region || 'us-east-1';
+        const firestoreDb = getFirestoreDb();
         const cursor = config.pull_cursor || '0';
         const currentDeviceHash = getDeviceHash();
         const localDeviceHash = currentDeviceHash.substring(0, 16);
-        const docClient = getDynamoClient(region, credentials);
 
-        // Step 1: Query DynamoDB SyncGSI for changes since last cursor
-        const allItems = [];
-        let lastEvaluatedKey = undefined;
-        do {
-            const cmd = new QueryCommand({
-                TableName: 'pencil2-sync',
-                IndexName: 'SyncGSI',
-                KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK > :cursor',
-                ExpressionAttributeValues: {
-                    ':pk': `SCHOOL#${schoolId}`,
-                    ':cursor': cursor
-                },
-                ScanIndexForward: true,
-                Limit: 500,
-                ExclusiveStartKey: lastEvaluatedKey
-            });
-            const resp = await docClient.send(cmd);
-            if (resp.Items) allItems.push(...resp.Items);
-            lastEvaluatedKey = resp.LastEvaluatedKey;
-        } while (lastEvaluatedKey);
+        // Step 1: Pull changes from Firestore syncLog since last cursor
+        const allItems = await pullChanges(firestoreDb, schoolId, Number(cursor));
 
         if (allItems.length === 0) {
             db.prepare(
@@ -916,7 +859,7 @@ async function pullRemoteChanges() {
         );
         const skippedCount = allItems.length - remoteItems.length;
 
-        // Step 3: Map DynamoDB items to internal format
+        // Step 3: Map Firestore items to internal format
         const mapped = [];
         for (const item of remoteItems) {
             const tableName = Object.keys(ENTITY_TYPE_REGISTRY).find(
@@ -931,8 +874,7 @@ async function pullRemoteChanges() {
                 version: item.version,
                 deviceHash: item.deviceHash,
                 entityType: item.entityType,
-                schoolYear: item.schoolYear,
-                GSI1SK: item.GSI1SK
+                schoolYear: item.schoolYear
             });
         }
 
@@ -1105,8 +1047,8 @@ async function pullRemoteChanges() {
 
         applyChanges();
 
-        // Step 7: Advance cursor to highest GSI1SK seen
-        const newCursor = allItems[allItems.length - 1].GSI1SK || cursor;
+        // Step 7: Advance cursor to highest updatedAt seen
+        const newCursor = String(allItems[allItems.length - 1].updatedAt || cursor);
 
         // Step 8: Update sync_config
         db.prepare(
@@ -1146,7 +1088,7 @@ async function pullRemoteChanges() {
             /* ignore */
         }
 
-        if (err.name === 'AccessDeniedException' || err.Code === 'AccessDeniedException') {
+        if (err.code === 'permission-denied') {
             clearCredentials();
         }
 
@@ -1183,7 +1125,7 @@ function startSyncPullBackground() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !config.enabled || !config.auth_lambda_url) return;
+        if (!config || !config.enabled || !(config.firebase_functions_url || config.auth_lambda_url)) return;
 
         const intervalMs = Math.max(1, Math.min(30, config.sync_interval_minutes || 10)) * 60 * 1000;
 
