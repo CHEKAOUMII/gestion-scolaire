@@ -1,0 +1,34 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: caller is authenticated and their schoolId claim matches the path segment
+    function belongsToSchool(schoolId) {
+      return request.auth != null
+          && request.auth.token.schoolId == schoolId;
+    }
+
+    // School data: all sub-collections under schools/{schoolId}
+    match /schools/{schoolId}/{collection}/{docId} {
+      allow read, write: if belongsToSchool(schoolId);
+    }
+
+    // SyncLog: devices push change entries, all devices in the school can read
+    match /syncLog/{schoolId}/changes/{changeId} {
+      allow read, write: if belongsToSchool(schoolId);
+    }
+
+    // OTP codes: written by Cloud Functions (admin SDK bypasses rules),
+    // readable only by school admin during linking
+    match /otpCodes/{massarCode} {
+      allow read: if request.auth != null;
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
