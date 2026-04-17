@@ -24,8 +24,11 @@ function registerSyncIpc(ipcMain) {
         return {
             enabled: !!config.enabled,
             syncIntervalMinutes: config.sync_interval_minutes || 10,
-            awsRegion: syncDefaults.awsRegion,
+            firebaseFunctionsUrl: syncDefaults.firebaseFunctionsUrl,
+            firebaseProjectId: syncDefaults.firebaseProjectId,
+            // backward-compat aliases
             authLambdaUrl: syncDefaults.authLambdaUrl,
+            awsRegion: syncDefaults.awsRegion,
             schoolId: config.school_id || null,
             pushBatchSize: config.push_batch_size || 100,
             maxRetries: config.max_retries || 10,
@@ -89,8 +92,11 @@ function registerSyncIpc(ipcMain) {
         const fieldMap = {
             enabled: 'enabled',
             syncIntervalMinutes: 'sync_interval_minutes',
-            awsRegion: 'aws_region',
+            firebaseFunctionsUrl: 'firebase_functions_url',
+            firebaseProjectId: 'firebase_project_id',
+            // backward-compat: also accept old field names
             authLambdaUrl: 'auth_lambda_url',
+            awsRegion: 'aws_region',
             schoolId: 'school_id',
             pushBatchSize: 'push_batch_size',
             maxRetries: 'max_retries',
