@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildDocumentId: buildDocId, getCollectionName } = require('../firebase/collections');
+const { buildDocumentId: buildDocId } = require('../firebase/collections');
 
 const WRITER_AUTHORITY = {
     students:              ['admin'],
