@@ -1,3 +1,5 @@
+'use strict';
+
 const os = require('os');
 const { app } = require('electron');
 const { handleRead, handleWrite, handleWriteSoftAuth } = require('./ipc-helpers');
