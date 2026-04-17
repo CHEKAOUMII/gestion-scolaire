@@ -1,13 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "changes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "updatedAt", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "grades",
       "queryScope": "COLLECTION",
       "fields": [
