@@ -98,8 +98,10 @@ async function pullChanges(db, schoolId, cursor, maxResults = 500) {
         orderBy(documentId())
     ];
 
-    if (normalizedCursor.updatedAt > 0 || normalizedCursor.changeId) {
-        clauses.push(startAfter(normalizedCursor.updatedAt, normalizedCursor.changeId || ''));
+    if (normalizedCursor.changeId) {
+        clauses.push(startAfter(normalizedCursor.updatedAt, normalizedCursor.changeId));
+    } else if (normalizedCursor.updatedAt > 0) {
+        clauses.push(startAfter(normalizedCursor.updatedAt));
     }
 
     clauses.push(limit(maxResults));
