@@ -155,7 +155,8 @@ function injectSidebar() {
         if (rawSession) {
             const sess = JSON.parse(rawSession);
             const role = String(sess?.role || '').toLowerCase();
-            if (['admin', 'staff', 'viewer', 'developer'].includes(role)) {
+            const ALL_KNOWN_ROLES = ['developer','admin','principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','teacher','viewer'];
+            if (ALL_KNOWN_ROLES.includes(role)) {
                 const userSection = document.getElementById('sidebar-auth-user');
                 const nameEl = document.getElementById('sidebar-auth-name');
                 const loginBtn = document.getElementById('sidebar-login-btn');
@@ -176,6 +177,8 @@ function injectSidebar() {
                 if (role === 'developer') {
                     const licenseLink = document.getElementById('sidebar-license-link');
                     if (licenseLink) licenseLink.classList.remove('hidden');
+                }
+                if (role === 'developer' || role === 'admin') {
                     const usersLink = document.getElementById('sidebar-users-link');
                     if (usersLink) usersLink.classList.remove('hidden');
                 }

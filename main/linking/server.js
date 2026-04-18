@@ -72,7 +72,7 @@ function getPublishedOtpStatus() {
 }
 
 async function publishOtpInternal(
-    authLambdaUrl,
+    functionsUrl,
     licenseKey,
     deviceHash,
     massar,
@@ -89,9 +89,9 @@ async function publishOtpInternal(
         }
 
         const otpHash = hashPassword(String(otpPlaintext));
-        const normalizedUrl = String(authLambdaUrl).trim().replace(/\/+$/, '');
+        const normalizedUrl = String(functionsUrl).trim().replace(/\/+$/, '');
         const normalizedMassar = String(massar).trim().toUpperCase();
-        const response = await fetch(`${normalizedUrl}/link/publish-otp`, {
+        const response = await fetch(`${normalizedUrl}/publishOtp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -116,7 +116,7 @@ async function publishOtpInternal(
 
         if (rememberState) {
             activePublication = {
-                authLambdaUrl: normalizedUrl,
+                functionsUrl: normalizedUrl,
                 licenseKey,
                 deviceHash,
                 massarCode: normalizedMassar,
@@ -134,8 +134,8 @@ async function publishOtpInternal(
     }
 }
 
-async function publishOtpToServer(authLambdaUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload) {
-    return publishOtpInternal(authLambdaUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload, true);
+async function publishOtpToServer(functionsUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload) {
+    return publishOtpInternal(functionsUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload, true);
 }
 
 async function cancelPublishedOtp() {
@@ -146,7 +146,7 @@ async function cancelPublishedOtp() {
 
     const tombstoneSecret = `cancel-${crypto.randomBytes(12).toString('hex')}`;
     const result = await publishOtpInternal(
-        activePublication.authLambdaUrl,
+        activePublication.functionsUrl || activePublication.authLambdaUrl,
         activePublication.licenseKey,
         activePublication.deviceHash,
         activePublication.massarCode,
@@ -163,9 +163,9 @@ async function cancelPublishedOtp() {
     return { success: true, cancelled: true };
 }
 
-async function verifyOtpViaServer(authLambdaUrl, massar, otpPlaintext) {
+async function verifyOtpViaServer(functionsUrl, massar, otpPlaintext) {
     try {
-        const url = String(authLambdaUrl).trim().replace(/\/+$/, '') + '/link/verify-otp';
+        const url = String(functionsUrl).trim().replace(/\/+$/, '') + '/verifyOtp';
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

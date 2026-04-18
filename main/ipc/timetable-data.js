@@ -1,4 +1,6 @@
 const { handleRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 
 function registerTimetableDataIpc(ipcMain) {
     // Read: get timetable JSON blob for a school year
@@ -16,7 +18,7 @@ function registerTimetableDataIpc(ipcMain) {
     });
 
     // Write: upsert timetable JSON blob (soft auth — also works from import page before login)
-    handleWriteSoftAuth(ipcMain, 'timetableData:save', ['admin', 'staff'], (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'timetableData:save', WRITE_ROLES, (db, payload) => {
         const year = requireSchoolYear(payload.school_year);
         const data = payload.data;
         if (!data || typeof data !== 'object') {
@@ -34,7 +36,7 @@ function registerTimetableDataIpc(ipcMain) {
     });
 
     // Write: delete timetable data for a school year (soft auth)
-    handleWriteSoftAuth(ipcMain, 'timetableData:delete', ['admin', 'staff'], (db, schoolYear) => {
+    handleWriteSoftAuth(ipcMain, 'timetableData:delete', WRITE_ROLES, (db, schoolYear) => {
         const year = requireSchoolYear(schoolYear);
         db.prepare('DELETE FROM timetable_data WHERE school_year = ?').run(year);
         return { success: true };

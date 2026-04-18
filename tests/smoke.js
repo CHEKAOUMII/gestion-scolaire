@@ -531,6 +531,37 @@ function runSyncDefaultsSmoke() {
     console.log('[smoke] Sync default resolution OK');
 }
 
+function runUpdaterErrorSmoke() {
+    const { getUpdaterErrorMessage, isTransientUpdaterError } = require(path.join(root, 'main', 'updater-errors'));
+
+    const gatewayTimeoutError = {
+        message:
+            '504 "method: GET url: https://github.com/CHEKAOUMII/project6.2/releases.atom Data: <html><body><h1>504 Gateway Time-out</h1></body></html>"'
+    };
+    assert.strictEqual(
+        isTransientUpdaterError(gatewayTimeoutError),
+        true,
+        'GitHub 504 update feed failures should be classified as transient'
+    );
+    assert.strictEqual(
+        getUpdaterErrorMessage(gatewayTimeoutError, { interactive: true }),
+        'تعذر الوصول مؤقتًا إلى خادم التحديث. حاول مرة أخرى بعد قليل.',
+        'Transient updater errors should map to a friendly user-facing message'
+    );
+
+    const accessError = {
+        message: '404 method: GET url: https://github.com/CHEKAOUMII/project6.2/releases.atom',
+        statusCode: 404
+    };
+    assert.strictEqual(
+        getUpdaterErrorMessage(accessError, { interactive: true }),
+        'تعذر الوصول إلى تحديثات GitHub. تحقق من إعدادات الوصول أو من GH_TOKEN.',
+        'GitHub access failures should suggest checking updater credentials'
+    );
+
+    console.log('[smoke] Updater transient error handling OK');
+}
+
 function run() {
     runContractSmoke();
     runSyncRegistryCompletenessSmoke();
@@ -545,6 +576,7 @@ function run() {
     runConsolidationSmoke();
     runLinkingNetworkSmoke();
     runSyncDefaultsSmoke();
+    runUpdaterErrorSmoke();
     runValidationTests();
     runAuthTests();
     console.log('[smoke] All smoke checks passed');

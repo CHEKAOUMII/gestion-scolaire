@@ -298,6 +298,11 @@ function initLoginPage() {
 
             saveRememberMe(email, rememberMe);
             saveLocalSession(response.user || {}, email, '');
+            if (response.user?.mustChangePassword) {
+                sessionStorage.setItem('gsl_force_pw_change', '1');
+                window.location.replace('login.html#change-password');
+                return;
+            }
             window.location.replace(`${getSafeNextPage()}?loggedin=1`);
         } catch (error) {
             loginErrorText.textContent = getLoginErrorMessage(error);

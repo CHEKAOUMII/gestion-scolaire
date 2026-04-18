@@ -1,6 +1,6 @@
 {
     "name": "gestion-scolaire",
-    "version": "1.0.34",
+    "version": "1.0.36",
     "description": "برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا",
     "main": "main.js",
     "scripts": {
@@ -37,6 +37,8 @@
         "better-sqlite3": "^12.0.0",
         "dotenv": "^17.3.1",
         "electron-updater": "^6.8.3",
+        "firebase": "^12.12.0",
+        "firebase-admin": "^13.8.0",
         "xlsx": "^0.18.5"
     },
     "repository": {

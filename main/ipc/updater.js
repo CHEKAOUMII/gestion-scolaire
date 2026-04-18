@@ -13,7 +13,7 @@ function getUpdater() {
 
 function registerUpdaterIpc(ipcMain) {
     ipcMain.handle('updater:checkForUpdates', async () => {
-        return await getUpdater().checkForUpdates();
+        return await getUpdater().checkForUpdates({ silent: false, reason: 'manual' });
     });
 
     ipcMain.handle('updater:downloadUpdate', async () => {

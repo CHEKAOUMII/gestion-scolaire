@@ -1,4 +1,6 @@
 const { handleRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { resolveTeacherIdentity } = require('../teachers/identity');
 const { requireFields, validateDate } = require('./validation');
 
@@ -13,7 +15,7 @@ function registerExamsIpc(ipcMain) {
 
     // ── Write handlers (require admin or staff role) ──
 
-    handleWrite(ipcMain, 'exams:save', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'exams:save', WRITE_ROLES, (db, _event, payload) => {
         requireFields(payload, ['title', 'school_year']);
         requireSchoolYear(payload.school_year);
         if (payload.exam_date) {
@@ -62,7 +64,7 @@ function registerExamsIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'exams:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'exams:delete', WRITE_ROLES, (db, _event, id) => {
         const examId = Number(id);
         if (!Number.isFinite(examId) || examId <= 0) {
             return { success: false, error: 'Invalid ID' };
@@ -88,7 +90,7 @@ function registerExamsIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleWrite(ipcMain, 'examProctors:saveManual', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'examProctors:saveManual', WRITE_ROLES, (db, _event, payload) => {
         const year = requireSchoolYear(payload.school_year);
         const resolvedTeacher = resolveTeacherIdentity(db, {
             teacher_id: payload.teacher_id,
@@ -135,7 +137,7 @@ function registerExamsIpc(ipcMain) {
         return { success: true, count: exams.length };
     });
 
-    handleWrite(ipcMain, 'examProctors:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'examProctors:delete', WRITE_ROLES, (db, _event, id) => {
         const proctorId = Number(id);
         if (!Number.isFinite(proctorId) || proctorId <= 0) {
             return { success: false, error: 'Invalid ID' };
@@ -152,7 +154,7 @@ function registerExamsIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleWrite(ipcMain, 'examRooms:save', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'examRooms:save', WRITE_ROLES, (db, _event, payload) => {
         const year = requireSchoolYear(payload.school_year);
         if (payload.id) {
             const safeId = Number(payload.id);
@@ -195,7 +197,7 @@ function registerExamsIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleWrite(ipcMain, 'tests:save', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'tests:save', WRITE_ROLES, (db, _event, payload) => {
         const year = requireSchoolYear(payload.school_year);
         const resolvedTeacher = resolveTeacherIdentity(db, {
             teacher_id: payload.teacher_id,
@@ -250,7 +252,7 @@ function registerExamsIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'tests:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'tests:delete', WRITE_ROLES, (db, _event, id) => {
         const testId = Number(id);
         if (!Number.isFinite(testId) || testId <= 0) {
             return { success: false, error: 'Invalid ID' };

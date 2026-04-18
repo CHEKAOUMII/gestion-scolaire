@@ -940,7 +940,23 @@ const MIGRATIONS = [
                      ON system_tags(note_group, entity_type, COALESCE(entity_id, -1), entity_name)
                      WHERE note_group IS NOT NULL`);
         }
-    }
+    },
+    {
+        version: '2026-04-15-role-hierarchy',
+        up() {
+            // Rename legacy 'staff' rows to 'principal' as safest default upgrade.
+            // Admins should reassign roles via settings-users.html after deployment.
+            const db = getDb();
+            db.prepare("UPDATE users SET role = 'principal' WHERE role = 'staff'").run();
+        },
+    },
+    {
+        version: '2026-04-18-firebase-sync-config',
+        up() {
+            ensureColumn('sync_config', 'firebase_functions_url', 'TEXT DEFAULT \'\'');
+            ensureColumn('sync_config', 'firebase_project_id', 'TEXT DEFAULT \'\'');
+        }
+    },
 ];
 
 function ensureMigrationsTable() {

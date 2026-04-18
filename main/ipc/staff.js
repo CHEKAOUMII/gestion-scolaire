@@ -1,4 +1,6 @@
 const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields, validateDate } = require('./validation');
 const {
     ensureTeacherAlias,
@@ -80,7 +82,7 @@ function registerStaffIpc(ipcMain) {
 
     // ── Write handlers (require admin or staff role) ──
 
-    handleWrite(ipcMain, 'teachers:add', ['admin', 'staff'], (db, _event, teacher) => {
+    handleWrite(ipcMain, 'teachers:add', WRITE_ROLES, (db, _event, teacher) => {
         requireFields(teacher, ['full_name', 'school_year']);
         requireSchoolYear(teacher.school_year);
         const result = db
@@ -129,7 +131,7 @@ function registerStaffIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'teachers:update', ['admin', 'staff'], (db, _event, id, data) => {
+    handleWrite(ipcMain, 'teachers:update', WRITE_ROLES, (db, _event, id, data) => {
         const teacherId = Number(id);
         if (!Number.isFinite(teacherId) || teacherId <= 0) {
             return { success: false, error: 'Invalid ID' };
@@ -243,7 +245,7 @@ function registerStaffIpc(ipcMain) {
         return { success: true, count: info.changes };
     });
 
-    handleWriteSoftAuth(ipcMain, 'teachers:saveTafwijAliases', ['admin', 'staff'], (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'teachers:saveTafwijAliases', WRITE_ROLES, (db, payload) => {
         const schoolYear = requireSchoolYear(payload?.school_year);
         const aliases = Array.isArray(payload?.aliases) ? payload.aliases : [];
         if (!aliases.length) {
@@ -308,7 +310,7 @@ function registerStaffIpc(ipcMain) {
 
     // ── Bulk import (UPSERT by PPR or name) ──
 
-    handleWriteSoftAuth(ipcMain, 'teachers:importBulk', ['admin', 'staff'], (db, teachers) => {
+    handleWriteSoftAuth(ipcMain, 'teachers:importBulk', WRITE_ROLES, (db, teachers) => {
         if (!Array.isArray(teachers) || !teachers.length) {
             return { success: false, error: 'No data to import' };
         }
@@ -468,7 +470,7 @@ function registerStaffIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleWrite(ipcMain, 'teacherAbsences:save', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'teacherAbsences:save', WRITE_ROLES, (db, _event, payload) => {
         if (payload.absence_date) {
             validateDate('absence_date', payload.absence_date);
         }
@@ -488,7 +490,7 @@ function registerStaffIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'teacherAbsences:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'teacherAbsences:delete', WRITE_ROLES, (db, _event, id) => {
         const absenceId = Number(id);
         if (!Number.isFinite(absenceId) || absenceId <= 0) {
             return { success: false, error: 'Invalid ID' };
@@ -708,7 +710,7 @@ function registerStaffIpc(ipcMain) {
 
     // ── School Events CRUD ──
 
-    handleWriteSoftAuth(ipcMain, 'schoolEvents:save', ['admin', 'staff'], (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'schoolEvents:save', WRITE_ROLES, (db, payload) => {
         const { id, event_date, event_type, details, event_time, school_year } = payload;
         requireFields(payload, ['event_date', 'event_type', 'school_year']);
         const year = requireSchoolYear(school_year);
@@ -735,7 +737,7 @@ function registerStaffIpc(ipcMain) {
         }
     });
 
-    handleWriteSoftAuth(ipcMain, 'schoolEvents:delete', ['admin', 'staff'], (db, eventId) => {
+    handleWriteSoftAuth(ipcMain, 'schoolEvents:delete', WRITE_ROLES, (db, eventId) => {
         if (!eventId) return { success: false, error: 'Invalid ID' };
         db.prepare('DELETE FROM school_events WHERE id = ?').run(eventId);
         return { success: true };
@@ -809,7 +811,7 @@ function registerStaffIpc(ipcMain) {
             .all(year);
     });
 
-    handleWriteSoftAuth(ipcMain, 'compensation:saveBatch', ['admin', 'staff'], (db, sessions) => {
+    handleWriteSoftAuth(ipcMain, 'compensation:saveBatch', WRITE_ROLES, (db, sessions) => {
         if (!Array.isArray(sessions) || sessions.length === 0) {
             return { success: true, inserted: 0 };
         }
@@ -848,7 +850,7 @@ function registerStaffIpc(ipcMain) {
         return { success: true, inserted };
     });
 
-    handleWriteSoftAuth(ipcMain, 'compensation:toggleCompensated', ['admin', 'staff'], (db, id, compensated) => {
+    handleWriteSoftAuth(ipcMain, 'compensation:toggleCompensated', WRITE_ROLES, (db, id, compensated) => {
         if (!id) return { success: false, error: 'Invalid ID' };
         const val = compensated ? 1 : 0;
         db.prepare(
@@ -911,7 +913,7 @@ function registerStaffIpc(ipcMain) {
             .get(year);
     });
 
-    handleWrite(ipcMain, 'supportSessions:add', ['admin', 'staff'], (db, _event, session) => {
+    handleWrite(ipcMain, 'supportSessions:add', WRITE_ROLES, (db, _event, session) => {
         requireFields(session, ['subject', 'section', 'session_date', 'time_from', 'time_to', 'attendance_status', 'school_year']);
         requireSchoolYear(session.school_year);
 
@@ -943,7 +945,7 @@ function registerStaffIpc(ipcMain) {
         return { id: result.lastInsertRowid };
     });
 
-    handleWrite(ipcMain, 'supportSessions:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'supportSessions:delete', WRITE_ROLES, (db, _event, id) => {
         db.prepare('DELETE FROM support_sessions WHERE id = ?').run(id);
         return { ok: true };
     });
@@ -978,7 +980,7 @@ function registerStaffIpc(ipcMain) {
             .all(entityType, schoolYear || null);
     });
 
-    handleWrite(ipcMain, 'teachers:saveNameAlias', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'teachers:saveNameAlias', WRITE_ROLES, (db, _event, payload) => {
         const { entity_type, canonical_id, alias_text, alias_normalized, source, school_year, confidence } = payload;
         requireFields(payload, ['entity_type', 'canonical_id', 'alias_text', 'alias_normalized', 'source']);
         db.prepare(
@@ -994,14 +996,14 @@ function registerStaffIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'teachers:deleteNameAlias', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'teachers:deleteNameAlias', WRITE_ROLES, (db, _event, id) => {
         const aliasId = Number(id);
         if (!Number.isFinite(aliasId) || aliasId <= 0) return { success: false, error: 'Invalid ID' };
         db.prepare('DELETE FROM name_aliases WHERE id = ?').run(aliasId);
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'supportSessions:import', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'supportSessions:import', WRITE_ROLES, (db, _event, payload) => {
         if (!payload || !Array.isArray(payload.support_sessions)) {
             throw new Error('ملف JSON غير صالح');
         }
@@ -1086,7 +1088,7 @@ function registerStaffIpc(ipcMain) {
             .all(date, year);
     });
 
-    handleWriteSoftAuth(ipcMain, 'systemTags:save', ['admin', 'staff'], (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'systemTags:save', WRITE_ROLES, (db, payload) => {
         const { id, tag_date, entity_type, entity_id, entity_name, tag_key, tag_label, details, school_year } = payload;
         requireFields(payload, ['tag_date', 'entity_type', 'entity_name', 'tag_key', 'tag_label', 'school_year']);
         const year = requireSchoolYear(school_year);
@@ -1110,13 +1112,13 @@ function registerStaffIpc(ipcMain) {
         }
     });
 
-    handleWriteSoftAuth(ipcMain, 'systemTags:delete', ['admin', 'staff'], (db, tagId) => {
+    handleWriteSoftAuth(ipcMain, 'systemTags:delete', WRITE_ROLES, (db, tagId) => {
         if (!tagId) return { success: false, error: 'Invalid ID' };
         db.prepare('DELETE FROM system_tags WHERE id = ?').run(tagId);
         return { success: true };
     });
 
-    handleWriteSoftAuth(ipcMain, 'systemTags:saveNote', ['admin', 'staff'], (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'systemTags:saveNote', WRITE_ROLES, (db, payload) => {
         const { tag_date, tag_key, tag_label, note_text, mentions, school_year, details } = payload;
         requireFields(payload, ['tag_date', 'tag_key', 'tag_label', 'school_year']);
         const year = requireSchoolYear(school_year);
@@ -1148,7 +1150,7 @@ function registerStaffIpc(ipcMain) {
         return { success: true, noteGroup };
     });
 
-    handleWriteSoftAuth(ipcMain, 'systemTags:deleteByGroup', ['admin', 'staff'], (db, noteGroup) => {
+    handleWriteSoftAuth(ipcMain, 'systemTags:deleteByGroup', WRITE_ROLES, (db, noteGroup) => {
         if (!noteGroup) return { success: false, error: 'Invalid group' };
         db.prepare('DELETE FROM system_tags WHERE note_group = ?').run(noteGroup);
         return { success: true };

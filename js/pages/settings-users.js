@@ -4,6 +4,26 @@ let pageVisibilityDraftMap = {};
 let pageVisibilityDirty = new Set();
 let pageVisibilitySaving = false;
 
+const ROLE_OPTIONS = [
+    { value: 'admin',                  label: 'مدير التطبيق' },
+    { value: 'principal',              label: 'مدير المؤسسة' },
+    { value: 'supervisor',             label: 'الناظر' },
+    { value: 'external-guardian',      label: 'حارس الخارجية' },
+    { value: 'internal-guardian',      label: 'حارس الداخلية' },
+    { value: 'admin-assistant',        label: 'مساعد إداري' },
+    { value: 'educational-specialist', label: 'مختص تربوي' },
+    { value: 'social-specialist',      label: 'مختص اجتماعي' },
+    { value: 'teacher',                label: 'أستاذ' },
+    { value: 'viewer',                 label: 'مشاهد فقط' },
+];
+
+function buildRoleSelect(userId, currentRole) {
+    const options = ROLE_OPTIONS.map(({ value, label }) =>
+        `<option value="${value}" ${currentRole === value ? 'selected' : ''}>${label}</option>`
+    ).join('');
+    return `<select onchange="changeRole(${userId}, this.value)">${options}</select>`;
+}
+
 function renderTableMessage(message) {
     return `<tr><td colspan="6" class="settings-table-message">${message}</td></tr>`;
 }
@@ -100,11 +120,7 @@ async function loadRows() {
                         <td>${safeText(user.name || '-')}</td>
                         <td>${safeText(user.email || '-')}</td>
                         <td>
-                            <select onchange="changeRole(${user.id}, this.value)">
-                                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>admin</option>
-                                <option value="staff" ${user.role === 'staff' ? 'selected' : ''}>staff</option>
-                                <option value="viewer" ${user.role === 'viewer' ? 'selected' : ''}>viewer</option>
-                            </select>
+                            ${buildRoleSelect(user.id, user.role)}
                         </td>
                         <td>${user.disabled ? '<span class="settings-user-state settings-user-state--disabled">معطل</span>' : '<span class="settings-user-state settings-user-state--active">نشط</span>'}</td>
                         <td>

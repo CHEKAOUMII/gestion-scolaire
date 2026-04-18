@@ -84,7 +84,7 @@ function handleRead(ipcMain, channel, handler) {
  *
  * @param {Electron.IpcMain} ipcMain
  * @param {string} channel       – e.g. 'students:add'
- * @param {string[]} roles       – e.g. ['admin', 'staff']
+ * @param {string[]} roles       – e.g. WRITE_ROLES from permissions.js
  * @param {(db: any, event: any, ...args: any[]) => any} handler
  */
 function handleWrite(ipcMain, channel, roles, handler) {
@@ -113,7 +113,7 @@ function handleWrite(ipcMain, channel, roles, handler) {
  *
  * @param {Electron.IpcMain} ipcMain
  * @param {string} channel       – e.g. 'students:addBulk'
- * @param {string[]} roles       – e.g. ['admin', 'staff']
+ * @param {string[]} roles       – e.g. WRITE_ROLES from permissions.js
  * @param {(db: any, ...args: any[]) => any} handler
  */
 function handleWriteSoftAuth(ipcMain, channel, roles, handler) {

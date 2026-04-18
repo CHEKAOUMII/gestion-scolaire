@@ -3,7 +3,7 @@ const { verifyPassword, hashPassword } = require('../auth/password');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
-const ALLOWED_ROLES = new Set(['admin', 'staff', 'viewer', 'developer']);
+const { ALLOWED_ROLES: ALLOWED_ROLES_ARR, resolveRole: resolveRoleAlias } = require('../auth/permissions');
 const MAX_PIN_ATTEMPTS = 5;
 
 // ── Hardcoded developer credentials (app developer only) ──
@@ -57,10 +57,9 @@ function normalizeEmail(value) {
 }
 
 function normalizeRole(value) {
-    const role = String(value || '')
-        .trim()
-        .toLowerCase();
-    return ALLOWED_ROLES.has(role) ? role : 'staff';
+    const role = resolveRoleAlias(String(value || '').trim().toLowerCase());
+    // Allow all storable roles plus 'developer' (hardcoded login bypass).
+    return ALLOWED_ROLES_ARR.includes(role) || role === 'developer' ? role : 'principal';
 }
 
 function buildPublicSession(userRow, sessionState = {}) {
@@ -312,7 +311,7 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Self-registration (creates staff user, never admin) ──
+    // ── Self-registration (creates viewer user, never admin) ──
     ipcMain.handle('auth:register', async (event, payload) => {
         try {
             const name = String(payload?.name || '').trim();
@@ -338,7 +337,7 @@ function registerAuthIpc(ipcMain) {
             const result = db
                 .prepare(
                     `INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
-                 VALUES(?, ?, 'staff', ?, 0, 0)`
+                 VALUES(?, ?, 'viewer', ?, 0, 0)`
                 )
                 .run(name, email, hashPassword(password));
 
@@ -537,6 +536,14 @@ function registerAuthIpc(ipcMain) {
         } catch (err) {
             return { success: false, error: err.message };
         }
+    });
+
+    // ── Allowed pages for the current session's role ──
+    ipcMain.handle('auth:getAllowedPages', (event) => {
+        const { getAllowedPages } = require('../auth/permissions');
+        const session = getSessionByEvent(event);
+        if (!session) return [];
+        return getAllowedPages(session.role);
     });
 
     // ── Unlock with password (fallback when PIN is locked out) ──

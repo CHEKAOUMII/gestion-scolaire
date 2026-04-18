@@ -1,4 +1,6 @@
 const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields, validateDate } = require('./validation');
 
 function registerAbsencesIpc(ipcMain) {
@@ -64,7 +66,7 @@ function registerAbsencesIpc(ipcMain) {
 
     // ── Write handlers (require admin or staff role) ──
 
-    handleWrite(ipcMain, 'absences:save', ['admin', 'staff'], (db, _event, absence) => {
+    handleWrite(ipcMain, 'absences:save', WRITE_ROLES, (db, _event, absence) => {
         requireFields(absence, ['student_code', 'absence_date', 'school_year']);
         requireSchoolYear(absence.school_year);
         validateDate('absence_date', absence.absence_date);
@@ -88,7 +90,7 @@ function registerAbsencesIpc(ipcMain) {
     });
 
     // No auth: bulk-import is used by settings-imports page before login
-    handleWriteSoftAuth(ipcMain, 'absences:saveBulk', ['admin', 'staff'], (db, absences) => {
+    handleWriteSoftAuth(ipcMain, 'absences:saveBulk', WRITE_ROLES, (db, absences) => {
         if (!Array.isArray(absences)) {
             return { success: false, error: 'Expected an array' };
         }
@@ -123,7 +125,7 @@ function registerAbsencesIpc(ipcMain) {
         return { success: true, count: absences.length };
     });
 
-    handleWrite(ipcMain, 'absences:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'absences:delete', WRITE_ROLES, (db, _event, id) => {
         const absenceId = Number(id);
         if (!Number.isFinite(absenceId) || absenceId <= 0) {
             return { success: false, error: 'Invalid ID' };
@@ -214,7 +216,7 @@ function registerAbsencesIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleWrite(ipcMain, 'correspondence:save', ['admin', 'staff'], (db, _event, letter) => {
+    handleWrite(ipcMain, 'correspondence:save', WRITE_ROLES, (db, _event, letter) => {
         requireSchoolYear(letter.school_year);
         const info = db
             .prepare(
@@ -238,7 +240,7 @@ function registerAbsencesIpc(ipcMain) {
         return db.prepare('SELECT * FROM correspondence WHERE student_id = ? ORDER BY letter_date DESC').all(studentId);
     });
 
-    handleWrite(ipcMain, 'correspondence:markPrinted', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'correspondence:markPrinted', WRITE_ROLES, (db, _event, id) => {
         const corrId = Number(id);
         if (!Number.isFinite(corrId) || corrId <= 0) {
             return { success: false, error: 'Invalid ID' };
@@ -248,7 +250,7 @@ function registerAbsencesIpc(ipcMain) {
     });
 
     // No auth: delete is used from settings-imports page which may be opened before login
-    handleWriteSoftAuth(ipcMain, 'absences:deleteByYear', ['admin', 'staff'], (db, schoolYear) => {
+    handleWriteSoftAuth(ipcMain, 'absences:deleteByYear', WRITE_ROLES, (db, schoolYear) => {
         db.prepare('DELETE FROM absences WHERE school_year = ?').run(requireSchoolYear(schoolYear));
         return { success: true };
     });

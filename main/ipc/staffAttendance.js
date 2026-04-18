@@ -1,4 +1,6 @@
 const { handleRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { ALLOWED_ROLES } = require('../auth/permissions');
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { validateDate } = require('./validation');
 const { resolveTeacherIdentity } = require('../teachers/identity');
 
@@ -42,7 +44,7 @@ function registerStaffAttendanceIpc(ipcMain) {
             .all(normalizeYear(schoolYear));
     });
 
-    handleWrite(ipcMain, 'staffAttendance:save', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'staffAttendance:save', WRITE_ROLES, (db, _event, payload) => {
         if (payload.attendance_date) {
             validateDate('attendance_date', payload.attendance_date);
         }
@@ -76,7 +78,7 @@ function registerStaffAttendanceIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'staffAttendance:update', ['admin', 'staff'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'staffAttendance:update', WRITE_ROLES, (db, _event, payload) => {
         const recordId = Number(payload.id);
         if (!Number.isFinite(recordId) || recordId <= 0) {
             return { success: false, error: 'Invalid ID' };
@@ -116,7 +118,7 @@ function registerStaffAttendanceIpc(ipcMain) {
         return { success: true };
     });
 
-    handleWrite(ipcMain, 'staffAttendance:delete', ['admin', 'staff'], (db, _event, id) => {
+    handleWrite(ipcMain, 'staffAttendance:delete', WRITE_ROLES, (db, _event, id) => {
         const recordId = Number(id);
         if (!Number.isFinite(recordId) || recordId <= 0) {
             return { success: false, error: 'Invalid ID' };
