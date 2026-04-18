@@ -49,7 +49,10 @@
       "Read(//c/Users/cheka/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/scripts/**)",
       "Bash(python3 -c ':*)",
       "Bash(python3 -)",
-      "Bash(awk -F: '$1 >= 3446 && $1 <= 3700 {print}')"
+      "Bash(awk -F: '$1 >= 3446 && $1 <= 3700 {print}')",
+      "Read(//c/Users/cheka/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/subagent-driven-development/**)",
+      "Read(//c/Users/cheka/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/requesting-code-review/**)",
+      "Bash(grep -n \"'staff'\" main/ipc/*.js)"
     ]
   },
   "enabledPlugins": {

@@ -64,6 +64,8 @@ function buildLinkBootstrapPayload(db) {
     const syncDefaults = applySyncDefaults(syncRow || {});
     const syncConfig = {
         schoolId: syncRow?.school_id || instRow?.massar_code || null,
+        firebaseProjectId: syncDefaults.firebaseProjectId || null,
+        firebaseFunctionsUrl: syncDefaults.firebaseFunctionsUrl,
         awsRegion: syncDefaults.awsRegion,
         authLambdaUrl: syncDefaults.authLambdaUrl,
         syncIntervalMinutes: syncRow?.sync_interval_minutes ?? 10,

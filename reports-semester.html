@@ -227,7 +227,14 @@
         </main>
 
         <script>
-            const year = getSchoolYear();
+            const SCHOOL_YEAR_STORAGE_KEY = 'gsl_current_school_year';
+
+            function resolveSchoolYear() {
+                if (typeof getSchoolYear === 'function') return getSchoolYear();
+                return localStorage.getItem(SCHOOL_YEAR_STORAGE_KEY) || '2025/2026';
+            }
+
+            const year = resolveSchoolYear();
             const CHART_JS_CDN = 'vendor/chart.min.js';
             let chartInstances = {};
             let chartLoaderPromise = null;
