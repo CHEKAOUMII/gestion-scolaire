@@ -5,6 +5,7 @@ const SYNC_LOG_COLLECTION = 'syncLog';
 const SYNC_LOG_CHANGES_COLLECTION = 'changes';
 const OTP_CODES_COLLECTION = 'otpCodes';
 
+// Composite Firestore document IDs use "__" instead of DynamoDB sort-key "#".
 const COLLECTION_MAP = {
     students: { collection: 'students', idFields: ['code'] },
     grades: { collection: 'grades', idFields: ['student_code', 'subject', 'semester', 'school_year'] },
@@ -18,11 +19,11 @@ const COLLECTION_MAP = {
     exam_rooms: { collection: 'examRooms', idFields: ['exam_id', 'room_id'] },
     tests: { collection: 'tests', idFields: ['id'] },
     correspondence: { collection: 'correspondence', idFields: ['id'] },
-    student_files: { collection: 'studentFiles', idFields: ['student_code', 'id'] },
+    student_files: { collection: 'studentFiles', idFields: ['student_code', 'doc_key', 'school_year'] },
     student_movements: { collection: 'studentMovements', idFields: ['id'] },
     compensation_tracking: { collection: 'compensation', idFields: ['id'] },
     settings: { collection: 'settings', idFields: ['key'] },
-    page_visibility: { collection: 'pageVisibility', idFields: ['key'] },
+    page_visibility: { collection: 'pageVisibility', idFields: ['page_key'] },
     device_revocation: { collection: 'deviceRevocations', idFields: ['revokedDeviceHash'] }
 };
 

@@ -516,17 +516,47 @@ function runLinkingNetworkSmoke() {
 function runSyncDefaultsSmoke() {
     const { applySyncDefaults } = require(path.join(root, 'main', 'sync', 'defaults'));
 
-    const resolved = applySyncDefaults(
+    const firebaseFirst = applySyncDefaults(
+        { firebase_functions_url: '', firebase_project_id: '' },
+        {
+            FIREBASE_FUNCTIONS_URL: 'https://firebase.example.com/',
+            FIREBASE_PROJECT_ID: 'gestionscholaire-prod',
+            AUTH_LAMBDA_URL: 'https://legacy.lambda-url.on.aws/',
+            AWS_REGION: 'eu-west-3'
+        }
+    );
+
+    assert.strictEqual(
+        firebaseFirst.firebaseFunctionsUrl,
+        'https://firebase.example.com',
+        'Firebase sync defaults should prefer FIREBASE_FUNCTIONS_URL and trim trailing slashes'
+    );
+    assert.strictEqual(
+        firebaseFirst.firebaseProjectId,
+        'gestionscholaire-prod',
+        'Firebase sync defaults should prefer FIREBASE_PROJECT_ID'
+    );
+    assert.strictEqual(
+        firebaseFirst.authLambdaUrl,
+        'https://firebase.example.com',
+        'Backward-compatible authLambdaUrl alias should mirror the Firebase functions URL'
+    );
+
+    const legacyFallback = applySyncDefaults(
         { auth_lambda_url: '', aws_region: '' },
         { AUTH_LAMBDA_URL: 'https://example.lambda-url.on.aws/', AWS_REGION: 'eu-west-3' }
     );
 
     assert.strictEqual(
-        resolved.authLambdaUrl,
+        legacyFallback.authLambdaUrl,
         'https://example.lambda-url.on.aws',
-        'App sync defaults should trim trailing slashes from AUTH_LAMBDA_URL'
+        'App sync defaults should still accept AUTH_LAMBDA_URL as a fallback input'
     );
-    assert.strictEqual(resolved.awsRegion, 'eu-west-3', 'App sync defaults should fall back to environment region values');
+    assert.strictEqual(
+        legacyFallback.awsRegion,
+        'eu-west-3',
+        'App sync defaults should still fall back to environment region values for the legacy alias'
+    );
 
     console.log('[smoke] Sync default resolution OK');
 }

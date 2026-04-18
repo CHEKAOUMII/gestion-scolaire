@@ -24,10 +24,11 @@ function registerSyncIpc(ipcMain) {
         return {
             enabled: !!config.enabled,
             syncIntervalMinutes: config.sync_interval_minutes || 10,
-            firebaseProjectId: syncDefaults.firebaseProjectId || null,
             firebaseFunctionsUrl: syncDefaults.firebaseFunctionsUrl,
-            awsRegion: syncDefaults.awsRegion,
+            firebaseProjectId: syncDefaults.firebaseProjectId,
+            // backward-compat aliases
             authLambdaUrl: syncDefaults.authLambdaUrl,
+            awsRegion: syncDefaults.awsRegion,
             schoolId: config.school_id || null,
             pushBatchSize: config.push_batch_size || 100,
             maxRetries: config.max_retries || 10,
@@ -88,13 +89,25 @@ function registerSyncIpc(ipcMain) {
             }
         }
 
+        const normalizedUpdates = { ...updates };
+        if (normalizedUpdates.firebaseFunctionsUrl === undefined && normalizedUpdates.authLambdaUrl !== undefined) {
+            normalizedUpdates.firebaseFunctionsUrl = normalizedUpdates.authLambdaUrl;
+        }
+        if (
+            normalizedUpdates.authLambdaUrl === undefined &&
+            normalizedUpdates.firebaseFunctionsUrl !== undefined
+        ) {
+            normalizedUpdates.authLambdaUrl = normalizedUpdates.firebaseFunctionsUrl;
+        }
+
         const fieldMap = {
             enabled: 'enabled',
             syncIntervalMinutes: 'sync_interval_minutes',
-            firebaseProjectId: 'firebase_project_id',
             firebaseFunctionsUrl: 'firebase_functions_url',
-            awsRegion: 'aws_region',
+            firebaseProjectId: 'firebase_project_id',
+            // backward-compat: also accept old field names
             authLambdaUrl: 'auth_lambda_url',
+            awsRegion: 'aws_region',
             schoolId: 'school_id',
             pushBatchSize: 'push_batch_size',
             maxRetries: 'max_retries',
@@ -106,9 +119,9 @@ function registerSyncIpc(ipcMain) {
         const setClauses = [];
         const values = [];
         for (const [jsKey, dbCol] of Object.entries(fieldMap)) {
-            if (updates[jsKey] !== undefined) {
+            if (normalizedUpdates[jsKey] !== undefined) {
                 setClauses.push(`${dbCol} = ?`);
-                values.push(updates[jsKey]);
+                values.push(normalizedUpdates[jsKey]);
             }
         }
 

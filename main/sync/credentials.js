@@ -1,4 +1,8 @@
-const { CognitoIdentityClient, GetCredentialsForIdentityCommand } = require('@aws-sdk/client-cognito-identity');
+'use strict';
+
+const { signInWithCustomToken } = require('firebase/auth');
+const { doc, getDoc } = require('firebase/firestore');
+const { getFirebaseAuth, getFirestoreDb } = require('../firebase/config');
 const { getDb } = require('../db/context');
 const { getDeviceHash } = require('./capture');
 
@@ -14,26 +18,28 @@ function readLicenseKey(db) {
     return config.license_key ? String(config.license_key).trim() || null : null;
 }
 
+function getFunctionsUrl(config) {
+    const url = String(config.firebase_functions_url || config.auth_lambda_url || process.env.FIREBASE_FUNCTIONS_URL || '')
+        .trim()
+        .replace(/\/+$/, '');
+    return url || null;
+}
+
 async function refreshCredentials() {
     try {
         const db = getDb();
         const config = readSyncConfig(db);
-        const authLambdaUrl = String(config.auth_lambda_url || '')
-            .trim()
-            .replace(/\/+$/, '');
-        const awsRegion = String(config.aws_region || 'us-east-1').trim() || 'us-east-1';
+        const functionsUrl = getFunctionsUrl(config);
 
-        if (!authLambdaUrl) {
-            return null;
-        }
+        if (!functionsUrl) return null;
 
         const licenseKey = readLicenseKey(db);
-        if (!licenseKey) {
-            return null;
-        }
+        if (!licenseKey) return null;
 
         const deviceHash = getDeviceHash();
-        const authResponse = await fetch(`${authLambdaUrl}/auth`, {
+
+        // Step 1: Call authExchange Cloud Function
+        const authResponse = await fetch(`${functionsUrl}/authExchange`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ licenseKey, deviceHash })
@@ -41,39 +47,26 @@ async function refreshCredentials() {
 
         if (!authResponse.ok) {
             let errorBody = {};
-            try {
-                errorBody = await authResponse.json();
-            } catch {
-                errorBody = {};
-            }
-            console.warn('[sync:credentials] Auth failed:', errorBody.error || authResponse.status);
+            try { errorBody = await authResponse.json(); } catch { /* */ }
+            console.warn('[sync:credentials] Auth exchange failed:', errorBody.error || authResponse.status);
             return null;
         }
 
-        const { identityId, token, schoolId } = await authResponse.json();
-        const cognitoClient = new CognitoIdentityClient({ region: awsRegion });
-        const credResult = await cognitoClient.send(
-            new GetCredentialsForIdentityCommand({
-                IdentityId: identityId,
-                Logins: { 'cognito-identity.amazonaws.com': token }
-            })
-        );
+        const { customToken, schoolId } = await authResponse.json();
 
-        if (
-            !credResult?.Credentials?.AccessKeyId ||
-            !credResult.Credentials.SecretKey ||
-            !credResult.Credentials.Expiration
-        ) {
+        // Step 2: Sign in with custom token via Firebase Auth
+        const auth = getFirebaseAuth();
+        if (!auth) {
+            console.warn('[sync:credentials] Firebase Auth not initialized');
             return null;
         }
+
+        const userCredential = await signInWithCustomToken(auth, customToken);
 
         _cachedCredentials = {
-            accessKeyId: credResult.Credentials.AccessKeyId,
-            secretAccessKey: credResult.Credentials.SecretKey,
-            sessionToken: credResult.Credentials.SessionToken,
-            expiresAt: Math.floor(credResult.Credentials.Expiration.getTime() / 1000),
-            identityId,
-            schoolId
+            user: userCredential.user,
+            schoolId,
+            expiresAt: Math.floor(Date.now() / 1000) + 3500
         };
 
         return _cachedCredentials;
@@ -84,16 +77,13 @@ async function refreshCredentials() {
 }
 
 async function getCredentials() {
-    if (_cachedCredentials && _cachedCredentials.expiresAt - Math.floor(Date.now() / 1000) > 600) {
+    if (_cachedCredentials && _cachedCredentials.expiresAt - Math.floor(Date.now() / 1000) > 300) {
         return _cachedCredentials;
     }
 
-    if (_refreshPromise) {
-        return _refreshPromise;
-    }
+    if (_refreshPromise) return _refreshPromise;
 
     _refreshPromise = refreshCredentials();
-
     try {
         return await _refreshPromise;
     } finally {
@@ -107,86 +97,58 @@ function clearCredentials() {
 }
 
 function isAuthenticated() {
-    return _cachedCredentials !== null && _cachedCredentials.expiresAt - Math.floor(Date.now() / 1000) > 600;
+    return _cachedCredentials !== null && _cachedCredentials.expiresAt - Math.floor(Date.now() / 1000) > 300;
 }
 
 async function testConnection() {
     const db = getDb();
     const config = readSyncConfig(db);
-
-    const authLambdaUrl = String(config.auth_lambda_url || '')
-        .trim()
-        .replace(/\/+$/, '');
-    const awsRegion = String(config.aws_region || 'us-east-1').trim() || 'us-east-1';
+    const functionsUrl = getFunctionsUrl(config);
     const licenseKey = readLicenseKey(db);
 
-    if (!authLambdaUrl) {
-        return { success: false, error: 'لم يتم تحديد رابط Lambda بعد' };
+    if (!functionsUrl) {
+        return { success: false, error: 'لم يتم تحديد رابط Firebase Functions بعد' };
     }
     if (!licenseKey) {
         return { success: false, error: 'لم يتم إدخال مفتاح الترخيص' };
     }
 
-    // Step 1: Lambda auth
-    let identityId, token, schoolId;
+    // Step 1: Test authExchange Cloud Function
+    let customToken, schoolId;
     try {
         const deviceHash = getDeviceHash();
-        const authRes = await fetch(`${authLambdaUrl}/auth`, {
+        const authRes = await fetch(`${functionsUrl}/authExchange`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ licenseKey, deviceHash })
         });
         if (!authRes.ok) {
             let body = {};
-            try {
-                body = await authRes.json();
-            } catch {
-                /**/
-            }
-            return { success: false, step: 'lambda', error: body.error || `HTTP ${authRes.status}` };
+            try { body = await authRes.json(); } catch { /* */ }
+            return { success: false, step: 'auth', error: body.error || `HTTP ${authRes.status}` };
         }
-        ({ identityId, token, schoolId } = await authRes.json());
+        ({ customToken, schoolId } = await authRes.json());
     } catch (err) {
-        return { success: false, step: 'lambda', error: err.message };
+        return { success: false, step: 'auth', error: err.message };
     }
 
-    // Step 2: Cognito credentials
-    let creds;
+    // Step 2: Sign in with custom token
     try {
-        const cognitoClient = new CognitoIdentityClient({ region: awsRegion });
-        const credResult = await cognitoClient.send(
-            new GetCredentialsForIdentityCommand({
-                IdentityId: identityId,
-                Logins: { 'cognito-identity.amazonaws.com': token }
-            })
-        );
-        if (!credResult?.Credentials?.AccessKeyId) {
-            return { success: false, step: 'cognito', error: 'لم يتم الحصول على بيانات الاعتماد' };
-        }
-        creds = {
-            accessKeyId: credResult.Credentials.AccessKeyId,
-            secretAccessKey: credResult.Credentials.SecretKey,
-            sessionToken: credResult.Credentials.SessionToken
-        };
+        const auth = getFirebaseAuth();
+        if (!auth) return { success: false, step: 'firebase', error: 'Firebase not initialized' };
+        await signInWithCustomToken(auth, customToken);
     } catch (err) {
-        return { success: false, step: 'cognito', error: err.message };
+        return { success: false, step: 'firebase', error: err.message };
     }
 
-    // Step 3: DynamoDB ping — use Query (allowed by IAM) instead of ListTables (not allowed)
+    // Step 3: Firestore ping — read school document
     try {
-        const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-        const { DynamoDBDocumentClient, QueryCommand } = require('@aws-sdk/lib-dynamodb');
-        const dynamo = DynamoDBDocumentClient.from(
-            new DynamoDBClient({ region: awsRegion, credentials: creds })
-        );
-        await dynamo.send(new QueryCommand({
-            TableName: 'pencil2-sync',
-            KeyConditionExpression: 'PK = :pk',
-            ExpressionAttributeValues: { ':pk': `SCHOOL#${schoolId}` },
-            Limit: 1
-        }));
+        const firestoreDb = getFirestoreDb();
+        if (!firestoreDb) return { success: false, step: 'firestore', error: 'Firestore not initialized' };
+        const schoolRef = doc(firestoreDb, 'schools', schoolId);
+        await getDoc(schoolRef);
     } catch (err) {
-        return { success: false, step: 'dynamodb', error: err.message };
+        return { success: false, step: 'firestore', error: err.message };
     }
 
     return { success: true, schoolId };

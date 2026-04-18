@@ -72,7 +72,7 @@ function getPublishedOtpStatus() {
 }
 
 async function publishOtpInternal(
-    functionsUrl,
+    authLambdaUrl,
     licenseKey,
     deviceHash,
     massar,
@@ -89,7 +89,7 @@ async function publishOtpInternal(
         }
 
         const otpHash = hashPassword(String(otpPlaintext));
-        const normalizedUrl = String(functionsUrl).trim().replace(/\/+$/, '');
+        const normalizedUrl = String(authLambdaUrl).trim().replace(/\/+$/, '');
         const normalizedMassar = String(massar).trim().toUpperCase();
         const response = await fetch(`${normalizedUrl}/publishOtp`, {
             method: 'POST',
@@ -114,17 +114,26 @@ async function publishOtpInternal(
             };
         }
 
+        const expiresAtSeconds = Number(data.expiresAt);
+        if (!Number.isFinite(expiresAtSeconds) || expiresAtSeconds <= 0) {
+            return {
+                success: false,
+                error: 'Server did not return OTP expiry',
+                code: 'INVALID_SERVER_RESPONSE'
+            };
+        }
+
         if (rememberState) {
             activePublication = {
                 functionsUrl: normalizedUrl,
                 licenseKey,
                 deviceHash,
                 massarCode: normalizedMassar,
-                expiresAtSeconds: Number(data.expiresAt) || 0
+                expiresAtSeconds
             };
         }
 
-        return { success: true, expiresAt: data.expiresAt };
+        return { success: true, expiresAt: expiresAtSeconds };
     } catch (err) {
         return {
             success: false,
@@ -134,8 +143,8 @@ async function publishOtpInternal(
     }
 }
 
-async function publishOtpToServer(functionsUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload) {
-    return publishOtpInternal(functionsUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload, true);
+async function publishOtpToServer(authLambdaUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload) {
+    return publishOtpInternal(authLambdaUrl, licenseKey, deviceHash, massar, otpPlaintext, configPayload, true);
 }
 
 async function cancelPublishedOtp() {
@@ -144,28 +153,40 @@ async function cancelPublishedOtp() {
         return { success: true, cancelled: false };
     }
 
-    const tombstoneSecret = `cancel-${crypto.randomBytes(12).toString('hex')}`;
-    const result = await publishOtpInternal(
-        activePublication.functionsUrl || activePublication.authLambdaUrl,
-        activePublication.licenseKey,
-        activePublication.deviceHash,
-        activePublication.massarCode,
-        tombstoneSecret,
-        { cancelled: true },
-        false
-    );
+    try {
+        const url = `${String(activePublication.functionsUrl).trim().replace(/\/+$/, '')}/cancelOtp`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                licenseKey: activePublication.licenseKey,
+                massar: activePublication.massarCode
+            })
+        });
 
-    if (!result.success) {
-        return result;
+        const data = await response.json();
+        if (!response.ok) {
+            return {
+                success: false,
+                error: data.message || 'Server rejected the request',
+                code: data.error || 'SERVER_ERROR'
+            };
+        }
+    } catch (err) {
+        return {
+            success: false,
+            error: 'Failed to cancel OTP via server: ' + err.message,
+            code: 'NETWORK_ERROR'
+        };
     }
 
     clearPublishedOtpState();
     return { success: true, cancelled: true };
 }
 
-async function verifyOtpViaServer(functionsUrl, massar, otpPlaintext) {
+async function verifyOtpViaServer(authLambdaUrl, massar, otpPlaintext) {
     try {
-        const url = String(functionsUrl).trim().replace(/\/+$/, '') + '/verifyOtp';
+        const url = String(authLambdaUrl).trim().replace(/\/+$/, '') + '/verifyOtp';
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
