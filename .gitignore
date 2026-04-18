@@ -39,6 +39,7 @@ school_backup_*.json
 *.pdf
 server/owner-telemetry.json
 firebase/service-account.json
+firebase/*adminsdk*.json
 
 # Project specific ignores
 "نتائج/"

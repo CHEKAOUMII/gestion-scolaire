@@ -6,10 +6,17 @@
 const { autoUpdater } = require('electron-updater');
 const { app } = require('electron');
 const path = require('path');
+const { getUpdaterErrorMessage, isTransientUpdaterError } = require('./updater-errors');
 require('dotenv').config({ path: path.join(app.getAppPath(), '.env') });
 
 let _mainWindow = null;
 let _initialized = false;
+let _scheduledCheckTimer = null;
+let _activeOperation = null;
+let _backgroundRetryIndex = 0;
+
+const INITIAL_UPDATE_CHECK_DELAY_MS = 5000;
+const BACKGROUND_RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
 
 function bindUpdaterWindow(mainWindow) {
     _mainWindow = mainWindow;
@@ -22,6 +29,19 @@ function sendToRenderer(channel, data) {
     if (_mainWindow && !_mainWindow.isDestroyed()) {
         _mainWindow.webContents.send(channel, data);
     }
+}
+
+function scheduleBackgroundCheck(delayMs, reason = 'scheduled') {
+    if (_scheduledCheckTimer) {
+        clearTimeout(_scheduledCheckTimer);
+    }
+
+    _scheduledCheckTimer = setTimeout(() => {
+        _scheduledCheckTimer = null;
+        checkForUpdates({ silent: true, reason }).catch((err) => {
+            console.warn('[updater] Scheduled check failed:', err?.message || err);
+        });
+    }, delayMs);
 }
 
 /**
@@ -111,19 +131,23 @@ function initAutoUpdater(mainWindow) {
     });
 
     autoUpdater.on('error', (err) => {
-        console.warn('[updater] Error:', err?.message || err);
-        sendToRenderer('updater:status', {
-            status: 'error',
-            error: err?.message || 'Unknown update error'
-        });
+        const interactive = _activeOperation?.type === 'download' || _activeOperation?.silent === false;
+        const transient = isTransientUpdaterError(err);
+        const message = getUpdaterErrorMessage(err, { interactive });
+
+        console.warn('[updater] Error:', message);
+
+        if (_activeOperation?.type === 'download' || !transient || interactive) {
+            sendToRenderer('updater:status', {
+                status: 'error',
+                error: message,
+                transient
+            });
+        }
     });
 
     // Check for updates after a short delay (5 seconds)
-    setTimeout(() => {
-        autoUpdater.checkForUpdates().catch((err) => {
-            console.warn('[updater] Initial check failed:', err?.message || err);
-        });
-    }, 5000);
+    scheduleBackgroundCheck(INITIAL_UPDATE_CHECK_DELAY_MS, 'startup');
 
     console.log('[updater] Auto-updater initialized (v' + app.getVersion() + ')');
 }
@@ -131,12 +155,35 @@ function initAutoUpdater(mainWindow) {
 /**
  * Manually trigger an update check.
  */
-async function checkForUpdates() {
+async function checkForUpdates(options = {}) {
+    const silent = options.silent === true;
+    const reason = options.reason || (silent ? 'background' : 'manual');
+
     try {
+        _activeOperation = { type: 'check', silent, reason };
         const result = await autoUpdater.checkForUpdates();
+        if (_scheduledCheckTimer) {
+            clearTimeout(_scheduledCheckTimer);
+            _scheduledCheckTimer = null;
+        }
+        _backgroundRetryIndex = 0;
         return { success: true, version: result?.updateInfo?.version || null };
     } catch (err) {
-        return { success: false, error: err?.message || 'Check failed' };
+        const transient = isTransientUpdaterError(err);
+        const message = getUpdaterErrorMessage(err, { interactive: !silent });
+
+        if (silent && transient && _backgroundRetryIndex < BACKGROUND_RETRY_DELAYS_MS.length) {
+            const retryDelayMs = BACKGROUND_RETRY_DELAYS_MS[_backgroundRetryIndex];
+            _backgroundRetryIndex += 1;
+            console.warn(
+                `[updater] ${reason} check hit a transient error. Retrying in ${Math.round(retryDelayMs / 1000)}s.`
+            );
+            scheduleBackgroundCheck(retryDelayMs, 'retry');
+        }
+
+        return { success: false, transient, error: message };
+    } finally {
+        _activeOperation = null;
     }
 }
 
@@ -145,10 +192,13 @@ async function checkForUpdates() {
  */
 async function downloadUpdate() {
     try {
+        _activeOperation = { type: 'download', silent: false, reason: 'download' };
         await autoUpdater.downloadUpdate();
         return { success: true };
     } catch (err) {
-        return { success: false, error: err?.message || 'Download failed' };
+        return { success: false, error: getUpdaterErrorMessage(err, { interactive: true }) };
+    } finally {
+        _activeOperation = null;
     }
 }
 
