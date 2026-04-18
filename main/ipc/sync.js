@@ -89,6 +89,17 @@ function registerSyncIpc(ipcMain) {
             }
         }
 
+        const normalizedUpdates = { ...updates };
+        if (normalizedUpdates.firebaseFunctionsUrl === undefined && normalizedUpdates.authLambdaUrl !== undefined) {
+            normalizedUpdates.firebaseFunctionsUrl = normalizedUpdates.authLambdaUrl;
+        }
+        if (
+            normalizedUpdates.authLambdaUrl === undefined &&
+            normalizedUpdates.firebaseFunctionsUrl !== undefined
+        ) {
+            normalizedUpdates.authLambdaUrl = normalizedUpdates.firebaseFunctionsUrl;
+        }
+
         const fieldMap = {
             enabled: 'enabled',
             syncIntervalMinutes: 'sync_interval_minutes',
@@ -108,9 +119,9 @@ function registerSyncIpc(ipcMain) {
         const setClauses = [];
         const values = [];
         for (const [jsKey, dbCol] of Object.entries(fieldMap)) {
-            if (updates[jsKey] !== undefined) {
+            if (normalizedUpdates[jsKey] !== undefined) {
                 setClauses.push(`${dbCol} = ?`);
-                values.push(updates[jsKey]);
+                values.push(normalizedUpdates[jsKey]);
             }
         }
 

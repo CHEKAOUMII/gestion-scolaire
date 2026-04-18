@@ -107,6 +107,22 @@ function seedSyncDefaults(db, env = process.env) {
         // Column not yet added by migration — safe to ignore
     }
 
+    try {
+        db.prepare(
+            `
+                UPDATE sync_config
+                SET
+                    firebase_project_id = CASE
+                        WHEN COALESCE(trim(firebase_project_id), '') = '' AND ? IS NOT NULL THEN ?
+                        ELSE firebase_project_id
+                    END
+                WHERE id = 1
+            `
+        ).run(defaults.firebaseProjectId, defaults.firebaseProjectId);
+    } catch {
+        // Column not yet added by migration - safe to ignore
+    }
+
     return defaults;
 }
 

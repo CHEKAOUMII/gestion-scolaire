@@ -1,6 +1,6 @@
 'use strict';
 
-const { doc, setDoc, getDoc, writeBatch } = require('firebase/firestore');
+const { doc, runTransaction } = require('firebase/firestore');
 const { getFirestoreDb } = require('../firebase/config');
 const { getCollectionPath, buildDocumentId } = require('../firebase/collections');
 const { logChangeBatch, pullChanges } = require('../firebase/sync-log');
@@ -85,6 +85,76 @@ function parseLocalIdFromRowSyncId(rowSyncId, tableName) {
     return String(rowSyncId).slice(index + prefix.length);
 }
 
+function parsePullCursor(value) {
+    if (value == null || value === '') {
+        return { updatedAt: 0, changeId: '' };
+    }
+
+    if (typeof value === 'number') {
+        return { updatedAt: Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0, changeId: '' };
+    }
+
+    const normalized = String(value).trim();
+    if (!normalized) {
+        return { updatedAt: 0, changeId: '' };
+    }
+
+    if (/^\d+$/.test(normalized)) {
+        return { updatedAt: Number(normalized) || 0, changeId: '' };
+    }
+
+    try {
+        const parsed = JSON.parse(normalized);
+        return {
+            updatedAt: Number(parsed?.updatedAt) || 0,
+            changeId: String(parsed?.changeId || '').trim()
+        };
+    } catch {
+        return { updatedAt: Number(normalized) || 0, changeId: '' };
+    }
+}
+
+function serializePullCursor(cursor) {
+    return JSON.stringify({
+        updatedAt: Number(cursor?.updatedAt) || 0,
+        changeId: String(cursor?.changeId || '').trim()
+    });
+}
+
+function resolveStudentCode(db, studentId, schoolYear) {
+    if (studentId == null || String(studentId).trim() === '') {
+        return null;
+    }
+
+    let row = null;
+    if (schoolYear) {
+        row = db.prepare('SELECT code FROM students WHERE id = ? AND school_year = ?').get(studentId, schoolYear);
+    }
+    if (!row) {
+        row = db.prepare('SELECT code FROM students WHERE id = ?').get(studentId);
+    }
+
+    const code = String(row?.code || '').trim();
+    return code || null;
+}
+
+function resolveStudentId(db, studentCode, schoolYear) {
+    const normalizedCode = String(studentCode || '').trim();
+    if (!normalizedCode) {
+        return null;
+    }
+
+    let row = null;
+    if (schoolYear) {
+        row = db.prepare('SELECT id FROM students WHERE code = ? AND school_year = ?').get(normalizedCode, schoolYear);
+    }
+    if (!row) {
+        row = db.prepare('SELECT id FROM students WHERE code = ? ORDER BY id ASC LIMIT 1').get(normalizedCode);
+    }
+
+    return row?.id ?? null;
+}
+
 function normalizeSortKeyRowData(entry, rowData) {
     const normalized = { ...(rowData || {}) };
     const localId = parseLocalIdFromRowSyncId(entry.row_sync_id, entry.table_name);
@@ -107,10 +177,6 @@ function normalizeSortKeyRowData(entry, rowData) {
 
     if (entry.table_name === 'teacher_absences' && normalized.date == null && normalized.absence_date != null) {
         normalized.date = normalized.absence_date;
-    }
-
-    if (entry.table_name === 'student_files' && normalized.student_code == null && normalized.student_id != null) {
-        normalized.student_code = normalized.student_id;
     }
 
     if (entry.table_name === 'exam_rooms') {
@@ -147,6 +213,26 @@ function buildFirestoreDoc(db, entry, schoolId, deviceHash) {
     }
 
     const normalizedData = normalizeSortKeyRowData(entry, rowData);
+
+    if (entry.table_name === 'student_files') {
+        if (normalizedData.doc_key == null && normalizedData.file_id != null) {
+            normalizedData.doc_key = normalizedData.file_id;
+        }
+
+        if (normalizedData.student_code == null) {
+            normalizedData.student_code = resolveStudentCode(db, normalizedData.student_id, normalizedData.school_year);
+        }
+
+        if (!normalizedData.student_code) {
+            console.warn(`[sync:push] Failed to resolve student_code for student_files entry ${entry.id || entry.row_sync_id}`);
+            return null;
+        }
+
+        delete normalizedData.student_id;
+        delete normalizedData.file_id;
+        delete normalizedData.id;
+    }
+
     const documentId = buildDocumentId(entry.table_name, normalizedData);
     if (!documentId) {
         console.warn(`[sync:push] Failed to build document ID for table '${entry.table_name}'`);
@@ -162,6 +248,7 @@ function buildFirestoreDoc(db, entry, schoolId, deviceHash) {
         collectionPath: getCollectionPath(schoolId, entry.table_name),
         documentId,
         entityType,
+        entityId: documentId,
         data: normalizedData,
         version: newVersion,
         operation: entry.operation,
@@ -172,49 +259,34 @@ function buildFirestoreDoc(db, entry, schoolId, deviceHash) {
     };
 }
 
-async function writeBatchToFirestore(firestoreDb, items) {
-    if (!items.length) return { success: true, failedItems: [], isAccessDenied: false };
-
-    try {
-        const batch = writeBatch(firestoreDb);
-        for (const item of items) {
-            const docRef = doc(firestoreDb, item.collectionPath, item.documentId);
-            batch.set(docRef, {
-                ...item.data,
-                version: item.version,
-                operation: item.operation,
-                rowSyncId: item.rowSyncId,
-                deviceHash: item.deviceHash,
-                schoolYear: item.schoolYear,
-                updatedAt: item.updatedAt
-            }, { merge: true });
-        }
-        await batch.commit();
-        return { success: true, failedItems: [], isAccessDenied: false };
-    } catch (err) {
-        const isAccessDenied = err.code === 'permission-denied';
-        return { success: false, error: err.message, errorName: err.code, isAccessDenied, failedItems: items };
-    }
+function buildFirestorePayload(item) {
+    return {
+        ...item.data,
+        version: item.version,
+        operation: item.operation,
+        rowSyncId: item.rowSyncId,
+        deviceHash: item.deviceHash,
+        schoolYear: item.schoolYear,
+        updatedAt: item.updatedAt
+    };
 }
 
 async function writeItemWithVersionCheck(firestoreDb, item) {
     try {
         const docRef = doc(firestoreDb, item.collectionPath, item.documentId);
-        const existing = await getDoc(docRef);
+        const transactionResult = await runTransaction(firestoreDb, async (transaction) => {
+            const existing = await transaction.get(docRef);
+            if (existing.exists() && Number(existing.data().version || 0) >= item.version) {
+                return { conflict: true };
+            }
 
-        if (existing.exists() && existing.data().version >= item.version) {
+            transaction.set(docRef, buildFirestorePayload(item), { merge: true });
+            return { conflict: false };
+        });
+
+        if (transactionResult?.conflict) {
             return { success: false, conflict: true, error: 'Version conflict', errorName: 'VERSION_CONFLICT' };
         }
-
-        await setDoc(docRef, {
-            ...item.data,
-            version: item.version,
-            operation: item.operation,
-            rowSyncId: item.rowSyncId,
-            deviceHash: item.deviceHash,
-            schoolYear: item.schoolYear,
-            updatedAt: item.updatedAt
-        }, { merge: true });
 
         return { success: true };
     } catch (err) {
@@ -248,6 +320,7 @@ async function pushDeviceRevocations(db, firestoreDb, schoolId, deviceHash) {
                 collectionPath: `schools/${schoolId}/deviceRevocations`,
                 documentId: revokedDeviceHash,
                 entityType: 'device_revocation',
+                entityId: revokedDeviceHash,
                 data: { revokedDeviceHash, revokedAt },
                 version: 1,
                 operation: 'PUT',
@@ -259,6 +332,11 @@ async function pushDeviceRevocations(db, firestoreDb, schoolId, deviceHash) {
 
             const writeResult = await writeItemWithVersionCheck(firestoreDb, revocationItem);
             if (writeResult.success) {
+                try {
+                    await logChangeBatch(firestoreDb, schoolId, [revocationItem]);
+                } catch {
+                    // Non-critical - primary write already succeeded
+                }
                 result.sentCount += 1;
                 continue;
             }
@@ -334,10 +412,6 @@ function getCurrentRole() {
     } catch {
         return null;
     }
-}
-
-function buildItemKey(item) {
-    return `${item.collectionPath}||${item.documentId}`;
 }
 
 async function flushPreparedItems(db, firestoreDb, preparedItems, maxRetries, schoolId) {
@@ -492,6 +566,7 @@ async function flushExpandedEntries(db, firestoreDb, entryId, expandedEntries, s
     let skippedCount = 0;
     let lastError = null;
     let abort = false;
+    const successfulItems = [];
 
     for (let index = 0; index < expandedEntries.length; index += 25) {
         const chunk = expandedEntries.slice(index, index + 25);
@@ -516,24 +591,32 @@ async function flushExpandedEntries(db, firestoreDb, entryId, expandedEntries, s
             continue;
         }
 
-        const result = await writeBatchToFirestore(firestoreDb, items);
-        const failedItemKeys = new Set(
-            (result.failedItems || []).map((item) => buildItemKey(item))
-        );
-
         for (const item of items) {
-            if (failedItemKeys.has(buildItemKey(item))) {
+            const result = await writeItemWithVersionCheck(firestoreDb, item);
+            if (!result.success) {
                 failedCount += 1;
-                lastError = result.error || 'Batch write failed';
-            } else {
-                sentCount += 1;
+                lastError = result.error || 'Conditional write failed';
+                if (result.isAccessDenied) {
+                    abort = true;
+                    break;
+                }
+                continue;
             }
+
+            sentCount += 1;
+            successfulItems.push(item);
         }
 
-        if (result.isAccessDenied) {
-            abort = true;
-            lastError = result.error || 'Access denied';
+        if (abort) {
             break;
+        }
+    }
+
+    if (successfulItems.length > 0 && schoolId) {
+        try {
+            await logChangeBatch(firestoreDb, schoolId, successfulItems);
+        } catch {
+            // Non-critical - primary writes already succeeded
         }
     }
 
@@ -801,12 +884,12 @@ async function pullRemoteChanges() {
         }
 
         const firestoreDb = getFirestoreDb();
-        const cursor = config.pull_cursor || '0';
+        const cursor = parsePullCursor(config.pull_cursor);
         const currentDeviceHash = getDeviceHash();
         const localDeviceHash = currentDeviceHash.substring(0, 16);
 
         // Step 1: Pull changes from Firestore syncLog since last cursor
-        const allItems = await pullChanges(firestoreDb, schoolId, Number(cursor));
+        const allItems = await pullChanges(firestoreDb, schoolId, cursor);
 
         if (allItems.length === 0) {
             db.prepare(
@@ -820,13 +903,18 @@ async function pullRemoteChanges() {
                 conflictCount: 0,
                 failedCount: 0,
                 totalFetched: 0,
-                newCursor: cursor,
+                newCursor: serializePullCursor(cursor),
                 lastError: null
             };
         }
 
         const selfRevocations = allItems.filter(
-            (item) => item.entityType === 'device_revocation' && item.revokedDeviceHash === currentDeviceHash
+            (item) =>
+                item.entityType === 'device_revocation' &&
+                (
+                    String(item.entityId || '').trim() === currentDeviceHash ||
+                    String(item.data?.revokedDeviceHash || '').trim() === currentDeviceHash
+                )
         );
         if (selfRevocations.length > 0) {
             const localDevice = db
@@ -847,7 +935,7 @@ async function pullRemoteChanges() {
                     conflictCount: 0,
                     failedCount: 0,
                     totalFetched: allItems.length,
-                    newCursor: cursor,
+                    newCursor: serializePullCursor(cursor),
                     lastError: 'تم إلغاء هذا الجهاز من قبل المسؤول'
                 };
             }
@@ -874,7 +962,8 @@ async function pullRemoteChanges() {
                 version: item.version,
                 deviceHash: item.deviceHash,
                 entityType: item.entityType,
-                schoolYear: item.schoolYear
+                schoolYear: item.schoolYear,
+                changeId: item.id
             });
         }
 
@@ -896,7 +985,9 @@ async function pullRemoteChanges() {
         let failedCount = 0;
 
         const applyChanges = db.transaction(() => {
-            for (const item of sorted) {
+            const deferredStudentFiles = [];
+
+            const applyItem = (item, isDeferred = false) => {
                 try {
                     // Check for conflicts
                     const pending = pendingMap.get(item.rowSyncId);
@@ -965,6 +1056,35 @@ async function pullRemoteChanges() {
                         }
                     }
 
+                    if (item.tableName === 'student_files' && item.operation === 'PUT') {
+                        const studentCode = String(item.data?.student_code || '').trim();
+                        const docKey = String(item.data?.doc_key || item.data?.file_id || '').trim();
+                        const schoolYear = String(item.data?.school_year || item.schoolYear || '').trim();
+                        const studentId = resolveStudentId(db, studentCode, schoolYear);
+
+                        if (studentId == null) {
+                            if (!isDeferred) {
+                                deferredStudentFiles.push(item);
+                                return;
+                            }
+
+                            console.error(
+                                `[sync:pull] Failed to resolve student_id for student_files row '${item.rowSyncId || item.changeId || docKey}' (student_code='${studentCode}', school_year='${schoolYear || '-'}')`
+                            );
+                            failedCount++;
+                            return;
+                        }
+
+                        item.data = {
+                            ...item.data,
+                            student_id: studentId,
+                            doc_key: docKey,
+                            school_year: schoolYear
+                        };
+                        delete item.data.student_code;
+                        delete item.data.file_id;
+                    }
+
                     // Look up sync_id_map for existing local mapping
                     const mapping = db
                         .prepare('SELECT local_id FROM sync_id_map WHERE row_sync_id = ?')
@@ -983,7 +1103,7 @@ async function pullRemoteChanges() {
                                     );
                                 } catch {
                                     failedCount++;
-                                    continue;
+                                    return;
                                 }
                             }
                         } else {
@@ -1001,7 +1121,7 @@ async function pullRemoteChanges() {
                                         .run(...values);
                                 } catch {
                                     failedCount++;
-                                    continue;
+                                    return;
                                 }
                                 db.prepare(
                                     'INSERT OR IGNORE INTO sync_id_map(row_sync_id, table_name, local_id) VALUES(?, ?, ?)'
@@ -1032,7 +1152,7 @@ async function pullRemoteChanges() {
                                 db.prepare(`DELETE FROM "${item.tableName}" WHERE id = ?`).run(mapping.local_id);
                             } catch {
                                 failedCount++;
-                                continue;
+                                return;
                             }
                             appliedCount++;
                         } else {
@@ -1042,13 +1162,25 @@ async function pullRemoteChanges() {
                 } catch {
                     failedCount++;
                 }
+            };
+
+            for (const item of sorted) {
+                applyItem(item, false);
+            }
+
+            for (const item of deferredStudentFiles) {
+                applyItem(item, true);
             }
         });
 
         applyChanges();
 
         // Step 7: Advance cursor to highest updatedAt seen
-        const newCursor = String(allItems[allItems.length - 1].updatedAt || cursor);
+        const lastItem = allItems[allItems.length - 1] || {};
+        const newCursor = serializePullCursor({
+            updatedAt: Number(lastItem.updatedAt) || cursor.updatedAt || 0,
+            changeId: String(lastItem.id || '').trim()
+        });
 
         // Step 8: Update sync_config
         db.prepare(
@@ -1171,5 +1303,7 @@ module.exports = {
     restartSyncPullBackground,
     isPushTimerRunning,
     isPullTimerRunning,
-    isPullCycleRunning
+    isPullCycleRunning,
+    parsePullCursor,
+    serializePullCursor
 };

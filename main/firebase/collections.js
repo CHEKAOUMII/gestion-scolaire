@@ -21,7 +21,7 @@ const COLLECTION_MAP = {
     exam_rooms:            { collection: 'examRooms',          idFields: ['exam_id', 'room_id'] },
     tests:                 { collection: 'tests',              idFields: ['id'] },
     correspondence:        { collection: 'correspondence',     idFields: ['id'] },
-    student_files:         { collection: 'studentFiles',       idFields: ['student_code', 'file_id'] },
+    student_files:         { collection: 'studentFiles',       idFields: ['student_code', 'doc_key', 'school_year'] },
     student_movements:     { collection: 'studentMovements',   idFields: ['id'] },
     compensation_tracking: { collection: 'compensation',       idFields: ['id'] },
     settings:              { collection: 'settings',           idFields: ['key'] },

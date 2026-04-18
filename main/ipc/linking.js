@@ -200,8 +200,9 @@ function normalizeSyncConfig(rawConfig, massarCode) {
     const syncIntervalValue = Number(config.sync_interval_minutes ?? config.syncIntervalMinutes);
     const enabledValue = config.enabled ?? config.sync_enabled ?? config.syncEnabled;
     const schoolIdSource = config.school_id ?? config.schoolId ?? massarCode ?? '';
-    const firebaseFunctionsUrlSource = config.firebase_functions_url ?? config.firebaseFunctionsUrl ?? config.auth_lambda_url ?? config.authLambdaUrl ?? '';
-    const firebaseProjectIdSource = config.firebase_project_id ?? config.firebaseProjectId ?? config.aws_region ?? config.awsRegion ?? '';
+    const firebaseFunctionsUrlSource =
+        config.firebase_functions_url ?? config.firebaseFunctionsUrl ?? config.auth_lambda_url ?? config.authLambdaUrl ?? '';
+    const firebaseProjectIdSource = config.firebase_project_id ?? config.firebaseProjectId ?? '';
     const licenseKeySource = config.license_key ?? config.licenseKey ?? '';
 
     return {
@@ -269,10 +270,17 @@ function normalizeImportedLinkPayload(rawPayload, massarCode) {
 
 function upsertSyncConfig(db, syncConfig) {
     const currentConfig = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+    const firebaseFunctionsUrl =
+        syncConfig.firebaseFunctionsUrl ||
+        syncConfig.authLambdaUrl ||
+        currentConfig.firebase_functions_url ||
+        currentConfig.auth_lambda_url ||
+        null;
     const mergedConfig = {
         schoolId: syncConfig.schoolId || currentConfig.school_id || null,
-        firebaseFunctionsUrl: syncConfig.firebaseFunctionsUrl || syncConfig.authLambdaUrl || currentConfig.firebase_functions_url || currentConfig.auth_lambda_url || null,
-        authLambdaUrl: syncConfig.authLambdaUrl || currentConfig.auth_lambda_url || null,
+        firebaseFunctionsUrl,
+        firebaseProjectId: syncConfig.firebaseProjectId || currentConfig.firebase_project_id || null,
+        authLambdaUrl: firebaseFunctionsUrl || currentConfig.auth_lambda_url || null,
         awsRegion: syncConfig.awsRegion || currentConfig.aws_region || null,
         licenseKey: syncConfig.licenseKey || currentConfig.license_key || null,
         syncIntervalMinutes: syncConfig.syncIntervalMinutes || Number(currentConfig.sync_interval_minutes) || 10,
@@ -289,6 +297,8 @@ function upsertSyncConfig(db, syncConfig) {
             INSERT INTO sync_config (
                 id,
                 school_id,
+                firebase_functions_url,
+                firebase_project_id,
                 auth_lambda_url,
                 aws_region,
                 license_key,
@@ -296,9 +306,11 @@ function upsertSyncConfig(db, syncConfig) {
                 enabled,
                 updated_at
             )
-            VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(id) DO UPDATE SET
                 school_id = excluded.school_id,
+                firebase_functions_url = excluded.firebase_functions_url,
+                firebase_project_id = excluded.firebase_project_id,
                 auth_lambda_url = excluded.auth_lambda_url,
                 aws_region = excluded.aws_region,
                 license_key = excluded.license_key,
@@ -308,6 +320,8 @@ function upsertSyncConfig(db, syncConfig) {
         `
     ).run(
         mergedConfig.schoolId,
+        mergedConfig.firebaseFunctionsUrl,
+        mergedConfig.firebaseProjectId,
         mergedConfig.authLambdaUrl,
         mergedConfig.awsRegion,
         mergedConfig.licenseKey,

@@ -115,6 +115,7 @@ exports.publishOtp = onRequest({ cors: true }, async (req, res) => {
     }
 
     const otpRef = db.collection('otpCodes').doc(massar);
+    const expiresAtDate = new Date(Date.now() + 10 * 60 * 1000);
     await otpRef.set({
         massarCode: massar,
         otpHash,
@@ -124,11 +125,50 @@ exports.publishOtp = onRequest({ cors: true }, async (req, res) => {
         status: 'active',
         failureCount: 0,
         publishedBy: deviceHash,
-        expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 10 * 60 * 1000)),
+        expiresAt: admin.firestore.Timestamp.fromDate(expiresAtDate),
         createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, expiresAt: Math.floor(expiresAtDate.getTime() / 1000) });
+});
+
+/**
+ * POST /cancelOtp
+ * Cancels the active OTP for device linking.
+ */
+exports.cancelOtp = onRequest({ cors: true }, async (req, res) => {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+    const { licenseKey, massar } = req.body || {};
+    if (!licenseKey || !massar) {
+        return res.status(400).json({ error: 'Missing licenseKey or massar' });
+    }
+
+    const secret = process.env.GESTION_LICENSE_SECRET || '';
+    let customerRef;
+    try {
+        const result = validateLicenseKey(licenseKey, secret);
+        customerRef = result.customerRef;
+    } catch (err) {
+        return res.status(401).json({ error: err.message });
+    }
+
+    if (massar !== customerRef) {
+        return res.status(403).json({ error: 'MASSAR_MISMATCH', code: 'MASSAR_MISMATCH' });
+    }
+
+    const otpRef = db.collection('otpCodes').doc(massar);
+    const otpDoc = await otpRef.get();
+    if (!otpDoc.exists) {
+        return res.status(404).json({ error: 'NO_ACTIVE_OTP', code: 'NO_ACTIVE_OTP' });
+    }
+
+    await otpRef.update({
+        status: 'cancelled',
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return res.status(200).json({ success: true, status: 'cancelled' });
 });
 
 /**
@@ -145,29 +185,31 @@ exports.verifyOtp = onRequest({ cors: true }, async (req, res) => {
     const otpRef = db.collection('otpCodes').doc(massar);
     const otpDoc = await otpRef.get();
 
-    if (!otpDoc.exists) return res.status(404).json({ error: 'NOT_FOUND', code: 'NO_ACTIVE_OTP' });
+    if (!otpDoc.exists) {
+        return res.status(404).json({ error: 'NO_ACTIVE_OTP', code: 'NO_ACTIVE_OTP', message: 'NO_ACTIVE_OTP' });
+    }
 
     const otpData = otpDoc.data();
     const now = Date.now();
 
     if (otpData.expiresAt && otpData.expiresAt.toDate().getTime() < now) {
-        return res.status(401).json({ error: 'OTP_EXPIRED', code: 'OTP_EXPIRED' });
+        return res.status(401).json({ error: 'OTP_EXPIRED', code: 'OTP_EXPIRED', message: 'OTP_EXPIRED' });
     }
 
     if (otpData.status !== 'active') {
         const code = otpData.status === 'used' ? 'OTP_USED' : 'OTP_CANCELLED';
-        return res.status(401).json({ error: code, code });
+        return res.status(401).json({ error: code, code, message: code });
     }
 
     if (otpData.failureCount >= 5) {
-        return res.status(429).json({ error: 'RATE_LIMITED', code: 'RATE_LIMITED' });
+        return res.status(429).json({ error: 'RATE_LIMITED', code: 'RATE_LIMITED', message: 'RATE_LIMITED' });
     }
 
     const isValid = verifyPassword(otp, otpData.otpHash);
 
     if (!isValid) {
         await otpRef.update({ failureCount: admin.firestore.FieldValue.increment(1) });
-        return res.status(401).json({ error: 'INVALID_OTP', code: 'INVALID_OTP' });
+        return res.status(401).json({ error: 'INVALID_OTP', code: 'INVALID_OTP', message: 'INVALID_OTP' });
     }
 
     await otpRef.update({ status: 'used' });

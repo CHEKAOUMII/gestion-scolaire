@@ -8,9 +8,6 @@
  *
  * Usage:
  *   node scripts/verify-migration.js [input-file]
- *
- * Env vars:
- *   FIREBASE_SERVICE_ACCOUNT_PATH  (default: firebase/gestionscholaire-firebase-adminsdk-fbsvc-d818682f4a.json)
  */
 
 require('dotenv').config();
@@ -22,26 +19,25 @@ const INPUT_FILE = process.argv[2] || 'dynamo-export.json';
 const SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH
     || path.join(__dirname, '..', 'firebase', 'gestionscholaire-firebase-adminsdk-fbsvc-d818682f4a.json');
 
-// Maps DynamoDB entityType → Firestore collection name (must match import-firestore.js)
 const ENTITY_TO_COLLECTION = {
-    student:              'students',
-    grade:                'grades',
-    absence:              'absences',
-    teacher:              'teachers',
-    teacher_alias:        'teacherAliases',
-    staff_attendance:     'staffAttendance',
-    teacher_absence:      'teacherAbsences',
-    exam:                 'exams',
-    exam_proctor:         'examProctors',
-    exam_room:            'examRooms',
-    test:                 'tests',
-    correspondence:       'correspondence',
-    student_file:         'studentFiles',
-    student_movement:     'studentMovements',
-    compensation:         'compensation',
-    settings:             'settings',
-    page_visibility:      'pageVisibility',
-    device_revocation:    'deviceRevocations'
+    student: 'students',
+    grade: 'grades',
+    absence: 'absences',
+    teacher: 'teachers',
+    teacher_alias: 'teacherAliases',
+    staff_attendance: 'staffAttendance',
+    teacher_absence: 'teacherAbsences',
+    exam: 'exams',
+    exam_proctor: 'examProctors',
+    exam_room: 'examRooms',
+    test: 'tests',
+    correspondence: 'correspondence',
+    student_file: 'studentFiles',
+    student_movement: 'studentMovements',
+    compensation: 'compensation',
+    settings: 'settings',
+    page_visibility: 'pageVisibility',
+    device_revocation: 'deviceRevocations'
 };
 
 admin.initializeApp({
@@ -51,6 +47,11 @@ const db = admin.firestore();
 
 function extractSchoolId(pk) {
     return String(pk || '').replace(/^SCHOOL#/i, '').trim();
+}
+
+async function countCollection(pathValue) {
+    const snap = await db.collection(pathValue).count().get();
+    return snap.data().count;
 }
 
 async function verify() {
@@ -63,63 +64,80 @@ async function verify() {
     const items = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
     console.log(`Loaded ${items.length} items from ${inputPath}\n`);
 
-    // --- 1. Count by entityType in the export file ---
-    const exportByType = {};
-    const schoolIds = new Set();
+    const unmappedEntityTypes = new Set();
+    const expectedBySchool = new Map();
+
     for (const item of items) {
-        const et = item.entityType || item.entity_type || 'unknown';
-        exportByType[et] = (exportByType[et] || 0) + 1;
         const schoolId = extractSchoolId(item.PK || item.pk || '');
-        if (schoolId) schoolIds.add(schoolId);
-    }
+        const entityType = item.entityType || item.entity_type || 'unknown';
+        const collection = ENTITY_TO_COLLECTION[entityType];
 
-    console.log('=== DynamoDB export counts (by entityType) ===');
-    let exportTotal = 0;
-    for (const [et, count] of Object.entries(exportByType).sort()) {
-        const col = ENTITY_TO_COLLECTION[et] || '(unmapped)';
-        console.log(`  ${et.padEnd(25)} ${String(count).padStart(6)}   → ${col}`);
-        exportTotal += count;
-    }
-    console.log(`  ${'TOTAL'.padEnd(25)} ${String(exportTotal).padStart(6)}\n`);
-
-    if (!schoolIds.size) {
-        console.log('No school IDs found in export — cannot query Firestore.');
-        return;
-    }
-
-    // --- 2. For each school, count Firestore docs per collection ---
-    console.log('=== Firestore counts (by collection per school) ===');
-
-    let allMatch = true;
-
-    for (const schoolId of [...schoolIds].sort()) {
-        console.log(`\nSchool: ${schoolId}`);
-
-        // Build expected counts for this school from the export
-        const expectedByCol = {};
-        for (const item of items) {
-            const sid = extractSchoolId(item.PK || item.pk || '');
-            if (sid !== schoolId) continue;
-            const et = item.entityType || item.entity_type || '';
-            const col = ENTITY_TO_COLLECTION[et];
-            if (!col) continue;
-            expectedByCol[col] = (expectedByCol[col] || 0) + 1;
+        if (!collection) {
+            unmappedEntityTypes.add(entityType);
+            continue;
         }
 
-        for (const [col, expected] of Object.entries(expectedByCol).sort()) {
-            const snap = await db
-                .collection(`schools/${schoolId}/${col}`)
-                .count()
-                .get();
-            const actual = snap.data().count;
-            const match = actual >= expected;
-            const flag = match ? '✓' : '✗ MISMATCH';
-            console.log(`  ${col.padEnd(25)} expected: ${String(expected).padStart(5)}  actual: ${String(actual).padStart(5)}  ${flag}`);
-            if (!match) allMatch = false;
+        if (!schoolId) {
+            continue;
+        }
+
+        const schoolCounts = expectedBySchool.get(schoolId) || {
+            collections: new Map(),
+            syncLogCount: 0
+        };
+        schoolCounts.collections.set(collection, (schoolCounts.collections.get(collection) || 0) + 1);
+        schoolCounts.syncLogCount += 1;
+        expectedBySchool.set(schoolId, schoolCounts);
+    }
+
+    if (unmappedEntityTypes.size > 0) {
+        console.error('Unmapped entity types detected:');
+        for (const entityType of [...unmappedEntityTypes].sort()) {
+            console.error(`  - ${entityType}`);
+        }
+        process.exit(1);
+    }
+
+    const mismatches = [];
+
+    for (const [schoolId, schoolCounts] of [...expectedBySchool.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+        console.log(`School: ${schoolId}`);
+
+        for (const [collectionName, expected] of [...schoolCounts.collections.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+            const actual = await countCollection(`schools/${schoolId}/${collectionName}`);
+            const match = actual === expected;
+            console.log(
+                `  ${collectionName.padEnd(25)} expected: ${String(expected).padStart(5)}  actual: ${String(actual).padStart(5)}  ${match ? 'OK' : 'MISMATCH'}`
+            );
+
+            if (!match) {
+                mismatches.push({ schoolId, target: collectionName, expected, actual });
+            }
+        }
+
+        const syncLogActual = await countCollection(`syncLog/${schoolId}/changes`);
+        const syncLogExpected = schoolCounts.syncLogCount;
+        const syncLogMatch = syncLogActual === syncLogExpected;
+        console.log(
+            `  ${'syncLog'.padEnd(25)} expected: ${String(syncLogExpected).padStart(5)}  actual: ${String(syncLogActual).padStart(5)}  ${syncLogMatch ? 'OK' : 'MISMATCH'}`
+        );
+
+        if (!syncLogMatch) {
+            mismatches.push({ schoolId, target: 'syncLog', expected: syncLogExpected, actual: syncLogActual });
         }
     }
 
-    console.log('\n' + (allMatch ? '✓ All counts match — migration verified.' : '✗ Count mismatches detected — rerun import-firestore.js.'));
+    if (mismatches.length > 0) {
+        console.error('\nCount mismatches detected:');
+        for (const mismatch of mismatches) {
+            console.error(
+                `  - school=${mismatch.schoolId} target=${mismatch.target} expected=${mismatch.expected} actual=${mismatch.actual}`
+            );
+        }
+        process.exit(1);
+    }
+
+    console.log('\nAll collection and syncLog counts match exactly.');
 }
 
 verify().catch((err) => {
