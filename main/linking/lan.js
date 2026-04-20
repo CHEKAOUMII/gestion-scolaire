@@ -66,9 +66,6 @@ function buildLinkBootstrapPayload(db) {
         schoolId: syncRow?.school_id || instRow?.massar_code || null,
         firebaseFunctionsUrl: syncDefaults.firebaseFunctionsUrl,
         firebaseProjectId: syncDefaults.firebaseProjectId,
-        // backward-compat aliases for older linked devices
-        authLambdaUrl: syncDefaults.authLambdaUrl,
-        awsRegion: syncDefaults.awsRegion,
         syncIntervalMinutes: syncRow?.sync_interval_minutes ?? 10,
         enabled: !!(syncRow?.enabled ?? 0),
         licenseKey

@@ -32,9 +32,19 @@
 
     // ── State Variables ──
 
+    const ENTITY_ICONS = {
+        teacher: '👨‍🏫',
+        section: '🏫',
+        inspector: '🔍',
+        subject: '📚',
+        general: '📝'
+    };
+
     let _timetableCache = null;
     let _timetableCacheLoaded = false;
     let _teachersCache = null;
+    let _inspectorsCache = null;
+    let _subjectsCache = null;
     let _allSectionsCache = [];
     let _mentionStartPos = -1;
     let _confirmedMentions = [];
@@ -691,7 +701,7 @@
             for (const tag of groupTags) {
                 if (tag.entity_type === 'general') continue;
                 const raw = '@' + escapeHtml(tag.entity_name);
-                const icon = tag.entity_type === 'teacher' ? '👨‍🏫' : '🏫';
+                const icon = ENTITY_ICONS[tag.entity_type] || ENTITY_ICONS.general;
                 const highlighted = `<span style="background: var(--color-primary-light, #e3f2fd); color: var(--color-primary); padding: 1px 6px; border-radius: 4px; font-weight: 600;">${icon} ${escapeHtml(tag.entity_name)}</span>`;
                 displayText = displayText.replace(raw, highlighted);
             }
@@ -730,7 +740,7 @@
             const tagBadge = tagDef
                 ? `${tagDef.icon} ${escapeHtml(tag.tag_label)}`
                 : escapeHtml(tag.tag_label);
-            const icon = tag.entity_type === 'teacher' ? '👨‍🏫' : '🏫';
+            const icon = ENTITY_ICONS[tag.entity_type] || ENTITY_ICONS.general;
 
             html += `
                 <tr data-tag-id="${tag.id}"
@@ -769,8 +779,35 @@
         return _teachersCache;
     }
 
+    async function ensureInspectorsCache() {
+        if (!_inspectorsCache) {
+            try {
+                _inspectorsCache = await window.api.inspectors.getAll(year);
+            } catch { _inspectorsCache = []; }
+        }
+        return _inspectorsCache;
+    }
+
+    async function ensureSubjectsCache() {
+        if (!_subjectsCache) {
+            try {
+                const rawSubjects = await window.api.subjects.getAll();
+                const normalized = (rawSubjects || [])
+                    .map((item) => (typeof item === 'string' ? item : item?.name))
+                    .map((name) => typeof normalizeSubjectName === 'function' ? normalizeSubjectName(name) : String(name || '').trim())
+                    .filter(Boolean);
+                _subjectsCache = [...new Set(normalized)];
+            } catch { _subjectsCache = []; }
+        }
+        return _subjectsCache;
+    }
+
     async function showTagNoteForm() {
-        await ensureTeachersCache();
+        await Promise.all([
+            ensureTeachersCache(),
+            ensureInspectorsCache(),
+            ensureSubjectsCache()
+        ]);
         const form = document.getElementById('tag-note-form');
         const typeSelect = document.getElementById('tag-note-type');
 
@@ -967,7 +1004,7 @@
         hideMentionDropdown();
     }
 
-    function showMentionSuggestions(query) {
+    function showMentionSuggestionsLegacyOld(query) {
         const dropdown = document.getElementById('mention-dropdown');
         const teachers = (_teachersCache || []).filter(t => t.full_name);
         const sections = _allSectionsCache || [];
@@ -1040,6 +1077,100 @@
 
         dropdown.innerHTML = html;
 
+        dropdown.style.display = 'block';
+    }
+
+    function showMentionSuggestions(query) {
+        const dropdown = document.getElementById('mention-dropdown');
+        const teachers = (_teachersCache || []).filter(t => t.full_name);
+        const inspectors = _inspectorsCache || [];
+        const subjects = _subjectsCache || [];
+        const sections = _allSectionsCache || [];
+        const q = query.trim();
+        const qLower = q.toLowerCase();
+
+        let teacherItems = [];
+        let sectionItems = [];
+        let inspectorItems = [];
+        let subjectItems = [];
+
+        for (const t of teachers) {
+            const fullName = String(t.full_name || '').trim();
+            if (fullName && (!q || fullName.includes(q) || fullName.toLowerCase().includes(qLower))) {
+                teacherItems.push({ type: 'teacher', id: t.id, name: fullName, meta: t.subject || '', badge: '👨‍🏫' });
+            }
+        }
+
+        for (const s of sections) {
+            const sectionName = String(s || '').trim();
+            if (sectionName && (!q || sectionName.includes(q) || sectionName.toLowerCase().includes(qLower))) {
+                sectionItems.push({ type: 'section', id: null, name: sectionName, meta: '', badge: '🏫' });
+            }
+        }
+
+        for (const inspector of inspectors) {
+            const fullName = `${String(inspector.first_name || '').trim()} ${String(inspector.last_name || '').trim()}`.trim();
+            const specialty = String(inspector.specialty || '').trim();
+            if (!fullName) continue;
+            const matchesName = !q || fullName.includes(q) || fullName.toLowerCase().includes(qLower);
+            const matchesSpecialty = specialty && (specialty.includes(q) || specialty.toLowerCase().includes(qLower));
+            if (matchesName || matchesSpecialty) {
+                inspectorItems.push({ type: 'inspector', id: inspector.id, name: fullName, meta: specialty, badge: '🔍' });
+            }
+        }
+
+        for (const subject of subjects) {
+            const subjectName = String(subject || '').trim();
+            if (subjectName && (!q || subjectName.includes(q) || subjectName.toLowerCase().includes(qLower))) {
+                subjectItems.push({ type: 'subject', id: null, name: subjectName, meta: '', badge: '📚' });
+            }
+        }
+
+        teacherItems = teacherItems.slice(0, 8);
+        // Keep all matching sections visible; the dropdown already scrolls.
+        inspectorItems = inspectorItems.slice(0, 4);
+        subjectItems = subjectItems.slice(0, 4);
+
+        const items = [...teacherItems, ...sectionItems, ...inspectorItems, ...subjectItems];
+        if (items.length === 0) {
+            hideMentionDropdown();
+            return;
+        }
+
+        let html = '';
+        let globalIdx = 0;
+
+        const renderMentionGroup = (title, groupItems, normalizeMeta = false) => {
+            if (groupItems.length === 0) return;
+            html += `<div style="padding: 5px 14px; font-size: 11px; font-weight: 700; color: var(--color-muted, #888); background: var(--color-bg-secondary, #f5f5f5); border-bottom: 1px solid var(--color-border-light, #eee); letter-spacing: 0.5px;">${title}</div>`;
+            for (const item of groupItems) {
+                const idx = globalIdx++;
+                const metaText = normalizeMeta && item.meta && typeof normalizeSubjectName === 'function'
+                    ? normalizeSubjectName(item.meta)
+                    : item.meta;
+                const metaLine = metaText
+                    ? `<span style="font-size: 11px; color: var(--color-muted, #999); display: block; margin-top: 1px;">${escapeHtml(metaText)}</span>`
+                    : '';
+                html += `
+                    <div class="mention-item${idx === _mentionActiveIndex ? ' mention-item--active' : ''}"
+                         data-type="${item.type}" data-id="${item.id || ''}" data-name="${escapeHtml(item.name)}"
+                         data-idx="${idx}"
+                         style="padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px;
+                                border-bottom: 1px solid var(--color-border-light, #f0f0f0);
+                                transition: background 0.15s;
+                                ${idx === _mentionActiveIndex ? 'background: rgba(66,133,244,0.15); color: var(--color-text, #1a1a1a);' : ''}">
+                        <span style="font-size: 16px;">${item.badge}</span>
+                        <span style="flex: 1;"><span style="font-weight: 600;">${escapeHtml(item.name)}</span>${metaLine}</span>
+                    </div>`;
+            }
+        };
+
+        renderMentionGroup('👨‍🏫 الأساتذة', teacherItems, true);
+        renderMentionGroup('🏫 الأقسام', sectionItems);
+        renderMentionGroup('🔍 المفتشون', inspectorItems);
+        renderMentionGroup('📚 المواد', subjectItems);
+
+        dropdown.innerHTML = html;
         dropdown.style.display = 'block';
     }
 

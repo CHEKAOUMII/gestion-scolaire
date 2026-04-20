@@ -800,7 +800,7 @@ function startSyncPushBackground() {
         const db = getDb();
         const config = readSyncConfig(db);
 
-        if (!Number(config.enabled) || !(config.firebase_functions_url || config.auth_lambda_url)) {
+        if (!Number(config.enabled) || !config.firebase_functions_url) {
             return;
         }
 
@@ -1257,7 +1257,7 @@ function startSyncPullBackground() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !config.enabled || !(config.firebase_functions_url || config.auth_lambda_url)) return;
+        if (!config || !config.enabled || !config.firebase_functions_url) return;
 
         const intervalMs = Math.max(1, Math.min(30, config.sync_interval_minutes || 10)) * 60 * 1000;
 

@@ -31,13 +31,6 @@
     }
 })();
 
-// ── Hardcoded sync defaults (so users don't have to enter these) ──
-const SYNC_HARDCODED_DEFAULTS = {
-    awsRegion: 'us-east-1'
-    // authLambdaUrl will be set once infra is deployed
-    // authLambdaUrl: 'https://xxxxx.lambda-url.us-east-1.on.aws'
-};
-
 let statusTimer = null;
 let isAdmin = false;
 let currentOffset = 0;
@@ -693,8 +686,8 @@ async function loadConfig() {
 
         setChecked('cfg-enabled', config.enabled);
         setVal('cfg-school-id', config.schoolId || '');
-        setVal('cfg-auth-url', config.authLambdaUrl || '');
-        setVal('cfg-region', config.awsRegion || 'us-east-1');
+        setVal('cfg-functions-url', config.firebaseFunctionsUrl || '');
+        setVal('cfg-project-id', config.firebaseProjectId || '');
         setVal('cfg-interval', config.syncIntervalMinutes || 10);
         setVal('cfg-batch-size', config.pushBatchSize || 100);
         setVal('cfg-max-retries', config.maxRetries || 10);
@@ -718,8 +711,8 @@ function initConfigForm() {
 
         const enabled = document.getElementById('cfg-enabled')?.checked;
         const schoolId = document.getElementById('cfg-school-id')?.value?.trim();
-        const authUrl = document.getElementById('cfg-auth-url')?.value?.trim();
-        const region = document.getElementById('cfg-region')?.value?.trim();
+        const functionsUrl = document.getElementById('cfg-functions-url')?.value?.trim();
+        const projectId = document.getElementById('cfg-project-id')?.value?.trim();
         const interval = parseInt(document.getElementById('cfg-interval')?.value, 10);
         const batchSize = parseInt(document.getElementById('cfg-batch-size')?.value, 10);
         const maxRetries = parseInt(document.getElementById('cfg-max-retries')?.value, 10);
@@ -735,11 +728,11 @@ function initConfigForm() {
         if (enabled && !schoolId) {
             errors.push('معرف المؤسسة مطلوب عند تفعيل المزامنة');
         }
-        if (enabled && !authUrl) {
-            errors.push('رابط المصادقة مطلوب عند تفعيل المزامنة');
+        if (enabled && !functionsUrl) {
+            errors.push('رابط Firebase Functions مطلوب عند تفعيل المزامنة');
         }
-        if (enabled && !region) {
-            errors.push('المنطقة مطلوبة عند تفعيل المزامنة');
+        if (enabled && !projectId) {
+            errors.push('معرف مشروع Firebase مطلوب عند تفعيل المزامنة');
         }
 
         if (errors.length) {
@@ -754,8 +747,8 @@ function initConfigForm() {
         const updates = {
             enabled: enabled ? 1 : 0,
             schoolId,
-            authLambdaUrl: authUrl,
-            awsRegion: region,
+            firebaseFunctionsUrl: functionsUrl,
+            firebaseProjectId: projectId,
             syncIntervalMinutes: interval
         };
         if (!isNaN(batchSize)) updates.pushBatchSize = batchSize;

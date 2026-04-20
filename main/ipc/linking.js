@@ -209,8 +209,6 @@ function normalizeSyncConfig(rawConfig, massarCode) {
         schoolId: String(schoolIdSource).trim() || null,
         firebaseFunctionsUrl: String(firebaseFunctionsUrlSource).trim().replace(/\/+$/, '') || null,
         firebaseProjectId: String(firebaseProjectIdSource).trim() || null,
-        authLambdaUrl: String(firebaseFunctionsUrlSource).trim().replace(/\/+$/, '') || null,
-        awsRegion: String(config.aws_region ?? config.awsRegion ?? '').trim() || null,
         licenseKey: String(licenseKeySource).trim() || null,
         syncIntervalMinutes: Number.isFinite(syncIntervalValue) && syncIntervalValue > 0 ? syncIntervalValue : null,
         enabled: enabledValue === undefined || enabledValue === null ? null : Number(enabledValue) ? 1 : 0
@@ -272,16 +270,12 @@ function upsertSyncConfig(db, syncConfig) {
     const currentConfig = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
     const firebaseFunctionsUrl =
         syncConfig.firebaseFunctionsUrl ||
-        syncConfig.authLambdaUrl ||
         currentConfig.firebase_functions_url ||
-        currentConfig.auth_lambda_url ||
         null;
     const mergedConfig = {
         schoolId: syncConfig.schoolId || currentConfig.school_id || null,
         firebaseFunctionsUrl,
         firebaseProjectId: syncConfig.firebaseProjectId || currentConfig.firebase_project_id || null,
-        authLambdaUrl: firebaseFunctionsUrl || currentConfig.auth_lambda_url || null,
-        awsRegion: syncConfig.awsRegion || currentConfig.aws_region || null,
         licenseKey: syncConfig.licenseKey || currentConfig.license_key || null,
         syncIntervalMinutes: syncConfig.syncIntervalMinutes || Number(currentConfig.sync_interval_minutes) || 10,
         enabled:
@@ -299,20 +293,16 @@ function upsertSyncConfig(db, syncConfig) {
                 school_id,
                 firebase_functions_url,
                 firebase_project_id,
-                auth_lambda_url,
-                aws_region,
                 license_key,
                 sync_interval_minutes,
                 enabled,
                 updated_at
             )
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(id) DO UPDATE SET
                 school_id = excluded.school_id,
                 firebase_functions_url = excluded.firebase_functions_url,
                 firebase_project_id = excluded.firebase_project_id,
-                auth_lambda_url = excluded.auth_lambda_url,
-                aws_region = excluded.aws_region,
                 license_key = excluded.license_key,
                 sync_interval_minutes = excluded.sync_interval_minutes,
                 enabled = excluded.enabled,
@@ -322,8 +312,6 @@ function upsertSyncConfig(db, syncConfig) {
         mergedConfig.schoolId,
         mergedConfig.firebaseFunctionsUrl,
         mergedConfig.firebaseProjectId,
-        mergedConfig.authLambdaUrl,
-        mergedConfig.awsRegion,
         mergedConfig.licenseKey,
         mergedConfig.syncIntervalMinutes,
         mergedConfig.enabled
@@ -331,8 +319,8 @@ function upsertSyncConfig(db, syncConfig) {
 
     // Also update firebase_functions_url if the column exists
     try {
-        if (mergedConfig.firebaseFunctionsUrl || mergedConfig.authLambdaUrl) {
-            const url = mergedConfig.firebaseFunctionsUrl || mergedConfig.authLambdaUrl;
+        if (mergedConfig.firebaseFunctionsUrl) {
+            const url = mergedConfig.firebaseFunctionsUrl;
             db.prepare('UPDATE sync_config SET firebase_functions_url = ? WHERE id = 1').run(url);
         }
     } catch {
@@ -409,9 +397,9 @@ function importLinkedUsers(db, users) {
 }
 
 function getFirebaseFunctionsUrl(db) {
-    const row = db.prepare('SELECT firebase_functions_url, auth_lambda_url FROM sync_config WHERE id = 1').get();
+    const row = db.prepare('SELECT firebase_functions_url FROM sync_config WHERE id = 1').get();
     return (
-        String(row?.firebase_functions_url || row?.auth_lambda_url || process.env.FIREBASE_FUNCTIONS_URL || process.env.AUTH_LAMBDA_URL || '')
+        String(row?.firebase_functions_url || process.env.FIREBASE_FUNCTIONS_URL || '')
             .trim()
             .replace(/\/+$/, '') || null
     );
@@ -687,8 +675,8 @@ function registerLinkingIpc(ipcMain) {
                 console.log('[linking:verify-and-link] No primaryIp provided and LAN discovery failed.');
             }
 
-            const authLambdaUrl = getFirebaseFunctionsUrl(db);
-            if (!authLambdaUrl) {
+            const functionsUrl = getFirebaseFunctionsUrl(db);
+            if (!functionsUrl) {
                 // No server configured — give specific guidance
                 if (!primaryIp) {
                     return fail(
@@ -707,7 +695,7 @@ function registerLinkingIpc(ipcMain) {
             }
 
             try {
-                const serverResult = await verifyOtpViaServer(authLambdaUrl, massarCode, otp);
+                const serverResult = await verifyOtpViaServer(functionsUrl, massarCode, otp);
                 if (!serverResult?.success) {
                     return mapVerificationFailure(serverResult);
                 }
@@ -807,11 +795,11 @@ function registerLinkingIpc(ipcMain) {
             }
 
             const bootstrapPayload = buildLinkBootstrapPayload(db);
-            const authLambdaUrl = bootstrapPayload?.syncConfig?.firebaseFunctionsUrl || bootstrapPayload?.syncConfig?.authLambdaUrl;
+            const functionsUrl = bootstrapPayload?.syncConfig?.firebaseFunctionsUrl || null;
             const licenseKey = bootstrapPayload?.syncConfig?.licenseKey;
-            if (authLambdaUrl && licenseKey) {
+            if (functionsUrl && licenseKey) {
                 const remoteResult = await publishOtpToServer(
-                    authLambdaUrl,
+                    functionsUrl,
                     licenseKey,
                     deviceContext.deviceHash,
                     institution.massarCode,

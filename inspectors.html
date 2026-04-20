@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>إدارة المفتشين | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/message-system.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/data/ma-education-labels.js"></script>
+    </head>
+
+    <body class="inspectors-page">
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
+                    <h2 class="page-title"><i class="fas fa-search"></i> إدارة المفتشين</h2>
+                </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="grades-container inspectors-page-shell">
+                <!-- Stats Row -->
+                <div class="staff-stats-row animate-in">
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-total">-</div>
+                        <div class="stat-label">إجمالي المفتشين</div>
+                    </div>
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-active">-</div>
+                        <div class="stat-label">نشطون</div>
+                    </div>
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-specialties">-</div>
+                        <div class="stat-label">التخصصات</div>
+                    </div>
+                    <div class="staff-stat-card">
+                        <div class="stat-value" id="stat-visits">-</div>
+                        <div class="stat-label">زيارات هذا الشهر</div>
+                    </div>
+                </div>
+
+                <!-- Add/Edit Form -->
+                <div class="gs-form-section">
+                    <div class="gs-form-header">
+                        <i class="fas fa-plus-circle"></i> <span id="form-title">إضافة مفتش</span>
+                    </div>
+                    <form id="inspector-form" class="gs-form-grid">
+                        <input type="hidden" id="inspector-id" />
+                        <div class="gs-form-group">
+                            <label for="inspector-lname">اللقب *</label>
+                            <input id="inspector-lname" class="gs-field-control" placeholder="مثال: بن علي" required />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="inspector-fname">الاسم *</label>
+                            <input id="inspector-fname" class="gs-field-control" placeholder="مثال: محمد" required />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="inspector-specialty">التخصص *</label>
+                            <select id="inspector-specialty" class="gs-field-control" required>
+                                <option value="">-- اختر التخصص --</option>
+                            </select>
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="inspector-phone">الهاتف</label>
+                            <input id="inspector-phone" class="gs-field-control" placeholder="0550 000 000" type="tel" />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="inspector-email">البريد الإلكتروني</label>
+                            <input id="inspector-email" class="gs-field-control" placeholder="exemple@education.ma" type="email" />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="inspector-visit">تاريخ آخر زيارة</label>
+                            <input id="inspector-visit" class="gs-field-control" type="date" />
+                        </div>
+                        <div class="gs-form-group">
+                            <label for="inspector-status">الحالة</label>
+                            <select id="inspector-status" class="gs-field-control">
+                                <option value="نشط">نشط</option>
+                                <option value="غير نشط">غير نشط</option>
+                            </select>
+                        </div>
+                        <div class="gs-form-group" style="grid-column: 1 / -1;">
+                            <label for="inspector-notes">ملاحظات</label>
+                            <textarea id="inspector-notes" class="gs-field-control" rows="2" placeholder="ملاحظات إضافية..."></textarea>
+                        </div>
+                        <div class="gs-form-actions">
+                            <button class="btn btn-success" type="submit"><i class="fas fa-save"></i> حفظ</button>
+                            <button class="btn btn-secondary" type="button" id="cancel-edit" hidden>إلغاء</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Inspectors Table -->
+                <div class="gs-preview-section">
+                    <div class="gs-preview-header gs-preview-header-wrap">
+                        <h3 class="gs-preview-title">
+                            <i class="fas fa-table"></i>
+                            لائحة المفتشين
+                            <span class="gs-count-badge" id="inspectors-counter">0</span>
+                        </h3>
+                        <div class="staff-toolbar">
+                            <input
+                                type="text"
+                                class="search-input"
+                                id="search-input"
+                                placeholder="بحث بالاسم أو التخصص..."
+                            />
+                            <select id="filter-status">
+                                <option value="">كل الحالات</option>
+                                <option value="نشط">نشط</option>
+                                <option value="غير نشط">غير نشط</option>
+                            </select>
+                            <select id="filter-specialty">
+                                <option value="">كل التخصصات</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="gs-preview-body">
+                        <div class="staff-table-wrap">
+                            <table class="staff-table" id="inspectors-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>الاسم واللقب</th>
+                                        <th>التخصص</th>
+                                        <th>الهاتف</th>
+                                        <th>البريد الإلكتروني</th>
+                                        <th>الحالة</th>
+                                        <th class="col-actions">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inspectors-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div id="inspectors-pagination" class="sl-pagination teachers-pagination"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script src="js/pages/inspectors.js" defer></script>
+    </body>
+</html>

@@ -366,12 +366,21 @@ function _normArabic(str) {
         .replace(/\s+و\s+/g, ' و');
 }
 
+// أسماء عربية بديلة (شائعة) → الاسم القياسي في SUBJECT_LABELS
+const _ARABIC_ALIASES = {
+    'الاجتماعيات': 'التاريخ والجغرافيا',
+};
+
 (function _buildArabicCanonical() {
     const seen = new Set();
     for (const val of Object.values(SUBJECT_LABELS)) {
         if (seen.has(val)) continue;
         seen.add(val);
         _ARABIC_CANONICAL[_normArabic(val)] = val;
+    }
+    // إضافة الأسماء البديلة
+    for (const [alias, canonical] of Object.entries(_ARABIC_ALIASES)) {
+        _ARABIC_CANONICAL[_normArabic(alias)] = canonical;
     }
 })();
 

@@ -188,6 +188,11 @@ const CHANNEL_REGISTRY = {
     'staffAttendance:update': { tables: ['staff_attendance'], operation: 'PUT', idExtractor: 'argId' },
     'staffAttendance:delete': { tables: ['staff_attendance'], operation: 'DEL', idExtractor: 'argId' },
 
+    // === inspectors.js ===
+    'inspectors:add': { tables: ['inspectors'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
+    'inspectors:update': { tables: ['inspectors'], operation: 'PUT', idExtractor: 'argId' },
+    'inspectors:delete': { tables: ['inspectors'], operation: 'DEL', idExtractor: 'argId' },
+
     // === system.js ===
     'users:getAll': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
 

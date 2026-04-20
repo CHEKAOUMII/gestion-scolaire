@@ -118,6 +118,15 @@ contextBridge.exposeInMainWorld('api', {
         deleteNameAlias: (id) => ipcRenderer.invoke('teachers:deleteNameAlias', id)
     },
 
+    // Inspectors
+    inspectors: {
+        getAll: (schoolYear) => ipcRenderer.invoke('inspectors:getAll', schoolYear),
+        getStats: (schoolYear) => ipcRenderer.invoke('inspectors:getStats', schoolYear),
+        add: (data) => ipcRenderer.invoke('inspectors:add', data),
+        update: (id, data) => ipcRenderer.invoke('inspectors:update', id, data),
+        delete: (id) => ipcRenderer.invoke('inspectors:delete', id)
+    },
+
     // Teacher absences
     teacherAbsences: {
         getAll: (schoolYear) => ipcRenderer.invoke('teacherAbsences:getAll', schoolYear),

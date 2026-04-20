@@ -17,30 +17,10 @@ function normalizeFunctionsUrl(value) {
     return normalized ? normalized.replace(/\/+$/, '') : null;
 }
 
-// Backward-compatible alias
-const normalizeAuthLambdaUrl = normalizeFunctionsUrl;
-
 function getAppSyncDefaults(env = process.env) {
     return {
-        firebaseFunctionsUrl: normalizeFunctionsUrl(
-            firstNonEmptyString(
-                env.FIREBASE_FUNCTIONS_URL,
-                env.AUTH_LAMBDA_URL,
-                env.SYNC_AUTH_LAMBDA_URL,
-                env.GESTION_AUTH_LAMBDA_URL
-            )
-        ),
-        firebaseProjectId: firstNonEmptyString(env.FIREBASE_PROJECT_ID) || DEFAULT_FIREBASE_PROJECT_ID,
-        // Backward compat aliases
-        authLambdaUrl: normalizeFunctionsUrl(
-            firstNonEmptyString(
-                env.FIREBASE_FUNCTIONS_URL,
-                env.AUTH_LAMBDA_URL,
-                env.SYNC_AUTH_LAMBDA_URL,
-                env.GESTION_AUTH_LAMBDA_URL
-            )
-        ),
-        awsRegion: firstNonEmptyString(env.AWS_REGION, env.AWS_DEFAULT_REGION, env.SYNC_AWS_REGION) || null
+        firebaseFunctionsUrl: normalizeFunctionsUrl(firstNonEmptyString(env.FIREBASE_FUNCTIONS_URL)),
+        firebaseProjectId: firstNonEmptyString(env.FIREBASE_PROJECT_ID) || DEFAULT_FIREBASE_PROJECT_ID
     };
 }
 
@@ -52,8 +32,6 @@ function applySyncDefaults(syncConfig, env = process.env) {
         firstNonEmptyString(
             config.firebase_functions_url,
             config.firebaseFunctionsUrl,
-            config.authLambdaUrl,
-            config.auth_lambda_url,
             defaults.firebaseFunctionsUrl
         )
     );
@@ -62,33 +40,12 @@ function applySyncDefaults(syncConfig, env = process.env) {
         firebaseFunctionsUrl: functionsUrl,
         firebaseProjectId:
             firstNonEmptyString(config.firebase_project_id, config.firebaseProjectId, defaults.firebaseProjectId) ||
-            DEFAULT_FIREBASE_PROJECT_ID,
-        // Backward compat aliases
-        authLambdaUrl: functionsUrl,
-        awsRegion: firstNonEmptyString(config.awsRegion, config.aws_region, defaults.awsRegion) || null
+            DEFAULT_FIREBASE_PROJECT_ID
     };
 }
 
 function seedSyncDefaults(db, env = process.env) {
     const defaults = getAppSyncDefaults(env);
-
-    // Seed auth_lambda_url (existing column — always present)
-    db.prepare(
-        `
-            UPDATE sync_config
-            SET
-                auth_lambda_url = CASE
-                    WHEN COALESCE(trim(auth_lambda_url), '') = '' AND ? IS NOT NULL THEN ?
-                    ELSE auth_lambda_url
-                END,
-                updated_at = CASE
-                    WHEN COALESCE(trim(auth_lambda_url), '') = '' AND ? IS NOT NULL
-                    THEN CURRENT_TIMESTAMP
-                    ELSE updated_at
-                END
-            WHERE id = 1
-        `
-    ).run(defaults.firebaseFunctionsUrl, defaults.firebaseFunctionsUrl, defaults.firebaseFunctionsUrl);
 
     // Seed firebase_functions_url (new column — may not exist yet, ignore if missing)
     try {
@@ -131,6 +88,5 @@ module.exports = {
     applySyncDefaults,
     getAppSyncDefaults,
     normalizeFunctionsUrl,
-    normalizeAuthLambdaUrl,
     seedSyncDefaults
 };

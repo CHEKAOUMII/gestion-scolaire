@@ -957,6 +957,109 @@ const MIGRATIONS = [
             ensureColumn('sync_config', 'firebase_project_id', 'TEXT DEFAULT \'\'');
         }
     },
+    {
+        version: '2026-04-19-backfill-firebase-functions-url',
+        up() {
+            const db = getDb();
+            db.prepare(
+                `
+                    UPDATE sync_config
+                    SET
+                        firebase_functions_url = CASE
+                            WHEN COALESCE(trim(firebase_functions_url), '') = ''
+                                 AND COALESCE(trim(auth_lambda_url), '') != ''
+                            THEN trim(auth_lambda_url)
+                            ELSE firebase_functions_url
+                        END,
+                        updated_at = CASE
+                            WHEN COALESCE(trim(firebase_functions_url), '') = ''
+                                 AND COALESCE(trim(auth_lambda_url), '') != ''
+                            THEN CURRENT_TIMESTAMP
+                            ELSE updated_at
+                        END
+                    WHERE id = 1
+                `
+            ).run();
+        }
+    },
+    {
+        version: '2026-04-050-inspectors-table',
+        up() {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS inspectors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    first_name TEXT NOT NULL,
+                    last_name TEXT NOT NULL,
+                    specialty TEXT NOT NULL,
+                    phone TEXT DEFAULT '',
+                    email TEXT DEFAULT '',
+                    status TEXT DEFAULT 'نشط',
+                    last_visit_date TEXT DEFAULT '',
+                    notes TEXT DEFAULT '',
+                    school_year TEXT NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            db.exec('CREATE INDEX IF NOT EXISTS idx_inspectors_year ON inspectors(school_year)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_inspectors_specialty ON inspectors(school_year, specialty)');
+        }
+    },
+    {
+        version: '2026-04-051-normalize-subject-names',
+        up() {
+            const db = getDb();
+            // أسماء عربية بديلة → الاسم القياسي
+            const aliases = {
+                'الاجتماعيات': 'التاريخ والجغرافيا',
+            };
+            const stmt = db.prepare(
+                `UPDATE compensation_tracking SET subject = ? WHERE subject = ?`
+            );
+            const txn = db.transaction(() => {
+                for (const [oldName, newName] of Object.entries(aliases)) {
+                    stmt.run(newName, oldName);
+                }
+            });
+            txn();
+        }
+    },
+    {
+        version: '2026-04-052-system-tags-allow-inspector-subject',
+        up: () => {
+            // Expand entity_type to support inspector and subject mentions while
+            // preserving note columns and the current index layout.
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE system_tags_v3 (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tag_date        TEXT NOT NULL,
+                    entity_type     TEXT NOT NULL
+                                    CHECK(entity_type IN ('teacher','section','general','inspector','subject')),
+                    entity_id       INTEGER,
+                    entity_name     TEXT NOT NULL,
+                    tag_key         TEXT NOT NULL,
+                    tag_label       TEXT NOT NULL,
+                    details         TEXT,
+                    school_year     TEXT NOT NULL,
+                    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    note_group      TEXT,
+                    note_text       TEXT
+                )
+            `);
+            db.exec(`INSERT INTO system_tags_v3 SELECT * FROM system_tags`);
+            db.exec(`DROP TABLE system_tags`);
+            db.exec(`ALTER TABLE system_tags_v3 RENAME TO system_tags`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_system_tags_date ON system_tags(tag_date, school_year)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_system_tags_entity ON system_tags(entity_type, entity_name, school_year)`);
+            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uidx_system_tags_standalone
+                     ON system_tags(tag_date, entity_type, COALESCE(entity_id, -1), entity_name, tag_key, school_year)
+                     WHERE note_group IS NULL`);
+            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uidx_system_tags_note_entity
+                     ON system_tags(note_group, entity_type, COALESCE(entity_id, -1), entity_name)
+                     WHERE note_group IS NOT NULL`);
+        }
+    },
 ];
 
 function ensureMigrationsTable() {

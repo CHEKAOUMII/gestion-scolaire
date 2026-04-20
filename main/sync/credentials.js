@@ -19,7 +19,7 @@ function readLicenseKey(db) {
 }
 
 function getFunctionsUrl(config) {
-    const url = String(config.firebase_functions_url || config.auth_lambda_url || process.env.FIREBASE_FUNCTIONS_URL || '')
+    const url = String(config.firebase_functions_url || process.env.FIREBASE_FUNCTIONS_URL || '')
         .trim()
         .replace(/\/+$/, '');
     return url || null;
