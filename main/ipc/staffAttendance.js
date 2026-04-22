@@ -4,26 +4,113 @@ const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { validateDate } = require('./validation');
 const { resolveTeacherIdentity } = require('../teachers/identity');
 
+function getCanonicalTeacherName(resolved, payload) {
+    return String(resolved?.teacher_name || resolved?.teacherName || payload?.teacher_name || '').trim();
+}
+
+function getCanonicalAbsencePeriod(type, payload) {
+    return type === 'absence' ? String(payload?.absence_period || 'full_day').trim() || 'full_day' : null;
+}
+
+function findAttendanceConflict(db, { recordId = null, teacherId, teacherName, attendanceDate, type, absencePeriod, schoolYear }) {
+    const teacherIdValue = Number(teacherId) > 0 ? Number(teacherId) : null;
+    const teacherNameValue = String(teacherName || '').trim();
+
+    if (type === 'late') {
+        return db.prepare(`
+            SELECT id
+            FROM staff_attendance
+            WHERE school_year = ?
+              AND attendance_date = ?
+              AND type = 'late'
+              AND COALESCE(teacher_id, -1) = COALESCE(?, -1)
+              AND COALESCE(teacher_name, '') = ?
+              AND (? IS NULL OR id != ?)
+            LIMIT 1
+        `).get(
+            schoolYear,
+            attendanceDate,
+            teacherIdValue,
+            teacherNameValue,
+            recordId,
+            recordId
+        );
+    }
+
+    return db.prepare(`
+        SELECT id
+        FROM staff_attendance
+        WHERE school_year = ?
+          AND attendance_date = ?
+          AND type = 'absence'
+          AND COALESCE(teacher_id, -1) = COALESCE(?, -1)
+          AND COALESCE(teacher_name, '') = ?
+          AND COALESCE(absence_period, 'full_day') = ?
+          AND (? IS NULL OR id != ?)
+        LIMIT 1
+    `).get(
+        schoolYear,
+        attendanceDate,
+        teacherIdValue,
+        teacherNameValue,
+        String(absencePeriod || 'full_day'),
+        recordId,
+        recordId
+    );
+}
+
 function registerStaffAttendanceIpc(ipcMain) {
-    // Fallback: extract unique teachers from the grades table (grouped by name)
+    // Build teacher options from canonical teachers first, then append unresolved grade-only names.
     handleRead(ipcMain, 'teachers:getFromGrades', (db, schoolYear) => {
         return db
             .prepare(
                 `
-            SELECT
-                COALESCE(g.teacher_id, 0) as id,
-                COALESCE(t.full_name, g.teacher_name) as full_name,
-                GROUP_CONCAT(DISTINCT g.subject) as subject
-            FROM grades g
-            LEFT JOIN teachers t ON t.id = g.teacher_id
-            WHERE g.school_year = ?
-              AND COALESCE(t.full_name, g.teacher_name) IS NOT NULL
-              AND TRIM(COALESCE(t.full_name, g.teacher_name)) <> ''
-            GROUP BY COALESCE(g.teacher_id, 0), COALESCE(t.full_name, g.teacher_name)
-            ORDER BY COALESCE(t.full_name, g.teacher_name)
+            WITH canonical_teachers AS (
+                SELECT
+                    t.id AS id,
+                    t.full_name AS full_name,
+                    COALESCE(
+                        GROUP_CONCAT(DISTINCT NULLIF(TRIM(g.subject), '')),
+                        NULLIF(TRIM(t.subject), '')
+                    ) AS subject
+                FROM teachers t
+                LEFT JOIN grades g
+                    ON g.school_year = t.school_year
+                   AND (
+                        g.teacher_id = t.id
+                        OR (
+                            (g.teacher_id IS NULL OR g.teacher_id <= 0)
+                            AND TRIM(COALESCE(g.teacher_name, '')) = TRIM(t.full_name)
+                        )
+                   )
+                WHERE t.school_year = ?
+                  AND TRIM(COALESCE(t.full_name, '')) <> ''
+                GROUP BY t.id, t.full_name, t.subject
+            ),
+            unresolved_grade_teachers AS (
+                SELECT
+                    NULL AS id,
+                    TRIM(g.teacher_name) AS full_name,
+                    GROUP_CONCAT(DISTINCT NULLIF(TRIM(g.subject), '')) AS subject
+                FROM grades g
+                LEFT JOIN teachers t
+                    ON t.school_year = g.school_year
+                   AND TRIM(COALESCE(t.full_name, '')) = TRIM(COALESCE(g.teacher_name, ''))
+                WHERE g.school_year = ?
+                  AND (g.teacher_id IS NULL OR g.teacher_id <= 0)
+                  AND TRIM(COALESCE(g.teacher_name, '')) <> ''
+                  AND t.id IS NULL
+                GROUP BY TRIM(g.teacher_name), COALESCE(NULLIF(TRIM(g.subject), ''), '')
+            )
+            SELECT id, full_name, subject
+            FROM canonical_teachers
+            UNION ALL
+            SELECT id, full_name, subject
+            FROM unresolved_grade_teachers
+            ORDER BY full_name, COALESCE(subject, '')
         `
             )
-            .all(normalizeYear(schoolYear));
+            .all(normalizeYear(schoolYear), normalizeYear(schoolYear));
     });
 
     // ── Staff Attendance CRUD ──
@@ -57,14 +144,28 @@ function registerStaffAttendanceIpc(ipcMain) {
             school_year: year,
             source: 'staffAttendance'
         });
-        db.prepare(
+        const canonicalTeacherName = getCanonicalTeacherName(resolved, payload);
+        const canonicalAbsencePeriod = getCanonicalAbsencePeriod(type, payload);
+        const conflict = findAttendanceConflict(db, {
+            teacherId: resolved.teacher_id || null,
+            teacherName: canonicalTeacherName,
+            attendanceDate: payload.attendance_date,
+            type,
+            absencePeriod: canonicalAbsencePeriod,
+            schoolYear: year
+        });
+        if (conflict) {
+            return { success: true, duplicate: true, id: conflict.id };
+        }
+
+        const result = db.prepare(
             `
-            INSERT INTO staff_attendance(teacher_id, teacher_name, subject, attendance_date, type, late_duration, arrival_time, reason, notes, absence_period, school_year)
+            INSERT OR IGNORE INTO staff_attendance(teacher_id, teacher_name, subject, attendance_date, type, late_duration, arrival_time, reason, notes, absence_period, school_year)
             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
         ).run(
             resolved.teacher_id || null,
-            resolved.teacher_name || payload.teacher_name || null,
+            canonicalTeacherName || null,
             resolved.subject || payload.subject || null,
             payload.attendance_date,
             type,
@@ -72,10 +173,14 @@ function registerStaffAttendanceIpc(ipcMain) {
             type === 'late' ? payload.arrival_time || null : null,
             payload.reason || null,
             payload.notes || null,
-            type === 'absence' ? (payload.absence_period || 'full_day') : null,
+            canonicalAbsencePeriod,
             year
         );
-        return { success: true };
+        return {
+            success: true,
+            duplicate: result.changes === 0,
+            id: result.lastInsertRowid || conflict?.id || null
+        };
     });
 
     handleWrite(ipcMain, 'staffAttendance:update', WRITE_ROLES, (db, _event, payload) => {
@@ -95,6 +200,20 @@ function registerStaffAttendanceIpc(ipcMain) {
             school_year: year,
             source: 'staffAttendance'
         });
+        const canonicalTeacherName = getCanonicalTeacherName(resolved, payload);
+        const canonicalAbsencePeriod = getCanonicalAbsencePeriod(type, payload);
+        const conflict = findAttendanceConflict(db, {
+            recordId,
+            teacherId: resolved.teacher_id || null,
+            teacherName: canonicalTeacherName,
+            attendanceDate: payload.attendance_date,
+            type,
+            absencePeriod: canonicalAbsencePeriod,
+            schoolYear: year
+        });
+        if (conflict) {
+            return { success: false, error: 'السجل موجود بالفعل لنفس الأستاذ والتاريخ.' };
+        }
         db.prepare(`
             UPDATE staff_attendance
             SET teacher_id = ?, teacher_name = ?, subject = ?, attendance_date = ?,
@@ -103,7 +222,7 @@ function registerStaffAttendanceIpc(ipcMain) {
             WHERE id = ?
         `).run(
             resolved.teacher_id || null,
-            resolved.teacher_name || payload.teacher_name || null,
+            canonicalTeacherName || null,
             resolved.subject || payload.subject || null,
             payload.attendance_date,
             type,
@@ -111,7 +230,7 @@ function registerStaffAttendanceIpc(ipcMain) {
             type === 'late' ? payload.arrival_time || null : null,
             payload.reason || null,
             payload.notes || null,
-            type === 'absence' ? (payload.absence_period || 'full_day') : null,
+            canonicalAbsencePeriod,
             year,
             recordId
         );

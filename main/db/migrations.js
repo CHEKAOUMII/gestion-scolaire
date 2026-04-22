@@ -1060,6 +1060,62 @@ const MIGRATIONS = [
                      WHERE note_group IS NOT NULL`);
         }
     },
+    {
+        version: '2026-04-053-staff-attendance-unique',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                DELETE FROM staff_attendance
+                WHERE type = 'absence'
+                  AND id NOT IN (
+                    SELECT MIN(id)
+                    FROM staff_attendance
+                    WHERE type = 'absence'
+                    GROUP BY
+                        attendance_date,
+                        school_year,
+                        COALESCE(teacher_id, -1),
+                        COALESCE(teacher_name, ''),
+                        COALESCE(absence_period, 'full_day')
+                  )
+            `);
+            db.exec(`
+                DELETE FROM staff_attendance
+                WHERE type = 'late'
+                  AND id NOT IN (
+                    SELECT MIN(id)
+                    FROM staff_attendance
+                    WHERE type = 'late'
+                    GROUP BY
+                        attendance_date,
+                        school_year,
+                        COALESCE(teacher_id, -1),
+                        COALESCE(teacher_name, '')
+                  )
+            `);
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS uidx_staff_attendance_absence
+                ON staff_attendance(
+                    attendance_date,
+                    school_year,
+                    COALESCE(teacher_id, -1),
+                    COALESCE(teacher_name, ''),
+                    COALESCE(absence_period, 'full_day')
+                )
+                WHERE type = 'absence'
+            `);
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS uidx_staff_attendance_late
+                ON staff_attendance(
+                    attendance_date,
+                    school_year,
+                    COALESCE(teacher_id, -1),
+                    COALESCE(teacher_name, '')
+                )
+                WHERE type = 'late'
+            `);
+        }
+    },
 ];
 
 function ensureMigrationsTable() {

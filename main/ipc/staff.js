@@ -1119,9 +1119,25 @@ function registerStaffIpc(ipcMain) {
     });
 
     handleWriteSoftAuth(ipcMain, 'systemTags:saveNote', WRITE_ROLES, (db, payload) => {
-        const { tag_date, tag_key, tag_label, note_text, mentions, school_year, details } = payload;
+        const {
+            tag_date,
+            tag_key,
+            tag_label,
+            note_text,
+            mentions,
+            school_year,
+            details,
+            replace_note_group,
+            replace_tag_id,
+            replace_legacy_event_id
+        } = payload;
         requireFields(payload, ['tag_date', 'tag_key', 'tag_label', 'school_year']);
         const year = requireSchoolYear(school_year);
+        const replaceNoteGroup = typeof replace_note_group === 'string' && replace_note_group.trim()
+            ? replace_note_group.trim()
+            : null;
+        const replaceTagId = Number(replace_tag_id) > 0 ? Number(replace_tag_id) : null;
+        const replaceLegacyEventId = Number(replace_legacy_event_id) > 0 ? Number(replace_legacy_event_id) : null;
 
         // Accept a caller-supplied idempotency key so retries reuse the same group
         // and are blocked by uidx_system_tags_note_entity; fall back to a fresh UUID.
@@ -1129,6 +1145,9 @@ function registerStaffIpc(ipcMain) {
             ? payload.note_group
             : require('crypto').randomUUID();
 
+        const deleteNoteGroupStmt = db.prepare('DELETE FROM system_tags WHERE note_group = ?');
+        const deleteTagStmt = db.prepare('DELETE FROM system_tags WHERE id = ?');
+        const deleteLegacyEventStmt = db.prepare('DELETE FROM school_events WHERE id = ?');
         const stmt = db.prepare(
             `INSERT INTO system_tags
              (tag_date, entity_type, entity_id, entity_name, tag_key, tag_label, note_group, note_text, details, school_year)
@@ -1136,6 +1155,12 @@ function registerStaffIpc(ipcMain) {
         );
 
         const txn = db.transaction((items) => {
+            if (replaceTagId) {
+                deleteTagStmt.run(replaceTagId);
+            }
+            if (replaceNoteGroup) {
+                deleteNoteGroupStmt.run(replaceNoteGroup);
+            }
             if (items && items.length > 0) {
                 for (const m of items) {
                     stmt.run(tag_date, m.type, m.id || null, m.name, tag_key, tag_label, noteGroup, note_text, details || '', year);
@@ -1143,6 +1168,9 @@ function registerStaffIpc(ipcMain) {
             } else {
                 // No mentions — save as a general entry
                 stmt.run(tag_date, 'general', null, tag_label, tag_key, tag_label, noteGroup, note_text, details || '', year);
+            }
+            if (replaceLegacyEventId) {
+                deleteLegacyEventStmt.run(replaceLegacyEventId);
             }
         });
 

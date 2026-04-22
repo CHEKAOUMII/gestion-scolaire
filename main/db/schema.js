@@ -333,6 +333,23 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_date ON staff_attendance(attendance_date, school_year);
+        CREATE UNIQUE INDEX IF NOT EXISTS uidx_staff_attendance_absence
+            ON staff_attendance(
+                attendance_date,
+                school_year,
+                COALESCE(teacher_id, -1),
+                COALESCE(teacher_name, ''),
+                COALESCE(absence_period, 'full_day')
+            )
+            WHERE type = 'absence';
+        CREATE UNIQUE INDEX IF NOT EXISTS uidx_staff_attendance_late
+            ON staff_attendance(
+                attendance_date,
+                school_year,
+                COALESCE(teacher_id, -1),
+                COALESCE(teacher_name, '')
+            )
+            WHERE type = 'late';
     `);
     try {
         db.exec(`CREATE INDEX IF NOT EXISTS idx_grades_year_teacher ON grades(school_year, teacher_id)`);

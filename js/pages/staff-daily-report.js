@@ -51,7 +51,7 @@
     let _currentNoteGroup = null;
     let _saveTagNoteInFlight = false;
     let _mentionActiveIndex = 0;
-    let _editDeleteOnSave = null;
+    let _editSaveContext = null;
 
     // ── Utility Functions ──
 
@@ -99,14 +99,6 @@
             String(d.getDate()).padStart(2, '0');
     }
 
-    /** Convert YYYY-MM-DD to dd/mm/yyyy */
-    function formatDate(dateStr) {
-        if (!dateStr) return '—';
-        const parts = dateStr.split('-');
-        if (parts.length !== 3) return dateStr;
-        return parts[2] + '/' + parts[1] + '/' + parts[0];
-    }
-
     /**
      * Format a raw subject string (possibly comma-separated GROUP_CONCAT)
      * into a clean, normalized, deduplicated display.
@@ -123,107 +115,42 @@
         return unique.length > 0 ? escapeHtml(unique.join('، ')) : '—';
     }
 
-    // ── Timetable Resolution ──
+    function getAbsenceLookupKey(absence) {
+        const teacherId = Number(absence?.teacher_id);
+        if (teacherId > 0) return `id:${teacherId}`;
 
-    /**
-     * Normalize a name for fuzzy matching:
-     * remove underscores, collapse whitespace, strip Arabic diacritics, strip definite article, trim
-     */
-    function normalizeName(name) {
-        return (name || '')
-            .replace(/_/g, ' ')
-            .replace(/[\u064B-\u065F\u0670]/g, '') // strip Arabic diacritics
-            .replace(/\bال/g, '') // strip Arabic definite article "ال"
-            .replace(/\s+/g, ' ')
-            .trim()
-            .toLowerCase();
+        const fullName = String(absence?.full_name || absence?.teacher_name || '').trim();
+        if (!fullName) return '';
+
+        const subject = String(absence?.subject || '').trim();
+        return `name:${fullName}::subject:${subject}`;
     }
 
-    /**
-     * Resolve timetable keys for a teacher using robust multi-field matching.
-     * Consistent with staff-attendance.html's resolveTeacherTimetableKeys().
-     */
+    function parseRowMentions(row) {
+        const rawMentions = row?.dataset?.mentions;
+        if (!rawMentions) return [];
+
+        try {
+            const parsed = JSON.parse(rawMentions);
+            if (!Array.isArray(parsed)) return [];
+            return parsed
+                .map((item) => ({
+                    type: String(item?.type || '').trim(),
+                    id: Number(item?.id) > 0 ? Number(item.id) : null,
+                    name: String(item?.name || '').trim()
+                }))
+                .filter((item) => item.type && item.name);
+        } catch (err) {
+            console.warn('Unable to parse tag mentions:', err);
+            return [];
+        }
+    }
+
+    // ── Timetable Resolution (delegates to js/shared/timetable-utils.js) ──
+
+    function normalizeName(name) { return ttNormalizeName(name); }
     function resolveTeacherTimetableKeys(data, teacherId, teacherName) {
-        const targetId = Number(teacherId) || null;
-        const targetName = String(teacherName || '').trim();
-        const normalizedTarget = normalizeName(targetName);
-        if (!targetName && !targetId) return [];
-
-        const entriesByKey = new Map();
-
-        function normalizeEntry(key, entry) {
-            const sourceName = String(entry?.sourceName || key || '').trim();
-            const sourceDisplayName = String(entry?.sourceDisplayName || sourceName || '').trim();
-            const tName = String(entry?.teacherName || entry?.displayName || sourceDisplayName || sourceName || '').trim();
-            return {
-                key: String(key || entry?.key || '').trim(),
-                teacherId: Number(entry?.teacherId) || null,
-                teacherName: tName,
-                displayName: String(entry?.displayName || tName || sourceDisplayName || sourceName).trim(),
-                sourceName,
-                sourceDisplayName
-            };
-        }
-
-        Object.entries(data?.teacherMetaByKey || {}).forEach(([key, entry]) => {
-            entriesByKey.set(key, normalizeEntry(key, entry));
-        });
-
-        (Array.isArray(data?.teachers) ? data.teachers : []).forEach((entry) => {
-            const normalized = normalizeEntry(entry?.key || entry?.name, entry);
-            if (normalized.key && !entriesByKey.has(normalized.key)) {
-                entriesByKey.set(normalized.key, normalized);
-            }
-        });
-
-        Object.keys(data?.timetables || {}).forEach((key) => {
-            if (!entriesByKey.has(key)) {
-                entriesByKey.set(key, normalizeEntry(key, { key, sourceName: key, teacherName: key }));
-            }
-        });
-
-        const entries = Array.from(entriesByKey.values());
-        const matchedKeys = [];
-
-        const addMatches = (predicate) => {
-            entries.forEach((entry) => {
-                if (entry.key && predicate(entry)) matchedKeys.push(entry.key);
-            });
-            return [...new Set(matchedKeys)];
-        };
-
-        // 1. Match by teacher ID
-        if (targetId) {
-            const byId = addMatches((entry) => entry.teacherId === targetId);
-            if (byId.length) return byId;
-        }
-
-        if (!targetName) return [];
-
-        const fieldsForEntry = (entry) => [
-            entry.teacherName, entry.displayName, entry.sourceDisplayName,
-            entry.sourceName, entry.key.replace(/^tafwij:/, '').replace(/_/g, ' ')
-        ];
-
-        // 2. Exact name match
-        const exact = addMatches((entry) =>
-            fieldsForEntry(entry).some((v) => String(v || '').trim() === targetName)
-        );
-        if (exact.length) return exact;
-
-        // 3. Normalized match
-        const normalized = addMatches((entry) =>
-            fieldsForEntry(entry).some((v) => normalizeName(v) === normalizedTarget)
-        );
-        if (normalized.length) return normalized;
-
-        // 4. Partial match
-        return addMatches((entry) =>
-            fieldsForEntry(entry).some((v) => {
-                const nv = normalizeName(v);
-                return nv && (nv.includes(normalizedTarget) || normalizedTarget.includes(nv));
-            })
-        );
+        return ttResolveTeacherKeys(data, teacherId, teacherName);
     }
 
     // ── Data Loading ──
@@ -339,7 +266,7 @@
             const dayName = dayNames[dateObj.getDay()];
 
             for (const absence of uniqueAbsences) {
-                const name = absence.full_name;
+                const name = absence.full_name || absence.teacher_name;
                 if (!name) continue;
                 const teacherKeys = resolveTeacherTimetableKeys(ttData, absence.teacher_id, name);
                 if (!teacherKeys.length) continue;
@@ -412,22 +339,30 @@
         // Combine all absence lists for display
         const allAbsences = [...(absences || []), ...(staffAbsences || [])];
         // Deduplicate by full_name (same teacher shouldn't appear twice)
-        const seenNames = new Set();
-        const uniqueAbsences = allAbsences.filter(a => {
-            if (!a.full_name || seenNames.has(a.full_name)) return false;
-            seenNames.add(a.full_name);
+        const seenAbsenceKeys = new Set();
+        const teacherDisplayNames = {};
+        const uniqueAbsences = allAbsences.filter((a) => {
+            const lookupKey = getAbsenceLookupKey(a);
+            if (!lookupKey || seenAbsenceKeys.has(lookupKey)) return false;
+            seenAbsenceKeys.add(lookupKey);
+            a._lookupKey = lookupKey;
+            teacherDisplayNames[lookupKey] = a.full_name || a.teacher_name || '—';
             return true;
         });
 
         // Build day-specific sections for each absent teacher
         for (const absence of uniqueAbsences) {
-            const name = absence.full_name;
+            const name = absence.full_name || absence.teacher_name;
             if (!name) continue;
-            const fallback = (backendTeacherSections && backendTeacherSections[name]) || [];
-            const daySections = await getSectionsForDay(name, date, fallback);
-            teacherSectionsOverride[name] = daySections;
+            const lookupKey = absence._lookupKey || getAbsenceLookupKey(absence);
+            const fallback = (backendTeacherSections && (
+                backendTeacherSections[lookupKey] ||
+                backendTeacherSections[name]
+            )) || [];
+            const daySections = await getSectionsForDay(name, date, fallback, absence.teacher_id);
+            teacherSectionsOverride[lookupKey] = daySections;
             if (daySections.length > 0) {
-                affectedSections[name] = daySections;
+                affectedSections[lookupKey] = daySections;
             }
         }
 
@@ -464,13 +399,15 @@
             const absenceRows = [];
             for (let i = 0; i < uniqueAbsences.length; i++) {
                 const a = uniqueAbsences[i];
-                const sections = (teacherSections && teacherSections[a.full_name])
-                    ? formatCompactList(teacherSections[a.full_name], 'section-list-text')
+                const teacherName = a.full_name || a.teacher_name;
+                const lookupKey = a._lookupKey || getAbsenceLookupKey(a);
+                const sections = (teacherSections && teacherSections[lookupKey])
+                    ? formatCompactList(teacherSections[lookupKey], 'section-list-text')
                     : '<span style="color: var(--color-text-light);">—</span>';
                 // Get schedule hours from timetable for this day
                 let scheduleHtml = '—';
-                if (a.full_name) {
-                    const scheduleHours = await getScheduleForDay(a.full_name, date, []);
+                if (teacherName) {
+                    const scheduleHours = await getScheduleForDay(teacherName, date, [], a.teacher_id);
                     if (scheduleHours.length > 0) {
                         scheduleHtml = formatCompactList(scheduleHours, 'schedule-text', '—');
                     }
@@ -478,7 +415,7 @@
                 absenceRows.push(`
                     <tr>
                         <td class="col-index">${i + 1}</td>
-                        <td class="col-teacher"><strong>${escapeHtml(a.full_name || '—')}</strong></td>
+                        <td class="col-teacher"><strong>${escapeHtml(teacherName || '—')}</strong></td>
                         <td class="col-subject">${formatSubject(a.subject)}</td>
                         <td class="col-schedule">${scheduleHtml}</td>
                         <td class="col-reason reason-cell">${formatReasonCell(a.reason, a.notes)}</td>
@@ -500,8 +437,9 @@
                     <p>لا توجد حصص متضررة</p>
                 </div>`;
         } else {
-            affectedGrid.innerHTML = affectedKeys.map(teacherName => {
-                const sections = affectedSections[teacherName];
+            affectedGrid.innerHTML = affectedKeys.map((lookupKey) => {
+                const sections = affectedSections[lookupKey];
+                const teacherName = teacherDisplayNames[lookupKey] || lookupKey;
                 return `
                     <div class="affected-item">
                         <div class="teacher-name">
@@ -561,7 +499,7 @@
                     const dayName = dayNames[dateObj.getDay()];
 
                         for (const absence of uniqueAbsences) {
-                            const name = absence.full_name;
+                            const name = absence.full_name || absence.teacher_name;
                             if (!name) continue;
 
                             const teacherKeys = resolveTeacherTimetableKeys(ttData, absence.teacher_id, name);
@@ -685,6 +623,13 @@
             const tagBadge = tagDef
                 ? `${tagDef.icon} ${escapeHtml(first.tag_label)}`
                 : escapeHtml(first.tag_label);
+            const mentions = groupTags
+                .filter(tag => tag.entity_type !== 'general')
+                .map(tag => ({
+                    type: tag.entity_type,
+                    id: Number(tag.entity_id) > 0 ? Number(tag.entity_id) : null,
+                    name: tag.entity_name
+                }));
 
             const rawDetails = first.details ? first.details.trim() : '';
             let activityTitle = rawDetails;
@@ -716,7 +661,8 @@
                     data-tag-key="${escapeHtml(first.tag_key)}"
                     data-activity-title="${escapeHtml(activityTitle)}"
                     data-event-time="${escapeHtml(eventTime)}"
-                    data-note-text="${escapeHtml(first.note_text || '')}">
+                    data-note-text="${escapeHtml(first.note_text || '')}"
+                    data-mentions="${escapeHtml(JSON.stringify(mentions))}">
                     <td class="col-index">${rowIndex++}</td>
                     <td><span style="font-weight: 600; white-space: nowrap;">${tagBadge}</span></td>
                     <td style="font-size: 13px; color: var(--color-text-secondary, #555);">${titleHtml}</td>
@@ -741,13 +687,21 @@
                 ? `${tagDef.icon} ${escapeHtml(tag.tag_label)}`
                 : escapeHtml(tag.tag_label);
             const icon = ENTITY_ICONS[tag.entity_type] || ENTITY_ICONS.general;
+            const mentions = tag.entity_type && tag.entity_type !== 'general'
+                ? [{
+                    type: tag.entity_type,
+                    id: Number(tag.entity_id) > 0 ? Number(tag.entity_id) : null,
+                    name: tag.entity_name
+                }]
+                : [];
 
             html += `
                 <tr data-tag-id="${tag.id}"
                     data-tag-key="${escapeHtml(tag.tag_key)}"
                     data-activity-title="${escapeHtml(tag.details || '')}"
                     data-event-time=""
-                    data-note-text="${escapeHtml(tag.entity_name || '')}">
+                    data-note-text="${escapeHtml(tag.entity_name || '')}"
+                    data-mentions="${escapeHtml(JSON.stringify(mentions))}">
                     <td class="col-index">${rowIndex++}</td>
                     <td><span style="font-weight: 600; white-space: nowrap;">${tagBadge}</span></td>
                     <td style="font-size: 13px; color: var(--color-text-secondary, #555);">${tag.details ? '<i class="fas fa-bookmark" style="margin-left: 3px; color: var(--color-primary);"></i> ' + escapeHtml(tag.details) : '<span style="color: var(--color-muted, #aaa);">—</span>'}</td>
@@ -823,10 +777,13 @@
         form.style.display = 'block';
         toggleActivityTitleField(typeSelect.value);
 
-        typeSelect.addEventListener('change', () => toggleActivityTitleField(typeSelect.value));
+        typeSelect.onchange = () => toggleActivityTitleField(typeSelect.value);
 
         const textarea = document.getElementById('tag-note-textarea');
         textarea.focus();
+        // Remove any stale listeners before adding (guards against add→edit without cancel)
+        textarea.removeEventListener('input', handleNoteInput);
+        textarea.removeEventListener('keydown', handleNoteKeydown);
         textarea.addEventListener('input', handleNoteInput);
         textarea.addEventListener('keydown', handleNoteKeydown);
     }
@@ -842,7 +799,7 @@
         document.getElementById('tag-event-time').value = '';
         _confirmedMentions = [];
         _currentNoteGroup = null;
-        _editDeleteOnSave = null;
+        _editSaveContext = null;
         hideMentionDropdown();
         const textarea = document.getElementById('tag-note-textarea');
         textarea.removeEventListener('input', handleNoteInput);
@@ -865,22 +822,23 @@
 
         // Validate mentions: @mentions are optional for general tags (e.g. holiday, strike)
         const validMentions = _confirmedMentions.filter(m => noteText.includes(`@${m.name}`));
+        const forcedMentions = Array.isArray(_editSaveContext?.forceMentions)
+            ? _editSaveContext.forceMentions
+            : [];
+        for (const mention of forcedMentions) {
+            const exists = validMentions.some((item) =>
+                item.type === mention.type &&
+                item.id === mention.id &&
+                item.name === mention.name
+            );
+            if (!exists) validMentions.push(mention);
+        }
 
         const tagDef = ALL_TAG_TYPES.find(t => t.key === tagKey);
         const tagLabel = tagDef ? tagDef.label : tagKey;
 
         _saveTagNoteInFlight = true;
         try {
-            // If editing, delete old record first
-            if (_editDeleteOnSave) {
-                if (_editDeleteOnSave.startsWith('legacy-event-')) {
-                    const eventId = parseInt(_editDeleteOnSave.replace('legacy-event-', ''), 10);
-                    await window.api.schoolEvents.delete(eventId);
-                } else {
-                    await window.api.systemTags.deleteByGroup(_editDeleteOnSave);
-                }
-                _editDeleteOnSave = null;
-            }
             const result = await window.api.systemTags.saveNote({
                 tag_date: tagDate,
                 tag_key: tagKey,
@@ -889,7 +847,10 @@
                 mentions: validMentions,
                 school_year: year,
                 details: eventTime ? `time::${eventTime}|${activityTitle || ''}` : (activityTitle || ''),
-                note_group: _currentNoteGroup
+                note_group: _currentNoteGroup,
+                replace_note_group: _editSaveContext?.replaceNoteGroup || null,
+                replace_tag_id: _editSaveContext?.replaceTagId || null,
+                replace_legacy_event_id: _editSaveContext?.replaceLegacyEventId || null
             });
             if (result && result.success === false) {
                 throw new Error(result.error || 'فشل في حفظ الوسم');
@@ -953,10 +914,12 @@
     async function editTagNote(btn) {
         const row = btn.closest('tr');
         const noteGroup = row.dataset.noteGroup || '';
+        const tagId = Number(row.dataset.tagId) > 0 ? Number(row.dataset.tagId) : null;
         const tagKey = row.dataset.tagKey || '';
         const activityTitle = row.dataset.activityTitle || '';
         const eventTime = row.dataset.eventTime || '';
         const noteText = row.dataset.noteText || '';
+        const mentions = parseRowMentions(row);
 
         await showTagNoteForm();
 
@@ -968,15 +931,39 @@
         document.getElementById('tag-activity-title').value = activityTitle;
         document.getElementById('tag-event-time').value = eventTime;
         // Strip legacy [id:X] tokens from note text
-        document.getElementById('tag-note-textarea').value = noteText.replace(/\[id:\d+\]/g, '');
+        const cleanNoteText = noteText.replace(/\[id:\d+\]/g, '');
+        document.getElementById('tag-note-textarea').value = cleanNoteText;
+        _confirmedMentions = mentions.map((mention) => ({
+            ...mention,
+            _token: `@${mention.name}`
+        }));
 
-        // For update: delete old entry first, then save new one
-        _currentNoteGroup = noteGroup.startsWith('legacy-event-')
-            ? crypto.randomUUID()
-            : noteGroup;
-
-        // Delete the old record silently before saving
-        _editDeleteOnSave = noteGroup;
+        if (noteGroup) {
+            if (noteGroup.startsWith('legacy-event-')) {
+                _currentNoteGroup = crypto.randomUUID();
+                _editSaveContext = {
+                    replaceLegacyEventId: parseInt(noteGroup.replace('legacy-event-', ''), 10)
+                };
+            } else {
+                _currentNoteGroup = noteGroup;
+                _editSaveContext = { replaceNoteGroup: noteGroup };
+            }
+        } else if (tagId) {
+            _currentNoteGroup = crypto.randomUUID();
+            _editSaveContext = {
+                replaceTagId: tagId,
+                forceMentions: mentions
+            };
+            if (mentions.length === 1 && (
+                !cleanNoteText.trim() ||
+                cleanNoteText.trim() === mentions[0].name
+            )) {
+                document.getElementById('tag-note-textarea').value = `@${mentions[0].name}`;
+            }
+        } else {
+            _currentNoteGroup = crypto.randomUUID();
+            _editSaveContext = null;
+        }
 
         // Scroll to form
         document.getElementById('tag-note-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1004,81 +991,7 @@
         hideMentionDropdown();
     }
 
-    function showMentionSuggestionsLegacyOld(query) {
-        const dropdown = document.getElementById('mention-dropdown');
-        const teachers = (_teachersCache || []).filter(t => t.full_name);
-        const sections = _allSectionsCache || [];
-        const q = query.trim();
 
-        let teacherItems = [];
-        let sectionItems = [];
-
-        for (const t of teachers) {
-            if (!q || t.full_name.includes(q)) {
-                teacherItems.push({ type: 'teacher', id: t.id, name: t.full_name, subject: t.subject || '', badge: '👨‍🏫' });
-            }
-        }
-        for (const s of sections) {
-            if (!q || s.includes(q) || s.toLowerCase().includes(q.toLowerCase())) {
-                sectionItems.push({ type: 'section', id: null, name: s, subject: '', badge: '🏫' });
-            }
-        }
-
-        teacherItems = teacherItems.slice(0, 8);
-        sectionItems = sectionItems.slice(0, 6);
-        const items = [...teacherItems, ...sectionItems];
-
-        if (items.length === 0) {
-            hideMentionDropdown();
-            return;
-        }
-
-        let html = '';
-        let globalIdx = 0;
-
-        if (teacherItems.length > 0) {
-            html += `<div style="padding: 5px 14px; font-size: 11px; font-weight: 700; color: var(--color-muted, #888); background: var(--color-bg-secondary, #f5f5f5); border-bottom: 1px solid var(--color-border-light, #eee); letter-spacing: 0.5px;">👨‍🏫 أساتذة</div>`;
-            for (const item of teacherItems) {
-                const idx = globalIdx++;
-                const subjectLine = item.subject
-                    ? `<span style="font-size: 11px; color: var(--color-muted, #999); display: block; margin-top: 1px;">${escapeHtml(typeof normalizeSubjectName === 'function' ? normalizeSubjectName(item.subject) : item.subject)}</span>`
-                    : '';
-                html += `
-                    <div class="mention-item${idx === _mentionActiveIndex ? ' mention-item--active' : ''}"
-                         data-type="${item.type}" data-id="${item.id || ''}" data-name="${escapeHtml(item.name)}" data-subject="${escapeHtml(item.subject)}"
-                         data-idx="${idx}"
-                         style="padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px;
-                                border-bottom: 1px solid var(--color-border-light, #f0f0f0);
-                                transition: background 0.15s;
-                                ${idx === _mentionActiveIndex ? 'background: rgba(66,133,244,0.15); color: var(--color-text, #1a1a1a);' : ''}">
-                        <span style="font-size: 16px;">${item.badge}</span>
-                        <span style="flex: 1;"><span style="font-weight: 600;">${escapeHtml(item.name)}</span>${subjectLine}</span>
-                    </div>`;
-            }
-        }
-
-        if (sectionItems.length > 0) {
-            html += `<div style="padding: 5px 14px; font-size: 11px; font-weight: 700; color: var(--color-muted, #888); background: var(--color-bg-secondary, #f5f5f5); border-bottom: 1px solid var(--color-border-light, #eee); letter-spacing: 0.5px;">🏫 أقسام</div>`;
-            for (const item of sectionItems) {
-                const idx = globalIdx++;
-                html += `
-                    <div class="mention-item${idx === _mentionActiveIndex ? ' mention-item--active' : ''}"
-                         data-type="${item.type}" data-id="" data-name="${escapeHtml(item.name)}" data-subject=""
-                         data-idx="${idx}"
-                         style="padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px;
-                                border-bottom: 1px solid var(--color-border-light, #f0f0f0);
-                                transition: background 0.15s;
-                                ${idx === _mentionActiveIndex ? 'background: rgba(66,133,244,0.15); color: var(--color-text, #1a1a1a);' : ''}">
-                        <span style="font-size: 16px;">${item.badge}</span>
-                        <span style="font-weight: 600;">${escapeHtml(item.name)}</span>
-                    </div>`;
-            }
-        }
-
-        dropdown.innerHTML = html;
-
-        dropdown.style.display = 'block';
-    }
 
     function showMentionSuggestions(query) {
         const dropdown = document.getElementById('mention-dropdown');
