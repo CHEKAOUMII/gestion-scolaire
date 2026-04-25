@@ -46,13 +46,13 @@
                         <i class="fas fa-chevron-left setup-option-arrow"></i>
                     </button>
 
-                    <button id="btn-mode-link" type="button" class="setup-option">
+                    <button id="btn-mode-login" type="button" class="setup-option">
                         <div class="setup-option-icon blue">
-                            <i class="fas fa-link"></i>
+                            <i class="fas fa-sign-in-alt"></i>
                         </div>
                         <div class="setup-option-text">
-                            <h2>ربط بمؤسسة موجودة</h2>
-                            <p>ربط هذا الجهاز بمؤسسة تم إعدادها مسبقاً</p>
+                            <h2>تسجيل الدخول</h2>
+                            <p>مؤسسة تم إعدادها مسبقاً — سجّل دخولك للمتابعة</p>
                         </div>
                         <i class="fas fa-chevron-left setup-option-arrow"></i>
                     </button>
@@ -172,180 +172,6 @@
                 </form>
             </div>
 
-            <!-- ╔══════════════════════════════════════════╗ -->
-            <!-- ║  STEP 2b: Link to Existing               ║ -->
-            <!-- ╚══════════════════════════════════════════╝ -->
-            <div id="step-link-existing" class="setup-card hidden">
-                <button id="btn-back-from-link" type="button" class="btn-back">
-                    <i class="fas fa-arrow-right"></i>
-                    <span>رجوع</span>
-                </button>
-
-                <div class="step-header">
-                    <div class="step-header-icon">
-                        <i class="fas fa-link"></i>
-                    </div>
-                    <div>
-                        <h2>ربط بمؤسسة موجودة</h2>
-                        <p>أدخل رمز ماسار ورمز الربط من الجهاز الرئيسي</p>
-                    </div>
-                </div>
-
-                <form id="form-link-existing" novalidate>
-                    <div class="setup-field">
-                        <label for="link-massar-code">رمز ماسار <span class="req">*</span></label>
-                        <input
-                            type="text"
-                            id="link-massar-code"
-                            class="setup-input"
-                            required
-                            autocomplete="off"
-                            placeholder="مثال: M320456"
-                            dir="ltr"
-                        />
-                        <p id="link-massar-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-divider">
-                        <span>حساب المستخدم</span>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="link-user-role">الصفة <span class="req">*</span></label>
-                        <select id="link-user-role" class="setup-input">
-                            <option value="supervisor">ناظر</option>
-                            <option value="external-guardian">حارس عام للخارجية</option>
-                            <option value="internal-guardian">حارس عام للداخلية</option>
-                            <option value="viewer">مساعد</option>
-                        </select>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="link-user-name">الاسم الكامل <span class="req">*</span></label>
-                        <input
-                            type="text"
-                            id="link-user-name"
-                            class="setup-input"
-                            required
-                            autocomplete="name"
-                            placeholder="الاسم الكامل"
-                        />
-                        <p id="link-name-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="link-user-email">البريد الإلكتروني <span class="req">*</span></label>
-                        <input
-                            type="email"
-                            id="link-user-email"
-                            class="setup-input"
-                            required
-                            autocomplete="email"
-                            placeholder="example@email.com"
-                            dir="ltr"
-                        />
-                        <p id="link-email-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="link-user-password">كلمة المرور <span class="req">*</span></label>
-                        <input
-                            type="password"
-                            id="link-user-password"
-                            class="setup-input"
-                            required
-                            autocomplete="new-password"
-                            placeholder="6 أحرف على الأقل"
-                        />
-                        <p id="link-password-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="link-user-confirm">تأكيد كلمة المرور <span class="req">*</span></label>
-                        <input
-                            type="password"
-                            id="link-user-confirm"
-                            class="setup-input"
-                            required
-                            autocomplete="new-password"
-                            placeholder="أعد إدخال كلمة المرور"
-                        />
-                        <p id="link-confirm-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-divider">
-                        <span>رمز الربط</span>
-                    </div>
-
-                    <div class="setup-field">
-                        <label>رمز الربط <span class="req">*</span></label>
-                        <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 10px">
-                            أدخل الرمز المكون من 6 أرقام الصادر من المؤسسة
-                        </p>
-                        <div id="otp-container" class="otp-row">
-                            <input
-                                type="text"
-                                maxlength="1"
-                                inputmode="numeric"
-                                pattern="[0-9]"
-                                class="otp-digit"
-                                data-index="0"
-                            />
-                            <input
-                                type="text"
-                                maxlength="1"
-                                inputmode="numeric"
-                                pattern="[0-9]"
-                                class="otp-digit"
-                                data-index="1"
-                            />
-                            <input
-                                type="text"
-                                maxlength="1"
-                                inputmode="numeric"
-                                pattern="[0-9]"
-                                class="otp-digit"
-                                data-index="2"
-                            />
-                            <input
-                                type="text"
-                                maxlength="1"
-                                inputmode="numeric"
-                                pattern="[0-9]"
-                                class="otp-digit"
-                                data-index="3"
-                            />
-                            <input
-                                type="text"
-                                maxlength="1"
-                                inputmode="numeric"
-                                pattern="[0-9]"
-                                class="otp-digit"
-                                data-index="4"
-                            />
-                            <input
-                                type="text"
-                                maxlength="1"
-                                inputmode="numeric"
-                                pattern="[0-9]"
-                                class="otp-digit"
-                                data-index="5"
-                            />
-                        </div>
-                        <p id="otp-error" class="field-error hidden" style="text-align: center"></p>
-                    </div>
-
-                    <div id="link-progress" class="link-progress-bar hidden">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <span id="link-progress-text">جاري الاتصال بخادم Firebase...</span>
-                    </div>
-
-                    <button type="submit" id="btn-submit-link" class="btn-setup-submit">
-                        <i class="fas fa-link"></i>
-                        <span>ربط الجهاز</span>
-                    </button>
-                </form>
-            </div>
         </div>
 
         <script src="js/pages/setup.js" defer></script>

@@ -65,24 +65,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const stepModeSelect = document.getElementById('step-mode-select');
     const stepNewInstitution = document.getElementById('step-new-institution');
-    const stepLinkExisting = document.getElementById('step-link-existing');
     const btnModeNew = document.getElementById('btn-mode-new');
-    const btnModeLink = document.getElementById('btn-mode-link');
+    const btnModeLogin = document.getElementById('btn-mode-login');
     const btnBackFromNew = document.getElementById('btn-back-from-new');
-    const btnBackFromLink = document.getElementById('btn-back-from-link');
     const formNew = document.getElementById('form-new-institution');
-    const formLink = document.getElementById('form-link-existing');
     const btnSubmitNew = document.getElementById('btn-submit-new');
-    const btnSubmitLink = document.getElementById('btn-submit-link');
-    const linkProgress = document.getElementById('link-progress');
-    const linkProgressText = document.getElementById('link-progress-text');
-    const otpDigits = Array.from(document.querySelectorAll('.otp-digit'));
 
     console.log('[SETUP] DOM elements:', {
-        formLink: !!formLink,
-        btnSubmitLink: !!btnSubmitLink,
-        linkProgress: !!linkProgress,
-        otpDigitsCount: otpDigits.length
+        formNew: !!formNew,
+        btnSubmitNew: !!btnSubmitNew
     });
 
     try {
@@ -100,7 +91,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function showStep(stepElement) {
         stepModeSelect.classList.add('hidden');
         stepNewInstitution.classList.add('hidden');
-        stepLinkExisting.classList.add('hidden');
         stepElement.classList.remove('hidden');
 
         // Trigger entrance animation
@@ -152,14 +142,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return normalized;
     }
 
-    function getOtpValue() {
-        return otpDigits.map((digit) => digit.value).join('');
-    }
-
     btnModeNew.addEventListener('click', () => showStep(stepNewInstitution));
-    btnModeLink.addEventListener('click', () => showStep(stepLinkExisting));
+    btnModeLogin.addEventListener('click', () => { window.location.href = 'login.html'; });
     btnBackFromNew.addEventListener('click', () => showStep(stepModeSelect));
-    btnBackFromLink.addEventListener('click', () => showStep(stepModeSelect));
 
     // ── New Institution Form ──
     formNew.addEventListener('submit', async (event) => {
@@ -221,9 +206,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showSetupToast(result.message || 'تم إعداد المؤسسة بنجاح', 'success');
 
                 // Auto-login as admin
+                let loggedIn = false;
                 if (result.loginPayload?.email || result.autoLoginEmail) {
                     btnSubmitNew.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>جاري تسجيل الدخول...';
-                    await performAutoLogin(
+                    loggedIn = await performAutoLogin(
                         result.loginPayload?.email || result.autoLoginEmail,
                         result.loginPayload?.password || adminPassword,
                         result.loginPayload?.source
@@ -231,7 +217,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 setTimeout(() => {
-                    window.location.href = 'index.html';
+                    window.location.href = loggedIn
+                        ? 'index.html'
+                        : `login.html?email=${encodeURIComponent(result.loginPayload?.email || result.autoLoginEmail || adminEmail)}`;
                 }, 800);
             } else {
                 showSetupToast(result?.error || 'حدث خطأ أثناء الإعداد', 'error');
@@ -242,157 +230,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         } finally {
             btnSubmitNew.disabled = false;
             btnSubmitNew.innerHTML = originalHtml;
-        }
-    });
-
-    // ── OTP Digit Inputs ──
-    otpDigits.forEach((input, index) => {
-        input.addEventListener('input', (event) => {
-            const value = event.target.value.replace(/[^0-9]/g, '');
-            event.target.value = value;
-
-            if (value && index < otpDigits.length - 1) {
-                otpDigits[index + 1].focus();
-            }
-        });
-
-        input.addEventListener('keydown', (event) => {
-            if (event.key === 'Backspace' && !event.target.value && index > 0) {
-                otpDigits[index - 1].focus();
-            }
-        });
-
-        input.addEventListener('paste', (event) => {
-            event.preventDefault();
-
-            const pasted = (event.clipboardData.getData('text') || '')
-                .replace(/[^0-9]/g, '')
-                .slice(0, otpDigits.length);
-            for (let i = 0; i < otpDigits.length; i += 1) {
-                otpDigits[i].value = pasted[i] || '';
-            }
-
-            otpDigits[Math.min(pasted.length, otpDigits.length - 1)].focus();
-        });
-    });
-
-    // ── Link to Existing Institution Form ──
-    formLink.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        console.log('[SETUP] ========== LINK FORM SUBMITTED ==========');
-        clearFieldErrors(formLink);
-
-        const massarCode = getNormalizedMassarCode('link-massar-code');
-        const otp = getOtpValue();
-
-        // Link account fields
-        const roleSelect = document.getElementById('link-user-role');
-        const rawRole = roleSelect ? roleSelect.value : 'staff-nazir';
-        const roleMap = {
-            'staff-nazir': 'supervisor',
-            'staff-harisaam': 'external-guardian',
-            staff: 'principal',
-            admin: 'admin',
-            principal: 'principal',
-            supervisor: 'supervisor',
-            'external-guardian': 'external-guardian',
-            'internal-guardian': 'internal-guardian',
-            viewer: 'viewer'
-        };
-        const userRole = roleMap[rawRole] || 'viewer';
-        const userName = (document.getElementById('link-user-name')?.value || '').trim();
-        const userEmail = (document.getElementById('link-user-email')?.value || '').trim().toLowerCase();
-        const userPassword = document.getElementById('link-user-password')?.value || '';
-        const userConfirm = document.getElementById('link-user-confirm')?.value || '';
-
-        console.log('[SETUP] Link form data:', {
-            massarCode, otp, rawRole, userRole, userName, userEmail,
-            passwordLen: userPassword.length, confirmLen: userConfirm.length
-        });
-
-        let hasError = false;
-        if (!isValidMassarCode(massarCode)) {
-            showFieldError('link-massar-error', 'رمز ماسار غير صالح - يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام');
-            hasError = true;
-        }
-        if (!userName || userName.length < 2) {
-            showFieldError('link-name-error', 'الاسم مطلوب (حرفان على الأقل)');
-            hasError = true;
-        }
-        if (!userEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
-            showFieldError('link-email-error', 'البريد الإلكتروني غير صالح');
-            hasError = true;
-        }
-        if (!userPassword || userPassword.length < 6) {
-            showFieldError('link-password-error', 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-            hasError = true;
-        }
-        if (userPassword !== userConfirm) {
-            showFieldError('link-confirm-error', 'كلمتا المرور غير متطابقتين');
-            hasError = true;
-        }
-        if (otp.length !== 6) {
-            showFieldError('otp-error', 'أدخل رمز الربط المكون من 6 أرقام');
-            hasError = true;
-        }
-
-        if (hasError) {
-            console.log('[SETUP] Link form validation FAILED');
-            return;
-        }
-
-        console.log('[SETUP] Link form validation PASSED — calling verifyAndLink...');
-
-        const originalHtml = btnSubmitLink.innerHTML;
-        btnSubmitLink.disabled = true;
-        btnSubmitLink.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>جاري الربط...';
-        linkProgress.classList.remove('hidden');
-        linkProgressText.textContent = 'جاري الاتصال بخادم Firebase...';
-
-        try {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-            linkProgressText.textContent = 'جاري التحقق من رمز الربط...';
-
-            console.log('[SETUP] Invoking window.api.setup.verifyAndLink...');
-            const result = await window.api.setup.verifyAndLink({
-                massarCode,
-                otp,
-                userName,
-                userEmail,
-                userPassword,
-                userRole
-            });
-
-            console.log('[SETUP] verifyAndLink result:', JSON.stringify(result));
-
-            if (result?.success) {
-                const viaText = result.verifiedVia === 'server' ? 'عبر Firebase' : 'محلياً';
-                showSetupToast(`${result.message || 'تم ربط الجهاز بنجاح'} (${viaText})`, 'success');
-
-                // Auto-login with the newly created account
-                if (result.loginPayload?.email || result.autoLoginEmail) {
-                    linkProgressText.textContent = 'جاري تسجيل الدخول...';
-                    await performAutoLogin(
-                        result.loginPayload?.email || result.autoLoginEmail,
-                        result.loginPayload?.password || userPassword,
-                        result.loginPayload?.source
-                    );
-                }
-
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1000);
-            } else {
-                console.log('[SETUP] verifyAndLink FAILED:', result?.code, result?.error);
-                showSetupToast(result?.error || 'فشل الربط - تأكد من صحة البيانات', 'error');
-            }
-        } catch (err) {
-            console.error('[SETUP] verifyAndLink EXCEPTION:', err);
-            showSetupToast('حدث خطأ غير متوقع: ' + err.message, 'error');
-        } finally {
-            btnSubmitLink.disabled = false;
-            btnSubmitLink.innerHTML = originalHtml;
-            linkProgress.classList.add('hidden');
         }
     });
 
