@@ -338,7 +338,6 @@ contextBridge.exposeInMainWorld('api', {
     linking: {
         getInstitutionStatus: () => ipcRenderer.invoke('linking:get-institution-status'),
         setupNewInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
-        discoverLanDevices: (payload) => ipcRenderer.invoke('linking:discover-lan-devices', payload),
         verifyAndLink: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload),
         generateOtp: () => ipcRenderer.invoke('linking:generateOtp'),
         cancelOtp: () => ipcRenderer.invoke('linking:cancelOtp'),
@@ -354,9 +353,10 @@ contextBridge.exposeInMainWorld('api', {
 
     setup: {
         getInstitutionStatus: () => ipcRenderer.invoke('linking:get-institution-status'),
+        bootstrapInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
         setupNewInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
-        verifyAndLink: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload),
-        discoverLanDevices: (payload) => ipcRenderer.invoke('linking:discover-lan-devices', payload)
+        linkExistingInstitution: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload),
+        verifyAndLink: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload)
     }
 });
 

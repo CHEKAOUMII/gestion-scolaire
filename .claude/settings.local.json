@@ -6,7 +6,9 @@
       "Bash(ls d:Pencil2/*.html)",
       "Bash(grep -rn '<style' /d/Pencil2/*.html)",
       "Bash(ls d:/Pencil2/*.html)",
-      "Bash(ls d:/Pencil2/*.css)"
+      "Bash(ls d:/Pencil2/*.css)",
+      "Bash(touch /media/chekaoumi/DATA/gestionScholaire/.git/test-write-permission)",
+      "Bash(rm /media/chekaoumi/DATA/gestionScholaire/.git/test-write-permission)"
     ]
   }
 }

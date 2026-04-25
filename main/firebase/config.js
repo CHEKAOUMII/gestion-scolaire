@@ -5,6 +5,26 @@ let _db = null;
 let _auth = null;
 let _emulatorsConnected = false;
 
+const CONFIG_FIELDS = [
+    ['apiKey', 'FIREBASE_API_KEY', 'firebase_api_key'],
+    ['authDomain', 'FIREBASE_AUTH_DOMAIN', 'firebase_auth_domain'],
+    ['projectId', 'FIREBASE_PROJECT_ID', 'firebase_project_id'],
+    ['storageBucket', 'FIREBASE_STORAGE_BUCKET', 'firebase_storage_bucket'],
+    ['messagingSenderId', 'FIREBASE_MESSAGING_SENDER_ID', 'firebase_messaging_sender_id'],
+    ['appId', 'FIREBASE_APP_ID', 'firebase_app_id']
+];
+const PROJECT_REQUIRED_CONFIG_KEYS = ['projectId'];
+const AUTH_REQUIRED_CONFIG_KEYS = ['apiKey', 'projectId', 'appId'];
+
+class FirebaseConfigError extends Error {
+    constructor(missingKeys) {
+        super(`Missing Firebase client config: ${missingKeys.join(', ')}`);
+        this.name = 'FirebaseConfigError';
+        this.code = 'FIREBASE_CONFIG_MISSING';
+        this.missingKeys = missingKeys;
+    }
+}
+
 function safeRequire(moduleName) {
     try {
         return require(moduleName);
@@ -16,14 +36,66 @@ function safeRequire(moduleName) {
     }
 }
 
-function getFirebaseConfig(env = process.env) {
+function clean(value) {
+    return String(value || '').trim();
+}
+
+function readSyncConfig() {
+    try {
+        const { getDb } = require('../db/context');
+        return getDb().prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+    } catch {
+        return {};
+    }
+}
+
+function getFirebaseConfig(env = process.env, options = {}) {
+    const syncConfig = options.syncConfig || readSyncConfig();
+    const config = {};
+
+    for (const [configKey, envKey, dbKey] of CONFIG_FIELDS) {
+        config[configKey] = clean(env[envKey]) || clean(syncConfig[dbKey]);
+    }
+
+    return config;
+}
+
+function getFirebaseConfigSources(env = process.env, options = {}) {
+    const syncConfig = options.syncConfig || readSyncConfig();
+    const sources = {};
+
+    for (const [configKey, envKey, dbKey] of CONFIG_FIELDS) {
+        if (clean(env[envKey])) {
+            sources[configKey] = 'env';
+        } else if (clean(syncConfig[dbKey])) {
+            sources[configKey] = 'sync_config';
+        } else {
+            sources[configKey] = null;
+        }
+    }
+
+    return sources;
+}
+
+function getMissingFirebaseConfigKeys(config, requiredKeys = AUTH_REQUIRED_CONFIG_KEYS) {
+    return requiredKeys.filter((key) => !clean(config?.[key]));
+}
+
+function assertFirebaseConfig(config, requiredKeys = AUTH_REQUIRED_CONFIG_KEYS) {
+    const missing = getMissingFirebaseConfigKeys(config, requiredKeys);
+    if (missing.length) {
+        throw new FirebaseConfigError(missing);
+    }
+    return config;
+}
+
+function getFirebaseConfigStatus(env = process.env, options = {}) {
+    const config = getFirebaseConfig(env, options);
     return {
-        apiKey: String(env.FIREBASE_API_KEY || '').trim(),
-        authDomain: String(env.FIREBASE_AUTH_DOMAIN || '').trim(),
-        projectId: String(env.FIREBASE_PROJECT_ID || '').trim(),
-        storageBucket: String(env.FIREBASE_STORAGE_BUCKET || '').trim(),
-        messagingSenderId: String(env.FIREBASE_MESSAGING_SENDER_ID || '').trim(),
-        appId: String(env.FIREBASE_APP_ID || '').trim()
+        config,
+        sources: getFirebaseConfigSources(env, options),
+        missingForProject: getMissingFirebaseConfigKeys(config, PROJECT_REQUIRED_CONFIG_KEYS),
+        missingForAuth: getMissingFirebaseConfigKeys(config, AUTH_REQUIRED_CONFIG_KEYS)
     };
 }
 
@@ -42,8 +114,9 @@ function initFirebase(env = process.env) {
     }
 
     const config = getFirebaseConfig(env);
-    if (!config.projectId) {
-        console.warn('[firebase] No FIREBASE_PROJECT_ID configured');
+    const missing = getMissingFirebaseConfigKeys(config, PROJECT_REQUIRED_CONFIG_KEYS);
+    if (missing.length) {
+        console.warn(`[firebase] ${new FirebaseConfigError(missing).message}`);
         return { app: null, db: null, auth: null };
     }
 
@@ -83,8 +156,13 @@ function getFirebaseAuth(env = process.env) {
 }
 
 module.exports = {
+    FirebaseConfigError,
     initFirebase,
     getFirestoreDb,
     getFirebaseAuth,
-    getFirebaseConfig
+    getFirebaseConfig,
+    getFirebaseConfigSources,
+    getFirebaseConfigStatus,
+    getMissingFirebaseConfigKeys,
+    assertFirebaseConfig
 };

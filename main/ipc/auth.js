@@ -1,5 +1,12 @@
 const { getDb } = require('../db/context');
 const { verifyPassword, hashPassword } = require('../auth/password');
+const {
+    changeFirebasePassword,
+    isFirebaseUnavailable,
+    loginFirebaseFirst,
+    logoutFirebaseUser,
+    normalizeEmail
+} = require('../auth/firebase-auth-service');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
@@ -50,12 +57,6 @@ function cleanupStaleAttempts() {
     }
 }
 
-function normalizeEmail(value) {
-    return String(value || '')
-        .trim()
-        .toLowerCase();
-}
-
 function normalizeRole(value) {
     const role = resolveRoleAlias(String(value || '').trim().toLowerCase());
     // Allow all storable roles plus 'developer' (hardcoded login bypass).
@@ -70,6 +71,8 @@ function buildPublicSession(userRow, sessionState = {}) {
         email: normalizeEmail(userRow.email),
         role: normalizeRole(userRow.role),
         mustChangePassword: !!userRow.must_change_password,
+        authMode: userRow.last_auth_mode || null,
+        firebaseUid: userRow.firebase_uid || null,
         authenticatedAt: new Date().toISOString(),
         locked: !!sessionState.locked
     };
@@ -142,29 +145,13 @@ function requireRole(event, allowedRoles = []) {
     return session;
 }
 
-function findUserByEmail(email) {
-    const db = getDb();
-    return (
-        db
-            .prepare(
-                `
-                SELECT id, name, email, role, password_hash, disabled, must_change_password
-                FROM users
-                WHERE lower(email) = ?
-                LIMIT 1
-            `
-            )
-            .get(normalizeEmail(email)) || null
-    );
-}
-
 function findUserById(id) {
     const db = getDb();
     return (
         db
             .prepare(
                 `
-                SELECT id, name, email, role, disabled
+                SELECT *
                 FROM users
                 WHERE id = ?
                 LIMIT 1
@@ -228,50 +215,33 @@ function registerAuthIpc(ipcMain) {
                 return { success: true, authenticated: true, user: devSession };
             }
 
-            const user = findUserByEmail(email);
-            if (!user) {
+            let loginResult;
+            try {
+                loginResult = await loginFirebaseFirst(email, password);
+            } catch (err) {
                 recordFailedLogin(email);
+                const code = err.publicCode || 'AUTH_FAILED';
+                const error =
+                    code === 'FIREBASE_NOT_CONFIGURED'
+                        ? 'لم يتم إعداد Firebase Auth بعد'
+                        : code === 'OFFLINE_LOGIN_UNAVAILABLE'
+                          ? 'تعذر الاتصال بالمصادقة السحابية ولا يوجد دخول محلي صالح لهذا المستخدم'
+                          : 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
                 return {
                     success: false,
-                    code: 'INVALID_CREDENTIALS',
-                    error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
-                };
-            }
-
-            if (Number(user.disabled || 0) === 1) {
-                recordFailedLogin(email);
-                return {
-                    success: false,
-                    code: 'INVALID_CREDENTIALS',
-                    error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
-                };
-            }
-
-            const storedHash = String(user.password_hash || '').trim();
-            if (!storedHash) {
-                return {
-                    success: false,
-                    code: 'PASSWORD_NOT_SET',
-                    error: 'لم يتم تعيين كلمة مرور لهذا المستخدم'
-                };
-            }
-
-            if (!verifyPassword(password, storedHash)) {
-                recordFailedLogin(email);
-                return {
-                    success: false,
-                    code: 'INVALID_CREDENTIALS',
-                    error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
+                    code,
+                    error
                 };
             }
 
             // Success — clear throttle record
             clearLoginAttempts(email);
-            const session = setSessionForEvent(event, user);
+            const session = setSessionForEvent(event, loginResult.userRow);
             return {
                 success: true,
                 authenticated: true,
-                user: session
+                user: session,
+                authMode: loginResult.mode
             };
         } catch (err) {
             return { success: false, error: err.message };
@@ -304,6 +274,11 @@ function registerAuthIpc(ipcMain) {
 
     ipcMain.handle('auth:logout', async (event) => {
         try {
+            try {
+                await logoutFirebaseUser();
+            } catch (err) {
+                console.warn('[auth] Firebase logout failed:', err.message);
+            }
             clearSessionForEvent(event);
             return { success: true };
         } catch (err) {
@@ -311,46 +286,13 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Self-registration (creates viewer user, never admin) ──
-    ipcMain.handle('auth:register', async (event, payload) => {
+    // ── Self-registration is disabled. Users must be created by an admin/onboarding flow. ──
+    ipcMain.handle('auth:register', async (_event, _payload) => {
         try {
-            const name = String(payload?.name || '').trim();
-            const email = normalizeEmail(payload?.email);
-            const password = String(payload?.password || '');
-
-            if (!name || name.length < 2) {
-                return { success: false, code: 'INVALID_NAME', error: 'الاسم مطلوب (حرفان على الأقل)' };
-            }
-            if (!email || !email.includes('@')) {
-                return { success: false, code: 'INVALID_EMAIL', error: 'البريد الإلكتروني غير صالح' };
-            }
-            if (password.length < 6) {
-                return { success: false, code: 'WEAK_PASSWORD', error: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' };
-            }
-
-            const db = getDb();
-            const existing = db.prepare('SELECT id FROM users WHERE lower(email) = ? LIMIT 1').get(email);
-            if (existing) {
-                return { success: false, code: 'EMAIL_EXISTS', error: 'هذا البريد الإلكتروني مستخدم بالفعل' };
-            }
-
-            const result = db
-                .prepare(
-                    `INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
-                 VALUES(?, ?, 'viewer', ?, 0, 0)`
-                )
-                .run(name, email, hashPassword(password));
-
-            const userId = result.lastInsertRowid;
-            const userRow = db
-                .prepare('SELECT id, name, email, role, disabled, must_change_password FROM users WHERE id = ?')
-                .get(userId);
-            const session = setSessionForEvent(event, userRow);
-
             return {
-                success: true,
-                authenticated: true,
-                user: session
+                success: false,
+                code: 'SELF_SIGNUP_DISABLED',
+                error: 'إنشاء الحسابات متاح فقط من طرف المدير أو أثناء إعداد المؤسسة'
             };
         } catch (err) {
             return { success: false, error: err.message };
@@ -382,14 +324,34 @@ function registerAuthIpc(ipcMain) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
 
-            if (!verifyPassword(currentPassword, String(user.password_hash || ''))) {
-                return { success: false, code: 'INVALID_CURRENT', error: 'كلمة المرور الحالية غير صحيحة' };
+            try {
+                await changeFirebasePassword(session, currentPassword, newPassword);
+            } catch (err) {
+                if (!isFirebaseUnavailable(err)) {
+                    const code =
+                        err.code === 'auth/wrong-password' ||
+                        err.code === 'auth/invalid-credential' ||
+                        err.code === 'auth/invalid-login-credentials'
+                            ? 'INVALID_CURRENT'
+                            : err.code || 'PASSWORD_CHANGE_FAILED';
+                    return {
+                        success: false,
+                        code,
+                        error: code === 'INVALID_CURRENT' ? 'كلمة المرور الحالية غير صحيحة' : err.message
+                    };
+                }
+
+                if (!verifyPassword(currentPassword, String(user.password_hash || ''))) {
+                    return { success: false, code: 'INVALID_CURRENT', error: 'كلمة المرور الحالية غير صحيحة' };
+                }
+
+                db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(
+                    hashPassword(newPassword),
+                    session.userId
+                );
             }
 
-            db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(
-                hashPassword(newPassword),
-                session.userId
-            );
+            session.mustChangePassword = false;
 
             return { success: true };
         } catch (err) {

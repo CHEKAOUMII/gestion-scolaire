@@ -25,7 +25,7 @@ function showSetupToast(message, type) {
  * After a successful setup, call auth.login() to create the IPC session,
  * then store the session in localStorage for all renderer pages.
  */
-async function performAutoLogin(email, password) {
+async function performAutoLogin(email, password, source) {
     console.log('[SETUP] performAutoLogin called with email:', email);
     try {
         const loginResult = await window.api.auth.login({ email, password });
@@ -37,7 +37,7 @@ async function performAutoLogin(email, password) {
                 email: String(loginResult.user.email || email || '').trim().toLowerCase(),
                 role: String(loginResult.user.role || 'staff').toLowerCase(),
                 loggedAt: Date.now(),
-                source: 'sqlite'
+                source: String(source || loginResult.user.source || 'local-cache')
             };
             // Must match _computeSessionHash in utils.js exactly
             const payload = [sessionData.userId, sessionData.role, sessionData.loggedAt].join('|');
@@ -221,9 +221,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showSetupToast(result.message || 'تم إعداد المؤسسة بنجاح', 'success');
 
                 // Auto-login as admin
-                if (result.autoLoginEmail) {
+                if (result.loginPayload?.email || result.autoLoginEmail) {
                     btnSubmitNew.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>جاري تسجيل الدخول...';
-                    await performAutoLogin(result.autoLoginEmail, adminPassword);
+                    await performAutoLogin(
+                        result.loginPayload?.email || result.autoLoginEmail,
+                        result.loginPayload?.password || adminPassword,
+                        result.loginPayload?.source
+                    );
                 }
 
                 setTimeout(() => {
@@ -284,17 +288,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Link account fields
         const roleSelect = document.getElementById('link-user-role');
         const rawRole = roleSelect ? roleSelect.value : 'staff-nazir';
-        const userRole = rawRole.startsWith('staff') ? 'staff' : 'viewer';
+        const roleMap = {
+            'staff-nazir': 'supervisor',
+            'staff-harisaam': 'external-guardian',
+            staff: 'principal',
+            admin: 'admin',
+            principal: 'principal',
+            supervisor: 'supervisor',
+            'external-guardian': 'external-guardian',
+            'internal-guardian': 'internal-guardian',
+            viewer: 'viewer'
+        };
+        const userRole = roleMap[rawRole] || 'viewer';
         const userName = (document.getElementById('link-user-name')?.value || '').trim();
         const userEmail = (document.getElementById('link-user-email')?.value || '').trim().toLowerCase();
         const userPassword = document.getElementById('link-user-password')?.value || '';
         const userConfirm = document.getElementById('link-user-confirm')?.value || '';
-        const primaryIp = (document.getElementById('link-primary-ip')?.value || '').trim() || undefined;
 
         console.log('[SETUP] Link form data:', {
             massarCode, otp, rawRole, userRole, userName, userEmail,
-            passwordLen: userPassword.length, confirmLen: userConfirm.length,
-            primaryIp
+            passwordLen: userPassword.length, confirmLen: userConfirm.length
         });
 
         let hasError = false;
@@ -334,7 +347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnSubmitLink.disabled = true;
         btnSubmitLink.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>جاري الربط...';
         linkProgress.classList.remove('hidden');
-        linkProgressText.textContent = 'جاري البحث في الشبكة المحلية...';
+        linkProgressText.textContent = 'جاري الاتصال بخادم Firebase...';
 
         try {
             await new Promise((resolve) => setTimeout(resolve, 500));
@@ -347,20 +360,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 userName,
                 userEmail,
                 userPassword,
-                userRole,
-                primaryIp
+                userRole
             });
 
             console.log('[SETUP] verifyAndLink result:', JSON.stringify(result));
 
             if (result?.success) {
-                const viaText = result.verifiedVia === 'lan' ? 'عبر الشبكة المحلية' : 'عبر السيرفر';
+                const viaText = result.verifiedVia === 'server' ? 'عبر Firebase' : 'محلياً';
                 showSetupToast(`${result.message || 'تم ربط الجهاز بنجاح'} (${viaText})`, 'success');
 
                 // Auto-login with the newly created account
-                if (result.autoLoginEmail) {
+                if (result.loginPayload?.email || result.autoLoginEmail) {
                     linkProgressText.textContent = 'جاري تسجيل الدخول...';
-                    await performAutoLogin(result.autoLoginEmail, userPassword);
+                    await performAutoLogin(
+                        result.loginPayload?.email || result.autoLoginEmail,
+                        result.loginPayload?.password || userPassword,
+                        result.loginPayload?.source
+                    );
                 }
 
                 setTimeout(() => {

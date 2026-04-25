@@ -267,6 +267,12 @@ function createTables() {
         email TEXT UNIQUE,
         role TEXT DEFAULT 'staff',
         password_hash TEXT,
+        firebase_uid TEXT,
+        auth_source TEXT DEFAULT 'local',
+        email_verified INTEGER DEFAULT 0,
+        invite_status TEXT DEFAULT 'active',
+        last_login_at DATETIME,
+        last_auth_mode TEXT,
         pin_hash TEXT,
         pin_failed_attempts INTEGER DEFAULT 0,
         disabled INTEGER DEFAULT 0,
@@ -277,7 +283,18 @@ function createTables() {
 
     // Backward-compatibility for existing databases created before password auth
     ensureColumn('users', 'password_hash', 'TEXT');
+    ensureColumn('users', 'firebase_uid', 'TEXT');
+    ensureColumn('users', 'auth_source', "TEXT DEFAULT 'local'");
+    ensureColumn('users', 'email_verified', 'INTEGER DEFAULT 0');
+    ensureColumn('users', 'invite_status', "TEXT DEFAULT 'active'");
+    ensureColumn('users', 'last_login_at', 'DATETIME');
+    ensureColumn('users', 'last_auth_mode', 'TEXT');
     ensureColumn('users', 'must_change_password', 'INTEGER DEFAULT 0');
+    db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uidx_users_firebase_uid
+        ON users(firebase_uid)
+        WHERE firebase_uid IS NOT NULL AND trim(firebase_uid) != '';
+    `);
 
     ensureLicensingSchema(db);
     ensureOwnerSyncSchema(db);
@@ -535,6 +552,13 @@ function ensureSyncSchema(existingDb) {
             school_id_hash          TEXT,
             retention_days          INTEGER  DEFAULT 7,
             last_capture_error      TEXT,
+            firebase_functions_url  TEXT     DEFAULT '',
+            firebase_project_id     TEXT     DEFAULT '',
+            firebase_api_key        TEXT     DEFAULT '',
+            firebase_auth_domain    TEXT     DEFAULT '',
+            firebase_app_id         TEXT     DEFAULT '',
+            firebase_storage_bucket TEXT     DEFAULT '',
+            firebase_messaging_sender_id TEXT DEFAULT '',
             updated_at              DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -552,6 +576,14 @@ function ensureSyncSchema(existingDb) {
         VALUES(1, 0, 10, 7)
     `
     ).run();
+
+    ensureColumn('sync_config', 'firebase_functions_url', "TEXT DEFAULT ''");
+    ensureColumn('sync_config', 'firebase_project_id', "TEXT DEFAULT ''");
+    ensureColumn('sync_config', 'firebase_api_key', "TEXT DEFAULT ''");
+    ensureColumn('sync_config', 'firebase_auth_domain', "TEXT DEFAULT ''");
+    ensureColumn('sync_config', 'firebase_app_id', "TEXT DEFAULT ''");
+    ensureColumn('sync_config', 'firebase_storage_bucket', "TEXT DEFAULT ''");
+    ensureColumn('sync_config', 'firebase_messaging_sender_id', "TEXT DEFAULT ''");
 }
 
 function ensurePageVisibilitySchema(existingDb) {
@@ -637,6 +669,8 @@ function ensureInstitutionSchema(existingDb) {
             setup_completed   INTEGER DEFAULT 0,
             setup_mode        TEXT,
             setup_device_hash TEXT,
+            onboarding_version INTEGER DEFAULT 1,
+            onboarding_completed_at DATETIME,
             created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -671,6 +705,9 @@ function ensureInstitutionSchema(existingDb) {
         CREATE INDEX IF NOT EXISTS idx_linked_devices_status
         ON linked_devices(status);
     `);
+
+    ensureColumn('institution_config', 'onboarding_version', 'INTEGER DEFAULT 1');
+    ensureColumn('institution_config', 'onboarding_completed_at', 'DATETIME');
 }
 
 function ensureColumn(table, column, definition) {

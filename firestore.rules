@@ -1,22 +1,74 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // قواعد أمان للتلاميذ - السماح فقط للمستخدمين المسجلين
-    match /students/{studentId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+
+    function belongsToSchool(schoolId) {
+      return request.auth != null
+          && request.auth.token.schoolId == schoolId;
     }
-    
-    // قواعد أمان للنتائج
-    match /grades/{gradeId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+
+    function isSchoolAdmin(schoolId) {
+      return belongsToSchool(schoolId)
+          && request.auth.token.role in ['admin', 'developer'];
     }
-    
-    // قواعد أمان لأي مجموعة أخرى - السماح فقط للمستخدمين المسجلين
-    match /{collection}/{docId} {
+
+    function isDeviceCredential(schoolId) {
+      return belongsToSchool(schoolId)
+          && request.auth.uid.matches('^device_.*');
+    }
+
+    function isActiveSchoolUser(schoolId) {
+      return belongsToSchool(schoolId)
+          && exists(/databases/$(database)/documents/schools/$(schoolId)/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/schools/$(schoolId)/users/$(request.auth.uid)).data.status != 'disabled';
+    }
+
+    function canSyncSchoolData(schoolId) {
+      return isActiveSchoolUser(schoolId) || isDeviceCredential(schoolId);
+    }
+
+    match /schools/{schoolId} {
+      allow read: if canSyncSchoolData(schoolId);
+      allow create, update, delete: if false;
+
+      match /meta/{metaId} {
+        allow read: if isActiveSchoolUser(schoolId);
+        allow write: if isSchoolAdmin(schoolId) && isActiveSchoolUser(schoolId);
+      }
+
+      match /users/{userId} {
+        allow read: if isActiveSchoolUser(schoolId)
+            && (request.auth.uid == userId || isSchoolAdmin(schoolId));
+        allow write: if isSchoolAdmin(schoolId) && isActiveSchoolUser(schoolId);
+      }
+
+      match /userInvites/{inviteId} {
+        allow read, write: if isSchoolAdmin(schoolId) && isActiveSchoolUser(schoolId);
+      }
+
+      // Existing sync collections remain tenant-scoped without reopening users/meta/invites.
+      match /{collection}/{docId} {
+        allow read, write: if !(collection in ['meta', 'users', 'userInvites'])
+            && canSyncSchoolData(schoolId);
+      }
+    }
+
+    // SyncLog: devices push change entries, all devices in the school can read
+    match /syncLog/{schoolId}/changes/{changeId} {
+      allow read, write: if canSyncSchoolData(schoolId);
+    }
+
+    // OTP codes: written by Cloud Functions (admin SDK bypasses rules),
+    // readable only by school admin during linking
+    match /otpCodes/{massarCode} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow write: if false; // Cloud Functions only
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

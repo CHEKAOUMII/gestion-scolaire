@@ -213,8 +213,9 @@
                     <div class="setup-field">
                         <label for="link-user-role">الصفة <span class="req">*</span></label>
                         <select id="link-user-role" class="setup-input">
-                            <option value="staff-nazir">ناظر</option>
-                            <option value="staff-harisaam">حارس عام</option>
+                            <option value="supervisor">ناظر</option>
+                            <option value="external-guardian">حارس عام للخارجية</option>
+                            <option value="internal-guardian">حارس عام للداخلية</option>
                             <option value="viewer">مساعد</option>
                         </select>
                     </div>
@@ -279,7 +280,7 @@
                     <div class="setup-field">
                         <label>رمز الربط <span class="req">*</span></label>
                         <p style="font-size: 0.78rem; color: var(--color-text-muted); margin-bottom: 10px">
-                            أدخل الرمز المكون من 6 أرقام المعروض على الجهاز الرئيسي
+                            أدخل الرمز المكون من 6 أرقام الصادر من المؤسسة
                         </p>
                         <div id="otp-container" class="otp-row">
                             <input
@@ -334,28 +335,9 @@
                         <p id="otp-error" class="field-error hidden" style="text-align: center"></p>
                     </div>
 
-                    <div class="setup-field">
-                        <label for="link-primary-ip"
-                            >عنوان IP للجهاز الرئيسي
-                            <span class="optional">(اختياري — عند تعذر الاكتشاف التلقائي)</span></label
-                        >
-                        <input
-                            type="text"
-                            id="link-primary-ip"
-                            class="setup-input"
-                            autocomplete="off"
-                            placeholder="مثال: 192.168.1.10"
-                            dir="ltr"
-                        />
-                        <p class="field-hint">
-                            استخدم عنوان Wi-Fi أو Ethernet الظاهر بجانب كود الربط على الجهاز الرئيسي فقط. تجاهل عناوين
-                            WSL أو Hotspot أو VPN.
-                        </p>
-                    </div>
-
                     <div id="link-progress" class="link-progress-bar hidden">
                         <i class="fas fa-spinner fa-spin"></i>
-                        <span id="link-progress-text">جاري البحث في الشبكة المحلية...</span>
+                        <span id="link-progress-text">جاري الاتصال بخادم Firebase...</span>
                     </div>
 
                     <button type="submit" id="btn-submit-link" class="btn-setup-submit">

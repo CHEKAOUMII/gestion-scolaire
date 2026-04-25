@@ -1,6 +1,10 @@
 'use strict';
 
 const SCHOOLS_COLLECTION = 'schools';
+const SCHOOL_META_COLLECTION = 'meta';
+const SCHOOL_INSTITUTION_META_DOC = 'institution';
+const SCHOOL_USERS_COLLECTION = 'users';
+const SCHOOL_USER_INVITES_COLLECTION = 'userInvites';
 const SYNC_LOG_COLLECTION = 'syncLog';
 const SYNC_LOG_CHANGES_COLLECTION = 'changes';
 const OTP_CODES_COLLECTION = 'otpCodes';
@@ -64,8 +68,54 @@ function getSyncLogPath(schoolId) {
     return `${SYNC_LOG_COLLECTION}/${schoolId}/${SYNC_LOG_CHANGES_COLLECTION}`;
 }
 
+function getSchoolMetaPath(schoolId) {
+    if (!schoolId) {
+        return null;
+    }
+    return `${SCHOOLS_COLLECTION}/${schoolId}/${SCHOOL_META_COLLECTION}`;
+}
+
+function getSchoolInstitutionMetaPath(schoolId) {
+    if (!schoolId) {
+        return null;
+    }
+    return `${getSchoolMetaPath(schoolId)}/${SCHOOL_INSTITUTION_META_DOC}`;
+}
+
+function getSchoolUsersPath(schoolId) {
+    if (!schoolId) {
+        return null;
+    }
+    return `${SCHOOLS_COLLECTION}/${schoolId}/${SCHOOL_USERS_COLLECTION}`;
+}
+
+function getSchoolUserPath(schoolId, uid) {
+    if (!schoolId || !uid) {
+        return null;
+    }
+    return `${getSchoolUsersPath(schoolId)}/${uid}`;
+}
+
+function getSchoolInvitesPath(schoolId) {
+    if (!schoolId) {
+        return null;
+    }
+    return `${SCHOOLS_COLLECTION}/${schoolId}/${SCHOOL_USER_INVITES_COLLECTION}`;
+}
+
+function getSchoolInvitePath(schoolId, inviteId) {
+    if (!schoolId || !inviteId) {
+        return null;
+    }
+    return `${getSchoolInvitesPath(schoolId)}/${inviteId}`;
+}
+
 module.exports = {
     SCHOOLS_COLLECTION,
+    SCHOOL_META_COLLECTION,
+    SCHOOL_INSTITUTION_META_DOC,
+    SCHOOL_USERS_COLLECTION,
+    SCHOOL_USER_INVITES_COLLECTION,
     SYNC_LOG_COLLECTION,
     SYNC_LOG_CHANGES_COLLECTION,
     OTP_CODES_COLLECTION,
@@ -73,5 +123,11 @@ module.exports = {
     getCollectionName,
     getCollectionPath,
     buildDocumentId,
-    getSyncLogPath
+    getSyncLogPath,
+    getSchoolMetaPath,
+    getSchoolInstitutionMetaPath,
+    getSchoolUsersPath,
+    getSchoolUserPath,
+    getSchoolInvitesPath,
+    getSchoolInvitePath
 };

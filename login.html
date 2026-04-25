@@ -67,6 +67,10 @@
                                 <i class="fas fa-exclamation-circle"></i>
                                 <span id="login-error-text"></span>
                             </div>
+                            <div class="success-message" id="login-success">
+                                <i class="fas fa-check-circle"></i>
+                                <span id="login-success-text"></span>
+                            </div>
 
                             <form id="login-form">
                                 <div class="form-group">
@@ -104,6 +108,94 @@
                                 <button type="submit" class="btn-login" id="btn-login">
                                     <div class="spinner"></div>
                                     <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- ── Mandatory Password Change ── -->
+                        <div class="auth-form" id="form-change-password">
+                            <div class="pin-prompt-hero">
+                                <div class="pin-prompt-icon">
+                                    <i class="fas fa-key"></i>
+                                </div>
+                                <h3 class="pin-prompt-title">تغيير كلمة المرور</h3>
+                                <p class="pin-prompt-copy">يجب تعيين كلمة مرور جديدة قبل متابعة استعمال الحساب.</p>
+                            </div>
+
+                            <div class="error-message" id="change-password-error">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <span id="change-password-error-text"></span>
+                            </div>
+                            <div class="success-message" id="change-password-success">
+                                <i class="fas fa-check-circle"></i>
+                                <span id="change-password-success-text"></span>
+                            </div>
+
+                            <form id="change-password-form">
+                                <div class="form-group">
+                                    <label for="current-password">كلمة المرور الحالية</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock"></i>
+                                        <input type="password" id="current-password" required autocomplete="current-password" />
+                                        <button
+                                            type="button"
+                                            class="password-toggle"
+                                            data-target="current-password"
+                                            aria-controls="current-password"
+                                            aria-pressed="false"
+                                            aria-label="إظهار كلمة المرور"
+                                            title="إظهار كلمة المرور"
+                                        >
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="new-password">كلمة المرور الجديدة</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-key"></i>
+                                        <input type="password" id="new-password" required minlength="6" autocomplete="new-password" />
+                                        <button
+                                            type="button"
+                                            class="password-toggle"
+                                            data-target="new-password"
+                                            aria-controls="new-password"
+                                            aria-pressed="false"
+                                            aria-label="إظهار كلمة المرور"
+                                            title="إظهار كلمة المرور"
+                                        >
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <div class="password-strength">
+                                        <div class="password-strength-bar" id="new-pw-strength-bar"></div>
+                                    </div>
+                                    <div class="password-strength-label" id="new-pw-strength-label"></div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="new-password-confirm">تأكيد كلمة المرور الجديدة</label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock"></i>
+                                        <input type="password" id="new-password-confirm" required minlength="6" autocomplete="new-password" />
+                                        <button
+                                            type="button"
+                                            class="password-toggle"
+                                            data-target="new-password-confirm"
+                                            aria-controls="new-password-confirm"
+                                            aria-pressed="false"
+                                            aria-label="إظهار كلمة المرور"
+                                            title="إظهار كلمة المرور"
+                                        >
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn-login" id="btn-change-password">
+                                    <div class="spinner"></div>
+                                    <span><i class="fas fa-check"></i> حفظ كلمة المرور</span>
                                 </button>
                             </form>
                         </div>

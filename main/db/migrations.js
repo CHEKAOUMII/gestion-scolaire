@@ -983,6 +983,66 @@ const MIGRATIONS = [
         }
     },
     {
+        version: '2026-04-22-firebase-onboarding-auth-schema',
+        up() {
+            const db = getDb();
+
+            ensureColumn('users', 'firebase_uid', 'TEXT');
+            ensureColumn('users', 'auth_source', "TEXT DEFAULT 'local'");
+            ensureColumn('users', 'email_verified', 'INTEGER DEFAULT 0');
+            ensureColumn('users', 'invite_status', "TEXT DEFAULT 'active'");
+            ensureColumn('users', 'last_login_at', 'DATETIME');
+            ensureColumn('users', 'last_auth_mode', 'TEXT');
+
+            db.prepare(
+                `
+                    UPDATE users
+                    SET
+                        auth_source = CASE
+                            WHEN COALESCE(trim(firebase_uid), '') = '' THEN 'local'
+                            WHEN COALESCE(trim(auth_source), '') = '' THEN 'local'
+                            ELSE auth_source
+                        END,
+                        email_verified = COALESCE(email_verified, 0),
+                        invite_status = CASE
+                            WHEN COALESCE(trim(invite_status), '') = '' THEN 'active'
+                            ELSE invite_status
+                        END
+                `
+            ).run();
+
+            db.exec(`
+                UPDATE users
+                SET firebase_uid = NULL
+                WHERE firebase_uid IS NOT NULL
+                  AND trim(firebase_uid) != ''
+                  AND id NOT IN (
+                      SELECT MIN(id)
+                      FROM users
+                      WHERE firebase_uid IS NOT NULL AND trim(firebase_uid) != ''
+                      GROUP BY firebase_uid
+                  )
+            `);
+
+            db.exec(`
+                CREATE UNIQUE INDEX IF NOT EXISTS uidx_users_firebase_uid
+                ON users(firebase_uid)
+                WHERE firebase_uid IS NOT NULL AND trim(firebase_uid) != '';
+            `);
+            db.exec('CREATE INDEX IF NOT EXISTS idx_users_auth_source ON users(auth_source)');
+            db.exec('CREATE INDEX IF NOT EXISTS idx_users_invite_status ON users(invite_status)');
+
+            ensureColumn('sync_config', 'firebase_api_key', 'TEXT DEFAULT \'\'');
+            ensureColumn('sync_config', 'firebase_auth_domain', 'TEXT DEFAULT \'\'');
+            ensureColumn('sync_config', 'firebase_app_id', 'TEXT DEFAULT \'\'');
+            ensureColumn('sync_config', 'firebase_storage_bucket', 'TEXT DEFAULT \'\'');
+            ensureColumn('sync_config', 'firebase_messaging_sender_id', 'TEXT DEFAULT \'\'');
+
+            ensureColumn('institution_config', 'onboarding_version', 'INTEGER DEFAULT 1');
+            ensureColumn('institution_config', 'onboarding_completed_at', 'DATETIME');
+        }
+    },
+    {
         version: '2026-04-050-inspectors-table',
         up() {
             const db = getDb();

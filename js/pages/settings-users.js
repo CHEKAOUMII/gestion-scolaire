@@ -24,8 +24,8 @@ function buildRoleSelect(userId, currentRole) {
     return `<select onchange="changeRole(${userId}, this.value)">${options}</select>`;
 }
 
-function renderTableMessage(message) {
-    return `<tr><td colspan="6" class="settings-table-message">${message}</td></tr>`;
+function renderTableMessage(message, colspan = 6) {
+    return `<tr><td colspan="${colspan}" class="settings-table-message">${message}</td></tr>`;
 }
 
 function safeText(value) {
@@ -58,6 +58,46 @@ function completionBadge(completed) {
 function pendingBadge(isDirty) {
     if (!isDirty) return '';
     return '<div class="settings-visibility-note">تعديلات معلقة</div>';
+}
+
+function userStateBadge(user) {
+    if (user.disabled) {
+        return '<span class="settings-user-state settings-user-state--disabled">معطل</span>';
+    }
+    return '<span class="settings-user-state settings-user-state--active">نشط</span>';
+}
+
+function firebaseStatusBadge(user) {
+    const hasFirebaseUid = !!String(user.firebase_uid || '').trim();
+    const source = String(user.auth_source || '').trim().toLowerCase();
+    if (hasFirebaseUid || source === 'firebase') {
+        return '<span class="settings-visibility-badge settings-visibility-badge--visible"><i class="fas fa-cloud"></i> Firebase</span>';
+    }
+    return '<span class="settings-visibility-badge settings-visibility-badge--hidden"><i class="fas fa-database"></i> محلي فقط</span>';
+}
+
+function passwordStatusBadge(user) {
+    if (Number(user.must_change_password || 0) === 1) {
+        return '<span class="settings-visibility-text settings-visibility-text--warning">تغيير كلمة المرور مطلوب</span>';
+    }
+    return '<span class="settings-visibility-text settings-visibility-text--success">كلمة المرور مفعلة</span>';
+}
+
+function inviteStatusText(user) {
+    const status = String(user.invite_status || '').trim();
+    if (!status || status === 'active') return '';
+    return `<div class="settings-visibility-note">${safeText(status)}</div>`;
+}
+
+function showProvisioningWarning(response) {
+    if (!response?.warning) return;
+    const labels = {
+        'missing-school-id': 'تم الحفظ محلياً فقط: لم يتم ضبط معرف المؤسسة في المزامنة',
+        'firebase-admin-unavailable': 'تم الحفظ محلياً فقط: Firebase Admin غير مهيأ على هذا الجهاز',
+        'missing-email': 'تم الحفظ محلياً فقط: البريد الإلكتروني غير متوفر',
+        'missing-firebase-user': 'تم التحديث محلياً فقط: لا يوجد حساب Firebase مرتبط'
+    };
+    showToast(labels[response.warning] || `تم الحفظ محلياً فقط: ${response.warning}`, 'warning', 7000);
 }
 
 function getGroupToggleId(group) {
@@ -106,7 +146,7 @@ async function loadRows() {
 
     if (!Array.isArray(response)) {
         showToast(response?.error || 'غير مصرح بالوصول لهذه الصفحة', 'error');
-        tbody.innerHTML = renderTableMessage('غير مصرح');
+        tbody.innerHTML = renderTableMessage('غير مصرح', 7);
         return;
     }
 
@@ -122,7 +162,8 @@ async function loadRows() {
                         <td>
                             ${buildRoleSelect(user.id, user.role)}
                         </td>
-                        <td>${user.disabled ? '<span class="settings-user-state settings-user-state--disabled">معطل</span>' : '<span class="settings-user-state settings-user-state--active">نشط</span>'}</td>
+                        <td>${userStateBadge(user)}</td>
+                        <td>${firebaseStatusBadge(user)}${passwordStatusBadge(user)}${inviteStatusText(user)}</td>
                         <td>
                             <button class="btn btn-secondary" onclick="toggleDisable(${user.id}, ${user.disabled ? 0 : 1})">${user.disabled ? 'تفعيل' : 'تعطيل'}</button>
                         </td>
@@ -130,7 +171,7 @@ async function loadRows() {
                 `
               )
               .join('')
-        : renderTableMessage('لا يوجد مستخدمون');
+        : renderTableMessage('لا يوجد مستخدمون', 7);
 }
 
 async function addUser(event) {
@@ -158,6 +199,7 @@ async function addUser(event) {
     } else {
         showToast('تمت الإضافة', 'success');
     }
+    showProvisioningWarning(response);
 
     event.target.reset();
     await loadRows();
@@ -169,6 +211,7 @@ async function changeRole(id, role) {
         showToast('فشل تعديل الدور', 'error');
         return;
     }
+    showProvisioningWarning(response);
     await loadRows();
 }
 
@@ -178,6 +221,7 @@ async function toggleDisable(id, disabled) {
         showToast('فشل تحديث الحالة', 'error');
         return;
     }
+    showProvisioningWarning(response);
     await loadRows();
 }
 
