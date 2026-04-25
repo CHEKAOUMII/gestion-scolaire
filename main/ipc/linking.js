@@ -12,14 +12,6 @@ const {
     cancelActiveOtp
 } = require('../linking/otp');
 const {
-    buildLinkBootstrapPayload,
-    startLinkingServer,
-    stopLinkingServer,
-    discoverLanDevices: discoverLanDevicesOnLan,
-    verifyViaLan,
-    getLinkingServerStatus
-} = require('../linking/lan');
-const {
     publishOtpToServer,
     verifyOtpViaServer,
     getPublishedOtpStatus,
@@ -40,7 +32,6 @@ const ERROR_MESSAGES = {
     INVALID_MASSAR: 'رمز ماسار غير صالح - يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام',
     INVALID_OTP: 'رمز الربط غير صحيح',
     INVALID_PASSWORD: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
-    LAN_UNAVAILABLE: 'تعذر العثور على جهاز إداري صالح على الشبكة المحلية',
     MASSAR_MISMATCH: 'رمز ماسار لا يطابق المؤسسة التي أصدرت رمز الربط',
     NO_ACTIVE_OTP: 'لا يوجد رمز ربط نشط لهذه المؤسسة',
     OTP_CANCELLED: 'تم إلغاء رمز الربط',
@@ -117,23 +108,6 @@ function buildInstitutionSummary(massarCode, institutionName) {
 function buildCurrentDeviceSummary(db, deviceContext = getCurrentDeviceContext()) {
     const institution = getInstitutionStatusRecord(db);
 
-    // Get local IPv4 addresses for manual linking
-    let localIp = null;
-    const allIps = [];
-    try {
-        const interfaces = os.networkInterfaces();
-        for (const name of Object.keys(interfaces)) {
-            for (const iface of interfaces[name]) {
-                if (iface.family === 'IPv4' && !iface.internal) {
-                    allIps.push(iface.address);
-                }
-            }
-        }
-        // Prefer routable LAN IPs over link-local (169.254.x.x)
-        const routableIp = allIps.find(ip => !ip.startsWith('169.254.'));
-        localIp = routableIp || allIps[0] || null;
-    } catch { /* ignore */ }
-
     return {
         deviceHash: deviceContext.deviceHash,
         deviceName: deviceContext.deviceName,
@@ -141,9 +115,7 @@ function buildCurrentDeviceSummary(db, deviceContext = getCurrentDeviceContext()
         appVersion: deviceContext.appVersion,
         massarCode: institution.massarCode,
         institutionName: institution.institutionName,
-        setupCompleted: institution.setupCompleted,
-        ip: localIp,
-        allIps
+        setupCompleted: institution.setupCompleted
     };
 }
 
@@ -203,12 +175,24 @@ function normalizeSyncConfig(rawConfig, massarCode) {
     const firebaseFunctionsUrlSource =
         config.firebase_functions_url ?? config.firebaseFunctionsUrl ?? config.auth_lambda_url ?? config.authLambdaUrl ?? '';
     const firebaseProjectIdSource = config.firebase_project_id ?? config.firebaseProjectId ?? '';
+    const firebaseApiKeySource = config.firebase_api_key ?? config.firebaseApiKey ?? config.apiKey ?? '';
+    const firebaseAuthDomainSource = config.firebase_auth_domain ?? config.firebaseAuthDomain ?? config.authDomain ?? '';
+    const firebaseAppIdSource = config.firebase_app_id ?? config.firebaseAppId ?? config.appId ?? '';
+    const firebaseStorageBucketSource =
+        config.firebase_storage_bucket ?? config.firebaseStorageBucket ?? config.storageBucket ?? '';
+    const firebaseMessagingSenderIdSource =
+        config.firebase_messaging_sender_id ?? config.firebaseMessagingSenderId ?? config.messagingSenderId ?? '';
     const licenseKeySource = config.license_key ?? config.licenseKey ?? '';
 
     return {
         schoolId: String(schoolIdSource).trim() || null,
         firebaseFunctionsUrl: String(firebaseFunctionsUrlSource).trim().replace(/\/+$/, '') || null,
         firebaseProjectId: String(firebaseProjectIdSource).trim() || null,
+        firebaseApiKey: String(firebaseApiKeySource).trim() || null,
+        firebaseAuthDomain: String(firebaseAuthDomainSource).trim() || null,
+        firebaseAppId: String(firebaseAppIdSource).trim() || null,
+        firebaseStorageBucket: String(firebaseStorageBucketSource).trim() || null,
+        firebaseMessagingSenderId: String(firebaseMessagingSenderIdSource).trim() || null,
         licenseKey: String(licenseKeySource).trim() || null,
         syncIntervalMinutes: Number.isFinite(syncIntervalValue) && syncIntervalValue > 0 ? syncIntervalValue : null,
         enabled: enabledValue === undefined || enabledValue === null ? null : Number(enabledValue) ? 1 : 0
@@ -262,7 +246,13 @@ function normalizeImportedLinkPayload(rawPayload, massarCode) {
         institutionMassar,
         institutionName,
         syncConfig,
-        users
+        users,
+        user: payload?.user && typeof payload.user === 'object' ? payload.user : null,
+        provisionedUser:
+            (rawPayload?.provisionedUser && typeof rawPayload.provisionedUser === 'object'
+                ? rawPayload.provisionedUser
+                : null) ||
+            (payload?.provisionedUser && typeof payload.provisionedUser === 'object' ? payload.provisionedUser : null)
     };
 }
 
@@ -276,6 +266,12 @@ function upsertSyncConfig(db, syncConfig) {
         schoolId: syncConfig.schoolId || currentConfig.school_id || null,
         firebaseFunctionsUrl,
         firebaseProjectId: syncConfig.firebaseProjectId || currentConfig.firebase_project_id || null,
+        firebaseApiKey: syncConfig.firebaseApiKey || currentConfig.firebase_api_key || null,
+        firebaseAuthDomain: syncConfig.firebaseAuthDomain || currentConfig.firebase_auth_domain || null,
+        firebaseAppId: syncConfig.firebaseAppId || currentConfig.firebase_app_id || null,
+        firebaseStorageBucket: syncConfig.firebaseStorageBucket || currentConfig.firebase_storage_bucket || null,
+        firebaseMessagingSenderId:
+            syncConfig.firebaseMessagingSenderId || currentConfig.firebase_messaging_sender_id || null,
         licenseKey: syncConfig.licenseKey || currentConfig.license_key || null,
         syncIntervalMinutes: syncConfig.syncIntervalMinutes || Number(currentConfig.sync_interval_minutes) || 10,
         enabled:
@@ -293,16 +289,26 @@ function upsertSyncConfig(db, syncConfig) {
                 school_id,
                 firebase_functions_url,
                 firebase_project_id,
+                firebase_api_key,
+                firebase_auth_domain,
+                firebase_app_id,
+                firebase_storage_bucket,
+                firebase_messaging_sender_id,
                 license_key,
                 sync_interval_minutes,
                 enabled,
                 updated_at
             )
-            VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(id) DO UPDATE SET
                 school_id = excluded.school_id,
                 firebase_functions_url = excluded.firebase_functions_url,
                 firebase_project_id = excluded.firebase_project_id,
+                firebase_api_key = excluded.firebase_api_key,
+                firebase_auth_domain = excluded.firebase_auth_domain,
+                firebase_app_id = excluded.firebase_app_id,
+                firebase_storage_bucket = excluded.firebase_storage_bucket,
+                firebase_messaging_sender_id = excluded.firebase_messaging_sender_id,
                 license_key = excluded.license_key,
                 sync_interval_minutes = excluded.sync_interval_minutes,
                 enabled = excluded.enabled,
@@ -312,6 +318,11 @@ function upsertSyncConfig(db, syncConfig) {
         mergedConfig.schoolId,
         mergedConfig.firebaseFunctionsUrl,
         mergedConfig.firebaseProjectId,
+        mergedConfig.firebaseApiKey,
+        mergedConfig.firebaseAuthDomain,
+        mergedConfig.firebaseAppId,
+        mergedConfig.firebaseStorageBucket,
+        mergedConfig.firebaseMessagingSenderId,
         mergedConfig.licenseKey,
         mergedConfig.syncIntervalMinutes,
         mergedConfig.enabled
@@ -405,19 +416,159 @@ function getFirebaseFunctionsUrl(db) {
     );
 }
 
-function buildTransportStatus(localOtpStatus) {
-    let lanStatus = getLinkingServerStatus();
-    if (!localOtpStatus?.active && lanStatus.active) {
-        stopLinkingServer();
-        lanStatus = getLinkingServerStatus();
+async function postFirebaseFunction(functionsUrl, functionName, body) {
+    const normalizedUrl = String(functionsUrl || '').trim().replace(/\/+$/, '');
+    if (!normalizedUrl) {
+        return fail('SERVER_UNAVAILABLE', 'لم يتم ضبط رابط Firebase Functions لهذا الجهاز');
     }
 
-    const publishedStatus = getPublishedOtpStatus();
+    try {
+        const response = await fetch(`${normalizedUrl}/${functionName}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body || {})
+        });
+        const text = await response.text();
+        let data = {};
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch {
+                data = { message: text };
+            }
+        }
+
+        if (!response.ok || data.success === false) {
+            if (response.status === 404 && functionName === 'bootstrapInstitution') {
+                return fail('SERVER_UNAVAILABLE', 'دالة Firebase bootstrapInstitution غير متاحة في الخادم الحالي');
+            }
+            const rawCode = data.code || data.error || (response.status === 404 ? 'NOT_FOUND' : 'SERVER_ERROR');
+            const mappedCode = mapFailureCode(rawCode);
+            return fail(mappedCode, data.message || data.error || data.errorMessage || ERROR_MESSAGES[mappedCode]);
+        }
+
+        return ok({ data });
+    } catch (err) {
+        return fail('SERVER_UNAVAILABLE', 'تعذر الاتصال بـ Firebase Functions: ' + err.message);
+    }
+}
+
+function normalizeBootstrapResponse(data, fallback) {
+    const payload = data && typeof data === 'object' ? data : {};
+    const institution = payload.institution || payload.school || payload.meta || {};
+    const user = payload.user || payload.adminUser || payload.admin || {};
+    const firebaseConfig = payload.firebaseConfig || payload.firebase || {};
+    const schoolId =
+        normalizeMassarCode(payload.schoolId ?? payload.gresaCode ?? payload.massarCode) ||
+        normalizeMassarCode(institution.schoolId ?? institution.gresaCode ?? institution.massarCode) ||
+        fallback.massarCode;
 
     return {
-        lanActive: !!lanStatus.active,
-        serverPublished: !!publishedStatus.active
+        schoolId,
+        institutionName:
+            String(
+                payload.institutionName ??
+                    institution.institutionName ??
+                    institution.name ??
+                    fallback.institutionName ??
+                    ''
+            ).trim() || null,
+        syncConfig: normalizeSyncConfig(
+            {
+                ...(payload.syncConfig || {}),
+                ...(firebaseConfig || {}),
+                schoolId,
+                firebaseFunctionsUrl: payload.firebaseFunctionsUrl || fallback.functionsUrl,
+                firebaseProjectId: payload.firebaseProjectId ?? firebaseConfig.projectId,
+                firebaseApiKey: payload.firebaseApiKey ?? firebaseConfig.apiKey,
+                firebaseAuthDomain: payload.firebaseAuthDomain ?? firebaseConfig.authDomain,
+                firebaseAppId: payload.firebaseAppId ?? firebaseConfig.appId,
+                firebaseStorageBucket: payload.firebaseStorageBucket ?? firebaseConfig.storageBucket,
+                firebaseMessagingSenderId: payload.firebaseMessagingSenderId ?? firebaseConfig.messagingSenderId
+            },
+            schoolId
+        ),
+        user: {
+            uid: String(payload.uid ?? payload.firebaseUid ?? user.uid ?? user.firebaseUid ?? '').trim() || null,
+            name: String(user.name ?? user.displayName ?? payload.adminName ?? fallback.adminName ?? '').trim(),
+            email: String(user.email ?? payload.adminEmail ?? fallback.adminEmail ?? '').trim().toLowerCase(),
+            role: String(user.role ?? payload.role ?? 'admin').trim() || 'admin',
+            emailVerified: Number(user.emailVerified ?? payload.emailVerified) ? 1 : 0,
+            mustChangePassword: Number(user.mustChangePassword ?? payload.mustChangePassword) ? 1 : 0
+        },
+        customToken: payload.customToken || null,
+        idToken: payload.idToken || null
     };
+}
+
+function upsertFirebaseCachedUser(db, user, password, fallbackRole) {
+    const name = String(user?.name || '').trim();
+    const email = String(user?.email || '').trim().toLowerCase();
+    const firebaseUid = String(user?.uid || '').trim();
+    const role = String(user?.role || fallbackRole || 'viewer').trim();
+    const passwordHash = hashPassword(password);
+    const emailVerified = Number(user?.emailVerified || 0) ? 1 : 0;
+    const mustChangePassword = Number(user?.mustChangePassword || 0) ? 1 : 0;
+
+    if (!name || !email) {
+        throw new Error('Missing local user cache name/email');
+    }
+
+    const existing = db.prepare('SELECT id FROM users WHERE lower(email) = ? LIMIT 1').get(email);
+    if (existing) {
+        db.prepare(
+            `
+                UPDATE users
+                SET
+                    name = ?,
+                    role = ?,
+                    password_hash = ?,
+                    firebase_uid = COALESCE(NULLIF(?, ''), firebase_uid),
+                    auth_source = ?,
+                    email_verified = ?,
+                    invite_status = 'active',
+                    must_change_password = ?,
+                    disabled = 0,
+                    last_login_at = CURRENT_TIMESTAMP,
+                    last_auth_mode = 'online'
+                WHERE id = ?
+            `
+        ).run(
+            name,
+            role,
+            passwordHash,
+            firebaseUid,
+            firebaseUid ? 'firebase' : 'local',
+            emailVerified,
+            mustChangePassword,
+            existing.id
+        );
+        return existing.id;
+    }
+
+    const result = db
+        .prepare(
+            `
+                INSERT INTO users (
+                    name,
+                    email,
+                    role,
+                    password_hash,
+                    firebase_uid,
+                    auth_source,
+                    email_verified,
+                    invite_status,
+                    must_change_password,
+                    disabled,
+                    last_login_at,
+                    last_auth_mode
+                )
+                VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, 'active', ?, 0, CURRENT_TIMESTAMP, 'online')
+            `
+        )
+        .run(name, email, role, passwordHash, firebaseUid, firebaseUid ? 'firebase' : 'local', emailVerified, mustChangePassword);
+
+    return result.lastInsertRowid;
 }
 
 function mapFailureCode(rawCode) {
@@ -492,7 +643,39 @@ function registerLinkingIpc(ipcMain) {
         }
 
         const deviceContext = getCurrentDeviceContext();
-        const passwordHash = hashPassword(adminPassword);
+        const functionsUrl = getFirebaseFunctionsUrl(db);
+        if (!functionsUrl) {
+            return fail(
+                'SERVER_UNAVAILABLE',
+                'إعداد مؤسسة جديدة يتطلب ضبط FIREBASE_FUNCTIONS_URL أو firebase_functions_url أولاً'
+            );
+        }
+
+        const bootstrapResult = await postFirebaseFunction(functionsUrl, 'bootstrapInstitution', {
+            massarCode,
+            gresaCode: massarCode,
+            schoolId: massarCode,
+            institutionName,
+            adminName,
+            adminEmail,
+            adminPassword,
+            device: deviceContext
+        });
+        if (!bootstrapResult.success) {
+            return bootstrapResult;
+        }
+
+        const bootstrap = normalizeBootstrapResponse(bootstrapResult.data, {
+            massarCode,
+            institutionName,
+            adminName,
+            adminEmail,
+            functionsUrl
+        });
+        if (!bootstrap.schoolId || bootstrap.schoolId !== massarCode) {
+            return fail('MASSAR_MISMATCH');
+        }
+
         const transaction = db.transaction(() => {
             db.prepare(
                 `
@@ -503,29 +686,26 @@ function registerLinkingIpc(ipcMain) {
                         setup_completed,
                         setup_mode,
                         setup_device_hash,
+                        onboarding_version,
+                        onboarding_completed_at,
                         updated_at
                     )
-                    VALUES (1, ?, ?, 1, 'new', ?, CURRENT_TIMESTAMP)
+                    VALUES (1, ?, ?, 1, 'firebase-new', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT(id) DO UPDATE SET
                         massar_code = excluded.massar_code,
                         institution_name = excluded.institution_name,
                         setup_completed = 1,
-                        setup_mode = 'new',
+                        setup_mode = 'firebase-new',
                         setup_device_hash = excluded.setup_device_hash,
+                        onboarding_version = 1,
+                        onboarding_completed_at = COALESCE(onboarding_completed_at, CURRENT_TIMESTAMP),
                         updated_at = CURRENT_TIMESTAMP
                 `
-            ).run(massarCode, institutionName, deviceContext.deviceHash);
+            ).run(bootstrap.schoolId, bootstrap.institutionName, deviceContext.deviceHash);
 
-            db.prepare(
-                `
-                    UPDATE users
-                    SET name = ?, email = ?, role = 'principal', password_hash = ?, must_change_password = 0, disabled = 0
-                    WHERE id = 1
-                `
-            ).run(adminName, adminEmail, passwordHash);
-
-            upsertSyncConfig(db, { schoolId: massarCode });
-            upsertLinkedDevice(db, deviceContext, 'setup_new');
+            upsertSyncConfig(db, bootstrap.syncConfig);
+            upsertLinkedDevice(db, deviceContext, 'firebase_bootstrap');
+            upsertFirebaseCachedUser(db, bootstrap.user, adminPassword, 'admin');
         });
 
         try {
@@ -533,33 +713,21 @@ function registerLinkingIpc(ipcMain) {
             return ok({
                 message: 'تم إعداد المؤسسة بنجاح',
                 setupCompleted: true,
-                institution: buildInstitutionSummary(massarCode, institutionName),
+                institution: buildInstitutionSummary(bootstrap.schoolId, bootstrap.institutionName),
                 currentDevice: buildCurrentDeviceSummary(db, deviceContext),
-                autoLoginEmail: adminEmail
+                autoLoginEmail: bootstrap.user.email || adminEmail,
+                loginPayload: {
+                    email: bootstrap.user.email || adminEmail,
+                    password: adminPassword,
+                    source: bootstrap.user.uid ? 'firebase' : 'local-cache'
+                },
+                firebaseUid: bootstrap.user.uid,
+                customToken: bootstrap.customToken,
+                idToken: bootstrap.idToken
             });
         } catch (err) {
             console.error('[linking] setupNewInstitution error:', err);
             return fail('INTERNAL_ERROR', 'حدث خطأ أثناء إعداد المؤسسة: ' + err.message);
-        }
-    });
-
-    handleRead(ipcMain, 'linking:discover-lan-devices', async (_db, payload) => {
-        const massarCode = normalizeMassarCode(payload?.massarCode);
-        const timeoutMs = Number(payload?.timeoutMs);
-
-        if (!massarCode) {
-            return fail('INVALID_MASSAR');
-        }
-
-        try {
-            const devices = await discoverLanDevicesOnLan(
-                massarCode,
-                Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000
-            );
-            return ok({ devices: Array.isArray(devices) ? devices : [] });
-        } catch (err) {
-            console.warn('[linking] discoverLanDevices unavailable:', err.message);
-            return ok({ devices: [] });
         }
     });
 
@@ -606,106 +774,32 @@ function registerLinkingIpc(ipcMain) {
 
         const deviceContext = getCurrentDeviceContext();
         let importedPayload = null;
-        let verifiedVia = null;
-        const primaryIp = String(payload?.primaryIp || '').trim() || null;
-        console.log('[linking:verify-and-link] primaryIp:', primaryIp);
+        const verifiedVia = 'server';
+        const functionsUrl = getFirebaseFunctionsUrl(db);
+        if (!functionsUrl) {
+            return fail(
+                'SERVER_UNAVAILABLE',
+                'ربط جهاز جديد يتطلب ضبط FIREBASE_FUNCTIONS_URL أو firebase_functions_url للتحقق عبر Firebase'
+            );
+        }
 
         try {
-            console.log('[linking:verify-and-link] Starting LAN discovery (5s timeout)...');
-            const devices = await discoverLanDevicesOnLan(massarCode, 5000);
-            console.log('[linking:verify-and-link] LAN discovery result:', devices?.length || 0, 'devices');
-            if (Array.isArray(devices) && devices.length > 0) {
-                const target = devices[0];
-                console.log('[linking:verify-and-link] Trying LAN verification:', target.ip, target.port);
-                const lanResult = await verifyViaLan(
-                    target.ip,
-                    target.port,
-                    massarCode,
-                    otp,
-                    deviceContext.deviceHash,
-                    deviceContext.deviceName
-                );
-
-                console.log('[linking:verify-and-link] LAN verify result success:', lanResult?.success);
-                if (lanResult?.success) {
-                    verifiedVia = 'lan';
-                    importedPayload = normalizeImportedLinkPayload(lanResult, massarCode);
-                } else {
-                    const lanFailure = mapVerificationFailure(lanResult);
-                    console.log('[linking:verify-and-link] LAN failure code:', lanFailure.code);
-                    const canFallbackToServer = ['LAN_UNAVAILABLE', 'NO_ACTIVE_OTP', 'SERVER_UNAVAILABLE'].includes(
-                        lanFailure.code
-                    );
-                    if (!canFallbackToServer) {
-                        return lanFailure;
-                    }
+            const serverResult = await verifyOtpViaServer(functionsUrl, massarCode, otp, {
+                provisionUser: {
+                    name: linkUserName,
+                    email: linkUserEmail,
+                    password: linkUserPassword,
+                    role: linkUserRole
                 }
-            }
-        } catch (lanErr) {
-            console.warn('[linking:verify-and-link] LAN verification exception:', lanErr.message);
-        }
-
-        // Direct IP fallback: try connecting to primary device via HTTP when UDP discovery failed
-        if (!verifiedVia && primaryIp) {
-            try {
-                console.log('[linking:verify-and-link] Trying DIRECT IP:', primaryIp, ':19876');
-                const directResult = await verifyViaLan(
-                    primaryIp,
-                    19876,
-                    massarCode,
-                    otp,
-                    deviceContext.deviceHash,
-                    deviceContext.deviceName
-                );
-                console.log('[linking:verify-and-link] Direct IP result success:', directResult?.success);
-                if (directResult?.success) {
-                    verifiedVia = 'lan';
-                    importedPayload = normalizeImportedLinkPayload(directResult, massarCode);
-                }
-            } catch (directErr) {
-                console.warn('[linking:verify-and-link] Direct IP exception:', directErr.message);
-            }
-        }
-
-        if (!verifiedVia) {
-            // If direct IP was tried and still not verified, report the failure clearly
-            if (primaryIp) {
-                console.log('[linking:verify-and-link] Direct IP provided but verification still failed. Trying server...');
-            } else {
-                console.log('[linking:verify-and-link] No primaryIp provided and LAN discovery failed.');
+            });
+            if (!serverResult?.success) {
+                return mapVerificationFailure(serverResult);
             }
 
-            const functionsUrl = getFirebaseFunctionsUrl(db);
-            if (!functionsUrl) {
-                // No server configured — give specific guidance
-                if (!primaryIp) {
-                    return fail(
-                        'LAN_UNAVAILABLE',
-                        'تعذر اكتشاف الجهاز الرئيسي تلقائياً. أدخل عنوان IP للجهاز الرئيسي في الحقل المخصص (يظهر بجانب كود الربط على الجهاز الرئيسي) ثم أعد المحاولة.'
-                    );
-                }
-                return fail(
-                    'DIRECT_IP_FAILED',
-                    'تعذر الاتصال بالجهاز الرئيسي على العنوان ' + primaryIp + ':19876. تأكد أن:\n'
-                    + '• الجهاز الرئيسي يعمل وكود الربط نشط\n'
-                    + '• العنوان IP صحيح (ليس 169.254.x.x)\n'
-                    + '• الجهازين على نفس الشبكة\n'
-                    + '• جدار الحماية لا يمنع المنفذ 19876'
-                );
-            }
-
-            try {
-                const serverResult = await verifyOtpViaServer(functionsUrl, massarCode, otp);
-                if (!serverResult?.success) {
-                    return mapVerificationFailure(serverResult);
-                }
-
-                verifiedVia = 'server';
-                importedPayload = normalizeImportedLinkPayload(serverResult, massarCode);
-            } catch (serverErr) {
-                console.error('[linking] Server verification failed:', serverErr.message);
-                return fail('SERVER_UNAVAILABLE');
-            }
+            importedPayload = normalizeImportedLinkPayload(serverResult, massarCode);
+        } catch (serverErr) {
+            console.error('[linking] Server verification failed:', serverErr.message);
+            return fail('SERVER_UNAVAILABLE');
         }
 
         if (!importedPayload?.institutionMassar) {
@@ -729,20 +823,24 @@ function registerLinkingIpc(ipcMain) {
                             setup_completed,
                             setup_mode,
                             setup_device_hash,
+                            onboarding_version,
+                            onboarding_completed_at,
                             updated_at
                         )
-                        VALUES (1, ?, ?, 1, 'linked', ?, CURRENT_TIMESTAMP)
+                        VALUES (1, ?, ?, 1, 'firebase-linked', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT(id) DO UPDATE SET
                             massar_code = excluded.massar_code,
                             institution_name = excluded.institution_name,
                             setup_completed = 1,
-                            setup_mode = 'linked',
+                            setup_mode = 'firebase-linked',
                             setup_device_hash = excluded.setup_device_hash,
+                            onboarding_version = 1,
+                            onboarding_completed_at = COALESCE(onboarding_completed_at, CURRENT_TIMESTAMP),
                             updated_at = CURRENT_TIMESTAMP
                     `
                 ).run(institutionMassar, importedPayload.institutionName, deviceContext.deviceHash);
 
-                upsertLinkedDevice(db, deviceContext, verifiedVia === 'lan' ? 'otp_lan' : 'otp_server');
+                upsertLinkedDevice(db, deviceContext, 'otp_server');
                 upsertSyncConfig(db, importedPayload.syncConfig);
                 const instCheck = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get();
                 if (instCheck && instCheck.massar_code) {
@@ -755,10 +853,19 @@ function registerLinkingIpc(ipcMain) {
 
                 // Create local user account for this linked device
                 autoLoginEmail = linkUserEmail;
-                db.prepare(
-                    `INSERT INTO users (name, email, role, password_hash, must_change_password, disabled)
-                     VALUES (?, ?, ?, ?, 0, 0)`
-                ).run(linkUserName, linkUserEmail, linkUserRole, hashPassword(linkUserPassword));
+                upsertFirebaseCachedUser(
+                    db,
+                    {
+                        name: linkUserName,
+                        email: linkUserEmail,
+                        role: importedPayload.provisionedUser?.role || linkUserRole,
+                        uid: importedPayload.provisionedUser?.uid || importedPayload.user?.uid || null,
+                        emailVerified: importedPayload.provisionedUser?.emailVerified || 0,
+                        mustChangePassword: importedPayload.provisionedUser?.mustChangePassword || 0
+                    },
+                    linkUserPassword,
+                    linkUserRole
+                );
             });
 
             transaction();
@@ -769,7 +876,15 @@ function registerLinkingIpc(ipcMain) {
                 setupCompleted: true,
                 institution: buildInstitutionSummary(institutionMassar, importedPayload.institutionName),
                 currentDevice: buildCurrentDeviceSummary(db, deviceContext),
-                autoLoginEmail
+                autoLoginEmail,
+                loginPayload: {
+                    email: autoLoginEmail,
+                    password: linkUserPassword,
+                    source: importedPayload.provisionedUser?.uid || importedPayload.user?.uid ? 'firebase' : 'local-cache'
+                },
+                unresolved: importedPayload.provisionedUser?.uid
+                    ? []
+                    : ['OTP backend did not return a Firebase-provisioned user; cached a local login only.']
             });
         } catch (err) {
             console.error('[linking] verifyAndLink DB error:', err);
@@ -788,23 +903,37 @@ function registerLinkingIpc(ipcMain) {
         try {
             const generated = generateInstitutionOtp(db, institution.massarCode, deviceContext.deviceHash);
 
-            try {
-                await startLinkingServer(db);
-            } catch (lanErr) {
-                console.warn('[linking] Failed to start LAN sharing:', lanErr.message);
-            }
-
-            const bootstrapPayload = buildLinkBootstrapPayload(db);
-            const functionsUrl = bootstrapPayload?.syncConfig?.firebaseFunctionsUrl || null;
-            const licenseKey = bootstrapPayload?.syncConfig?.licenseKey;
+            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
+            const functionsUrl = String(syncRow?.firebase_functions_url || '').trim().replace(/\/+$/, '') || null;
+            const licenseKey = String(syncRow?.license_key || '').trim() || null;
             if (functionsUrl && licenseKey) {
+                const configPayload = {
+                    institution: {
+                        massar_code: institution.massarCode,
+                        institution_name: institution.institutionName
+                    },
+                    syncConfig: {
+                        school_id: syncRow?.school_id || institution.massarCode,
+                        firebase_functions_url: syncRow?.firebase_functions_url || null,
+                        firebase_project_id: syncRow?.firebase_project_id || null,
+                        firebase_api_key: syncRow?.firebase_api_key || null,
+                        firebase_auth_domain: syncRow?.firebase_auth_domain || null,
+                        firebase_app_id: syncRow?.firebase_app_id || null,
+                        firebase_storage_bucket: syncRow?.firebase_storage_bucket || null,
+                        firebase_messaging_sender_id: syncRow?.firebase_messaging_sender_id || null,
+                        license_key: licenseKey,
+                        sync_interval_minutes: syncRow?.sync_interval_minutes || 10,
+                        enabled: syncRow?.enabled ?? 0
+                    },
+                    users: []
+                };
                 const remoteResult = await publishOtpToServer(
                     functionsUrl,
                     licenseKey,
                     deviceContext.deviceHash,
                     institution.massarCode,
                     generated.otp,
-                    bootstrapPayload
+                    configPayload
                 );
                 if (!remoteResult.success) {
                     console.warn('[linking] Failed to publish OTP to server:', remoteResult.error);
@@ -812,11 +941,12 @@ function registerLinkingIpc(ipcMain) {
             }
 
             const otpStatus = getLatestOtpStatus(db, institution.massarCode);
+            const publishedStatus = getPublishedOtpStatus();
             return ok({
                 otp: generated.otp,
                 expiresAt: otpStatus.expiresAt || generated.expiresAt,
                 remainingSeconds: otpStatus.remainingSeconds,
-                transport: buildTransportStatus(otpStatus)
+                transport: { serverPublished: !!publishedStatus.active }
             });
         } catch (err) {
             console.error('[linking] generateOtp error:', err);
@@ -838,8 +968,6 @@ function registerLinkingIpc(ipcMain) {
             }
         }
 
-        stopLinkingServer();
-
         const publishedStatus = getPublishedOtpStatus();
         if (publishedStatus.active) {
             const remoteCancel = await cancelPublishedOtp();
@@ -860,19 +988,21 @@ function registerLinkingIpc(ipcMain) {
                 expiresAt: null,
                 remainingSeconds: 0,
                 transport: {
-                    lanActive: false,
                     serverPublished: false
                 }
             });
         }
 
         const otpStatus = getLatestOtpStatus(db, institution.massarCode);
+        const publishedStatus = getPublishedOtpStatus();
         return ok({
             active: otpStatus.active,
             status: otpStatus.status,
             expiresAt: otpStatus.expiresAt,
             remainingSeconds: otpStatus.remainingSeconds,
-            transport: buildTransportStatus(otpStatus)
+            transport: {
+                serverPublished: !!publishedStatus.active
+            }
         });
     });
 

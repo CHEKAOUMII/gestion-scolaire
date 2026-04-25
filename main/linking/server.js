@@ -184,7 +184,7 @@ async function cancelPublishedOtp() {
     return { success: true, cancelled: true };
 }
 
-async function verifyOtpViaServer(functionsUrl, massar, otpPlaintext) {
+async function verifyOtpViaServer(functionsUrl, massar, otpPlaintext, options = {}) {
     try {
         const url = String(functionsUrl).trim().replace(/\/+$/, '') + '/verifyOtp';
         const response = await fetch(url, {
@@ -192,7 +192,8 @@ async function verifyOtpViaServer(functionsUrl, massar, otpPlaintext) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 massar: String(massar).trim().toUpperCase(),
-                otp: String(otpPlaintext)
+                otp: String(otpPlaintext),
+                provisionUser: options.provisionUser || null
             })
         });
 
@@ -212,7 +213,8 @@ async function verifyOtpViaServer(functionsUrl, massar, otpPlaintext) {
 
         return {
             success: true,
-            configPayload: decryptPayload(key, ciphertextBuf, ivBuf, authTagBuf)
+            configPayload: decryptPayload(key, ciphertextBuf, ivBuf, authTagBuf),
+            provisionedUser: data.provisionedUser || null
         };
     } catch (err) {
         return {

@@ -4,6 +4,132 @@ const { requireRole, getSessionByEvent } = require('./auth');
 const { hashPassword, generateRandomPassword } = require('../auth/password');
 const { authErrorResponse, handleWrite, handleRead } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
+const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
+
+function normalizeEmail(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase();
+}
+
+function getTableColumns(db, tableName) {
+    try {
+        return new Set(db.prepare(`PRAGMA table_info(${tableName})`).all().map((column) => column.name));
+    } catch {
+        return new Set();
+    }
+}
+
+function columnExpr(columns, columnName, fallbackSql = 'NULL') {
+    return columns.has(columnName) ? columnName : `${fallbackSql} AS ${columnName}`;
+}
+
+function getSchoolId(db) {
+    const syncColumns = getTableColumns(db, 'sync_config');
+    const institutionColumns = getTableColumns(db, 'institution_config');
+    const syncRow = syncColumns.has('school_id')
+        ? db.prepare('SELECT school_id FROM sync_config WHERE id = 1').get() || {}
+        : {};
+    const institutionRow = institutionColumns.has('massar_code')
+        ? db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get() || {}
+        : {};
+    return String(syncRow.school_id || institutionRow.massar_code || process.env.FIREBASE_SCHOOL_ID || '').trim();
+}
+
+function getFirebaseFunctionsUrl(db) {
+    const row = db.prepare('SELECT firebase_functions_url FROM sync_config WHERE id = 1').get() || {};
+    return String(row.firebase_functions_url || process.env.FIREBASE_FUNCTIONS_URL || '').trim().replace(/\/+$/, '');
+}
+
+async function postFirebaseFunction(db, functionName, body) {
+    const functionsUrl = getFirebaseFunctionsUrl(db);
+    if (!functionsUrl) {
+        const err = new Error('Firebase Functions URL is not configured');
+        err.code = 'FIREBASE_FUNCTIONS_NOT_CONFIGURED';
+        throw err;
+    }
+
+    const idToken = await getCurrentFirebaseIdToken(true);
+    const response = await fetch(`${functionsUrl}/${functionName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...(body || {}), idToken })
+    });
+    const text = await response.text();
+    let data = {};
+    if (text) {
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = { message: text };
+        }
+    }
+
+    if (!response.ok || data.success === false) {
+        const err = new Error(data.message || data.error || `Firebase function ${functionName} failed`);
+        err.code = data.code || data.error || 'FIREBASE_FUNCTION_FAILED';
+        err.status = response.status;
+        throw err;
+    }
+
+    return data;
+}
+
+async function provisionFirebaseUser(db, payload) {
+    const email = normalizeEmail(payload.email);
+    if (!email) {
+        const err = new Error('Email is required for Firebase user provisioning');
+        err.code = 'MISSING_EMAIL';
+        throw err;
+    }
+
+    const data = await postFirebaseFunction(db, 'provisionSchoolUser', {
+        email,
+        name: String(payload.name || '').trim(),
+        role: payload.role || 'principal',
+        temporaryPassword: String(payload.password || ''),
+        mustChangePassword: !!payload.mustChangePassword,
+        createInvite: payload.createInvite !== false
+    });
+
+    return {
+        status: 'created',
+        uid: data.uid,
+        emailVerified: !!data.profile?.emailVerified,
+        temporaryPassword: data.temporaryPassword || null
+    };
+}
+
+async function updateFirebaseUserRole(db, user, role) {
+    let uid = String(user?.firebase_uid || '').trim();
+    if (!uid) {
+        const err = new Error('Firebase UID is required for role updates');
+        err.code = 'MISSING_FIREBASE_UID';
+        throw err;
+    }
+
+    const data = await postFirebaseFunction(db, 'updateSchoolUserRole', { targetUid: uid, role });
+    return { status: 'updated', uid: data.uid || uid };
+}
+
+async function updateFirebaseUserDisabled(db, user, disabled) {
+    let uid = String(user?.firebase_uid || '').trim();
+    if (!uid) {
+        const err = new Error('Firebase UID is required for disabling users');
+        err.code = 'MISSING_FIREBASE_UID';
+        throw err;
+    }
+
+    const data = await postFirebaseFunction(db, 'setSchoolUserDisabled', { targetUid: uid, disabled: !!disabled });
+    return { status: 'updated', uid: data.uid || uid };
+}
+
+function buildFirebaseProvisioningWarning(result) {
+    if (!result || result.status === 'created' || result.status === 'linked' || result.status === 'updated') {
+        return null;
+    }
+    return result.reason || 'firebase-provisioning-skipped';
+}
 
 function registerSystemIpc(ipcMain) {
     // IPC Handlers - System logs
@@ -36,8 +162,26 @@ function registerSystemIpc(ipcMain) {
 
     // IPC Handlers - Users
     handleWrite(ipcMain, 'users:getAll', ['admin'], (db) => {
+        const columns = getTableColumns(db, 'users');
         return db
-            .prepare('SELECT id, name, email, role, disabled, created_at FROM users ORDER BY created_at DESC')
+            .prepare(
+                `
+                SELECT
+                    id,
+                    name,
+                    email,
+                    role,
+                    disabled,
+                    must_change_password,
+                    created_at,
+                    ${columnExpr(columns, 'firebase_uid')},
+                    ${columnExpr(columns, 'auth_source', "'local'")},
+                    ${columnExpr(columns, 'email_verified', '0')},
+                    ${columnExpr(columns, 'invite_status', "'active'")}
+                FROM users
+                ORDER BY created_at DESC
+            `
+            )
             .all();
     });
 
@@ -52,25 +196,62 @@ function registerSystemIpc(ipcMain) {
             if (!ALLOWED_ROLES.includes(role)) {
                 return { success: false, error: `دور غير صالح: ${role}` };
             }
-            db.prepare(
-                `
-                INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
-                VALUES(?, ?, ?, ?, ?, ?)
-            `
-            ).run(
+            const email = normalizeEmail(payload.email) || null;
+            const existing = email
+                ? db.prepare('SELECT id FROM users WHERE lower(email) = ? LIMIT 1').get(email)
+                : null;
+            if (existing) {
+                return { success: false, code: 'EMAIL_EXISTS', error: 'هذا البريد الإلكتروني مستخدم بالفعل' };
+            }
+
+            const firebaseProvisioning = await provisionFirebaseUser(db, {
+                ...payload,
+                email,
+                password: finalPassword,
+                role,
+                disabled: !!payload.disabled,
+                mustChangePassword: usedGenerated,
+                resetPasswordForExisting: true
+            });
+
+            const columns = getTableColumns(db, 'users');
+            const insertColumns = ['name', 'email', 'role', 'password_hash', 'disabled', 'must_change_password'];
+            const insertValues = [
                 payload.name,
-                payload.email || null,
+                email,
                 role,
                 hashPassword(finalPassword),
                 payload.disabled ? 1 : 0,
                 usedGenerated ? 1 : 0
-            );
+            ];
+
+            if (columns.has('firebase_uid')) {
+                insertColumns.push('firebase_uid');
+                insertValues.push(firebaseProvisioning.uid || null);
+            }
+            if (columns.has('auth_source')) {
+                insertColumns.push('auth_source');
+                insertValues.push(firebaseProvisioning.uid ? 'firebase' : 'local');
+            }
+            if (columns.has('email_verified')) {
+                insertColumns.push('email_verified');
+                insertValues.push(firebaseProvisioning.emailVerified ? 1 : 0);
+            }
+            if (columns.has('invite_status')) {
+                insertColumns.push('invite_status');
+                insertValues.push(payload.disabled ? 'disabled' : 'active');
+            }
+
+            const placeholders = insertColumns.map(() => '?').join(', ');
+            db.prepare(`INSERT INTO users(${insertColumns.join(', ')}) VALUES(${placeholders})`).run(...insertValues);
             // Return the generated password only once so admin can share it securely.
             // Never return a hardcoded constant.
             return {
                 success: true,
                 usedGeneratedPassword: usedGenerated,
-                temporaryPassword: usedGenerated ? finalPassword : null
+                temporaryPassword: usedGenerated ? finalPassword : null,
+                firebaseProvisioning,
+                warning: buildFirebaseProvisioningWarning(firebaseProvisioning)
             };
         } catch (err) {
             return { success: false, error: err.message };
@@ -84,8 +265,28 @@ function registerSystemIpc(ipcMain) {
                 return { success: false, error: `دور غير صالح: ${role}` };
             }
             const db = getDb();
+            const columns = getTableColumns(db, 'users');
+            const user = db
+                .prepare(
+                    `
+                    SELECT id, name, email, role, disabled, ${columnExpr(columns, 'firebase_uid')}
+                    FROM users
+                    WHERE id = ?
+                `
+                )
+                .get(id);
+            if (!user) {
+                return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
+            }
+
+            const firebaseProvisioning = await updateFirebaseUserRole(db, user, role);
+
             db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
-            return { success: true };
+            return {
+                success: true,
+                firebaseProvisioning,
+                warning: buildFirebaseProvisioningWarning(firebaseProvisioning)
+            };
         } catch (err) {
             return { success: false, error: err.message };
         }
@@ -95,8 +296,31 @@ function registerSystemIpc(ipcMain) {
         try {
             requireRole(event, ['admin']);
             const db = getDb();
+            const columns = getTableColumns(db, 'users');
+            const user = db
+                .prepare(
+                    `
+                    SELECT id, name, email, role, disabled, ${columnExpr(columns, 'firebase_uid')}
+                    FROM users
+                    WHERE id = ?
+                `
+                )
+                .get(id);
+            if (!user) {
+                return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
+            }
+
+            const firebaseProvisioning = await updateFirebaseUserDisabled(db, user, !!disabled);
+
             db.prepare('UPDATE users SET disabled = ? WHERE id = ?').run(disabled ? 1 : 0, id);
-            return { success: true };
+            if (columns.has('invite_status')) {
+                db.prepare('UPDATE users SET invite_status = ? WHERE id = ?').run(disabled ? 'disabled' : 'active', id);
+            }
+            return {
+                success: true,
+                firebaseProvisioning,
+                warning: buildFirebaseProvisioningWarning(firebaseProvisioning)
+            };
         } catch (err) {
             return { success: false, error: err.message };
         }
@@ -425,4 +649,16 @@ function registerSystemIpc(ipcMain) {
     });
 }
 
-module.exports = { registerSystemIpc };
+module.exports = {
+    registerSystemIpc,
+    _private: {
+        normalizeEmail,
+        getTableColumns,
+        columnExpr,
+        getSchoolId,
+        provisionFirebaseUser,
+        updateFirebaseUserRole,
+        updateFirebaseUserDisabled,
+        buildFirebaseProvisioningWarning
+    }
+};

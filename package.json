@@ -13,6 +13,7 @@
         "format": "prettier --write \"main/**/*.js\" \"preload.js\" \"js/backup.js\" \"js/pages/*.js\" \"tests/**/*.js\" \".github/workflows/*.yml\" \"README.md\"",
         "test:smoke": "node tests/smoke.js",
         "test:integration": "node tests/integration-firebase.js",
+        "test:auth-firebase": "node tests/auth-firebase-flow.js",
         "license:key": "node scripts/generate-license-key.js",
         "owner:server": "node server/index.js"
     },
