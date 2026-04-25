@@ -1,12 +1,13 @@
 'use strict';
 
 /**
- * Integration test suite for the Firebase sync layer.
+ * Integration test suite for the Firebase sync layer and auth flows.
  * Runs against the Firebase Emulator Suite and does not touch production.
  */
 
 process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'gestionscholaire';
 process.env.FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'emulator-fake-api-key';
+process.env.FIREBASE_AUTH_DOMAIN = process.env.FIREBASE_AUTH_DOMAIN || 'gestionscholaire.firebaseapp.com';
 process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || 'localhost:9099';
 
@@ -262,6 +263,200 @@ async function testCursorHelpers() {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Auth flow helpers
+// ---------------------------------------------------------------------------
+
+const SCHOOL_ID = 'TEST_AUTH_SCHOOL';
+const ADMIN_EMAIL = 'admin@test-auth.dev';
+const ADMIN_PASS = 'TestPass123!';
+const USER_EMAIL = 'teacher@test-auth.dev';
+const USER_PASS = 'TeacherPass123!';
+
+async function createSchoolUser(email, password, role, schoolId) {
+    const adminAuth = admin.app('integration-test').auth();
+    let user;
+    try {
+        user = await adminAuth.getUserByEmail(email);
+    } catch (err) {
+        if (err.code === 'auth/user-not-found') {
+            user = await adminAuth.createUser({ email, password });
+        } else {
+            throw err;
+        }
+    }
+    await adminAuth.setCustomUserClaims(user.uid, { schoolId, role });
+    await adminDb
+        .doc(`schools/${schoolId}/users/${user.uid}`)
+        .set({ uid: user.uid, email, name: email, role, status: 'active', mustChangePassword: false });
+    return user;
+}
+
+async function deleteSchoolUser(email, schoolId) {
+    const adminAuth = admin.app('integration-test').auth();
+    try {
+        const user = await adminAuth.getUserByEmail(email);
+        await adminAuth.deleteUser(user.uid);
+        await adminDb.doc(`schools/${schoolId}/users/${user.uid}`).delete();
+    } catch {
+        // best-effort cleanup
+    }
+}
+
+async function signInClientWithPassword(email, password) {
+    const { signInWithEmailAndPassword: signInEP } = require('firebase/auth');
+    if (clientAuth.currentUser) await signOut(clientAuth);
+    return signInEP(clientAuth, email, password);
+}
+
+// ---------------------------------------------------------------------------
+// Auth flow tests
+// ---------------------------------------------------------------------------
+
+async function testAuthFlows() {
+    console.log('\n[auth flows]');
+
+    // Seed school document so Firestore rules can evaluate schoolId
+    await adminDb.doc(`schools/${SCHOOL_ID}`).set({ name: 'Test Auth School' });
+
+    // Create admin and regular user for the school
+    const adminUser = await createSchoolUser(ADMIN_EMAIL, ADMIN_PASS, 'admin', SCHOOL_ID);
+    await createSchoolUser(USER_EMAIL, USER_PASS, 'principal', SCHOOL_ID);
+
+    await test('admin can sign in with email + password', async () => {
+        const credential = await signInClientWithPassword(ADMIN_EMAIL, ADMIN_PASS);
+        assert.ok(credential.user, 'Expected a Firebase user object');
+        assert.strictEqual(credential.user.email, ADMIN_EMAIL);
+    });
+
+    await test('admin id token carries schoolId and role claims', async () => {
+        const credential = await signInClientWithPassword(ADMIN_EMAIL, ADMIN_PASS);
+        const idTokenResult = await credential.user.getIdTokenResult(true);
+        assert.strictEqual(idTokenResult.claims.schoolId, SCHOOL_ID);
+        assert.strictEqual(idTokenResult.claims.role, 'admin');
+    });
+
+    await test('regular user can sign in with email + password', async () => {
+        const credential = await signInClientWithPassword(USER_EMAIL, USER_PASS);
+        assert.ok(credential.user, 'Expected a Firebase user object');
+        assert.strictEqual(credential.user.email, USER_EMAIL);
+    });
+
+    await test('wrong password is rejected', async () => {
+        let threw = false;
+        try {
+            await signInClientWithPassword(ADMIN_EMAIL, 'wrong-password-xyz');
+        } catch (err) {
+            threw = true;
+            const code = String(err.code || '');
+            assert.ok(
+                code.includes('invalid-credential') ||
+                    code.includes('invalid-login-credentials') ||
+                    code.includes('wrong-password'),
+                `Expected invalid-credential error, got: ${code}`
+            );
+        }
+        assert.ok(threw, 'Expected an error for wrong password');
+    });
+
+    await test('disabled user cannot sign in', async () => {
+        const adminAuth = admin.app('integration-test').auth();
+        const disabledUser = await adminAuth.createUser({
+            email: 'disabled@test-auth.dev',
+            password: 'DisabledPass123!',
+        });
+        await adminAuth.setCustomUserClaims(disabledUser.uid, { schoolId: SCHOOL_ID, role: 'viewer' });
+        await adminAuth.updateUser(disabledUser.uid, { disabled: true });
+
+        let threw = false;
+        try {
+            await signInClientWithPassword('disabled@test-auth.dev', 'DisabledPass123!');
+        } catch (err) {
+            threw = true;
+            const code = String(err.code || '');
+            assert.ok(code.includes('user-disabled'), `Expected user-disabled error, got: ${code}`);
+        }
+        assert.ok(threw, 'Expected an error for disabled user');
+
+        // Cleanup
+        await adminAuth.deleteUser(disabledUser.uid);
+    });
+
+    await test('mustChangePassword flag is stored on Firestore profile', async () => {
+        const adminAuth = admin.app('integration-test').auth();
+        const tempUser = await adminAuth.createUser({
+            email: 'mustchange@test-auth.dev',
+            password: 'TempPass123!',
+        });
+        await adminAuth.setCustomUserClaims(tempUser.uid, { schoolId: SCHOOL_ID, role: 'teacher' });
+        await adminDb.doc(`schools/${SCHOOL_ID}/users/${tempUser.uid}`).set({
+            uid: tempUser.uid,
+            email: 'mustchange@test-auth.dev',
+            name: 'Temp User',
+            role: 'teacher',
+            status: 'active',
+            mustChangePassword: true,
+        });
+
+        const snap = await adminDb.doc(`schools/${SCHOOL_ID}/users/${tempUser.uid}`).get();
+        assert.ok(snap.exists, 'Expected profile document to exist');
+        assert.strictEqual(snap.data().mustChangePassword, true);
+
+        // Cleanup
+        await adminAuth.deleteUser(tempUser.uid);
+        await adminDb.doc(`schools/${SCHOOL_ID}/users/${tempUser.uid}`).delete();
+    });
+
+    await test('admin can read own profile from Firestore', async () => {
+        const { doc: fsDoc, getDoc } = require('firebase/firestore');
+        const credential = await signInClientWithPassword(ADMIN_EMAIL, ADMIN_PASS);
+        const snap = await getDoc(fsDoc(clientDb, `schools/${SCHOOL_ID}/users/${credential.user.uid}`));
+        assert.ok(snap.exists(), 'Expected admin profile document to exist');
+        assert.strictEqual(snap.data().role, 'admin');
+    });
+
+    await test('regular user cannot read other user profile', async () => {
+        const { doc: fsDoc, getDoc } = require('firebase/firestore');
+        await signInClientWithPassword(USER_EMAIL, USER_PASS);
+        let denied = false;
+        try {
+            await getDoc(fsDoc(clientDb, `schools/${SCHOOL_ID}/users/${adminUser.uid}`));
+        } catch (err) {
+            denied = true;
+            assert.ok(
+                String(err.code || '').includes('permission-denied'),
+                `Expected permission-denied, got: ${err.code}`
+            );
+        }
+        assert.ok(denied, 'Expected permission-denied when reading another user profile');
+    });
+
+    await test('user from school A cannot read data of school B', async () => {
+        const { doc: fsDoc, getDoc } = require('firebase/firestore');
+        const OTHER_SCHOOL = 'OTHER_SCHOOL_XYZ';
+        await adminDb.doc(`schools/${OTHER_SCHOOL}/users/some-user`).set({ name: 'Other User' });
+
+        await signInClientWithPassword(ADMIN_EMAIL, ADMIN_PASS);
+        let denied = false;
+        try {
+            await getDoc(fsDoc(clientDb, `schools/${OTHER_SCHOOL}/users/some-user`));
+        } catch (err) {
+            denied = true;
+            assert.ok(
+                String(err.code || '').includes('permission-denied'),
+                `Expected permission-denied, got: ${err.code}`
+            );
+        }
+        assert.ok(denied, 'Expected permission-denied for cross-school access');
+        await adminDb.doc(`schools/${OTHER_SCHOOL}/users/some-user`).delete();
+    });
+
+    // Teardown: delete test users and school data
+    await deleteSchoolUser(ADMIN_EMAIL, SCHOOL_ID);
+    await deleteSchoolUser(USER_EMAIL, SCHOOL_ID);
+    await clearCollection(`schools/${SCHOOL_ID}/users`);
+}
+
 async function run() {
     console.log('Firebase Integration Tests');
     console.log(`  Firestore emulator : ${process.env.FIRESTORE_EMULATOR_HOST}`);
@@ -274,6 +469,7 @@ async function run() {
         await testCollections();
         await testSyncLog();
         await testCursorHelpers();
+        await testAuthFlows();
 
         const passed = results.filter((result) => result.passed).length;
         const failed = results.filter((result) => !result.passed).length;
