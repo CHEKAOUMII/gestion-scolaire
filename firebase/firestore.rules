@@ -59,13 +59,6 @@ service cloud.firestore {
       allow read, write: if canSyncSchoolData(schoolId);
     }
 
-    // OTP codes: written by Cloud Functions (admin SDK bypasses rules),
-    // readable only by school admin during linking
-    match /otpCodes/{massarCode} {
-      allow read: if request.auth != null;
-      allow write: if false; // Cloud Functions only
-    }
-
     // Deny everything else
     match /{document=**} {
       allow read, write: if false;

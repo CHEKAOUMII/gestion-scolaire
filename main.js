@@ -1,13 +1,34 @@
 const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron');
 const path = require('path');
 
+try {
+    const dotenvPaths = [
+        path.join(__dirname, '.env'),
+        path.join(process.resourcesPath || __dirname, '.env'),
+        path.join(path.dirname(process.execPath), '.env')
+    ];
+    let dotenvLoaded = false;
+    for (const dotenvPath of dotenvPaths) {
+        const result = require('dotenv').config({ path: dotenvPath });
+        if (!result.error) {
+            dotenvLoaded = true;
+            break;
+        }
+    }
+    if (!dotenvLoaded) {
+        console.warn('[main] .env not found in any search path:', dotenvPaths);
+    }
+} catch (error) {
+    console.warn('[main] dotenv config load skipped:', error?.message || error);
+}
+
 // Force dd/mm/yyyy date format in HTML date inputs
 app.commandLine.appendSwitch('lang', 'fr');
 
 const { initDatabase } = require('./main/db/init');
 const { getDb } = require('./main/db/context');
 const { registerAllIpcHandlers } = require('./main/ipc/registerAll');
-const { startOwnerSyncBackground } = require('./main/licensing/ownerSync');
+const { startOwnerSyncBackground, initSyncListeners } = require('./main/licensing/ownerSync');
 const {
     startSyncPushBackground,
     stopSyncPushBackground,
@@ -15,6 +36,7 @@ const {
     stopSyncPullBackground
 } = require('./main/sync/engine');
 const { startSnapshotBackground, stopSnapshotBackground } = require('./main/sync/snapshot');
+const { restoreFirebaseSession } = require('./main/sync/credentials');
 const { bindUpdaterWindow, initAutoUpdater } = require('./main/updater');
 
 let mainWindow = null;
@@ -166,12 +188,22 @@ function createWindow() {
     if (inst && inst.massar_code) {
         setupDb
             .prepare(
-                `UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP
+                `UPDATE sync_config SET school_id = ?, enabled = 1, updated_at = CURRENT_TIMESTAMP
                  WHERE id = 1 AND (school_id IS NULL OR school_id != ?)`
             )
             .run(inst.massar_code, inst.massar_code);
+        setupDb
+            .prepare(
+                `UPDATE sync_config SET enabled = 1, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = 1 AND COALESCE(trim(school_id), '') != ''`
+            )
+            .run();
+        startSyncPushBackground();
+        startSyncPullBackground();
+        startSnapshotBackground();
     }
-    const targetPage = !inst || !inst.setup_completed ? 'setup.html' : 'index.html';
+    // Auth-gated entry: login.html handles authentication then redirects to index.html
+    const targetPage = !inst || !inst.setup_completed ? 'setup.html' : 'login.html';
 
     window.loadFile(targetPage).catch((error) => {
         console.error(`[main] Failed to load ${targetPage}:`, error);
@@ -183,11 +215,15 @@ function createWindow() {
 }
 
 if (gotSingleInstanceLock) {
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
         try {
             initDatabase();
             registerAllIpcHandlers(ipcMain);
+            initSyncListeners();
             startOwnerSyncBackground();
+            await restoreFirebaseSession().catch((err) => {
+                console.warn('[main] Firebase session restoration failed:', err.message);
+            });
             startSyncPushBackground();
             startSyncPullBackground();
             startSnapshotBackground();

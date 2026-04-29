@@ -209,16 +209,8 @@ const CHANNEL_REGISTRY = {
     'timetableData:save': { tables: ['timetable_data'], operation: 'UPSERT', idExtractor: 'argKey', exclude: true },
     'timetableData:delete': { tables: ['timetable_data'], operation: 'DEL', idExtractor: 'argKey', exclude: true },
 
-    // === linking.js ===
-    'linking:setup-new-institution': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'linking:verify-and-link': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'linking:generateOtp': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'linking:cancelOtp': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'linking:getOtpStatus': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'linking:getLinkedDevices': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'linking:revokeDevice': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'linking:getCurrentDevice': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    device_revocation: { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true }
+    // === institution.js ===
+    'institution:setup-new': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true }
 };
 
 const KNOWN_CAPTURE_TABLES = new Set(
@@ -233,8 +225,8 @@ function getDeviceHash() {
             const fp = collectCurrentFingerprint();
             _cachedDeviceHash = fp.deviceHash;
             _cachedDeviceName = fp.deviceName;
-        } catch {
-            // Fallback: use a random hash if fingerprinting fails
+        } catch (fpErr) {
+            console.warn('[sync:capture] Device fingerprinting failed, using random hash:', fpErr.message);
             _cachedDeviceHash = require('crypto').randomBytes(16).toString('hex');
             _cachedDeviceName = require('os').hostname();
         }
@@ -325,7 +317,7 @@ function wrapWithSyncCapture(channel, originalHandler) {
             const db = getDb();
             captureAfterWrite(db, channel, registryEntry, args, result);
         } catch (captureErr) {
-            // FR-014: Silently persist the error, never throw
+            console.warn(`[sync:capture] Capture failed for channel '${channel}':`, captureErr.message);
             try {
                 const db = getDb();
                 db.prepare(
@@ -335,8 +327,8 @@ function wrapWithSyncCapture(channel, originalHandler) {
                     WHERE id = 1
                 `
                 ).run(`[${channel}] ${captureErr.message}`);
-            } catch {
-                // Even error logging failed — silently ignore
+            } catch (dbErr) {
+                console.warn('[sync:capture] Failed to persist capture error:', dbErr.message);
             }
         }
 
@@ -520,12 +512,11 @@ function getLastInsertId(db, _tableName, handlerResult) {
 }
 
 function fetchRowById(db, tableName, id) {
+    if (!isKnownTable(tableName)) return null;
     try {
-        // Validate tableName to prevent SQL injection (only known table names)
-        if (!isKnownTable(tableName)) return null;
-        const row = db.prepare(`SELECT * FROM "${tableName}" WHERE id = ?`).get(id);
-        return row || null;
-    } catch {
+        return db.prepare(`SELECT * FROM "${tableName}" WHERE id = ?`).get(id) || null;
+    } catch (err) {
+        console.warn(`[sync:capture] fetchRowById failed for ${tableName} id=${id}:`, err.message);
         return null;
     }
 }
@@ -539,7 +530,8 @@ function fetchRowByKey(db, tableName, key) {
             return db.prepare('SELECT * FROM page_visibility WHERE page_key = ?').get(key);
         }
         return null;
-    } catch {
+    } catch (err) {
+        console.warn(`[sync:capture] fetchRowByKey failed for ${tableName} key=${key}:`, err.message);
         return null;
     }
 }
@@ -613,8 +605,8 @@ function runOutboxCleanup(db) {
             DELETE FROM sync_outbox WHERE created_at < datetime('now', '-' || ? || ' days')
         `
         ).run(days);
-    } catch {
-        // Silently ignore cleanup errors
+    } catch (err) {
+        console.warn('[sync:capture] Outbox cleanup failed:', err.message);
     }
 }
 
@@ -623,26 +615,23 @@ function startOutboxCleanup() {
 
     try {
         const db = getDb();
-        // Run cleanup immediately on startup
         runOutboxCleanup(db);
 
-        // Then every 6 hours
         const SIX_HOURS = 6 * 60 * 60 * 1000;
         _cleanupTimer = setInterval(() => {
             try {
                 const db = getDb();
                 runOutboxCleanup(db);
-            } catch {
-                // Silently ignore
+            } catch (err) {
+                console.warn('[sync:capture] Periodic outbox cleanup failed:', err.message);
             }
         }, SIX_HOURS);
 
-        // Don't block process exit
         if (typeof _cleanupTimer.unref === 'function') {
             _cleanupTimer.unref();
         }
-    } catch {
-        // Silently ignore startup errors
+    } catch (err) {
+        console.warn('[sync:capture] Failed to start outbox cleanup:', err.message);
     }
 }
 

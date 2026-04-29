@@ -28,7 +28,8 @@ const COLLECTION_MAP = {
     compensation_tracking: { collection: 'compensation', idFields: ['id'] },
     settings: { collection: 'settings', idFields: ['key'] },
     page_visibility: { collection: 'pageVisibility', idFields: ['page_key'] },
-    device_revocation: { collection: 'deviceRevocations', idFields: ['revokedDeviceHash'] }
+    device_revocation: { collection: 'deviceRevocations', idFields: ['revokedDeviceHash'] },
+    system_tags: { collection: 'systemTags', idFields: ['id'] }
 };
 
 function getCollectionName(tableName) {

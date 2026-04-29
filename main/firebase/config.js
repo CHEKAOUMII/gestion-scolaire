@@ -5,6 +5,7 @@ let _db = null;
 let _auth = null;
 let _emulatorsConnected = false;
 
+const FIREBASE_APP_NAME = 'pencil-user-auth';
 const CONFIG_FIELDS = [
     ['apiKey', 'FIREBASE_API_KEY', 'firebase_api_key'],
     ['authDomain', 'FIREBASE_AUTH_DOMAIN', 'firebase_auth_domain'],
@@ -120,9 +121,9 @@ function initFirebase(env = process.env) {
         return { app: null, db: null, auth: null };
     }
 
-    _app = firebaseApp.initializeApp(config);
+    _app = firebaseApp.getApps().find((candidate) => candidate.name === FIREBASE_APP_NAME) ||
+        firebaseApp.initializeApp(config, FIREBASE_APP_NAME);
     _db = firestore.getFirestore(_app);
-    _auth = firebaseAuth.getAuth(_app);
 
     if (!_emulatorsConnected) {
         if (env.FIRESTORE_EMULATOR_HOST) {
@@ -132,6 +133,7 @@ function initFirebase(env = process.env) {
         }
 
         if (env.FIREBASE_AUTH_EMULATOR_HOST) {
+            _auth = firebaseAuth.getAuth(_app);
             firebaseAuth.connectAuthEmulator(_auth, `http://${String(env.FIREBASE_AUTH_EMULATOR_HOST).trim()}`);
         }
 
@@ -149,8 +151,20 @@ function getFirestoreDb(env = process.env) {
 }
 
 function getFirebaseAuth(env = process.env) {
-    if (!_auth) {
+    if (!_app) {
         initFirebase(env);
+    }
+    if (!_app) {
+        return null;
+    }
+    if (!_auth) {
+        const firebaseAuth = safeRequire('firebase/auth');
+        if (!firebaseAuth) {
+            return null;
+        }
+        const config = getFirebaseConfig(env);
+        assertFirebaseConfig(config, AUTH_REQUIRED_CONFIG_KEYS);
+        _auth = firebaseAuth.getAuth(_app);
     }
     return _auth;
 }

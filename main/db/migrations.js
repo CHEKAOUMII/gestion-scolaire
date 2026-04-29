@@ -1176,6 +1176,13 @@ const MIGRATIONS = [
             `);
         }
     },
+    {
+        version: '2026-04-054-sync-credential-store',
+        up: () => {
+            ensureColumn('sync_config', 'firebase_email', 'TEXT');
+            ensureColumn('sync_config', 'firebase_credential', 'TEXT');
+        }
+    },
 ];
 
 function ensureMigrationsTable() {

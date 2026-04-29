@@ -40,11 +40,12 @@ async function runSnapshotCycle() {
     let changesDetected = 0;
     let enqueued = 0;
     let pruned = 0;
+    console.log('[sync:snapshot] Snapshot cycle starting...');
 
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !Number(config.enabled)) {
+        if (!config || !Number(config.enabled) || !config.school_id) {
             return {
                 success: true,
                 skipped: true,
@@ -134,13 +135,17 @@ async function runSnapshotCycle() {
             'UPDATE sync_config SET last_snapshot_at = CURRENT_TIMESTAMP, last_snapshot_error = NULL WHERE id = 1'
         ).run();
 
+        if (changesDetected > 0) {
+            console.log(`[sync:snapshot] Completed: ${tablesChecked} tables checked, ${changesDetected} changes detected, ${enqueued} enqueued, ${pruned} pruned`);
+        }
         return { success: true, tablesChecked, changesDetected, enqueued, pruned, lastError: null };
     } catch (err) {
+        console.error('[sync:snapshot] Snapshot cycle failed:', err.message);
         try {
             const db = getDb();
             db.prepare('UPDATE sync_config SET last_snapshot_error = ? WHERE id = 1').run(err.message);
-        } catch {
-            /* ignore */
+        } catch (dbErr) {
+            console.warn('[sync:snapshot] Failed to record snapshot error in DB:', dbErr.message);
         }
         return { success: false, tablesChecked, changesDetected, enqueued, pruned: 0, lastError: err.message };
     } finally {
@@ -158,7 +163,7 @@ function startSnapshotBackground() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !Number(config.enabled)) return;
+        if (!config || !Number(config.enabled) || !config.school_id) return;
 
         // Run an immediate cycle
         void runSnapshotCycle();

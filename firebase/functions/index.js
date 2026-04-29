@@ -1,5 +1,5 @@
 'use strict';
-
+// redeploy: 2026-04-26
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
@@ -88,10 +88,48 @@ function functionError(res, err) {
     const code = err.message || 'INTERNAL_ERROR';
     const status = Number(err.status) || (
         code === 'INVALID_ROLE' || code === 'INVALID_REQUEST' ? 400 :
+        code === 'BOOTSTRAP_SECRET_NOT_CONFIGURED' ? 500 :
+        code === 'BOOTSTRAP_UNAUTHORIZED' ? 403 :
         code === 'SCHOOL_EXISTS' || code === 'EMAIL_IN_USE_DIFFERENT_SCHOOL' ? 409 :
         500
     );
     return res.status(status).json({ error: code, code });
+}
+
+function requireBootstrapAuthorization(req) {
+    const expectedSecret = String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim();
+    if (!expectedSecret) {
+        const err = new Error('BOOTSTRAP_SECRET_NOT_CONFIGURED');
+        err.status = 500;
+        throw err;
+    }
+
+    const suppliedSecret = String(req.get('x-bootstrap-secret') || req.body?.bootstrapSecret || '').trim();
+    const expected = Buffer.from(expectedSecret);
+    const supplied = Buffer.from(suppliedSecret);
+    if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) {
+        const err = new Error('BOOTSTRAP_UNAUTHORIZED');
+        err.status = 403;
+        throw err;
+    }
+}
+
+function getPublicFirebaseConfig() {
+    const projectId =
+        process.env.FIREBASE_PROJECT_ID ||
+        process.env.GCLOUD_PROJECT ||
+        process.env.GCP_PROJECT ||
+        process.env.GOOGLE_CLOUD_PROJECT ||
+        '';
+
+    return {
+        apiKey: process.env.FIREBASE_API_KEY || '',
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+        projectId,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+        appId: process.env.FIREBASE_APP_ID || ''
+    };
 }
 
 function buildInviteId(email, uid) {
@@ -249,177 +287,14 @@ exports.authExchange = onRequest({ cors: true }, async (req, res) => {
 });
 
 /**
- * POST /publishOtp
- * Publishes an OTP to Firestore for device linking.
- * Replaces: DynamoDB PutItem on OTP#{massar}/ACTIVE
- */
-exports.publishOtp = onRequest({ cors: true }, async (req, res) => {
-    if (!requirePost(req, res)) return;
-
-    const { licenseKey, deviceHash, massar, otpHash, encryptedPayload, iv, authTag } = req.body || {};
-    if (!licenseKey || !deviceHash || !massar || !otpHash) {
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const secret = process.env.GESTION_LICENSE_SECRET || '';
-    let customerRef;
-    try {
-        const result = validateLicenseKey(licenseKey, secret);
-        customerRef = result.customerRef;
-    } catch (err) {
-        return res.status(401).json({ error: err.message });
-    }
-
-    if (massar !== customerRef) return res.status(403).json({ error: 'MASSAR_MISMATCH' });
-    if (!String(otpHash).startsWith('scrypt$')) return res.status(400).json({ error: 'Invalid OTP hash format' });
-
-    if (encryptedPayload) {
-        const payloadBytes = Buffer.from(encryptedPayload, 'base64');
-        if (payloadBytes.length > 300 * 1024) return res.status(400).json({ error: 'Encrypted payload too large' });
-    }
-
-    const otpRef = db.collection('otpCodes').doc(massar);
-    const expiresAtDate = new Date(Date.now() + 10 * 60 * 1000);
-    await otpRef.set({
-        massarCode: massar,
-        otpHash,
-        encryptedPayload: encryptedPayload || null,
-        iv: iv || null,
-        authTag: authTag || null,
-        status: 'active',
-        failureCount: 0,
-        publishedBy: deviceHash,
-        expiresAt: admin.firestore.Timestamp.fromDate(expiresAtDate),
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    return res.status(200).json({ success: true, expiresAt: Math.floor(expiresAtDate.getTime() / 1000) });
-});
-
-/**
- * POST /cancelOtp
- * Cancels the active OTP for device linking.
- */
-exports.cancelOtp = onRequest({ cors: true }, async (req, res) => {
-    if (!requirePost(req, res)) return;
-
-    const { licenseKey, massar } = req.body || {};
-    if (!licenseKey || !massar) {
-        return res.status(400).json({ error: 'Missing licenseKey or massar' });
-    }
-
-    const secret = process.env.GESTION_LICENSE_SECRET || '';
-    let customerRef;
-    try {
-        const result = validateLicenseKey(licenseKey, secret);
-        customerRef = result.customerRef;
-    } catch (err) {
-        return res.status(401).json({ error: err.message });
-    }
-
-    if (massar !== customerRef) {
-        return res.status(403).json({ error: 'MASSAR_MISMATCH', code: 'MASSAR_MISMATCH' });
-    }
-
-    const otpRef = db.collection('otpCodes').doc(massar);
-    const otpDoc = await otpRef.get();
-    if (!otpDoc.exists) {
-        return res.status(404).json({ error: 'NO_ACTIVE_OTP', code: 'NO_ACTIVE_OTP' });
-    }
-
-    await otpRef.update({
-        status: 'cancelled',
-        cancelledAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    return res.status(200).json({ success: true, status: 'cancelled' });
-});
-
-/**
- * POST /verifyOtp
- * Verifies an OTP from Firestore for device linking.
- * Replaces: DynamoDB GetItem + conditional UpdateItem for OTP verification
- */
-exports.verifyOtp = onRequest({ cors: true }, async (req, res) => {
-    if (!requirePost(req, res)) return;
-
-    const { massar, otp, provisionUser } = req.body || {};
-    if (!massar || !otp) return res.status(400).json({ error: 'Missing massar or otp' });
-
-    const otpRef = db.collection('otpCodes').doc(massar);
-    const otpDoc = await otpRef.get();
-
-    if (!otpDoc.exists) {
-        return res.status(404).json({ error: 'NO_ACTIVE_OTP', code: 'NO_ACTIVE_OTP', message: 'NO_ACTIVE_OTP' });
-    }
-
-    const otpData = otpDoc.data();
-    const now = Date.now();
-
-    if (otpData.expiresAt && otpData.expiresAt.toDate().getTime() < now) {
-        return res.status(401).json({ error: 'OTP_EXPIRED', code: 'OTP_EXPIRED', message: 'OTP_EXPIRED' });
-    }
-
-    if (otpData.status !== 'active') {
-        const code = otpData.status === 'used' ? 'OTP_USED' : 'OTP_CANCELLED';
-        return res.status(401).json({ error: code, code, message: code });
-    }
-
-    if (otpData.failureCount >= 5) {
-        return res.status(429).json({ error: 'RATE_LIMITED', code: 'RATE_LIMITED', message: 'RATE_LIMITED' });
-    }
-
-    const isValid = verifyPassword(otp, otpData.otpHash);
-
-    if (!isValid) {
-        await otpRef.update({ failureCount: admin.firestore.FieldValue.increment(1) });
-        return res.status(401).json({ error: 'INVALID_OTP', code: 'INVALID_OTP', message: 'INVALID_OTP' });
-    }
-
-    let provisionedUser = null;
-    if (provisionUser && typeof provisionUser === 'object') {
-        const email = normalizeEmail(provisionUser.email);
-        const name = String(provisionUser.name || '').trim();
-        const password = String(provisionUser.password || '').trim();
-        let role = normalizeRole(provisionUser.role || 'viewer');
-        if (ADMIN_ROLES.has(role)) {
-            role = 'viewer';
-        }
-        if (!email || !name || password.length < 6) {
-            return res.status(400).json({ error: 'INVALID_USER_PROVISIONING', code: 'INVALID_USER_PROVISIONING' });
-        }
-
-        const { userRecord, profile } = await createOrUpdateSchoolUser({
-            schoolId: normalizeSchoolId(massar),
-            email,
-            password,
-            name,
-            role,
-            mustChangePassword: false,
-            createdBy: 'otp-link'
-        });
-        provisionedUser = publicUserProfile({ ...profile, uid: userRecord.uid });
-    }
-
-    await otpRef.update({ status: 'used' });
-
-    return res.status(200).json({
-        success: true,
-        encryptedPayload: otpData.encryptedPayload || null,
-        iv: otpData.iv || null,
-        authTag: otpData.authTag || null,
-        provisionedUser
-    });
-});
-
-/**
  * POST /bootstrapInstitution
  * Creates a school, its institution metadata, and the first admin Firebase user.
  */
-exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
+exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTSTRAP_SECRET'] }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
     try {
+        requireBootstrapAuthorization(req);
         const {
             gresaCode,
             schoolId: rawSchoolId,
@@ -432,7 +307,7 @@ exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
         const schoolId = normalizeSchoolId(gresaCode || rawSchoolId || massarCode);
         const email = normalizeEmail(adminEmail);
         const name = String(adminName || '').trim();
-        const schoolName = String(institutionName || '').trim();
+        const schoolName = String(institutionName || '').trim() || schoolId;
 
         if (!schoolId || !schoolName || !email || !adminPassword || !name) {
             const err = new Error('INVALID_REQUEST');
@@ -453,7 +328,7 @@ exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
             email,
             password: adminPassword,
             name,
-            role: 'admin',
+            role: 'principal',
             mustChangePassword: false,
             createdBy: 'bootstrap'
         });
@@ -492,12 +367,13 @@ exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
             .set(db.doc(`schools/${schoolId}/meta/institution`), institution, { merge: true })
             .commit();
 
-        const customToken = await auth.createCustomToken(userRecord.uid, { schoolId, role: 'admin' });
+        const customToken = await auth.createCustomToken(userRecord.uid, { schoolId, role: 'principal' });
         return res.status(200).json({
             success: true,
             customToken,
             uid: userRecord.uid,
             schoolId,
+            firebaseConfig: getPublicFirebaseConfig(),
             profile: publicUserProfile(profile),
             institution: publicInstitution
         });

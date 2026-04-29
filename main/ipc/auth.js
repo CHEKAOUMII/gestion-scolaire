@@ -7,18 +7,17 @@ const {
     logoutFirebaseUser,
     normalizeEmail
 } = require('../auth/firebase-auth-service');
+const { logAuthDebug } = require('../auth/debug');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
 const { ALLOWED_ROLES: ALLOWED_ROLES_ARR, resolveRole: resolveRoleAlias } = require('../auth/permissions');
 const MAX_PIN_ATTEMPTS = 5;
 
-// ── Hardcoded developer credentials (app developer only) ──
-const DEV_CREDENTIALS = {
-    email: 'dev@pencil.local',
-    // SHA-256 of 'PencilDev2024!'
-    passwordHash: '3a46e205c9720f1254531c1e3abf1cadbf73b45ec8707ff9f41fdf145050a3c4'
-};
+// ── Developer credentials (env-var gated, never in production builds) ──
+const DEV_CREDENTIALS = process.env.PENCIL_DEV_MODE === '1' && process.env.PENCIL_DEV_PASSWORD_HASH
+    ? { email: 'dev@pencil.local', passwordHash: process.env.PENCIL_DEV_PASSWORD_HASH }
+    : null;
 
 // ── Login throttling ──
 const LOGIN_ATTEMPTS = new Map(); // email → { count, lockedUntil }
@@ -172,6 +171,10 @@ function registerAuthIpc(ipcMain) {
             if (!password) {
                 return { success: false, code: 'INVALID_PASSWORD', error: 'كلمة المرور مطلوبة' };
             }
+            logAuthDebug('ipc.login.request', {
+                email,
+                senderId: event?.sender?.id || null
+            });
 
             // ── Throttle check ──
             cleanupStaleAttempts();
@@ -185,8 +188,8 @@ function registerAuthIpc(ipcMain) {
                 };
             }
 
-            // ── Developer bypass (hardcoded credentials) ──
-            if (email === DEV_CREDENTIALS.email) {
+            // ── Developer bypass (env-var gated, disabled in production) ──
+            if (DEV_CREDENTIALS && email === DEV_CREDENTIALS.email) {
                 const crypto = require('crypto');
                 const inputHash = crypto.createHash('sha256').update(password).digest('hex');
                 if (inputHash !== DEV_CREDENTIALS.passwordHash) {
@@ -226,7 +229,17 @@ function registerAuthIpc(ipcMain) {
                         ? 'لم يتم إعداد Firebase Auth بعد'
                         : code === 'OFFLINE_LOGIN_UNAVAILABLE'
                           ? 'تعذر الاتصال بالمصادقة السحابية ولا يوجد دخول محلي صالح لهذا المستخدم'
+                          : code === 'LOCAL_SCHOOL_ID_MISSING'
+                            ? 'تعذر تحديد رمز المؤسسة من الحساب السحابي. اطلب من المدير إعادة ربط الحساب بالمؤسسة'
+                          : code === 'FIREBASE_PROFILE_REQUIRED' || code === 'FIREBASE_SCHOOL_MISMATCH'
+                            ? 'هذا الحساب غير مرتبط بهذه المؤسسة'
                           : 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+                logAuthDebug('ipc.login.failed-response', {
+                    email,
+                    code,
+                    internalCode: err.code || null,
+                    message: err.message || String(err)
+                });
                 return {
                     success: false,
                     code,
@@ -237,6 +250,33 @@ function registerAuthIpc(ipcMain) {
             // Success — clear throttle record
             clearLoginAttempts(email);
             const session = setSessionForEvent(event, loginResult.userRow);
+            logAuthDebug('ipc.login.success-response', {
+                email,
+                authMode: loginResult.mode,
+                userId: session?.userId || null,
+                role: session?.role || null
+            });
+            if (loginResult.mode === 'online') {
+                try {
+                    const { persistCredential, clearCredentials } = require('../sync/credentials');
+                    persistCredential(email, password);
+                    clearCredentials();
+                } catch (credErr) {
+                    console.warn('[auth] Failed to persist sync credential after login:', credErr.message);
+                }
+            }
+            try {
+                const {
+                    restartSyncPushBackground,
+                    restartSyncPullBackground
+                } = require('../sync/engine');
+                const { restartSnapshotBackground } = require('../sync/snapshot');
+                restartSyncPushBackground();
+                restartSyncPullBackground();
+                restartSnapshotBackground();
+            } catch (syncErr) {
+                console.warn('[auth] Failed to restart sync after login:', syncErr.message);
+            }
             return {
                 success: true,
                 authenticated: true,
@@ -253,6 +293,11 @@ function registerAuthIpc(ipcMain) {
             const session = getSessionByEvent(event);
             if (!session) {
                 return { success: true, authenticated: false };
+            }
+
+            // Developer sessions have no DB row — skip refresh
+            if (session.role === 'developer') {
+                return { success: true, authenticated: true, user: session };
             }
 
             const user = findUserById(session.userId);
@@ -278,6 +323,12 @@ function registerAuthIpc(ipcMain) {
                 await logoutFirebaseUser();
             } catch (err) {
                 console.warn('[auth] Firebase logout failed:', err.message);
+            }
+            try {
+                const { clearStoredCredential } = require('../sync/credentials');
+                clearStoredCredential();
+            } catch (credErr) {
+                console.warn('[auth] Failed to clear stored credential:', credErr.message);
             }
             clearSessionForEvent(event);
             return { success: true };
@@ -319,7 +370,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(session.userId);
+            const user = db.prepare('SELECT id, email, password_hash FROM users WHERE id = ?').get(session.userId);
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
@@ -351,7 +402,11 @@ function registerAuthIpc(ipcMain) {
                 );
             }
 
-            session.mustChangePassword = false;
+            // Rebuild session from DB so mustChangePassword is consistent
+            const updatedUser = findUserById(session.userId);
+            if (updatedUser) {
+                setSessionForEvent(event, updatedUser);
+            }
 
             return { success: true };
         } catch (err) {
@@ -452,10 +507,7 @@ function registerAuthIpc(ipcMain) {
     // ── PIN: remove ──
     ipcMain.handle('auth:removePin', async (event) => {
         try {
-            const session = getSessionByEvent(event);
-            if (!session) {
-                return { success: false, code: 'UNAUTHENTICATED', error: 'الرجاء تسجيل الدخول أولاً' };
-            }
+            const session = requireAuth(event);
 
             const db = getDb();
             db.prepare('UPDATE users SET pin_hash = NULL, pin_failed_attempts = 0 WHERE id = ?').run(session.userId);

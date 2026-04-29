@@ -2,11 +2,11 @@
 
 const { doc, runTransaction } = require('firebase/firestore');
 const { getFirestoreDb } = require('../firebase/config');
-const { getCollectionPath, buildDocumentId } = require('../firebase/collections');
-const { logChangeBatch, pullChanges } = require('../firebase/sync-log');
+const { getCollectionPath, buildDocumentId, COLLECTION_MAP } = require('../firebase/collections');
+const { logChangeBatch, pullChanges, bootstrapFromCollections } = require('../firebase/sync-log');
 const { getDb } = require('../db/context');
 const { getCredentials, clearCredentials } = require('./credentials');
-const { getDeviceHash, stripSensitiveFields, ensureSyncIdMapping, CHANNEL_REGISTRY } = require('./capture');
+const { getDeviceHash, getDeviceName, stripSensitiveFields, ensureSyncIdMapping, CHANNEL_REGISTRY } = require('./capture');
 const { canPush, getEntityType, ENTITY_TYPE_REGISTRY } = require('./authority');
 const { threeWayMerge, computeRowChecksum } = require('./merge');
 const { SENSITIVE_FIELDS } = require('./capture');
@@ -15,6 +15,44 @@ let _syncTimer = null;
 let _flushRunning = false;
 let _pullTimer = null;
 let _pullRunning = false;
+
+// Cache of valid column names per table (populated from PRAGMA table_info)
+const _schemaColumnsCache = new Map();
+
+function isPullDebugEnabled() {
+    return String(process.env.SYNC_PULL_DEBUG || '').trim() === '1';
+}
+
+function pullDebug(...args) {
+    if (isPullDebugEnabled()) {
+        console.log('[sync:pull:debug]', ...args);
+    }
+}
+
+function summarizePullItem(item) {
+    return {
+        changeId: item.changeId || item.id || null,
+        tableName: item.tableName || null,
+        entityType: item.entityType || null,
+        operation: item.operation || null,
+        rowSyncId: item.rowSyncId || null,
+        updatedAt: item.updatedAt || null,
+        version: item.version || null
+    };
+}
+
+function getValidColumns(db, tableName) {
+    if (_schemaColumnsCache.has(tableName)) return _schemaColumnsCache.get(tableName);
+    const cols = db.prepare(`PRAGMA table_info("${tableName}")`).all().map((c) => c.name);
+    const colSet = new Set(cols);
+    _schemaColumnsCache.set(tableName, colSet);
+    return colSet;
+}
+
+function filterToValidColumns(db, tableName, columns) {
+    const valid = getValidColumns(db, tableName);
+    return columns.filter((c) => valid.has(c));
+}
 
 // Topological order for FK-safe insert/update (parents before children)
 const TOPO_ORDER_PUT = [
@@ -34,7 +72,8 @@ const TOPO_ORDER_PUT = [
     'compensation_tracking',
     'exam_proctors',
     'exam_rooms',
-    'tests'
+    'tests',
+    'system_tags'
 ];
 
 // Reverse order for FK-safe deletions (children before parents)
@@ -66,15 +105,34 @@ function readSyncConfig(db) {
 function updateDeviceHeartbeat(db) {
     try {
         const deviceHash = getDeviceHash();
-        if (!deviceHash) {
+        if (!deviceHash) return;
+
+        const table = db
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'linked_devices'")
+            .get();
+        if (!table) return;
+
+        const existing = db.prepare('SELECT id FROM linked_devices WHERE device_hash = ? LIMIT 1').get(deviceHash);
+        if (existing) {
+            db.prepare(
+                `
+                UPDATE linked_devices
+                SET last_seen_at = CURRENT_TIMESTAMP,
+                    status = COALESCE(NULLIF(status, ''), 'active')
+                WHERE device_hash = ?
+            `
+            ).run(deviceHash);
             return;
         }
 
         db.prepare(
-            'UPDATE linked_devices SET last_seen_at = CURRENT_TIMESTAMP WHERE device_hash = ? AND status = ?'
-        ).run(deviceHash, 'active');
+            `
+            INSERT INTO linked_devices(device_hash, device_name, os_platform, linked_at, last_seen_at, status)
+            VALUES(?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'active')
+        `
+        ).run(deviceHash, getDeviceName(), process.platform);
     } catch (err) {
-        console.warn('[sync] Heartbeat update failed:', err.message);
+        console.warn('[sync] Failed to update device heartbeat:', err.message);
     }
 }
 
@@ -271,13 +329,29 @@ function buildFirestorePayload(item) {
     };
 }
 
+const REMOTE_SYNC_METADATA_FIELDS = ['version', 'operation', 'rowSyncId', 'deviceHash', 'schoolYear', 'updatedAt', 'ttl'];
+
+function stripRemoteSyncMetadata(data) {
+    const clean = { ...(data || {}) };
+    for (const field of REMOTE_SYNC_METADATA_FIELDS) {
+        delete clean[field];
+    }
+    return clean;
+}
+
+function isEquivalentRemoteData(localData, remoteData) {
+    const localChecksum = computeRowChecksum(localData || {}, SENSITIVE_FIELDS);
+    const remoteChecksum = computeRowChecksum(stripRemoteSyncMetadata(remoteData), SENSITIVE_FIELDS);
+    return localChecksum === remoteChecksum;
+}
+
 async function writeItemWithVersionCheck(firestoreDb, item) {
     try {
         const docRef = doc(firestoreDb, item.collectionPath, item.documentId);
         const transactionResult = await runTransaction(firestoreDb, async (transaction) => {
             const existing = await transaction.get(docRef);
             if (existing.exists() && Number(existing.data().version || 0) >= item.version) {
-                return { conflict: true };
+                return { conflict: true, remoteData: existing.data() || {} };
             }
 
             transaction.set(docRef, buildFirestorePayload(item), { merge: true });
@@ -285,7 +359,17 @@ async function writeItemWithVersionCheck(firestoreDb, item) {
         });
 
         if (transactionResult?.conflict) {
-            return { success: false, conflict: true, error: 'Version conflict', errorName: 'VERSION_CONFLICT' };
+            const remoteData = transactionResult.remoteData || {};
+            return {
+                success: false,
+                conflict: true,
+                equivalent: isEquivalentRemoteData(item.data, remoteData),
+                error: 'Version conflict',
+                errorName: 'VERSION_CONFLICT',
+                remoteData,
+                remoteVersion: Number(remoteData.version || 0),
+                remoteDeviceHash: remoteData.deviceHash || ''
+            };
         }
 
         return { success: true };
@@ -295,86 +379,44 @@ async function writeItemWithVersionCheck(firestoreDb, item) {
     }
 }
 
-async function pushDeviceRevocations(db, firestoreDb, schoolId, deviceHash) {
-    const result = {
-        sentCount: 0,
-        failedCount: 0,
-        lastError: null,
-        abort: false
-    };
-
-    try {
-        const revokedDevices = db
-            .prepare('SELECT device_hash, revoked_at FROM linked_devices WHERE status = ? AND revoked_at IS NOT NULL')
-            .all('revoked');
-
-        for (const revoked of revokedDevices) {
-            const revokedDeviceHash = String(revoked.device_hash || '').trim();
-            const revokedAt = revoked.revoked_at;
-
-            if (!revokedDeviceHash || !revokedAt) {
-                continue;
-            }
-
-            const revocationItem = {
-                collectionPath: `schools/${schoolId}/deviceRevocations`,
-                documentId: revokedDeviceHash,
-                entityType: 'device_revocation',
-                entityId: revokedDeviceHash,
-                data: { revokedDeviceHash, revokedAt },
-                version: 1,
-                operation: 'PUT',
-                rowSyncId: revokedDeviceHash,
-                deviceHash: String(deviceHash || '').substring(0, 16),
-                schoolYear: '',
-                updatedAt: Math.floor(Date.now() / 1000)
-            };
-
-            const writeResult = await writeItemWithVersionCheck(firestoreDb, revocationItem);
-            if (writeResult.success) {
-                try {
-                    await logChangeBatch(firestoreDb, schoolId, [revocationItem]);
-                } catch {
-                    // Non-critical - primary write already succeeded
-                }
-                result.sentCount += 1;
-                continue;
-            }
-
-            if (writeResult.conflict) {
-                continue;
-            }
-
-            result.failedCount += 1;
-            result.lastError = writeResult.error || 'Failed to push device revocation';
-            console.error('[sync] Failed to push revocation for', revokedDeviceHash, result.lastError);
-
-            if (writeResult.isAccessDenied) {
-                result.abort = true;
-                break;
-            }
+function markEntrySent(db, entryId, versionOverride = null, rowSyncId = null, rowData = null) {
+    // Read row_sync_id and row_data BEFORE marking sent to avoid TOCTOU with cleanup
+    if (!rowSyncId || rowData === null) {
+        const entry = db.prepare('SELECT row_sync_id, row_data FROM sync_outbox WHERE id = ?').get(entryId);
+        if (entry) {
+            rowSyncId = rowSyncId || entry.row_sync_id;
+            rowData = rowData !== null ? rowData : entry.row_data;
         }
-    } catch (err) {
-        result.failedCount += 1;
-        result.lastError = err.message;
-        console.error('[sync] Revocation push failed:', err.message);
     }
 
-    return result;
-}
-
-function markEntrySent(db, entryId) {
     db.prepare(
         "UPDATE sync_outbox SET status = 'sent', sent_at = CURRENT_TIMESTAMP, last_error = NULL WHERE id = ?"
     ).run(entryId);
 
-    // Update version and ancestor in sync_id_map for the pushed entry
-    const entry = db.prepare('SELECT row_sync_id, row_data FROM sync_outbox WHERE id = ?').get(entryId);
-    if (entry && entry.row_sync_id) {
-        db.prepare('UPDATE sync_id_map SET version = version + 1, ancestor_data = ? WHERE row_sync_id = ?').run(
-            entry.row_data,
-            entry.row_sync_id
-        );
+    if (rowSyncId) {
+        if (versionOverride != null && Number.isFinite(Number(versionOverride))) {
+            db.prepare('UPDATE sync_id_map SET version = ?, ancestor_data = ? WHERE row_sync_id = ?').run(
+                Number(versionOverride),
+                rowData,
+                rowSyncId
+            );
+        } else {
+            db.prepare('UPDATE sync_id_map SET version = version + 1, ancestor_data = ? WHERE row_sync_id = ?').run(
+                rowData,
+                rowSyncId
+            );
+        }
+        db.prepare(
+            `
+            UPDATE sync_conflicts
+            SET status = 'resolved',
+                resolution = 'merged',
+                resolved_data = COALESCE(resolved_data, local_data),
+                resolved_at = CURRENT_TIMESTAMP
+            WHERE local_outbox_id = ?
+              AND status = 'unresolved'
+        `
+        ).run(entryId);
     }
 }
 
@@ -388,6 +430,28 @@ function markEntryFailed(db, entryId, error, maxRetries, ignoreMaxRetries = fals
     ).run(retries, error, newStatus, entryId);
 }
 
+function reopenVersionConflictOutbox(db) {
+    try {
+        db.prepare(
+            `
+            UPDATE sync_outbox
+            SET status = 'pending',
+                last_error = NULL
+            WHERE status = 'failed'
+              AND last_error = 'Version conflict'
+              AND id IN (
+                  SELECT local_outbox_id
+                  FROM sync_conflicts
+                  WHERE status = 'unresolved'
+                    AND local_outbox_id IS NOT NULL
+              )
+        `
+        ).run();
+    } catch (err) {
+        console.warn('[sync:push] Failed to reopen version-conflict outbox rows:', err.message);
+    }
+}
+
 function updatePushMeta(db, lastPushAt, lastPushError) {
     db.prepare(
         'UPDATE sync_config SET last_push_at = ?, last_push_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
@@ -396,21 +460,105 @@ function updatePushMeta(db, lastPushAt, lastPushError) {
 
 function getCurrentRole() {
     try {
+        const { resolveRole } = require('../auth/permissions');
         const { getActiveSessions } = require('../ipc/auth');
         const sessions = getActiveSessions();
-        if (!sessions || sessions.size === 0) return null;
+        const priority = ['admin', 'principal', 'supervisor', 'external-guardian', 'internal-guardian', 'admin-assistant', 'educational-specialist', 'social-specialist', 'teacher', 'viewer', 'staff'];
 
-        for (const session of sessions.values()) {
-            if (session.role === 'admin') return 'admin';
+        if (sessions && sessions.size > 0) {
+            for (const role of priority) {
+                for (const session of sessions.values()) {
+                    const resolved = resolveRole(String(session.role || '').trim());
+                    if (resolved === resolveRole(role)) return resolved;
+                }
+            }
         }
 
-        for (const session of sessions.values()) {
-            if (session.role === 'staff') return 'staff';
+        const db = getDb();
+        const config = readSyncConfig(db);
+        const email = String(config.firebase_email || '').trim().toLowerCase();
+        if (!email) return null;
+
+        const user = db
+            .prepare(
+                `
+                SELECT role
+                FROM users
+                WHERE lower(email) = ?
+                  AND COALESCE(disabled, 0) = 0
+                LIMIT 1
+            `
+            )
+            .get(email);
+        const role = resolveRole(String(user?.role || '').trim());
+        return priority.map((item) => resolveRole(item)).includes(role) ? role : null;
+    } catch (err) {
+        console.warn('[sync:push] getCurrentRole failed:', err.message);
+        return null;
+    }
+}
+
+function logVersionConflict(db, prepared, result) {
+    try {
+        const ancestorMapping = db
+            .prepare('SELECT ancestor_data FROM sync_id_map WHERE row_sync_id = ?')
+            .get(prepared.item.rowSyncId);
+        const conflictTableName =
+            Object.keys(ENTITY_TYPE_REGISTRY).find(
+                (k) => ENTITY_TYPE_REGISTRY[k].entityType === prepared.item.entityType
+            ) || '';
+        const remoteData = stripRemoteSyncMetadata(result.remoteData || {});
+        const existing = db
+            .prepare(
+                `
+                SELECT id
+                FROM sync_conflicts
+                WHERE local_outbox_id = ?
+                  AND status = 'unresolved'
+                LIMIT 1
+            `
+            )
+            .get(prepared.entryId);
+
+        if (existing) {
+            db.prepare(
+                `
+                UPDATE sync_conflicts
+                SET remote_data = ?,
+                    remote_version = ?,
+                    remote_device_hash = ?,
+                    ancestor_data = COALESCE(ancestor_data, ?)
+                WHERE id = ?
+            `
+            ).run(
+                JSON.stringify(remoteData),
+                result.remoteVersion || prepared.item.version,
+                result.remoteDeviceHash || '',
+                ancestorMapping?.ancestor_data || null,
+                existing.id
+            );
+            return;
         }
 
-        return null;
-    } catch {
-        return null;
+        db.prepare(
+            `
+            INSERT INTO sync_conflicts(table_name, row_sync_id, entity_type, local_data, remote_data,
+                remote_version, remote_device_hash, local_outbox_id, ancestor_data, resolution_method, status)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 'lww', 'unresolved')
+        `
+        ).run(
+            conflictTableName,
+            prepared.item.rowSyncId || '',
+            prepared.item.entityType || '',
+            JSON.stringify(prepared.item.data || {}),
+            JSON.stringify(remoteData),
+            result.remoteVersion || prepared.item.version,
+            result.remoteDeviceHash || '',
+            prepared.entryId,
+            ancestorMapping?.ancestor_data || null
+        );
+    } catch (conflictErr) {
+        console.warn(`[sync:push] Failed to log conflict for entry ${prepared.entryId}:`, conflictErr.message);
     }
 }
 
@@ -435,6 +583,12 @@ async function flushPreparedItems(db, firestoreDb, preparedItems, maxRetries, sc
                 continue;
             }
 
+            if (result.conflict && result.equivalent) {
+                markEntrySent(db, prepared.entryId, result.remoteVersion || prepared.item.version);
+                sentCount += 1;
+                continue;
+            }
+
             lastError = result.error || 'Conditional write failed';
             markEntryFailed(
                 db,
@@ -447,35 +601,7 @@ async function flushPreparedItems(db, firestoreDb, preparedItems, maxRetries, sc
             failedCount += 1;
 
             if (result.conflict) {
-                // Log enriched conflict entry for version conflicts
-                try {
-                    const ancestorMapping = db
-                        .prepare('SELECT ancestor_data FROM sync_id_map WHERE row_sync_id = ?')
-                        .get(prepared.item.rowSyncId);
-                    const conflictTableName =
-                        Object.keys(ENTITY_TYPE_REGISTRY).find(
-                            (k) => ENTITY_TYPE_REGISTRY[k].entityType === prepared.item.entityType
-                        ) || '';
-                    db.prepare(
-                        `
-                        INSERT INTO sync_conflicts(table_name, row_sync_id, entity_type, local_data, remote_data,
-                            remote_version, remote_device_hash, local_outbox_id, ancestor_data, resolution_method, status)
-                        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, 'lww', 'unresolved')
-                    `
-                    ).run(
-                        conflictTableName,
-                        prepared.item.rowSyncId || '',
-                        prepared.item.entityType || '',
-                        JSON.stringify(prepared.item.data || {}),
-                        '', // remote_data unknown until fetched — placeholder
-                        prepared.item.version,
-                        prepared.item.deviceHash || '',
-                        prepared.entryId,
-                        ancestorMapping?.ancestor_data || null
-                    );
-                } catch {
-                    // Non-critical — don't fail the push over conflict logging
-                }
+                logVersionConflict(db, prepared, result);
             }
 
             if (result.isAccessDenied) {
@@ -483,12 +609,22 @@ async function flushPreparedItems(db, firestoreDb, preparedItems, maxRetries, sc
             }
         }
 
-        // Batch-log successfully sent items to syncLog
+        // Batch-log successfully sent items to syncLog (with retry)
         if (successfulItems.length > 0 && schoolId) {
-            try {
-                await logChangeBatch(firestoreDb, schoolId, successfulItems);
-            } catch {
-                // Non-critical — sync log failure should not abort push
+            let syncLogWritten = false;
+            for (let attempt = 1; attempt <= 3 && !syncLogWritten; attempt++) {
+                try {
+                    await logChangeBatch(firestoreDb, schoolId, successfulItems);
+                    syncLogWritten = true;
+                } catch (logErr) {
+                    console.warn(`[sync:push] syncLog batch attempt ${attempt}/3 failed:`, logErr.message);
+                    if (attempt < 3) {
+                        await new Promise((r) => setTimeout(r, 1000 * attempt));
+                    }
+                }
+            }
+            if (!syncLogWritten) {
+                console.error(`[sync:push] syncLog batch PERMANENTLY failed for ${successfulItems.length} items — other devices may not receive these changes`);
             }
         }
 
@@ -593,6 +729,10 @@ async function flushExpandedEntries(db, firestoreDb, entryId, expandedEntries, s
 
         for (const item of items) {
             const result = await writeItemWithVersionCheck(firestoreDb, item);
+            if (result.conflict && result.equivalent) {
+                sentCount += 1;
+                continue;
+            }
             if (!result.success) {
                 failedCount += 1;
                 lastError = result.error || 'Conditional write failed';
@@ -613,10 +753,20 @@ async function flushExpandedEntries(db, firestoreDb, entryId, expandedEntries, s
     }
 
     if (successfulItems.length > 0 && schoolId) {
-        try {
-            await logChangeBatch(firestoreDb, schoolId, successfulItems);
-        } catch {
-            // Non-critical - primary writes already succeeded
+        let syncLogWritten = false;
+        for (let attempt = 1; attempt <= 3 && !syncLogWritten; attempt++) {
+            try {
+                await logChangeBatch(firestoreDb, schoolId, successfulItems);
+                syncLogWritten = true;
+            } catch (logErr) {
+                console.warn(`[sync:push] Expanded syncLog batch attempt ${attempt}/3 failed:`, logErr.message);
+                if (attempt < 3) {
+                    await new Promise((r) => setTimeout(r, 1000 * attempt));
+                }
+            }
+        }
+        if (!syncLogWritten) {
+            console.error(`[sync:push] Expanded syncLog batch PERMANENTLY failed for ${successfulItems.length} items — other devices may not receive these changes`);
         }
     }
 
@@ -632,17 +782,26 @@ async function flushExpandedEntries(db, firestoreDb, entryId, expandedEntries, s
 async function flushSyncOutbox(limit) {
     if (_flushRunning) return { success: true, skipped: true, reason: 'already_running' };
     _flushRunning = true;
+    console.log('[sync:push] Push cycle starting...');
 
     try {
         const db = getDb();
         const config = readSyncConfig(db);
-        if (!Number(config.enabled)) return { success: true, skipped: true, reason: 'disabled' };
+        if (!Number(config.enabled)) {
+            console.log('[sync:push] Skipped: sync not enabled');
+            return { success: true, skipped: true, reason: 'not_configured' };
+        }
+        reopenVersionConflictOutbox(db);
 
         const role = getCurrentRole();
-        if (!role) return { success: true, skipped: true, reason: 'no_active_session' };
+        if (!role) {
+            console.log('[sync:push] Skipped: no active session');
+            return { success: true, skipped: true, reason: 'no_active_session' };
+        }
 
         const credentials = await getCredentials();
         if (!credentials) {
+            console.warn('[sync:push] Failed to obtain credentials');
             updatePushMeta(db, null, 'Failed to obtain credentials');
             return { success: false, error: 'credentials_unavailable' };
         }
@@ -761,21 +920,16 @@ async function flushSyncOutbox(limit) {
             lastError = lastError || 'Access denied';
         }
 
-        const revocationResult = await pushDeviceRevocations(db, firestoreDb, schoolId, deviceHash);
-        failedCount += revocationResult.failedCount;
-        lastError = revocationResult.lastError || lastError;
-        updateDeviceHeartbeat(db);
-
         updatePushMeta(
             db,
-            sentCount > 0 || revocationResult.sentCount > 0 ? new Date().toISOString() : null,
+            sentCount > 0 ? new Date().toISOString() : null,
             lastError
         );
 
         const pendingCount = db.prepare("SELECT COUNT(*) AS c FROM sync_outbox WHERE status = 'pending'").get().c || 0;
-        if (sentCount > 0 || revocationResult.sentCount > 0) {
+        if (sentCount > 0) {
             console.log(
-                `[sync:push] Pushed ${sentCount} entries, ${revocationResult.sentCount} revocations, ${failedCount} failed, ${skippedCount} skipped, ${pendingCount} pending`
+                `[sync:push] Pushed ${sentCount} entries, ${failedCount} failed, ${skippedCount} skipped, ${pendingCount} pending`
             );
         }
 
@@ -785,8 +939,7 @@ async function flushSyncOutbox(limit) {
             failedCount,
             skippedCount,
             pendingCount,
-            lastError,
-            revocationCount: revocationResult.sentCount
+            lastError
         };
     } finally {
         _flushRunning = false;
@@ -800,7 +953,7 @@ function startSyncPushBackground() {
         const db = getDb();
         const config = readSyncConfig(db);
 
-        if (!Number(config.enabled) || !config.firebase_functions_url) {
+        if (!Number(config.enabled) || !config.firebase_functions_url || !config.school_id) {
             return;
         }
 
@@ -839,10 +992,13 @@ function restartSyncPushBackground() {
 async function pullRemoteChanges() {
     if (_pullRunning) return { success: false, skipped: true };
     _pullRunning = true;
+    const startedAt = Date.now();
+    console.log('[sync:pull] Pull cycle starting...');
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !config.enabled) {
+        if (!config || !config.enabled || !config.school_id) {
+            console.log('[sync:pull] Skipped: sync disabled or school_id missing');
             return {
                 success: true,
                 appliedCount: 0,
@@ -854,9 +1010,18 @@ async function pullRemoteChanges() {
                 lastError: null
             };
         }
+        pullDebug('config loaded', {
+            enabled: !!config.enabled,
+            schoolId: config.school_id || null,
+            pullCursor: config.pull_cursor || null,
+            lastPullAt: config.last_pull_at || null,
+            lastPullError: config.last_pull_error || null
+        });
 
+        pullDebug('getting credentials...');
         const credentials = await getCredentials();
         if (!credentials) {
+            console.warn('[sync:pull] Skipped: no Firebase credentials available');
             return {
                 success: false,
                 appliedCount: 0,
@@ -868,9 +1033,15 @@ async function pullRemoteChanges() {
                 lastError: 'No credentials available'
             };
         }
+        pullDebug('credentials ready', {
+            schoolId: credentials.schoolId,
+            userEmail: credentials.user?.email || null,
+            expiresAt: credentials.expiresAt
+        });
 
         const schoolId = config.school_id || credentials.schoolId;
         if (!schoolId) {
+            console.warn('[sync:pull] Skipped: no school_id configured');
             return {
                 success: false,
                 appliedCount: 0,
@@ -887,15 +1058,38 @@ async function pullRemoteChanges() {
         const cursor = parsePullCursor(config.pull_cursor);
         const currentDeviceHash = getDeviceHash();
         const localDeviceHash = currentDeviceHash.substring(0, 16);
+        pullDebug('remote fetch starting', {
+            schoolId,
+            cursor: serializePullCursor(cursor),
+            localDeviceHash
+        });
 
         // Step 1: Pull changes from Firestore syncLog since last cursor
-        const allItems = await pullChanges(firestoreDb, schoolId, cursor);
+        const localDataExists = db.prepare('SELECT COUNT(*) as c FROM students').get().c > 0;
+        const needsBootstrap = !localDataExists;
+
+        let allItems = await pullChanges(firestoreDb, schoolId, cursor);
+
+        // Bootstrap: if syncLog is empty and local DB has no data, read directly
+        // from entity collections. This handles:
+        // 1. First pull on a new device (null cursor)
+        // 2. Cursor set by a previous partial push but local data never populated
+        // 3. SyncLog entries expired (30-day TTL) but entity collections still have data
+        if (allItems.length === 0 && needsBootstrap) {
+            console.log('[sync:pull] Bootstrapping from entity collections (syncLog empty, local DB empty)...');
+            try {
+                allItems = await bootstrapFromCollections(firestoreDb, schoolId, COLLECTION_MAP, ENTITY_TYPE_REGISTRY);
+                console.log(`[sync:pull] Bootstrap fetched ${allItems.length} documents from entity collections (${Date.now() - startedAt}ms)`);
+            } catch (bootstrapErr) {
+                console.error('[sync:pull] Bootstrap from collections failed:', bootstrapErr.message);
+            }
+        }
 
         if (allItems.length === 0) {
             db.prepare(
                 'UPDATE sync_config SET last_pull_at = CURRENT_TIMESTAMP, last_pull_error = NULL WHERE id = 1'
             ).run();
-            updateDeviceHeartbeat(db);
+            console.log(`[sync:pull] Completed: 0 fetched, 0 applied, 0 conflicts, 0 failed (${Date.now() - startedAt}ms)`);
             return {
                 success: true,
                 appliedCount: 0,
@@ -908,67 +1102,64 @@ async function pullRemoteChanges() {
             };
         }
 
-        const selfRevocations = allItems.filter(
-            (item) =>
-                item.entityType === 'device_revocation' &&
-                (
-                    String(item.entityId || '').trim() === currentDeviceHash ||
-                    String(item.data?.revokedDeviceHash || '').trim() === currentDeviceHash
-                )
-        );
-        if (selfRevocations.length > 0) {
-            const localDevice = db
-                .prepare('SELECT status FROM linked_devices WHERE device_hash = ?')
-                .get(currentDeviceHash);
-            if (!localDevice || localDevice.status !== 'active') {
-                db.prepare('UPDATE sync_config SET enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run();
-                console.warn('[sync] Device revocation detected. Sync disabled.', {
-                    revokedAt: selfRevocations[0].revokedAt,
-                    revokedBy: selfRevocations[0].revokedBy
-                });
-                return {
-                    success: false,
-                    error: 'device_revoked',
-                    revokedAt: selfRevocations[0].revokedAt,
-                    appliedCount: 0,
-                    skippedCount: 0,
-                    conflictCount: 0,
-                    failedCount: 0,
-                    totalFetched: allItems.length,
-                    newCursor: serializePullCursor(cursor),
-                    lastError: 'تم إلغاء هذا الجهاز من قبل المسؤول'
-                };
-            }
+        // Step 2: Filter out self-originated records.
+        // Skip this filter when the local DB is empty (needsBootstrap) — we want
+        // ALL data from Firestore when rebuilding, even records originally pushed
+        // by this same device (e.g. DB deleted, or reinstall on same hardware).
+        let remoteItems;
+        if (needsBootstrap) {
+            remoteItems = allItems;
+        } else {
+            remoteItems = allItems.filter(
+                (item) => item.deviceHash !== localDeviceHash
+            );
         }
-
-        // Step 2: Filter out self-originated records
-        const remoteItems = allItems.filter(
-            (item) => item.entityType !== 'device_revocation' && item.deviceHash !== localDeviceHash
-        );
         const skippedCount = allItems.length - remoteItems.length;
+        pullDebug('self-origin filter completed', {
+            fetched: allItems.length,
+            remoteItems: remoteItems.length,
+            skippedSelfOriginated: skippedCount
+        });
 
         // Step 3: Map Firestore items to internal format
         const mapped = [];
+        const unknownEntityTypes = [];
         for (const item of remoteItems) {
             const tableName = Object.keys(ENTITY_TYPE_REGISTRY).find(
                 (k) => ENTITY_TYPE_REGISTRY[k].entityType === item.entityType
             );
-            if (!tableName) continue;
+            if (!tableName) {
+                unknownEntityTypes.push(item.entityType || '(missing)');
+                continue;
+            }
             mapped.push({
                 tableName,
                 operation: item.operation,
                 rowSyncId: item.rowSyncId,
                 data: item.data || {},
                 version: item.version,
+                updatedAt: item.updatedAt || 0,
                 deviceHash: item.deviceHash,
                 entityType: item.entityType,
                 schoolYear: item.schoolYear,
                 changeId: item.id
             });
         }
+        if (unknownEntityTypes.length > 0) {
+            console.warn('[sync:pull] Skipped unknown entity types:', [...new Set(unknownEntityTypes)].join(', '));
+        }
+        pullDebug('mapping completed', {
+            mapped: mapped.length,
+            unknownEntityTypeCount: unknownEntityTypes.length,
+            sample: mapped.slice(0, 5).map(summarizePullItem)
+        });
 
         // Step 4: Sort by topological order for FK safety
         const sorted = sortByTopology(mapped);
+        pullDebug('topological sort completed', {
+            sorted: sorted.length,
+            sample: sorted.slice(0, 5).map(summarizePullItem)
+        });
 
         // Step 5: Pre-load pending outbox row_sync_ids for conflict detection
         const pendingRows = db
@@ -978,11 +1169,13 @@ async function pullRemoteChanges() {
         for (const row of pendingRows) {
             pendingMap.set(row.row_sync_id, { outboxId: row.id, rowData: row.row_data });
         }
+        pullDebug('pending outbox loaded', { pendingRows: pendingRows.length });
 
         // Step 6: Apply changes in a single transaction
         let appliedCount = 0;
         let conflictCount = 0;
         let failedCount = 0;
+        pullDebug('local apply transaction starting', { itemCount: sorted.length });
 
         const applyChanges = db.transaction(() => {
             const deferredStudentFiles = [];
@@ -999,20 +1192,20 @@ async function pullRemoteChanges() {
                         let ancestor = null;
                         try {
                             ancestor = ancestorRow?.ancestor_data ? JSON.parse(ancestorRow.ancestor_data) : null;
-                        } catch {
-                            /* no ancestor */
+                        } catch (parseErr) {
+                            console.warn(`[sync:pull] Failed to parse ancestor_data for ${item.rowSyncId}:`, parseErr.message);
                         }
 
                         // Load current local data from the pending outbox entry
                         let localData = {};
                         try {
                             localData = pending.rowData ? JSON.parse(pending.rowData) : {};
-                        } catch {
-                            /* empty */
+                        } catch (parseErr) {
+                            console.warn(`[sync:pull] Failed to parse local outbox data for ${item.rowSyncId}:`, parseErr.message);
                         }
 
-                        const localTs = Math.floor(Date.now() / 1000); // local change time (approximate)
-                        const remoteTs = item.version || 0; // use version as proxy for timestamp ordering
+                        const localTs = Math.floor(Date.now() / 1000);
+                        const remoteTs = item.updatedAt || 0;
 
                         // Save original remote data before merge overwrites it
                         const originalRemoteData = JSON.stringify(item.data);
@@ -1092,7 +1285,7 @@ async function pullRemoteChanges() {
 
                     if (item.operation === 'PUT') {
                         if (mapping) {
-                            const columns = Object.keys(item.data).filter((k) => k !== 'id');
+                            const columns = filterToValidColumns(db, item.tableName, Object.keys(item.data).filter((k) => k !== 'id'));
                             if (columns.length > 0) {
                                 const setClause = columns.map((c) => `"${c}" = ?`).join(', ');
                                 const values = columns.map((c) => item.data[c]);
@@ -1101,13 +1294,14 @@ async function pullRemoteChanges() {
                                     db.prepare(`UPDATE "${item.tableName}" SET ${setClause} WHERE id = ?`).run(
                                         ...values
                                     );
-                                } catch {
+                                } catch (updateErr) {
+                                    console.warn(`[sync:pull] UPDATE failed for ${item.tableName} id=${mapping.local_id}:`, updateErr.message);
                                     failedCount++;
                                     return;
                                 }
                             }
                         } else {
-                            const columns = Object.keys(item.data).filter((k) => k !== 'id');
+                            const columns = filterToValidColumns(db, item.tableName, Object.keys(item.data).filter((k) => k !== 'id'));
                             if (columns.length > 0) {
                                 const colNames = columns.map((c) => `"${c}"`).join(', ');
                                 const placeholders = columns.map(() => '?').join(', ');
@@ -1116,10 +1310,11 @@ async function pullRemoteChanges() {
                                 try {
                                     info = db
                                         .prepare(
-                                            `INSERT INTO "${item.tableName}" (${colNames}) VALUES (${placeholders})`
+                                            `INSERT OR REPLACE INTO "${item.tableName}" (${colNames}) VALUES (${placeholders})`
                                         )
                                         .run(...values);
-                                } catch {
+                                } catch (insertErr) {
+                                    console.warn(`[sync:pull] INSERT failed for ${item.tableName} (${item.rowSyncId}):`, insertErr.message);
                                     failedCount++;
                                     return;
                                 }
@@ -1143,14 +1338,15 @@ async function pullRemoteChanges() {
                                 ON CONFLICT(row_sync_id) DO UPDATE SET checksum = ?, updated_at = CURRENT_TIMESTAMP
                             `
                             ).run(item.rowSyncId, item.tableName, checksum, checksum);
-                        } catch {
-                            /* non-critical */
+                        } catch (snapshotErr) {
+                            console.warn(`[sync:pull] Ancestor/snapshot update failed for ${item.rowSyncId}:`, snapshotErr.message);
                         }
                     } else if (item.operation === 'DEL') {
                         if (mapping) {
                             try {
                                 db.prepare(`DELETE FROM "${item.tableName}" WHERE id = ?`).run(mapping.local_id);
-                            } catch {
+                            } catch (delErr) {
+                                console.warn(`[sync:pull] DELETE failed for ${item.tableName} id=${mapping.local_id}:`, delErr.message);
                                 failedCount++;
                                 return;
                             }
@@ -1159,7 +1355,8 @@ async function pullRemoteChanges() {
                             appliedCount++;
                         }
                     }
-                } catch {
+                } catch (applyErr) {
+                    console.warn(`[sync:pull] Failed to apply item ${item.rowSyncId} (${item.operation} ${item.tableName}):`, applyErr.message);
                     failedCount++;
                 }
             };
@@ -1174,6 +1371,12 @@ async function pullRemoteChanges() {
         });
 
         applyChanges();
+        pullDebug('local apply transaction completed', {
+            appliedCount,
+            conflictCount,
+            failedCount,
+            elapsedMs: Date.now() - startedAt
+        });
 
         // Step 7: Advance cursor to highest updatedAt seen
         const lastItem = allItems[allItems.length - 1] || {};
@@ -1186,6 +1389,7 @@ async function pullRemoteChanges() {
         db.prepare(
             'UPDATE sync_config SET pull_cursor = ?, last_pull_at = CURRENT_TIMESTAMP, last_pull_error = NULL WHERE id = 1'
         ).run(newCursor);
+        pullDebug('sync_config updated', { newCursor });
 
         // Step 9: Update sync_pull_state per affected table
         const affectedTables = [...new Set(sorted.map((i) => i.tableName))];
@@ -1197,8 +1401,13 @@ async function pullRemoteChanges() {
         for (const table of affectedTables) {
             upsertPullState.run(table);
         }
+        pullDebug('sync_pull_state updated', { affectedTables });
 
         updateDeviceHeartbeat(db);
+
+        console.log(
+            `[sync:pull] Completed: ${allItems.length} fetched, ${appliedCount} applied, ${conflictCount} conflicts, ${failedCount} failed (${Date.now() - startedAt}ms)`
+        );
 
         return {
             success: failedCount === 0,
@@ -1211,13 +1420,14 @@ async function pullRemoteChanges() {
             lastError: null
         };
     } catch (err) {
+        console.error('[sync:pull] Pull cycle failed:', err.message);
         try {
             const db = getDb();
             db.prepare('UPDATE sync_config SET last_pull_error = ?, last_pull_at = CURRENT_TIMESTAMP WHERE id = 1').run(
                 err.message
             );
-        } catch {
-            /* ignore */
+        } catch (dbErr) {
+            console.warn('[sync:pull] Failed to record pull error in DB:', dbErr.message);
         }
 
         if (err.code === 'permission-denied') {
@@ -1257,7 +1467,7 @@ function startSyncPullBackground() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !config.enabled || !config.firebase_functions_url) return;
+        if (!config || !config.enabled || !config.firebase_functions_url || !config.school_id) return;
 
         const intervalMs = Math.max(1, Math.min(30, config.sync_interval_minutes || 10)) * 60 * 1000;
 

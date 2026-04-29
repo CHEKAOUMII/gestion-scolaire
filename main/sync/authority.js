@@ -2,25 +2,31 @@
 
 const { buildDocumentId: buildDocId } = require('../firebase/collections');
 
+const ALL_WRITERS = [
+    'admin', 'principal', 'supervisor', 'teacher', 'staff',
+    'external-guardian', 'internal-guardian', 'admin-assistant',
+    'educational-specialist', 'social-specialist'
+];
+
 const WRITER_AUTHORITY = {
-    students:              ['admin'],
-    grades:                ['admin', 'staff'],
-    absences:              ['admin', 'staff'],
-    teachers:              ['admin'],
-    teacher_aliases:       ['admin'],
-    staff_attendance:      ['admin'],
-    teacher_absences:      ['admin'],
-    exams:                 ['admin'],
-    exam_proctors:         ['admin'],
-    exam_rooms:            ['admin'],
-    tests:                 ['admin'],
-    correspondence:        ['admin'],
-    student_files:         ['admin'],
-    student_movements:     ['admin'],
-    compensation_tracking: ['admin'],
-    settings:              ['admin'],
-    page_visibility:       ['admin'],
-    device_revocation:     ['admin']
+    students:              ALL_WRITERS,
+    grades:                ALL_WRITERS,
+    absences:              ALL_WRITERS,
+    teachers:              ALL_WRITERS,
+    teacher_aliases:       ALL_WRITERS,
+    staff_attendance:      ALL_WRITERS,
+    teacher_absences:      ALL_WRITERS,
+    exams:                 ALL_WRITERS,
+    exam_proctors:         ALL_WRITERS,
+    exam_rooms:            ALL_WRITERS,
+    tests:                 ALL_WRITERS,
+    correspondence:        ALL_WRITERS,
+    student_files:         ALL_WRITERS,
+    student_movements:     ALL_WRITERS,
+    compensation_tracking: ALL_WRITERS,
+    settings:              ALL_WRITERS,
+    page_visibility:       ALL_WRITERS,
+    system_tags:           ALL_WRITERS
 };
 
 const ENTITY_TYPE_REGISTRY = {
@@ -41,7 +47,7 @@ const ENTITY_TYPE_REGISTRY = {
     compensation_tracking: { entityType: 'compensation' },
     settings:              { entityType: 'settings' },
     page_visibility:       { entityType: 'page_visibility' },
-    device_revocation:     { entityType: 'device_revocation' }
+    system_tags:           { entityType: 'system_tag' }
 };
 
 function canPush(tableName, role) {

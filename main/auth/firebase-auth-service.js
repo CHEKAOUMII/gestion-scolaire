@@ -13,6 +13,7 @@ const { doc, getDoc, getFirestore, updateDoc } = require('firebase/firestore');
 const dbContext = require('../db/context');
 const { hashPassword, verifyPassword } = require('./password');
 const { resolveRole } = require('./permissions');
+const { logAuthDebug } = require('./debug');
 
 const APP_NAME = 'pencil-user-auth';
 
@@ -67,10 +68,83 @@ function readSchoolId(db) {
     }
 }
 
+function normalizeSchoolId(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function persistDiscoveredSchoolId(db, schoolId, source) {
+    const normalized = normalizeSchoolId(schoolId);
+    if (!normalized) return;
+
+    try {
+        const syncColumns = getTableColumns(db, 'sync_config');
+        if (syncColumns.has('school_id')) {
+            db.prepare(
+                `
+                INSERT OR IGNORE INTO sync_config(id, enabled, sync_interval_minutes, retention_days)
+                VALUES(1, 1, 10, 7)
+            `
+            ).run();
+            const syncAssignments = ['school_id = ?'];
+            const syncParams = [normalized];
+            if (syncColumns.has('enabled')) syncAssignments.push('enabled = 1');
+            if (syncColumns.has('updated_at')) syncAssignments.push('updated_at = CURRENT_TIMESTAMP');
+            db.prepare(`UPDATE sync_config SET ${syncAssignments.join(', ')} WHERE id = 1`).run(...syncParams);
+        }
+
+        const institutionColumns = getTableColumns(db, 'institution_config');
+        if (institutionColumns.has('massar_code')) {
+            const insertColumns = ['id', 'massar_code'];
+            const insertValues = [1, normalized];
+            if (institutionColumns.has('setup_completed')) {
+                insertColumns.push('setup_completed');
+                insertValues.push(1);
+            }
+            if (institutionColumns.has('setup_mode')) {
+                insertColumns.push('setup_mode');
+                insertValues.push('firebase-login');
+            }
+            const placeholders = insertColumns.map(() => '?').join(', ');
+            db.prepare(`INSERT OR IGNORE INTO institution_config(${insertColumns.join(', ')}) VALUES(${placeholders})`).run(
+                ...insertValues
+            );
+
+            const institutionAssignments = ['massar_code = ?'];
+            const institutionParams = [normalized];
+            if (institutionColumns.has('setup_completed')) institutionAssignments.push('setup_completed = 1');
+            if (institutionColumns.has('setup_mode')) {
+                institutionAssignments.push("setup_mode = COALESCE(NULLIF(setup_mode, ''), 'firebase-login')");
+            }
+            if (institutionColumns.has('updated_at')) institutionAssignments.push('updated_at = CURRENT_TIMESTAMP');
+            db.prepare(`UPDATE institution_config SET ${institutionAssignments.join(', ')} WHERE id = 1`).run(
+                ...institutionParams
+            );
+        }
+
+        logAuthDebug('firebase.school-id.persisted', {
+            schoolId: normalized,
+            source
+        });
+    } catch (err) {
+        logAuthDebug('firebase.school-id.persist-failed', {
+            schoolId: normalized,
+            source,
+            code: err.code || null,
+            message: err.message || String(err)
+        });
+    }
+}
+
 function getFirebaseClients() {
     const db = dbContext.getDb();
     const config = readFirebaseConfig(db);
     if (!config.apiKey || !config.projectId) {
+        logAuthDebug('firebase.config.missing', {
+            hasApiKey: !!config.apiKey,
+            hasProjectId: !!config.projectId,
+            hasAppId: !!config.appId,
+            authDomain: config.authDomain ? '(set)' : '(missing)'
+        });
         const err = new Error('Firebase Auth is not configured');
         err.code = 'FIREBASE_NOT_CONFIGURED';
         throw err;
@@ -88,6 +162,7 @@ function getFirebaseClients() {
 function isFirebaseUnavailable(err) {
     const code = String(err?.code || '');
     return (
+        code === 'FIREBASE_NOT_CONFIGURED' ||
         code === 'auth/network-request-failed' ||
         code === 'unavailable' ||
         code.includes('network') ||
@@ -120,6 +195,12 @@ function normalizeProfile(snapshotData, firebaseUser, localUser) {
         mustChangePassword: !!(profile.mustChangePassword ?? profile.must_change_password ?? localUser?.must_change_password),
         emailVerified: firebaseUser?.emailVerified ? 1 : 0
     };
+}
+
+function createAuthServiceError(code, message) {
+    const err = new Error(message || code);
+    err.code = code;
+    return err;
 }
 
 function selectUserByEmail(db, email) {
@@ -195,11 +276,24 @@ function upsertLocalUserFromProfile(db, profile, password, mode) {
 
 async function loadProfileForUser(firestore, schoolId, firebaseUser, localUser) {
     if (!schoolId || !firebaseUser?.uid) {
-        return normalizeProfile(null, firebaseUser, localUser);
+        logAuthDebug('firebase.profile.missing-input', {
+            hasSchoolId: !!schoolId,
+            hasFirebaseUid: !!firebaseUser?.uid,
+            email: firebaseUser?.email || localUser?.email || null
+        });
+        throw createAuthServiceError('FIREBASE_PROFILE_REQUIRED', 'Firebase school profile is required');
     }
 
     const snapshot = await getDoc(doc(firestore, 'schools', schoolId, 'users', firebaseUser.uid));
-    return normalizeProfile(snapshot.exists() ? snapshot.data() : null, firebaseUser, localUser);
+    if (!snapshot.exists()) {
+        logAuthDebug('firebase.profile.not-found', {
+            schoolId,
+            firebaseUid: firebaseUser.uid,
+            email: firebaseUser.email || localUser?.email || null
+        });
+        throw createAuthServiceError('FIREBASE_PROFILE_REQUIRED', 'Firebase school profile is required');
+    }
+    return normalizeProfile(snapshot.data(), firebaseUser, localUser);
 }
 
 function assertActiveProfile(profile) {
@@ -213,29 +307,85 @@ function assertActiveProfile(profile) {
 async function loginWithFirebase(email, password) {
     const db = dbContext.getDb();
     const { auth, firestore, schoolId } = getFirebaseClients();
+    logAuthDebug('firebase.login.start', {
+        email,
+        schoolId: schoolId || null
+    });
     const credential = await signInWithEmailAndPassword(auth, normalizeEmail(email), password);
+    const tokenResult = await credential.user.getIdTokenResult(true);
+    const claimSchoolId = normalizeSchoolId(tokenResult?.claims?.schoolId);
+    const expectedSchoolId = normalizeSchoolId(schoolId);
+    if (expectedSchoolId && claimSchoolId !== expectedSchoolId) {
+        logAuthDebug('firebase.school-mismatch', {
+            email,
+            firebaseUid: credential.user.uid,
+            expectedSchoolId,
+            claimSchoolId: claimSchoolId || null
+        });
+        throw createAuthServiceError('FIREBASE_SCHOOL_MISMATCH', 'Firebase user does not belong to this school');
+    }
+    const resolvedSchoolId = expectedSchoolId || claimSchoolId;
+    if (!resolvedSchoolId) {
+        logAuthDebug('firebase.school-id.missing', {
+            email,
+            firebaseUid: credential.user.uid,
+            hasLocalSchoolId: !!expectedSchoolId,
+            hasClaimSchoolId: !!claimSchoolId
+        });
+        throw createAuthServiceError('LOCAL_SCHOOL_ID_MISSING', 'Local school id is missing');
+    }
+    if (!expectedSchoolId && claimSchoolId) {
+        persistDiscoveredSchoolId(db, claimSchoolId, 'firebase-claim');
+    }
     const localUser = selectUserByFirebaseUid(db, credential.user.uid) || selectUserByEmail(db, email);
-    const profile = await loadProfileForUser(firestore, schoolId, credential.user, localUser);
+    const profile = await loadProfileForUser(firestore, resolvedSchoolId, credential.user, localUser);
     assertActiveProfile(profile);
     const userRow = upsertLocalUserFromProfile(db, profile, password, 'online');
+    logAuthDebug('firebase.login.success', {
+        email: profile.email,
+        firebaseUid: profile.uid,
+        schoolId: resolvedSchoolId,
+        localUserId: userRow?.id || null,
+        role: profile.role
+    });
     return { mode: 'online', userRow, profile, firebaseUser: credential.user };
 }
 
-function loginWithLocalFallback(email, password) {
+function loginWithLocalFallback(email, password, { firebaseNotConfigured } = {}) {
     const db = dbContext.getDb();
     const user = selectUserByEmail(db, email);
     if (!user || Number(user.disabled || 0) === 1) {
+        logAuthDebug('offline.fallback.no-local-user', {
+            email,
+            firebaseNotConfigured: !!firebaseNotConfigured,
+            foundUser: !!user,
+            disabled: !!user?.disabled
+        });
         return null;
     }
-    const hasPriorFirebaseLogin =
-        String(user.firebase_uid || '').trim() ||
-        String(user.auth_source || '').trim().toLowerCase() === 'firebase' ||
-        String(user.last_auth_mode || '').trim().toLowerCase() === 'online';
-    if (!hasPriorFirebaseLogin) {
-        return null;
+    if (!firebaseNotConfigured) {
+        const hasPriorFirebaseLogin =
+            String(user.firebase_uid || '').trim() ||
+            String(user.auth_source || '').trim().toLowerCase() === 'firebase' ||
+            String(user.last_auth_mode || '').trim().toLowerCase() === 'online';
+        if (!hasPriorFirebaseLogin) {
+            logAuthDebug('offline.fallback.no-prior-firebase-login', {
+                email,
+                localUserId: user.id,
+                authSource: user.auth_source || null,
+                lastAuthMode: user.last_auth_mode || null,
+                hasFirebaseUid: !!String(user.firebase_uid || '').trim()
+            });
+            return null;
+        }
     }
     const storedHash = String(user.password_hash || '').trim();
     if (!storedHash || !verifyPassword(password, storedHash)) {
+        logAuthDebug('offline.fallback.invalid-local-password', {
+            email,
+            localUserId: user.id,
+            hasStoredHash: !!storedHash
+        });
         return null;
     }
 
@@ -255,6 +405,11 @@ function loginWithLocalFallback(email, password) {
         db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     }
 
+    logAuthDebug('offline.fallback.success', {
+        email,
+        localUserId: user.id,
+        firebaseNotConfigured: !!firebaseNotConfigured
+    });
     return {
         mode: 'offline',
         userRow: db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)
@@ -265,6 +420,14 @@ async function loginFirebaseFirst(email, password) {
     try {
         return await loginWithFirebase(email, password);
     } catch (err) {
+        logAuthDebug('firebase.login.failed', {
+            email,
+            code: err.code || null,
+            publicCode: err.publicCode || null,
+            message: err.message || String(err),
+            firebaseUnavailable: isFirebaseUnavailable(err),
+            invalidCredential: isInvalidFirebaseCredential(err)
+        });
         if (isInvalidFirebaseCredential(err)) {
             err.publicCode = 'INVALID_CREDENTIALS';
             throw err;
@@ -273,12 +436,18 @@ async function loginFirebaseFirst(email, password) {
             throw err;
         }
 
-        const fallback = loginWithLocalFallback(email, password);
+        const firebaseNotConfigured = err.code === 'FIREBASE_NOT_CONFIGURED';
+        const fallback = loginWithLocalFallback(email, password, { firebaseNotConfigured });
         if (fallback) {
             fallback.warning = err.code || err.message;
             return fallback;
         }
 
+        logAuthDebug('offline.fallback.unavailable', {
+            email,
+            firebaseErrorCode: err.code || null,
+            firebaseNotConfigured
+        });
         err.publicCode = 'OFFLINE_LOGIN_UNAVAILABLE';
         throw err;
     }

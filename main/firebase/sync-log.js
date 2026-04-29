@@ -15,6 +15,15 @@ function normalizeUpdatedAt(value) {
     return numeric > 9999999999 ? Math.floor(numeric / 1000) : Math.floor(numeric);
 }
 
+function normalizeCursorUpdatedAt(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+        return 0;
+    }
+
+    return numeric > 9999999999 ? Math.floor(numeric / 1000) : Math.floor(numeric);
+}
+
 function buildChangeId(entry) {
     const updatedAt = normalizeUpdatedAt(entry.updatedAt);
     const version = Number(entry.version) || 1;
@@ -85,11 +94,11 @@ async function pullChanges(db, schoolId, cursor, maxResults = 500) {
     const normalizedCursor =
         cursor && typeof cursor === 'object'
             ? {
-                  updatedAt: normalizeUpdatedAt(cursor.updatedAt || 0),
+                  updatedAt: normalizeCursorUpdatedAt(cursor.updatedAt || 0),
                   changeId: String(cursor.changeId || '').trim()
               }
             : {
-                  updatedAt: normalizeUpdatedAt(cursor || 0),
+                  updatedAt: normalizeCursorUpdatedAt(cursor || 0),
                   changeId: ''
               };
 
@@ -115,4 +124,59 @@ async function pullChanges(db, schoolId, cursor, maxResults = 500) {
     return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-module.exports = { logChange, logChangeBatch, pullChanges, buildChangeId, normalizeUpdatedAt };
+const SYNC_METADATA_KEYS = ['version', 'operation', 'rowSyncId', 'deviceHash', 'schoolYear', 'updatedAt', 'ttl'];
+
+/**
+ * Bootstrap pull: reads directly from entity collections instead of syncLog.
+ * Used on first pull (pull_cursor is NULL) when syncLog entries may have expired.
+ */
+async function bootstrapFromCollections(db, schoolId, collectionMap, entityTypeRegistry) {
+    const items = [];
+
+    for (const [tableName, entry] of Object.entries(collectionMap)) {
+        const entityInfo = entityTypeRegistry[tableName];
+        if (!entityInfo) continue;
+
+        const collectionPath = `schools/${schoolId}/${entry.collection}`;
+        let colRef;
+        try {
+            colRef = collection(db, collectionPath);
+        } catch (err) {
+            console.warn(`[sync:bootstrap] Failed to reference collection ${collectionPath}:`, err.message);
+            continue;
+        }
+
+        try {
+            const snapshot = await getDocs(colRef);
+            for (const docSnap of snapshot.docs) {
+                const raw = docSnap.data() || {};
+                const cleanData = { ...raw };
+                for (const key of SYNC_METADATA_KEYS) {
+                    delete cleanData[key];
+                }
+
+                items.push({
+                    id: docSnap.id,
+                    entityType: entityInfo.entityType,
+                    entityId: raw.rowSyncId || docSnap.id,
+                    operation: 'PUT',
+                    data: cleanData,
+                    version: raw.version || 1,
+                    deviceHash: raw.deviceHash || '',
+                    rowSyncId: raw.rowSyncId || '',
+                    schoolYear: raw.schoolYear || '',
+                    updatedAt: raw.updatedAt || Math.floor(Date.now() / 1000)
+                });
+            }
+            if (snapshot.docs.length > 0) {
+                console.log(`[sync:bootstrap] Fetched ${snapshot.docs.length} docs from ${collectionPath}`);
+            }
+        } catch (err) {
+            console.warn(`[sync:bootstrap] Failed to read ${collectionPath}:`, err.message);
+        }
+    }
+
+    return items;
+}
+
+module.exports = { logChange, logChangeBatch, pullChanges, bootstrapFromCollections, buildChangeId, normalizeUpdatedAt };

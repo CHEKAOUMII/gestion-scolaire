@@ -12,7 +12,7 @@ const { registerUpdaterIpc } = require('./updater');
 const { registerPageVisibilityIpc } = require('./pageVisibility');
 const { registerNotificationsIpc } = require('./notifications');
 const { registerReportsIpc } = require('./reports');
-const { registerLinkingIpc } = require('./linking');
+const { registerInstitutionIpc } = require('./institution');
 const { registerSyncIpc } = require('./sync');
 const { registerTimetableDataIpc } = require('./timetable-data');
 const { registerInspectorsIpc } = require('./inspectors');
@@ -33,7 +33,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerPageVisibilityIpc(ipcMain);
     registerNotificationsIpc(ipcMain);
     registerReportsIpc(ipcMain);
-    registerLinkingIpc(ipcMain);
+    registerInstitutionIpc(ipcMain);
     registerSyncIpc(ipcMain);
     registerTimetableDataIpc(ipcMain);
     registerInspectorsIpc(ipcMain);

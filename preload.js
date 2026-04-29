@@ -253,10 +253,8 @@ contextBridge.exposeInMainWorld('api', {
         getActivationRequest: () => ipcRenderer.invoke('licensing:getActivationRequest'),
         getPublicStatus: () => ipcRenderer.invoke('licensing:getPublicStatus'),
         activatePublic: (payload) => ipcRenderer.invoke('licensing:activatePublic', payload),
-        generateSerial: (payload) => ipcRenderer.invoke('licensing:generateSerial', payload),
         getStatus: () => ipcRenderer.invoke('licensing:getStatus'),
         getPlans: () => ipcRenderer.invoke('licensing:getPlans'),
-        activate: (payload) => ipcRenderer.invoke('licensing:activate', payload),
         listDevices: () => ipcRenderer.invoke('licensing:listDevices'),
         deactivateCurrentDevice: () => ipcRenderer.invoke('licensing:deactivateCurrentDevice'),
         adminRevokeDevice: (payload) => ipcRenderer.invoke('licensing:adminRevokeDevice', payload),
@@ -267,8 +265,6 @@ contextBridge.exposeInMainWorld('api', {
 
     ownerTelemetry: {
         getConfig: () => ipcRenderer.invoke('ownerTelemetry:getConfig'),
-        saveConfig: (payload) => ipcRenderer.invoke('ownerTelemetry:saveConfig', payload),
-        testConnection: (payload) => ipcRenderer.invoke('ownerTelemetry:testConnection', payload),
         syncNow: () => ipcRenderer.invoke('ownerTelemetry:syncNow'),
         getOverview: () => ipcRenderer.invoke('ownerTelemetry:getOverview'),
         getDevices: (payload) => ipcRenderer.invoke('ownerTelemetry:getDevices', payload)
@@ -335,29 +331,11 @@ contextBridge.exposeInMainWorld('api', {
         testConnection: () => ipcRenderer.invoke('sync:testConnection')
     },
 
-    linking: {
-        getInstitutionStatus: () => ipcRenderer.invoke('linking:get-institution-status'),
-        setupNewInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
-        verifyAndLink: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload),
-        generateOtp: () => ipcRenderer.invoke('linking:generateOtp'),
-        cancelOtp: () => ipcRenderer.invoke('linking:cancelOtp'),
-        getOtpStatus: () => ipcRenderer.invoke('linking:getOtpStatus'),
-        getLinkedDevices: () => ipcRenderer.invoke('linking:getLinkedDevices'),
-        revokeDevice: (deviceHashOrPayload) =>
-            ipcRenderer.invoke(
-                'linking:revokeDevice',
-                typeof deviceHashOrPayload === 'string' ? deviceHashOrPayload : deviceHashOrPayload?.deviceHash
-            ),
-        getCurrentDevice: () => ipcRenderer.invoke('linking:getCurrentDevice')
+    institution: {
+        getStatus: () => ipcRenderer.invoke('institution:get-status'),
+        setupNew: (payload) => ipcRenderer.invoke('institution:setup-new', payload)
     },
 
-    setup: {
-        getInstitutionStatus: () => ipcRenderer.invoke('linking:get-institution-status'),
-        bootstrapInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
-        setupNewInstitution: (payload) => ipcRenderer.invoke('linking:setup-new-institution', payload),
-        linkExistingInstitution: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload),
-        verifyAndLink: (payload) => ipcRenderer.invoke('linking:verify-and-link', payload)
-    }
 });
 
 console.log('Preload script loaded - API exposed to renderer');

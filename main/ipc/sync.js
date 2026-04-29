@@ -12,7 +12,6 @@ const {
 } = require('../sync/engine');
 const { isAuthenticated, testConnection } = require('../sync/credentials');
 const { isSnapshotRunning, runSnapshotCycle, restartSnapshotBackground } = require('../sync/snapshot');
-const { getDeviceHash } = require('../sync/capture');
 
 function registerSyncIpc(ipcMain) {
     // ── Read channels (no auth required) ──
@@ -21,16 +20,24 @@ function registerSyncIpc(ipcMain) {
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
         if (!config) return null;
         const syncDefaults = applySyncDefaults(config);
+        const configured = !!(
+            (config.school_id || '').trim() &&
+            (syncDefaults.firebaseFunctionsUrl || '').trim() &&
+            (syncDefaults.firebaseProjectId || '').trim()
+        );
         return {
-            enabled: !!config.enabled,
+            enabled: configured && !!config.enabled,
+            configured,
             syncIntervalMinutes: config.sync_interval_minutes || 10,
             firebaseFunctionsUrl: syncDefaults.firebaseFunctionsUrl,
             firebaseProjectId: syncDefaults.firebaseProjectId,
+            firebaseApiKey: config.firebase_api_key || null,
+            firebaseAuthDomain: config.firebase_auth_domain || null,
+            firebaseAppId: config.firebase_app_id || null,
             schoolId: config.school_id || null,
             pushBatchSize: config.push_batch_size || 100,
             maxRetries: config.max_retries || 10,
-            retentionDays: config.retention_days || 7,
-            licenseKey: config.license_key || null
+            retentionDays: config.retention_days || 7
         };
     });
 
@@ -44,8 +51,15 @@ function registerSyncIpc(ipcMain) {
             .prepare("SELECT COUNT(*) as count FROM sync_conflicts WHERE status = 'unresolved'")
             .get().count;
 
+        const syncDefaults = applySyncDefaults(config || {});
+        const configured = !!(
+            (config?.school_id || '').trim() &&
+            (syncDefaults.firebaseFunctionsUrl || '').trim() &&
+            (syncDefaults.firebaseProjectId || '').trim()
+        );
         return {
-            enabled: config ? !!config.enabled : false,
+            enabled: configured && (config ? !!config.enabled : false),
+            configured,
             pushRunning: isPushTimerRunning(),
             pullRunning: isPullTimerRunning(),
             lastPushAt: config ? config.last_push_at : null,
@@ -78,14 +92,6 @@ function registerSyncIpc(ipcMain) {
             }
         }
 
-        if (updates.enabled === 1 || updates.enabled === true) {
-            const deviceHash = getDeviceHash();
-            const deviceRow = db.prepare('SELECT status FROM linked_devices WHERE device_hash = ?').get(deviceHash);
-            if (deviceRow && deviceRow.status === 'revoked') {
-                return { success: false, error: 'تم إلغاء هذا الجهاز. يجب إعادة ربطه أولاً' };
-            }
-        }
-
         const normalizedUpdates = { ...updates };
         if (normalizedUpdates.firebaseFunctionsUrl === undefined && normalizedUpdates.authLambdaUrl !== undefined) {
             normalizedUpdates.firebaseFunctionsUrl = normalizedUpdates.authLambdaUrl;
@@ -96,12 +102,14 @@ function registerSyncIpc(ipcMain) {
             syncIntervalMinutes: 'sync_interval_minutes',
             firebaseFunctionsUrl: 'firebase_functions_url',
             firebaseProjectId: 'firebase_project_id',
+            firebaseApiKey: 'firebase_api_key',
+            firebaseAuthDomain: 'firebase_auth_domain',
+            firebaseAppId: 'firebase_app_id',
             schoolId: 'school_id',
             pushBatchSize: 'push_batch_size',
             maxRetries: 'max_retries',
             retentionDays: 'retention_days',
-            snapshotIntervalMinutes: 'snapshot_interval_minutes',
-            licenseKey: 'license_key'
+            snapshotIntervalMinutes: 'snapshot_interval_minutes'
         };
 
         const setClauses = [];
@@ -129,8 +137,9 @@ function registerSyncIpc(ipcMain) {
 
     handleWrite(ipcMain, 'sync:triggerNow', ['admin'], async (db, _event) => {
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !config.enabled) {
-            return { success: false, push: null, pull: null, snapshot: null, error: 'Sync is not enabled' };
+        const syncDefaults = applySyncDefaults(config || {});
+        if (!config || !config.school_id || !syncDefaults.firebaseFunctionsUrl) {
+            return { success: false, push: null, pull: null, snapshot: null, error: 'Sync is not configured' };
         }
 
         let pushResult = null;

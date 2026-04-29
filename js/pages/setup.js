@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     try {
-        const status = await window.api.setup.getInstitutionStatus();
+        const status = await window.api.institution.getStatus();
         console.log('[SETUP] Institution status:', JSON.stringify(status));
         if (status?.success && status.setupCompleted) {
             console.log('[SETUP] Already configured — redirecting to index.html');
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             console.log('[SETUP] Calling setupNewInstitution...');
-            const result = await window.api.setup.setupNewInstitution({
+            const result = await window.api.institution.setupNew({
                 massarCode,
                 institutionName,
                 adminName,

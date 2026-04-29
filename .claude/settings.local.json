@@ -8,7 +8,33 @@
       "Bash(ls d:/Pencil2/*.html)",
       "Bash(ls d:/Pencil2/*.css)",
       "Bash(touch /media/chekaoumi/DATA/gestionScholaire/.git/test-write-permission)",
-      "Bash(rm /media/chekaoumi/DATA/gestionScholaire/.git/test-write-permission)"
+      "Bash(rm /media/chekaoumi/DATA/gestionScholaire/.git/test-write-permission)",
+      "mcp__plugin_firebase_firebase__firebase_get_environment",
+      "mcp__plugin_firebase_firebase__firestore_list_databases",
+      "Bash(gcloud projects *)",
+      "Bash(gcloud functions describe bootstrapInstitution *)",
+      "mcp__plugin_firebase_firebase__functions_get_logs",
+      "Bash(curl *)",
+      "mcp__plugin_firebase_firebase__firestore_delete_document",
+      "WebFetch(domain:console.cloud.google.com)",
+      "Bash(grep -E '\\\\.\\(js|html|json\\)$')",
+      "WebFetch(domain:claude.ai)",
+      "Bash(npm install *)",
+      "Bash(firebase functions:config:get)",
+      "Bash(firebase functions:log)",
+      "Bash(firebase functions:log --function bootstrapInstitution)",
+      "Bash(firebase login:ci)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)[:5]\\)\")",
+      "Read(//home/chekaoumi/.config/**)",
+      "Bash(firebase deploy *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); tokens=d.get\\('tokens',{}\\); print\\(tokens.get\\('refresh_token',''\\)[:20]\\)\")",
+      "Bash(python3 -c \" import sys, json d = json.load\\(sys.stdin\\) tokens = d.get\\('tokens', {}\\) print\\('refresh_token:', tokens.get\\('refresh_token', 'not found'\\)[:50]\\) \")",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(i['name']\\) for i in d.get\\('items',[]\\)]\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(i.get\\('name'\\)\\) for i in d.get\\('items',[]\\)]\")",
+      "Bash(npx eslint *)",
+      "WebFetch(domain:)"
     ]
-  }
+  },
+  "enabledPlugins": {}
 }

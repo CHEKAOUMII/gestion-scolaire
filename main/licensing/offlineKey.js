@@ -186,5 +186,5 @@ function decodeOfflineLicenseKey(rawKey) {
 module.exports = {
     createOfflineLicenseKey,
     decodeOfflineLicenseKey,
-    normalizeLicenseKey
+    getSigningSecret
 };

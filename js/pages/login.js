@@ -1,6 +1,9 @@
 const REMEMBER_KEY = 'gsl_remember_email';
 const FORCE_PASSWORD_CHANGE_KEY = 'gsl_force_pw_change';
 const SIGNUP_CONTEXTS = new Set(['setup', 'invite', 'otp', 'linked-device']);
+const AUTH_DEBUG =
+    /[?&]debugAuth=1(?:&|$)/.test(window.location.search) ||
+    localStorage.getItem('debugAuth') === '1';
 const PASSWORD_STRENGTH_LEVELS = [
     { width: '0%', tone: 'empty', label: '' },
     { width: '20%', tone: 'weak', label: 'ضعيفة' },
@@ -21,6 +24,23 @@ function computeSessionHash(data) {
         hash &= hash;
     }
     return hash.toString(36);
+}
+
+function maskEmail(email) {
+    const value = String(email || '').trim().toLowerCase();
+    if (!value || !value.includes('@')) return value || null;
+    const [local, domain] = value.split('@');
+    return `${local.slice(0, 2)}${local.length > 2 ? '***' : '*'}@${domain}`;
+}
+
+function debugAuth(event, meta = {}) {
+    if (!AUTH_DEBUG) return;
+    const safe = {};
+    Object.entries(meta || {}).forEach(([key, value]) => {
+        if (/password|token|secret|key/i.test(key)) return;
+        safe[key] = key === 'email' ? maskEmail(value) : value;
+    });
+    console.log('[auth:ui]', event, safe);
 }
 
 function getAuthMode(sessionUser, response) {
@@ -163,7 +183,13 @@ function getLoginErrorMessage(error) {
         case 'UNAVAILABLE':
             return 'تعذر الاتصال بخدمة المصادقة. إذا سبق لك الدخول على هذا الجهاز فسيتم استعمال الدخول المحلي عند توفره';
         case 'OFFLINE_FALLBACK_UNAVAILABLE':
+        case 'OFFLINE_LOGIN_UNAVAILABLE':
             return 'لا يمكن الدخول بدون اتصال إلا لحساب سبق له تسجيل الدخول على هذا الجهاز';
+        case 'LOCAL_SCHOOL_ID_MISSING':
+            return 'تعذر تحديد رمز المؤسسة من الحساب السحابي. اطلب من المدير إعادة ربط الحساب بالمؤسسة';
+        case 'FIREBASE_PROFILE_REQUIRED':
+        case 'FIREBASE_SCHOOL_MISMATCH':
+            return 'هذا الحساب غير مرتبط بهذه المؤسسة';
         case 'TOO_MANY_REQUESTS':
         case 'TOO-MANY-REQUESTS':
         case 'LOCKED':
@@ -310,9 +336,9 @@ async function checkExistingAdminSession() {
 }
 
 async function enforceSetupContext(loginError, loginErrorText) {
-    if (!window.api?.setup?.getInstitutionStatus) return true;
+    if (!window.api?.linking?.getInstitutionStatus) return true;
     try {
-        const response = await window.api.setup.getInstitutionStatus();
+        const response = await window.api.linking.getInstitutionStatus();
         if (response?.success && !response.setupCompleted) {
             window.location.replace('setup.html');
             return false;
@@ -449,7 +475,17 @@ function initLoginPage() {
                 throw new Error('تعذر تهيئة جلسة التطبيق');
             }
 
+            debugAuth('login.submit', { email });
             const response = await window.api.auth.login({ email, password });
+            debugAuth('login.response', {
+                email,
+                success: !!response?.success,
+                authenticated: !!response?.authenticated,
+                code: response?.code || null,
+                authMode: response?.authMode || response?.user?.authMode || null,
+                role: response?.user?.role || null,
+                error: response?.error || null
+            });
             if (!response?.success || !response?.authenticated) {
                 clearLocalSession();
                 showLoginMessage(loginError, loginErrorText, getLoginErrorMessage(response));
@@ -483,6 +519,11 @@ function initLoginPage() {
 
             window.location.replace(`${getSafeNextPage()}?loggedin=1`);
         } catch (error) {
+            debugAuth('login.exception', {
+                email,
+                code: error?.code || null,
+                message: error?.message || String(error)
+            });
             showLoginMessage(loginError, loginErrorText, getLoginErrorMessage(error));
             btnLogin.classList.remove('loading');
             btnLogin.disabled = false;

@@ -4,9 +4,7 @@ const {
     getOwnerSyncConfig,
     getOwnerTelemetryOverview,
     getOwnerTelemetryDevices,
-    setOwnerSyncConfig,
-    syncOwnerTelemetryNow,
-    testOwnerSyncConnection
+    syncOwnerTelemetryNow
 } = require('../licensing/ownerSync');
 
 function registerOwnerTelemetryIpc(ipcMain) {
@@ -19,28 +17,10 @@ function registerOwnerTelemetryIpc(ipcMain) {
         }
     });
 
-    ipcMain.handle('ownerTelemetry:saveConfig', async (event, payload) => {
-        try {
-            requireRole(event, ['admin']);
-            return setOwnerSyncConfig(payload || {});
-        } catch (err) {
-            return authErrorResponse(err);
-        }
-    });
-
     ipcMain.handle('ownerTelemetry:syncNow', async (event) => {
         try {
             requireRole(event, ['admin']);
             return await syncOwnerTelemetryNow();
-        } catch (err) {
-            return authErrorResponse(err);
-        }
-    });
-
-    ipcMain.handle('ownerTelemetry:testConnection', async (event, payload) => {
-        try {
-            requireRole(event, ['admin']);
-            return await testOwnerSyncConnection(payload || {});
         } catch (err) {
             return authErrorResponse(err);
         }

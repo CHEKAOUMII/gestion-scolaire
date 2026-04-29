@@ -2,6 +2,7 @@
  * Sync Settings Page — js/pages/settings-sync.js
  * إعدادات المزامنة السحابية
  * ⚠️ Sync config section restricted to role === 'admin' OR 'developer'
+ * Sync activation is automatic after institution linking/setup; no user toggle.
  */
 
 // ── Hide sync config section for non-admin / non-developer users ──
@@ -35,32 +36,7 @@ let statusTimer = null;
 let isAdmin = false;
 let currentOffset = 0;
 const conflictPageSize = 50;
-let otpCountdownTimer = null;
 const conflictRowState = new WeakMap();
-
-const OTP_SESSION_STORAGE_KEY = 'gsl_linking_active_otp_v1';
-const LINK_METHOD_LABELS = {
-    setup_new: 'إعداد جديد',
-    otp_lan: 'ربط محلي',
-    otp_server: 'ربط عبر السيرفر'
-};
-const DEVICE_STATUS_LABELS = {
-    active: 'نشط',
-    revoked: 'ملغى'
-};
-
-const deviceManagementState = {
-    initialized: false,
-    refreshPromise: null,
-    currentDevice: null,
-    institutionStatus: null,
-    otp: {
-        plaintext: '',
-        expiresAt: null,
-        countdownOnly: false
-    },
-    dom: {}
-};
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Check user role
@@ -84,7 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadConfig();
     await refreshStatus();
     await loadConflicts();
-    await refreshDeviceManagement({ showLoading: true });
 
     // 4. Set up auto-refresh (every 10 seconds)
     statusTimer = setInterval(refreshStatus, 10000);
@@ -92,7 +67,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 5. Cleanup on page unload
     window.addEventListener('beforeunload', () => {
         clearInterval(statusTimer);
-        clearOtpCountdown();
     });
 });
 
@@ -425,77 +399,11 @@ function createEmptyTableRow(colspan, text, className = '') {
     return row;
 }
 
-function createLinkedDeviceRow(device, currentDeviceHash) {
-    const row = document.createElement('tr');
-    const isCurrentDevice = !!device.isCurrentDevice || device.deviceHash === currentDeviceHash;
-    const isRevoked = device.status === 'revoked';
-    row.className = `${isCurrentDevice ? 'device-row-current ' : ''}${isRevoked ? 'device-row-revoked' : ''}`.trim();
-
-    const nameCell = document.createElement('td');
-    const stack = document.createElement('div');
-    stack.className = 'device-name-stack';
-    const title = document.createElement('span');
-    title.className = 'device-row-title';
-    title.textContent = device.deviceName || 'جهاز بدون اسم';
-    const subtitle = document.createElement('span');
-    subtitle.className = 'device-row-subtitle';
-    const code = document.createElement('bdi');
-    code.textContent = String(device.deviceHash || '').slice(0, 8) || '—';
-    subtitle.appendChild(code);
-    stack.appendChild(title);
-    stack.appendChild(subtitle);
-    if (isCurrentDevice) {
-        const badge = document.createElement('span');
-        badge.className = 'device-current-badge';
-        badge.textContent = 'هذا الجهاز';
-        stack.appendChild(badge);
-    }
-    nameCell.appendChild(stack);
-
-    const linkedByCell = document.createElement('td');
-    const methodBadge = document.createElement('span');
-    methodBadge.className = 'device-method-badge';
-    methodBadge.textContent = LINK_METHOD_LABELS[device.linkedBy] || 'غير معروف';
-    linkedByCell.appendChild(methodBadge);
-
-    const lastSeenCell = document.createElement('td');
-    lastSeenCell.textContent = device.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : 'لم يسجل بعد';
-
-    const statusCell = document.createElement('td');
-    const statusBadge = document.createElement('span');
-    statusBadge.className = `device-status-badge ${isRevoked ? 'is-revoked' : 'is-active'}`;
-    statusBadge.textContent = DEVICE_STATUS_LABELS[device.status] || 'غير معروف';
-    statusCell.appendChild(statusBadge);
-
-    const actionCell = document.createElement('td');
-    actionCell.className = 'admin-only device-action-cell';
-    if (isAdmin && !isCurrentDevice && !isRevoked) {
-        const button = document.createElement('button');
-        button.className = 'btn btn-danger btn-sm device-revoke-btn';
-        button.type = 'button';
-        button.dataset.deviceHash = String(device.deviceHash || '');
-        button.dataset.deviceName = device.deviceName || 'هذا الجهاز';
-        button.appendChild(createSyncIcon('fa-user-slash'));
-        appendText(button, ' إلغاء');
-        actionCell.appendChild(button);
-    } else if (isCurrentDevice) {
-        const note = document.createElement('span');
-        note.className = 'device-note';
-        note.textContent = 'هذا هو الجهاز الحالي';
-        actionCell.appendChild(note);
-    } else {
-        actionCell.textContent = '—';
-    }
-
-    row.append(nameCell, linkedByCell, lastSeenCell, statusCell, actionCell);
-    return row;
-}
-
 /**
  * Derive sync state from status object.
  */
 function deriveSyncState(status) {
-    if (!status || !status.enabled) return 'disabled';
+    if (!status || !status.configured) return 'disabled';
     if (status.pushRunning || status.pullRunning || status.snapshotRunning) return 'syncing';
     if (!status.authenticated) return 'offline';
     if (status.lastPushError || status.lastPullError) return 'error';
@@ -559,7 +467,7 @@ async function refreshStatus() {
                         'text-[var(--color-neutral-text)]'
                     );
                     bannerIcon = '<i class="fas fa-pause-circle text-xl"></i>';
-                    bannerText = 'المزامنة معطلة';
+                    bannerText = 'المزامنة تنتظر إعداد المؤسسة';
                     break;
             }
             banner.innerHTML = `${bannerIcon}<span class="font-bold">${bannerText}</span>`;
@@ -574,7 +482,7 @@ async function refreshStatus() {
                 syncing: { icon: 'fa-sync fa-spin text-[var(--color-success-text)]', label: 'مزامنة' },
                 offline: { icon: 'fa-exclamation-triangle text-[var(--color-warning-text)]', label: 'غير متصل' },
                 error: { icon: 'fa-times-circle text-[var(--color-danger-text)]', label: 'خطأ' },
-                disabled: { icon: 'fa-pause-circle text-[var(--color-text-muted)]', label: 'معطل' }
+                disabled: { icon: 'fa-pause-circle text-[var(--color-text-muted)]', label: 'غير مهيأة' }
             };
             const s = stateMap[state] || stateMap.disabled;
             connEl.innerHTML = `<i class="fas ${s.icon} me-1"></i> ${s.label}`;
@@ -650,9 +558,9 @@ async function refreshStatus() {
         // Control Sync Now button state (US3)
         const syncNowBtn = document.getElementById('btn-sync-now');
         if (syncNowBtn) {
-            if (!status.enabled) {
+            if (!status.configured) {
                 syncNowBtn.disabled = true;
-                syncNowBtn.title = 'المزامنة معطلة';
+                syncNowBtn.title = 'أكمل إعداد المؤسسة أولاً';
             } else if (status.pushRunning || status.pullRunning) {
                 syncNowBtn.disabled = true;
                 syncNowBtn.title = 'المزامنة جارية';
@@ -679,22 +587,18 @@ async function loadConfig() {
             const el = document.getElementById(id);
             if (el) el.value = val;
         };
-        const setChecked = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.checked = !!val;
-        };
-
-        setChecked('cfg-enabled', config.enabled);
         setVal('cfg-school-id', config.schoolId || '');
         setVal('cfg-functions-url', config.firebaseFunctionsUrl || '');
         setVal('cfg-project-id', config.firebaseProjectId || '');
+        setVal('cfg-api-key', config.firebaseApiKey || '');
+        setVal('cfg-auth-domain', config.firebaseAuthDomain || '');
+        setVal('cfg-app-id', config.firebaseAppId || '');
         setVal('cfg-interval', config.syncIntervalMinutes || 10);
         setVal('cfg-batch-size', config.pushBatchSize || 100);
         setVal('cfg-max-retries', config.maxRetries || 10);
         setVal('cfg-retention', config.retentionDays || 7);
         // snapshotIntervalMinutes comes from status, not config
         setVal('cfg-snapshot-interval', status?.snapshotIntervalMinutes || 30);
-        setVal('cfg-license-key', config.licenseKey || '');
     } catch (err) {
         console.warn('loadConfig error:', err);
     }
@@ -709,30 +613,37 @@ function initConfigForm() {
 
         const validationDiv = document.getElementById('config-validation');
 
-        const enabled = document.getElementById('cfg-enabled')?.checked;
         const schoolId = document.getElementById('cfg-school-id')?.value?.trim();
         const functionsUrl = document.getElementById('cfg-functions-url')?.value?.trim();
         const projectId = document.getElementById('cfg-project-id')?.value?.trim();
+        const apiKey = document.getElementById('cfg-api-key')?.value?.trim();
+        const authDomain = document.getElementById('cfg-auth-domain')?.value?.trim();
+        const appId = document.getElementById('cfg-app-id')?.value?.trim();
         const interval = parseInt(document.getElementById('cfg-interval')?.value, 10);
         const batchSize = parseInt(document.getElementById('cfg-batch-size')?.value, 10);
         const maxRetries = parseInt(document.getElementById('cfg-max-retries')?.value, 10);
         const retention = parseInt(document.getElementById('cfg-retention')?.value, 10);
         const snapshotInterval = parseInt(document.getElementById('cfg-snapshot-interval')?.value, 10);
-        const licenseKey = document.getElementById('cfg-license-key')?.value?.trim() || null;
 
         // Client-side validation
         const errors = [];
         if (isNaN(interval) || interval < 1 || interval > 30) {
             errors.push('فترة المزامنة يجب أن تكون بين 1 و 30 دقيقة');
         }
-        if (enabled && !schoolId) {
-            errors.push('معرف المؤسسة مطلوب عند تفعيل المزامنة');
+        if (!schoolId) {
+            errors.push('معرف المؤسسة مطلوب للمزامنة');
         }
-        if (enabled && !functionsUrl) {
-            errors.push('رابط Firebase Functions مطلوب عند تفعيل المزامنة');
+        if (!functionsUrl) {
+            errors.push('رابط Firebase Functions مطلوب للمزامنة');
         }
-        if (enabled && !projectId) {
-            errors.push('معرف مشروع Firebase مطلوب عند تفعيل المزامنة');
+        if (!projectId) {
+            errors.push('معرف مشروع Firebase مطلوب للمزامنة');
+        }
+        if (!apiKey) {
+            errors.push('Firebase API Key مطلوب لتسجيل الدخول السحابي');
+        }
+        if (!appId) {
+            errors.push('Firebase App ID مطلوب لتسجيل الدخول السحابي');
         }
 
         if (errors.length) {
@@ -745,17 +656,19 @@ function initConfigForm() {
         if (validationDiv) validationDiv.classList.add('hidden');
 
         const updates = {
-            enabled: enabled ? 1 : 0,
+            enabled: 1,
             schoolId,
             firebaseFunctionsUrl: functionsUrl,
             firebaseProjectId: projectId,
+            firebaseApiKey: apiKey,
+            firebaseAuthDomain: authDomain,
+            firebaseAppId: appId,
             syncIntervalMinutes: interval
         };
         if (!isNaN(batchSize)) updates.pushBatchSize = batchSize;
         if (!isNaN(maxRetries)) updates.maxRetries = maxRetries;
         if (!isNaN(retention)) updates.retentionDays = retention;
         if (!isNaN(snapshotInterval)) updates.snapshotIntervalMinutes = snapshotInterval;
-        if (licenseKey !== null) updates.licenseKey = licenseKey;
 
         try {
             const result = await window.api.sync.setConfig(updates);
@@ -995,599 +908,6 @@ function initConflictHandlers() {
     });
 }
 
-// ==================== Device Management (Phase 7.7) ====================
-
-function cacheDeviceManagementDom() {
-    deviceManagementState.dom = {
-        section: document.getElementById('device-management-section'),
-        loading: document.getElementById('device-management-loading'),
-        setupRequired: document.getElementById('device-management-setup-required'),
-        setupText: document.getElementById('device-management-setup-text'),
-        retryButtons: [
-            document.getElementById('device-management-retry-btn'),
-            document.getElementById('linked-devices-retry-btn')
-        ].filter(Boolean),
-        content: document.getElementById('device-management-content'),
-        currentDeviceName: document.getElementById('current-device-name'),
-        currentDeviceHash: document.getElementById('current-device-hash'),
-        currentDeviceMassar: document.getElementById('current-device-massar'),
-        currentDeviceInstitution: document.getElementById('current-device-institution'),
-        currentDeviceNote: document.getElementById('current-device-note'),
-        devicesCount: document.getElementById('linked-devices-count'),
-        devicesNote: document.getElementById('linked-devices-note'),
-        devicesError: document.getElementById('linked-devices-error'),
-        devicesTableWrap: document.getElementById('linked-devices-table-wrap'),
-        devicesTbody: document.getElementById('devices-tbody'),
-        otpPanel: document.getElementById('device-otp-panel'),
-        otpInitial: document.getElementById('device-otp-initial'),
-        otpActive: document.getElementById('device-otp-active'),
-        otpDigits: Array.from(document.querySelectorAll('[data-otp-digit]')),
-        otpCountdown: document.getElementById('device-otp-countdown'),
-        otpStatusText: document.getElementById('device-otp-status-text'),
-        otpRestoredNote: document.getElementById('device-otp-restored-note'),
-        otpIpNote: document.getElementById('device-otp-ip'),
-        generateOtpBtn: document.getElementById('generate-linking-otp-btn'),
-        cancelOtpBtn: document.getElementById('cancel-linking-otp-btn')
-    };
-
-    return deviceManagementState.dom;
-}
-
-function formatLanEndpointLabel(endpoint) {
-    const address = String(endpoint?.address || '').trim();
-    if (!address) return '';
-
-    const interfaceName = String(endpoint?.interfaceName || '').trim();
-    return interfaceName ? `${address} (${interfaceName})` : address;
-}
-
-function renderOtpLanEndpointNote(lanState) {
-    const dom = deviceManagementState.dom;
-    if (!dom.otpIpNote) return;
-
-    const lanEndpoints = Array.isArray(lanState?.lanEndpoints) ? lanState.lanEndpoints : [];
-    const preferredEndpoint =
-        lanEndpoints.find((endpoint) => endpoint.preferred) ||
-        (lanState?.preferredLanIp ? { address: lanState.preferredLanIp, interfaceName: '' } : null);
-
-    if (!preferredEndpoint) {
-        dom.otpIpNote.textContent = 'عنوان الربط الموصى به غير متوفر حالياً';
-        return;
-    }
-
-    const alternateLabels = lanEndpoints
-        .filter((endpoint) => endpoint.address && endpoint.address !== preferredEndpoint.address)
-        .map(formatLanEndpointLabel)
-        .filter(Boolean);
-
-    let text = 'الموصى به: ' + formatLanEndpointLabel(preferredEndpoint);
-    if (alternateLabels.length > 0) {
-        text += ' | عناوين أخرى: ' + alternateLabels.join(' / ');
-    }
-
-    dom.otpIpNote.textContent = text;
-}
-
-function clearOtpCountdown() {
-    if (otpCountdownTimer) {
-        clearInterval(otpCountdownTimer);
-        otpCountdownTimer = null;
-    }
-}
-
-function computeRemainingSeconds(expiresAt) {
-    const expiresAtMs = new Date(expiresAt || '').getTime();
-    if (!Number.isFinite(expiresAtMs)) {
-        return 0;
-    }
-    return Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
-}
-
-function formatCountdown(seconds) {
-    const formatter = new Intl.NumberFormat('ar-EG', {
-        minimumIntegerDigits: 2,
-        useGrouping: false
-    });
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${formatter.format(minutes)}:${formatter.format(remainingSeconds)}`;
-}
-
-function readStoredOtp() {
-    try {
-        const raw = sessionStorage.getItem(OTP_SESSION_STORAGE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object') {
-            sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
-            return null;
-        }
-        if (!parsed.expiresAt || computeRemainingSeconds(parsed.expiresAt) <= 0) {
-            sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
-            return null;
-        }
-        const otp = String(parsed.otp || '').trim();
-        return otp ? { otp, expiresAt: parsed.expiresAt } : null;
-    } catch (_) {
-        try {
-            sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
-        } catch {
-            // ignore storage cleanup errors
-        }
-        return null;
-    }
-}
-
-function storeOtp(otp, expiresAt) {
-    const normalizedOtp = String(otp || '').trim();
-    deviceManagementState.otp.plaintext = normalizedOtp;
-    deviceManagementState.otp.expiresAt = expiresAt || null;
-    deviceManagementState.otp.countdownOnly = false;
-
-    if (!normalizedOtp || !expiresAt) {
-        return;
-    }
-
-    try {
-        sessionStorage.setItem(
-            OTP_SESSION_STORAGE_KEY,
-            JSON.stringify({
-                otp: normalizedOtp,
-                expiresAt
-            })
-        );
-    } catch {
-        // ignore storage quota/access errors
-    }
-}
-
-function clearStoredOtp() {
-    deviceManagementState.otp.plaintext = '';
-    deviceManagementState.otp.expiresAt = null;
-    deviceManagementState.otp.countdownOnly = false;
-    try {
-        sessionStorage.removeItem(OTP_SESSION_STORAGE_KEY);
-    } catch {
-        // ignore storage cleanup errors
-    }
-}
-
-function showDeviceManagementLoading() {
-    const dom = deviceManagementState.dom.section ? deviceManagementState.dom : cacheDeviceManagementDom();
-    if (!dom.section) return;
-    dom.loading?.classList.remove('hidden');
-    dom.setupRequired?.classList.add('hidden');
-    dom.content?.classList.add('hidden');
-}
-
-function showDeviceManagementSetupRequired(message) {
-    const dom = deviceManagementState.dom.section ? deviceManagementState.dom : cacheDeviceManagementDom();
-    if (!dom.section) return;
-    if (dom.setupText) {
-        dom.setupText.textContent = message;
-    }
-    dom.loading?.classList.add('hidden');
-    dom.setupRequired?.classList.remove('hidden');
-    dom.content?.classList.add('hidden');
-}
-
-function showDeviceManagementContent() {
-    const dom = deviceManagementState.dom.section ? deviceManagementState.dom : cacheDeviceManagementDom();
-    if (!dom.section) return;
-    dom.loading?.classList.add('hidden');
-    dom.setupRequired?.classList.add('hidden');
-    dom.content?.classList.remove('hidden');
-}
-
-function setOtpDigits(otp, masked = false) {
-    const dom = deviceManagementState.dom;
-    const value = String(otp || '');
-    dom.otpDigits.forEach((digitEl, index) => {
-        const digit = value[index];
-        if (digit) {
-            digitEl.textContent = masked ? '•' : digit;
-            digitEl.classList.toggle('is-muted', masked);
-            return;
-        }
-
-        digitEl.textContent = masked ? '•' : '—';
-        digitEl.classList.add('is-muted');
-    });
-}
-
-function showOtpInitialState() {
-    const dom = deviceManagementState.dom;
-    if (!dom.otpPanel) return;
-
-    clearOtpCountdown();
-    dom.otpInitial?.classList.remove('hidden');
-    dom.otpActive?.classList.add('hidden');
-    if (dom.otpCountdown) {
-        dom.otpCountdown.textContent = '00:00';
-    }
-    if (dom.otpStatusText) {
-        dom.otpStatusText.textContent = 'لا يوجد كود نشط حالياً.';
-    }
-    if (dom.otpRestoredNote) {
-        dom.otpRestoredNote.textContent = '';
-        dom.otpRestoredNote.classList.add('hidden');
-    }
-    if (dom.otpIpNote) {
-        dom.otpIpNote.textContent = '—';
-    }
-    setOtpDigits('', false);
-}
-
-function startOtpCountdown(expiresAt) {
-    const dom = deviceManagementState.dom;
-    if (!dom.otpCountdown) return;
-
-    clearOtpCountdown();
-
-    const tick = () => {
-        const remainingSeconds = computeRemainingSeconds(expiresAt);
-        if (remainingSeconds <= 0) {
-            clearOtpCountdown();
-            clearStoredOtp();
-            showOtpInitialState();
-            showToast('انتهت صلاحية كود الربط', 'info');
-            return;
-        }
-
-        dom.otpCountdown.textContent = formatCountdown(remainingSeconds);
-    };
-
-    tick();
-    otpCountdownTimer = setInterval(tick, 1000);
-}
-
-function renderOtpState(statusResult) {
-    const dom = deviceManagementState.dom;
-    if (!dom.otpPanel || !isAdmin) return;
-
-    if (!statusResult?.success || !statusResult.active) {
-        clearStoredOtp();
-        showOtpInitialState();
-        return;
-    }
-
-    const storedOtp =
-        deviceManagementState.otp.plaintext && deviceManagementState.otp.expiresAt === statusResult.expiresAt
-            ? { otp: deviceManagementState.otp.plaintext, expiresAt: deviceManagementState.otp.expiresAt }
-            : readStoredOtp();
-    const plaintextOtp =
-        String(statusResult.otp || '').trim() || (storedOtp?.expiresAt === statusResult.expiresAt ? storedOtp.otp : '');
-    const countdownOnly = !plaintextOtp;
-
-    deviceManagementState.otp.expiresAt = statusResult.expiresAt || null;
-    deviceManagementState.otp.countdownOnly = countdownOnly;
-    if (plaintextOtp) {
-        storeOtp(plaintextOtp, statusResult.expiresAt);
-    } else {
-        deviceManagementState.otp.plaintext = '';
-    }
-
-    dom.otpInitial?.classList.add('hidden');
-    dom.otpActive?.classList.remove('hidden');
-    setOtpDigits(plaintextOtp, countdownOnly);
-
-    if (dom.otpStatusText) {
-        dom.otpStatusText.textContent = countdownOnly
-            ? 'الكود ما يزال نشطاً، لكن لا يمكن استعادة أرقامه في هذه الجلسة.'
-            : 'الكود صالح حالياً ويمكن استخدامه لربط جهاز جديد.';
-    }
-
-    if (dom.otpRestoredNote) {
-        let note = '';
-        if (statusResult.otp) {
-            note = '';
-        } else if (plaintextOtp) {
-            note = 'تمت استعادة الكود بعد العودة إلى صفحة المزامنة.';
-        } else {
-            note = 'تم العثور على كود نشط من جلسة سابقة، لكن التطبيق لا يخزن أرقامه بعد إعادة التشغيل.';
-        }
-
-        dom.otpRestoredNote.textContent = note;
-        dom.otpRestoredNote.classList.toggle('hidden', !note);
-    }
-
-    startOtpCountdown(statusResult.expiresAt);
-
-    if (Array.isArray(statusResult.lanEndpoints) && statusResult.lanEndpoints.length > 0) {
-        renderOtpLanEndpointNote(statusResult);
-    } else {
-        window.api.linking
-            .getCurrentDevice()
-            .then((result) => {
-                renderOtpLanEndpointNote(result);
-            })
-            .catch(() => {
-                if (dom.otpIpNote) {
-                    dom.otpIpNote.textContent = 'عنوان الربط الموصى به غير متوفر حالياً';
-                }
-            });
-    }
-}
-
-function renderCurrentDevice(currentResult, institutionStatus) {
-    const dom = deviceManagementState.dom;
-    if (!dom.currentDeviceName) return null;
-
-    if (!currentResult?.success) {
-        dom.currentDeviceName.textContent = 'تعذر التحميل';
-        dom.currentDeviceHash.textContent = '—';
-        dom.currentDeviceMassar.textContent = institutionStatus?.massarCode || '—';
-        dom.currentDeviceInstitution.textContent = institutionStatus?.institutionName || 'غير محدد';
-        dom.currentDeviceNote.textContent =
-            'تعذر تحميل بيانات الجهاز الحالي حالياً. يمكنك إعادة المحاولة من القسم نفسه.';
-        deviceManagementState.currentDevice = null;
-        return null;
-    }
-
-    const truncatedHash = String(currentResult.deviceHash || '').slice(0, 8) || '—';
-    const massarCode = currentResult.massarCode || institutionStatus?.massarCode || '—';
-    const institutionName = currentResult.institutionName || institutionStatus?.institutionName || 'غير محدد';
-
-    dom.currentDeviceName.textContent = currentResult.deviceName || 'جهاز بدون اسم';
-    dom.currentDeviceHash.textContent = truncatedHash;
-    dom.currentDeviceHash.title = currentResult.deviceHash || '';
-    dom.currentDeviceMassar.textContent = massarCode;
-    dom.currentDeviceInstitution.textContent = institutionName;
-    const preferredIpText = currentResult.preferredLanIp
-        ? ` • IP الربط الموصى به: ${currentResult.preferredLanIp}`
-        : '';
-    dom.currentDeviceNote.textContent = `المنصة: ${currentResult.platform || 'غير معروفة'} • الإصدار: ${currentResult.appVersion || 'غير محدد'}${preferredIpText}`;
-
-    deviceManagementState.currentDevice = currentResult;
-    return currentResult;
-}
-
-function renderLinkedDevices(devicesResult, currentDeviceHash) {
-    const dom = deviceManagementState.dom;
-    if (!dom.devicesTbody) return;
-
-    if (!devicesResult?.success) {
-        dom.devicesCount.textContent = '—';
-        dom.devicesNote.textContent = 'تعذر تحميل قائمة الأجهزة المرتبطة. حاول مرة أخرى.';
-        dom.devicesError?.classList.remove('hidden');
-        dom.devicesTableWrap?.classList.add('hidden');
-        dom.devicesTbody.replaceChildren();
-        return;
-    }
-
-    const devices = Array.isArray(devicesResult.devices) ? devicesResult.devices : [];
-    dom.devicesError?.classList.add('hidden');
-    dom.devicesTableWrap?.classList.remove('hidden');
-    dom.devicesCount.textContent = String(devices.length);
-
-    if (!devices.length) {
-        dom.devicesNote.textContent = 'لا توجد أجهزة مرتبطة بهذه المؤسسة حالياً.';
-        const emptyRow = createEmptyTableRow(5, 'لا توجد أي أجهزة مرتبطة بالمؤسسة حالياً.');
-        emptyRow.className = 'device-empty-row';
-        dom.devicesTbody.replaceChildren(emptyRow);
-        return;
-    }
-
-    const hasOnlyCurrentDevice =
-        devices.length === 1 && (devices[0].isCurrentDevice || devices[0].deviceHash === currentDeviceHash);
-    dom.devicesNote.textContent = hasOnlyCurrentDevice
-        ? 'لا توجد أجهزة أخرى مرتبطة حالياً غير هذا الجهاز.'
-        : `عدد الأجهزة المرتبطة حالياً: ${devices.length}`;
-
-    dom.devicesTbody.replaceChildren(...devices.map((device) => createLinkedDeviceRow(device, currentDeviceHash)));
-}
-
-async function getInstitutionStatus() {
-    if (window.api?.linking?.getInstitutionStatus) {
-        return window.api.linking.getInstitutionStatus();
-    }
-    if (window.api?.setup?.getInstitutionStatus) {
-        return window.api.setup.getInstitutionStatus();
-    }
-    return { success: false, error: 'تعذر الوصول إلى حالة المؤسسة' };
-}
-
-function normalizeSettledResult(result) {
-    if (result.status === 'fulfilled') {
-        return result.value;
-    }
-    return {
-        success: false,
-        error: result.reason?.message || 'حدث خطأ غير متوقع'
-    };
-}
-
-async function refreshDeviceManagement(options = {}) {
-    const { showLoading = false } = options;
-    const dom = cacheDeviceManagementDom();
-    if (!dom.section || !window.api?.linking) {
-        return;
-    }
-
-    if (deviceManagementState.refreshPromise) {
-        return deviceManagementState.refreshPromise;
-    }
-
-    if (showLoading) {
-        showDeviceManagementLoading();
-    }
-
-    deviceManagementState.refreshPromise = (async () => {
-        try {
-            const institutionStatus = await getInstitutionStatus();
-            deviceManagementState.institutionStatus = institutionStatus;
-
-            if (!institutionStatus?.success) {
-                clearStoredOtp();
-                showDeviceManagementSetupRequired('تعذر التحقق من حالة المؤسسة حالياً. حاول مرة أخرى.');
-                return;
-            }
-
-            if (!institutionStatus.setupCompleted) {
-                clearStoredOtp();
-                showDeviceManagementSetupRequired('يجب إتمام إعداد المؤسسة أولاً قبل إدارة الأجهزة المرتبطة.');
-                return;
-            }
-
-            showDeviceManagementContent();
-
-            const requests = [
-                window.api.linking.getCurrentDevice(),
-                window.api.linking.getLinkedDevices(),
-                isAdmin ? window.api.linking.getOtpStatus() : Promise.resolve({ success: true, active: false })
-            ];
-            const [currentResult, devicesResult, otpResult] = (await Promise.allSettled(requests)).map(
-                normalizeSettledResult
-            );
-            const currentDevice = renderCurrentDevice(currentResult, institutionStatus);
-            renderLinkedDevices(devicesResult, currentDevice?.deviceHash || null);
-            if (isAdmin) {
-                renderOtpState(otpResult);
-            } else {
-                showOtpInitialState();
-            }
-        } catch (err) {
-            console.warn('refreshDeviceManagement error:', err);
-            showDeviceManagementSetupRequired('تعذر تحميل إدارة الأجهزة حالياً. حاول مرة أخرى.');
-        } finally {
-            deviceManagementState.refreshPromise = null;
-        }
-    })();
-
-    return deviceManagementState.refreshPromise;
-}
-
-async function handleGenerateOtp() {
-    const dom = deviceManagementState.dom;
-    const button = dom.generateOtpBtn;
-    if (!button) return;
-
-    const originalHtml = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التوليد...';
-
-    try {
-        const result = await window.api.linking.generateOtp();
-        if (!result?.success || !result.otp || !result.expiresAt) {
-            showToast(result?.error || 'تعذر توليد كود الربط', 'error');
-            return;
-        }
-
-        storeOtp(result.otp, result.expiresAt);
-        renderOtpState({
-            success: true,
-            active: true,
-            otp: result.otp,
-            expiresAt: result.expiresAt,
-            remainingSeconds: result.remainingSeconds,
-            preferredLanIp: result.preferredLanIp,
-            lanEndpoints: result.lanEndpoints
-        });
-
-        if (result.lanServerStarted === false) {
-            const reason = result.lanServerError || 'سبب غير معروف';
-            showToast(
-                'تنبيه: تعذر تشغيل خادم الشبكة المحلية (' +
-                    reason +
-                    '). قد يحتاج الجهاز الثاني إلى إدخال عنوان Wi-Fi أو Ethernet المعروض هنا يدوياً.',
-                'warning'
-            );
-        } else {
-            showToast('تم توليد كود الربط بنجاح', 'success');
-        }
-    } catch (err) {
-        console.error('generateOtp error:', err);
-        showToast('حدث خطأ أثناء توليد كود الربط', 'error');
-    } finally {
-        button.disabled = false;
-        button.innerHTML = originalHtml;
-    }
-}
-
-async function handleCancelOtp() {
-    const dom = deviceManagementState.dom;
-    const button = dom.cancelOtpBtn;
-    if (!button) return;
-
-    const originalHtml = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الإلغاء...';
-
-    try {
-        const result = await window.api.linking.cancelOtp();
-        if (!result?.success) {
-            showToast(result?.error || 'تعذر إلغاء الكود الحالي', 'error');
-            return;
-        }
-
-        clearStoredOtp();
-        showOtpInitialState();
-        showToast(result.message || 'تم إلغاء كود الربط', 'success');
-    } catch (err) {
-        console.error('cancelOtp error:', err);
-        showToast('حدث خطأ أثناء إلغاء الكود', 'error');
-    } finally {
-        button.disabled = false;
-        button.innerHTML = originalHtml;
-    }
-}
-
-async function handleDeviceRevoke(event) {
-    const button = event.target.closest('.device-revoke-btn');
-    if (!button) return;
-
-    const deviceHash = String(button.dataset.deviceHash || '').trim();
-    const deviceName = button.dataset.deviceName || 'هذا الجهاز';
-    if (!deviceHash) return;
-
-    const { confirmed } = await showConfirm({
-        title: 'إلغاء ربط الجهاز',
-        message: `هل تريد تأكيد إلغاء ربط الجهاز "${deviceName}"؟`,
-        type: 'warning',
-        confirmText: 'إلغاء الربط'
-    });
-    if (!confirmed) return;
-
-    const originalHtml = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التنفيذ...';
-
-    try {
-        const result = await window.api.linking.revokeDevice(deviceHash);
-        if (!result?.success) {
-            showToast(result?.error || 'تعذر إلغاء الجهاز المحدد', 'error');
-            button.disabled = false;
-            button.innerHTML = originalHtml;
-            return;
-        }
-
-        showToast(result.message || 'تم إلغاء الجهاز بنجاح', 'success');
-        await refreshDeviceManagement();
-    } catch (err) {
-        console.error('revokeDevice error:', err);
-        showToast('حدث خطأ أثناء إلغاء الجهاز', 'error');
-        button.disabled = false;
-        button.innerHTML = originalHtml;
-    }
-}
-
-function initDeviceManagement() {
-    const dom = cacheDeviceManagementDom();
-    if (!dom.section || deviceManagementState.initialized) return;
-
-    dom.retryButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-            refreshDeviceManagement({ showLoading: true });
-        });
-    });
-    dom.generateOtpBtn?.addEventListener('click', handleGenerateOtp);
-    dom.cancelOtpBtn?.addEventListener('click', handleCancelOtp);
-    dom.devicesTbody?.addEventListener('click', handleDeviceRevoke);
-
-    showOtpInitialState();
-    deviceManagementState.initialized = true;
-}
-
 // ==================== Initialize (after DOM) ====================
 
 // These run after DOMContentLoaded fires (the listener above handles data loading)
@@ -1597,12 +917,10 @@ if (document.readyState === 'loading') {
         initTestConnection();
         initSyncNow();
         initConflictHandlers();
-        initDeviceManagement();
     });
 } else {
     initConfigForm();
     initTestConnection();
     initSyncNow();
     initConflictHandlers();
-    initDeviceManagement();
 }

@@ -584,6 +584,8 @@ function ensureSyncSchema(existingDb) {
     ensureColumn('sync_config', 'firebase_app_id', "TEXT DEFAULT ''");
     ensureColumn('sync_config', 'firebase_storage_bucket', "TEXT DEFAULT ''");
     ensureColumn('sync_config', 'firebase_messaging_sender_id', "TEXT DEFAULT ''");
+    ensureColumn('sync_config', 'firebase_email', 'TEXT');
+    ensureColumn('sync_config', 'firebase_credential', 'TEXT');
 }
 
 function ensurePageVisibilitySchema(existingDb) {
