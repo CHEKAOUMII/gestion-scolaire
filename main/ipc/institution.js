@@ -43,16 +43,27 @@ function normalizeMassarCode(value) {
 }
 
 function getInstitutionStatusRecord(db) {
-    const institutionRow = db
-        .prepare('SELECT setup_completed, massar_code, institution_name FROM institution_config WHERE id = 1')
-        .get();
+    let institutionRow;
+    try {
+        institutionRow = db
+            .prepare('SELECT setup_completed, code_etablissement, institution_name FROM institution_config WHERE id = 1')
+            .get();
+    } catch {
+        try {
+            institutionRow = db
+                .prepare('SELECT setup_completed, massar_code AS code_etablissement, institution_name FROM institution_config WHERE id = 1')
+                .get();
+        } catch {
+            institutionRow = null;
+        }
+    }
     const syncRow = db.prepare('SELECT school_id FROM sync_config WHERE id = 1').get();
-    const massarCode = normalizeMassarCode(institutionRow?.massar_code) || normalizeMassarCode(syncRow?.school_id);
+    const massarCode = normalizeMassarCode(institutionRow?.code_etablissement) || normalizeMassarCode(syncRow?.school_id);
     const institutionName = String(institutionRow?.institution_name || '').trim() || null;
     const setupCompleted =
         !!massarCode &&
         (!!Number(institutionRow?.setup_completed) ||
-            !!normalizeMassarCode(institutionRow?.massar_code) ||
+            !!normalizeMassarCode(institutionRow?.code_etablissement) ||
             !institutionRow);
 
     return {
@@ -383,6 +394,40 @@ function registerInstitutionIpc(ipcMain) {
         return ok(getInstitutionStatusRecord(db));
     });
 
+    handleWriteSoftAuth(ipcMain, 'institution:relink', [], async (db, payload) => {
+        const massarCode = normalizeMassarCode(payload?.massarCode);
+        if (!massarCode) {
+            return fail('INVALID_MASSAR');
+        }
+
+        const columns = db.pragma('table_info(institution_config)');
+        const colNames = new Set(columns.map((c) => c.name));
+
+        if (!colNames.has('code_etablissement')) {
+            db.exec('ALTER TABLE institution_config ADD COLUMN code_etablissement TEXT');
+        }
+
+        db.prepare(
+            `INSERT INTO institution_config (id, code_etablissement, setup_completed, setup_mode, updated_at)
+             VALUES (1, ?, 0, NULL, CURRENT_TIMESTAMP)
+             ON CONFLICT(id) DO UPDATE SET
+                 code_etablissement = excluded.code_etablissement,
+                 setup_completed = 0,
+                 setup_mode = NULL,
+                 updated_at = CURRENT_TIMESTAMP`
+        ).run(massarCode);
+
+        if (colNames.has('massar_code')) {
+            db.prepare('UPDATE institution_config SET massar_code = ? WHERE id = 1').run(massarCode);
+        }
+
+        db.prepare(
+            'UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+        ).run(massarCode);
+
+        return ok({ message: 'تم تحديث رمز المؤسسة. يمكنك الآن إعداد الربط بـ Firebase.', massarCode });
+    });
+
     handleWriteSoftAuth(ipcMain, 'institution:setup-new', [], async (db, payload) => {
         if (isSetupAlreadyCompleted(db)) {
             return fail('ALREADY_CONFIGURED');
@@ -449,7 +494,7 @@ function registerInstitutionIpc(ipcMain) {
                 `
                     INSERT INTO institution_config (
                         id,
-                        massar_code,
+                        code_etablissement,
                         institution_name,
                         setup_completed,
                         setup_mode,
@@ -460,7 +505,7 @@ function registerInstitutionIpc(ipcMain) {
                     )
                     VALUES (1, ?, ?, 1, 'firebase-new', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT(id) DO UPDATE SET
-                        massar_code = excluded.massar_code,
+                        code_etablissement = excluded.code_etablissement,
                         institution_name = excluded.institution_name,
                         setup_completed = 1,
                         setup_mode = 'firebase-new',

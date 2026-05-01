@@ -93,6 +93,7 @@
 const AUTH_SESSION_KEY = 'gsl_auth_session_v1';
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
 const ADMIN_ONLY_PAGES = new Set(['settings-users.html', 'settings-license.html']);
+const PRINCIPAL_MANAGED_ADMIN_PAGES = new Set(['settings-users.html']);
 const GUEST_ALLOWED_PAGES = new Set(['index.html', 'students-list.html', 'settings-imports.html', 'login.html']);
 const GUEST_ALLOWED_LINKS = new Set(['students-list.html', 'settings-imports.html']);
 const BLOCKED_REDIRECT_NOTICE_KEY = 'gsl_blocked_redirect_notice';
@@ -286,7 +287,7 @@ function _canRoleOpenPage(pageName, authRole, accessState) {
     const normalizedPage = _normalizePageKey(pageName);
     if (!normalizedPage) return false;
     if (_isDeveloperRole(authRole)) return true;
-    if (ADMIN_ONLY_PAGES.has(normalizedPage)) return _isAdminRole(authRole);
+    if (ADMIN_ONLY_PAGES.has(normalizedPage)) return _canOpenAdminOnlyPage(normalizedPage, authRole);
     if (_isPageHiddenByAdminToggle(normalizedPage, authRole)) return false;
 
     // Authenticated users (any role) can access non-admin pages
@@ -340,15 +341,14 @@ function _setPageLinkElementHidden(node, hidden) {
 
 function applyPageVisibilityToDocument(role) {
     const isDev = _isDeveloperRole(role);
-    const isAdmin = _isAdminRole(role);
     document.querySelectorAll('a[href], [onclick*="location.href"], [data-page-link]').forEach((node) => {
         const linkedPage = _extractLinkedPageFromElement(node);
         if (!linkedPage) return;
-        const isAdmin = _isAdminRole(role);
+        const canOpenAdminOnlyPage = _canOpenAdminOnlyPage(linkedPage, role);
         const shouldHide =
             !isDev &&
-            ((ADMIN_ONLY_PAGES.has(linkedPage) && !isAdmin) ||
-                (_isPageHiddenByAdminToggle(linkedPage, role) && !(ADMIN_ONLY_PAGES.has(linkedPage) && isAdmin)));
+            ((ADMIN_ONLY_PAGES.has(linkedPage) && !canOpenAdminOnlyPage) ||
+                (_isPageHiddenByAdminToggle(linkedPage, role) && !(ADMIN_ONLY_PAGES.has(linkedPage) && canOpenAdminOnlyPage)));
         _setPageLinkElementHidden(node, shouldHide);
     });
 
@@ -536,8 +536,17 @@ function _isAdminRole(role) {
     return String(role || '').toLowerCase() === 'admin';
 }
 
+function _isPrincipalRole(role) {
+    return String(role || '').toLowerCase() === 'principal';
+}
+
 function _isDeveloperRole(role) {
     return String(role || '').toLowerCase() === 'developer';
+}
+
+function _canOpenAdminOnlyPage(pageName, role) {
+    const normalizedPage = _normalizePageKey(pageName);
+    return _isAdminRole(role) || (PRINCIPAL_MANAGED_ADMIN_PAGES.has(normalizedPage) && _isPrincipalRole(role));
 }
 
 function _isAuthenticatedRole(role) {
@@ -613,7 +622,7 @@ function _isSidebarLinkBlocked(href, authRole, accessState) {
 
     // Admin can see admin-only pages; other authenticated users cannot
     if (_isAuthenticatedRole(authRole)) {
-        if (ADMIN_ONLY_PAGES.has(normalizedHref)) return !_isAdminRole(authRole);
+        if (ADMIN_ONLY_PAGES.has(normalizedHref)) return !_canOpenAdminOnlyPage(normalizedHref, authRole);
         return false;
     }
 
@@ -659,12 +668,12 @@ function applyNavigationRestrictions(authRole, accessState) {
         const blocked = _isSidebarLinkBlocked(link.getAttribute('href'), authRole, accessState);
         const listItem = link.closest('li');
 
-        const isAdmin = _isAdminRole(authRole);
+        const canOpenAdminOnlyPage = _canOpenAdminOnlyPage(href, authRole);
 
         // Do not allow hiding admin-only pages from admins, else they can't manage settings
-        const effectivelyHiddenByAdmin = isHiddenByAdmin && !(isAdminOnlyPage && isAdmin);
+        const effectivelyHiddenByAdmin = isHiddenByAdmin && !(isAdminOnlyPage && canOpenAdminOnlyPage);
 
-        if (!isDev && ((isAdminOnlyPage && !isAdmin) || effectivelyHiddenByAdmin)) {
+        if (!isDev && ((isAdminOnlyPage && !canOpenAdminOnlyPage) || effectivelyHiddenByAdmin)) {
             if (listItem) listItem.style.display = 'none';
             return;
         } else if (isAdminOnlyPage || effectivelyHiddenByAdmin) {
@@ -758,7 +767,7 @@ function enforcePageRoleOrRedirect(authRole, accessState) {
 
     // Authenticated users can access everything; admin can also access admin-only pages
     if (_isAuthenticatedRole(authRole)) {
-        if (ADMIN_ONLY_PAGES.has(currentPage) && !_isAdminRole(authRole)) {
+        if (ADMIN_ONLY_PAGES.has(currentPage) && !_canOpenAdminOnlyPage(currentPage, authRole)) {
             try {
                 sessionStorage.setItem(BLOCKED_REDIRECT_NOTICE_KEY, currentPage);
             } catch (_err) {

@@ -2,12 +2,14 @@ const { getDb } = require('../db/context');
 const { verifyPassword, hashPassword } = require('../auth/password');
 const {
     changeFirebasePassword,
+    getCurrentFirebaseIdToken,
     isFirebaseUnavailable,
     loginFirebaseFirst,
     logoutFirebaseUser,
     normalizeEmail
 } = require('../auth/firebase-auth-service');
 const { logAuthDebug } = require('../auth/debug');
+const { applySyncDefaults } = require('../sync/defaults');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
@@ -224,6 +226,40 @@ function registerAuthIpc(ipcMain) {
             } catch (err) {
                 recordFailedLogin(email);
                 const code = err.publicCode || 'AUTH_FAILED';
+
+                // Auto-submit link request for legacy users missing schoolId
+                if (code === 'LOCAL_SCHOOL_ID_MISSING') {
+                    try {
+                        const db = getDb();
+                        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
+                        const localSchoolCode = String(instRow.code_etablissement || '').trim().toUpperCase();
+                        if (localSchoolCode) {
+                            const idToken = await getCurrentFirebaseIdToken(false);
+                            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+                            const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
+                            if (idToken && functionsUrl) {
+                                const os = require('os');
+                                const linkResp = await fetch(`${functionsUrl}/submitLinkRequest`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ idToken, schoolCode: localSchoolCode, deviceName: os.hostname() })
+                                });
+                                const linkData = await linkResp.json().catch(() => ({}));
+                                if (linkResp.ok && linkData.success !== false) {
+                                    logAuthDebug('ipc.login.link-request-submitted', { email, schoolCode: localSchoolCode });
+                                    return {
+                                        success: false,
+                                        code: 'LINK_REQUEST_SUBMITTED',
+                                        error: 'تم إرسال طلب ربط حسابك بالمؤسسة. انتظر موافقة المدير ثم أعد تسجيل الدخول'
+                                    };
+                                }
+                            }
+                        }
+                    } catch (linkErr) {
+                        logAuthDebug('ipc.login.link-request-auto-failed', { email, message: linkErr.message });
+                    }
+                }
+
                 const error =
                     code === 'FIREBASE_NOT_CONFIGURED'
                         ? 'لم يتم إعداد Firebase Auth بعد'
@@ -589,6 +625,120 @@ function registerAuthIpc(ipcMain) {
 
             return { success: true };
         } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── Link request: legacy user submits request to be linked to a school ──
+    ipcMain.handle('auth:submitLinkRequest', async (_event, payload) => {
+        try {
+            const idToken = payload?.idToken;
+            const schoolCode = String(payload?.schoolCode || '').trim().toUpperCase();
+            const deviceName = String(payload?.deviceName || '').trim();
+            if (!idToken || !schoolCode) {
+                return { success: false, code: 'INVALID_REQUEST', error: 'بيانات غير كاملة' };
+            }
+
+            const db = getDb();
+            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+            const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
+            if (!functionsUrl) {
+                return { success: false, code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED', error: 'لم يتم ضبط رابط Cloud Functions' };
+            }
+
+            const response = await fetch(`${functionsUrl}/submitLinkRequest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken, schoolCode, deviceName })
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.success === false) {
+                const code = data.error || data.code || 'LINK_REQUEST_FAILED';
+                const errorMap = {
+                    ALREADY_LINKED: 'هذا الحساب مرتبط بمؤسسة بالفعل',
+                    SCHOOL_NOT_FOUND: 'لم يتم العثور على المؤسسة برمز ' + schoolCode,
+                    INVALID_REQUEST: 'بيانات غير صالحة'
+                };
+                return { success: false, code, error: errorMap[code] || 'فشل إرسال طلب الربط' };
+            }
+
+            return { success: true, alreadyPending: !!data.alreadyPending };
+        } catch (err) {
+            logAuthDebug('ipc.submitLinkRequest.error', { message: err.message });
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── Link request: admin lists pending requests ──
+    ipcMain.handle('auth:listLinkRequests', async (event) => {
+        try {
+            requireRole(event, ['admin', 'principal']);
+            const db = getDb();
+            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+            const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
+            if (!functionsUrl) {
+                return { success: false, code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED', error: 'لم يتم ضبط رابط Cloud Functions' };
+            }
+
+            const idToken = await getCurrentFirebaseIdToken(true);
+            const response = await fetch(`${functionsUrl}/listLinkRequests`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken })
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.success === false) {
+                return { success: false, error: data.error || 'فشل جلب طلبات الربط' };
+            }
+
+            return { success: true, requests: data.requests || [] };
+        } catch (err) {
+            logAuthDebug('ipc.listLinkRequests.error', { message: err.message });
+            return { success: false, error: err.message };
+        }
+    });
+
+    // ── Link request: admin approves or rejects ──
+    ipcMain.handle('auth:resolveLinkRequest', async (event, payload) => {
+        try {
+            requireRole(event, ['admin', 'principal']);
+            const targetUid = String(payload?.targetUid || '').trim();
+            const action = String(payload?.action || '').trim();
+            const role = String(payload?.role || 'viewer').trim();
+
+            if (!targetUid || (action !== 'approve' && action !== 'reject')) {
+                return { success: false, code: 'INVALID_REQUEST', error: 'بيانات غير صالحة' };
+            }
+
+            const db = getDb();
+            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+            const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
+            if (!functionsUrl) {
+                return { success: false, code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED', error: 'لم يتم ضبط رابط Cloud Functions' };
+            }
+
+            const idToken = await getCurrentFirebaseIdToken(true);
+            const response = await fetch(`${functionsUrl}/resolveLinkRequest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken, targetUid, action, role })
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.success === false) {
+                const errorMap = {
+                    REQUEST_NOT_FOUND: 'الطلب غير موجود',
+                    REQUEST_ALREADY_RESOLVED: 'تم معالجة هذا الطلب مسبقاً'
+                };
+                const code = data.error || data.code || 'RESOLVE_FAILED';
+                return { success: false, code, error: errorMap[code] || 'فشل معالجة الطلب' };
+            }
+
+            return { success: true, action: data.action, uid: data.uid, role: data.role };
+        } catch (err) {
+            logAuthDebug('ipc.resolveLinkRequest.error', { message: err.message });
             return { success: false, error: err.message };
         }
     });

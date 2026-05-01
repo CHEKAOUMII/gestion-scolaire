@@ -105,6 +105,41 @@
                     </table>
                 </div>
 
+                <div class="students-results settings-visibility-panel" id="link-requests-panel" style="display: none">
+                    <div class="settings-visibility-header">
+                        <h3 class="settings-visibility-title">
+                            <i class="fas fa-link"></i> طلبات الربط المعلقة
+                        </h3>
+                        <div class="settings-visibility-actions">
+                            <span id="link-requests-count" class="settings-visibility-pending" data-state="clean"></span>
+                            <button id="refresh-link-requests" class="btn btn-secondary" type="button">
+                                <i class="fas fa-sync-alt"></i> تحديث
+                            </button>
+                        </div>
+                    </div>
+                    <p class="settings-visibility-help">
+                        مستخدمون لديهم حساب Firebase لكن بدون رمز مؤسسة. يمكنك قبول طلبهم وتحديد دورهم أو رفض الطلب.
+                    </p>
+                    <table class="students-table">
+                        <caption class="sr-only">
+                            قائمة طلبات ربط الحسابات بالمؤسسة
+                        </caption>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>الاسم</th>
+                                <th>البريد</th>
+                                <th>رمز المؤسسة</th>
+                                <th>الجهاز</th>
+                                <th>التاريخ</th>
+                                <th>الدور</th>
+                                <th>الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="link-requests-tbody"></tbody>
+                    </table>
+                </div>
+
                 <div class="students-results settings-visibility-panel">
                     <div class="settings-visibility-header">
                         <h3 class="settings-visibility-title">

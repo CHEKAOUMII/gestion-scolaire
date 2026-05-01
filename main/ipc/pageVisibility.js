@@ -21,7 +21,7 @@ function registerPageVisibilityIpc(ipcMain) {
         return { success: true, map };
     });
 
-    handleWrite(ipcMain, 'pageVisibility:setVisibility', ['admin', 'developer'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'pageVisibility:setVisibility', ['admin', 'principal', 'developer'], (db, _event, payload) => {
         const pageKey = normalizePageKey(payload?.pageKey);
         if (!pageKey) {
             return { success: false, code: 'INVALID_PAGE', error: 'اسم الصفحة غير صالح' };

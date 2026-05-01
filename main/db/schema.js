@@ -666,7 +666,7 @@ function ensureInstitutionSchema(existingDb) {
     db.exec(`
         CREATE TABLE IF NOT EXISTS institution_config (
             id                INTEGER PRIMARY KEY CHECK(id = 1),
-            massar_code       TEXT,
+            code_etablissement TEXT,
             institution_name  TEXT,
             setup_completed   INTEGER DEFAULT 0,
             setup_mode        TEXT,

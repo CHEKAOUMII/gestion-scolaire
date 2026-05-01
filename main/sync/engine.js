@@ -1,6 +1,14 @@
 'use strict';
 
-const { doc, runTransaction } = require('firebase/firestore');
+const {
+    collection,
+    doc,
+    limit: firestoreLimit,
+    onSnapshot,
+    orderBy,
+    query,
+    runTransaction
+} = require('firebase/firestore');
 const { getFirestoreDb } = require('../firebase/config');
 const { getCollectionPath, buildDocumentId, COLLECTION_MAP } = require('../firebase/collections');
 const { logChangeBatch, pullChanges, bootstrapFromCollections } = require('../firebase/sync-log');
@@ -15,6 +23,12 @@ let _syncTimer = null;
 let _flushRunning = false;
 let _pullTimer = null;
 let _pullRunning = false;
+let _pullListenerUnsubscribe = null;
+let _pullDebounceTimer = null;
+let _backlogPushTimer = null;
+
+const REMOTE_PULL_DEBOUNCE_MS = 4000;
+const BACKLOG_PUSH_DELAY_MS = 2500;
 
 // Cache of valid column names per table (populated from PRAGMA table_info)
 const _schemaColumnsCache = new Map();
@@ -458,6 +472,76 @@ function updatePushMeta(db, lastPushAt, lastPushError) {
     ).run(lastPushAt, lastPushError);
 }
 
+function compactPendingOutbox(db) {
+    try {
+        const result = db
+            .prepare(
+                `
+                UPDATE sync_outbox
+                SET status = 'superseded',
+                    last_error = NULL
+                WHERE status = 'pending'
+                  AND id NOT IN (
+                      SELECT MAX(id)
+                      FROM sync_outbox
+                      WHERE status = 'pending'
+                      GROUP BY row_sync_id
+                  )
+            `
+            )
+            .run();
+        if (result.changes > 0) {
+            console.log(`[sync:push] Compacted ${result.changes} superseded pending outbox entries`);
+        }
+        return result.changes || 0;
+    } catch (err) {
+        console.warn('[sync:push] Pending outbox compaction failed:', err.message);
+        return 0;
+    }
+}
+
+function reopenRecoverableOutbox(db) {
+    try {
+        const result = db
+            .prepare(
+                `
+                UPDATE sync_outbox
+                SET status = 'pending',
+                    retries = 0,
+                    last_error = NULL
+                WHERE (
+                    status = 'failed'
+                    OR retries >= COALESCE((SELECT max_retries FROM sync_config WHERE id = 1), 10)
+                )
+                  AND last_error LIKE 'Invalid document reference.%'
+            `
+            )
+            .run();
+        if (result.changes > 0) {
+            console.log(`[sync:push] Reopened ${result.changes} recoverable document-path failures`);
+        }
+    } catch (err) {
+        console.warn('[sync:push] Failed to reopen recoverable outbox rows:', err.message);
+    }
+}
+
+function scheduleBacklogPush() {
+    if (_backlogPushTimer || _flushRunning) {
+        return;
+    }
+
+    _backlogPushTimer = setTimeout(() => {
+        _backlogPushTimer = null;
+        void flushSyncOutbox().catch((err) => {
+            console.warn('[sync:push] Backlog push failed:', err.message);
+        });
+    }, BACKLOG_PUSH_DELAY_MS);
+
+    if (typeof _backlogPushTimer.unref === 'function') {
+        _backlogPushTimer.unref();
+    }
+}
+
 function getCurrentRole() {
     try {
         const { resolveRole } = require('../auth/permissions');
@@ -792,6 +876,8 @@ async function flushSyncOutbox(limit) {
             return { success: true, skipped: true, reason: 'not_configured' };
         }
         reopenVersionConflictOutbox(db);
+        reopenRecoverableOutbox(db);
+        const compactedCount = compactPendingOutbox(db);
 
         const role = getCurrentRole();
         if (!role) {
@@ -824,8 +910,17 @@ async function flushSyncOutbox(limit) {
         let lastError = null;
         let batchBuffer = [];
         const pendingRows = db
-            .prepare("SELECT * FROM sync_outbox WHERE status = 'pending' ORDER BY id ASC LIMIT ?")
-            .all(effectiveLimit);
+            .prepare(
+                `
+                SELECT *
+                FROM sync_outbox
+                WHERE status = 'pending'
+                  AND retries < ?
+                ORDER BY id ASC
+                LIMIT ?
+            `
+            )
+            .all(maxRetries, effectiveLimit);
 
         const flushBuffer = async () => {
             if (!batchBuffer.length) return false;
@@ -843,6 +938,14 @@ async function flushSyncOutbox(limit) {
             if (!canPush(row.table_name, role)) {
                 skippedCount += 1;
                 console.log(`[sync:push] Skipped entry ${row.id} — role '${role}' cannot push to '${row.table_name}'`);
+                markEntryFailed(
+                    db,
+                    row.id,
+                    `Role '${role}' cannot push to '${row.table_name}'`,
+                    maxRetries,
+                    false,
+                    true
+                );
                 continue;
             }
 
@@ -932,6 +1035,9 @@ async function flushSyncOutbox(limit) {
                 `[sync:push] Pushed ${sentCount} entries, ${failedCount} failed, ${skippedCount} skipped, ${pendingCount} pending`
             );
         }
+        if (pendingCount > 0 && sentCount > 0 && failedCount === 0) {
+            scheduleBacklogPush();
+        }
 
         return {
             success: failedCount === 0,
@@ -939,6 +1045,7 @@ async function flushSyncOutbox(limit) {
             failedCount,
             skippedCount,
             pendingCount,
+            compactedCount,
             lastError
         };
     } finally {
@@ -982,11 +1089,85 @@ function stopSyncPushBackground() {
         _syncTimer = null;
         console.log('[sync:push] Background push stopped');
     }
+    if (_backlogPushTimer) {
+        clearTimeout(_backlogPushTimer);
+        _backlogPushTimer = null;
+    }
 }
 
 function restartSyncPushBackground() {
     stopSyncPushBackground();
     startSyncPushBackground();
+}
+
+function scheduleDebouncedPull() {
+    if (_pullDebounceTimer) {
+        clearTimeout(_pullDebounceTimer);
+    }
+
+    _pullDebounceTimer = setTimeout(() => {
+        _pullDebounceTimer = null;
+        void pullRemoteChanges().catch((err) => {
+            console.warn('[sync:pull] Debounced pull failed:', err.message);
+        });
+    }, REMOTE_PULL_DEBOUNCE_MS);
+
+    if (typeof _pullDebounceTimer.unref === 'function') {
+        _pullDebounceTimer.unref();
+    }
+}
+
+function stopRemoteChangeListener() {
+    if (_pullListenerUnsubscribe) {
+        try {
+            _pullListenerUnsubscribe();
+        } catch (err) {
+            console.warn('[sync:pull] Failed to stop remote change listener:', err.message);
+        }
+        _pullListenerUnsubscribe = null;
+    }
+
+    if (_pullDebounceTimer) {
+        clearTimeout(_pullDebounceTimer);
+        _pullDebounceTimer = null;
+    }
+}
+
+function startRemoteChangeListener(schoolId) {
+    stopRemoteChangeListener();
+
+    if (!schoolId) {
+        return;
+    }
+
+    try {
+        const firestoreDb = getFirestoreDb();
+        if (!firestoreDb) {
+            return;
+        }
+
+        const changesRef = collection(firestoreDb, 'syncLog', schoolId, 'changes');
+        const q = query(changesRef, orderBy('updatedAt', 'desc'), firestoreLimit(1));
+        let initialized = false;
+
+        _pullListenerUnsubscribe = onSnapshot(
+            q,
+            (snapshot) => {
+                if (!initialized) {
+                    initialized = true;
+                    return;
+                }
+                if (!snapshot.empty) {
+                    scheduleDebouncedPull();
+                }
+            },
+            (err) => {
+                console.warn('[sync:pull] Remote change listener failed:', err.message);
+            }
+        );
+    } catch (err) {
+        console.warn('[sync:pull] Failed to start remote change listener:', err.message);
+    }
 }
 
 async function pullRemoteChanges() {
@@ -1472,6 +1653,7 @@ function startSyncPullBackground() {
         const intervalMs = Math.max(1, Math.min(30, config.sync_interval_minutes || 10)) * 60 * 1000;
 
         void pullRemoteChanges();
+        startRemoteChangeListener(config.school_id);
 
         _pullTimer = setInterval(() => {
             void pullRemoteChanges();
@@ -1495,6 +1677,7 @@ function stopSyncPullBackground() {
         _pullTimer = null;
         console.log('[sync:pull] Background pull stopped');
     }
+    stopRemoteChangeListener();
 }
 
 function restartSyncPullBackground() {

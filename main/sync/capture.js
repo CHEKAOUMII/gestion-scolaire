@@ -5,8 +5,10 @@ const { collectCurrentFingerprint } = require('../licensing/deviceFingerprint');
 
 let _cachedDeviceHash = null;
 let _cachedDeviceName = null;
+let _pushDebounceTimer = null;
 
 const SENSITIVE_FIELDS = ['password_hash', 'pin_hash'];
+const PUSH_DEBOUNCE_MS = 8000;
 
 /**
  * Channel-to-table registry.
@@ -210,6 +212,7 @@ const CHANNEL_REGISTRY = {
     'timetableData:delete': { tables: ['timetable_data'], operation: 'DEL', idExtractor: 'argKey', exclude: true },
 
     // === institution.js ===
+    'institution:relink': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'institution:setup-new': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true }
 };
 
@@ -286,6 +289,28 @@ function recordOutboxEntries(db, entries) {
     txn();
 }
 
+function scheduleDebouncedPush() {
+    if (_pushDebounceTimer) {
+        clearTimeout(_pushDebounceTimer);
+    }
+
+    _pushDebounceTimer = setTimeout(() => {
+        _pushDebounceTimer = null;
+        try {
+            const { flushSyncOutbox } = require('./engine');
+            void flushSyncOutbox().catch((err) => {
+                console.warn('[sync:capture] Debounced push failed:', err.message);
+            });
+        } catch (err) {
+            console.warn('[sync:capture] Debounced push failed to start:', err.message);
+        }
+    }, PUSH_DEBOUNCE_MS);
+
+    if (typeof _pushDebounceTimer.unref === 'function') {
+        _pushDebounceTimer.unref();
+    }
+}
+
 /**
  * Wraps an existing ipcMain.handle callback to capture write operations
  * into the sync_outbox after the original handler succeeds.
@@ -316,6 +341,7 @@ function wrapWithSyncCapture(channel, originalHandler) {
         try {
             const db = getDb();
             captureAfterWrite(db, channel, registryEntry, args, result);
+            scheduleDebouncedPush();
         } catch (captureErr) {
             console.warn(`[sync:capture] Capture failed for channel '${channel}':`, captureErr.message);
             try {

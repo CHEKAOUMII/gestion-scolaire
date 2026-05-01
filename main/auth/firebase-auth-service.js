@@ -61,10 +61,15 @@ function readSchoolId(db) {
     }
 
     try {
-        const instRow = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get() || {};
-        return String(instRow.massar_code || '').trim();
+        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
+        return String(instRow.code_etablissement || '').trim();
     } catch {
-        return '';
+        try {
+            const instRow = db.prepare('SELECT massar_code AS code_etablissement FROM institution_config WHERE id = 1').get() || {};
+            return String(instRow.code_etablissement || '').trim();
+        } catch {
+            return '';
+        }
     }
 }
 
@@ -93,8 +98,8 @@ function persistDiscoveredSchoolId(db, schoolId, source) {
         }
 
         const institutionColumns = getTableColumns(db, 'institution_config');
-        if (institutionColumns.has('massar_code')) {
-            const insertColumns = ['id', 'massar_code'];
+        if (institutionColumns.has('code_etablissement')) {
+            const insertColumns = ['id', 'code_etablissement'];
             const insertValues = [1, normalized];
             if (institutionColumns.has('setup_completed')) {
                 insertColumns.push('setup_completed');
@@ -109,7 +114,7 @@ function persistDiscoveredSchoolId(db, schoolId, source) {
                 ...insertValues
             );
 
-            const institutionAssignments = ['massar_code = ?'];
+            const institutionAssignments = ['code_etablissement = ?'];
             const institutionParams = [normalized];
             if (institutionColumns.has('setup_completed')) institutionAssignments.push('setup_completed = 1');
             if (institutionColumns.has('setup_mode')) {
@@ -315,12 +320,12 @@ async function loginWithFirebase(email, password) {
     const tokenResult = await credential.user.getIdTokenResult(true);
     const claimSchoolId = normalizeSchoolId(tokenResult?.claims?.schoolId);
     const expectedSchoolId = normalizeSchoolId(schoolId);
-    if (expectedSchoolId && claimSchoolId !== expectedSchoolId) {
+    if (expectedSchoolId && claimSchoolId && claimSchoolId !== expectedSchoolId) {
         logAuthDebug('firebase.school-mismatch', {
             email,
             firebaseUid: credential.user.uid,
             expectedSchoolId,
-            claimSchoolId: claimSchoolId || null
+            claimSchoolId
         });
         throw createAuthServiceError('FIREBASE_SCHOOL_MISMATCH', 'Firebase user does not belong to this school');
     }
@@ -338,7 +343,25 @@ async function loginWithFirebase(email, password) {
         persistDiscoveredSchoolId(db, claimSchoolId, 'firebase-claim');
     }
     const localUser = selectUserByFirebaseUid(db, credential.user.uid) || selectUserByEmail(db, email);
-    const profile = await loadProfileForUser(firestore, resolvedSchoolId, credential.user, localUser);
+    let profile;
+    if (claimSchoolId) {
+        profile = await loadProfileForUser(firestore, resolvedSchoolId, credential.user, localUser);
+    } else if (localUser) {
+        logAuthDebug('firebase.profile.local-fallback', {
+            email,
+            firebaseUid: credential.user.uid,
+            localUserId: localUser.id,
+            reason: 'no-schoolId-claim'
+        });
+        profile = normalizeProfile(null, credential.user, localUser);
+    } else {
+        logAuthDebug('firebase.profile.no-claim-no-local', {
+            email,
+            firebaseUid: credential.user.uid,
+            resolvedSchoolId
+        });
+        throw createAuthServiceError('FIREBASE_PROFILE_REQUIRED', 'هذا الحساب غير مرتبط بهذه المؤسسة');
+    }
     assertActiveProfile(profile);
     const userRow = upsertLocalUserFromProfile(db, profile, password, 'online');
     logAuthDebug('firebase.login.success', {

@@ -116,7 +116,19 @@ async function testCollections() {
                 semester: 'S1',
                 school_year: '2025/2026'
             }),
-            'S123__Math__S1__2025/2026'
+            'S123__Math__S1__2025%2F2026'
+        );
+    });
+
+    await test('document id escapes slash-containing values', () => {
+        assert.strictEqual(
+            buildDocumentId('grades', {
+                student_code: 'K144060668',
+                subject: 'INSTRUCTION ISLAMIQUE 1 (فرض)',
+                semester: 'S1',
+                school_year: '2025/2026'
+            }),
+            'K144060668__INSTRUCTION%20ISLAMIQUE%201%20(%D9%81%D8%B1%D8%B6)__S1__2025%2F2026'
         );
     });
 
@@ -127,7 +139,7 @@ async function testCollections() {
                 doc_key: 'birth_certificate',
                 school_year: '2025/2026'
             }),
-            'S123__birth_certificate__2025/2026'
+            'S123__birth_certificate__2025%2F2026'
         );
     });
 
@@ -140,8 +152,8 @@ async function testCollections() {
             'students', 'grades', 'absences', 'teachers', 'teacher_aliases',
             'staff_attendance', 'teacher_absences', 'exams', 'exam_proctors',
             'exam_rooms', 'tests', 'correspondence', 'student_files',
-            'student_movements', 'compensation_tracking', 'settings',
-            'page_visibility', 'device_revocation'
+            'student_movements', 'support_sessions', 'compensation_tracking',
+            'settings', 'page_visibility', 'device_revocation'
         ];
 
         for (const tableName of expected) {

@@ -21,7 +21,7 @@ const ALLOWED_ROLES = new Set([
     'teacher',
     'viewer'
 ]);
-const ADMIN_ROLES = new Set(['admin', 'developer']);
+const ADMIN_ROLES = new Set(['admin', 'principal', 'developer']);
 
 function requirePost(req, res) {
     if (req.method !== 'POST') {
@@ -535,6 +535,172 @@ exports.setSchoolUserDisabled = onRequest({ cors: true }, async (req, res) => {
             disabled,
             status: disabled ? 'disabled' : 'active'
         });
+    } catch (err) {
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /submitLinkRequest
+ * Legacy user (has Firebase Auth but no schoolId claim) requests to be linked to a school.
+ * Does NOT require admin — the caller proves identity via their own idToken.
+ */
+exports.submitLinkRequest = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken, schoolCode: rawSchoolCode, deviceName } = req.body || {};
+        if (!idToken || !rawSchoolCode) {
+            const err = new Error('INVALID_REQUEST');
+            err.status = 400;
+            throw err;
+        }
+
+        const decoded = await auth.verifyIdToken(idToken);
+        const existingSchoolId = normalizeSchoolId(decoded.schoolId);
+        if (existingSchoolId) {
+            return res.status(409).json({ error: 'ALREADY_LINKED', schoolId: existingSchoolId });
+        }
+
+        const schoolCode = normalizeSchoolId(rawSchoolCode);
+        if (!schoolCode) {
+            const err = new Error('INVALID_REQUEST');
+            err.status = 400;
+            throw err;
+        }
+
+        const schoolSnap = await db.doc(`schools/${schoolCode}`).get();
+        if (!schoolSnap.exists) {
+            const err = new Error('SCHOOL_NOT_FOUND');
+            err.status = 404;
+            throw err;
+        }
+
+        const existingRequest = await db.doc(`schools/${schoolCode}/linkRequests/${decoded.uid}`).get();
+        if (existingRequest.exists && existingRequest.get('status') === 'pending') {
+            return res.status(200).json({ success: true, alreadyPending: true });
+        }
+
+        const now = admin.firestore.FieldValue.serverTimestamp();
+        await db.doc(`schools/${schoolCode}/linkRequests/${decoded.uid}`).set({
+            uid: decoded.uid,
+            email: decoded.email || '',
+            name: decoded.name || decoded.email || '',
+            schoolCode,
+            deviceName: String(deviceName || '').trim() || null,
+            status: 'pending',
+            createdAt: now,
+            updatedAt: now
+        });
+
+        return res.status(200).json({ success: true });
+    } catch (err) {
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /listLinkRequests
+ * Admin-only: returns pending link requests for the caller's school.
+ */
+exports.listLinkRequests = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken } = req.body || {};
+        const caller = await requireSchoolAdmin(idToken);
+
+        const snapshot = await db
+            .collection(`schools/${caller.schoolId}/linkRequests`)
+            .where('status', '==', 'pending')
+            .orderBy('createdAt', 'desc')
+            .get();
+
+        const requests = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            requests.push({
+                uid: doc.id,
+                email: data.email || '',
+                name: data.name || '',
+                schoolCode: data.schoolCode || '',
+                deviceName: data.deviceName || null,
+                status: data.status,
+                createdAt: data.createdAt?.toDate?.()?.toISOString() || null
+            });
+        });
+
+        return res.status(200).json({ success: true, requests });
+    } catch (err) {
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /resolveLinkRequest
+ * Admin-only: approve or reject a pending link request.
+ * On approve, sets schoolId + role claims and creates the Firestore user profile.
+ */
+exports.resolveLinkRequest = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken, targetUid, action, role: rawRole } = req.body || {};
+        const caller = await requireSchoolAdmin(idToken);
+        const uid = String(targetUid || '').trim();
+
+        if (!uid || (action !== 'approve' && action !== 'reject')) {
+            const err = new Error('INVALID_REQUEST');
+            err.status = 400;
+            throw err;
+        }
+
+        const requestRef = db.doc(`schools/${caller.schoolId}/linkRequests/${uid}`);
+        const requestSnap = await requestRef.get();
+        if (!requestSnap.exists) {
+            const err = new Error('REQUEST_NOT_FOUND');
+            err.status = 404;
+            throw err;
+        }
+        if (requestSnap.get('status') !== 'pending') {
+            const err = new Error('REQUEST_ALREADY_RESOLVED');
+            err.status = 409;
+            throw err;
+        }
+
+        const now = admin.firestore.FieldValue.serverTimestamp();
+
+        if (action === 'reject') {
+            await requestRef.update({
+                status: 'rejected',
+                rejectedBy: caller.uid,
+                resolvedAt: now,
+                updatedAt: now
+            });
+            return res.status(200).json({ success: true, action: 'rejected', uid });
+        }
+
+        const role = normalizeRole(rawRole, 'viewer');
+        const requestData = requestSnap.data();
+
+        await createOrUpdateSchoolUser({
+            schoolId: caller.schoolId,
+            email: requestData.email,
+            name: requestData.name,
+            role,
+            mustChangePassword: false,
+            createdBy: caller.uid
+        });
+
+        await requestRef.update({
+            status: 'approved',
+            approvedRole: role,
+            approvedBy: caller.uid,
+            resolvedAt: now,
+            updatedAt: now
+        });
+
+        return res.status(200).json({ success: true, action: 'approved', uid, role, schoolId: caller.schoolId });
     } catch (err) {
         return functionError(res, err);
     }

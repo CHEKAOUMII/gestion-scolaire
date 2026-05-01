@@ -1,10 +1,13 @@
 'use strict';
 
+const crypto = require('crypto');
 const {
     collection, doc, setDoc, getDocs,
     query, orderBy, limit, startAfter,
     Timestamp, writeBatch, documentId
 } = require('firebase/firestore');
+
+const BOOTSTRAP_PAGE_SIZE = 500;
 
 function normalizeUpdatedAt(value) {
     const numeric = Number(value);
@@ -29,7 +32,10 @@ function buildChangeId(entry) {
     const version = Number(entry.version) || 1;
     const entityType = String(entry.entityType || 'unknown').trim() || 'unknown';
     const rowSyncId = String(entry.rowSyncId || entry.entityId || '').trim();
-    return `${updatedAt}_${version}_${entityType}_${rowSyncId}`;
+    const identity = rowSyncId || String(entry.entityId || '').trim() || 'unknown';
+    const shard = crypto.createHash('sha1').update(`${entityType}:${identity}`).digest('hex').slice(0, 8);
+    const safeIdentity = identity.replace(/[/.]/g, '_').slice(0, 80);
+    return `${shard}_${entityType}_${updatedAt}_${version}_${safeIdentity}`;
 }
 
 /**
@@ -147,29 +153,52 @@ async function bootstrapFromCollections(db, schoolId, collectionMap, entityTypeR
         }
 
         try {
-            const snapshot = await getDocs(colRef);
-            for (const docSnap of snapshot.docs) {
-                const raw = docSnap.data() || {};
-                const cleanData = { ...raw };
-                for (const key of SYNC_METADATA_KEYS) {
-                    delete cleanData[key];
+            let fetchedCount = 0;
+            let lastDoc = null;
+
+            while (true) {
+                const clauses = [orderBy(documentId())];
+                if (lastDoc) {
+                    clauses.push(startAfter(lastDoc));
+                }
+                clauses.push(limit(BOOTSTRAP_PAGE_SIZE));
+
+                const snapshot = await getDocs(query(colRef, ...clauses));
+                if (snapshot.empty) {
+                    break;
                 }
 
-                items.push({
-                    id: docSnap.id,
-                    entityType: entityInfo.entityType,
-                    entityId: raw.rowSyncId || docSnap.id,
-                    operation: 'PUT',
-                    data: cleanData,
-                    version: raw.version || 1,
-                    deviceHash: raw.deviceHash || '',
-                    rowSyncId: raw.rowSyncId || '',
-                    schoolYear: raw.schoolYear || '',
-                    updatedAt: raw.updatedAt || Math.floor(Date.now() / 1000)
-                });
+                for (const docSnap of snapshot.docs) {
+                    const raw = docSnap.data() || {};
+                    const cleanData = { ...raw };
+                    for (const key of SYNC_METADATA_KEYS) {
+                        delete cleanData[key];
+                    }
+
+                    items.push({
+                        id: docSnap.id,
+                        entityType: entityInfo.entityType,
+                        entityId: raw.rowSyncId || docSnap.id,
+                        operation: 'PUT',
+                        data: cleanData,
+                        version: raw.version || 1,
+                        deviceHash: raw.deviceHash || '',
+                        rowSyncId: raw.rowSyncId || '',
+                        schoolYear: raw.schoolYear || '',
+                        updatedAt: raw.updatedAt || Math.floor(Date.now() / 1000)
+                    });
+                }
+
+                fetchedCount += snapshot.docs.length;
+                lastDoc = snapshot.docs[snapshot.docs.length - 1];
+
+                if (snapshot.docs.length < BOOTSTRAP_PAGE_SIZE) {
+                    break;
+                }
             }
-            if (snapshot.docs.length > 0) {
-                console.log(`[sync:bootstrap] Fetched ${snapshot.docs.length} docs from ${collectionPath}`);
+
+            if (fetchedCount > 0) {
+                console.log(`[sync:bootstrap] Fetched ${fetchedCount} docs from ${collectionPath}`);
             }
         } catch (err) {
             console.warn(`[sync:bootstrap] Failed to read ${collectionPath}:`, err.message);

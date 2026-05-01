@@ -33,7 +33,8 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(i['name']\\) for i in d.get\\('items',[]\\)]\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(i.get\\('name'\\)\\) for i in d.get\\('items',[]\\)]\")",
       "Bash(npx eslint *)",
-      "WebFetch(domain:)"
+      "WebFetch(domain:)",
+      "Bash(npx electron *)"
     ]
   },
   "enabledPlugins": {}

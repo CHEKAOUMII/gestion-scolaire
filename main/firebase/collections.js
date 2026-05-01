@@ -25,12 +25,17 @@ const COLLECTION_MAP = {
     correspondence: { collection: 'correspondence', idFields: ['id'] },
     student_files: { collection: 'studentFiles', idFields: ['student_code', 'doc_key', 'school_year'] },
     student_movements: { collection: 'studentMovements', idFields: ['id'] },
+    support_sessions: { collection: 'supportSessions', idFields: ['id'] },
     compensation_tracking: { collection: 'compensation', idFields: ['id'] },
     settings: { collection: 'settings', idFields: ['key'] },
     page_visibility: { collection: 'pageVisibility', idFields: ['page_key'] },
     device_revocation: { collection: 'deviceRevocations', idFields: ['revokedDeviceHash'] },
     system_tags: { collection: 'systemTags', idFields: ['id'] }
 };
+
+function sanitizeDocumentIdPart(value) {
+    return encodeURIComponent(String(value).trim()).replace(/\./g, '%2E');
+}
 
 function getCollectionName(tableName) {
     return COLLECTION_MAP[tableName]?.collection || null;
@@ -56,7 +61,7 @@ function buildDocumentId(tableName, rowData) {
         if (value === undefined || value === null || String(value).trim() === '') {
             return null;
         }
-        parts.push(String(value).trim());
+        parts.push(sanitizeDocumentIdPart(value));
     }
 
     return parts.join('__');
@@ -121,6 +126,7 @@ module.exports = {
     SYNC_LOG_CHANGES_COLLECTION,
     OTP_CODES_COLLECTION,
     COLLECTION_MAP,
+    sanitizeDocumentIdPart,
     getCollectionName,
     getCollectionPath,
     buildDocumentId,

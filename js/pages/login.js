@@ -488,7 +488,12 @@ function initLoginPage() {
             });
             if (!response?.success || !response?.authenticated) {
                 clearLocalSession();
-                showLoginMessage(loginError, loginErrorText, getLoginErrorMessage(response));
+                if (response?.code === 'LINK_REQUEST_SUBMITTED') {
+                    showLoginMessage(loginError, loginErrorText, '');
+                    showLoginMessage(loginSuccess, loginSuccessText, response.error || 'تم إرسال طلب ربط حسابك بالمؤسسة. انتظر موافقة المدير ثم أعد تسجيل الدخول');
+                } else {
+                    showLoginMessage(loginError, loginErrorText, getLoginErrorMessage(response));
+                }
                 btnLogin.classList.remove('loading');
                 btnLogin.disabled = false;
                 return;

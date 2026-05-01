@@ -68,7 +68,7 @@ function createTestDb(schoolId) {
                         return [{ name: 'id' }, { name: 'school_id' }];
                     }
                     if (normalized.startsWith('pragma table_info(institution_config)')) {
-                        return [{ name: 'id' }, { name: 'massar_code' }];
+                        return [{ name: 'id' }, { name: 'code_etablissement' }];
                     }
                     return [];
                 },
@@ -77,7 +77,7 @@ function createTestDb(schoolId) {
                         return { school_id: schoolId };
                     }
                     if (normalized.includes('from institution_config')) {
-                        return { massar_code: schoolId };
+                        return { code_etablissement: schoolId };
                     }
                     return null;
                 }

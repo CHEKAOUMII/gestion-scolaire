@@ -3,6 +3,7 @@ let pageVisibilityMap = {};
 let pageVisibilityDraftMap = {};
 let pageVisibilityDirty = new Set();
 let pageVisibilitySaving = false;
+let linkRequestRows = [];
 
 const ROLE_OPTIONS = [
     { value: 'admin',                  label: 'مدير التطبيق' },
@@ -94,10 +95,126 @@ function showProvisioningWarning(response) {
     const labels = {
         'missing-school-id': 'تم الحفظ محلياً فقط: لم يتم ضبط معرف المؤسسة في المزامنة',
         'firebase-admin-unavailable': 'تم الحفظ محلياً فقط: Firebase Admin غير مهيأ على هذا الجهاز',
+        'ADMIN_REQUIRED': 'تم الحفظ محلياً فقط: حساب Firebase الحالي لا يملك صلاحية مدير',
+        'MISSING_ID_TOKEN': 'تم الحفظ محلياً فقط: لم يتم تسجيل الدخول إلى Firebase',
+        'FIREBASE_FUNCTIONS_NOT_CONFIGURED': 'تم الحفظ محلياً فقط: لم يتم ضبط رابط Cloud Functions',
         'missing-email': 'تم الحفظ محلياً فقط: البريد الإلكتروني غير متوفر',
         'missing-firebase-user': 'تم التحديث محلياً فقط: لا يوجد حساب Firebase مرتبط'
     };
     showToast(labels[response.warning] || `تم الحفظ محلياً فقط: ${response.warning}`, 'warning', 7000);
+}
+
+function formatLinkRequestDate(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return safeText(value);
+    return date.toLocaleString('ar-MA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function buildLinkRequestRoleSelect(index) {
+    const options = ROLE_OPTIONS.map(({ value, label }) =>
+        `<option value="${value}" ${value === 'viewer' ? 'selected' : ''}>${label}</option>`
+    ).join('');
+    return `<select id="link-request-role-${index}">${options}</select>`;
+}
+
+function renderLinkRequests(requests) {
+    const panel = document.getElementById('link-requests-panel');
+    const tbody = document.getElementById('link-requests-tbody');
+    const countLabel = document.getElementById('link-requests-count');
+    if (!panel || !tbody || !countLabel) return;
+
+    linkRequestRows = Array.isArray(requests) ? requests : [];
+    panel.style.display = linkRequestRows.length > 0 ? '' : 'none';
+    countLabel.textContent = linkRequestRows.length > 0 ? `طلبات معلقة: ${linkRequestRows.length}` : '';
+    countLabel.dataset.state = linkRequestRows.length > 0 ? 'dirty' : 'clean';
+
+    tbody.innerHTML = linkRequestRows.length
+        ? linkRequestRows
+              .map(
+                  (request, index) => `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${safeText(request.name || '-')}</td>
+                        <td>${safeText(request.email || '-')}</td>
+                        <td>${safeText(request.schoolCode || '-')}</td>
+                        <td>${safeText(request.deviceName || '-')}</td>
+                        <td>${formatLinkRequestDate(request.createdAt)}</td>
+                        <td>${buildLinkRequestRoleSelect(index)}</td>
+                        <td>
+                            <button class="btn btn-success" type="button" onclick="approveLinkRequest(${index})">قبول</button>
+                            <button class="btn btn-secondary" type="button" onclick="rejectLinkRequest(${index})">رفض</button>
+                        </td>
+                    </tr>
+                `
+              )
+              .join('')
+        : renderTableMessage('لا توجد طلبات ربط معلقة', 8);
+}
+
+async function loadLinkRequests({ silent = false } = {}) {
+    if (!window.api?.auth?.listLinkRequests) {
+        renderLinkRequests([]);
+        return;
+    }
+
+    const response = await window.api.auth.listLinkRequests();
+    if (!response || response.success === false) {
+        renderLinkRequests([]);
+        const code = String(response?.code || '');
+        if (!silent && code !== 'FIREBASE_FUNCTIONS_NOT_CONFIGURED') {
+            showToast(response?.error || 'فشل تحميل طلبات الربط', 'error');
+        }
+        return;
+    }
+
+    renderLinkRequests(response.requests || []);
+}
+
+async function resolveLinkRequest(index, action) {
+    const request = linkRequestRows[Number(index)];
+    if (!request?.uid || !window.api?.auth?.resolveLinkRequest) {
+        showToast('تعذر تحديد طلب الربط', 'error');
+        return;
+    }
+
+    const roleSelect = document.getElementById(`link-request-role-${index}`);
+    const role = roleSelect?.value || 'viewer';
+    const response = await window.api.auth.resolveLinkRequest({
+        targetUid: request.uid,
+        action,
+        role
+    });
+
+    if (!response || response.success === false) {
+        showToast(response?.error || 'فشل معالجة طلب الربط', 'error');
+        return;
+    }
+
+    showToast(action === 'approve' ? 'تم قبول طلب الربط' : 'تم رفض طلب الربط', 'success');
+    await loadLinkRequests({ silent: true });
+    await loadRows();
+}
+
+async function approveLinkRequest(index) {
+    await resolveLinkRequest(index, 'approve');
+}
+
+async function rejectLinkRequest(index) {
+    const { confirmed } = await showConfirm({
+        title: 'رفض طلب الربط',
+        message: 'هل تريد رفض طلب ربط هذا الحساب بالمؤسسة؟',
+        type: 'warning',
+        confirmText: 'رفض'
+    });
+    if (!confirmed) return;
+    await resolveLinkRequest(index, 'reject');
 }
 
 function getGroupToggleId(group) {
@@ -448,9 +565,14 @@ async function savePageVisibilityChanges() {
 
 async function initSettingsUsersPage() {
     await loadRows();
+    await loadLinkRequests({ silent: true });
     await loadPageVisibilityRows();
 
     document.getElementById('form')?.addEventListener('submit', addUser);
+    document.getElementById('refresh-link-requests')?.addEventListener('click', async () => {
+        await loadLinkRequests();
+        showToast('تم تحديث طلبات الربط', 'info');
+    });
     document.getElementById('save-page-visibility')?.addEventListener('click', savePageVisibilityChanges);
     document.getElementById('refresh-page-visibility')?.addEventListener('click', async () => {
         if (pageVisibilityDirty.size > 0) {
@@ -505,6 +627,8 @@ window.changeRole = changeRole;
 window.toggleDisable = toggleDisable;
 window.stagePageVisibilityChange = stagePageVisibilityChange;
 window.stageGroupVisibilityChange = stageGroupVisibilityChange;
+window.approveLinkRequest = approveLinkRequest;
+window.rejectLinkRequest = rejectLinkRequest;
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSettingsUsersPage);

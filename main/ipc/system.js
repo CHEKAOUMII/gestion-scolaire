@@ -31,10 +31,10 @@ function getSchoolId(db) {
     const syncRow = syncColumns.has('school_id')
         ? db.prepare('SELECT school_id FROM sync_config WHERE id = 1').get() || {}
         : {};
-    const institutionRow = institutionColumns.has('massar_code')
-        ? db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get() || {}
+    const institutionRow = institutionColumns.has('code_etablissement')
+        ? db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {}
         : {};
-    return String(syncRow.school_id || institutionRow.massar_code || process.env.FIREBASE_SCHOOL_ID || '').trim();
+    return String(syncRow.school_id || institutionRow.code_etablissement || process.env.FIREBASE_SCHOOL_ID || '').trim();
 }
 
 function getFirebaseFunctionsUrl(db) {
@@ -101,6 +101,31 @@ async function provisionFirebaseUser(db, payload) {
     };
 }
 
+function shouldSaveLocalOnlyOnFirebaseError(err) {
+    return [
+        'FIREBASE_FUNCTIONS_NOT_CONFIGURED',
+        'MISSING_ID_TOKEN',
+        'ADMIN_REQUIRED',
+        'USER_DISABLED',
+        'Firebase user is not signed in'
+    ].includes(err?.code || err?.message);
+}
+
+function localOnlyFirebaseResult(reason) {
+    return { status: 'skipped', reason };
+}
+
+async function tryProvisionFirebaseUser(db, payload) {
+    try {
+        return await provisionFirebaseUser(db, payload);
+    } catch (err) {
+        if (shouldSaveLocalOnlyOnFirebaseError(err)) {
+            return localOnlyFirebaseResult(err.code || err.message || 'firebase-provisioning-skipped');
+        }
+        throw err;
+    }
+}
+
 async function updateFirebaseUserRole(db, user, role) {
     let uid = String(user?.firebase_uid || '').trim();
     if (!uid) {
@@ -130,6 +155,52 @@ function buildFirebaseProvisioningWarning(result) {
         return null;
     }
     return result.reason || 'firebase-provisioning-skipped';
+}
+
+const CONTENT_RESTORE_TABLES = [
+    'school_identity',
+    'settings',
+    'students',
+    'student_files',
+    'student_movements',
+    'student_profile_data',
+    'teachers',
+    'teacher_aliases',
+    'teacher_absences',
+    'name_aliases',
+    'absences',
+    'grades',
+    'exams',
+    'tests',
+    'exam_rooms',
+    'exam_proctors',
+    'timetable_data',
+    'staff_attendance',
+    'support_sessions',
+    'compensation_tracking',
+    'correspondence',
+    'inspectors',
+    'school_events',
+    'system_tags',
+    'notifications',
+    'page_visibility'
+];
+
+function quoteIdent(value) {
+    return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+function tableExists(db, schemaName, tableName) {
+    const schema = schemaName === 'backup_content' ? 'backup_content' : 'main';
+    const row = db
+        .prepare(`SELECT name FROM ${schema}.sqlite_master WHERE type = 'table' AND name = ?`)
+        .get(tableName);
+    return !!row;
+}
+
+function getColumnNames(db, schemaName, tableName) {
+    const schema = schemaName === 'backup_content' ? 'backup_content' : 'main';
+    return db.prepare(`PRAGMA ${schema}.table_info(${quoteIdent(tableName)})`).all().map((row) => row.name);
 }
 
 function registerSystemIpc(ipcMain) {
@@ -162,7 +233,7 @@ function registerSystemIpc(ipcMain) {
     });
 
     // IPC Handlers - Users
-    handleWrite(ipcMain, 'users:getAll', ['admin'], (db) => {
+    handleWrite(ipcMain, 'users:getAll', ['admin', 'principal'], (db) => {
         const columns = getTableColumns(db, 'users');
         return db
             .prepare(
@@ -188,7 +259,7 @@ function registerSystemIpc(ipcMain) {
 
     ipcMain.handle('users:add', async (event, payload) => {
         try {
-            requireRole(event, ['admin']);
+            requireRole(event, ['admin', 'principal']);
             const db = getDb();
             const password = String(payload?.password || '').trim();
             const usedGenerated = !password;
@@ -205,7 +276,7 @@ function registerSystemIpc(ipcMain) {
                 return { success: false, code: 'EMAIL_EXISTS', error: 'هذا البريد الإلكتروني مستخدم بالفعل' };
             }
 
-            const firebaseProvisioning = await provisionFirebaseUser(db, {
+            const firebaseProvisioning = await tryProvisionFirebaseUser(db, {
                 ...payload,
                 email,
                 password: finalPassword,
@@ -261,7 +332,7 @@ function registerSystemIpc(ipcMain) {
 
     ipcMain.handle('users:updateRole', async (event, id, role) => {
         try {
-            requireRole(event, ['admin']);
+            requireRole(event, ['admin', 'principal']);
             if (!ALLOWED_ROLES.includes(role)) {
                 return { success: false, error: `دور غير صالح: ${role}` };
             }
@@ -295,7 +366,7 @@ function registerSystemIpc(ipcMain) {
 
     ipcMain.handle('users:disable', async (event, id, disabled) => {
         try {
-            requireRole(event, ['admin']);
+            requireRole(event, ['admin', 'principal']);
             const db = getDb();
             const columns = getTableColumns(db, 'users');
             const user = db
@@ -355,7 +426,7 @@ function registerSystemIpc(ipcMain) {
     // ── Save current page visibility as defaults for future installations ──
     ipcMain.handle('system:savePageVisibilityDefaults', async (event) => {
         try {
-            requireRole(event, ['admin']);
+            requireRole(event, ['admin', 'principal']);
             const db = getDb();
             const path = require('path');
             const fs = require('fs');
@@ -646,6 +717,126 @@ function registerSystemIpc(ipcMain) {
             console.error('[backup] restoreDb: FINAL ERROR —', err.message);
             if (err?.code) return authErrorResponse(err);
             return { success: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('system:restoreDbContent', async (event, payload) => {
+        const fs = require('fs');
+        const Database = require('better-sqlite3');
+        const { getDbPath } = require('../db/context');
+        const tempPath = getDbPath() + '.content-restore.tmp';
+        let attached = false;
+
+        try {
+            console.log('[backup] restoreDbContent: started');
+            const session = getSessionByEvent(event);
+            if (session) {
+                requireRole(event, ['admin', 'principal']);
+                console.log('[backup] restoreDbContent: authenticated as', session.role);
+            } else {
+                console.log('[backup] restoreDbContent: no session — proceeding without auth');
+            }
+
+            const dbBase64 = String(payload?.dbBase64 || '');
+            if (!dbBase64) {
+                return { success: false, error: 'Missing backup payload' };
+            }
+
+            const buffer = Buffer.from(dbBase64, 'base64');
+            const expectedByteLength = Number(payload?.expectedByteLength || 0);
+            if (!buffer.length) {
+                return { success: false, error: 'Invalid backup payload' };
+            }
+            if (expectedByteLength > 0 && buffer.length !== expectedByteLength) {
+                return { success: false, error: 'Backup payload size mismatch' };
+            }
+
+            fs.writeFileSync(tempPath, buffer);
+            const testDb = new Database(tempPath, { readonly: true });
+            try {
+                const quickCheck = testDb.pragma('quick_check');
+                const result = quickCheck[0]?.quick_check;
+                if (result && result !== 'ok') {
+                    return { success: false, error: `SQLite quick_check failed: ${result}` };
+                }
+            } finally {
+                testDb.close();
+            }
+
+            const db = getDb();
+            db.prepare('ATTACH DATABASE ? AS backup_content').run(tempPath);
+            attached = true;
+
+            const restoredTables = [];
+            const skippedTables = [];
+            const previousForeignKeys = db.pragma('foreign_keys', { simple: true });
+            db.pragma('foreign_keys = OFF');
+
+            try {
+                db.prepare('BEGIN IMMEDIATE').run();
+
+                for (const tableName of CONTENT_RESTORE_TABLES) {
+                    if (!tableExists(db, 'main', tableName) || !tableExists(db, 'backup_content', tableName)) {
+                        skippedTables.push(tableName);
+                        continue;
+                    }
+
+                    const mainColumns = getColumnNames(db, 'main', tableName);
+                    const backupColumns = new Set(getColumnNames(db, 'backup_content', tableName));
+                    const columns = mainColumns.filter((column) => backupColumns.has(column));
+                    if (!columns.length) {
+                        skippedTables.push(tableName);
+                        continue;
+                    }
+
+                    const quotedTable = quoteIdent(tableName);
+                    const quotedColumns = columns.map(quoteIdent).join(', ');
+                    db.prepare(`DELETE FROM main.${quotedTable}`).run();
+                    db.prepare(
+                        `
+                        INSERT INTO main.${quotedTable}(${quotedColumns})
+                        SELECT ${quotedColumns}
+                        FROM backup_content.${quotedTable}
+                    `
+                    ).run();
+                    restoredTables.push(tableName);
+                }
+
+                db.prepare('COMMIT').run();
+            } catch (restoreError) {
+                try {
+                    db.prepare('ROLLBACK').run();
+                } catch {
+                    // ignore rollback failures
+                }
+                throw restoreError;
+            } finally {
+                db.pragma(`foreign_keys = ${previousForeignKeys ? 'ON' : 'OFF'}`);
+            }
+
+            console.log('[backup] restoreDbContent: restored tables:', restoredTables.join(', '));
+            return {
+                success: true,
+                mode: 'content',
+                restoredTables,
+                skippedTables,
+                restoredItems: restoredTables.length
+            };
+        } catch (err) {
+            console.error('[backup] restoreDbContent: FAILED —', err.message);
+            if (err?.code) return authErrorResponse(err);
+            return { success: false, error: err.message };
+        } finally {
+            try {
+                if (attached) getDb().prepare('DETACH DATABASE backup_content').run();
+            } catch {
+                // ignore detach cleanup failures
+            }
+            try {
+                if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+            } catch {
+                // ignore temp cleanup failures
+            }
         }
     });
 }

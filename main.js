@@ -184,14 +184,16 @@ function createWindow() {
     });
 
     const setupDb = getDb();
-    const inst = setupDb.prepare('SELECT setup_completed, massar_code FROM institution_config WHERE id = 1').get();
-    if (inst && inst.massar_code) {
+    const instCols = new Set(setupDb.prepare('PRAGMA table_info(institution_config)').all().map((c) => c.name));
+    const codeCol = instCols.has('code_etablissement') ? 'code_etablissement' : 'massar_code';
+    const inst = setupDb.prepare(`SELECT setup_completed, ${codeCol} AS school_code FROM institution_config WHERE id = 1`).get();
+    if (inst && inst.school_code) {
         setupDb
             .prepare(
                 `UPDATE sync_config SET school_id = ?, enabled = 1, updated_at = CURRENT_TIMESTAMP
                  WHERE id = 1 AND (school_id IS NULL OR school_id != ?)`
             )
-            .run(inst.massar_code, inst.massar_code);
+            .run(inst.school_code, inst.school_code);
         setupDb
             .prepare(
                 `UPDATE sync_config SET enabled = 1, updated_at = CURRENT_TIMESTAMP

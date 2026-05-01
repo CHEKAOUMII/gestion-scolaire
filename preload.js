@@ -236,7 +236,10 @@ contextBridge.exposeInMainWorld('api', {
         getPinStatus: () => ipcRenderer.invoke('auth:getPinStatus'),
         lockSession: () => ipcRenderer.invoke('auth:lockSession'),
         unlockWithPassword: (payload) => ipcRenderer.invoke('auth:unlockWithPassword', payload),
-        getAllowedPages: () => ipcRenderer.invoke('auth:getAllowedPages')
+        getAllowedPages: () => ipcRenderer.invoke('auth:getAllowedPages'),
+        submitLinkRequest: (payload) => ipcRenderer.invoke('auth:submitLinkRequest', payload),
+        listLinkRequests: () => ipcRenderer.invoke('auth:listLinkRequests'),
+        resolveLinkRequest: (payload) => ipcRenderer.invoke('auth:resolveLinkRequest', payload)
     },
 
     // Users
@@ -277,6 +280,7 @@ contextBridge.exposeInMainWorld('api', {
         printHTML: (payload = {}) => ipcRenderer.invoke('system:printHTML', payload),
         backupDb: () => ipcRenderer.invoke('system:backupDb'),
         restoreDb: (payload) => ipcRenderer.invoke('system:restoreDb', payload),
+        restoreDbContent: (payload) => ipcRenderer.invoke('system:restoreDbContent', payload),
         savePageVisibilityDefaults: () => ipcRenderer.invoke('system:savePageVisibilityDefaults'),
         quit: () => ipcRenderer.invoke('app:quit')
     },
@@ -333,6 +337,7 @@ contextBridge.exposeInMainWorld('api', {
 
     institution: {
         getStatus: () => ipcRenderer.invoke('institution:get-status'),
+        relink: (payload) => ipcRenderer.invoke('institution:relink', payload),
         setupNew: (payload) => ipcRenderer.invoke('institution:setup-new', payload)
     },
 

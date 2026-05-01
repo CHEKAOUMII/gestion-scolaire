@@ -13,6 +13,7 @@ const { sha256, nowIso, safeJsonParse } = require('./utils');
 const { licenseBus } = require('./eventBus');
 
 const DEFAULT_GRACE_DAYS = 14;
+const LICENSING_ENFORCEMENT_DISABLED = true;
 
 function eventLog(db, licenseId, eventType, details = {}) {
     db.prepare(
@@ -169,6 +170,21 @@ function getActivationRequest() {
 }
 
 function getPublicActivationStatus() {
+    if (LICENSING_ENFORCEMENT_DISABLED) {
+        return {
+            success: true,
+            activated: true,
+            status: 'licensed',
+            planCode: 'disabled',
+            planName: 'Licensing disabled',
+            expiresAt: null,
+            graceRemainingDays: null,
+            trialActive: false,
+            trialDaysRemaining: 0,
+            licensingDisabled: true
+        };
+    }
+
     const status = getLicenseStatus();
     if (!status?.success) return status;
 

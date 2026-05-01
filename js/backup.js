@@ -238,14 +238,29 @@ const BackupManager = {
                             throw new Error('استعادة قاعدة البيانات غير مدعومة في هذه النسخة');
                         }
 
-                        console.log('[backup] restoreFromFile: calling IPC restoreDb, payload size:', backup.database.dbBase64.length);
-                        const dbResult = await window.api.system.restoreDb({
+                        const restorePayload = {
                             dbBase64: backup.database.dbBase64,
                             expectedByteLength: Number(backup.database.byteLength || 0)
-                        });
+                        };
+                        console.log('[backup] restoreFromFile: calling IPC restoreDb, payload size:', backup.database.dbBase64.length);
+                        let dbResult = await window.api.system.restoreDb(restorePayload);
                         console.log('[backup] restoreFromFile: IPC result:', dbResult?.success, dbResult?.error || '');
+
+                        if (
+                            dbResult?.success === false &&
+                            dbResult?.code === 'FORBIDDEN' &&
+                            typeof window.api.system.restoreDbContent === 'function'
+                        ) {
+                            console.log('[backup] restoreFromFile: full restore forbidden, trying content-only restore');
+                            dbResult = await window.api.system.restoreDbContent(restorePayload);
+                            console.log('[backup] restoreFromFile: content restore IPC result:', dbResult?.success, dbResult?.error || '');
+                        }
+
                         if (!dbResult || dbResult.success === false) {
                             throw new Error(dbResult?.error || 'فشل استعادة قاعدة البيانات');
+                        }
+                        if (dbResult.mode === 'content') {
+                            restoredItems += Number(dbResult.restoredItems || 0);
                         }
                     }
 

@@ -31,6 +31,12 @@ function readSchoolIdFromDb(db) {
     if (fromSync) return fromSync;
 
     try {
+        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
+        const val = String(instRow.code_etablissement || '').trim().toUpperCase();
+        if (val) return val;
+    } catch { /* column may not exist */ }
+
+    try {
         const instRow = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get() || {};
         return String(instRow.massar_code || '').trim().toUpperCase();
     } catch {

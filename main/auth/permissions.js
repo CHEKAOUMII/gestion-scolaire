@@ -1,6 +1,7 @@
 // main/auth/permissions.js
 // Single source of truth for page-level access control.
 // 'developer' and 'admin' bypass all checks (handled in canAccessPage).
+// 'principal' can access settings-users to manage institution users.
 
 const ALL_STAFF = [
     'principal', 'supervisor', 'external-guardian', 'internal-guardian',
@@ -70,7 +71,7 @@ const PAGE_PERMISSIONS = {
     'reports-semester':              ['principal','supervisor','external-guardian','admin-assistant','educational-specialist'],
     'settings-school':               ['principal','external-guardian'],
     'settings-imports':              ['principal','supervisor','external-guardian'],
-    'settings-users':                [], // admin + developer — both bypass via canAccessPage(); no staff role may access
+    'settings-users':                ['principal'], // principal manages institution users; admin + developer bypass
     'settings-license':              [], // developer only — bypass; admin excluded by design
     'settings-logs':                 [], // developer only — bypass; admin excluded by design
     'settings-sync':                 [], // developer only — bypass; admin excluded by design

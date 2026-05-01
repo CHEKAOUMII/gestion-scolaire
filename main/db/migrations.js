@@ -686,10 +686,10 @@ const MIGRATIONS = [
 
             db.prepare(
                 `
-                    INSERT INTO institution_config (id, massar_code, setup_completed, setup_mode, updated_at)
+                    INSERT INTO institution_config (id, code_etablissement, setup_completed, setup_mode, updated_at)
                     VALUES (1, ?, 1, 'linked', CURRENT_TIMESTAMP)
                     ON CONFLICT(id) DO UPDATE SET
-                        massar_code = excluded.massar_code,
+                        code_etablissement = excluded.code_etablissement,
                         setup_completed = 1,
                         updated_at = CURRENT_TIMESTAMP
                 `
@@ -707,12 +707,12 @@ const MIGRATIONS = [
         version: '2026-03-038-massar-schoolid-sync',
         up: () => {
             const db = getDb();
-            const inst = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get();
-            if (inst && inst.massar_code) {
+            const inst = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get();
+            if (inst && inst.code_etablissement) {
                 db.prepare(
                     `UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP
                      WHERE id = 1 AND (school_id IS NULL OR school_id != ?)`
-                ).run(inst.massar_code, inst.massar_code);
+                ).run(inst.code_etablissement, inst.code_etablissement);
             }
         },
         recordsVersionInternally: false

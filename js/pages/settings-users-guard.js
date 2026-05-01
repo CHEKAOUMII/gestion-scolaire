@@ -3,7 +3,7 @@
         const raw = localStorage.getItem('gsl_auth_session_v1');
         if (raw) {
             const session = JSON.parse(raw);
-            if (session && (session.role === 'developer' || session.role === 'admin')) {
+            if (session && (session.role === 'developer' || session.role === 'admin' || session.role === 'principal')) {
                 return;
             }
         }

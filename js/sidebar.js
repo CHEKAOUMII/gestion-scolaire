@@ -179,7 +179,7 @@ function injectSidebar() {
                     const licenseLink = document.getElementById('sidebar-license-link');
                     if (licenseLink) licenseLink.classList.remove('hidden');
                 }
-                if (role === 'developer' || role === 'admin') {
+                if (role === 'developer' || role === 'admin' || role === 'principal') {
                     const usersLink = document.getElementById('sidebar-users-link');
                     if (usersLink) usersLink.classList.remove('hidden');
                 }
