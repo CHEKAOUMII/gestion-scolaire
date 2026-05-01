@@ -205,12 +205,6 @@
                 <div class="students-results admin-only overflow-hidden" id="sync-config-section">
                     <h3><i class="fas fa-cog"></i> إعدادات المزامنة</h3>
                     <form id="sync-config-form" class="px-6 pb-6">
-                        <label
-                            class="mb-5 flex w-fit cursor-pointer items-center gap-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3 transition-colors duration-150 hover:border-[var(--color-primary-light)]"
-                        >
-                            <input type="checkbox" id="cfg-enabled" class="h-4 w-4 accent-[var(--color-primary)]" />
-                            <span class="font-semibold text-[var(--color-text-main)]">تفعيل المزامنة</span>
-                        </label>
                         <div class="grid gap-5 md:grid-cols-2">
                             <div>
                                 <label
@@ -233,19 +227,6 @@
                                 <input
                                     type="text"
                                     id="cfg-functions-url"
-                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
-                                />
-                            </div>
-                            <div>
-                                <label
-                                    for="cfg-license-key"
-                                    class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
-                                    >مفتاح الترخيص</label
-                                >
-                                <input
-                                    type="text"
-                                    id="cfg-license-key"
-                                    placeholder="أدخل مفتاح الترخيص"
                                     class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
                                 />
                             </div>
@@ -333,6 +314,43 @@
                                         type="number"
                                         id="cfg-snapshot-interval"
                                         value="30"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        for="cfg-api-key"
+                                        class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                        >Firebase API Key</label
+                                    >
+                                    <input
+                                        type="password"
+                                        id="cfg-api-key"
+                                        autocomplete="off"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        for="cfg-auth-domain"
+                                        class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                        >Firebase Auth Domain</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="cfg-auth-domain"
+                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    />
+                                </div>
+                                <div>
+                                    <label
+                                        for="cfg-app-id"
+                                        class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
+                                        >Firebase App ID</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="cfg-app-id"
                                         class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
                                     />
                                 </div>

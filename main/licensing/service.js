@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const { app } = require('electron');
 
 const { getDb } = require('../db/context');
@@ -10,32 +9,10 @@ const {
     scoreVectorMatch,
     REINSTALL_MATCH_THRESHOLD
 } = require('./deviceFingerprint');
+const { sha256, nowIso, safeJsonParse } = require('./utils');
+const { licenseBus } = require('./eventBus');
 
 const DEFAULT_GRACE_DAYS = 14;
-const PLAN_LIMITS_FALLBACK = {
-    basic: 1,
-    pro: 3,
-    business: 10
-};
-
-function nowIso() {
-    return new Date().toISOString();
-}
-
-function sha256(value) {
-    return crypto
-        .createHash('sha256')
-        .update(String(value || ''), 'utf8')
-        .digest('hex');
-}
-
-function safeJsonParse(jsonText, fallbackValue) {
-    try {
-        return JSON.parse(jsonText);
-    } catch {
-        return fallbackValue;
-    }
-}
 
 function eventLog(db, licenseId, eventType, details = {}) {
     db.prepare(
@@ -44,16 +21,6 @@ function eventLog(db, licenseId, eventType, details = {}) {
         VALUES (?, ?, ?)
     `
     ).run(licenseId || null, eventType, JSON.stringify(details));
-}
-
-function pushOwnerSyncEvent(eventType, details = {}) {
-    try {
-        const { enqueueOwnerSyncEvent, flushOwnerSyncOutbox } = require('./ownerSync');
-        enqueueOwnerSyncEvent(eventType, details);
-        void flushOwnerSyncOutbox();
-    } catch {
-        // Owner sync is optional; ignore failures here
-    }
 }
 
 function getLicenseWithPlan(db) {
@@ -75,7 +42,7 @@ function getLicenseWithPlan(db) {
 
 function getPlanMaxDevices(db, planCode) {
     const row = db.prepare('SELECT max_devices FROM license_plans WHERE code = ?').get(planCode);
-    return Number(row?.max_devices || PLAN_LIMITS_FALLBACK[planCode] || 1);
+    return Number(row?.max_devices || 1);
 }
 
 function findCurrentActivation(activeRows, currentFingerprint) {
@@ -455,7 +422,7 @@ function activateLicense({ licenseKey, deviceName } = {}) {
             matchScore: existingMatch.score
         });
 
-        pushOwnerSyncEvent('activation', {
+        licenseBus.emit('license:activated', {
             trigger: existingMatch.mode === 'fuzzy' ? 'reinstall_merge' : 'reactivation',
             matchMode: existingMatch.mode,
             matchScore: existingMatch.score
@@ -526,7 +493,7 @@ function activateLicense({ licenseKey, deviceName } = {}) {
         platform: currentFingerprint.platform
     });
 
-    pushOwnerSyncEvent('activation', {
+    licenseBus.emit('license:activated', {
         trigger: 'new_activation',
         deviceName: usedDeviceName,
         platform: currentFingerprint.platform
@@ -609,7 +576,7 @@ function deactivateCurrentDevice() {
         matchScore: match.score
     });
 
-    pushOwnerSyncEvent('deactivation', {
+    licenseBus.emit('license:deactivated', {
         trigger: 'current_device_deactivated',
         activationId: match.row.id,
         matchScore: match.score
@@ -655,7 +622,7 @@ function adminRevokeDevice(activationId) {
         deviceName: activation.device_name || 'Unnamed device'
     });
 
-    pushOwnerSyncEvent('deactivation', {
+    licenseBus.emit('license:deactivated', {
         trigger: 'admin_device_revoked',
         activationId: id,
         deviceName: activation.device_name || 'Unnamed device'
@@ -680,7 +647,7 @@ function refreshLicenseValidation() {
         license.id
     );
     eventLog(db, license.id, 'validation_refreshed', {});
-    pushOwnerSyncEvent('validation', { trigger: 'manual_validation_refresh' });
+    licenseBus.emit('license:validated', { trigger: 'manual_validation_refresh' });
 
     return {
         success: true,

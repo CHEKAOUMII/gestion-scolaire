@@ -3,6 +3,8 @@ const { app } = require('electron');
 const { getDb } = require('../db/context');
 const { collectCurrentFingerprint } = require('./deviceFingerprint');
 const { OWNER_SYNC_DEFAULTS } = require('./ownerSyncDefaults');
+const { nowIso, safeJsonParse } = require('./utils');
+const { licenseBus } = require('./eventBus');
 
 const DEFAULT_HEARTBEAT_MINUTES = 360;
 const MAX_HEARTBEAT_MINUTES = 24 * 60;
@@ -17,18 +19,6 @@ const OWNER_SYNC_EVENT_ENDPOINTS = {
 let _syncTimer = null;
 let _flushRunning = false;
 
-function nowIso() {
-    return new Date().toISOString();
-}
-
-function parseJson(value, fallback = {}) {
-    try {
-        return JSON.parse(value);
-    } catch {
-        return fallback;
-    }
-}
-
 function toBool(value) {
     return Number(value || 0) === 1;
 }
@@ -40,9 +30,13 @@ function clampHeartbeatMinutes(value) {
 }
 
 function normalizeServerUrl(value) {
-    return String(value || '')
+    const url = String(value || '')
         .trim()
         .replace(/\/+$/, '');
+    if (url && !url.startsWith('https://') && !url.startsWith('http://localhost')) {
+        return '';
+    }
+    return url;
 }
 
 function getBootstrapDefaults() {
@@ -178,60 +172,6 @@ function getOwnerSyncConfig() {
     };
 }
 
-function setOwnerSyncConfig(payload = {}) {
-    const db = getDb();
-    const current = normalizeOwnerSyncConfig(readConfigRow(db));
-
-    const nextConfig = {
-        serverUrl: normalizeServerUrl(payload.serverUrl !== undefined ? payload.serverUrl : current.serverUrl),
-        writeToken:
-            payload.writeToken !== undefined
-                ? String(payload.writeToken || '').trim()
-                : payload.ownerToken !== undefined
-                  ? String(payload.ownerToken || '').trim()
-                  : current.writeToken,
-        readToken:
-            payload.readToken !== undefined
-                ? String(payload.readToken || '').trim()
-                : payload.ownerToken !== undefined
-                  ? String(payload.ownerToken || '').trim()
-                  : current.readToken,
-        enabled: payload.enabled !== undefined ? !!payload.enabled : current.enabled,
-        heartbeatIntervalMinutes: clampHeartbeatMinutes(
-            payload.heartbeatIntervalMinutes !== undefined
-                ? payload.heartbeatIntervalMinutes
-                : current.heartbeatIntervalMinutes
-        )
-    };
-
-    const ownerTokenFallback = nextConfig.writeToken || nextConfig.readToken || '';
-
-    db.prepare(
-        `
-            UPDATE owner_sync_config
-            SET
-                server_url = ?,
-                owner_token = ?,
-                write_token = ?,
-                read_token = ?,
-                enabled = ?,
-                heartbeat_interval_minutes = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = 1
-        `
-    ).run(
-        nextConfig.serverUrl,
-        ownerTokenFallback,
-        nextConfig.writeToken,
-        nextConfig.readToken,
-        nextConfig.enabled ? 1 : 0,
-        nextConfig.heartbeatIntervalMinutes
-    );
-
-    restartOwnerSyncBackground();
-    return getOwnerSyncConfig();
-}
-
 function getCurrentLicenseSnapshot(db, deviceHash) {
     const license = db
         .prepare(
@@ -258,7 +198,7 @@ function getCurrentLicenseSnapshot(db, deviceHash) {
         };
     }
 
-    const metadata = parseJson(license.metadata || '{}', {});
+    const metadata = safeJsonParse(license.metadata || '{}', {});
     const expiresAtDate = license.expires_at ? new Date(license.expires_at) : null;
     const isExpired = !!(
         expiresAtDate &&
@@ -345,7 +285,7 @@ async function fetchWithToken(url, token, options = {}) {
     });
 
     const text = await response.text();
-    const json = text ? parseJson(text, null) : null;
+    const json = text ? safeJsonParse(text, null) : null;
 
     if (!response.ok) {
         const message = json?.error || `HTTP ${response.status}`;
@@ -412,7 +352,7 @@ async function flushOwnerSyncOutbox(limit = 30) {
         let lastError = null;
 
         for (const row of pendingRows) {
-            const payload = parseJson(row.payload || '{}', {});
+            const payload = safeJsonParse(row.payload || '{}', {});
             const endpointPath = resolveEventEndpoint(row.event_type);
             const targetUrl = `${config.serverUrl}${endpointPath}`;
 
@@ -501,64 +441,6 @@ async function syncOwnerTelemetryNow() {
     return flushOwnerSyncOutbox();
 }
 
-async function testOwnerSyncConnection(payload = {}) {
-    const db = getDb();
-    const current = normalizeOwnerSyncConfig(readConfigRow(db));
-
-    const serverUrl = normalizeServerUrl(payload.serverUrl !== undefined ? payload.serverUrl : current.serverUrl);
-    const writeToken = String(payload.writeToken !== undefined ? payload.writeToken : current.writeToken || '').trim();
-    const readToken = String(payload.readToken !== undefined ? payload.readToken : current.readToken || '').trim();
-
-    if (!serverUrl) {
-        return { success: false, code: 'MISSING_SERVER_URL', error: 'Server URL is required' };
-    }
-    if (!writeToken) {
-        return { success: false, code: 'MISSING_WRITE_TOKEN', error: 'Write token is required' };
-    }
-
-    const resolvedReadToken = readToken || writeToken;
-
-    try {
-        await fetchWithToken(`${serverUrl}/api/health`, writeToken, { method: 'GET' });
-    } catch (err) {
-        return {
-            success: false,
-            code: 'HEALTH_CHECK_FAILED',
-            error: `Health check failed: ${err.message}`
-        };
-    }
-
-    try {
-        await fetchWithToken(`${serverUrl}/api/telemetry/auth-check?scope=write`, writeToken, { method: 'GET' });
-    } catch (err) {
-        return {
-            success: false,
-            code: 'WRITE_TOKEN_INVALID',
-            error: `Write token check failed: ${err.message}`
-        };
-    }
-
-    try {
-        await fetchWithToken(`${serverUrl}/api/telemetry/auth-check?scope=read`, resolvedReadToken, { method: 'GET' });
-    } catch (err) {
-        return {
-            success: false,
-            code: 'READ_TOKEN_INVALID',
-            error: `Read token check failed: ${err.message}`
-        };
-    }
-
-    return {
-        success: true,
-        message: 'Connection test passed (server + write token + read token)',
-        checks: {
-            health: true,
-            writeToken: true,
-            readToken: true
-        }
-    };
-}
-
 function stopOwnerSyncBackground() {
     if (_syncTimer) {
         clearInterval(_syncTimer);
@@ -595,16 +477,32 @@ function restartOwnerSyncBackground() {
     startOwnerSyncBackground();
 }
 
+function initSyncListeners() {
+    licenseBus.on('license:activated', (details) => {
+        enqueueOwnerSyncEvent('activation', details);
+        void flushOwnerSyncOutbox();
+    });
+
+    licenseBus.on('license:deactivated', (details) => {
+        enqueueOwnerSyncEvent('deactivation', details);
+        void flushOwnerSyncOutbox();
+    });
+
+    licenseBus.on('license:validated', (details) => {
+        enqueueOwnerSyncEvent('validation', details);
+        void flushOwnerSyncOutbox();
+    });
+}
+
 module.exports = {
     enqueueOwnerSyncEvent,
     flushOwnerSyncOutbox,
     getOwnerSyncConfig,
     getOwnerTelemetryDevices,
     getOwnerTelemetryOverview,
+    initSyncListeners,
     restartOwnerSyncBackground,
-    setOwnerSyncConfig,
     startOwnerSyncBackground,
     stopOwnerSyncBackground,
-    syncOwnerTelemetryNow,
-    testOwnerSyncConnection
+    syncOwnerTelemetryNow
 };

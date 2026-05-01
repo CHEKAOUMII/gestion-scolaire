@@ -1,15 +1,8 @@
-const crypto = require('crypto');
 const os = require('os');
 const { execSync } = require('child_process');
+const { sha256 } = require('./utils');
 
 const REINSTALL_MATCH_THRESHOLD = 70;
-
-function sha256(value) {
-    return crypto
-        .createHash('sha256')
-        .update(String(value || ''), 'utf8')
-        .digest('hex');
-}
 
 function safeExec(command) {
     try {

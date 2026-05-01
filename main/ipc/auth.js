@@ -226,6 +226,8 @@ function registerAuthIpc(ipcMain) {
                         ? 'لم يتم إعداد Firebase Auth بعد'
                         : code === 'OFFLINE_LOGIN_UNAVAILABLE'
                           ? 'تعذر الاتصال بالمصادقة السحابية ولا يوجد دخول محلي صالح لهذا المستخدم'
+                          : code === 'FIREBASE_PROFILE_REQUIRED' || code === 'FIREBASE_SCHOOL_MISMATCH'
+                            ? 'هذا الحساب غير مرتبط بهذه المؤسسة'
                           : 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
                 return {
                     success: false,
@@ -237,6 +239,18 @@ function registerAuthIpc(ipcMain) {
             // Success — clear throttle record
             clearLoginAttempts(email);
             const session = setSessionForEvent(event, loginResult.userRow);
+            try {
+                const {
+                    restartSyncPushBackground,
+                    restartSyncPullBackground
+                } = require('../sync/engine');
+                const { restartSnapshotBackground } = require('../sync/snapshot');
+                restartSyncPushBackground();
+                restartSyncPullBackground();
+                restartSnapshotBackground();
+            } catch (syncErr) {
+                console.warn('[auth] Failed to restart sync after login:', syncErr.message);
+            }
             return {
                 success: true,
                 authenticated: true,

@@ -1584,6 +1584,17 @@ function ensureAdminAuthButton(authRole, accessState) {
                 // ignore
             }
 
+            // A stale main-process session can make login.html redirect back to
+            // index.html immediately. Clear it when the visible action is login.
+            if (window.api?.auth?.logout) {
+                try {
+                    await window.api.auth.logout();
+                } catch (_err) {
+                    // keep opening login even if the stale session cleanup fails
+                }
+            }
+            clearAuthSession();
+
             const next = encodeURIComponent(requestedNext);
             window.location.href = `login.html?next=${next}`;
         });

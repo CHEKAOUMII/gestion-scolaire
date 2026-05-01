@@ -3,24 +3,24 @@
 const { buildDocumentId: buildDocId } = require('../firebase/collections');
 
 const WRITER_AUTHORITY = {
-    students:              ['admin'],
-    grades:                ['admin', 'staff'],
-    absences:              ['admin', 'staff'],
-    teachers:              ['admin'],
-    teacher_aliases:       ['admin'],
-    staff_attendance:      ['admin'],
-    teacher_absences:      ['admin'],
-    exams:                 ['admin'],
-    exam_proctors:         ['admin'],
-    exam_rooms:            ['admin'],
-    tests:                 ['admin'],
-    correspondence:        ['admin'],
-    student_files:         ['admin'],
-    student_movements:     ['admin'],
-    compensation_tracking: ['admin'],
-    settings:              ['admin'],
-    page_visibility:       ['admin'],
-    device_revocation:     ['admin']
+    students:              ['admin', 'principal'],
+    grades:                ['admin', 'principal', 'staff'],
+    absences:              ['admin', 'principal', 'staff'],
+    teachers:              ['admin', 'principal'],
+    teacher_aliases:       ['admin', 'principal'],
+    staff_attendance:      ['admin', 'principal'],
+    teacher_absences:      ['admin', 'principal'],
+    exams:                 ['admin', 'principal'],
+    exam_proctors:         ['admin', 'principal'],
+    exam_rooms:            ['admin', 'principal'],
+    tests:                 ['admin', 'principal'],
+    correspondence:        ['admin', 'principal'],
+    student_files:         ['admin', 'principal'],
+    student_movements:     ['admin', 'principal'],
+    compensation_tracking: ['admin', 'principal'],
+    settings:              ['admin', 'principal'],
+    page_visibility:       ['admin', 'principal'],
+    device_revocation:     ['admin', 'principal']
 };
 
 const ENTITY_TYPE_REGISTRY = {

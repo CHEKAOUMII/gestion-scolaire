@@ -1,5 +1,5 @@
 'use strict';
-
+// redeploy: 2026-04-26
 const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
@@ -88,10 +88,48 @@ function functionError(res, err) {
     const code = err.message || 'INTERNAL_ERROR';
     const status = Number(err.status) || (
         code === 'INVALID_ROLE' || code === 'INVALID_REQUEST' ? 400 :
+        code === 'BOOTSTRAP_SECRET_NOT_CONFIGURED' ? 500 :
+        code === 'BOOTSTRAP_UNAUTHORIZED' ? 403 :
         code === 'SCHOOL_EXISTS' || code === 'EMAIL_IN_USE_DIFFERENT_SCHOOL' ? 409 :
         500
     );
     return res.status(status).json({ error: code, code });
+}
+
+function requireBootstrapAuthorization(req) {
+    const expectedSecret = String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim();
+    if (!expectedSecret) {
+        const err = new Error('BOOTSTRAP_SECRET_NOT_CONFIGURED');
+        err.status = 500;
+        throw err;
+    }
+
+    const suppliedSecret = String(req.get('x-bootstrap-secret') || req.body?.bootstrapSecret || '').trim();
+    const expected = Buffer.from(expectedSecret);
+    const supplied = Buffer.from(suppliedSecret);
+    if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) {
+        const err = new Error('BOOTSTRAP_UNAUTHORIZED');
+        err.status = 403;
+        throw err;
+    }
+}
+
+function getPublicFirebaseConfig() {
+    const projectId =
+        process.env.FIREBASE_PROJECT_ID ||
+        process.env.GCLOUD_PROJECT ||
+        process.env.GCP_PROJECT ||
+        process.env.GOOGLE_CLOUD_PROJECT ||
+        '';
+
+    return {
+        apiKey: process.env.FIREBASE_API_KEY || '',
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+        projectId,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+        appId: process.env.FIREBASE_APP_ID || ''
+    };
 }
 
 function buildInviteId(email, uid) {
@@ -347,33 +385,53 @@ exports.verifyOtp = onRequest({ cors: true }, async (req, res) => {
     if (!massar || !otp) return res.status(400).json({ error: 'Missing massar or otp' });
 
     const otpRef = db.collection('otpCodes').doc(massar);
-    const otpDoc = await otpRef.get();
+    let otpData;
+    let failureResponse = null;
 
-    if (!otpDoc.exists) {
-        return res.status(404).json({ error: 'NO_ACTIVE_OTP', code: 'NO_ACTIVE_OTP', message: 'NO_ACTIVE_OTP' });
-    }
+    await db.runTransaction(async (transaction) => {
+        const otpDoc = await transaction.get(otpRef);
+        if (!otpDoc.exists) {
+            failureResponse = { status: 404, code: 'NO_ACTIVE_OTP' };
+            return;
+        }
 
-    const otpData = otpDoc.data();
-    const now = Date.now();
+        otpData = otpDoc.data();
+        const now = Date.now();
 
-    if (otpData.expiresAt && otpData.expiresAt.toDate().getTime() < now) {
-        return res.status(401).json({ error: 'OTP_EXPIRED', code: 'OTP_EXPIRED', message: 'OTP_EXPIRED' });
-    }
+        if (otpData.expiresAt && otpData.expiresAt.toDate().getTime() < now) {
+            failureResponse = { status: 401, code: 'OTP_EXPIRED' };
+            return;
+        }
 
-    if (otpData.status !== 'active') {
-        const code = otpData.status === 'used' ? 'OTP_USED' : 'OTP_CANCELLED';
-        return res.status(401).json({ error: code, code, message: code });
-    }
+        if (otpData.status !== 'active') {
+            failureResponse = { status: 401, code: otpData.status === 'used' ? 'OTP_USED' : 'OTP_CANCELLED' };
+            return;
+        }
 
-    if (otpData.failureCount >= 5) {
-        return res.status(429).json({ error: 'RATE_LIMITED', code: 'RATE_LIMITED', message: 'RATE_LIMITED' });
-    }
+        if (otpData.failureCount >= 5) {
+            failureResponse = { status: 429, code: 'RATE_LIMITED' };
+            return;
+        }
 
-    const isValid = verifyPassword(otp, otpData.otpHash);
+        const isValid = verifyPassword(otp, otpData.otpHash);
+        if (!isValid) {
+            transaction.update(otpRef, { failureCount: admin.firestore.FieldValue.increment(1) });
+            failureResponse = { status: 401, code: 'INVALID_OTP' };
+            return;
+        }
 
-    if (!isValid) {
-        await otpRef.update({ failureCount: admin.firestore.FieldValue.increment(1) });
-        return res.status(401).json({ error: 'INVALID_OTP', code: 'INVALID_OTP', message: 'INVALID_OTP' });
+        transaction.update(otpRef, {
+            status: 'used',
+            usedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    });
+
+    if (failureResponse) {
+        return res.status(failureResponse.status).json({
+            error: failureResponse.code,
+            code: failureResponse.code,
+            message: failureResponse.code
+        });
     }
 
     let provisionedUser = null;
@@ -401,8 +459,6 @@ exports.verifyOtp = onRequest({ cors: true }, async (req, res) => {
         provisionedUser = publicUserProfile({ ...profile, uid: userRecord.uid });
     }
 
-    await otpRef.update({ status: 'used' });
-
     return res.status(200).json({
         success: true,
         encryptedPayload: otpData.encryptedPayload || null,
@@ -416,10 +472,11 @@ exports.verifyOtp = onRequest({ cors: true }, async (req, res) => {
  * POST /bootstrapInstitution
  * Creates a school, its institution metadata, and the first admin Firebase user.
  */
-exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
+exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTSTRAP_SECRET'] }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
     try {
+        requireBootstrapAuthorization(req);
         const {
             gresaCode,
             schoolId: rawSchoolId,
@@ -432,7 +489,7 @@ exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
         const schoolId = normalizeSchoolId(gresaCode || rawSchoolId || massarCode);
         const email = normalizeEmail(adminEmail);
         const name = String(adminName || '').trim();
-        const schoolName = String(institutionName || '').trim();
+        const schoolName = String(institutionName || '').trim() || schoolId;
 
         if (!schoolId || !schoolName || !email || !adminPassword || !name) {
             const err = new Error('INVALID_REQUEST');
@@ -453,7 +510,7 @@ exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
             email,
             password: adminPassword,
             name,
-            role: 'admin',
+            role: 'principal',
             mustChangePassword: false,
             createdBy: 'bootstrap'
         });
@@ -492,12 +549,13 @@ exports.bootstrapInstitution = onRequest({ cors: true }, async (req, res) => {
             .set(db.doc(`schools/${schoolId}/meta/institution`), institution, { merge: true })
             .commit();
 
-        const customToken = await auth.createCustomToken(userRecord.uid, { schoolId, role: 'admin' });
+        const customToken = await auth.createCustomToken(userRecord.uid, { schoolId, role: 'principal' });
         return res.status(200).json({
             success: true,
             customToken,
             uid: userRecord.uid,
             schoolId,
+            firebaseConfig: getPublicFirebaseConfig(),
             profile: publicUserProfile(profile),
             institution: publicInstitution
         });

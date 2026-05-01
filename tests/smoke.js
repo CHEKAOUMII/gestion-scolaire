@@ -512,6 +512,17 @@ function runSyncDefaultsSmoke() {
         'Backward-compatible authLambdaUrl alias should mirror the Firebase functions URL'
     );
 
+    const derivedFirebaseUrl = applySyncDefaults(
+        { firebase_functions_url: '', firebase_project_id: '' },
+        { FIREBASE_PROJECT_ID: 'gestionscholaire-prod', FIREBASE_FUNCTIONS_REGION: 'europe-west1' }
+    );
+
+    assert.strictEqual(
+        derivedFirebaseUrl.firebaseFunctionsUrl,
+        'https://europe-west1-gestionscholaire-prod.cloudfunctions.net',
+        'Firebase sync defaults should derive the standard functions URL from project id and region'
+    );
+
     const legacyFallback = applySyncDefaults(
         { auth_lambda_url: '', aws_region: '' },
         { AUTH_LAMBDA_URL: 'https://example.lambda-url.on.aws/', AWS_REGION: 'eu-west-3' }

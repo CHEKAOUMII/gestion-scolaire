@@ -1,21 +1,18 @@
 'use strict';
 
-const { signInWithCustomToken } = require('firebase/auth');
+const { getAuth } = require('firebase/auth');
+const { getApps } = require('firebase/app');
 const { doc, getDoc } = require('firebase/firestore');
-const { getFirebaseAuth, getFirestoreDb } = require('../firebase/config');
+const { getFirestoreDb } = require('../firebase/config');
 const { getDb } = require('../db/context');
-const { getDeviceHash } = require('./capture');
+
+const USER_AUTH_APP_NAME = 'pencil-user-auth';
 
 let _cachedCredentials = null;
 let _refreshPromise = null;
 
 function readSyncConfig(db) {
     return db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
-}
-
-function readLicenseKey(db) {
-    const config = readSyncConfig(db);
-    return config.license_key ? String(config.license_key).trim() || null : null;
 }
 
 function getFunctionsUrl(config) {
@@ -25,51 +22,73 @@ function getFunctionsUrl(config) {
     return url || null;
 }
 
+function readSchoolIdFromDb(db) {
+    const config = readSyncConfig(db);
+    const fromSync = String(config.school_id || '').trim().toUpperCase();
+    if (fromSync) return fromSync;
+
+    try {
+        const instRow = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get() || {};
+        return String(instRow.massar_code || '').trim().toUpperCase();
+    } catch {
+        return '';
+    }
+}
+
+async function getFirebaseSession() {
+    try {
+        const app = getApps().find((a) => a.name === USER_AUTH_APP_NAME);
+        if (!app) {
+            console.log('[sync:credentials] Firebase app not found:', USER_AUTH_APP_NAME);
+            return null;
+        }
+
+        const auth = getAuth(app);
+        if (!auth.currentUser) {
+            console.log('[sync:credentials] No currentUser on Firebase auth');
+            return null;
+        }
+
+        let tokenResult;
+        try {
+            tokenResult = await auth.currentUser.getIdTokenResult(true);
+        } catch (refreshErr) {
+            console.warn('[sync:credentials] Forced token refresh failed, trying cached:', refreshErr.message);
+            tokenResult = await auth.currentUser.getIdTokenResult(false);
+        }
+
+        let schoolId = String(tokenResult?.claims?.schoolId || '').trim().toUpperCase();
+
+        if (!schoolId) {
+            const db = getDb();
+            schoolId = readSchoolIdFromDb(db);
+        }
+
+        if (!schoolId) {
+            console.log('[sync:credentials] No schoolId found in claims or DB');
+            return null;
+        }
+
+        return {
+            user: auth.currentUser,
+            schoolId,
+            expiresAt: Math.floor(new Date(tokenResult.expirationTime).getTime() / 1000)
+        };
+    } catch (err) {
+        console.warn('[sync:credentials] getFirebaseSession failed:', err.message);
+        return null;
+    }
+}
+
 async function refreshCredentials() {
     try {
-        const db = getDb();
-        const config = readSyncConfig(db);
-        const functionsUrl = getFunctionsUrl(config);
-
-        if (!functionsUrl) return null;
-
-        const licenseKey = readLicenseKey(db);
-        if (!licenseKey) return null;
-
-        const deviceHash = getDeviceHash();
-
-        // Step 1: Call authExchange Cloud Function
-        const authResponse = await fetch(`${functionsUrl}/authExchange`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ licenseKey, deviceHash })
-        });
-
-        if (!authResponse.ok) {
-            let errorBody = {};
-            try { errorBody = await authResponse.json(); } catch { /* */ }
-            console.warn('[sync:credentials] Auth exchange failed:', errorBody.error || authResponse.status);
-            return null;
+        const session = await getFirebaseSession();
+        if (session) {
+            _cachedCredentials = session;
+            return _cachedCredentials;
         }
 
-        const { customToken, schoolId } = await authResponse.json();
-
-        // Step 2: Sign in with custom token via Firebase Auth
-        const auth = getFirebaseAuth();
-        if (!auth) {
-            console.warn('[sync:credentials] Firebase Auth not initialized');
-            return null;
-        }
-
-        const userCredential = await signInWithCustomToken(auth, customToken);
-
-        _cachedCredentials = {
-            user: userCredential.user,
-            schoolId,
-            expiresAt: Math.floor(Date.now() / 1000) + 3500
-        };
-
-        return _cachedCredentials;
+        return null;
     } catch (err) {
         console.warn('[sync:credentials] Credential refresh failed:', err.message);
         return null;
@@ -101,57 +120,30 @@ function isAuthenticated() {
 }
 
 async function testConnection() {
+    // Try 1: Use existing Firebase login session
+    const session = await getFirebaseSession();
+    if (session) {
+        try {
+            const firestoreDb = getFirestoreDb();
+            if (!firestoreDb) return { success: false, step: 'firestore', error: 'Firestore not initialized' };
+            const schoolRef = doc(firestoreDb, 'schools', session.schoolId);
+            await getDoc(schoolRef);
+            return { success: true, schoolId: session.schoolId };
+        } catch (err) {
+            return { success: false, step: 'firestore', error: err.message };
+        }
+    }
+
+    // Firestore sync is independent from app activation/licensing, but it still
+    // needs a Firebase-authenticated school user because rules reject anonymous access.
     const db = getDb();
     const config = readSyncConfig(db);
     const functionsUrl = getFunctionsUrl(config);
-    const licenseKey = readLicenseKey(db);
 
     if (!functionsUrl) {
         return { success: false, error: 'لم يتم تحديد رابط Firebase Functions بعد' };
     }
-    if (!licenseKey) {
-        return { success: false, error: 'لم يتم إدخال مفتاح الترخيص' };
-    }
-
-    // Step 1: Test authExchange Cloud Function
-    let customToken, schoolId;
-    try {
-        const deviceHash = getDeviceHash();
-        const authRes = await fetch(`${functionsUrl}/authExchange`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ licenseKey, deviceHash })
-        });
-        if (!authRes.ok) {
-            let body = {};
-            try { body = await authRes.json(); } catch { /* */ }
-            return { success: false, step: 'auth', error: body.error || `HTTP ${authRes.status}` };
-        }
-        ({ customToken, schoolId } = await authRes.json());
-    } catch (err) {
-        return { success: false, step: 'auth', error: err.message };
-    }
-
-    // Step 2: Sign in with custom token
-    try {
-        const auth = getFirebaseAuth();
-        if (!auth) return { success: false, step: 'firebase', error: 'Firebase not initialized' };
-        await signInWithCustomToken(auth, customToken);
-    } catch (err) {
-        return { success: false, step: 'firebase', error: err.message };
-    }
-
-    // Step 3: Firestore ping — read school document
-    try {
-        const firestoreDb = getFirestoreDb();
-        if (!firestoreDb) return { success: false, step: 'firestore', error: 'Firestore not initialized' };
-        const schoolRef = doc(firestoreDb, 'schools', schoolId);
-        await getDoc(schoolRef);
-    } catch (err) {
-        return { success: false, step: 'firestore', error: err.message };
-    }
-
-    return { success: true, schoolId };
+    return { success: false, error: 'لا توجد جلسة Firebase نشطة. سجّل الدخول بحساب المؤسسة السحابي ثم أعد الاختبار.' };
 }
 
 module.exports = { getCredentials, clearCredentials, isAuthenticated, testConnection };

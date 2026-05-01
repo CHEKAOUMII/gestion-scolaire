@@ -8,20 +8,21 @@ const {
     getActivationRequest,
     getLicenseStatus,
     getPublicActivationStatus,
-    generateSerialKey,
     getPlanLimits,
     listLicenseDevices,
     refreshLicenseValidation
 } = require('../licensing/service');
 const { getTrialStatus, setTrialDuration } = require('../licensing/trialService');
 
+const _activationAttempts = new Map();
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 60_000;
+
 function registerLicensingIpc(ipcMain) {
-    // App quit (used when trial expired and user closes activation modal)
     ipcMain.handle('app:quit', () => {
         app.quit();
     });
 
-    // Public activation channels (available before login)
     ipcMain.handle('licensing:getActivationRequest', async () => {
         try {
             return getActivationRequest();
@@ -38,7 +39,6 @@ function registerLicensingIpc(ipcMain) {
         }
     });
 
-    // Public trial status (available before login)
     ipcMain.handle('licensing:getTrialStatus', async () => {
         try {
             return { success: true, ...getTrialStatus() };
@@ -48,6 +48,22 @@ function registerLicensingIpc(ipcMain) {
     });
 
     ipcMain.handle('licensing:activatePublic', async (_event, payload) => {
+        const senderId = _event.sender.id;
+        const now = Date.now();
+        const entry = _activationAttempts.get(senderId) || { count: 0, resetAt: now + WINDOW_MS };
+
+        if (now > entry.resetAt) {
+            entry.count = 0;
+            entry.resetAt = now + WINDOW_MS;
+        }
+
+        if (entry.count >= MAX_ATTEMPTS) {
+            return { success: false, code: 'RATE_LIMITED', error: 'Too many attempts. Try again later.' };
+        }
+
+        entry.count++;
+        _activationAttempts.set(senderId, entry);
+
         try {
             return activateLicense(payload || {});
         } catch (err) {
@@ -55,16 +71,6 @@ function registerLicensingIpc(ipcMain) {
         }
     });
 
-    ipcMain.handle('licensing:generateSerial', async (event, payload) => {
-        try {
-            requireRole(event, ['admin']);
-            return generateSerialKey(payload || {});
-        } catch (err) {
-            return authErrorResponse(err);
-        }
-    });
-
-    // Admin channels
     ipcMain.handle('licensing:getStatus', async (event) => {
         try {
             requireRole(event, ['admin']);
@@ -78,15 +84,6 @@ function registerLicensingIpc(ipcMain) {
         try {
             requireRole(event, ['admin']);
             return getPlanLimits();
-        } catch (err) {
-            return authErrorResponse(err);
-        }
-    });
-
-    ipcMain.handle('licensing:activate', async (event, payload) => {
-        try {
-            requireRole(event, ['admin']);
-            return activateLicense(payload || {});
         } catch (err) {
             return authErrorResponse(err);
         }
@@ -128,7 +125,6 @@ function registerLicensingIpc(ipcMain) {
         }
     });
 
-    // Admin: set trial duration
     ipcMain.handle('licensing:setTrialDuration', async (event, payload) => {
         try {
             requireRole(event, ['admin']);

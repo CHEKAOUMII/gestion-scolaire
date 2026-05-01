@@ -2,6 +2,7 @@
  * Sync Settings Page — js/pages/settings-sync.js
  * إعدادات المزامنة السحابية
  * ⚠️ Sync config section restricted to role === 'admin' OR 'developer'
+ * Sync activation is automatic after institution linking/setup; no user toggle.
  */
 
 // ── Hide sync config section for non-admin / non-developer users ──
@@ -495,7 +496,7 @@ function createLinkedDeviceRow(device, currentDeviceHash) {
  * Derive sync state from status object.
  */
 function deriveSyncState(status) {
-    if (!status || !status.enabled) return 'disabled';
+    if (!status || !status.configured) return 'disabled';
     if (status.pushRunning || status.pullRunning || status.snapshotRunning) return 'syncing';
     if (!status.authenticated) return 'offline';
     if (status.lastPushError || status.lastPullError) return 'error';
@@ -559,7 +560,7 @@ async function refreshStatus() {
                         'text-[var(--color-neutral-text)]'
                     );
                     bannerIcon = '<i class="fas fa-pause-circle text-xl"></i>';
-                    bannerText = 'المزامنة معطلة';
+                    bannerText = 'المزامنة تنتظر إعداد المؤسسة';
                     break;
             }
             banner.innerHTML = `${bannerIcon}<span class="font-bold">${bannerText}</span>`;
@@ -574,7 +575,7 @@ async function refreshStatus() {
                 syncing: { icon: 'fa-sync fa-spin text-[var(--color-success-text)]', label: 'مزامنة' },
                 offline: { icon: 'fa-exclamation-triangle text-[var(--color-warning-text)]', label: 'غير متصل' },
                 error: { icon: 'fa-times-circle text-[var(--color-danger-text)]', label: 'خطأ' },
-                disabled: { icon: 'fa-pause-circle text-[var(--color-text-muted)]', label: 'معطل' }
+                disabled: { icon: 'fa-pause-circle text-[var(--color-text-muted)]', label: 'غير مهيأة' }
             };
             const s = stateMap[state] || stateMap.disabled;
             connEl.innerHTML = `<i class="fas ${s.icon} me-1"></i> ${s.label}`;
@@ -650,9 +651,9 @@ async function refreshStatus() {
         // Control Sync Now button state (US3)
         const syncNowBtn = document.getElementById('btn-sync-now');
         if (syncNowBtn) {
-            if (!status.enabled) {
+            if (!status.configured) {
                 syncNowBtn.disabled = true;
-                syncNowBtn.title = 'المزامنة معطلة';
+                syncNowBtn.title = 'أكمل إعداد المؤسسة أولاً';
             } else if (status.pushRunning || status.pullRunning) {
                 syncNowBtn.disabled = true;
                 syncNowBtn.title = 'المزامنة جارية';
@@ -679,22 +680,18 @@ async function loadConfig() {
             const el = document.getElementById(id);
             if (el) el.value = val;
         };
-        const setChecked = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.checked = !!val;
-        };
-
-        setChecked('cfg-enabled', config.enabled);
         setVal('cfg-school-id', config.schoolId || '');
         setVal('cfg-functions-url', config.firebaseFunctionsUrl || '');
         setVal('cfg-project-id', config.firebaseProjectId || '');
+        setVal('cfg-api-key', config.firebaseApiKey || '');
+        setVal('cfg-auth-domain', config.firebaseAuthDomain || '');
+        setVal('cfg-app-id', config.firebaseAppId || '');
         setVal('cfg-interval', config.syncIntervalMinutes || 10);
         setVal('cfg-batch-size', config.pushBatchSize || 100);
         setVal('cfg-max-retries', config.maxRetries || 10);
         setVal('cfg-retention', config.retentionDays || 7);
         // snapshotIntervalMinutes comes from status, not config
         setVal('cfg-snapshot-interval', status?.snapshotIntervalMinutes || 30);
-        setVal('cfg-license-key', config.licenseKey || '');
     } catch (err) {
         console.warn('loadConfig error:', err);
     }
@@ -709,30 +706,37 @@ function initConfigForm() {
 
         const validationDiv = document.getElementById('config-validation');
 
-        const enabled = document.getElementById('cfg-enabled')?.checked;
         const schoolId = document.getElementById('cfg-school-id')?.value?.trim();
         const functionsUrl = document.getElementById('cfg-functions-url')?.value?.trim();
         const projectId = document.getElementById('cfg-project-id')?.value?.trim();
+        const apiKey = document.getElementById('cfg-api-key')?.value?.trim();
+        const authDomain = document.getElementById('cfg-auth-domain')?.value?.trim();
+        const appId = document.getElementById('cfg-app-id')?.value?.trim();
         const interval = parseInt(document.getElementById('cfg-interval')?.value, 10);
         const batchSize = parseInt(document.getElementById('cfg-batch-size')?.value, 10);
         const maxRetries = parseInt(document.getElementById('cfg-max-retries')?.value, 10);
         const retention = parseInt(document.getElementById('cfg-retention')?.value, 10);
         const snapshotInterval = parseInt(document.getElementById('cfg-snapshot-interval')?.value, 10);
-        const licenseKey = document.getElementById('cfg-license-key')?.value?.trim() || null;
 
         // Client-side validation
         const errors = [];
         if (isNaN(interval) || interval < 1 || interval > 30) {
             errors.push('فترة المزامنة يجب أن تكون بين 1 و 30 دقيقة');
         }
-        if (enabled && !schoolId) {
-            errors.push('معرف المؤسسة مطلوب عند تفعيل المزامنة');
+        if (!schoolId) {
+            errors.push('معرف المؤسسة مطلوب للمزامنة');
         }
-        if (enabled && !functionsUrl) {
-            errors.push('رابط Firebase Functions مطلوب عند تفعيل المزامنة');
+        if (!functionsUrl) {
+            errors.push('رابط Firebase Functions مطلوب للمزامنة');
         }
-        if (enabled && !projectId) {
-            errors.push('معرف مشروع Firebase مطلوب عند تفعيل المزامنة');
+        if (!projectId) {
+            errors.push('معرف مشروع Firebase مطلوب للمزامنة');
+        }
+        if (!apiKey) {
+            errors.push('Firebase API Key مطلوب لتسجيل الدخول السحابي');
+        }
+        if (!appId) {
+            errors.push('Firebase App ID مطلوب لتسجيل الدخول السحابي');
         }
 
         if (errors.length) {
@@ -745,17 +749,19 @@ function initConfigForm() {
         if (validationDiv) validationDiv.classList.add('hidden');
 
         const updates = {
-            enabled: enabled ? 1 : 0,
+            enabled: 1,
             schoolId,
             firebaseFunctionsUrl: functionsUrl,
             firebaseProjectId: projectId,
+            firebaseApiKey: apiKey,
+            firebaseAuthDomain: authDomain,
+            firebaseAppId: appId,
             syncIntervalMinutes: interval
         };
         if (!isNaN(batchSize)) updates.pushBatchSize = batchSize;
         if (!isNaN(maxRetries)) updates.maxRetries = maxRetries;
         if (!isNaN(retention)) updates.retentionDays = retention;
         if (!isNaN(snapshotInterval)) updates.snapshotIntervalMinutes = snapshotInterval;
-        if (licenseKey !== null) updates.licenseKey = licenseKey;
 
         try {
             const result = await window.api.sync.setConfig(updates);

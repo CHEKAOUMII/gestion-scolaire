@@ -253,10 +253,8 @@ contextBridge.exposeInMainWorld('api', {
         getActivationRequest: () => ipcRenderer.invoke('licensing:getActivationRequest'),
         getPublicStatus: () => ipcRenderer.invoke('licensing:getPublicStatus'),
         activatePublic: (payload) => ipcRenderer.invoke('licensing:activatePublic', payload),
-        generateSerial: (payload) => ipcRenderer.invoke('licensing:generateSerial', payload),
         getStatus: () => ipcRenderer.invoke('licensing:getStatus'),
         getPlans: () => ipcRenderer.invoke('licensing:getPlans'),
-        activate: (payload) => ipcRenderer.invoke('licensing:activate', payload),
         listDevices: () => ipcRenderer.invoke('licensing:listDevices'),
         deactivateCurrentDevice: () => ipcRenderer.invoke('licensing:deactivateCurrentDevice'),
         adminRevokeDevice: (payload) => ipcRenderer.invoke('licensing:adminRevokeDevice', payload),
@@ -267,8 +265,6 @@ contextBridge.exposeInMainWorld('api', {
 
     ownerTelemetry: {
         getConfig: () => ipcRenderer.invoke('ownerTelemetry:getConfig'),
-        saveConfig: (payload) => ipcRenderer.invoke('ownerTelemetry:saveConfig', payload),
-        testConnection: (payload) => ipcRenderer.invoke('ownerTelemetry:testConnection', payload),
         syncNow: () => ipcRenderer.invoke('ownerTelemetry:syncNow'),
         getOverview: () => ipcRenderer.invoke('ownerTelemetry:getOverview'),
         getDevices: (payload) => ipcRenderer.invoke('ownerTelemetry:getDevices', payload)

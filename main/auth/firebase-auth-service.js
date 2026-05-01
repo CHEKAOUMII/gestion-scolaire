@@ -67,6 +67,10 @@ function readSchoolId(db) {
     }
 }
 
+function normalizeSchoolId(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
 function getFirebaseClients() {
     const db = dbContext.getDb();
     const config = readFirebaseConfig(db);
@@ -88,6 +92,7 @@ function getFirebaseClients() {
 function isFirebaseUnavailable(err) {
     const code = String(err?.code || '');
     return (
+        code === 'FIREBASE_NOT_CONFIGURED' ||
         code === 'auth/network-request-failed' ||
         code === 'unavailable' ||
         code.includes('network') ||
@@ -120,6 +125,12 @@ function normalizeProfile(snapshotData, firebaseUser, localUser) {
         mustChangePassword: !!(profile.mustChangePassword ?? profile.must_change_password ?? localUser?.must_change_password),
         emailVerified: firebaseUser?.emailVerified ? 1 : 0
     };
+}
+
+function createAuthServiceError(code, message) {
+    const err = new Error(message || code);
+    err.code = code;
+    return err;
 }
 
 function selectUserByEmail(db, email) {
@@ -195,11 +206,14 @@ function upsertLocalUserFromProfile(db, profile, password, mode) {
 
 async function loadProfileForUser(firestore, schoolId, firebaseUser, localUser) {
     if (!schoolId || !firebaseUser?.uid) {
-        return normalizeProfile(null, firebaseUser, localUser);
+        throw createAuthServiceError('FIREBASE_PROFILE_REQUIRED', 'Firebase school profile is required');
     }
 
     const snapshot = await getDoc(doc(firestore, 'schools', schoolId, 'users', firebaseUser.uid));
-    return normalizeProfile(snapshot.exists() ? snapshot.data() : null, firebaseUser, localUser);
+    if (!snapshot.exists()) {
+        throw createAuthServiceError('FIREBASE_PROFILE_REQUIRED', 'Firebase school profile is required');
+    }
+    return normalizeProfile(snapshot.data(), firebaseUser, localUser);
 }
 
 function assertActiveProfile(profile) {
@@ -214,6 +228,12 @@ async function loginWithFirebase(email, password) {
     const db = dbContext.getDb();
     const { auth, firestore, schoolId } = getFirebaseClients();
     const credential = await signInWithEmailAndPassword(auth, normalizeEmail(email), password);
+    const tokenResult = await credential.user.getIdTokenResult(true);
+    const claimSchoolId = normalizeSchoolId(tokenResult?.claims?.schoolId);
+    const expectedSchoolId = normalizeSchoolId(schoolId);
+    if (expectedSchoolId && claimSchoolId !== expectedSchoolId) {
+        throw createAuthServiceError('FIREBASE_SCHOOL_MISMATCH', 'Firebase user does not belong to this school');
+    }
     const localUser = selectUserByFirebaseUid(db, credential.user.uid) || selectUserByEmail(db, email);
     const profile = await loadProfileForUser(firestore, schoolId, credential.user, localUser);
     assertActiveProfile(profile);
@@ -221,18 +241,20 @@ async function loginWithFirebase(email, password) {
     return { mode: 'online', userRow, profile, firebaseUser: credential.user };
 }
 
-function loginWithLocalFallback(email, password) {
+function loginWithLocalFallback(email, password, { firebaseNotConfigured } = {}) {
     const db = dbContext.getDb();
     const user = selectUserByEmail(db, email);
     if (!user || Number(user.disabled || 0) === 1) {
         return null;
     }
-    const hasPriorFirebaseLogin =
-        String(user.firebase_uid || '').trim() ||
-        String(user.auth_source || '').trim().toLowerCase() === 'firebase' ||
-        String(user.last_auth_mode || '').trim().toLowerCase() === 'online';
-    if (!hasPriorFirebaseLogin) {
-        return null;
+    if (!firebaseNotConfigured) {
+        const hasPriorFirebaseLogin =
+            String(user.firebase_uid || '').trim() ||
+            String(user.auth_source || '').trim().toLowerCase() === 'firebase' ||
+            String(user.last_auth_mode || '').trim().toLowerCase() === 'online';
+        if (!hasPriorFirebaseLogin) {
+            return null;
+        }
     }
     const storedHash = String(user.password_hash || '').trim();
     if (!storedHash || !verifyPassword(password, storedHash)) {
@@ -273,7 +295,8 @@ async function loginFirebaseFirst(email, password) {
             throw err;
         }
 
-        const fallback = loginWithLocalFallback(email, password);
+        const firebaseNotConfigured = err.code === 'FIREBASE_NOT_CONFIGURED';
+        const fallback = loginWithLocalFallback(email, password, { firebaseNotConfigured });
         if (fallback) {
             fallback.warning = err.code || err.message;
             return fallback;

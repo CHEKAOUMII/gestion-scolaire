@@ -400,12 +400,11 @@ function getCurrentRole() {
         const sessions = getActiveSessions();
         if (!sessions || sessions.size === 0) return null;
 
-        for (const session of sessions.values()) {
-            if (session.role === 'admin') return 'admin';
-        }
-
-        for (const session of sessions.values()) {
-            if (session.role === 'staff') return 'staff';
+        const priority = ['admin', 'principal', 'supervisor', 'external-guardian', 'internal-guardian', 'admin-assistant', 'educational-specialist', 'social-specialist', 'teacher', 'viewer', 'staff'];
+        for (const role of priority) {
+            for (const session of sessions.values()) {
+                if (session.role === role) return role === 'staff' ? 'principal' : role;
+            }
         }
 
         return null;
@@ -636,7 +635,7 @@ async function flushSyncOutbox(limit) {
     try {
         const db = getDb();
         const config = readSyncConfig(db);
-        if (!Number(config.enabled)) return { success: true, skipped: true, reason: 'disabled' };
+        if (!Number(config.enabled)) return { success: true, skipped: true, reason: 'not_configured' };
 
         const role = getCurrentRole();
         if (!role) return { success: true, skipped: true, reason: 'no_active_session' };
@@ -800,7 +799,7 @@ function startSyncPushBackground() {
         const db = getDb();
         const config = readSyncConfig(db);
 
-        if (!Number(config.enabled) || !config.firebase_functions_url) {
+        if (!Number(config.enabled) || !config.firebase_functions_url || !config.school_id) {
             return;
         }
 
@@ -842,7 +841,7 @@ async function pullRemoteChanges() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !config.enabled) {
+        if (!config || !config.enabled || !config.school_id) {
             return {
                 success: true,
                 appliedCount: 0,
@@ -1257,7 +1256,7 @@ function startSyncPullBackground() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !config.enabled || !config.firebase_functions_url) return;
+        if (!config || !config.enabled || !config.firebase_functions_url || !config.school_id) return;
 
         const intervalMs = Math.max(1, Math.min(30, config.sync_interval_minutes || 10)) * 60 * 1000;
 

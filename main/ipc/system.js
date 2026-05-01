@@ -5,6 +5,7 @@ const { hashPassword, generateRandomPassword } = require('../auth/password');
 const { authErrorResponse, handleWrite, handleRead } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
+const { applySyncDefaults } = require('../sync/defaults');
 
 function normalizeEmail(value) {
     return String(value || '')
@@ -37,8 +38,8 @@ function getSchoolId(db) {
 }
 
 function getFirebaseFunctionsUrl(db) {
-    const row = db.prepare('SELECT firebase_functions_url FROM sync_config WHERE id = 1').get() || {};
-    return String(row.firebase_functions_url || process.env.FIREBASE_FUNCTIONS_URL || '').trim().replace(/\/+$/, '');
+    const row = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+    return applySyncDefaults(row).firebaseFunctionsUrl || '';
 }
 
 async function postFirebaseFunction(db, functionName, body) {

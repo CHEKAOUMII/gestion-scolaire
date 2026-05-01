@@ -17,6 +17,7 @@ const {
     getPublishedOtpStatus,
     cancelPublishedOtp
 } = require('../linking/server');
+const { applySyncDefaults } = require('../sync/defaults');
 
 const OTP_REGEX = /^\d{6}$/;
 const LINKING_READ_ROLES = [...require('../auth/permissions').ALLOWED_ROLES];
@@ -182,7 +183,6 @@ function normalizeSyncConfig(rawConfig, massarCode) {
         config.firebase_storage_bucket ?? config.firebaseStorageBucket ?? config.storageBucket ?? '';
     const firebaseMessagingSenderIdSource =
         config.firebase_messaging_sender_id ?? config.firebaseMessagingSenderId ?? config.messagingSenderId ?? '';
-    const licenseKeySource = config.license_key ?? config.licenseKey ?? '';
 
     return {
         schoolId: String(schoolIdSource).trim() || null,
@@ -193,9 +193,8 @@ function normalizeSyncConfig(rawConfig, massarCode) {
         firebaseAppId: String(firebaseAppIdSource).trim() || null,
         firebaseStorageBucket: String(firebaseStorageBucketSource).trim() || null,
         firebaseMessagingSenderId: String(firebaseMessagingSenderIdSource).trim() || null,
-        licenseKey: String(licenseKeySource).trim() || null,
         syncIntervalMinutes: Number.isFinite(syncIntervalValue) && syncIntervalValue > 0 ? syncIntervalValue : null,
-        enabled: enabledValue === undefined || enabledValue === null ? null : Number(enabledValue) ? 1 : 0
+        enabled: enabledValue === undefined || enabledValue === null ? 1 : Number(enabledValue) ? 1 : 0
     };
 }
 
@@ -272,14 +271,8 @@ function upsertSyncConfig(db, syncConfig) {
         firebaseStorageBucket: syncConfig.firebaseStorageBucket || currentConfig.firebase_storage_bucket || null,
         firebaseMessagingSenderId:
             syncConfig.firebaseMessagingSenderId || currentConfig.firebase_messaging_sender_id || null,
-        licenseKey: syncConfig.licenseKey || currentConfig.license_key || null,
         syncIntervalMinutes: syncConfig.syncIntervalMinutes || Number(currentConfig.sync_interval_minutes) || 10,
-        enabled:
-            syncConfig.enabled === null || syncConfig.enabled === undefined
-                ? Number(currentConfig.enabled)
-                    ? 1
-                    : 0
-                : syncConfig.enabled
+        enabled: 1
     };
 
     db.prepare(
@@ -294,12 +287,11 @@ function upsertSyncConfig(db, syncConfig) {
                 firebase_app_id,
                 firebase_storage_bucket,
                 firebase_messaging_sender_id,
-                license_key,
                 sync_interval_minutes,
                 enabled,
                 updated_at
             )
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(id) DO UPDATE SET
                 school_id = excluded.school_id,
                 firebase_functions_url = excluded.firebase_functions_url,
@@ -309,7 +301,6 @@ function upsertSyncConfig(db, syncConfig) {
                 firebase_app_id = excluded.firebase_app_id,
                 firebase_storage_bucket = excluded.firebase_storage_bucket,
                 firebase_messaging_sender_id = excluded.firebase_messaging_sender_id,
-                license_key = excluded.license_key,
                 sync_interval_minutes = excluded.sync_interval_minutes,
                 enabled = excluded.enabled,
                 updated_at = CURRENT_TIMESTAMP
@@ -323,7 +314,6 @@ function upsertSyncConfig(db, syncConfig) {
         mergedConfig.firebaseAppId,
         mergedConfig.firebaseStorageBucket,
         mergedConfig.firebaseMessagingSenderId,
-        mergedConfig.licenseKey,
         mergedConfig.syncIntervalMinutes,
         mergedConfig.enabled
     );
@@ -408,12 +398,8 @@ function importLinkedUsers(db, users) {
 }
 
 function getFirebaseFunctionsUrl(db) {
-    const row = db.prepare('SELECT firebase_functions_url FROM sync_config WHERE id = 1').get();
-    return (
-        String(row?.firebase_functions_url || process.env.FIREBASE_FUNCTIONS_URL || '')
-            .trim()
-            .replace(/\/+$/, '') || null
-    );
+    const row = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+    return applySyncDefaults(row).firebaseFunctionsUrl || null;
 }
 
 async function postFirebaseFunction(functionsUrl, functionName, body) {
@@ -492,7 +478,7 @@ function normalizeBootstrapResponse(data, fallback) {
             uid: String(payload.uid ?? payload.firebaseUid ?? user.uid ?? user.firebaseUid ?? '').trim() || null,
             name: String(user.name ?? user.displayName ?? payload.adminName ?? fallback.adminName ?? '').trim(),
             email: String(user.email ?? payload.adminEmail ?? fallback.adminEmail ?? '').trim().toLowerCase(),
-            role: String(user.role ?? payload.role ?? 'admin').trim() || 'admin',
+            role: 'principal',
             emailVerified: Number(user.emailVerified ?? payload.emailVerified) ? 1 : 0,
             mustChangePassword: Number(user.mustChangePassword ?? payload.mustChangePassword) ? 1 : 0
         },
@@ -624,7 +610,7 @@ function registerLinkingIpc(ipcMain) {
         }
 
         const massarCode = normalizeMassarCode(payload?.massarCode);
-        const institutionName = String(payload?.institutionName || '').trim() || null;
+        const institutionName = String(payload?.institutionName || '').trim() || massarCode;
         const adminName = String(payload?.adminName || '').trim();
         const adminEmail = String(payload?.adminEmail || '').trim().toLowerCase();
         const adminPassword = String(payload?.adminPassword || '');
@@ -659,6 +645,9 @@ function registerLinkingIpc(ipcMain) {
             adminName,
             adminEmail,
             adminPassword,
+            role: 'principal',
+            // SECURITY: this secret is readable from the packaged app — rotate it periodically
+            bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || '',
             device: deviceContext
         });
         if (!bootstrapResult.success) {
@@ -705,7 +694,7 @@ function registerLinkingIpc(ipcMain) {
 
             upsertSyncConfig(db, bootstrap.syncConfig);
             upsertLinkedDevice(db, deviceContext, 'firebase_bootstrap');
-            upsertFirebaseCachedUser(db, bootstrap.user, adminPassword, 'admin');
+            upsertFirebaseCachedUser(db, { ...bootstrap.user, role: 'principal' }, adminPassword, 'principal');
         });
 
         try {
@@ -905,8 +894,7 @@ function registerLinkingIpc(ipcMain) {
 
             const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
             const functionsUrl = String(syncRow?.firebase_functions_url || '').trim().replace(/\/+$/, '') || null;
-            const licenseKey = String(syncRow?.license_key || '').trim() || null;
-            if (functionsUrl && licenseKey) {
+            if (functionsUrl) {
                 const configPayload = {
                     institution: {
                         massar_code: institution.massarCode,
@@ -921,15 +909,14 @@ function registerLinkingIpc(ipcMain) {
                         firebase_app_id: syncRow?.firebase_app_id || null,
                         firebase_storage_bucket: syncRow?.firebase_storage_bucket || null,
                         firebase_messaging_sender_id: syncRow?.firebase_messaging_sender_id || null,
-                        license_key: licenseKey,
                         sync_interval_minutes: syncRow?.sync_interval_minutes || 10,
-                        enabled: syncRow?.enabled ?? 0
+                        enabled: 1
                     },
                     users: []
                 };
                 const remoteResult = await publishOtpToServer(
                     functionsUrl,
-                    licenseKey,
+                    institution.massarCode,
                     deviceContext.deviceHash,
                     institution.massarCode,
                     generated.otp,

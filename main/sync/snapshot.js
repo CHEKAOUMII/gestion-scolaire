@@ -44,7 +44,7 @@ async function runSnapshotCycle() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !Number(config.enabled)) {
+        if (!config || !Number(config.enabled) || !config.school_id) {
             return {
                 success: true,
                 skipped: true,
@@ -158,7 +158,7 @@ function startSnapshotBackground() {
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !Number(config.enabled)) return;
+        if (!config || !Number(config.enabled) || !config.school_id) return;
 
         // Run an immediate cycle
         void runSnapshotCycle();

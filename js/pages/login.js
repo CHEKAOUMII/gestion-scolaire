@@ -163,7 +163,11 @@ function getLoginErrorMessage(error) {
         case 'UNAVAILABLE':
             return 'تعذر الاتصال بخدمة المصادقة. إذا سبق لك الدخول على هذا الجهاز فسيتم استعمال الدخول المحلي عند توفره';
         case 'OFFLINE_FALLBACK_UNAVAILABLE':
+        case 'OFFLINE_LOGIN_UNAVAILABLE':
             return 'لا يمكن الدخول بدون اتصال إلا لحساب سبق له تسجيل الدخول على هذا الجهاز';
+        case 'FIREBASE_PROFILE_REQUIRED':
+        case 'FIREBASE_SCHOOL_MISMATCH':
+            return 'هذا الحساب غير مرتبط بهذه المؤسسة';
         case 'TOO_MANY_REQUESTS':
         case 'TOO-MANY-REQUESTS':
         case 'LOCKED':
