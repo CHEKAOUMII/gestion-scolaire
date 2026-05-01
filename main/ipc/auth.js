@@ -279,7 +279,12 @@ function registerAuthIpc(ipcMain) {
                 return {
                     success: false,
                     code,
-                    error
+                    error,
+                    _diag: {
+                        firebaseCode: err.code || null,
+                        message: err.message || null,
+                        publicCode: err.publicCode || null
+                    }
                 };
             }
 

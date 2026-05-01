@@ -143,6 +143,14 @@ function persistDiscoveredSchoolId(db, schoolId, source) {
 function getFirebaseClients() {
     const db = dbContext.getDb();
     const config = readFirebaseConfig(db);
+    console.log('[AUTH-DIAG] Firebase config check:', {
+        hasApiKey: !!config.apiKey,
+        hasProjectId: !!config.projectId,
+        hasAppId: !!config.appId,
+        authDomain: config.authDomain ? '(set)' : '(missing)',
+        apiKeyLength: (config.apiKey || '').length,
+        projectId: config.projectId || '(empty)'
+    });
     if (!config.apiKey || !config.projectId) {
         logAuthDebug('firebase.config.missing', {
             hasApiKey: !!config.apiKey,
@@ -443,6 +451,12 @@ async function loginFirebaseFirst(email, password) {
     try {
         return await loginWithFirebase(email, password);
     } catch (err) {
+        console.error('[AUTH-DIAG] Firebase login failed:', {
+            code: err.code || null,
+            message: err.message || String(err),
+            firebaseUnavailable: isFirebaseUnavailable(err),
+            stack: (err.stack || '').split('\n').slice(0, 3).join(' | ')
+        });
         logAuthDebug('firebase.login.failed', {
             email,
             code: err.code || null,

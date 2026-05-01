@@ -492,7 +492,12 @@ function initLoginPage() {
                     showLoginMessage(loginError, loginErrorText, '');
                     showLoginMessage(loginSuccess, loginSuccessText, response.error || 'تم إرسال طلب ربط حسابك بالمؤسسة. انتظر موافقة المدير ثم أعد تسجيل الدخول');
                 } else {
-                    showLoginMessage(loginError, loginErrorText, getLoginErrorMessage(response));
+                    let diagSuffix = '';
+                    if (response?._diag) {
+                        const d = response._diag;
+                        diagSuffix = `\n[DIAG] code=${d.firebaseCode || '?'} | msg=${d.message || '?'}`;
+                    }
+                    showLoginMessage(loginError, loginErrorText, getLoginErrorMessage(response) + diagSuffix);
                 }
                 btnLogin.classList.remove('loading');
                 btnLogin.disabled = false;
