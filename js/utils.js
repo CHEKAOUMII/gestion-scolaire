@@ -179,6 +179,8 @@ try {
 let _refreshToken = 0; // stale-request guard for refreshLimitedModeNotice
 let _pageVisibilityState = null;
 let _pageVisibilityLoadPromise = null;
+let _allowedPagesState = null;
+let _allowedPagesLoadPromise = null;
 
 function _getCurrentPageName() {
     return window.location.pathname.split('/').pop() || 'index.html';
@@ -290,8 +292,10 @@ function _canRoleOpenPage(pageName, authRole, accessState) {
     if (ADMIN_ONLY_PAGES.has(normalizedPage)) return _canOpenAdminOnlyPage(normalizedPage, authRole);
     if (_isPageHiddenByAdminToggle(normalizedPage, authRole)) return false;
 
-    // Authenticated users (any role) can access non-admin pages
-    if (_isAuthenticatedRole(authRole)) return true;
+    if (_isAuthenticatedRole(authRole)) {
+        if (!Array.isArray(_allowedPagesState)) return true;
+        return _allowedPagesState.includes(normalizedPage.replace(/\.html$/i, ''));
+    }
 
     // Non-authenticated: access depends on activation state
     const state = String(accessState || '').toLowerCase();
@@ -476,6 +480,44 @@ async function loadPageVisibilityState(forceRefresh = false) {
     return _pageVisibilityLoadPromise;
 }
 
+async function loadAllowedPagesState(authRole, forceRefresh = false) {
+    if (!_isAuthenticatedRole(authRole)) {
+        _allowedPagesState = null;
+        return null;
+    }
+    if (!forceRefresh && Array.isArray(_allowedPagesState)) {
+        return _allowedPagesState;
+    }
+    if (!forceRefresh && _allowedPagesLoadPromise) {
+        return _allowedPagesLoadPromise;
+    }
+
+    const run = async () => {
+        if (!window.api?.auth?.getAllowedPages) {
+            _allowedPagesState = null;
+            return null;
+        }
+        try {
+            const allowed = await window.api.auth.getAllowedPages();
+            if (!Array.isArray(allowed)) {
+                _allowedPagesState = null;
+                return null;
+            }
+            _allowedPagesState = allowed.map((page) => String(page || '').trim()).filter(Boolean);
+            return _allowedPagesState;
+        } catch (_err) {
+            _allowedPagesState = null;
+            return null;
+        }
+    };
+
+    _allowedPagesLoadPromise = run().finally(() => {
+        _allowedPagesLoadPromise = null;
+    });
+
+    return _allowedPagesLoadPromise;
+}
+
 async function setPageVisibilityForAdmin(page, isVisible) {
     const pageKey = _normalizePageKey(page);
     if (!pageKey || !_isManagedPage(pageKey)) {
@@ -616,15 +658,7 @@ function _isSidebarLinkBlocked(href, authRole, accessState) {
     const normalizedHref = _normalizePageKey(href);
     if (!normalizedHref || normalizedHref === '#') return false;
 
-    if (_isPageHiddenByAdminToggle(normalizedHref, authRole)) {
-        return true;
-    }
-
-    // Admin can see admin-only pages; other authenticated users cannot
-    if (_isAuthenticatedRole(authRole)) {
-        if (ADMIN_ONLY_PAGES.has(normalizedHref)) return !_canOpenAdminOnlyPage(normalizedHref, authRole);
-        return false;
-    }
+    if (_isAuthenticatedRole(authRole)) return !_canRoleOpenPage(normalizedHref, authRole, accessState);
 
     // Non-authenticated: licensed/trial can see non-admin pages
     const state = String(accessState || '').toLowerCase();
@@ -653,7 +687,7 @@ function applyNavigationRestrictions(authRole, accessState) {
                 }
                 const isAuth = _isAuthenticatedRole(currentRole);
                 const message = isAuth
-                    ? 'هذه الصفحة مخصصة للمشرف (Admin)'
+                    ? 'ليست لديك صلاحية لفتح هذه الصفحة'
                     : currentAccess === 'licensed' || currentAccess === 'trial'
                       ? 'هذه الصفحة مخصصة للمشرف (Admin)'
                       : 'الوصول في الوضع المحدود متاح فقط لصفحتي اللوائح والاستيراد';
@@ -673,10 +707,10 @@ function applyNavigationRestrictions(authRole, accessState) {
         // Do not allow hiding admin-only pages from admins, else they can't manage settings
         const effectivelyHiddenByAdmin = isHiddenByAdmin && !(isAdminOnlyPage && canOpenAdminOnlyPage);
 
-        if (!isDev && ((isAdminOnlyPage && !canOpenAdminOnlyPage) || effectivelyHiddenByAdmin)) {
+        if (!isDev && (blocked || effectivelyHiddenByAdmin)) {
             if (listItem) listItem.style.display = 'none';
             return;
-        } else if (isAdminOnlyPage || effectivelyHiddenByAdmin) {
+        } else if (listItem) {
             if (listItem) listItem.style.display = '';
         }
 
@@ -765,9 +799,8 @@ function enforcePageRoleOrRedirect(authRole, accessState) {
         return false;
     }
 
-    // Authenticated users can access everything; admin can also access admin-only pages
     if (_isAuthenticatedRole(authRole)) {
-        if (ADMIN_ONLY_PAGES.has(currentPage) && !_canOpenAdminOnlyPage(currentPage, authRole)) {
+        if (!_canRoleOpenPage(currentPage, authRole, accessState)) {
             try {
                 sessionStorage.setItem(BLOCKED_REDIRECT_NOTICE_KEY, currentPage);
             } catch (_err) {
@@ -1780,6 +1813,7 @@ function applyAppUi(authRole, accessState, session) {
     accessState = await resolveAccessState();
 
     await loadPageVisibilityState();
+    await loadAllowedPagesState(authRole, true);
 
     if (!enforcePageRoleOrRedirect(authRole, accessState)) {
         return;

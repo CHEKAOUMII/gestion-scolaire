@@ -18,8 +18,30 @@ const ROLE_OPTIONS = [
     { value: 'viewer',                 label: 'مشاهد فقط' },
 ];
 
+function getCurrentSessionRole() {
+    try {
+        const raw = localStorage.getItem('gsl_auth_session_v1');
+        const session = raw ? JSON.parse(raw) : null;
+        return String(session?.role || '').trim().toLowerCase();
+    } catch {
+        return '';
+    }
+}
+
+function canCurrentUserAssignRole(role) {
+    return !(getCurrentSessionRole() === 'principal' && role === 'admin');
+}
+
+function getAssignableRoleOptions() {
+    return ROLE_OPTIONS.filter(({ value }) => canCurrentUserAssignRole(value));
+}
+
 function buildRoleSelect(userId, currentRole) {
-    const options = ROLE_OPTIONS.map(({ value, label }) =>
+    if (getCurrentSessionRole() === 'principal' && currentRole === 'admin') {
+        return safeText(ROLE_OPTIONS.find((option) => option.value === 'admin')?.label || 'admin');
+    }
+
+    const options = getAssignableRoleOptions().map(({ value, label }) =>
         `<option value="${value}" ${currentRole === value ? 'selected' : ''}>${label}</option>`
     ).join('');
     return `<select onchange="changeRole(${userId}, this.value)">${options}</select>`;
@@ -118,7 +140,7 @@ function formatLinkRequestDate(value) {
 }
 
 function buildLinkRequestRoleSelect(index) {
-    const options = ROLE_OPTIONS.map(({ value, label }) =>
+    const options = getAssignableRoleOptions().map(({ value, label }) =>
         `<option value="${value}" ${value === 'viewer' ? 'selected' : ''}>${label}</option>`
     ).join('');
     return `<select id="link-request-role-${index}">${options}</select>`;
@@ -325,7 +347,7 @@ async function addUser(event) {
 async function changeRole(id, role) {
     const response = await window.api.users.updateRole(id, role);
     if (!response || response.success === false) {
-        showToast('فشل تعديل الدور', 'error');
+        showToast(response?.error || 'فشل تعديل الدور', 'error');
         return;
     }
     showProvisioningWarning(response);
@@ -335,7 +357,7 @@ async function changeRole(id, role) {
 async function toggleDisable(id, disabled) {
     const response = await window.api.users.disable(id, !!disabled);
     if (!response || response.success === false) {
-        showToast('فشل تحديث الحالة', 'error');
+        showToast(response?.error || 'فشل تحديث الحالة', 'error');
         return;
     }
     showProvisioningWarning(response);
@@ -564,6 +586,11 @@ async function savePageVisibilityChanges() {
 }
 
 async function initSettingsUsersPage() {
+    const roleSelect = document.getElementById('role');
+    if (roleSelect && getCurrentSessionRole() === 'principal') {
+        roleSelect.querySelector('option[value="admin"]')?.remove();
+    }
+
     await loadRows();
     await loadLinkRequests({ silent: true });
     await loadPageVisibilityRows();

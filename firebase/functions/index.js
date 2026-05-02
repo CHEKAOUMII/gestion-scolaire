@@ -47,6 +47,14 @@ function normalizeRole(value, fallback = 'viewer') {
     return role;
 }
 
+function requireAssignableRole(caller, role) {
+    if (caller?.role === 'principal' && role === 'admin') {
+        const err = new Error('FORBIDDEN_ROLE');
+        err.status = 403;
+        throw err;
+    }
+}
+
 function publicUserProfile(data) {
     return {
         uid: data.uid,
@@ -405,6 +413,7 @@ exports.provisionSchoolUser = onRequest({ cors: true }, async (req, res) => {
         const email = normalizeEmail(rawEmail);
         const name = String(rawName || '').trim();
         const role = normalizeRole(rawRole);
+        requireAssignableRole(caller, role);
         const password = String(tempPassword || temporaryPassword || generateTemporaryPassword()).trim();
 
         if (!email || !name) {
@@ -466,6 +475,7 @@ exports.updateSchoolUserRole = onRequest({ cors: true }, async (req, res) => {
         const caller = await requireSchoolAdmin(idToken);
         const targetUserId = String(targetUid || uid || '').trim();
         const role = normalizeRole(newRole || rawRole);
+        requireAssignableRole(caller, role);
         if (!targetUserId) {
             const err = new Error('INVALID_REQUEST');
             err.status = 400;
@@ -476,6 +486,11 @@ exports.updateSchoolUserRole = onRequest({ cors: true }, async (req, res) => {
         const targetClaims = targetUser.customClaims || {};
         if (normalizeSchoolId(targetClaims.schoolId) !== caller.schoolId) {
             const err = new Error('SCHOOL_MISMATCH');
+            err.status = 403;
+            throw err;
+        }
+        if (caller.role === 'principal' && targetClaims.role === 'admin') {
+            const err = new Error('FORBIDDEN_ROLE');
             err.status = 403;
             throw err;
         }
@@ -515,6 +530,11 @@ exports.setSchoolUserDisabled = onRequest({ cors: true }, async (req, res) => {
         const targetClaims = targetUser.customClaims || {};
         if (normalizeSchoolId(targetClaims.schoolId) !== caller.schoolId) {
             const err = new Error('SCHOOL_MISMATCH');
+            err.status = 403;
+            throw err;
+        }
+        if (caller.role === 'principal' && targetClaims.role === 'admin') {
+            const err = new Error('FORBIDDEN_ROLE');
             err.status = 403;
             throw err;
         }
@@ -681,6 +701,7 @@ exports.resolveLinkRequest = onRequest({ cors: true }, async (req, res) => {
         }
 
         const role = normalizeRole(rawRole, 'viewer');
+        requireAssignableRole(caller, role);
         const requestData = requestSnap.data();
 
         await createOrUpdateSchoolUser({

@@ -452,6 +452,82 @@ function runAuthTests() {
     console.log('[smoke] Auth module behavioral tests OK');
 }
 
+function runRoleHierarchySmoke() {
+    const permissions = require(path.join(root, 'main', 'auth', 'permissions'));
+    assert.strictEqual(
+        permissions.canAccessPage('principal', 'settings-users'),
+        true,
+        'principal should be able to open settings-users'
+    );
+    assert.strictEqual(
+        permissions.canAccessPage('supervisor', 'settings-users'),
+        false,
+        'supervisor should not be able to open settings-users'
+    );
+    assert.strictEqual(
+        permissions.canAccessPage('admin', 'settings-users'),
+        true,
+        'admin should be able to open settings-users through bypass'
+    );
+    assert.ok(
+        permissions.getAllowedPages('principal').includes('settings-users'),
+        'settings-users should be in principal allowed pages'
+    );
+
+    const systemSource = read(path.join('main', 'ipc', 'system.js'));
+    assert.ok(
+        systemSource.includes("requireRole(event, ['admin', 'principal'])"),
+        'users management IPC should allow principal'
+    );
+    assert.ok(
+        systemSource.includes('FORBIDDEN_ROLE'),
+        'principal should be blocked from assigning or modifying privileged roles'
+    );
+
+    const authSource = read(path.join('main', 'ipc', 'auth.js'));
+    assert.ok(
+        authSource.includes("requireRole(event, ['admin', 'principal'])"),
+        'link request IPC should allow principal'
+    );
+    assert.ok(
+        authSource.includes('FORBIDDEN_ROLE'),
+        'principal should be blocked from approving link requests as admin'
+    );
+
+    const functionsSource = read(path.join('firebase', 'functions', 'index.js'));
+    assert.ok(
+        functionsSource.includes("const ADMIN_ROLES = new Set(['admin', 'principal', 'developer'])"),
+        'Firebase functions should treat principal as a school admin'
+    );
+    assert.ok(
+        functionsSource.includes('requireAssignableRole(caller, role)'),
+        'Firebase functions should reject principal assigning app-admin role'
+    );
+
+    const settingsUsersSource = read(path.join('js', 'pages', 'settings-users.js'));
+    assert.ok(
+        settingsUsersSource.includes('getAssignableRoleOptions'),
+        'settings-users UI should filter role options by current role'
+    );
+
+    const utilsSource = read(path.join('js', 'utils.js'));
+    assert.ok(
+        utilsSource.includes('loadAllowedPagesState'),
+        'active page guard should load role-specific allowed pages'
+    );
+    assert.ok(
+        utilsSource.includes('_allowedPagesState.includes'),
+        'active page guard should enforce role-specific allowed pages'
+    );
+    assert.strictEqual(
+        utilsSource.includes('Authenticated users (any role) can access non-admin pages'),
+        false,
+        'authenticated users should not have blanket access to non-admin pages'
+    );
+
+    console.log('[smoke] Role hierarchy principal user-management checks OK');
+}
+
 function runConsolidationSmoke() {
     // 1. No legacy channel aliases in preload.js
     const preloadSource = read('preload.js');
@@ -589,6 +665,7 @@ function run() {
     runUpdaterErrorSmoke();
     runValidationTests();
     runAuthTests();
+    runRoleHierarchySmoke();
     console.log('[smoke] All smoke checks passed');
 }
 

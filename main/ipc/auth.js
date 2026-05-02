@@ -716,6 +716,9 @@ function registerAuthIpc(ipcMain) {
             if (!targetUid || (action !== 'approve' && action !== 'reject')) {
                 return { success: false, code: 'INVALID_REQUEST', error: 'بيانات غير صالحة' };
             }
+            if (getSessionByEvent(event)?.role === 'principal' && role === 'admin') {
+                return { success: false, code: 'FORBIDDEN_ROLE', error: 'مدير المؤسسة لا يمكنه منح دور مدير التطبيق' };
+            }
 
             const db = getDb();
             const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};

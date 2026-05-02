@@ -115,6 +115,14 @@ function localOnlyFirebaseResult(reason) {
     return { status: 'skipped', reason };
 }
 
+function isPrincipalSession(event) {
+    return getSessionByEvent(event)?.role === 'principal';
+}
+
+function isPrivilegedUserRole(role) {
+    return role === 'admin' || role === 'developer';
+}
+
 async function tryProvisionFirebaseUser(db, payload) {
     try {
         return await provisionFirebaseUser(db, payload);
@@ -268,6 +276,9 @@ function registerSystemIpc(ipcMain) {
             if (!ALLOWED_ROLES.includes(role)) {
                 return { success: false, error: `دور غير صالح: ${role}` };
             }
+            if (isPrincipalSession(event) && isPrivilegedUserRole(role)) {
+                return { success: false, code: 'FORBIDDEN_ROLE', error: 'مدير المؤسسة لا يمكنه إنشاء حساب مدير التطبيق' };
+            }
             const email = normalizeEmail(payload.email) || null;
             const existing = email
                 ? db.prepare('SELECT id FROM users WHERE lower(email) = ? LIMIT 1').get(email)
@@ -350,6 +361,9 @@ function registerSystemIpc(ipcMain) {
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
+            if (isPrincipalSession(event) && (isPrivilegedUserRole(user.role) || isPrivilegedUserRole(role))) {
+                return { success: false, code: 'FORBIDDEN_ROLE', error: 'مدير المؤسسة لا يمكنه تعديل حسابات مدير التطبيق' };
+            }
 
             const firebaseProvisioning = await updateFirebaseUserRole(db, user, role);
 
@@ -380,6 +394,9 @@ function registerSystemIpc(ipcMain) {
                 .get(id);
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
+            }
+            if (isPrincipalSession(event) && isPrivilegedUserRole(user.role)) {
+                return { success: false, code: 'FORBIDDEN_ROLE', error: 'مدير المؤسسة لا يمكنه تعطيل حسابات مدير التطبيق' };
             }
 
             const firebaseProvisioning = await updateFirebaseUserDisabled(db, user, !!disabled);
