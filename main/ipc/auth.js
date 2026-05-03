@@ -21,30 +21,53 @@ const DEV_CREDENTIALS = process.env.PENCIL_DEV_MODE === '1' && process.env.PENCI
     ? { email: 'dev@pencil.local', passwordHash: process.env.PENCIL_DEV_PASSWORD_HASH }
     : null;
 
-// ── Login throttling ──
-const LOGIN_ATTEMPTS = new Map(); // email → { count, lockedUntil }
+// ── Login throttling (persisted to SQLite) ──
 const MAX_ATTEMPTS_BEFORE_LOCK = 5;
 const LOCKOUT_SCHEDULE_MS = [5_000, 15_000, 30_000, 60_000, 120_000]; // escalating
 const ATTEMPT_TTL_MS = 30 * 60_000; // auto-clean entries after 30 min
 
 function getLoginAttemptRecord(email) {
-    return LOGIN_ATTEMPTS.get(email) || null;
+    try {
+        const db = getDb();
+        const row = db.prepare('SELECT * FROM login_attempts WHERE email = ?').get(normalizeEmail(email));
+        if (!row) return null;
+        return { count: row.attempts, lockedUntil: row.locked_until, lastAttempt: row.updated_at };
+    } catch {
+        return null;
+    }
 }
 
 function recordFailedLogin(email) {
-    const now = Date.now();
-    const rec = LOGIN_ATTEMPTS.get(email) || { count: 0, lockedUntil: 0, lastAttempt: 0 };
-    rec.count += 1;
-    rec.lastAttempt = now;
-    if (rec.count >= MAX_ATTEMPTS_BEFORE_LOCK) {
-        const tier = Math.min(rec.count - MAX_ATTEMPTS_BEFORE_LOCK, LOCKOUT_SCHEDULE_MS.length - 1);
-        rec.lockedUntil = now + LOCKOUT_SCHEDULE_MS[tier];
+    try {
+        const db = getDb();
+        const normalized = normalizeEmail(email);
+        const now = Date.now();
+        const existing = db.prepare('SELECT * FROM login_attempts WHERE email = ?').get(normalized);
+        const count = (existing?.attempts || 0) + 1;
+        let lockedUntil = existing?.locked_until || 0;
+
+        if (count >= MAX_ATTEMPTS_BEFORE_LOCK) {
+            const tier = Math.min(count - MAX_ATTEMPTS_BEFORE_LOCK, LOCKOUT_SCHEDULE_MS.length - 1);
+            lockedUntil = now + LOCKOUT_SCHEDULE_MS[tier];
+        }
+
+        db.prepare(
+            `INSERT INTO login_attempts(email, attempts, locked_until, updated_at)
+             VALUES(?, ?, ?, ?)
+             ON CONFLICT(email) DO UPDATE SET attempts = ?, locked_until = ?, updated_at = ?`
+        ).run(normalized, count, lockedUntil, now, count, lockedUntil, now);
+    } catch (err) {
+        console.warn('[auth] Failed to record login attempt:', err.message);
     }
-    LOGIN_ATTEMPTS.set(email, rec);
 }
 
 function clearLoginAttempts(email) {
-    LOGIN_ATTEMPTS.delete(email);
+    try {
+        const db = getDb();
+        db.prepare('DELETE FROM login_attempts WHERE email = ?').run(normalizeEmail(email));
+    } catch (err) {
+        console.warn('[auth] Failed to clear login attempts:', err.message);
+    }
 }
 
 // Periodic cleanup of stale entries (runs at most every 5 min)
@@ -53,8 +76,12 @@ function cleanupStaleAttempts() {
     const now = Date.now();
     if (now - _lastCleanup < 5 * 60_000) return;
     _lastCleanup = now;
-    for (const [email, rec] of LOGIN_ATTEMPTS) {
-        if (now - rec.lastAttempt > ATTEMPT_TTL_MS) LOGIN_ATTEMPTS.delete(email);
+    try {
+        const db = getDb();
+        const cutoff = now - ATTEMPT_TTL_MS;
+        db.prepare('DELETE FROM login_attempts WHERE updated_at < ?').run(cutoff);
+    } catch (err) {
+        console.warn('[auth] Failed to cleanup stale login attempts:', err.message);
     }
 }
 
@@ -162,6 +189,116 @@ function findUserById(id) {
     );
 }
 
+function tryDevBypass(email, password, event) {
+    if (!DEV_CREDENTIALS || email !== DEV_CREDENTIALS.email) return null;
+
+    const crypto = require('crypto');
+    const inputHash = crypto.createHash('sha256').update(password).digest('hex');
+    if (inputHash !== DEV_CREDENTIALS.passwordHash) {
+        recordFailedLogin(email);
+        return { success: false, code: 'INVALID_CREDENTIALS', error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' };
+    }
+
+    clearLoginAttempts(email);
+    const devSession = {
+        userId: 0,
+        name: 'Developer',
+        email: DEV_CREDENTIALS.email,
+        role: 'developer',
+        mustChangePassword: false,
+        authenticatedAt: new Date().toISOString(),
+        locked: false
+    };
+    const sender = event?.sender;
+    if (sender) {
+        SESSION_BY_SENDER.set(sender.id, devSession);
+        bindSenderCleanup(sender);
+    }
+    return { success: true, authenticated: true, user: devSession };
+}
+
+async function handleLinkRequest(email) {
+    try {
+        const db = getDb();
+        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
+        const localSchoolCode = String(instRow.code_etablissement || '').trim().toUpperCase();
+        if (!localSchoolCode) return null;
+
+        const idToken = await getCurrentFirebaseIdToken(false);
+        const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+        const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
+        if (!idToken || !functionsUrl) return null;
+
+        const os = require('os');
+        const linkResp = await fetch(`${functionsUrl}/submitLinkRequest`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken, schoolCode: localSchoolCode, deviceName: os.hostname() })
+        });
+        const linkData = await linkResp.json().catch(() => ({}));
+        if (linkResp.ok && linkData.success !== false) {
+            logAuthDebug('ipc.login.link-request-submitted', { email, schoolCode: localSchoolCode });
+            return {
+                success: false,
+                code: 'LINK_REQUEST_SUBMITTED',
+                error: 'تم إرسال طلب ربط حسابك بالمؤسسة. انتظر موافقة المدير ثم أعد تسجيل الدخول'
+            };
+        }
+    } catch (linkErr) {
+        logAuthDebug('ipc.login.link-request-auto-failed', { email, message: linkErr.message });
+    }
+    return null;
+}
+
+function getLoginErrorMessage(code) {
+    switch (code) {
+        case 'FIREBASE_NOT_CONFIGURED':
+            return 'لم يتم إعداد Firebase Auth بعد';
+        case 'OFFLINE_LOGIN_UNAVAILABLE':
+            return 'تعذر الاتصال بالمصادقة السحابية ولا يوجد دخول محلي صالح لهذا المستخدم';
+        case 'LOCAL_SCHOOL_ID_MISSING':
+            return 'تعذر تحديد رمز المؤسسة من الحساب السحابي. اطلب من المدير إعادة ربط الحساب بالمؤسسة';
+        case 'FIREBASE_PROFILE_REQUIRED':
+        case 'FIREBASE_SCHOOL_MISMATCH':
+            return 'هذا الحساب غير مرتبط بهذه المؤسسة';
+        default:
+            return 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
+    }
+}
+
+function postLoginSetup(event, loginResult, email, password) {
+    clearLoginAttempts(email);
+    const session = setSessionForEvent(event, loginResult.userRow);
+    logAuthDebug('ipc.login.success-response', {
+        email,
+        authMode: loginResult.mode,
+        userId: session?.userId || null,
+        role: session?.role || null
+    });
+
+    if (loginResult.mode === 'online') {
+        try {
+            const { persistCredential, clearCredentials } = require('../sync/credentials');
+            persistCredential(email, password);
+            clearCredentials();
+        } catch (credErr) {
+            console.warn('[auth] Failed to persist sync credential after login:', credErr.message);
+        }
+    }
+
+    try {
+        const { restartSyncPushBackground, restartSyncPullBackground } = require('../sync/engine');
+        const { restartSnapshotBackground } = require('../sync/snapshot');
+        restartSyncPushBackground();
+        restartSyncPullBackground();
+        restartSnapshotBackground();
+    } catch (syncErr) {
+        console.warn('[auth] Failed to restart sync after login:', syncErr.message);
+    }
+
+    return { success: true, authenticated: true, user: session, authMode: loginResult.mode };
+}
+
 function registerAuthIpc(ipcMain) {
     ipcMain.handle('auth:login', async (event, payload) => {
         try {
@@ -173,12 +310,8 @@ function registerAuthIpc(ipcMain) {
             if (!password) {
                 return { success: false, code: 'INVALID_PASSWORD', error: 'كلمة المرور مطلوبة' };
             }
-            logAuthDebug('ipc.login.request', {
-                email,
-                senderId: event?.sender?.id || null
-            });
+            logAuthDebug('ipc.login.request', { email, senderId: event?.sender?.id || null });
 
-            // ── Throttle check ──
             cleanupStaleAttempts();
             const attempt = getLoginAttemptRecord(email);
             if (attempt && attempt.lockedUntil > Date.now()) {
@@ -190,35 +323,8 @@ function registerAuthIpc(ipcMain) {
                 };
             }
 
-            // ── Developer bypass (env-var gated, disabled in production) ──
-            if (DEV_CREDENTIALS && email === DEV_CREDENTIALS.email) {
-                const crypto = require('crypto');
-                const inputHash = crypto.createHash('sha256').update(password).digest('hex');
-                if (inputHash !== DEV_CREDENTIALS.passwordHash) {
-                    recordFailedLogin(email);
-                    return {
-                        success: false,
-                        code: 'INVALID_CREDENTIALS',
-                        error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
-                    };
-                }
-                clearLoginAttempts(email);
-                const devSession = {
-                    userId: 0,
-                    name: 'Developer',
-                    email: DEV_CREDENTIALS.email,
-                    role: 'developer',
-                    mustChangePassword: false,
-                    authenticatedAt: new Date().toISOString(),
-                    locked: false
-                };
-                const sender = event?.sender;
-                if (sender) {
-                    SESSION_BY_SENDER.set(sender.id, devSession);
-                    bindSenderCleanup(sender);
-                }
-                return { success: true, authenticated: true, user: devSession };
-            }
+            const devResult = tryDevBypass(email, password, event);
+            if (devResult) return devResult;
 
             let loginResult;
             try {
@@ -227,59 +333,19 @@ function registerAuthIpc(ipcMain) {
                 recordFailedLogin(email);
                 const code = err.publicCode || 'AUTH_FAILED';
 
-                // Auto-submit link request for legacy users missing schoolId
                 if (code === 'LOCAL_SCHOOL_ID_MISSING') {
-                    try {
-                        const db = getDb();
-                        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
-                        const localSchoolCode = String(instRow.code_etablissement || '').trim().toUpperCase();
-                        if (localSchoolCode) {
-                            const idToken = await getCurrentFirebaseIdToken(false);
-                            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
-                            const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
-                            if (idToken && functionsUrl) {
-                                const os = require('os');
-                                const linkResp = await fetch(`${functionsUrl}/submitLinkRequest`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ idToken, schoolCode: localSchoolCode, deviceName: os.hostname() })
-                                });
-                                const linkData = await linkResp.json().catch(() => ({}));
-                                if (linkResp.ok && linkData.success !== false) {
-                                    logAuthDebug('ipc.login.link-request-submitted', { email, schoolCode: localSchoolCode });
-                                    return {
-                                        success: false,
-                                        code: 'LINK_REQUEST_SUBMITTED',
-                                        error: 'تم إرسال طلب ربط حسابك بالمؤسسة. انتظر موافقة المدير ثم أعد تسجيل الدخول'
-                                    };
-                                }
-                            }
-                        }
-                    } catch (linkErr) {
-                        logAuthDebug('ipc.login.link-request-auto-failed', { email, message: linkErr.message });
-                    }
+                    const linkResult = await handleLinkRequest(email);
+                    if (linkResult) return linkResult;
                 }
 
-                const error =
-                    code === 'FIREBASE_NOT_CONFIGURED'
-                        ? 'لم يتم إعداد Firebase Auth بعد'
-                        : code === 'OFFLINE_LOGIN_UNAVAILABLE'
-                          ? 'تعذر الاتصال بالمصادقة السحابية ولا يوجد دخول محلي صالح لهذا المستخدم'
-                          : code === 'LOCAL_SCHOOL_ID_MISSING'
-                            ? 'تعذر تحديد رمز المؤسسة من الحساب السحابي. اطلب من المدير إعادة ربط الحساب بالمؤسسة'
-                          : code === 'FIREBASE_PROFILE_REQUIRED' || code === 'FIREBASE_SCHOOL_MISMATCH'
-                            ? 'هذا الحساب غير مرتبط بهذه المؤسسة'
-                          : 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
                 logAuthDebug('ipc.login.failed-response', {
-                    email,
-                    code,
+                    email, code,
                     internalCode: err.code || null,
                     message: err.message || String(err)
                 });
                 return {
-                    success: false,
-                    code,
-                    error,
+                    success: false, code,
+                    error: getLoginErrorMessage(code),
                     _diag: {
                         firebaseCode: err.code || null,
                         message: err.message || null,
@@ -288,42 +354,7 @@ function registerAuthIpc(ipcMain) {
                 };
             }
 
-            // Success — clear throttle record
-            clearLoginAttempts(email);
-            const session = setSessionForEvent(event, loginResult.userRow);
-            logAuthDebug('ipc.login.success-response', {
-                email,
-                authMode: loginResult.mode,
-                userId: session?.userId || null,
-                role: session?.role || null
-            });
-            if (loginResult.mode === 'online') {
-                try {
-                    const { persistCredential, clearCredentials } = require('../sync/credentials');
-                    persistCredential(email, password);
-                    clearCredentials();
-                } catch (credErr) {
-                    console.warn('[auth] Failed to persist sync credential after login:', credErr.message);
-                }
-            }
-            try {
-                const {
-                    restartSyncPushBackground,
-                    restartSyncPullBackground
-                } = require('../sync/engine');
-                const { restartSnapshotBackground } = require('../sync/snapshot');
-                restartSyncPushBackground();
-                restartSyncPullBackground();
-                restartSnapshotBackground();
-            } catch (syncErr) {
-                console.warn('[auth] Failed to restart sync after login:', syncErr.message);
-            }
-            return {
-                success: true,
-                authenticated: true,
-                user: session,
-                authMode: loginResult.mode
-            };
+            return postLoginSetup(event, loginResult, email, password);
         } catch (err) {
             return { success: false, error: err.message };
         }

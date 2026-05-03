@@ -131,7 +131,14 @@
             }
 
             async function delRow(id) {
-                if (!confirm('حذف هذا الفرض؟')) return;
+                const confirmed = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف فرض',
+                    message: 'حذف هذا الفرض؟',
+                    detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                    confirmText: 'حذف'
+                });
+                if (!confirmed.confirmed) return;
                 const res = await window.api.tests.delete(id);
                 if (!res || res.success === false) {
                     showToast('فشل الحذف', 'error');

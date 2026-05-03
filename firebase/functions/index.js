@@ -92,16 +92,103 @@ async function requireSchoolAdmin(idToken) {
     return { decoded, schoolId, role, uid: decoded.uid };
 }
 
+async function requirePrincipalAuth(idToken) {
+    if (!idToken) {
+        const err = new Error('MISSING_ID_TOKEN');
+        err.status = 401;
+        throw err;
+    }
+
+    const decoded = await auth.verifyIdToken(idToken);
+    const schoolId = normalizeSchoolId(decoded.schoolId);
+    const role = String(decoded.role || '').trim();
+    if (!schoolId || !['principal', 'developer'].includes(role)) {
+        const err = new Error('FORBIDDEN');
+        err.status = 403;
+        throw err;
+    }
+
+    const profileSnap = await db.doc(`schools/${schoolId}/users/${decoded.uid}`).get();
+    if (profileSnap.exists && profileSnap.get('status') === 'disabled') {
+        const err = new Error('USER_DISABLED');
+        err.status = 403;
+        throw err;
+    }
+
+    return { decoded, schoolId, role, uid: decoded.uid, email: decoded.email || '' };
+}
+
+const APP_ADMIN_ROLES = new Set(['admin', 'developer']);
+
+async function requireAppAdmin(idToken) {
+    if (!idToken) {
+        const err = new Error('MISSING_ID_TOKEN');
+        err.status = 401;
+        throw err;
+    }
+
+    const decoded = await auth.verifyIdToken(idToken);
+    const role = String(decoded.role || '').trim();
+    if (!APP_ADMIN_ROLES.has(role)) {
+        const err = new Error('FORBIDDEN');
+        err.status = 403;
+        throw err;
+    }
+
+    return { decoded, role, uid: decoded.uid, email: decoded.email || '' };
+}
+
+const SCHOOL_ID_REGEX = /^[A-Za-z]\d{4,8}$/;
+
 function functionError(res, err) {
     const code = err.message || 'INTERNAL_ERROR';
     const status = Number(err.status) || (
-        code === 'INVALID_ROLE' || code === 'INVALID_REQUEST' ? 400 :
+        code === 'INVALID_ROLE' || code === 'INVALID_REQUEST' || code === 'INVALID_SCHOOL_ID' ? 400 :
         code === 'BOOTSTRAP_SECRET_NOT_CONFIGURED' ? 500 :
-        code === 'BOOTSTRAP_UNAUTHORIZED' ? 403 :
-        code === 'SCHOOL_EXISTS' || code === 'EMAIL_IN_USE_DIFFERENT_SCHOOL' ? 409 :
+        code === 'BOOTSTRAP_UNAUTHORIZED' || code === 'FORBIDDEN' ? 403 :
+        code === 'SCHOOL_EXISTS' || code === 'EMAIL_IN_USE_DIFFERENT_SCHOOL' ||
+        code === 'TARGET_SCHOOL_EXISTS' || code === 'PENDING_REQUEST_EXISTS' ||
+        code === 'REQUEST_ALREADY_REVIEWED' ? 409 :
+        code === 'REQUEST_NOT_FOUND' || code === 'SCHOOL_NOT_FOUND' ? 404 :
         500
     );
     return res.status(status).json({ error: code, code });
+}
+
+async function copyCollectionTree(sourceCollectionRef, targetCollectionRef, transformData = (data) => data) {
+    const snapshot = await sourceCollectionRef.get();
+    const docRefs = [];
+    let batch = db.batch();
+    let count = 0;
+
+    for (const docSnap of snapshot.docs) {
+        const targetDocRef = targetCollectionRef.doc(docSnap.id);
+        const data = transformData({ ...docSnap.data() }, docSnap.ref, targetDocRef) || {};
+        batch.set(targetDocRef, data);
+        docRefs.push({ sourceRef: docSnap.ref, targetRef: targetDocRef });
+        count++;
+
+        if (count >= 450) {
+            await batch.commit();
+            batch = db.batch();
+            count = 0;
+        }
+    }
+
+    if (count > 0) {
+        await batch.commit();
+    }
+
+    for (const { sourceRef, targetRef } of docRefs) {
+        const subcollections = await sourceRef.listCollections();
+        for (const subcollection of subcollections) {
+            await copyCollectionTree(
+                subcollection,
+                targetRef.collection(subcollection.id),
+                transformData
+            );
+        }
+    }
 }
 
 function requireBootstrapAuthorization(req) {
@@ -726,3 +813,455 @@ exports.resolveLinkRequest = onRequest({ cors: true }, async (req, res) => {
         return functionError(res, err);
     }
 });
+
+/**
+ * POST /submitInstitutionIdentityChangeRequest
+ * Principal-only: submits a request to change institution code and/or name.
+ * Stored in top-level collection institutionIdentityRequests.
+ */
+exports.submitInstitutionIdentityChangeRequest = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken, newSchoolId: rawNewSchoolId, institutionName, reason, syncSchoolIdentity } = req.body || {};
+        const caller = await requirePrincipalAuth(idToken);
+
+        const newSchoolId = rawNewSchoolId ? normalizeSchoolId(rawNewSchoolId) : null;
+        const newName = institutionName ? String(institutionName).trim() : null;
+
+        if (newSchoolId && !SCHOOL_ID_REGEX.test(newSchoolId)) {
+            const err = new Error('INVALID_SCHOOL_ID');
+            err.status = 400;
+            throw err;
+        }
+
+        const schoolSnap = await db.doc(`schools/${caller.schoolId}`).get();
+        if (!schoolSnap.exists) {
+            const err = new Error('SCHOOL_NOT_FOUND');
+            err.status = 404;
+            throw err;
+        }
+        const currentData = schoolSnap.data();
+        const oldName = currentData.institutionName || '';
+
+        const codeChanged = newSchoolId && newSchoolId !== caller.schoolId;
+        const nameChanged = newName && newName !== oldName;
+        if (!codeChanged && !nameChanged) {
+            const err = new Error('INVALID_REQUEST');
+            err.status = 400;
+            throw err;
+        }
+
+        const pendingSnap = await db.collection('institutionIdentityRequests')
+            .where('oldSchoolId', '==', caller.schoolId)
+            .where('status', '==', 'pending')
+            .limit(1)
+            .get();
+        if (!pendingSnap.empty) {
+            const err = new Error('PENDING_REQUEST_EXISTS');
+            err.status = 409;
+            throw err;
+        }
+
+        const now = admin.firestore.FieldValue.serverTimestamp();
+        const requestRef = db.collection('institutionIdentityRequests').doc();
+        await requestRef.set({
+            status: 'pending',
+            oldSchoolId: caller.schoolId,
+            newSchoolId: codeChanged ? newSchoolId : caller.schoolId,
+            oldInstitutionName: oldName,
+            newInstitutionName: nameChanged ? newName : oldName,
+            codeChanged: !!codeChanged,
+            nameChanged: !!nameChanged,
+            syncSchoolIdentity: !!syncSchoolIdentity,
+            requestedByUid: caller.uid,
+            requestedByEmail: caller.email,
+            requestedByRole: caller.role,
+            reason: String(reason || '').trim() || null,
+            createdAt: now,
+            updatedAt: now
+        });
+
+        return res.status(200).json({
+            success: true,
+            requestId: requestRef.id,
+            status: 'pending'
+        });
+    } catch (err) {
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /getInstitutionIdentityChangeRequestsForSchool
+ * Principal-only: returns identity change requests for the caller's school.
+ */
+exports.getInstitutionIdentityChangeRequestsForSchool = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken } = req.body || {};
+        const caller = await requirePrincipalAuth(idToken);
+
+        const snapshot = await db.collection('institutionIdentityRequests')
+            .where('oldSchoolId', '==', caller.schoolId)
+            .orderBy('createdAt', 'desc')
+            .limit(20)
+            .get();
+
+        const byId = new Map();
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            byId.set(doc.id, {
+                requestId: doc.id,
+                status: data.status,
+                oldSchoolId: data.oldSchoolId,
+                newSchoolId: data.newSchoolId,
+                oldInstitutionName: data.oldInstitutionName || '',
+                newInstitutionName: data.newInstitutionName || '',
+                codeChanged: !!data.codeChanged,
+                nameChanged: !!data.nameChanged,
+                syncSchoolIdentity: !!data.syncSchoolIdentity,
+                reason: data.reason || null,
+                rejectionReason: data.rejectionReason || null,
+                requiresLocalApply: !!data.requiresLocalApply,
+                requiresRelogin: !!data.requiresRelogin,
+                resultSchoolId: data.resultSchoolId || null,
+                createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+                reviewedAt: data.reviewedAt?.toDate?.()?.toISOString() || null
+            });
+        });
+
+        const resultSnapshot = await db.collection('institutionIdentityRequests')
+            .where('resultSchoolId', '==', caller.schoolId)
+            .orderBy('createdAt', 'desc')
+            .limit(20)
+            .get();
+
+        resultSnapshot.forEach((doc) => {
+            if (byId.has(doc.id)) return;
+            const data = doc.data();
+            byId.set(doc.id, {
+                requestId: doc.id,
+                status: data.status,
+                oldSchoolId: data.oldSchoolId,
+                newSchoolId: data.newSchoolId,
+                oldInstitutionName: data.oldInstitutionName || '',
+                newInstitutionName: data.newInstitutionName || '',
+                codeChanged: !!data.codeChanged,
+                nameChanged: !!data.nameChanged,
+                syncSchoolIdentity: !!data.syncSchoolIdentity,
+                reason: data.reason || null,
+                rejectionReason: data.rejectionReason || null,
+                requiresLocalApply: !!data.requiresLocalApply,
+                requiresRelogin: !!data.requiresRelogin,
+                resultSchoolId: data.resultSchoolId || null,
+                createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+                reviewedAt: data.reviewedAt?.toDate?.()?.toISOString() || null
+            });
+        });
+
+        const requests = Array.from(byId.values())
+            .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+            .slice(0, 20);
+
+        return res.status(200).json({ success: true, requests });
+    } catch (err) {
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /listInstitutionIdentityChangeRequests
+ * App-admin only: returns identity change requests from all schools.
+ */
+exports.listInstitutionIdentityChangeRequests = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken, status: filterStatus, limit: rawLimit } = req.body || {};
+        await requireAppAdmin(idToken);
+
+        const pageLimit = Math.min(Math.max(Number(rawLimit) || 50, 1), 100);
+        let query = db.collection('institutionIdentityRequests')
+            .orderBy('createdAt', 'desc')
+            .limit(pageLimit);
+
+        if (filterStatus && ['pending', 'approved', 'rejected', 'failed'].includes(filterStatus)) {
+            query = query.where('status', '==', filterStatus);
+        }
+
+        const snapshot = await query.get();
+        const requests = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            requests.push({
+                requestId: doc.id,
+                status: data.status,
+                oldSchoolId: data.oldSchoolId,
+                newSchoolId: data.newSchoolId,
+                oldInstitutionName: data.oldInstitutionName || '',
+                newInstitutionName: data.newInstitutionName || '',
+                codeChanged: !!data.codeChanged,
+                nameChanged: !!data.nameChanged,
+                syncSchoolIdentity: !!data.syncSchoolIdentity,
+                requestedByEmail: data.requestedByEmail || '',
+                requestedByRole: data.requestedByRole || '',
+                reason: data.reason || null,
+                rejectionReason: data.rejectionReason || null,
+                reviewedByEmail: data.reviewedByEmail || null,
+                requiresLocalApply: !!data.requiresLocalApply,
+                requiresRelogin: !!data.requiresRelogin,
+                resultSchoolId: data.resultSchoolId || null,
+                createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+                reviewedAt: data.reviewedAt?.toDate?.()?.toISOString() || null
+            });
+        });
+
+        return res.status(200).json({ success: true, requests });
+    } catch (err) {
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /rejectInstitutionIdentityChangeRequest
+ * App-admin only: rejects a pending identity change request.
+ */
+exports.rejectInstitutionIdentityChangeRequest = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken, requestId, rejectionReason } = req.body || {};
+        const caller = await requireAppAdmin(idToken);
+
+        if (!requestId) {
+            const err = new Error('INVALID_REQUEST');
+            err.status = 400;
+            throw err;
+        }
+
+        const requestRef = db.doc(`institutionIdentityRequests/${requestId}`);
+        const requestSnap = await requestRef.get();
+        if (!requestSnap.exists) {
+            const err = new Error('REQUEST_NOT_FOUND');
+            err.status = 404;
+            throw err;
+        }
+        if (requestSnap.get('status') !== 'pending') {
+            const err = new Error('REQUEST_ALREADY_REVIEWED');
+            err.status = 409;
+            throw err;
+        }
+
+        const now = admin.firestore.FieldValue.serverTimestamp();
+        await requestRef.update({
+            status: 'rejected',
+            rejectionReason: String(rejectionReason || '').trim() || null,
+            reviewedByUid: caller.uid,
+            reviewedByEmail: caller.email,
+            reviewedAt: now,
+            updatedAt: now
+        });
+
+        return res.status(200).json({ success: true, requestId, status: 'rejected' });
+    } catch (err) {
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /approveInstitutionIdentityChangeRequest
+ * App-admin only: approves a pending identity change request.
+ * For name-only changes: updates school doc and meta.
+ * For code changes: copies school data to new path, updates Auth claims, marks old school as migrated.
+ */
+exports.approveInstitutionIdentityChangeRequest = onRequest(
+    { cors: true, timeoutSeconds: 540, memory: '1GiB' },
+    async (req, res) => {
+        if (!requirePost(req, res)) return;
+
+        try {
+            const { idToken, requestId, dryRun } = req.body || {};
+            const caller = await requireAppAdmin(idToken);
+
+            if (!requestId) {
+                const err = new Error('INVALID_REQUEST');
+                err.status = 400;
+                throw err;
+            }
+
+            const requestRef = db.doc(`institutionIdentityRequests/${requestId}`);
+            const requestSnap = await requestRef.get();
+            if (!requestSnap.exists) {
+                const err = new Error('REQUEST_NOT_FOUND');
+                err.status = 404;
+                throw err;
+            }
+
+            const requestData = requestSnap.data();
+            if (requestData.status !== 'pending') {
+                const err = new Error('REQUEST_ALREADY_REVIEWED');
+                err.status = 409;
+                throw err;
+            }
+
+            const oldSchoolId = requestData.oldSchoolId;
+            const newSchoolId = requestData.newSchoolId;
+            const codeChanged = !!requestData.codeChanged;
+            const newName = requestData.newInstitutionName;
+            const targetSchoolId = codeChanged ? newSchoolId : oldSchoolId;
+
+            const oldSchoolSnap = await db.doc(`schools/${oldSchoolId}`).get();
+            if (!oldSchoolSnap.exists) {
+                const err = new Error('SCHOOL_NOT_FOUND');
+                err.status = 404;
+                throw err;
+            }
+
+            if (codeChanged) {
+                const newSchoolSnap = await db.doc(`schools/${newSchoolId}`).get();
+                if (newSchoolSnap.exists) {
+                    const err = new Error('TARGET_SCHOOL_EXISTS');
+                    err.status = 409;
+                    throw err;
+                }
+            }
+
+            if (dryRun) {
+                return res.status(200).json({
+                    success: true,
+                    dryRun: true,
+                    requestId,
+                    codeChanged,
+                    oldSchoolId,
+                    newSchoolId: targetSchoolId
+                });
+            }
+
+            const now = admin.firestore.FieldValue.serverTimestamp();
+            const migrationId = `mig_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+            if (codeChanged) {
+                const oldSchoolData = oldSchoolSnap.data();
+                await db.doc(`schools/${newSchoolId}`).set({
+                    ...oldSchoolData,
+                    schoolId: newSchoolId,
+                    gresaCode: newSchoolId,
+                    institutionName: newName,
+                    migratedFrom: oldSchoolId,
+                    updatedAt: now
+                });
+
+                const subcollections = await db.doc(`schools/${oldSchoolId}`).listCollections();
+                for (const subcol of subcollections) {
+                    await copyCollectionTree(
+                        subcol,
+                        db.collection(`schools/${newSchoolId}/${subcol.id}`),
+                        (data, sourceRef) => {
+                            if (sourceRef.parent.id === 'users' && data.schoolId) {
+                                data.schoolId = newSchoolId;
+                            }
+                            return data;
+                        }
+                    );
+                }
+
+                await copyCollectionTree(
+                    db.collection(`syncLog/${oldSchoolId}/changes`),
+                    db.collection(`syncLog/${newSchoolId}/changes`)
+                );
+
+                const usersSnap = await db.collection(`schools/${newSchoolId}/users`).get();
+                const claimFailures = [];
+                const claimPromises = [];
+                usersSnap.forEach((userDoc) => {
+                    const uid = userDoc.id;
+                    const role = userDoc.get('role') || 'viewer';
+                    claimPromises.push(
+                        auth.getUser(uid)
+                            .then((u) => auth.setCustomUserClaims(uid, {
+                                ...(u.customClaims || {}),
+                                schoolId: newSchoolId,
+                                role
+                            }))
+                            .catch((e) => {
+                                console.warn(`[migration] claims update failed for ${uid}:`, e.message);
+                                claimFailures.push({ uid, error: e.message });
+                            })
+                    );
+                });
+                await Promise.all(claimPromises);
+                if (claimFailures.length > 0) {
+                    const err = new Error('CLAIMS_UPDATE_FAILED');
+                    err.status = 500;
+                    err.claimFailures = claimFailures;
+                    throw err;
+                }
+
+                await db.doc(`schools/${oldSchoolId}`).update({
+                    status: 'migrated',
+                    migratedTo: newSchoolId,
+                    writesDisabled: true,
+                    updatedAt: now
+                });
+            } else {
+                await db.doc(`schools/${oldSchoolId}`).update({
+                    institutionName: newName,
+                    updatedAt: now
+                });
+            }
+
+            const metaRef = db.doc(`schools/${targetSchoolId}/meta/institution`);
+            const metaSnap = await metaRef.get();
+            if (metaSnap.exists) {
+                await metaRef.update({
+                    institutionName: newName,
+                    ...(codeChanged ? { schoolId: newSchoolId, gresaCode: newSchoolId } : {}),
+                    updatedAt: now
+                });
+            }
+
+            await requestRef.update({
+                status: 'approved',
+                approvedByUid: caller.uid,
+                approvedByEmail: caller.email,
+                approvedAt: now,
+                migrationId,
+                resultSchoolId: targetSchoolId,
+                requiresLocalApply: true,
+                requiresRelogin: codeChanged,
+                updatedAt: now
+            });
+
+            return res.status(200).json({
+                success: true,
+                requestId,
+                status: 'approved',
+                migrationId,
+                codeChanged,
+                resultSchoolId: targetSchoolId,
+                requiresRelogin: codeChanged
+            });
+        } catch (err) {
+            const requestId = req.body?.requestId;
+            if (requestId && !['REQUEST_NOT_FOUND', 'REQUEST_ALREADY_REVIEWED'].includes(err.message)) {
+                try {
+                    const requestRef = db.doc(`institutionIdentityRequests/${requestId}`);
+                    const requestSnap = await requestRef.get();
+                    if (requestSnap.exists && requestSnap.get('status') === 'pending') {
+                        await requestRef.update({
+                            status: 'failed',
+                            error: err.message || 'INTERNAL_ERROR',
+                            errorDetails: err.claimFailures || null,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                    }
+                } catch (updateErr) {
+                    console.warn('[identity-migration] failed to mark request failed:', updateErr.message);
+                }
+            }
+            return functionError(res, err);
+        }
+    }
+);

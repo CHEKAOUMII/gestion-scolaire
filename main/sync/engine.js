@@ -646,9 +646,25 @@ function logVersionConflict(db, prepared, result) {
     }
 }
 
+async function writeSyncLogWithRetry(firestoreDb, schoolId, batch, maxAttempts = 3) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await logChangeBatch(firestoreDb, schoolId, batch);
+            return true;
+        } catch (err) {
+            console.warn(`[sync:push] syncLog batch attempt ${attempt}/${maxAttempts} failed:`, err.message);
+            if (attempt < maxAttempts) {
+                await new Promise((r) => setTimeout(r, 1000 * attempt));
+            }
+        }
+    }
+    console.error(`[sync:push] syncLog batch PERMANENTLY failed for ${batch.length} items — other devices may not receive these changes`);
+    return false;
+}
+
 async function flushPreparedItems(db, firestoreDb, preparedItems, maxRetries, schoolId) {
     if (!preparedItems.length) {
-        return { sentCount: 0, failedCount: 0, lastError: null, abort: false };
+        return { sentCount: 0, failedCount: 0, lastError: null, abort: false, syncLogWritten: true };
     }
 
     // Always use conditional writes for version-guarded pushes
@@ -694,25 +710,12 @@ async function flushPreparedItems(db, firestoreDb, preparedItems, maxRetries, sc
         }
 
         // Batch-log successfully sent items to syncLog (with retry)
+        let syncLogWritten = true;
         if (successfulItems.length > 0 && schoolId) {
-            let syncLogWritten = false;
-            for (let attempt = 1; attempt <= 3 && !syncLogWritten; attempt++) {
-                try {
-                    await logChangeBatch(firestoreDb, schoolId, successfulItems);
-                    syncLogWritten = true;
-                } catch (logErr) {
-                    console.warn(`[sync:push] syncLog batch attempt ${attempt}/3 failed:`, logErr.message);
-                    if (attempt < 3) {
-                        await new Promise((r) => setTimeout(r, 1000 * attempt));
-                    }
-                }
-            }
-            if (!syncLogWritten) {
-                console.error(`[sync:push] syncLog batch PERMANENTLY failed for ${successfulItems.length} items — other devices may not receive these changes`);
-            }
+            syncLogWritten = await writeSyncLogWithRetry(firestoreDb, schoolId, successfulItems);
         }
 
-        return { sentCount, failedCount, lastError, abort: false };
+        return { sentCount, failedCount, lastError, abort: false, syncLogWritten };
     }
 }
 
@@ -836,31 +839,95 @@ async function flushExpandedEntries(db, firestoreDb, entryId, expandedEntries, s
         }
     }
 
+    let syncLogWritten = true;
     if (successfulItems.length > 0 && schoolId) {
-        let syncLogWritten = false;
-        for (let attempt = 1; attempt <= 3 && !syncLogWritten; attempt++) {
-            try {
-                await logChangeBatch(firestoreDb, schoolId, successfulItems);
-                syncLogWritten = true;
-            } catch (logErr) {
-                console.warn(`[sync:push] Expanded syncLog batch attempt ${attempt}/3 failed:`, logErr.message);
-                if (attempt < 3) {
-                    await new Promise((r) => setTimeout(r, 1000 * attempt));
-                }
-            }
-        }
-        if (!syncLogWritten) {
-            console.error(`[sync:push] Expanded syncLog batch PERMANENTLY failed for ${successfulItems.length} items — other devices may not receive these changes`);
-        }
+        syncLogWritten = await writeSyncLogWithRetry(firestoreDb, schoolId, successfulItems);
     }
 
-    if (failedCount === 0) {
+    if (failedCount === 0 && syncLogWritten) {
         markEntrySent(db, entryId);
     } else {
         markEntryFailed(db, entryId, lastError || 'Batch write failed', maxRetries, abort);
     }
 
-    return { sentCount, failedCount, skippedCount, lastError, abort };
+    return { sentCount, failedCount, skippedCount, lastError, abort, syncLogWritten };
+}
+
+function readPendingOutboxBatch(db, maxRetries, limit) {
+    return db
+        .prepare(
+            `SELECT *
+             FROM sync_outbox
+             WHERE status = 'pending'
+               AND retries < ?
+             ORDER BY id ASC
+             LIMIT ?`
+        )
+        .all(maxRetries, limit);
+}
+
+function bumpRetryCount(db, entryId) {
+    db.prepare(
+        'UPDATE sync_outbox SET retries = retries + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(entryId);
+}
+
+async function processOutboxRow(db, firestoreDb, row, ctx) {
+    const { role, schoolId, deviceHash, maxRetries } = ctx;
+
+    if (!canPush(row.table_name, role)) {
+        ctx.skippedCount += 1;
+        console.log(`[sync:push] Skipped entry ${row.id} — role '${role}' cannot push to '${row.table_name}'`);
+        markEntryFailed(db, row.id, `Role '${role}' cannot push to '${row.table_name}'`, maxRetries, false, true);
+        return 'continue';
+    }
+
+    let rowData = {};
+    try {
+        rowData = row.row_data ? JSON.parse(row.row_data) : {};
+    } catch (err) {
+        bumpRetryCount(db, row.id);
+        markEntryFailed(db, row.id, `Invalid row_data JSON: ${err.message}`, maxRetries);
+        ctx.failedCount += 1;
+        ctx.lastError = err.message;
+        return 'continue';
+    }
+
+    if (rowData._bulk) {
+        const aborted = await ctx.flushBuffer();
+        if (aborted) return 'break';
+
+        bumpRetryCount(db, row.id);
+        const expandedEntries = expandBulkEntry(db, row, deviceHash);
+        if (expandedEntries.length === 0) {
+            markEntrySent(db, row.id);
+            return 'continue';
+        }
+
+        const result = await flushExpandedEntries(db, firestoreDb, row.id, expandedEntries, schoolId, deviceHash, maxRetries, role);
+        ctx.sentCount += result.sentCount;
+        ctx.failedCount += result.failedCount;
+        ctx.skippedCount += result.skippedCount;
+        if (!result.syncLogWritten) ctx.syncLogOk = false;
+        ctx.lastError = result.lastError || ctx.lastError;
+        return result.abort ? 'break' : 'continue';
+    }
+
+    bumpRetryCount(db, row.id);
+    const firestoreDoc = buildFirestoreDoc(db, row, schoolId, deviceHash);
+    if (!firestoreDoc) {
+        markEntryFailed(db, row.id, 'Failed to build Firestore document — unknown entity type', maxRetries);
+        ctx.failedCount += 1;
+        ctx.lastError = 'Failed to build Firestore document — unknown entity type';
+        return 'continue';
+    }
+
+    ctx.batchBuffer.push({ entryId: row.id, item: firestoreDoc });
+    if (ctx.batchBuffer.length >= 25) {
+        const aborted = await ctx.flushBuffer();
+        if (aborted) return 'break';
+    }
+    return 'continue';
 }
 
 async function flushSyncOutbox(limit) {
@@ -892,9 +959,8 @@ async function flushSyncOutbox(limit) {
             return { success: false, error: 'credentials_unavailable' };
         }
 
-        const batchSize = Number(config.push_batch_size) || 100;
         const maxRetries = Number(config.max_retries) || 10;
-        const effectiveLimit = Number(limit) || batchSize;
+        const effectiveLimit = Number(limit) || Number(config.push_batch_size) || 100;
         const deviceHash = getDeviceHash();
         const schoolId = credentials.schoolId || config.school_id;
 
@@ -904,149 +970,54 @@ async function flushSyncOutbox(limit) {
         }
 
         const firestoreDb = getFirestoreDb();
-        let sentCount = 0;
-        let failedCount = 0;
-        let skippedCount = 0;
-        let lastError = null;
-        let batchBuffer = [];
-        const pendingRows = db
-            .prepare(
-                `
-                SELECT *
-                FROM sync_outbox
-                WHERE status = 'pending'
-                  AND retries < ?
-                ORDER BY id ASC
-                LIMIT ?
-            `
-            )
-            .all(maxRetries, effectiveLimit);
+        const pendingRows = readPendingOutboxBatch(db, maxRetries, effectiveLimit);
 
-        const flushBuffer = async () => {
-            if (!batchBuffer.length) return false;
-
-            const result = await flushPreparedItems(db, firestoreDb, batchBuffer, maxRetries, schoolId);
-            sentCount += result.sentCount;
-            failedCount += result.failedCount;
-            lastError = result.lastError || lastError;
-            batchBuffer = [];
-
+        const ctx = {
+            role, schoolId, deviceHash, maxRetries,
+            sentCount: 0, failedCount: 0, skippedCount: 0,
+            lastError: null, syncLogOk: true, batchBuffer: [],
+            flushBuffer: null
+        };
+        ctx.flushBuffer = async () => {
+            if (!ctx.batchBuffer.length) return false;
+            const result = await flushPreparedItems(db, firestoreDb, ctx.batchBuffer, maxRetries, schoolId);
+            ctx.sentCount += result.sentCount;
+            ctx.failedCount += result.failedCount;
+            if (!result.syncLogWritten) ctx.syncLogOk = false;
+            ctx.lastError = result.lastError || ctx.lastError;
+            ctx.batchBuffer = [];
             return result.abort;
         };
 
         for (const row of pendingRows) {
-            if (!canPush(row.table_name, role)) {
-                skippedCount += 1;
-                console.log(`[sync:push] Skipped entry ${row.id} — role '${role}' cannot push to '${row.table_name}'`);
-                markEntryFailed(
-                    db,
-                    row.id,
-                    `Role '${role}' cannot push to '${row.table_name}'`,
-                    maxRetries,
-                    false,
-                    true
-                );
-                continue;
-            }
-
-            let rowData = {};
-            try {
-                rowData = row.row_data ? JSON.parse(row.row_data) : {};
-            } catch (err) {
-                db.prepare(
-                    'UPDATE sync_outbox SET retries = retries + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE id = ?'
-                ).run(row.id);
-                markEntryFailed(db, row.id, `Invalid row_data JSON: ${err.message}`, maxRetries);
-                failedCount += 1;
-                lastError = err.message;
-                continue;
-            }
-
-            if (rowData._bulk) {
-                const aborted = await flushBuffer();
-                if (aborted) break;
-
-                db.prepare(
-                    'UPDATE sync_outbox SET retries = retries + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE id = ?'
-                ).run(row.id);
-
-                const expandedEntries = expandBulkEntry(db, row, deviceHash);
-                if (expandedEntries.length === 0) {
-                    markEntrySent(db, row.id);
-                    continue;
-                }
-
-                const expandedResult = await flushExpandedEntries(
-                    db,
-                    firestoreDb,
-                    row.id,
-                    expandedEntries,
-                    schoolId,
-                    deviceHash,
-                    maxRetries,
-                    role
-                );
-                sentCount += expandedResult.sentCount;
-                failedCount += expandedResult.failedCount;
-                skippedCount += expandedResult.skippedCount;
-                lastError = expandedResult.lastError || lastError;
-
-                if (expandedResult.abort) {
-                    break;
-                }
-
-                continue;
-            }
-
-            db.prepare(
-                'UPDATE sync_outbox SET retries = retries + 1, last_attempt_at = CURRENT_TIMESTAMP WHERE id = ?'
-            ).run(row.id);
-
-            const firestoreDoc = buildFirestoreDoc(db, row, schoolId, deviceHash);
-            if (!firestoreDoc) {
-                markEntryFailed(db, row.id, 'Failed to build Firestore document — unknown entity type', maxRetries);
-                failedCount += 1;
-                lastError = 'Failed to build Firestore document — unknown entity type';
-                continue;
-            }
-
-            batchBuffer.push({ entryId: row.id, item: firestoreDoc });
-
-            if (batchBuffer.length >= 25) {
-                const aborted = await flushBuffer();
-                if (aborted) break;
-            }
+            const action = await processOutboxRow(db, firestoreDb, row, ctx);
+            if (action === 'break') break;
         }
 
-        const aborted = await flushBuffer();
-        if (aborted) {
-            lastError = lastError || 'Access denied';
-        }
+        const aborted = await ctx.flushBuffer();
+        if (aborted) ctx.lastError = ctx.lastError || 'Access denied';
+        if (!ctx.syncLogOk) ctx.lastError = ctx.lastError || 'syncLog write failed — other devices may not receive changes';
 
-        updatePushMeta(
-            db,
-            sentCount > 0 ? new Date().toISOString() : null,
-            lastError
-        );
+        updatePushMeta(db, ctx.sentCount > 0 ? new Date().toISOString() : null, ctx.lastError);
 
         const pendingCount = db.prepare("SELECT COUNT(*) AS c FROM sync_outbox WHERE status = 'pending'").get().c || 0;
-        if (sentCount > 0) {
+        if (ctx.sentCount > 0) {
             console.log(
-                `[sync:push] Pushed ${sentCount} entries, ${failedCount} failed, ${skippedCount} skipped, ${pendingCount} pending`
+                `[sync:push] Pushed ${ctx.sentCount} entries, ${ctx.failedCount} failed, ${ctx.skippedCount} skipped, ${pendingCount} pending${ctx.syncLogOk ? '' : ' (syncLog FAILED)'}`
             );
         }
-        if (pendingCount > 0 && sentCount > 0 && failedCount === 0) {
+        if (pendingCount > 0 && ctx.sentCount > 0 && ctx.failedCount === 0) {
             scheduleBacklogPush();
         }
 
         return {
-            success: failedCount === 0,
-            sentCount,
-            failedCount,
-            skippedCount,
+            success: ctx.failedCount === 0 && ctx.syncLogOk,
+            sentCount: ctx.sentCount,
+            failedCount: ctx.failedCount,
+            skippedCount: ctx.skippedCount,
             pendingCount,
             compactedCount,
-            lastError
+            lastError: ctx.lastError
         };
     } finally {
         _flushRunning = false;
@@ -1170,6 +1141,211 @@ function startRemoteChangeListener(schoolId) {
     }
 }
 
+function buildPullResult(overrides = {}) {
+    return {
+        success: true,
+        appliedCount: 0,
+        skippedCount: 0,
+        conflictCount: 0,
+        failedCount: 0,
+        totalFetched: 0,
+        newCursor: null,
+        lastError: null,
+        ...overrides
+    };
+}
+
+function mapRemoteItems(remoteItems) {
+    const mapped = [];
+    const unknownEntityTypes = [];
+    for (const item of remoteItems) {
+        const tableName = Object.keys(ENTITY_TYPE_REGISTRY).find(
+            (k) => ENTITY_TYPE_REGISTRY[k].entityType === item.entityType
+        );
+        if (!tableName) {
+            unknownEntityTypes.push(item.entityType || '(missing)');
+            continue;
+        }
+        mapped.push({
+            tableName,
+            operation: item.operation,
+            rowSyncId: item.rowSyncId,
+            data: item.data || {},
+            version: item.version,
+            updatedAt: item.updatedAt || 0,
+            deviceHash: item.deviceHash,
+            entityType: item.entityType,
+            schoolYear: item.schoolYear,
+            changeId: item.id
+        });
+    }
+    if (unknownEntityTypes.length > 0) {
+        console.warn('[sync:pull] Skipped unknown entity types:', [...new Set(unknownEntityTypes)].join(', '));
+    }
+    return { mapped, unknownEntityTypes };
+}
+
+function handlePullConflict(db, item, pending) {
+    const ancestorRow = db
+        .prepare('SELECT ancestor_data FROM sync_id_map WHERE row_sync_id = ?')
+        .get(item.rowSyncId);
+    let ancestor = null;
+    try {
+        ancestor = ancestorRow?.ancestor_data ? JSON.parse(ancestorRow.ancestor_data) : null;
+    } catch (parseErr) {
+        console.warn(`[sync:pull] Failed to parse ancestor_data for ${item.rowSyncId}:`, parseErr.message);
+    }
+
+    let localData = {};
+    try {
+        localData = pending.rowData ? JSON.parse(pending.rowData) : {};
+    } catch (parseErr) {
+        console.warn(`[sync:pull] Failed to parse local outbox data for ${item.rowSyncId}:`, parseErr.message);
+    }
+
+    const localTs = Math.floor(Date.now() / 1000);
+    const remoteTs = item.updatedAt || 0;
+    const originalRemoteData = JSON.stringify(item.data);
+    const mergeResult = threeWayMerge(ancestor, localData, item.data, localTs, remoteTs);
+
+    item.data = mergeResult.merged;
+
+    if (mergeResult.resolution === 'clean') {
+        db.prepare("UPDATE sync_outbox SET status = 'sent' WHERE id = ?").run(pending.outboxId);
+        return false;
+    }
+
+    const resolutionMethod = mergeResult.resolution === 'lww' ? 'lww' : 'merged';
+    db.prepare(
+        `INSERT INTO sync_conflicts(table_name, row_sync_id, entity_type, local_data, remote_data,
+            remote_version, remote_device_hash, local_outbox_id, ancestor_data,
+            conflicting_fields, resolution_method, resolved_data, status, resolution, resolved_at)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'resolved', ?, CURRENT_TIMESTAMP)`
+    ).run(
+        item.tableName, item.rowSyncId, item.entityType,
+        pending.rowData, originalRemoteData, item.version, item.deviceHash,
+        pending.outboxId, ancestorRow?.ancestor_data || null,
+        JSON.stringify(mergeResult.conflicts), resolutionMethod,
+        JSON.stringify(mergeResult.merged),
+        mergeResult.conflicts.length > 0 ? 'remote' : 'merged'
+    );
+    db.prepare("UPDATE sync_outbox SET status = 'sent' WHERE id = ?").run(pending.outboxId);
+    return true;
+}
+
+function applyPutOperation(db, item, mapping) {
+    const columnKeys = Object.keys(item.data).filter((k) => k !== 'id');
+
+    if (mapping) {
+        const columns = filterToValidColumns(db, item.tableName, columnKeys);
+        if (columns.length > 0) {
+            const setClause = columns.map((c) => `"${c}" = ?`).join(', ');
+            const values = columns.map((c) => item.data[c]);
+            values.push(mapping.local_id);
+            try {
+                db.prepare(`UPDATE "${item.tableName}" SET ${setClause} WHERE id = ?`).run(...values);
+            } catch (updateErr) {
+                console.warn(`[sync:pull] UPDATE failed for ${item.tableName} id=${mapping.local_id}:`, updateErr.message);
+                return false;
+            }
+        }
+    } else {
+        const columns = filterToValidColumns(db, item.tableName, columnKeys);
+        if (columns.length > 0) {
+            const colNames = columns.map((c) => `"${c}"`).join(', ');
+            const placeholders = columns.map(() => '?').join(', ');
+            const values = columns.map((c) => item.data[c]);
+            let info;
+            try {
+                info = db
+                    .prepare(`INSERT OR REPLACE INTO "${item.tableName}" (${colNames}) VALUES (${placeholders})`)
+                    .run(...values);
+            } catch (insertErr) {
+                console.warn(`[sync:pull] INSERT failed for ${item.tableName} (${item.rowSyncId}):`, insertErr.message);
+                return false;
+            }
+            db.prepare(
+                'INSERT OR IGNORE INTO sync_id_map(row_sync_id, table_name, local_id) VALUES(?, ?, ?)'
+            ).run(item.rowSyncId, item.tableName, info.lastInsertRowid);
+        }
+    }
+
+    try {
+        db.prepare(
+            'UPDATE sync_id_map SET ancestor_data = ?, version = ? WHERE row_sync_id = ?'
+        ).run(JSON.stringify(item.data), item.version, item.rowSyncId);
+        const checksum = computeRowChecksum(item.data, SENSITIVE_FIELDS);
+        db.prepare(
+            `INSERT INTO sync_snapshots(row_sync_id, table_name, checksum, updated_at)
+             VALUES(?, ?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(row_sync_id) DO UPDATE SET checksum = ?, updated_at = CURRENT_TIMESTAMP`
+        ).run(item.rowSyncId, item.tableName, checksum, checksum);
+    } catch (snapshotErr) {
+        console.warn(`[sync:pull] Ancestor/snapshot update failed for ${item.rowSyncId}:`, snapshotErr.message);
+    }
+    return true;
+}
+
+function applySingleItem(db, item, pendingMap, deferredStudentFiles, stats, isDeferred) {
+    try {
+        const pending = pendingMap.get(item.rowSyncId);
+        if (pending) {
+            if (handlePullConflict(db, item, pending)) {
+                stats.conflictCount++;
+            }
+        }
+
+        if (item.tableName === 'student_files' && item.operation === 'PUT') {
+            const studentCode = String(item.data?.student_code || '').trim();
+            const docKey = String(item.data?.doc_key || item.data?.file_id || '').trim();
+            const schoolYear = String(item.data?.school_year || item.schoolYear || '').trim();
+            const studentId = resolveStudentId(db, studentCode, schoolYear);
+
+            if (studentId == null) {
+                if (!isDeferred) {
+                    deferredStudentFiles.push(item);
+                    return;
+                }
+                console.error(
+                    `[sync:pull] Failed to resolve student_id for student_files row '${item.rowSyncId || item.changeId || docKey}' (student_code='${studentCode}', school_year='${schoolYear || '-'}')`
+                );
+                stats.failedCount++;
+                return;
+            }
+
+            item.data = { ...item.data, student_id: studentId, doc_key: docKey, school_year: schoolYear };
+            delete item.data.student_code;
+            delete item.data.file_id;
+        }
+
+        const mapping = db
+            .prepare('SELECT local_id FROM sync_id_map WHERE row_sync_id = ?')
+            .get(item.rowSyncId);
+
+        if (item.operation === 'PUT') {
+            if (applyPutOperation(db, item, mapping)) {
+                stats.appliedCount++;
+            } else {
+                stats.failedCount++;
+            }
+        } else if (item.operation === 'DEL') {
+            if (mapping) {
+                try {
+                    db.prepare(`DELETE FROM "${item.tableName}" WHERE id = ?`).run(mapping.local_id);
+                } catch (delErr) {
+                    console.warn(`[sync:pull] DELETE failed for ${item.tableName} id=${mapping.local_id}:`, delErr.message);
+                    stats.failedCount++;
+                    return;
+                }
+            }
+            stats.appliedCount++;
+        }
+    } catch (applyErr) {
+        console.warn(`[sync:pull] Failed to apply item ${item.rowSyncId} (${item.operation} ${item.tableName}):`, applyErr.message);
+        stats.failedCount++;
+    }
+}
+
 async function pullRemoteChanges() {
     if (_pullRunning) return { success: false, skipped: true };
     _pullRunning = true;
@@ -1180,16 +1356,7 @@ async function pullRemoteChanges() {
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
         if (!config || !config.enabled || !config.school_id) {
             console.log('[sync:pull] Skipped: sync disabled or school_id missing');
-            return {
-                success: true,
-                appliedCount: 0,
-                skippedCount: 0,
-                conflictCount: 0,
-                failedCount: 0,
-                totalFetched: 0,
-                newCursor: null,
-                lastError: null
-            };
+            return buildPullResult();
         }
         pullDebug('config loaded', {
             enabled: !!config.enabled,
@@ -1203,16 +1370,7 @@ async function pullRemoteChanges() {
         const credentials = await getCredentials();
         if (!credentials) {
             console.warn('[sync:pull] Skipped: no Firebase credentials available');
-            return {
-                success: false,
-                appliedCount: 0,
-                skippedCount: 0,
-                conflictCount: 0,
-                failedCount: 0,
-                totalFetched: 0,
-                newCursor: null,
-                lastError: 'No credentials available'
-            };
+            return buildPullResult({ success: false, lastError: 'No credentials available' });
         }
         pullDebug('credentials ready', {
             schoolId: credentials.schoolId,
@@ -1223,16 +1381,7 @@ async function pullRemoteChanges() {
         const schoolId = config.school_id || credentials.schoolId;
         if (!schoolId) {
             console.warn('[sync:pull] Skipped: no school_id configured');
-            return {
-                success: false,
-                appliedCount: 0,
-                skippedCount: 0,
-                conflictCount: 0,
-                failedCount: 0,
-                totalFetched: 0,
-                newCursor: null,
-                lastError: 'No school_id configured'
-            };
+            return buildPullResult({ success: false, lastError: 'No school_id configured' });
         }
 
         const firestoreDb = getFirestoreDb();
@@ -1245,17 +1394,11 @@ async function pullRemoteChanges() {
             localDeviceHash
         });
 
-        // Step 1: Pull changes from Firestore syncLog since last cursor
         const localDataExists = db.prepare('SELECT COUNT(*) as c FROM students').get().c > 0;
         const needsBootstrap = !localDataExists;
 
         let allItems = await pullChanges(firestoreDb, schoolId, cursor);
 
-        // Bootstrap: if syncLog is empty and local DB has no data, read directly
-        // from entity collections. This handles:
-        // 1. First pull on a new device (null cursor)
-        // 2. Cursor set by a previous partial push but local data never populated
-        // 3. SyncLog entries expired (30-day TTL) but entity collections still have data
         if (allItems.length === 0 && needsBootstrap) {
             console.log('[sync:pull] Bootstrapping from entity collections (syncLog empty, local DB empty)...');
             try {
@@ -1271,29 +1414,14 @@ async function pullRemoteChanges() {
                 'UPDATE sync_config SET last_pull_at = CURRENT_TIMESTAMP, last_pull_error = NULL WHERE id = 1'
             ).run();
             console.log(`[sync:pull] Completed: 0 fetched, 0 applied, 0 conflicts, 0 failed (${Date.now() - startedAt}ms)`);
-            return {
-                success: true,
-                appliedCount: 0,
-                skippedCount: 0,
-                conflictCount: 0,
-                failedCount: 0,
-                totalFetched: 0,
-                newCursor: serializePullCursor(cursor),
-                lastError: null
-            };
+            return buildPullResult({ newCursor: serializePullCursor(cursor) });
         }
 
-        // Step 2: Filter out self-originated records.
-        // Skip this filter when the local DB is empty (needsBootstrap) — we want
-        // ALL data from Firestore when rebuilding, even records originally pushed
-        // by this same device (e.g. DB deleted, or reinstall on same hardware).
         let remoteItems;
         if (needsBootstrap) {
             remoteItems = allItems;
         } else {
-            remoteItems = allItems.filter(
-                (item) => item.deviceHash !== localDeviceHash
-            );
+            remoteItems = allItems.filter((item) => item.deviceHash !== localDeviceHash);
         }
         const skippedCount = allItems.length - remoteItems.length;
         pullDebug('self-origin filter completed', {
@@ -1302,47 +1430,19 @@ async function pullRemoteChanges() {
             skippedSelfOriginated: skippedCount
         });
 
-        // Step 3: Map Firestore items to internal format
-        const mapped = [];
-        const unknownEntityTypes = [];
-        for (const item of remoteItems) {
-            const tableName = Object.keys(ENTITY_TYPE_REGISTRY).find(
-                (k) => ENTITY_TYPE_REGISTRY[k].entityType === item.entityType
-            );
-            if (!tableName) {
-                unknownEntityTypes.push(item.entityType || '(missing)');
-                continue;
-            }
-            mapped.push({
-                tableName,
-                operation: item.operation,
-                rowSyncId: item.rowSyncId,
-                data: item.data || {},
-                version: item.version,
-                updatedAt: item.updatedAt || 0,
-                deviceHash: item.deviceHash,
-                entityType: item.entityType,
-                schoolYear: item.schoolYear,
-                changeId: item.id
-            });
-        }
-        if (unknownEntityTypes.length > 0) {
-            console.warn('[sync:pull] Skipped unknown entity types:', [...new Set(unknownEntityTypes)].join(', '));
-        }
+        const { mapped, unknownEntityTypes } = mapRemoteItems(remoteItems);
         pullDebug('mapping completed', {
             mapped: mapped.length,
             unknownEntityTypeCount: unknownEntityTypes.length,
             sample: mapped.slice(0, 5).map(summarizePullItem)
         });
 
-        // Step 4: Sort by topological order for FK safety
         const sorted = sortByTopology(mapped);
         pullDebug('topological sort completed', {
             sorted: sorted.length,
             sample: sorted.slice(0, 5).map(summarizePullItem)
         });
 
-        // Step 5: Pre-load pending outbox row_sync_ids for conflict detection
         const pendingRows = db
             .prepare("SELECT row_sync_id, id, row_data FROM sync_outbox WHERE status = 'pending'")
             .all();
@@ -1352,227 +1452,38 @@ async function pullRemoteChanges() {
         }
         pullDebug('pending outbox loaded', { pendingRows: pendingRows.length });
 
-        // Step 6: Apply changes in a single transaction
-        let appliedCount = 0;
-        let conflictCount = 0;
-        let failedCount = 0;
+        const stats = { appliedCount: 0, conflictCount: 0, failedCount: 0 };
         pullDebug('local apply transaction starting', { itemCount: sorted.length });
 
         const applyChanges = db.transaction(() => {
             const deferredStudentFiles = [];
-
-            const applyItem = (item, isDeferred = false) => {
-                try {
-                    // Check for conflicts
-                    const pending = pendingMap.get(item.rowSyncId);
-                    if (pending) {
-                        // Load ancestor for three-way merge
-                        const ancestorRow = db
-                            .prepare('SELECT ancestor_data FROM sync_id_map WHERE row_sync_id = ?')
-                            .get(item.rowSyncId);
-                        let ancestor = null;
-                        try {
-                            ancestor = ancestorRow?.ancestor_data ? JSON.parse(ancestorRow.ancestor_data) : null;
-                        } catch (parseErr) {
-                            console.warn(`[sync:pull] Failed to parse ancestor_data for ${item.rowSyncId}:`, parseErr.message);
-                        }
-
-                        // Load current local data from the pending outbox entry
-                        let localData = {};
-                        try {
-                            localData = pending.rowData ? JSON.parse(pending.rowData) : {};
-                        } catch (parseErr) {
-                            console.warn(`[sync:pull] Failed to parse local outbox data for ${item.rowSyncId}:`, parseErr.message);
-                        }
-
-                        const localTs = Math.floor(Date.now() / 1000);
-                        const remoteTs = item.updatedAt || 0;
-
-                        // Save original remote data before merge overwrites it
-                        const originalRemoteData = JSON.stringify(item.data);
-
-                        const mergeResult = threeWayMerge(ancestor, localData, item.data, localTs, remoteTs);
-
-                        // Use merged data instead of raw remote data
-                        item.data = mergeResult.merged;
-
-                        if (mergeResult.resolution === 'clean') {
-                            // Perfect merge — discard pending outbox entry
-                            db.prepare("UPDATE sync_outbox SET status = 'sent' WHERE id = ?").run(pending.outboxId);
-                        } else {
-                            // Log enriched conflict entry
-                            const resolutionMethod = mergeResult.resolution === 'lww' ? 'lww' : 'merged';
-                            db.prepare(
-                                `
-                                INSERT INTO sync_conflicts(table_name, row_sync_id, entity_type, local_data, remote_data,
-                                    remote_version, remote_device_hash, local_outbox_id, ancestor_data,
-                                    conflicting_fields, resolution_method, resolved_data, status, resolution, resolved_at)
-                                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'resolved', ?, CURRENT_TIMESTAMP)
-                            `
-                            ).run(
-                                item.tableName,
-                                item.rowSyncId,
-                                item.entityType,
-                                pending.rowData,
-                                originalRemoteData,
-                                item.version,
-                                item.deviceHash,
-                                pending.outboxId,
-                                ancestorRow?.ancestor_data || null,
-                                JSON.stringify(mergeResult.conflicts),
-                                resolutionMethod,
-                                JSON.stringify(mergeResult.merged),
-                                mergeResult.conflicts.length > 0 ? 'remote' : 'merged'
-                            );
-                            // Discard the pending outbox entry since we've merged
-                            db.prepare("UPDATE sync_outbox SET status = 'sent' WHERE id = ?").run(pending.outboxId);
-                            conflictCount++;
-                        }
-                    }
-
-                    if (item.tableName === 'student_files' && item.operation === 'PUT') {
-                        const studentCode = String(item.data?.student_code || '').trim();
-                        const docKey = String(item.data?.doc_key || item.data?.file_id || '').trim();
-                        const schoolYear = String(item.data?.school_year || item.schoolYear || '').trim();
-                        const studentId = resolveStudentId(db, studentCode, schoolYear);
-
-                        if (studentId == null) {
-                            if (!isDeferred) {
-                                deferredStudentFiles.push(item);
-                                return;
-                            }
-
-                            console.error(
-                                `[sync:pull] Failed to resolve student_id for student_files row '${item.rowSyncId || item.changeId || docKey}' (student_code='${studentCode}', school_year='${schoolYear || '-'}')`
-                            );
-                            failedCount++;
-                            return;
-                        }
-
-                        item.data = {
-                            ...item.data,
-                            student_id: studentId,
-                            doc_key: docKey,
-                            school_year: schoolYear
-                        };
-                        delete item.data.student_code;
-                        delete item.data.file_id;
-                    }
-
-                    // Look up sync_id_map for existing local mapping
-                    const mapping = db
-                        .prepare('SELECT local_id FROM sync_id_map WHERE row_sync_id = ?')
-                        .get(item.rowSyncId);
-
-                    if (item.operation === 'PUT') {
-                        if (mapping) {
-                            const columns = filterToValidColumns(db, item.tableName, Object.keys(item.data).filter((k) => k !== 'id'));
-                            if (columns.length > 0) {
-                                const setClause = columns.map((c) => `"${c}" = ?`).join(', ');
-                                const values = columns.map((c) => item.data[c]);
-                                values.push(mapping.local_id);
-                                try {
-                                    db.prepare(`UPDATE "${item.tableName}" SET ${setClause} WHERE id = ?`).run(
-                                        ...values
-                                    );
-                                } catch (updateErr) {
-                                    console.warn(`[sync:pull] UPDATE failed for ${item.tableName} id=${mapping.local_id}:`, updateErr.message);
-                                    failedCount++;
-                                    return;
-                                }
-                            }
-                        } else {
-                            const columns = filterToValidColumns(db, item.tableName, Object.keys(item.data).filter((k) => k !== 'id'));
-                            if (columns.length > 0) {
-                                const colNames = columns.map((c) => `"${c}"`).join(', ');
-                                const placeholders = columns.map(() => '?').join(', ');
-                                const values = columns.map((c) => item.data[c]);
-                                let info;
-                                try {
-                                    info = db
-                                        .prepare(
-                                            `INSERT OR REPLACE INTO "${item.tableName}" (${colNames}) VALUES (${placeholders})`
-                                        )
-                                        .run(...values);
-                                } catch (insertErr) {
-                                    console.warn(`[sync:pull] INSERT failed for ${item.tableName} (${item.rowSyncId}):`, insertErr.message);
-                                    failedCount++;
-                                    return;
-                                }
-                                db.prepare(
-                                    'INSERT OR IGNORE INTO sync_id_map(row_sync_id, table_name, local_id) VALUES(?, ?, ?)'
-                                ).run(item.rowSyncId, item.tableName, info.lastInsertRowid);
-                            }
-                        }
-                        appliedCount++;
-
-                        // Update ancestor to the applied version + snapshot checksum
-                        try {
-                            db.prepare(
-                                'UPDATE sync_id_map SET ancestor_data = ?, version = ? WHERE row_sync_id = ?'
-                            ).run(JSON.stringify(item.data), item.version, item.rowSyncId);
-                            const checksum = computeRowChecksum(item.data, SENSITIVE_FIELDS);
-                            db.prepare(
-                                `
-                                INSERT INTO sync_snapshots(row_sync_id, table_name, checksum, updated_at)
-                                VALUES(?, ?, ?, CURRENT_TIMESTAMP)
-                                ON CONFLICT(row_sync_id) DO UPDATE SET checksum = ?, updated_at = CURRENT_TIMESTAMP
-                            `
-                            ).run(item.rowSyncId, item.tableName, checksum, checksum);
-                        } catch (snapshotErr) {
-                            console.warn(`[sync:pull] Ancestor/snapshot update failed for ${item.rowSyncId}:`, snapshotErr.message);
-                        }
-                    } else if (item.operation === 'DEL') {
-                        if (mapping) {
-                            try {
-                                db.prepare(`DELETE FROM "${item.tableName}" WHERE id = ?`).run(mapping.local_id);
-                            } catch (delErr) {
-                                console.warn(`[sync:pull] DELETE failed for ${item.tableName} id=${mapping.local_id}:`, delErr.message);
-                                failedCount++;
-                                return;
-                            }
-                            appliedCount++;
-                        } else {
-                            appliedCount++;
-                        }
-                    }
-                } catch (applyErr) {
-                    console.warn(`[sync:pull] Failed to apply item ${item.rowSyncId} (${item.operation} ${item.tableName}):`, applyErr.message);
-                    failedCount++;
-                }
-            };
-
             for (const item of sorted) {
-                applyItem(item, false);
+                applySingleItem(db, item, pendingMap, deferredStudentFiles, stats, false);
             }
-
             for (const item of deferredStudentFiles) {
-                applyItem(item, true);
+                applySingleItem(db, item, pendingMap, deferredStudentFiles, stats, true);
             }
         });
 
         applyChanges();
         pullDebug('local apply transaction completed', {
-            appliedCount,
-            conflictCount,
-            failedCount,
+            appliedCount: stats.appliedCount,
+            conflictCount: stats.conflictCount,
+            failedCount: stats.failedCount,
             elapsedMs: Date.now() - startedAt
         });
 
-        // Step 7: Advance cursor to highest updatedAt seen
         const lastItem = allItems[allItems.length - 1] || {};
         const newCursor = serializePullCursor({
             updatedAt: Number(lastItem.updatedAt) || cursor.updatedAt || 0,
             changeId: String(lastItem.id || '').trim()
         });
 
-        // Step 8: Update sync_config
         db.prepare(
             'UPDATE sync_config SET pull_cursor = ?, last_pull_at = CURRENT_TIMESTAMP, last_pull_error = NULL WHERE id = 1'
         ).run(newCursor);
         pullDebug('sync_config updated', { newCursor });
 
-        // Step 9: Update sync_pull_state per affected table
         const affectedTables = [...new Set(sorted.map((i) => i.tableName))];
         const upsertPullState = db.prepare(`
             INSERT INTO sync_pull_state(table_name, last_pulled_at, updated_at)
@@ -1587,19 +1498,18 @@ async function pullRemoteChanges() {
         updateDeviceHeartbeat(db);
 
         console.log(
-            `[sync:pull] Completed: ${allItems.length} fetched, ${appliedCount} applied, ${conflictCount} conflicts, ${failedCount} failed (${Date.now() - startedAt}ms)`
+            `[sync:pull] Completed: ${allItems.length} fetched, ${stats.appliedCount} applied, ${stats.conflictCount} conflicts, ${stats.failedCount} failed (${Date.now() - startedAt}ms)`
         );
 
-        return {
-            success: failedCount === 0,
-            appliedCount,
+        return buildPullResult({
+            success: stats.failedCount === 0,
+            appliedCount: stats.appliedCount,
             skippedCount: skippedCount + (mapped.length - sorted.length),
-            conflictCount,
-            failedCount,
+            conflictCount: stats.conflictCount,
+            failedCount: stats.failedCount,
             totalFetched: allItems.length,
-            newCursor,
-            lastError: null
-        };
+            newCursor
+        });
     } catch (err) {
         console.error('[sync:pull] Pull cycle failed:', err.message);
         try {
@@ -1615,16 +1525,7 @@ async function pullRemoteChanges() {
             clearCredentials();
         }
 
-        return {
-            success: false,
-            appliedCount: 0,
-            skippedCount: 0,
-            conflictCount: 0,
-            failedCount: 0,
-            totalFetched: 0,
-            newCursor: null,
-            lastError: err.message
-        };
+        return buildPullResult({ success: false, lastError: err.message });
     } finally {
         _pullRunning = false;
     }
@@ -1655,8 +1556,12 @@ function startSyncPullBackground() {
         void pullRemoteChanges();
         startRemoteChangeListener(config.school_id);
 
-        _pullTimer = setInterval(() => {
-            void pullRemoteChanges();
+        _pullTimer = setInterval(async () => {
+            const result = await pullRemoteChanges();
+            if (result && !result.success && !result.skipped) {
+                const retryDelay = setTimeout(() => void pullRemoteChanges(), 5000);
+                if (typeof retryDelay.unref === 'function') retryDelay.unref();
+            }
         }, intervalMs);
 
         if (typeof _pullTimer.unref === 'function') {

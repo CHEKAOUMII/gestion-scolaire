@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="صفحة إدارة التطبيق المركزية" />
+        <meta name="theme-color" content="#3b6ac5" />
+        <title>إدارة التطبيق | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/message-system.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/pages/app-admin-guard.js"></script>
+    </head>
+
+    <body>
+        <noscript>
+            <div
+                class="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-[var(--color-primary-dark)] p-10 text-center text-white"
+            >
+                <div>
+                    <i class="fas fa-exclamation-triangle mb-4 block text-5xl text-[var(--color-warning-solid)]"></i>
+                    <h2 class="text-2xl font-bold">يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
+                </div>
+            </div>
+        </noscript>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button
+                        class="menu-toggle"
+                        id="menu-toggle"
+                        type="button"
+                        aria-label="فتح القائمة الجانبية"
+                        title="القائمة"
+                    >
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h2 class="page-title"><i class="fas fa-cogs"></i> إدارة التطبيق</h2>
+                </div>
+                <div class="header-right">
+                    <button
+                        class="theme-toggle"
+                        id="theme-toggle"
+                        type="button"
+                        aria-label="تبديل المظهر"
+                        title="تبديل المظهر"
+                    >
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="grades-container su-page">
+                <!-- ═══════════════════════════════════════════
+                     SECTION 1 — Identity Change Requests
+                     ═══════════════════════════════════════════ -->
+                <section class="su-card">
+                    <div class="su-card__header">
+                        <h3 class="su-card__title">
+                            <i class="fas fa-id-card su-card__icon"></i>
+                            طلبات تعديل هوية المؤسسات
+                        </h3>
+                        <div class="su-card__actions">
+                            <select id="aa-status-filter" class="su-field__input" style="width: auto; min-width: 140px">
+                                <option value="">كل الحالات</option>
+                                <option value="pending" selected>قيد المراجعة</option>
+                                <option value="approved">تمت الموافقة</option>
+                                <option value="rejected">مرفوض</option>
+                                <option value="failed">فشل</option>
+                            </select>
+                            <button id="aa-refresh-btn" class="btn btn-secondary su-btn--icon" type="button">
+                                <i class="fas fa-sync-alt"></i> تحديث
+                            </button>
+                        </div>
+                    </div>
+                    <p class="su-help-text">
+                        مراجعة طلبات تعديل هوية المؤسسات المقدمة من مديري المؤسسات. يمكنك الموافقة أو الرفض مع تقديم سبب.
+                    </p>
+                    <div class="su-table-wrap">
+                        <table class="students-table">
+                            <caption class="sr-only">قائمة طلبات تعديل هوية المؤسسات</caption>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الحالة</th>
+                                    <th>المؤسسة</th>
+                                    <th>الرمز الحالي</th>
+                                    <th>الرمز المطلوب</th>
+                                    <th>الاسم المطلوب</th>
+                                    <th>مقدم الطلب</th>
+                                    <th>السبب</th>
+                                    <th>التاريخ</th>
+                                    <th>الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="aa-requests-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="aa-empty-state" class="settings-table-message" style="display: none; padding: 2rem; text-align: center">
+                        <i class="fas fa-inbox" style="font-size: 2rem; opacity: 0.4; margin-bottom: 0.5rem; display: block"></i>
+                        <span>لا توجد طلبات</span>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <script src="js/pages/app-admin.js" defer></script>
+    </body>
+</html>

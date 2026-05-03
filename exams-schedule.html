@@ -467,9 +467,16 @@
                 currentSubjects.push({ name: name.trim(), type: (type || 'وطني').trim() });
                 renderSubjects();
             });
-            document.getElementById('btn-del-subject').addEventListener('click', () => {
+            document.getElementById('btn-del-subject').addEventListener('click', async () => {
                 if (selectedSubjectRow === null || selectedSubjectRow < 0 || selectedSubjectRow >= currentSubjects.length) { showToast('يرجى اختيار مادة أولاً', 'warning'); return; }
-                if (!confirm(`حذف المادة "${currentSubjects[selectedSubjectRow].name}"؟`)) return;
+                const result = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف مادة',
+                    message: `حذف المادة "${currentSubjects[selectedSubjectRow].name}"؟`,
+                    detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                    confirmText: 'حذف'
+                });
+                if (!result.confirmed) return;
                 currentSubjects.splice(selectedSubjectRow, 1); selectedSubjectRow = null; renderSubjects();
             });
             document.getElementById('btn-save-level').addEventListener('click', () => {
@@ -511,8 +518,15 @@
                 <button class="remove-level" onclick="removeLevel(${i})" title="حذف"><i class="fas fa-times"></i></button></div>
             `).join('') : '<span class="no-levels-msg">لم يتم إضافة أي مستوى بعد</span>';
         }
-        function removeLevel(i) {
-            if (!confirm(`حذف المستوى "${addedLevels[i].name}"؟`)) return;
+        async function removeLevel(i) {
+            const result = await showConfirm({
+                type: 'danger',
+                title: 'حذف مستوى',
+                message: `حذف المستوى "${addedLevels[i].name}"؟`,
+                detail: 'سيتم حذف إعدادات المواد والقاعات المرتبطة بهذا المستوى من هذه البرمجة.',
+                confirmText: 'حذف'
+            });
+            if (!result.confirmed) return;
             addedLevels.splice(i, 1); renderAddedLevels();
             document.getElementById('count-branches').textContent = addedLevels.length;
         }
@@ -522,8 +536,15 @@
             document.getElementById('btn-save-rooms').addEventListener('click', () => {
                 showToast('تم حفظ تهيئة القاعات بنجاح', 'success');
             });
-            document.getElementById('btn-clear-rooms').addEventListener('click', () => {
-                if (!confirm('هل تريد تفريغ جميع البيانات؟')) return;
+            document.getElementById('btn-clear-rooms').addEventListener('click', async () => {
+                const result = await showConfirm({
+                    type: 'warning',
+                    title: 'تفريغ البيانات',
+                    message: 'هل تريد تفريغ جميع البيانات؟',
+                    detail: 'سيتم الاحتفاظ بنسخة مؤقتة للتراجع ما دمت في نفس الصفحة.',
+                    confirmText: 'تفريغ'
+                });
+                if (!result.confirmed) return;
                 roomsBackup = document.getElementById('rooms-config-tbody').innerHTML;
                 document.querySelectorAll('#rooms-config-tbody input').forEach(inp => { inp.value = ''; });
                 showToast('تم تفريغ البيانات', 'warning');

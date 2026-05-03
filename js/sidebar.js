@@ -101,6 +101,7 @@ function injectSidebar() {
                         <li id="sidebar-users-link" class="hidden" data-dev-only><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
                         <li><a href="settings-logs.html"><i class="fas fa-history"></i> سجل النشاطات</a></li>
                         <li id="sidebar-license-link" class="hidden" data-dev-only><a href="settings-license.html"><i class="fas fa-key"></i> الترخيص والأجهزة</a></li>
+                        <li id="sidebar-app-admin-link" class="hidden" data-admin-only><a href="app-admin.html"><i class="fas fa-cogs"></i> إدارة التطبيق</a></li>
                         <li id="sidebar-sync-link"><a href="settings-sync.html"><i class="fas fa-cloud"></i> المزامنة السحابية <span class="sync-status-badge" id="sidebar-sync-badge"></span></a></li>
                     </ul>
                 </li>
@@ -182,6 +183,10 @@ function injectSidebar() {
                 if (role === 'developer' || role === 'admin' || role === 'principal') {
                     const usersLink = document.getElementById('sidebar-users-link');
                     if (usersLink) usersLink.classList.remove('hidden');
+                }
+                if (role === 'developer' || role === 'admin') {
+                    const appAdminLink = document.getElementById('sidebar-app-admin-link');
+                    if (appAdminLink) appAdminLink.classList.remove('hidden');
                 }
             }
         }

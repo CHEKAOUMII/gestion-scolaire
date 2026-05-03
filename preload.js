@@ -338,7 +338,16 @@ contextBridge.exposeInMainWorld('api', {
     institution: {
         getStatus: () => ipcRenderer.invoke('institution:get-status'),
         relink: (payload) => ipcRenderer.invoke('institution:relink', payload),
-        setupNew: (payload) => ipcRenderer.invoke('institution:setup-new', payload)
+        setupNew: (payload) => ipcRenderer.invoke('institution:setup-new', payload),
+        submitIdentityChangeRequest: (payload) => ipcRenderer.invoke('institution:submitIdentityChangeRequest', payload),
+        getIdentityChangeRequests: (payload) => ipcRenderer.invoke('institution:getIdentityChangeRequests', payload),
+        applyApprovedIdentityChange: (payload) => ipcRenderer.invoke('institution:applyApprovedIdentityChange', payload)
+    },
+
+    appAdmin: {
+        listIdentityChangeRequests: (payload) => ipcRenderer.invoke('appAdmin:listIdentityChangeRequests', payload),
+        approveIdentityChangeRequest: (payload) => ipcRenderer.invoke('appAdmin:approveIdentityChangeRequest', payload),
+        rejectIdentityChangeRequest: (payload) => ipcRenderer.invoke('appAdmin:rejectIdentityChangeRequest', payload)
     },
 
 });

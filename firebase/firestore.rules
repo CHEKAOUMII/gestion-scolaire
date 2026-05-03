@@ -28,6 +28,16 @@ service cloud.firestore {
       return isActiveSchoolUser(schoolId) || isDeviceCredential(schoolId);
     }
 
+    function isMigratedSchool(schoolId) {
+      return exists(/databases/$(database)/documents/schools/$(schoolId))
+          && get(/databases/$(database)/documents/schools/$(schoolId)).data.status == 'migrated';
+    }
+
+    // Identity change requests — server-only via Cloud Functions
+    match /institutionIdentityRequests/{requestId} {
+      allow read, write: if false;
+    }
+
     match /schools/{schoolId} {
       allow read: if canSyncSchoolData(schoolId);
       allow create, update, delete: if false;
@@ -49,14 +59,18 @@ service cloud.firestore {
 
       // Existing sync collections remain tenant-scoped without reopening users/meta/invites.
       match /{collection}/{docId} {
-        allow read, write: if !(collection in ['meta', 'users', 'userInvites'])
+        allow read: if !(collection in ['meta', 'users', 'userInvites'])
             && canSyncSchoolData(schoolId);
+        allow write: if !(collection in ['meta', 'users', 'userInvites'])
+            && canSyncSchoolData(schoolId)
+            && !isMigratedSchool(schoolId);
       }
     }
 
     // SyncLog: devices push change entries, all devices in the school can read
     match /syncLog/{schoolId}/changes/{changeId} {
-      allow read, write: if canSyncSchoolData(schoolId);
+      allow read: if canSyncSchoolData(schoolId);
+      allow write: if canSyncSchoolData(schoolId) && !isMigratedSchool(schoolId);
     }
 
     // Deny everything else

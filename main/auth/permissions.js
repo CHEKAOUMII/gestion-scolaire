@@ -53,8 +53,9 @@ const PAGE_PERMISSIONS = {
     'exams-proctors':                ['principal','supervisor','external-guardian','admin-assistant','viewer'],
     'exams-tests':                   ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
     'teachers-list':                 ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','viewer'],
+    'inspectors':                    ['principal','supervisor','external-guardian'],
     'teachers-schedule':             ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','viewer'],
-    'teachers-performance':          ['principal','supervisor','external-guardian','admin-assistant','educational-specialist','viewer'],
+    'teachers-performance':          ['principal','supervisor','external-guardian','admin-assistant','viewer'],
     'teachers-absence':              ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','viewer'],
     'staff-attendance':              ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','viewer'],
     'staff-daily-report':            ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','viewer'],
@@ -64,7 +65,7 @@ const PAGE_PERMISSIONS = {
     'timetable-rooms':               ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','viewer'],
     'timetable-redistribution':      ['principal','supervisor','admin-assistant'],
     'compensation-tracking':         ['principal','supervisor','external-guardian','admin-assistant','viewer'],
-    'tracking-teachers-performance': ['principal','supervisor','external-guardian','admin-assistant','educational-specialist','viewer'],
+    'tracking-teachers-performance': ['principal','supervisor','external-guardian','admin-assistant','viewer'],
     'analytics':                     ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','viewer'],
     'reports-forms':                 ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist'],
     'reports-certificates':          ['principal','supervisor','external-guardian','admin-assistant'],
@@ -72,9 +73,10 @@ const PAGE_PERMISSIONS = {
     'settings-school':               ['principal','external-guardian'],
     'settings-imports':              ['principal','supervisor','external-guardian'],
     'settings-users':                ['principal'], // principal manages institution users; admin + developer bypass
+    'app-admin':                     [], // app admin only — admin + developer bypass
     'settings-license':              [], // developer only — bypass; admin excluded by design
     'settings-logs':                 [], // developer only — bypass; admin excluded by design
-    'settings-sync':                 [], // developer only — bypass; admin excluded by design
+    'settings-sync':                 ['principal','supervisor','external-guardian'],
 };
 
 // Scoped restrictions applied on top of page access (enforced individually in each IPC handler).

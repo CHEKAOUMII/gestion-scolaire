@@ -136,7 +136,14 @@
             }
 
             async function delRow(id) {
-                if (!confirm('حذف هذه القاعة؟')) return;
+                const confirmed = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف قاعة',
+                    message: 'حذف هذه القاعة؟',
+                    detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                    confirmText: 'حذف'
+                });
+                if (!confirmed.confirmed) return;
                 const res = await window.api.examRooms.delete(id);
                 if (!res || res.success === false) {
                     showToast('فشل الحذف', 'error');

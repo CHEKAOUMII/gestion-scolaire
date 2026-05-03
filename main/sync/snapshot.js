@@ -9,128 +9,108 @@ const { computeRowChecksum } = require('./merge');
 let _snapshotTimer = null;
 let _snapshotRunning = false;
 
+function buildSnapshotResult(overrides = {}) {
+    return {
+        success: true,
+        skipped: false,
+        reason: null,
+        tablesChecked: 0,
+        changesDetected: 0,
+        enqueued: 0,
+        pruned: 0,
+        lastError: null,
+        ...overrides
+    };
+}
+
+function snapshotTable(db, tableName) {
+    let changesDetected = 0;
+    let enqueued = 0;
+
+    const rows = db.prepare(`SELECT * FROM "${tableName}"`).all();
+    const currentRowSyncIds = new Set();
+
+    for (const row of rows) {
+        const localId = row.id ?? row.code ?? row.key;
+        if (localId == null) continue;
+
+        const rowSyncId = ensureSyncIdMapping(db, tableName, localId);
+        currentRowSyncIds.add(rowSyncId);
+
+        const cleanRow = stripSensitiveFields({ ...row });
+        const checksum = computeRowChecksum(cleanRow, SENSITIVE_FIELDS);
+
+        const stored = db
+            .prepare('SELECT checksum FROM sync_snapshots WHERE row_sync_id = ?')
+            .get(rowSyncId);
+
+        if (!stored || stored.checksum !== checksum) {
+            changesDetected++;
+            recordOutboxEntry(db, tableName, localId, 'PUT', stripSensitiveFields({ ...row }), row.school_year || '');
+            enqueued++;
+            db.prepare(
+                `INSERT INTO sync_snapshots(row_sync_id, table_name, checksum, updated_at)
+                 VALUES(?, ?, ?, CURRENT_TIMESTAMP)
+                 ON CONFLICT(row_sync_id) DO UPDATE SET checksum = ?, updated_at = CURRENT_TIMESTAMP`
+            ).run(rowSyncId, tableName, checksum, checksum);
+        }
+    }
+
+    const storedSnapshots = db
+        .prepare('SELECT row_sync_id FROM sync_snapshots WHERE table_name = ?')
+        .all(tableName);
+    for (const stored of storedSnapshots) {
+        if (!currentRowSyncIds.has(stored.row_sync_id)) {
+            changesDetected++;
+            const mapping = db
+                .prepare('SELECT local_id FROM sync_id_map WHERE row_sync_id = ?')
+                .get(stored.row_sync_id);
+            if (mapping) {
+                recordOutboxEntry(db, tableName, mapping.local_id, 'DEL', null, '');
+            }
+            enqueued++;
+            db.prepare('DELETE FROM sync_snapshots WHERE row_sync_id = ?').run(stored.row_sync_id);
+        }
+    }
+
+    return { changesDetected, enqueued };
+}
+
+function pruneResolvedConflicts(db) {
+    return db
+        .prepare("DELETE FROM sync_conflicts WHERE status = 'resolved' AND resolved_at < datetime('now', '-30 days')")
+        .run().changes;
+}
+
 async function runSnapshotCycle() {
-    if (_snapshotRunning) {
-        return {
-            success: true,
-            skipped: true,
-            reason: 'already_running',
-            tablesChecked: 0,
-            changesDetected: 0,
-            enqueued: 0,
-            pruned: 0,
-            lastError: null
-        };
-    }
-    if (isPullCycleRunning()) {
-        return {
-            success: true,
-            skipped: true,
-            reason: 'pull_in_progress',
-            tablesChecked: 0,
-            changesDetected: 0,
-            enqueued: 0,
-            pruned: 0,
-            lastError: null
-        };
-    }
+    if (_snapshotRunning) return buildSnapshotResult({ skipped: true, reason: 'already_running' });
+    if (isPullCycleRunning()) return buildSnapshotResult({ skipped: true, reason: 'pull_in_progress' });
 
     _snapshotRunning = true;
     let tablesChecked = 0;
     let changesDetected = 0;
     let enqueued = 0;
-    let pruned = 0;
     console.log('[sync:snapshot] Snapshot cycle starting...');
 
     try {
         const db = getDb();
         const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
         if (!config || !Number(config.enabled) || !config.school_id) {
-            return {
-                success: true,
-                skipped: true,
-                reason: 'disabled',
-                tablesChecked: 0,
-                changesDetected: 0,
-                enqueued: 0,
-                pruned: 0,
-                lastError: null
-            };
+            return buildSnapshotResult({ skipped: true, reason: 'disabled' });
         }
 
-        const tableNames = Object.keys(ENTITY_TYPE_REGISTRY);
-
-        for (const tableName of tableNames) {
+        for (const tableName of Object.keys(ENTITY_TYPE_REGISTRY)) {
             try {
                 tablesChecked++;
-
-                const rows = db.prepare(`SELECT * FROM "${tableName}"`).all();
-                const currentRowSyncIds = new Set();
-
-                for (const row of rows) {
-                    const localId = row.id ?? row.code ?? row.key;
-                    if (localId == null) continue;
-
-                    const rowSyncId = ensureSyncIdMapping(db, tableName, localId);
-                    currentRowSyncIds.add(rowSyncId);
-
-                    const cleanRow = stripSensitiveFields({ ...row });
-                    const checksum = computeRowChecksum(cleanRow, SENSITIVE_FIELDS);
-
-                    const stored = db
-                        .prepare('SELECT checksum FROM sync_snapshots WHERE row_sync_id = ?')
-                        .get(rowSyncId);
-
-                    if (!stored || stored.checksum !== checksum) {
-                        changesDetected++;
-                        const schoolYear = row.school_year || '';
-                        recordOutboxEntry(db, tableName, localId, 'PUT', stripSensitiveFields({ ...row }), schoolYear);
-                        enqueued++;
-
-                        db.prepare(
-                            `
-                            INSERT INTO sync_snapshots(row_sync_id, table_name, checksum, updated_at)
-                            VALUES(?, ?, ?, CURRENT_TIMESTAMP)
-                            ON CONFLICT(row_sync_id) DO UPDATE SET checksum = ?, updated_at = CURRENT_TIMESTAMP
-                        `
-                        ).run(rowSyncId, tableName, checksum, checksum);
-                    }
-                }
-
-                // Detect deletions — snapshot entries with no matching DB row
-                const storedSnapshots = db
-                    .prepare('SELECT row_sync_id FROM sync_snapshots WHERE table_name = ?')
-                    .all(tableName);
-                for (const stored of storedSnapshots) {
-                    if (!currentRowSyncIds.has(stored.row_sync_id)) {
-                        changesDetected++;
-                        const mapping = db
-                            .prepare('SELECT local_id FROM sync_id_map WHERE row_sync_id = ?')
-                            .get(stored.row_sync_id);
-                        if (mapping) {
-                            recordOutboxEntry(db, tableName, mapping.local_id, 'DEL', null, '');
-                        }
-                        enqueued++;
-                        db.prepare('DELETE FROM sync_snapshots WHERE row_sync_id = ?').run(stored.row_sync_id);
-                    }
-                }
+                const result = snapshotTable(db, tableName);
+                changesDetected += result.changesDetected;
+                enqueued += result.enqueued;
             } catch (_tableErr) {
-                // One table's failure doesn't abort the cycle
                 console.warn(`[sync:snapshot] Error checking table '${tableName}':`, _tableErr.message);
             }
         }
 
-        // Prune old resolved conflicts
-        pruned = db
-            .prepare(
-                `
-            DELETE FROM sync_conflicts
-            WHERE status = 'resolved' AND resolved_at < datetime('now', '-30 days')
-        `
-            )
-            .run().changes;
-
-        // Update sync_config
+        const pruned = pruneResolvedConflicts(db);
         db.prepare(
             'UPDATE sync_config SET last_snapshot_at = CURRENT_TIMESTAMP, last_snapshot_error = NULL WHERE id = 1'
         ).run();
@@ -138,7 +118,7 @@ async function runSnapshotCycle() {
         if (changesDetected > 0) {
             console.log(`[sync:snapshot] Completed: ${tablesChecked} tables checked, ${changesDetected} changes detected, ${enqueued} enqueued, ${pruned} pruned`);
         }
-        return { success: true, tablesChecked, changesDetected, enqueued, pruned, lastError: null };
+        return buildSnapshotResult({ tablesChecked, changesDetected, enqueued, pruned });
     } catch (err) {
         console.error('[sync:snapshot] Snapshot cycle failed:', err.message);
         try {
@@ -147,7 +127,7 @@ async function runSnapshotCycle() {
         } catch (dbErr) {
             console.warn('[sync:snapshot] Failed to record snapshot error in DB:', dbErr.message);
         }
-        return { success: false, tablesChecked, changesDetected, enqueued, pruned: 0, lastError: err.message };
+        return buildSnapshotResult({ success: false, tablesChecked, changesDetected, enqueued, lastError: err.message });
     } finally {
         _snapshotRunning = false;
     }

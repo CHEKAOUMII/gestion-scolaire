@@ -18,7 +18,7 @@ function generateRandomPassword() {
 function hashPassword(password, saltHex = null) {
     const plain = String(password || '');
     const salt = saltHex || crypto.randomBytes(16).toString('hex');
-    const hash = crypto.scryptSync(plain, salt, HASH_KEY_LENGTH).toString('hex');
+    const hash = crypto.scryptSync(plain, salt, HASH_KEY_LENGTH, { N: 16384, r: 8, p: 1 }).toString('hex');
     return `scrypt$${salt}$${hash}`;
 }
 
@@ -34,7 +34,7 @@ function verifyPassword(password, storedHash) {
 
     let computedHex;
     try {
-        computedHex = crypto.scryptSync(String(password || ''), salt, HASH_KEY_LENGTH).toString('hex');
+        computedHex = crypto.scryptSync(String(password || ''), salt, HASH_KEY_LENGTH, { N: 16384, r: 8, p: 1 }).toString('hex');
     } catch {
         return false;
     }

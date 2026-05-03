@@ -142,7 +142,14 @@
             }
 
             async function delRow(id) {
-                if (!confirm('حذف هذا السجل؟')) return;
+                const confirmed = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف سجل غياب',
+                    message: 'حذف هذا السجل؟',
+                    detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                    confirmText: 'حذف'
+                });
+                if (!confirmed.confirmed) return;
                 const res = await window.api.teacherAbsences.delete(id);
                 if (!res || res.success === false) {
                     showToast('فشل الحذف', 'error');

@@ -10,6 +10,7 @@ module.exports = [
     'students-files.html',
     'students-movement.html',
     'teachers-list.html',
+    'inspectors.html',
     'teachers-schedule.html',
     'teachers-absence.html',
     'teachers-performance.html',
@@ -38,8 +39,10 @@ module.exports = [
     'settings-school.html',
     'settings-imports.html',
     'settings-users.html',
+    'app-admin.html',
     'settings-license.html',
     'settings-logs.html',
+    'settings-sync.html',
     'student-profile-prototype.html',
     'communication-center-prototype.html',
 ];

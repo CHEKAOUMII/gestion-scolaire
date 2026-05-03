@@ -4,6 +4,8 @@ let pageVisibilityDraftMap = {};
 let pageVisibilityDirty = new Set();
 let pageVisibilitySaving = false;
 let linkRequestRows = [];
+let identityChangeRequests = [];
+let identityCurrentStatus = null;
 
 const ROLE_OPTIONS = [
     { value: 'admin',                  label: 'مدير التطبيق' },
@@ -585,6 +587,205 @@ async function savePageVisibilityChanges() {
     }
 }
 
+const MASSAR_REGEX = /^[A-Za-z]\d{4,8}$/;
+
+function identityStatusBadge(status) {
+    const map = {
+        pending: '<span class="settings-visibility-badge settings-visibility-badge--visible"><i class="fas fa-clock"></i> قيد المراجعة</span>',
+        approved: '<span class="settings-user-state settings-user-state--active"><i class="fas fa-check"></i> تمت الموافقة</span>',
+        rejected: '<span class="settings-user-state settings-user-state--disabled"><i class="fas fa-times"></i> مرفوض</span>',
+        failed: '<span class="settings-user-state settings-user-state--disabled"><i class="fas fa-exclamation-triangle"></i> فشل</span>'
+    };
+    return map[status] || safeText(status);
+}
+
+function renderIdentityChangeRequests() {
+    const tbody = document.getElementById('identity-requests-tbody');
+    const listWrap = document.getElementById('identity-requests-list');
+    if (!tbody || !listWrap) return;
+
+    if (!identityChangeRequests.length) {
+        listWrap.style.display = 'none';
+        return;
+    }
+
+    listWrap.style.display = '';
+    tbody.innerHTML = identityChangeRequests.map((req) => {
+        let actionHtml = '-';
+        if (req.status === 'approved' && req.requiresLocalApply) {
+            actionHtml = `<button class="btn btn-success" type="button" onclick="applyApprovedIdentityChange('${safeText(req.requestId)}')">
+                <i class="fas fa-check-double"></i> تطبيق
+            </button>`;
+        } else if (req.status === 'rejected' && req.rejectionReason) {
+            actionHtml = `<span style="font-size:0.85rem">${safeText(req.rejectionReason)}</span>`;
+        }
+
+        return `<tr>
+            <td>${identityStatusBadge(req.status)}</td>
+            <td dir="ltr">${safeText(req.oldSchoolId || '-')}</td>
+            <td dir="ltr">${req.codeChanged ? safeText(req.newSchoolId || '-') : '<span style="opacity:0.5">—</span>'}</td>
+            <td>${req.nameChanged ? safeText(req.newInstitutionName || '-') : '<span style="opacity:0.5">—</span>'}</td>
+            <td>${formatLinkRequestDate(req.createdAt)}</td>
+            <td>${actionHtml}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function loadIdentityChangeRequests() {
+    if (!window.api?.institution?.getIdentityChangeRequests) return;
+
+    try {
+        const result = await window.api.institution.getIdentityChangeRequests();
+        identityChangeRequests = result?.success ? (result.requests || []) : [];
+    } catch {
+        identityChangeRequests = [];
+    }
+
+    renderIdentityChangeRequests();
+
+    const submitBtn = document.getElementById('ic-submit-btn');
+    if (submitBtn) {
+        const hasPending = identityChangeRequests.some((r) => r.status === 'pending');
+        submitBtn.disabled = hasPending;
+    }
+
+    const warningDiv = document.getElementById('identity-change-warning');
+    const warningText = document.getElementById('identity-change-warning-text');
+    if (warningDiv && warningText) {
+        const pending = identityChangeRequests.find((r) => r.status === 'pending');
+        if (pending) {
+            warningText.textContent = 'يوجد طلب قيد المراجعة حالياً. لا يمكن إرسال طلب جديد حتى يتم البت في الطلب الحالي.';
+            warningDiv.style.display = '';
+        } else {
+            warningDiv.style.display = 'none';
+        }
+    }
+}
+
+async function loadIdentityChangeSection() {
+    const panel = document.getElementById('identity-change-panel');
+    if (!panel) return;
+
+    const role = getCurrentSessionRole();
+    if (role !== 'principal' && role !== 'developer') return;
+
+    if (!window.api?.institution?.getStatus) return;
+
+    try {
+        const status = await window.api.institution.getStatus();
+        if (!status?.setupCompleted) return;
+
+        identityCurrentStatus = status;
+        panel.style.display = '';
+
+        const codeInput = document.getElementById('ic-current-code');
+        const nameInput = document.getElementById('ic-current-name');
+        if (codeInput) codeInput.value = status.massarCode || '';
+        if (nameInput) nameInput.value = status.institutionName || '';
+
+        await loadIdentityChangeRequests();
+    } catch {
+        panel.style.display = 'none';
+    }
+}
+
+async function submitIdentityChangeRequest() {
+    if (!window.api?.institution?.submitIdentityChangeRequest) {
+        showToast('هذه الميزة غير متاحة', 'error');
+        return;
+    }
+
+    const newCode = document.getElementById('ic-new-code')?.value.trim() || '';
+    const newName = document.getElementById('ic-new-name')?.value.trim() || '';
+    const reason = document.getElementById('ic-reason')?.value.trim() || '';
+    const syncIdentity = document.getElementById('ic-sync-identity')?.checked ?? true;
+
+    if (!newCode && !newName) {
+        showToast('يرجى إدخال الرمز الجديد أو الاسم الجديد على الأقل', 'warning');
+        return;
+    }
+
+    if (newCode && !MASSAR_REGEX.test(newCode)) {
+        showToast('رمز المؤسسة غير صالح. يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام', 'error');
+        return;
+    }
+
+    const currentCode = identityCurrentStatus?.massarCode || '';
+    const codeChanged = newCode && newCode !== currentCode;
+
+    if (codeChanged) {
+        const { confirmed } = await showConfirm({
+            title: 'تأكيد تغيير رمز المؤسسة',
+            message: `هل تريد طلب تغيير رمز المؤسسة من "${currentCode}" إلى "${newCode}"؟`,
+            detail: 'تغيير الرمز عملية حساسة تتطلب نقل جميع البيانات. سيتم مراجعة الطلب من طرف مدير التطبيق.',
+            type: 'warning',
+            confirmText: 'إرسال الطلب'
+        });
+        if (!confirmed) return;
+    }
+
+    const handle = showToast.loading('جاري إرسال الطلب...');
+    try {
+        const result = await window.api.institution.submitIdentityChangeRequest({
+            codeEtablissement: newCode || undefined,
+            institutionName: newName || undefined,
+            reason,
+            syncSchoolIdentity: syncIdentity
+        });
+
+        if (!result?.success) {
+            handle.error(result?.error || 'فشل إرسال الطلب');
+            return;
+        }
+
+        handle.success('تم إرسال الطلب بنجاح');
+        document.getElementById('ic-new-code').value = '';
+        document.getElementById('ic-new-name').value = '';
+        document.getElementById('ic-reason').value = '';
+        await loadIdentityChangeRequests();
+    } catch (err) {
+        handle.error('حدث خطأ: ' + err.message);
+    }
+}
+
+async function applyApprovedIdentityChange(requestId) {
+    if (!requestId || !window.api?.institution?.applyApprovedIdentityChange) {
+        showToast('تعذر تطبيق التغيير', 'error');
+        return;
+    }
+
+    const { confirmed } = await showConfirm({
+        title: 'تطبيق التغيير المعتمد',
+        message: 'هل تريد تطبيق التغيير المعتمد على هذا الجهاز؟',
+        detail: 'سيتم تحديث بيانات المؤسسة المحلية.',
+        type: 'info',
+        confirmText: 'تطبيق'
+    });
+    if (!confirmed) return;
+
+    const handle = showToast.loading('جاري تطبيق التغيير...');
+    try {
+        const result = await window.api.institution.applyApprovedIdentityChange({ requestId });
+
+        if (!result?.success) {
+            handle.error(result?.error || 'فشل تطبيق التغيير');
+            return;
+        }
+
+        if (result.requireRelogin) {
+            handle.success('تم تطبيق التغيير. يلزم إعادة تسجيل الدخول...');
+            localStorage.removeItem('gsl_auth_session_v1');
+            setTimeout(() => { window.location.href = 'login.html'; }, 1500);
+            return;
+        }
+
+        handle.success('تم تطبيق التغيير بنجاح');
+        await loadIdentityChangeSection();
+    } catch (err) {
+        handle.error('حدث خطأ: ' + err.message);
+    }
+}
+
 async function initSettingsUsersPage() {
     const roleSelect = document.getElementById('role');
     if (roleSelect && getCurrentSessionRole() === 'principal') {
@@ -593,6 +794,7 @@ async function initSettingsUsersPage() {
 
     await loadRows();
     await loadLinkRequests({ silent: true });
+    await loadIdentityChangeSection();
     await loadPageVisibilityRows();
 
     document.getElementById('form')?.addEventListener('submit', addUser);
@@ -600,6 +802,7 @@ async function initSettingsUsersPage() {
         await loadLinkRequests();
         showToast('تم تحديث طلبات الربط', 'info');
     });
+    document.getElementById('ic-submit-btn')?.addEventListener('click', submitIdentityChangeRequest);
     document.getElementById('save-page-visibility')?.addEventListener('click', savePageVisibilityChanges);
     document.getElementById('refresh-page-visibility')?.addEventListener('click', async () => {
         if (pageVisibilityDirty.size > 0) {
@@ -656,6 +859,7 @@ window.stagePageVisibilityChange = stagePageVisibilityChange;
 window.stageGroupVisibilityChange = stageGroupVisibilityChange;
 window.approveLinkRequest = approveLinkRequest;
 window.rejectLinkRequest = rejectLinkRequest;
+window.applyApprovedIdentityChange = applyApprovedIdentityChange;
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSettingsUsersPage);

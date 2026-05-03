@@ -13,19 +13,6 @@ const PASSWORD_STRENGTH_LEVELS = [
     { width: '100%', tone: 'strong', label: 'قوية' }
 ];
 
-function computeSessionHash(data) {
-    const payload = [data.userId, data.role, data.loggedAt].join('|');
-    let hash = 0;
-    const key = 'gsl_session_integrity_2024';
-    const combined = `${key}:${payload}`;
-    for (let index = 0; index < combined.length; index += 1) {
-        const char = combined.charCodeAt(index);
-        hash = (hash << 5) - hash + char;
-        hash &= hash;
-    }
-    return hash.toString(36);
-}
-
 function maskEmail(email) {
     const value = String(email || '').trim().toLowerCase();
     if (!value || !value.includes('@')) return value || null;
@@ -67,7 +54,6 @@ function saveLocalSession(sessionUser, fallbackEmail, fallbackName, response) {
         loggedAt: Date.now(),
         source: getAuthMode(sessionUser, response)
     };
-    sessionData._h = computeSessionHash(sessionData);
     localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
 }
 
@@ -110,7 +96,9 @@ function getSafeNextPage() {
 function clearLocalSession() {
     try {
         localStorage.removeItem('gsl_auth_session_v1');
-    } catch {}
+    } catch (err) {
+        console.warn('[auth:ui] clearLocalSession failed:', err);
+    }
 }
 
 function saveRememberMe(email, rememberMe) {
@@ -120,7 +108,9 @@ function saveRememberMe(email, rememberMe) {
         } else {
             localStorage.removeItem(REMEMBER_KEY);
         }
-    } catch {}
+    } catch (err) {
+        console.warn('[auth:ui] saveRememberMe failed:', err);
+    }
 }
 
 function getAuthContext() {
@@ -218,102 +208,9 @@ function getChangePasswordErrorMessage(responseOrError) {
     }
 }
 
-function buildPinPromptMarkup() {
-    return `
-        <div class="pin-prompt-hero">
-            <div class="pin-prompt-icon">
-                <i class="fas fa-fingerprint"></i>
-            </div>
-            <h3 class="pin-prompt-title">إعداد رمز PIN</h3>
-            <p class="pin-prompt-copy">رمز PIN يتيح لك قفل وفتح الجلسة بسرعة دون كلمة المرور.</p>
-        </div>
-        <div id="pin-prompt-error" class="error-message pin-prompt-message"></div>
-        <div id="pin-prompt-success" class="success-message pin-prompt-message"></div>
-        <form id="pin-prompt-form" class="pin-prompt-form">
-            <div class="form-group pin-prompt-field">
-                <label class="pin-prompt-label">رمز PIN (4-6 أرقام)</label>
-                <input class="pin-prompt-input" type="password" id="pin-prompt-new" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6">
-            </div>
-            <div class="form-group pin-prompt-field">
-                <label class="pin-prompt-label">تأكيد رمز PIN</label>
-                <input class="pin-prompt-input" type="password" id="pin-prompt-confirm" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="6">
-            </div>
-            <button type="submit" class="btn-login pin-prompt-submit">
-                <span><i class="fas fa-lock"></i> حفظ رمز PIN</span>
-            </button>
-        </form>
-        <button type="button" id="pin-prompt-skip" class="pin-prompt-skip">
-            تخطي — يمكنك إعداده لاحقاً
-        </button>`;
-}
-
 function setMessageState(element, message) {
     element.textContent = message || '';
     element.classList.toggle('show', Boolean(message));
-}
-
-function showPinSetupPrompt() {
-    const card = document.querySelector('.login-card');
-    if (!card) {
-        window.location.replace('index.html');
-        return;
-    }
-
-    document.querySelectorAll('.auth-form').forEach((form) => {
-        form.style.display = 'none';
-    });
-
-    const authTabs = document.querySelector('.auth-tabs');
-    if (authTabs) {
-        authTabs.style.display = 'none';
-    }
-
-    const pinPrompt = document.createElement('div');
-    pinPrompt.className = 'pin-prompt-shell';
-    pinPrompt.innerHTML = buildPinPromptMarkup();
-    card.appendChild(pinPrompt);
-
-    pinPrompt.querySelector('#pin-prompt-skip')?.addEventListener('click', () => {
-        window.location.replace('index.html');
-    });
-
-    pinPrompt.querySelector('#pin-prompt-form')?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const errorElement = pinPrompt.querySelector('#pin-prompt-error');
-        const successElement = pinPrompt.querySelector('#pin-prompt-success');
-        setMessageState(errorElement, '');
-        setMessageState(successElement, '');
-
-        const pin = pinPrompt.querySelector('#pin-prompt-new')?.value || '';
-        const confirmPin = pinPrompt.querySelector('#pin-prompt-confirm')?.value || '';
-
-        if (!/^\d{4,6}$/.test(pin)) {
-            setMessageState(errorElement, 'رمز PIN يجب أن يكون من 4 إلى 6 أرقام');
-            return;
-        }
-        if (pin !== confirmPin) {
-            setMessageState(errorElement, 'رمزا PIN غير متطابقين');
-            return;
-        }
-
-        try {
-            const response = await window.api.auth.setupPin({ pin });
-            if (!response?.success) {
-                setMessageState(errorElement, response?.error || 'فشل حفظ رمز PIN');
-                return;
-            }
-            setMessageState(successElement, 'تم حفظ رمز PIN بنجاح! جاري التحويل...');
-            setTimeout(() => {
-                window.location.replace('index.html');
-            }, 1200);
-        } catch (error) {
-            setMessageState(errorElement, error.message || 'حدث خطأ');
-        }
-    });
-
-    setTimeout(() => {
-        pinPrompt.querySelector('#pin-prompt-new')?.focus();
-    }, 100);
 }
 
 async function checkExistingAdminSession() {
@@ -332,7 +229,9 @@ async function checkExistingAdminSession() {
             const nextPage = getSafeNextPage();
             window.location.replace(`${nextPage}?loggedin=1`);
         }
-    } catch {}
+    } catch (err) {
+        console.warn('[auth:ui] session check failed:', err);
+    }
 }
 
 async function enforceSetupContext(loginError, loginErrorText) {
@@ -351,14 +250,6 @@ async function enforceSetupContext(loginError, loginErrorText) {
         );
     }
     return true;
-}
-
-function configureSignupVisibility(allowSignup) {
-    const tabRegister = document.getElementById('tab-register');
-    if (!tabRegister) return;
-    tabRegister.classList.toggle('hidden', !allowSignup);
-    tabRegister.disabled = !allowSignup;
-    tabRegister.setAttribute('aria-hidden', String(!allowSignup));
 }
 
 function showChangePasswordView() {
@@ -380,10 +271,8 @@ function initLoginPage() {
     const authContext = getAuthContext();
     const loginForm = document.getElementById('login-form');
     const changePasswordForm = document.getElementById('change-password-form');
-    const registerForm = document.getElementById('register-form');
     const btnLogin = document.getElementById('btn-login');
     const btnChangePassword = document.getElementById('btn-change-password');
-    const btnRegister = document.getElementById('btn-register');
     const loginError = document.getElementById('login-error');
     const loginErrorText = document.getElementById('login-error-text');
     const loginSuccess = document.getElementById('login-success');
@@ -392,22 +281,14 @@ function initLoginPage() {
     const changePasswordErrorText = document.getElementById('change-password-error-text');
     const changePasswordSuccess = document.getElementById('change-password-success');
     const changePasswordSuccessText = document.getElementById('change-password-success-text');
-    const registerError = document.getElementById('register-error');
-    const registerErrorText = document.getElementById('register-error-text');
-    const registerSuccess = document.getElementById('register-success');
-    const registerSuccessText = document.getElementById('register-success-text');
-    const regPassword = document.getElementById('reg-password');
-    const strengthBar = document.getElementById('pw-strength-bar');
-    const strengthLabel = document.getElementById('pw-strength-label');
     const newPassword = document.getElementById('new-password');
     const newStrengthBar = document.getElementById('new-pw-strength-bar');
     const newStrengthLabel = document.getElementById('new-pw-strength-label');
     const loginEmail = document.getElementById('login-email');
     const rememberMe = document.getElementById('remember-me');
 
-    if (!loginForm || !registerForm || !changePasswordForm || !btnLogin || !btnRegister || !btnChangePassword) return;
+    if (!loginForm || !changePasswordForm || !btnLogin || !btnChangePassword) return;
 
-    configureSignupVisibility(authContext.allowSignup);
     if (authContext.forceChangePassword) {
         showChangePasswordView();
     } else {
@@ -428,8 +309,6 @@ function initLoginPage() {
             setAuthForm(`form-${target}`);
             showLoginMessage(loginError, loginErrorText, '');
             showLoginMessage(loginSuccess, loginSuccessText, '');
-            showLoginMessage(registerError, registerErrorText, '');
-            showLoginMessage(registerSuccess, registerSuccessText, '');
         });
     });
 
@@ -444,10 +323,6 @@ function initLoginPage() {
         });
     });
 
-    regPassword?.addEventListener('input', () => {
-        updatePasswordStrength(regPassword.value, strengthBar, strengthLabel);
-    });
-
     newPassword?.addEventListener('input', () => {
         updatePasswordStrength(newPassword.value, newStrengthBar, newStrengthLabel);
     });
@@ -458,7 +333,9 @@ function initLoginPage() {
             loginEmail.value = savedEmail;
             rememberMe.checked = true;
         }
-    } catch {}
+    } catch (err) {
+        console.warn('[auth:ui] restoring remembered email failed:', err);
+    }
 
     loginForm.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -590,56 +467,6 @@ function initLoginPage() {
             showLoginMessage(changePasswordError, changePasswordErrorText, getChangePasswordErrorMessage(error));
             btnChangePassword.classList.remove('loading');
             btnChangePassword.disabled = false;
-        }
-    });
-
-    registerForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const name = document.getElementById('reg-name').value.trim();
-        const email = document.getElementById('reg-email').value.trim();
-        const password = document.getElementById('reg-password').value;
-        const confirmPassword = document.getElementById('reg-password-confirm').value;
-
-        showLoginMessage(registerError, registerErrorText, '');
-        showLoginMessage(registerSuccess, registerSuccessText, '');
-
-        if (!getAuthContext().allowSignup) {
-            showLoginMessage(registerError, registerErrorText, 'إنشاء الحسابات متاح فقط من الإعداد الأولي أو بدعوة من الإدارة');
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            showLoginMessage(registerError, registerErrorText, 'كلمتا المرور غير متطابقتين');
-            return;
-        }
-        if (password.length < 6) {
-            showLoginMessage(registerError, registerErrorText, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-            return;
-        }
-
-        btnRegister.classList.add('loading');
-        btnRegister.disabled = true;
-
-        try {
-            if (!window.api?.auth?.register) {
-                throw new Error('تعذر تهيئة جلسة التطبيق');
-            }
-
-            const response = await window.api.auth.register({ name, email, password });
-            if (!response?.success) {
-                showLoginMessage(registerError, registerErrorText, getLoginErrorMessage(response));
-                btnRegister.classList.remove('loading');
-                btnRegister.disabled = false;
-                return;
-            }
-
-            showLoginMessage(registerSuccess, registerSuccessText, 'تم إنشاء حسابك بنجاح!');
-            saveLocalSession(response.user || {}, email, name, response);
-            showPinSetupPrompt();
-        } catch (error) {
-            showLoginMessage(registerError, registerErrorText, getLoginErrorMessage(error));
-            btnRegister.classList.remove('loading');
-            btnRegister.disabled = false;
         }
     });
 

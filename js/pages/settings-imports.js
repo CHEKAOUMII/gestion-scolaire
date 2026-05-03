@@ -498,7 +498,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await restorePendingTafwijStateFromStorage();
     } catch (error) {
         console.error('settings-imports init failed:', error);
-        alert('حدث خطأ أثناء فتح صفحة الاستيراد. التفاصيل: ' + (error?.message || error));
+        showToast('حدث خطأ أثناء فتح صفحة الاستيراد. التفاصيل: ' + (error?.message || error), 'error', 7000);
     }
 });
 

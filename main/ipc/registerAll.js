@@ -16,6 +16,7 @@ const { registerInstitutionIpc } = require('./institution');
 const { registerSyncIpc } = require('./sync');
 const { registerTimetableDataIpc } = require('./timetable-data');
 const { registerInspectorsIpc } = require('./inspectors');
+const { registerAppAdminIpc } = require('./app-admin');
 const { startOutboxCleanup } = require('../sync/capture');
 
 function registerAllIpcHandlers(ipcMain) {
@@ -37,6 +38,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerSyncIpc(ipcMain);
     registerTimetableDataIpc(ipcMain);
     registerInspectorsIpc(ipcMain);
+    registerAppAdminIpc(ipcMain);
     startOutboxCleanup();
 }
 

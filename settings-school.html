@@ -33,6 +33,26 @@
             </header>
 
             <div class="grades-container">
+                <!-- Section 0: Sync-linked institution identity (read-only) -->
+                <div class="identity-section" id="sync-institution-section" style="display: none">
+                    <div class="section-title"><i class="fas fa-cloud"></i> هوية المؤسسة المرتبطة بالمزامنة</div>
+                    <div class="identity-form">
+                        <div class="form-group">
+                            <label>رمز المؤسسة (المزامنة)</label>
+                            <input id="sync-inst-code" disabled dir="ltr" />
+                        </div>
+                        <div class="form-group">
+                            <label>اسم المؤسسة (المزامنة)</label>
+                            <input id="sync-inst-name" disabled />
+                        </div>
+                        <div class="form-group" id="sync-inst-link-wrap" style="display: none">
+                            <a href="settings-users.html" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem">
+                                <i class="fas fa-edit"></i> طلب تعديل هوية المؤسسة
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Section 1: Ministry hierarchy (right column of letterhead) -->
                 <div class="identity-section">
                     <div class="section-title"><i class="fas fa-landmark"></i> الجهة الوصية</div>

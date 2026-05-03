@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { getAuth, signInWithEmailAndPassword } = require('firebase/auth');
 const { getApps, initializeApp } = require('firebase/app');
 const { doc, getDoc } = require('firebase/firestore');
-const { getFirestoreDb } = require('../firebase/config');
+const { getFirestoreDb, getFirebaseConfig, readSchoolId, isInvalidCredentialError } = require('../firebase/config');
 const { getDb } = require('../db/context');
 
 const USER_AUTH_APP_NAME = 'pencil-user-auth';
@@ -26,38 +26,7 @@ function getFunctionsUrl(config) {
 }
 
 function readSchoolIdFromDb(db) {
-    const config = readSyncConfig(db);
-    const fromSync = String(config.school_id || '').trim().toUpperCase();
-    if (fromSync) return fromSync;
-
-    try {
-        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
-        const val = String(instRow.code_etablissement || '').trim().toUpperCase();
-        if (val) return val;
-    } catch { /* column may not exist */ }
-
-    try {
-        const instRow = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get() || {};
-        return String(instRow.massar_code || '').trim().toUpperCase();
-    } catch {
-        return '';
-    }
-}
-
-function clean(value) {
-    return String(value || '').trim();
-}
-
-function readFirebaseConfigFromDb(db) {
-    const syncConfig = readSyncConfig(db);
-    return {
-        apiKey: clean(process.env.FIREBASE_API_KEY) || clean(syncConfig.firebase_api_key),
-        authDomain: clean(process.env.FIREBASE_AUTH_DOMAIN) || clean(syncConfig.firebase_auth_domain),
-        projectId: clean(process.env.FIREBASE_PROJECT_ID) || clean(syncConfig.firebase_project_id),
-        storageBucket: clean(process.env.FIREBASE_STORAGE_BUCKET) || clean(syncConfig.firebase_storage_bucket),
-        messagingSenderId: clean(process.env.FIREBASE_MESSAGING_SENDER_ID) || clean(syncConfig.firebase_messaging_sender_id),
-        appId: clean(process.env.FIREBASE_APP_ID) || clean(syncConfig.firebase_app_id)
-    };
+    return readSchoolId(db);
 }
 
 function ensureFirebaseApp() {
@@ -65,8 +34,7 @@ function ensureFirebaseApp() {
     if (existing) return existing;
 
     try {
-        const db = getDb();
-        const config = readFirebaseConfigFromDb(db);
+        const config = getFirebaseConfig();
         if (!config.apiKey || !config.projectId) {
             console.log('[sync:credentials] Cannot init Firebase app: missing apiKey or projectId');
             return null;
@@ -161,16 +129,6 @@ function clearStoredCredential() {
     }
 }
 
-function isInvalidCredentialError(code) {
-    return (
-        code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential' ||
-        code === 'auth/invalid-login-credentials' ||
-        code === 'auth/user-not-found' ||
-        code === 'auth/user-disabled'
-    );
-}
-
 async function restoreFirebaseSession() {
     const now = Date.now();
     if (now - _lastRestorationAttempt < RESTORATION_COOLDOWN_MS) {
@@ -187,7 +145,7 @@ async function restoreFirebaseSession() {
 
         const db = getDb();
         const config = readSyncConfig(db);
-        const email = clean(config.firebase_email);
+        const email = String(config.firebase_email || '').trim();
         const encryptedPassword = config.firebase_credential;
 
         if (!email || !encryptedPassword) return;
@@ -292,6 +250,7 @@ async function getCredentials() {
 function clearCredentials() {
     _cachedCredentials = null;
     _refreshPromise = null;
+    _lastRestorationAttempt = 0;
 }
 
 function isAuthenticated() {

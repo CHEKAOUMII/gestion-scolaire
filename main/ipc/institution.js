@@ -2,13 +2,18 @@
 
 const os = require('os');
 const { app } = require('electron');
-const { handleRead, handleWriteSoftAuth } = require('./ipc-helpers');
+const { handleRead, handleWrite, handleWriteSoftAuth } = require('./ipc-helpers');
 const { hashPassword } = require('../auth/password');
 const { collectCurrentFingerprint } = require('../licensing/deviceFingerprint');
 const { applySyncDefaults } = require('../sync/defaults');
+const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
+const { clearCredentials } = require('../sync/credentials');
+const { restartSyncPushBackground, restartSyncPullBackground } = require('../sync/engine');
+const { restartSnapshotBackground } = require('../sync/snapshot');
 
 const ERROR_MESSAGES = {
     ALREADY_CONFIGURED: 'تم إعداد المؤسسة مسبقاً على هذا الجهاز',
+    BOOTSTRAP_UNAUTHORIZED: 'تعذر إنشاء المؤسسة لأن نسخة التطبيق لا تحمل بيانات bootstrap الصحيحة',
     FORBIDDEN: 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
     INTERNAL_ERROR: 'حدث خطأ داخلي',
     INVALID_ADMIN_NAME: 'اسم المدير مطلوب',
@@ -299,6 +304,8 @@ function mapFailureCode(rawCode) {
             return 'INVALID_PASSWORD';
         case 'INVALID_ADMIN_NAME':
             return 'INVALID_ADMIN_NAME';
+        case 'BOOTSTRAP_UNAUTHORIZED':
+            return 'BOOTSTRAP_UNAUTHORIZED';
         default:
             return 'SERVER_UNAVAILABLE';
     }
@@ -460,6 +467,12 @@ function registerInstitutionIpc(ipcMain) {
                 'إعداد مؤسسة جديدة يتطلب ضبط FIREBASE_FUNCTIONS_URL أو firebase_functions_url أولاً'
             );
         }
+        if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
+            return fail(
+                'BOOTSTRAP_UNAUTHORIZED',
+                'نسخة التطبيق لا تحتوي على GESTION_BOOTSTRAP_SECRET. أعد بناء التطبيق بعد ضبط secret في GitHub Actions.'
+            );
+        }
 
         const bootstrapResult = await postFirebaseFunction(functionsUrl, 'bootstrapInstitution', {
             massarCode,
@@ -541,6 +554,229 @@ function registerInstitutionIpc(ipcMain) {
             console.error('[institution] setupNewInstitution error:', err);
             return fail('INTERNAL_ERROR', 'حدث خطأ أثناء إعداد المؤسسة: ' + err.message);
         }
+    });
+
+    handleWrite(ipcMain, 'institution:submitIdentityChangeRequest', ['principal'], async (db, event, payload) => {
+        const status = getInstitutionStatusRecord(db);
+        if (!status.setupCompleted) {
+            return fail('SETUP_REQUIRED');
+        }
+
+        const rawCode = payload?.codeEtablissement ?? payload?.newSchoolId;
+        const rawName = payload?.institutionName ?? payload?.newInstitutionName;
+        const newCode = rawCode ? normalizeMassarCode(rawCode) : null;
+        const newName = rawName ? String(rawName).trim() : null;
+        const reason = String(payload?.reason || '').trim();
+        const syncSchoolIdentity = !!(payload?.syncSchoolIdentity ?? payload?.syncIdentity);
+
+        if (newCode && !MASSAR_REGEX.test(newCode)) {
+            return fail('INVALID_MASSAR');
+        }
+
+        const codeChanged = newCode && newCode !== status.massarCode;
+        const nameChanged = newName && newName !== status.institutionName;
+        if (!codeChanged && !nameChanged) {
+            return fail('INVALID_REQUEST', 'لم يتم إدخال أي تعديل جديد');
+        }
+
+        if (codeChanged) {
+            const pendingCount = db.prepare(
+                'SELECT COUNT(*) AS cnt FROM sync_outbox WHERE status IN (?, ?)'
+            ).get('pending', 'failed')?.cnt || 0;
+            if (pendingCount > 0) {
+                return fail('SYNC_PENDING', `يوجد ${pendingCount} عملية مزامنة معلقة. شغّل المزامنة أولاً قبل إرسال طلب تغيير الرمز.`);
+            }
+
+            try {
+                const unresolvedCount = db.prepare(
+                    "SELECT COUNT(*) AS cnt FROM sync_conflicts WHERE resolution = 'unresolved'"
+                ).get()?.cnt || 0;
+                if (unresolvedCount > 0) {
+                    return fail('CONFLICTS_UNRESOLVED', `يوجد ${unresolvedCount} تعارض غير محلول. حلّ التعارضات أولاً.`);
+                }
+            } catch {
+                // sync_conflicts table may not exist yet
+            }
+        }
+
+        const functionsUrl = getFirebaseFunctionsUrl(db);
+        if (!functionsUrl) {
+            return fail('SERVER_UNAVAILABLE', 'لم يتم ضبط رابط Firebase Functions');
+        }
+
+        let idToken;
+        try {
+            idToken = await getCurrentFirebaseIdToken(true);
+        } catch {
+            return fail('UNAUTHENTICATED', 'تعذر الحصول على رمز المصادقة. أعد تسجيل الدخول.');
+        }
+        if (!idToken) {
+            return fail('UNAUTHENTICATED', 'لا يوجد رمز مصادقة صالح');
+        }
+
+        const result = await postFirebaseFunction(functionsUrl, 'submitInstitutionIdentityChangeRequest', {
+            idToken,
+            newSchoolId: codeChanged ? newCode : undefined,
+            institutionName: nameChanged ? newName : undefined,
+            reason: reason || undefined,
+            syncSchoolIdentity
+        });
+
+        if (!result.success) {
+            const serverCode = result.data?.code || result.code || '';
+            if (serverCode === 'PENDING_REQUEST_EXISTS') {
+                return fail('PENDING_REQUEST_EXISTS', 'يوجد طلب تعديل سابق لم تتم مراجعته بعد');
+            }
+            return result;
+        }
+
+        return ok({
+            requestId: result.data?.requestId,
+            status: 'pending',
+            message: 'تم إرسال طلب التعديل. ينتظر موافقة مدير التطبيق.'
+        });
+    });
+
+    handleRead(ipcMain, 'institution:getIdentityChangeRequests', async (db) => {
+        const functionsUrl = getFirebaseFunctionsUrl(db);
+        if (!functionsUrl) {
+            return ok({ requests: [] });
+        }
+
+        let idToken;
+        try {
+            idToken = await getCurrentFirebaseIdToken(true);
+        } catch {
+            return ok({ requests: [] });
+        }
+        if (!idToken) {
+            return ok({ requests: [] });
+        }
+
+        const result = await postFirebaseFunction(functionsUrl, 'getInstitutionIdentityChangeRequestsForSchool', {
+            idToken
+        });
+
+        if (!result.success) {
+            return ok({ requests: [] });
+        }
+
+        return ok({ requests: result.data?.requests || [] });
+    });
+
+    handleWrite(ipcMain, 'institution:applyApprovedIdentityChange', ['principal'], async (db, event, payload) => {
+        const status = getInstitutionStatusRecord(db);
+        if (!status.setupCompleted) {
+            return fail('SETUP_REQUIRED');
+        }
+
+        const requestId = String(payload?.requestId || '').trim();
+        if (!requestId) {
+            return fail('INVALID_REQUEST', 'معرّف الطلب مطلوب');
+        }
+
+        const functionsUrl = getFirebaseFunctionsUrl(db);
+        if (!functionsUrl) {
+            return fail('SERVER_UNAVAILABLE');
+        }
+
+        let idToken;
+        try {
+            idToken = await getCurrentFirebaseIdToken(true);
+        } catch {
+            return fail('UNAUTHENTICATED');
+        }
+        if (!idToken) {
+            return fail('UNAUTHENTICATED');
+        }
+
+        const verifyResult = await postFirebaseFunction(functionsUrl, 'getInstitutionIdentityChangeRequestsForSchool', {
+            idToken
+        });
+        if (!verifyResult.success) {
+            return fail('SERVER_UNAVAILABLE', 'تعذر التحقق من حالة الطلب');
+        }
+
+        const requests = verifyResult.data?.requests || [];
+        const approvedRequest = requests.find((r) => r.requestId === requestId && r.status === 'approved');
+        if (!approvedRequest) {
+            return fail('REQUEST_NOT_FOUND', 'لم يتم العثور على طلب معتمد بهذا المعرّف');
+        }
+
+        const codeChanged = !!approvedRequest.codeChanged;
+        const newSchoolId = approvedRequest.resultSchoolId || approvedRequest.newSchoolId;
+        const newName = approvedRequest.newInstitutionName;
+
+        try {
+            const transaction = db.transaction(() => {
+                if (newName) {
+                    db.prepare(
+                        'UPDATE institution_config SET institution_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+                    ).run(newName);
+                }
+
+                if (codeChanged && newSchoolId) {
+                    db.prepare(
+                        'UPDATE institution_config SET code_etablissement = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+                    ).run(newSchoolId);
+
+                    try {
+                        db.prepare(
+                            'UPDATE institution_config SET massar_code = ? WHERE id = 1'
+                        ).run(newSchoolId);
+                    } catch {
+                        // massar_code column may not exist
+                    }
+
+                    db.prepare(
+                        `UPDATE sync_config SET
+                            school_id = ?,
+                            pull_cursor = NULL,
+                            last_pull_at = NULL,
+                            last_pull_error = NULL,
+                            last_push_error = NULL,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = 1`
+                    ).run(newSchoolId);
+                }
+
+                if (approvedRequest.syncSchoolIdentity) {
+                    try {
+                        if (newSchoolId && codeChanged) {
+                            db.prepare(
+                                'UPDATE school_identity SET school_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+                            ).run(newSchoolId);
+                        }
+                        if (newName) {
+                            db.prepare(
+                                'UPDATE school_identity SET school_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+                            ).run(newName);
+                        }
+                    } catch {
+                        // school_identity table may not exist
+                    }
+                }
+            });
+            transaction();
+        } catch (err) {
+            return fail('INTERNAL_ERROR', 'فشل تحديث قاعدة البيانات المحلية: ' + err.message);
+        }
+
+        if (codeChanged) {
+            try { clearCredentials(); } catch {}
+            try { restartSyncPushBackground(); } catch {}
+            try { restartSyncPullBackground(); } catch {}
+            try { restartSnapshotBackground(); } catch {}
+        }
+
+        return ok({
+            codeChanged,
+            requireRelogin: codeChanged,
+            institution: getInstitutionStatusRecord(db),
+            message: codeChanged
+                ? 'تم تطبيق التعديل. يجب إعادة تسجيل الدخول.'
+                : 'تم تطبيق التعديل بنجاح.'
+        });
     });
 }
 

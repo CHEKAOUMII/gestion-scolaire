@@ -188,6 +188,35 @@ function renderLetterheadPreview() {
     document.getElementById('preview-section').style.display = '';
 }
 
+async function loadSyncInstitutionSection() {
+    try {
+        if (!window.api?.institution?.getStatus) return;
+        const status = await window.api.institution.getStatus();
+        if (!status?.setupCompleted) return;
+
+        const section = document.getElementById('sync-institution-section');
+        const codeInput = document.getElementById('sync-inst-code');
+        const nameInput = document.getElementById('sync-inst-name');
+        if (!section) return;
+
+        if (codeInput) codeInput.value = status.massarCode || '';
+        if (nameInput) nameInput.value = status.institutionName || '';
+        section.style.display = '';
+
+        const linkWrap = document.getElementById('sync-inst-link-wrap');
+        if (linkWrap) {
+            try {
+                const raw = localStorage.getItem('gsl_auth_session_v1');
+                const sess = raw ? JSON.parse(raw) : null;
+                const role = String(sess?.role || '').toLowerCase();
+                if (role === 'principal' || role === 'developer') {
+                    linkWrap.style.display = '';
+                }
+            } catch (_) {}
+        }
+    } catch (_) {}
+}
+
 function initSettingsSchoolPage() {
     setAssetTriggerState('logo', false);
     setAssetTriggerState('seal', false);
@@ -207,6 +236,7 @@ function initSettingsSchoolPage() {
     });
 
     loadIdentity();
+    loadSyncInstitutionSection();
 }
 
 if (document.readyState === 'loading') {

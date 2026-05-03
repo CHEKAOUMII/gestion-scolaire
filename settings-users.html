@@ -59,129 +59,276 @@
                 </div>
             </header>
 
-            <div class="grades-container">
-                <div class="search-section">
-                    <form id="form" class="search-form settings-users-form-grid">
-                        <label for="name" class="sr-only">الاسم</label>
-                        <input id="name" placeholder="الاسم" required />
-                        <label for="email" class="sr-only">البريد الإلكتروني</label>
-                        <input id="email" type="email" placeholder="البريد" required />
-                        <label for="password" class="sr-only">كلمة المرور</label>
-                        <input id="password" type="password" placeholder="كلمة المرور" autocomplete="new-password" />
-                        <label for="role" class="sr-only">الدور</label>
-                        <select id="role">
-                            <option value="admin">مدير التطبيق (admin)</option>
-                            <option value="principal">مدير المؤسسة (principal)</option>
-                            <option value="supervisor">الناظر (supervisor)</option>
-                            <option value="external-guardian">الحارس العام للخارجية</option>
-                            <option value="internal-guardian">الحارس العام للداخلية</option>
-                            <option value="admin-assistant">مساعد إداري</option>
-                            <option value="educational-specialist">مختص تربوي</option>
-                            <option value="social-specialist">مختص اجتماعي</option>
-                            <option value="teacher">أستاذ</option>
-                            <option value="viewer">مشاهد فقط (viewer)</option>
-                        </select>
-                        <button class="btn btn-success" type="submit">إضافة مستخدم</button>
-                    </form>
-                </div>
-
-                <div class="students-results">
-                    <table class="students-table">
-                        <caption class="sr-only">
-                            قائمة المستخدمين المسجلين
-                        </caption>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>الاسم</th>
-                                <th>البريد</th>
-                                <th>الدور</th>
-                                <th>الحالة</th>
-                                <th>المصادقة</th>
-                                <th>الإجراء</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody"></tbody>
-                    </table>
-                </div>
-
-                <div class="students-results settings-visibility-panel" id="link-requests-panel" style="display: none">
-                    <div class="settings-visibility-header">
-                        <h3 class="settings-visibility-title">
-                            <i class="fas fa-link"></i> طلبات الربط المعلقة
+            <div class="grades-container su-page">
+                <!-- ═══════════════════════════════════════════
+                     SECTION 1 — Add User
+                     ═══════════════════════════════════════════ -->
+                <section class="su-card su-card--form">
+                    <div class="su-card__header">
+                        <h3 class="su-card__title">
+                            <i class="fas fa-user-plus su-card__icon"></i>
+                            إضافة مستخدم جديد
                         </h3>
-                        <div class="settings-visibility-actions">
-                            <span id="link-requests-count" class="settings-visibility-pending" data-state="clean"></span>
-                            <button id="refresh-link-requests" class="btn btn-secondary" type="button">
+                    </div>
+                    <form id="form" class="su-form" autocomplete="off">
+                        <div class="su-form__row">
+                            <div class="su-field">
+                                <label for="name" class="su-field__label">الاسم الكامل</label>
+                                <input id="name" class="su-field__input" placeholder="أدخل الاسم" required />
+                            </div>
+                            <div class="su-field">
+                                <label for="email" class="su-field__label">البريد الإلكتروني</label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    class="su-field__input"
+                                    placeholder="example@mail.com"
+                                    dir="ltr"
+                                    required
+                                />
+                            </div>
+                            <div class="su-field">
+                                <label for="password" class="su-field__label">كلمة المرور</label>
+                                <input
+                                    id="password"
+                                    type="password"
+                                    class="su-field__input"
+                                    placeholder="اختياري — يُولّد تلقائياً"
+                                    autocomplete="new-password"
+                                />
+                            </div>
+                            <div class="su-field">
+                                <label for="role" class="su-field__label">الدور</label>
+                                <select id="role" class="su-field__input">
+                                    <option value="admin">مدير التطبيق (admin)</option>
+                                    <option value="principal">مدير المؤسسة (principal)</option>
+                                    <option value="supervisor">الناظر (supervisor)</option>
+                                    <option value="external-guardian">الحارس العام للخارجية</option>
+                                    <option value="internal-guardian">الحارس العام للداخلية</option>
+                                    <option value="admin-assistant">مساعد إداري</option>
+                                    <option value="educational-specialist">مختص تربوي</option>
+                                    <option value="social-specialist">مختص اجتماعي</option>
+                                    <option value="teacher">أستاذ</option>
+                                    <option value="viewer">مشاهد فقط (viewer)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="su-form__actions">
+                            <button class="btn btn-success su-btn--submit" type="submit">
+                                <i class="fas fa-plus"></i> إضافة
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- ═══════════════════════════════════════════
+                     SECTION 2 — Users Table
+                     ═══════════════════════════════════════════ -->
+                <section class="su-card">
+                    <div class="su-card__header">
+                        <h3 class="su-card__title">
+                            <i class="fas fa-users su-card__icon"></i>
+                            قائمة المستخدمين
+                        </h3>
+                    </div>
+                    <div class="su-table-wrap">
+                        <table class="students-table">
+                            <caption class="sr-only">
+                                قائمة المستخدمين المسجلين
+                            </caption>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الاسم</th>
+                                    <th>البريد</th>
+                                    <th>الدور</th>
+                                    <th>الحالة</th>
+                                    <th>المصادقة</th>
+                                    <th>الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ═══════════════════════════════════════════
+                     SECTION 3 — Link Requests (conditional)
+                     ═══════════════════════════════════════════ -->
+                <section class="su-card" id="link-requests-panel" style="display: none">
+                    <div class="su-card__header">
+                        <h3 class="su-card__title">
+                            <i class="fas fa-link su-card__icon"></i>
+                            طلبات الربط المعلقة
+                        </h3>
+                        <div class="su-card__actions">
+                            <span
+                                id="link-requests-count"
+                                class="su-status-chip su-status-chip--neutral"
+                                data-state="clean"
+                            ></span>
+                            <button id="refresh-link-requests" class="btn btn-secondary su-btn--icon" type="button">
                                 <i class="fas fa-sync-alt"></i> تحديث
                             </button>
                         </div>
                     </div>
-                    <p class="settings-visibility-help">
+                    <p class="su-help-text">
                         مستخدمون لديهم حساب Firebase لكن بدون رمز مؤسسة. يمكنك قبول طلبهم وتحديد دورهم أو رفض الطلب.
                     </p>
-                    <table class="students-table">
-                        <caption class="sr-only">
-                            قائمة طلبات ربط الحسابات بالمؤسسة
-                        </caption>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>الاسم</th>
-                                <th>البريد</th>
-                                <th>رمز المؤسسة</th>
-                                <th>الجهاز</th>
-                                <th>التاريخ</th>
-                                <th>الدور</th>
-                                <th>الإجراء</th>
-                            </tr>
-                        </thead>
-                        <tbody id="link-requests-tbody"></tbody>
-                    </table>
-                </div>
+                    <div class="su-table-wrap">
+                        <table class="students-table">
+                            <caption class="sr-only">
+                                قائمة طلبات ربط الحسابات بالمؤسسة
+                            </caption>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الاسم</th>
+                                    <th>البريد</th>
+                                    <th>رمز المؤسسة</th>
+                                    <th>الجهاز</th>
+                                    <th>التاريخ</th>
+                                    <th>الدور</th>
+                                    <th>الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="link-requests-tbody"></tbody>
+                        </table>
+                    </div>
+                </section>
 
-                <div class="students-results settings-visibility-panel">
-                    <div class="settings-visibility-header">
-                        <h3 class="settings-visibility-title">
-                            <i class="fas fa-eye-slash"></i> الصفحات في قائمة التنقل
+                <!-- ═══════════════════════════════════════════
+                     SECTION 4 — Identity Change Requests (principal only)
+                     ═══════════════════════════════════════════ -->
+                <section class="su-card" id="identity-change-panel" style="display: none">
+                    <div class="su-card__header">
+                        <h3 class="su-card__title">
+                            <i class="fas fa-id-card su-card__icon"></i>
+                            طلب تعديل هوية المؤسسة
                         </h3>
-                        <div class="settings-visibility-actions">
-                            <span id="page-visibility-pending" class="settings-visibility-pending" data-state="clean"
+                    </div>
+                    <p class="su-help-text">
+                        يمكنك طلب تصحيح رمز المؤسسة أو اسمها. سيصل الطلب إلى مدير التطبيق المركزي للمراجعة. لا يتم أي تغيير قبل الموافقة.
+                    </p>
+
+                    <div id="identity-change-form-wrap">
+                        <div class="su-form">
+                            <div class="su-form__row">
+                                <div class="su-field">
+                                    <label for="ic-current-code" class="su-field__label">الرمز الحالي</label>
+                                    <input id="ic-current-code" class="su-field__input" disabled dir="ltr" />
+                                </div>
+                                <div class="su-field">
+                                    <label for="ic-new-code" class="su-field__label">الرمز الجديد (اختياري)</label>
+                                    <input id="ic-new-code" class="su-field__input" placeholder="مثال: E123456" dir="ltr" />
+                                </div>
+                            </div>
+                            <div class="su-form__row">
+                                <div class="su-field">
+                                    <label for="ic-current-name" class="su-field__label">الاسم الحالي</label>
+                                    <input id="ic-current-name" class="su-field__input" disabled />
+                                </div>
+                                <div class="su-field">
+                                    <label for="ic-new-name" class="su-field__label">الاسم الجديد (اختياري)</label>
+                                    <input id="ic-new-name" class="su-field__input" placeholder="اسم المؤسسة الجديد" />
+                                </div>
+                            </div>
+                            <div class="su-form__row">
+                                <div class="su-field" style="flex: 2">
+                                    <label for="ic-reason" class="su-field__label">سبب الطلب</label>
+                                    <textarea id="ic-reason" class="su-field__input" rows="2" placeholder="اشرح سبب التعديل المطلوب..."></textarea>
+                                </div>
+                                <div class="su-field" style="flex: 1; align-self: flex-end">
+                                    <label class="su-field__label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer">
+                                        <input type="checkbox" id="ic-sync-identity" checked />
+                                        تحديث بيانات رأس الوثائق أيضاً
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="su-form__actions">
+                                <button id="ic-submit-btn" class="btn btn-success su-btn--submit" type="button">
+                                    <i class="fas fa-paper-plane"></i> إرسال طلب التعديل
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="identity-change-warning" class="su-help-text" style="display: none; color: var(--color-warning-solid); margin-top: 0.75rem">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="identity-change-warning-text"></span>
+                    </div>
+
+                    <!-- Existing requests list -->
+                    <div id="identity-requests-list" style="margin-top: 1rem; display: none">
+                        <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem">
+                            <i class="fas fa-history"></i> آخر الطلبات
+                        </h4>
+                        <div class="su-table-wrap">
+                            <table class="students-table">
+                                <thead>
+                                    <tr>
+                                        <th>الحالة</th>
+                                        <th>الرمز القديم</th>
+                                        <th>الرمز الجديد</th>
+                                        <th>الاسم الجديد</th>
+                                        <th>التاريخ</th>
+                                        <th>الإجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="identity-requests-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ═══════════════════════════════════════════
+                     SECTION 5 — Page Visibility
+                     ═══════════════════════════════════════════ -->
+                <section class="su-card settings-visibility-panel">
+                    <div class="su-card__header">
+                        <h3 class="su-card__title">
+                            <i class="fas fa-eye-slash su-card__icon"></i>
+                            الصفحات في قائمة التنقل
+                        </h3>
+                        <div class="su-card__actions">
+                            <span id="page-visibility-pending" class="su-status-chip" data-state="clean"
                                 >لا تعديلات معلقة</span
                             >
-                            <button id="save-page-visibility" class="btn btn-success" type="button" disabled>
+                            <button id="save-page-visibility" class="btn btn-success su-btn--icon" type="button" disabled>
                                 <i class="fas fa-save"></i> حفظ التعديلات
                             </button>
                             <button
                                 id="save-page-visibility-defaults"
-                                class="btn btn-warning"
+                                class="btn btn-warning su-btn--icon"
                                 type="button"
                                 title="حفظ الإعدادات الحالية كإعداد افتراضي لجميع الأجهزة عند التثبيت"
                             >
-                                <i class="fas fa-download"></i> حفظ كإعداد افتراضي للتطبيق
+                                <i class="fas fa-download"></i> حفظ كإعداد افتراضي
                             </button>
-                            <button id="refresh-page-visibility" class="btn btn-secondary" type="button">
-                                تحديث القائمة
+                            <button id="refresh-page-visibility" class="btn btn-secondary su-btn--icon" type="button">
+                                <i class="fas fa-sync-alt"></i> تحديث
                             </button>
                         </div>
                     </div>
-                    <p class="settings-visibility-help">
+                    <p class="su-help-text">
                         تحكم بالصفحات التي تظهر في قائمة التنقل لكل المستخدمين. غير الأدمن لن يروا هذه الصفحات المخفية.
                     </p>
-                    <table class="students-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>الصفحة</th>
-                                <th>المجموعة</th>
-                                <th>الحالة</th>
-                                <th>الإنجاز الحالي</th>
-                                <th>تغيير الحالة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="page-visibility-tbody"></tbody>
-                    </table>
-                </div>
+                    <div class="su-table-wrap">
+                        <table class="students-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الصفحة</th>
+                                    <th>المجموعة</th>
+                                    <th>الحالة</th>
+                                    <th>الإنجاز الحالي</th>
+                                    <th>تغيير الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="page-visibility-tbody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </main>
 

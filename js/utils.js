@@ -92,7 +92,7 @@
 // ===== App Auth Guard =====
 const AUTH_SESSION_KEY = 'gsl_auth_session_v1';
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
-const ADMIN_ONLY_PAGES = new Set(['settings-users.html', 'settings-license.html']);
+const ADMIN_ONLY_PAGES = new Set(['settings-users.html', 'settings-license.html', 'app-admin.html']);
 const PRINCIPAL_MANAGED_ADMIN_PAGES = new Set(['settings-users.html']);
 const GUEST_ALLOWED_PAGES = new Set(['index.html', 'students-list.html', 'settings-imports.html', 'login.html']);
 const GUEST_ALLOWED_LINKS = new Set(['students-list.html', 'settings-imports.html']);
@@ -107,6 +107,7 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'students-files.html', title: 'ترتيب الملفات', group: 'التلاميذ', completed: true },
     { page: 'students-movement.html', title: 'حركية التلاميذ', group: 'التلاميذ', completed: true },
     { page: 'teachers-list.html', title: 'قائمة الأساتذة', group: 'تدبير الموظفين', completed: true },
+    { page: 'inspectors.html', title: 'المفتشون', group: 'تدبير الموظفين', completed: true },
     { page: 'teachers-schedule.html', title: 'حصص الأساتذة', group: 'تدبير الموظفين', completed: true },
     { page: 'teachers-absence.html', title: 'غياب الأساتذة', group: 'تدبير الموظفين', completed: true },
     { page: 'teachers-performance.html', title: 'مؤشرات الأداء', group: 'تدبير الموظفين', completed: true },
@@ -136,8 +137,10 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'settings-school.html', title: 'معلومات المؤسسة', group: 'الإعدادات', completed: true },
     { page: 'settings-imports.html', title: 'استيراد البيانات', group: 'الإعدادات', completed: true },
     { page: 'settings-users.html', title: 'المستخدمون', group: 'الإعدادات', completed: true },
+    { page: 'app-admin.html', title: 'إدارة التطبيق', group: 'الإعدادات', completed: true },
     { page: 'settings-license.html', title: 'الترخيص والأجهزة', group: 'الإعدادات', completed: true },
     { page: 'settings-logs.html', title: 'سجل النشاطات', group: 'الإعدادات', completed: true },
+    { page: 'settings-sync.html', title: 'المزامنة السحابية', group: 'الإعدادات', completed: true },
     { page: 'student-profile-prototype.html', title: 'ملف التلميذ', group: 'التلاميذ', completed: false },
     {
         page: 'communication-center-prototype.html',

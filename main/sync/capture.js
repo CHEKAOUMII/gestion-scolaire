@@ -213,7 +213,15 @@ const CHANNEL_REGISTRY = {
 
     // === institution.js ===
     'institution:relink': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
-    'institution:setup-new': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true }
+    'institution:setup-new': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'institution:submitIdentityChangeRequest': { tables: [], operation: 'POST', idExtractor: 'none', exclude: true },
+    'institution:getIdentityChangeRequests': { tables: [], operation: 'GET', idExtractor: 'none', exclude: true },
+    'institution:applyApprovedIdentityChange': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+
+    // === app-admin.js ===
+    'appAdmin:listIdentityChangeRequests': { tables: [], operation: 'GET', idExtractor: 'none', exclude: true },
+    'appAdmin:approveIdentityChangeRequest': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'appAdmin:rejectIdentityChangeRequest': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true }
 };
 
 const KNOWN_CAPTURE_TABLES = new Set(
@@ -362,96 +370,76 @@ function wrapWithSyncCapture(channel, originalHandler) {
     };
 }
 
-/**
- * Extracts row data and records outbox entries based on the registry entry's
- * idExtractor strategy. This handles simple single-row operations.
- * Complex extractors (preQuery, inputArray, bulk) are handled with
- * simplified fallback — they record a summary entry for Phase 3 to process.
- */
-function captureAfterWrite(db, channel, entry, handlerArgs, handlerResult) {
-    const tableName = entry.tables[0]; // primary table
-    const schoolYear = extractSchoolYear(handlerArgs);
+function captureLastInsertRowid(db, tableName, _entry, handlerArgs, handlerResult, schoolYear) {
+    const lastId = getLastInsertId(db, tableName, handlerResult);
+    if (lastId) {
+        recordOutboxEntry(db, tableName, lastId, 'PUT', fetchRowById(db, tableName, lastId), schoolYear);
+    }
+}
 
-    switch (entry.idExtractor) {
-        case 'lastInsertRowid': {
-            // The handler just did an INSERT. Query lastInsertRowid from result
-            // or re-read the row. For safety, query the last inserted row.
-            const lastId = getLastInsertId(db, tableName, handlerResult);
-            if (lastId) {
-                const rowData = fetchRowById(db, tableName, lastId);
-                recordOutboxEntry(db, tableName, lastId, 'PUT', rowData, schoolYear);
-            }
-            break;
+function captureArgId(db, tableName, entry, handlerArgs, _handlerResult, schoolYear) {
+    const id = extractIdFromArgs(handlerArgs);
+    if (!id) return;
+    if (entry.operation === 'DEL') {
+        recordOutboxEntry(db, tableName, id, 'DEL', null, schoolYear);
+    } else {
+        recordOutboxEntry(db, tableName, id, 'PUT', fetchRowById(db, tableName, id), schoolYear);
+    }
+}
+
+function captureArgIdOrLastInsert(db, tableName, _entry, handlerArgs, handlerResult, schoolYear) {
+    const id = extractIdFromArgs(handlerArgs);
+    if (id) {
+        recordOutboxEntry(db, tableName, id, 'PUT', fetchRowById(db, tableName, id), schoolYear);
+    } else {
+        const lastId = getLastInsertId(db, tableName, handlerResult);
+        if (lastId) {
+            recordOutboxEntry(db, tableName, lastId, 'PUT', fetchRowById(db, tableName, lastId), schoolYear);
         }
-        case 'argId': {
-            const id = extractIdFromArgs(handlerArgs);
-            if (id) {
-                if (entry.operation === 'DEL') {
-                    recordOutboxEntry(db, tableName, id, 'DEL', null, schoolYear);
-                } else {
-                    const rowData = fetchRowById(db, tableName, id);
-                    recordOutboxEntry(db, tableName, id, 'PUT', rowData, schoolYear);
-                }
-            }
-            break;
-        }
-        case 'argIdOrLastInsert': {
-            // Check if args contain an id (UPDATE) or not (INSERT)
-            const id = extractIdFromArgs(handlerArgs);
-            if (id) {
-                const rowData = fetchRowById(db, tableName, id);
-                recordOutboxEntry(db, tableName, id, 'PUT', rowData, schoolYear);
-            } else {
-                const lastId = getLastInsertId(db, tableName, handlerResult);
-                if (lastId) {
-                    const rowData = fetchRowById(db, tableName, lastId);
-                    recordOutboxEntry(db, tableName, lastId, 'PUT', rowData, schoolYear);
-                }
-            }
-            break;
-        }
-        case 'argKey': {
-            // Settings-style: key is the identifier
-            const key = extractKeyFromArgs(handlerArgs);
-            if (key) {
-                const rowData = fetchRowByKey(db, tableName, key);
-                const localId = rowData ? rowData.id || hashStringToInt(key) : hashStringToInt(key);
-                recordOutboxEntry(db, tableName, localId, 'PUT', rowData, schoolYear);
-            }
-            break;
-        }
-        case 'literal': {
-            // settings:setSchoolYear — always writes the key 'currentSchoolYear'
-            const key = 'currentSchoolYear';
-            const rowData = fetchRowByKey(db, 'settings', key);
-            const localId = hashStringToInt(key);
-            recordOutboxEntry(db, 'settings', localId, 'PUT', rowData, schoolYear);
-            break;
-        }
-        case 'compositeKey': {
-            // For tables with composite unique keys (grades, student_files)
-            // Re-query the affected row using args
-            const compositeData = extractCompositeFromArgs(handlerArgs, tableName);
-            if (compositeData && compositeData.id) {
-                const rowData = fetchRowById(db, tableName, compositeData.id);
-                recordOutboxEntry(db, tableName, compositeData.id, 'PUT', rowData, schoolYear);
-            }
-            break;
-        }
-        case 'inputArray':
-        case 'queryMatch':
-        case 'preQuery':
-        case 'preQuery+bulk':
-        case 'lastInsertRowid+conditional': {
-            // Complex extractors — for Phase 1, record a simplified summary entry
-            // using the primary table. Phase 3 will implement full per-row extraction.
-            // For now, mark the channel as needing enhanced capture.
-            recordBulkSummary(db, channel, entry, handlerArgs, schoolYear);
-            break;
-        }
-        default:
-            // Unknown extractor — skip silently
-            break;
+    }
+}
+
+function captureArgKey(db, tableName, _entry, handlerArgs, _handlerResult, schoolYear) {
+    const key = extractKeyFromArgs(handlerArgs);
+    if (!key) return;
+    const rowData = fetchRowByKey(db, tableName, key);
+    const localId = rowData ? rowData.id || hashStringToInt(key) : hashStringToInt(key);
+    recordOutboxEntry(db, tableName, localId, 'PUT', rowData, schoolYear);
+}
+
+function captureLiteral(db, _tableName, _entry, _handlerArgs, _handlerResult, schoolYear) {
+    const key = 'currentSchoolYear';
+    const rowData = fetchRowByKey(db, 'settings', key);
+    recordOutboxEntry(db, 'settings', hashStringToInt(key), 'PUT', rowData, schoolYear);
+}
+
+function captureCompositeKey(db, tableName, _entry, handlerArgs, _handlerResult, schoolYear) {
+    const compositeData = extractCompositeFromArgs(handlerArgs, tableName);
+    if (compositeData?.id) {
+        recordOutboxEntry(db, tableName, compositeData.id, 'PUT', fetchRowById(db, tableName, compositeData.id), schoolYear);
+    }
+}
+
+const EXTRACTOR_DISPATCH = {
+    lastInsertRowid: captureLastInsertRowid,
+    argId: captureArgId,
+    argIdOrLastInsert: captureArgIdOrLastInsert,
+    argKey: captureArgKey,
+    literal: captureLiteral,
+    compositeKey: captureCompositeKey
+};
+
+const BULK_EXTRACTORS = new Set(['inputArray', 'queryMatch', 'preQuery', 'preQuery+bulk', 'lastInsertRowid+conditional']);
+
+function captureAfterWrite(db, channel, entry, handlerArgs, handlerResult) {
+    const tableName = entry.tables[0];
+    const schoolYear = extractSchoolYear(handlerArgs);
+    const handler = EXTRACTOR_DISPATCH[entry.idExtractor];
+
+    if (handler) {
+        handler(db, tableName, entry, handlerArgs, handlerResult, schoolYear);
+    } else if (BULK_EXTRACTORS.has(entry.idExtractor)) {
+        recordBulkSummary(db, channel, entry, handlerArgs, schoolYear);
     }
 }
 

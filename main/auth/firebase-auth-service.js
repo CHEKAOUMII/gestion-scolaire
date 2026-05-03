@@ -14,6 +14,7 @@ const dbContext = require('../db/context');
 const { hashPassword, verifyPassword } = require('./password');
 const { resolveRole } = require('./permissions');
 const { logAuthDebug } = require('./debug');
+const { getFirebaseConfig, readSchoolId: readSchoolIdShared, isInvalidCredentialError } = require('../firebase/config');
 
 const APP_NAME = 'pencil-user-auth';
 
@@ -29,48 +30,12 @@ function getTableColumns(db, tableName) {
     }
 }
 
-function readConfigValue(row, column, envName) {
-    return String(row?.[column] || process.env[envName] || '').trim();
-}
-
-function readFirebaseConfig(db) {
-    let syncConfig = {};
-    try {
-        syncConfig = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
-    } catch {
-        syncConfig = {};
-    }
-
-    return {
-        apiKey: readConfigValue(syncConfig, 'firebase_api_key', 'FIREBASE_API_KEY'),
-        authDomain: readConfigValue(syncConfig, 'firebase_auth_domain', 'FIREBASE_AUTH_DOMAIN'),
-        projectId: readConfigValue(syncConfig, 'firebase_project_id', 'FIREBASE_PROJECT_ID'),
-        storageBucket: readConfigValue(syncConfig, 'firebase_storage_bucket', 'FIREBASE_STORAGE_BUCKET'),
-        messagingSenderId: readConfigValue(syncConfig, 'firebase_messaging_sender_id', 'FIREBASE_MESSAGING_SENDER_ID'),
-        appId: readConfigValue(syncConfig, 'firebase_app_id', 'FIREBASE_APP_ID')
-    };
+function readFirebaseConfig(_db) {
+    return getFirebaseConfig();
 }
 
 function readSchoolId(db) {
-    try {
-        const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
-        const fromSync = String(syncRow.school_id || '').trim();
-        if (fromSync) return fromSync;
-    } catch {
-        // Continue to institution_config fallback.
-    }
-
-    try {
-        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
-        return String(instRow.code_etablissement || '').trim();
-    } catch {
-        try {
-            const instRow = db.prepare('SELECT massar_code AS code_etablissement FROM institution_config WHERE id = 1').get() || {};
-            return String(instRow.code_etablissement || '').trim();
-        } catch {
-            return '';
-        }
-    }
+    return readSchoolIdShared(db);
 }
 
 function normalizeSchoolId(value) {
@@ -143,14 +108,6 @@ function persistDiscoveredSchoolId(db, schoolId, source) {
 function getFirebaseClients() {
     const db = dbContext.getDb();
     const config = readFirebaseConfig(db);
-    console.log('[AUTH-DIAG] Firebase config check:', {
-        hasApiKey: !!config.apiKey,
-        hasProjectId: !!config.projectId,
-        hasAppId: !!config.appId,
-        authDomain: config.authDomain ? '(set)' : '(missing)',
-        apiKeyLength: (config.apiKey || '').length,
-        projectId: config.projectId || '(empty)'
-    });
     if (!config.apiKey || !config.projectId) {
         logAuthDebug('firebase.config.missing', {
             hasApiKey: !!config.apiKey,
@@ -185,15 +142,7 @@ function isFirebaseUnavailable(err) {
 }
 
 function isInvalidFirebaseCredential(err) {
-    const code = String(err?.code || '');
-    return (
-        code === 'auth/invalid-credential' ||
-        code === 'auth/invalid-login-credentials' ||
-        code === 'auth/user-not-found' ||
-        code === 'auth/wrong-password' ||
-        code === 'auth/invalid-email' ||
-        code === 'auth/user-disabled'
-    );
+    return isInvalidCredentialError(String(err?.code || ''));
 }
 
 function normalizeProfile(snapshotData, firebaseUser, localUser) {
@@ -451,12 +400,6 @@ async function loginFirebaseFirst(email, password) {
     try {
         return await loginWithFirebase(email, password);
     } catch (err) {
-        console.error('[AUTH-DIAG] Firebase login failed:', {
-            code: err.code || null,
-            message: err.message || String(err),
-            firebaseUnavailable: isFirebaseUnavailable(err),
-            stack: (err.stack || '').split('\n').slice(0, 3).join(' | ')
-        });
         logAuthDebug('firebase.login.failed', {
             email,
             code: err.code || null,

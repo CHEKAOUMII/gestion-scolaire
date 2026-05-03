@@ -37,6 +37,36 @@ let isAdmin = false;
 let currentOffset = 0;
 const conflictPageSize = 50;
 const conflictRowState = new WeakMap();
+const syncErrorNoticeState = new Map();
+const SYNC_ERROR_TOAST_COOLDOWN_MS = 30000;
+
+function getErrorMessage(err, fallback = 'خطأ غير متوقع') {
+    return String(err?.message || err?.error || err || fallback);
+}
+
+function notifySyncError(key, userMessage, err, options = {}) {
+    const details = getErrorMessage(err, userMessage);
+    const shouldLog = options.log !== false;
+    const shouldToast = options.toast !== false;
+    const now = Date.now();
+    const lastShownAt = syncErrorNoticeState.get(key) || 0;
+    const immediate = options.immediate === true;
+
+    if (shouldLog) {
+        console.error(`[settings-sync] ${key}:`, err);
+    }
+
+    if (!shouldToast || typeof showToast !== 'function') {
+        return;
+    }
+
+    if (!immediate && now - lastShownAt < SYNC_ERROR_TOAST_COOLDOWN_MS) {
+        return;
+    }
+
+    syncErrorNoticeState.set(key, now);
+    showToast(`${userMessage}${details && details !== userMessage ? ': ' + details : ''}`, 'error', options.duration || 5000);
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Check user role
@@ -570,7 +600,7 @@ async function refreshStatus() {
             }
         }
     } catch (err) {
-        console.warn('refreshStatus error:', err);
+        notifySyncError('refreshStatus', 'تعذر تحديث حالة المزامنة', err, { immediate: false });
     }
 }
 
@@ -600,7 +630,7 @@ async function loadConfig() {
         // snapshotIntervalMinutes comes from status, not config
         setVal('cfg-snapshot-interval', status?.snapshotIntervalMinutes || 30);
     } catch (err) {
-        console.warn('loadConfig error:', err);
+        notifySyncError('loadConfig', 'تعذر تحميل إعدادات المزامنة', err, { immediate: true });
     }
 }
 
@@ -680,8 +710,7 @@ function initConfigForm() {
                 showToast(result.error || 'فشل حفظ الإعدادات', 'error');
             }
         } catch (err) {
-            console.error('setConfig error:', err);
-            showToast('حدث خطأ أثناء الحفظ', 'error');
+            notifySyncError('setConfig', 'حدث خطأ أثناء حفظ إعدادات المزامنة', err, { immediate: true });
         }
     });
 }
@@ -717,11 +746,12 @@ function initTestConnection() {
                 }
             }
         } catch (err) {
+            notifySyncError('testConnection', 'حدث خطأ أثناء اختبار الاتصال', err, { immediate: true });
             if (resultDiv) {
                 resultDiv.classList.remove('hidden');
                 resultDiv.className =
                     'mt-3 rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] px-4 py-3 text-sm text-[var(--color-danger-text)]';
-                resultDiv.textContent = err.message || 'خطأ غير متوقع';
+                resultDiv.textContent = getErrorMessage(err);
             }
         } finally {
             setButtonContent(btn, { icon: 'fa-plug', text: 'اختبار الاتصال' });
@@ -743,6 +773,8 @@ function initSyncNow() {
         setButtonContent(btn, { icon: 'fa-spinner', text: 'جاري المزامنة...', spin: true });
 
         try {
+            const loadingToast =
+                typeof window.showToast?.loading === 'function' ? window.showToast.loading('جاري تنفيذ المزامنة...') : null;
             const result = await window.api.sync.triggerNow();
 
             // Show results
@@ -753,13 +785,15 @@ function initSyncNow() {
             }
 
             if (result?.error) {
-                showToast(result.error, 'error');
+                if (loadingToast) loadingToast.error(result.error);
+                else showToast(result.error, 'error');
+            } else if (loadingToast) {
+                loadingToast.success('اكتملت المزامنة');
             }
 
             await refreshStatus();
         } catch (err) {
-            console.error('triggerNow error:', err);
-            showToast('حدث خطأ أثناء المزامنة', 'error');
+            notifySyncError('triggerNow', 'حدث خطأ أثناء المزامنة', err, { immediate: true });
         } finally {
             btn.disabled = false;
             setButtonContent(btn, { icon: 'fa-sync', text: 'مزامنة الآن' });
@@ -810,7 +844,7 @@ async function loadConflicts() {
 
         updateConflictPagination(conflicts.length);
     } catch (err) {
-        console.warn('loadConflicts error:', err);
+        notifySyncError('loadConflicts', 'تعذر تحميل تعارضات المزامنة', err, { immediate: false });
     }
 }
 
@@ -900,8 +934,7 @@ function initConflictHandlers() {
                     buttons?.forEach((b) => (b.disabled = false));
                 }
             } catch (err) {
-                console.error('resolveConflict error:', err);
-                showToast('حدث خطأ أثناء حل التعارض', 'error');
+                notifySyncError('resolveConflict', 'حدث خطأ أثناء حل التعارض', err, { immediate: true });
                 buttons?.forEach((b) => (b.disabled = false));
             }
         }

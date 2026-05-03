@@ -169,6 +169,48 @@ function getFirebaseAuth(env = process.env) {
     return _auth;
 }
 
+function readSchoolId(db) {
+    if (!db) {
+        try {
+            const { getDb } = require('../db/context');
+            db = getDb();
+        } catch {
+            return '';
+        }
+    }
+
+    try {
+        const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+        const fromSync = clean(syncRow.school_id).toUpperCase();
+        if (fromSync) return fromSync;
+    } catch { /* continue to institution_config fallback */ }
+
+    try {
+        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
+        const val = clean(instRow.code_etablissement).toUpperCase();
+        if (val) return val;
+    } catch { /* column may not exist */ }
+
+    try {
+        const instRow = db.prepare('SELECT massar_code FROM institution_config WHERE id = 1').get() || {};
+        return clean(instRow.massar_code).toUpperCase();
+    } catch {
+        return '';
+    }
+}
+
+function isInvalidCredentialError(code) {
+    const c = String(code || '');
+    return (
+        c === 'auth/invalid-credential' ||
+        c === 'auth/invalid-login-credentials' ||
+        c === 'auth/user-not-found' ||
+        c === 'auth/wrong-password' ||
+        c === 'auth/invalid-email' ||
+        c === 'auth/user-disabled'
+    );
+}
+
 module.exports = {
     FirebaseConfigError,
     initFirebase,
@@ -178,5 +220,8 @@ module.exports = {
     getFirebaseConfigSources,
     getFirebaseConfigStatus,
     getMissingFirebaseConfigKeys,
-    assertFirebaseConfig
+    assertFirebaseConfig,
+    readSchoolId,
+    isInvalidCredentialError,
+    readSyncConfig
 };
