@@ -10,7 +10,7 @@ service cloud.firestore {
 
     function isSchoolAdmin(schoolId) {
       return belongsToSchool(schoolId)
-          && request.auth.token.role in ['admin', 'developer'];
+          && request.auth.token.role == 'principal';
     }
 
     function isDeviceCredential(schoolId) {

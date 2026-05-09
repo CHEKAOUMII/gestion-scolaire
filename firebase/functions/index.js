@@ -21,7 +21,18 @@ const ALLOWED_ROLES = new Set([
     'teacher',
     'viewer'
 ]);
-const ADMIN_ROLES = new Set(['admin', 'principal', 'developer']);
+const SCHOOL_ADMIN_ROLES = new Set(['principal']);
+const SCHOOL_USER_ROLES = new Set([
+    'principal',
+    'supervisor',
+    'external-guardian',
+    'internal-guardian',
+    'admin-assistant',
+    'educational-specialist',
+    'social-specialist',
+    'teacher',
+    'viewer'
+]);
 
 function requirePost(req, res) {
     if (req.method !== 'POST') {
@@ -47,12 +58,14 @@ function normalizeRole(value, fallback = 'viewer') {
     return role;
 }
 
-function requireAssignableRole(caller, role) {
-    if (caller?.role === 'principal' && role === 'admin') {
-        const err = new Error('FORBIDDEN_ROLE');
-        err.status = 403;
+function normalizeSchoolUserRole(value, fallback = 'viewer') {
+    const role = String(value || fallback).trim();
+    if (!SCHOOL_USER_ROLES.has(role)) {
+        const err = new Error('INVALID_ROLE');
+        err.status = 400;
         throw err;
     }
+    return role;
 }
 
 function publicUserProfile(data) {
@@ -76,14 +89,14 @@ async function requireSchoolAdmin(idToken) {
     const decoded = await auth.verifyIdToken(idToken);
     const schoolId = normalizeSchoolId(decoded.schoolId);
     const role = String(decoded.role || '').trim();
-    if (!schoolId || !ADMIN_ROLES.has(role)) {
+    if (!schoolId || !SCHOOL_ADMIN_ROLES.has(role)) {
         const err = new Error('ADMIN_REQUIRED');
         err.status = 403;
         throw err;
     }
 
     const profileSnap = await db.doc(`schools/${schoolId}/users/${decoded.uid}`).get();
-    if (profileSnap.exists && profileSnap.get('status') === 'disabled') {
+    if (!profileSnap.exists || profileSnap.get('status') === 'disabled') {
         const err = new Error('USER_DISABLED');
         err.status = 403;
         throw err;
@@ -138,14 +151,51 @@ async function requireAppAdmin(idToken) {
     return { decoded, role, uid: decoded.uid, email: decoded.email || '' };
 }
 
-const SCHOOL_ID_REGEX = /^[A-Za-z]\d{4,8}$/;
+async function resolveSchoolStaffTarget({ idToken, requestedSchoolId }) {
+    const normalizedTarget = normalizeSchoolId(requestedSchoolId);
+    try {
+        const appAdmin = await requireAppAdmin(idToken);
+        if (!normalizedTarget) {
+            const err = new Error('MISSING_SCHOOL_ID');
+            err.status = 400;
+            throw err;
+        }
+        const schoolSnap = await db.doc(`schools/${normalizedTarget}`).get();
+        if (!schoolSnap.exists) {
+            const err = new Error('SCHOOL_NOT_FOUND');
+            err.status = 404;
+            throw err;
+        }
+        return { ...appAdmin, schoolId: normalizedTarget, appAdmin: true };
+    } catch (err) {
+        if (err.message !== 'FORBIDDEN') {
+            throw err;
+        }
+    }
+
+    if (normalizedTarget) {
+        const decoded = await auth.verifyIdToken(idToken);
+        const claimSchoolId = normalizeSchoolId(decoded.schoolId);
+        if (claimSchoolId && claimSchoolId !== normalizedTarget) {
+            const err = new Error('SCHOOL_MISMATCH');
+            err.status = 403;
+            throw err;
+        }
+    }
+    return requireSchoolAdmin(idToken);
+}
+
+const SCHOOL_ID_REGEX = /^\d+[A-Za-z]{1,2}$/;
 
 function functionError(res, err) {
     const code = err.message || 'INTERNAL_ERROR';
     const status = Number(err.status) || (
-        code === 'INVALID_ROLE' || code === 'INVALID_REQUEST' || code === 'INVALID_SCHOOL_ID' ? 400 :
+        code === 'INVALID_ROLE' || code === 'INVALID_REQUEST' || code === 'INVALID_SCHOOL_ID' ||
+        code === 'MISSING_SCHOOL_ID' ? 400 :
+        code === 'MISSING_ID_TOKEN' ? 401 :
         code === 'BOOTSTRAP_SECRET_NOT_CONFIGURED' ? 500 :
-        code === 'BOOTSTRAP_UNAUTHORIZED' || code === 'FORBIDDEN' ? 403 :
+        code === 'BOOTSTRAP_UNAUTHORIZED' || code === 'FORBIDDEN' || code === 'ADMIN_REQUIRED' ||
+        code === 'USER_DISABLED' || code === 'SCHOOL_MISMATCH' || code === 'FORBIDDEN_ROLE' ? 403 :
         code === 'SCHOOL_EXISTS' || code === 'EMAIL_IN_USE_DIFFERENT_SCHOOL' ||
         code === 'TARGET_SCHOOL_EXISTS' || code === 'PENDING_REQUEST_EXISTS' ||
         code === 'REQUEST_ALREADY_REVIEWED' ? 409 :
@@ -404,7 +454,7 @@ exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTST
         const name = String(adminName || '').trim();
         const schoolName = String(institutionName || '').trim() || schoolId;
 
-        if (!schoolId || !schoolName || !email || !adminPassword || !name) {
+        if (!schoolId || !SCHOOL_ID_REGEX.test(schoolId) || !schoolName || !email || !adminPassword || !name) {
             const err = new Error('INVALID_REQUEST');
             err.status = 400;
             throw err;
@@ -490,17 +540,18 @@ exports.provisionSchoolUser = onRequest({ cors: true }, async (req, res) => {
             email: rawEmail,
             name: rawName,
             role: rawRole,
+            schoolId: rawSchoolId,
+            targetSchoolId,
             tempPassword,
             temporaryPassword,
             mustChangePassword,
             createInvite,
             disabled
         } = req.body || {};
-        const caller = await requireSchoolAdmin(idToken);
+        const caller = await resolveSchoolStaffTarget({ idToken, requestedSchoolId: rawSchoolId || targetSchoolId });
         const email = normalizeEmail(rawEmail);
         const name = String(rawName || '').trim();
-        const role = normalizeRole(rawRole);
-        requireAssignableRole(caller, role);
+        const role = normalizeSchoolUserRole(rawRole);
         const password = String(tempPassword || temporaryPassword || generateTemporaryPassword()).trim();
 
         if (!email || !name) {
@@ -558,11 +609,10 @@ exports.updateSchoolUserRole = onRequest({ cors: true }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
     try {
-        const { idToken, targetUid, uid, newRole, role: rawRole } = req.body || {};
-        const caller = await requireSchoolAdmin(idToken);
+        const { idToken, targetUid, uid, schoolId: rawSchoolId, targetSchoolId, newRole, role: rawRole } = req.body || {};
+        const caller = await resolveSchoolStaffTarget({ idToken, requestedSchoolId: rawSchoolId || targetSchoolId });
         const targetUserId = String(targetUid || uid || '').trim();
-        const role = normalizeRole(newRole || rawRole);
-        requireAssignableRole(caller, role);
+        const role = normalizeSchoolUserRole(newRole || rawRole);
         if (!targetUserId) {
             const err = new Error('INVALID_REQUEST');
             err.status = 400;
@@ -576,7 +626,7 @@ exports.updateSchoolUserRole = onRequest({ cors: true }, async (req, res) => {
             err.status = 403;
             throw err;
         }
-        if (caller.role === 'principal' && targetClaims.role === 'admin') {
+        if (!SCHOOL_USER_ROLES.has(String(targetClaims.role || '').trim())) {
             const err = new Error('FORBIDDEN_ROLE');
             err.status = 403;
             throw err;
@@ -604,8 +654,8 @@ exports.setSchoolUserDisabled = onRequest({ cors: true }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
     try {
-        const { idToken, targetUid, uid, disabled } = req.body || {};
-        const caller = await requireSchoolAdmin(idToken);
+        const { idToken, targetUid, uid, schoolId: rawSchoolId, targetSchoolId, disabled } = req.body || {};
+        const caller = await resolveSchoolStaffTarget({ idToken, requestedSchoolId: rawSchoolId || targetSchoolId });
         const targetUserId = String(targetUid || uid || '').trim();
         if (!targetUserId || typeof disabled !== 'boolean') {
             const err = new Error('INVALID_REQUEST');
@@ -620,7 +670,7 @@ exports.setSchoolUserDisabled = onRequest({ cors: true }, async (req, res) => {
             err.status = 403;
             throw err;
         }
-        if (caller.role === 'principal' && targetClaims.role === 'admin') {
+        if (!SCHOOL_USER_ROLES.has(String(targetClaims.role || '').trim())) {
             const err = new Error('FORBIDDEN_ROLE');
             err.status = 403;
             throw err;
@@ -714,8 +764,8 @@ exports.listLinkRequests = onRequest({ cors: true }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
     try {
-        const { idToken } = req.body || {};
-        const caller = await requireSchoolAdmin(idToken);
+        const { idToken, schoolId: rawSchoolId, targetSchoolId } = req.body || {};
+        const caller = await resolveSchoolStaffTarget({ idToken, requestedSchoolId: rawSchoolId || targetSchoolId });
 
         const snapshot = await db
             .collection(`schools/${caller.schoolId}/linkRequests`)
@@ -752,8 +802,8 @@ exports.resolveLinkRequest = onRequest({ cors: true }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
     try {
-        const { idToken, targetUid, action, role: rawRole } = req.body || {};
-        const caller = await requireSchoolAdmin(idToken);
+        const { idToken, targetUid, action, role: rawRole, schoolId: rawSchoolId, targetSchoolId } = req.body || {};
+        const caller = await resolveSchoolStaffTarget({ idToken, requestedSchoolId: rawSchoolId || targetSchoolId });
         const uid = String(targetUid || '').trim();
 
         if (!uid || (action !== 'approve' && action !== 'reject')) {
@@ -787,8 +837,7 @@ exports.resolveLinkRequest = onRequest({ cors: true }, async (req, res) => {
             return res.status(200).json({ success: true, action: 'rejected', uid });
         }
 
-        const role = normalizeRole(rawRole, 'viewer');
-        requireAssignableRole(caller, role);
+        const role = normalizeSchoolUserRole(rawRole, 'viewer');
         const requestData = requestSnap.data();
 
         await createOrUpdateSchoolUser({

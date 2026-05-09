@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function isValidMassarCode(code) {
-        return /^[A-Za-z]\d{4,8}$/.test(
+        return /^\d+[A-Za-z]{1,2}$/.test(
             String(code || '')
                 .trim()
                 .toUpperCase()
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let hasError = false;
 
         if (!isValidMassarCode(massarCode)) {
-            showFieldError('new-massar-error', 'رمز ماسار غير صالح - يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام');
+            showFieldError('new-massar-error', 'رمز المؤسسة غير صالح - يجب أن يتكون من أرقام في البداية ثم حرف أو حرفين في النهاية');
             hasError = true;
         }
         if (!adminName) {

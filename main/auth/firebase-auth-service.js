@@ -276,7 +276,34 @@ async function loginWithFirebase(email, password) {
     const credential = await signInWithEmailAndPassword(auth, normalizeEmail(email), password);
     const tokenResult = await credential.user.getIdTokenResult(true);
     const claimSchoolId = normalizeSchoolId(tokenResult?.claims?.schoolId);
+    const claimRole = resolveRole(String(tokenResult?.claims?.role || '').trim().toLowerCase());
     const expectedSchoolId = normalizeSchoolId(schoolId);
+    const localUser = selectUserByFirebaseUid(db, credential.user.uid) || selectUserByEmail(db, email);
+
+    if (!claimSchoolId && ['admin', 'developer'].includes(claimRole)) {
+        const profile = normalizeProfile(
+            {
+                uid: credential.user.uid,
+                email: credential.user.email || email,
+                name: credential.user.displayName || localUser?.name || credential.user.email || email,
+                role: claimRole,
+                status: 'active',
+                mustChangePassword: false
+            },
+            credential.user,
+            localUser
+        );
+        assertActiveProfile(profile);
+        const userRow = upsertLocalUserFromProfile(db, profile, password, 'online');
+        logAuthDebug('firebase.login.global-admin-success', {
+            email: profile.email,
+            firebaseUid: profile.uid,
+            localUserId: userRow?.id || null,
+            role: profile.role
+        });
+        return { mode: 'online', userRow, profile, firebaseUser: credential.user };
+    }
+
     if (expectedSchoolId && claimSchoolId && claimSchoolId !== expectedSchoolId) {
         logAuthDebug('firebase.school-mismatch', {
             email,
@@ -299,23 +326,15 @@ async function loginWithFirebase(email, password) {
     if (!expectedSchoolId && claimSchoolId) {
         persistDiscoveredSchoolId(db, claimSchoolId, 'firebase-claim');
     }
-    const localUser = selectUserByFirebaseUid(db, credential.user.uid) || selectUserByEmail(db, email);
     let profile;
     if (claimSchoolId) {
         profile = await loadProfileForUser(firestore, resolvedSchoolId, credential.user, localUser);
-    } else if (localUser) {
-        logAuthDebug('firebase.profile.local-fallback', {
-            email,
-            firebaseUid: credential.user.uid,
-            localUserId: localUser.id,
-            reason: 'no-schoolId-claim'
-        });
-        profile = normalizeProfile(null, credential.user, localUser);
     } else {
-        logAuthDebug('firebase.profile.no-claim-no-local', {
+        logAuthDebug('firebase.profile.no-school-claim', {
             email,
             firebaseUid: credential.user.uid,
-            resolvedSchoolId
+            resolvedSchoolId,
+            localUserId: localUser?.id || null
         });
         throw createAuthServiceError('FIREBASE_PROFILE_REQUIRED', 'هذا الحساب غير مرتبط بهذه المؤسسة');
     }

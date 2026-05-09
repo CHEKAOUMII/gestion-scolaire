@@ -496,12 +496,12 @@ function runRoleHierarchySmoke() {
 
     const functionsSource = read(path.join('firebase', 'functions', 'index.js'));
     assert.ok(
-        functionsSource.includes("const ADMIN_ROLES = new Set(['admin', 'principal', 'developer'])"),
-        'Firebase functions should treat principal as a school admin'
+        functionsSource.includes("const SCHOOL_ADMIN_ROLES = new Set(['principal'])"),
+        'Firebase functions should treat only principal as a school admin'
     );
     assert.ok(
-        functionsSource.includes('requireAssignableRole(caller, role)'),
-        'Firebase functions should reject principal assigning app-admin role'
+        functionsSource.includes('normalizeSchoolUserRole'),
+        'Firebase functions should reject app-admin roles for school staff'
     );
 
     const settingsUsersSource = read(path.join('js', 'pages', 'settings-users.js'));

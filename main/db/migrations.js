@@ -1183,6 +1183,27 @@ const MIGRATIONS = [
             ensureColumn('sync_config', 'firebase_credential', 'TEXT');
         }
     },
+    {
+        version: '2026-05-055-exam-proctors-extra-columns',
+        up: () => {
+            ensureColumn('exam_proctors', 'cin', 'TEXT');
+            ensureColumn('exam_proctors', 'som', 'TEXT');
+            ensureColumn('exam_proctors', 'gender', 'TEXT');
+            ensureColumn('exam_proctors', 'specialty', 'TEXT');
+        }
+    },
+    {
+        version: '2026-05-056-exam-proctors-workplace',
+        up: () => {
+            ensureColumn('exam_proctors', 'workplace', 'TEXT');
+        }
+    },
+    {
+        version: '2026-05-057-exam-proctors-name-fr',
+        up: () => {
+            ensureColumn('exam_proctors', 'teacher_name_fr', 'TEXT');
+        }
+    },
 ];
 
 function ensureMigrationsTable() {

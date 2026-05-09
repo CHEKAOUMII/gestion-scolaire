@@ -587,7 +587,7 @@ async function savePageVisibilityChanges() {
     }
 }
 
-const MASSAR_REGEX = /^[A-Za-z]\d{4,8}$/;
+const MASSAR_REGEX = /^\d+[A-Za-z]{1,2}$/;
 
 function identityStatusBadge(status) {
     const map = {
@@ -706,7 +706,7 @@ async function submitIdentityChangeRequest() {
     }
 
     if (newCode && !MASSAR_REGEX.test(newCode)) {
-        showToast('رمز المؤسسة غير صالح. يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام', 'error');
+        showToast('رمز المؤسسة غير صالح. يجب أن يتكون من أرقام في البداية ثم حرف أو حرفين في النهاية', 'error');
         return;
     }
 

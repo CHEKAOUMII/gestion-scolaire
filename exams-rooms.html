@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>قاعات الامتحان | برنامج التدبير المدرسي</title>
+        <title>ملخص تكليفات الأساتذة | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
@@ -12,62 +12,244 @@
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/print-system.js" defer></script>
+        <style>
+            .summary-shell {
+                display: grid;
+                gap: 16px;
+            }
+
+            .summary-head-card {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 14px;
+                padding: 18px 20px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                background: var(--color-surface);
+                box-shadow: var(--shadow-card);
+            }
+
+            .summary-head-title {
+                display: grid;
+                gap: 4px;
+            }
+
+            .summary-head-title h3 {
+                margin: 0;
+                color: var(--color-text-main);
+                font-size: 18px;
+                font-weight: 800;
+            }
+
+            .summary-head-title p {
+                margin: 0;
+                color: var(--color-text-muted);
+                font-size: 13px;
+                line-height: 1.7;
+            }
+
+            .summary-actions,
+            .summary-filters,
+            .summary-stats {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .summary-stat {
+                min-width: 140px;
+                padding: 12px 14px;
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-sm);
+                background: var(--color-surface);
+                display: grid;
+                gap: 3px;
+            }
+
+            .summary-stat span {
+                color: var(--color-text-muted);
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            .summary-stat strong {
+                color: var(--color-primary);
+                font-size: 21px;
+                font-weight: 900;
+            }
+
+            .summary-card {
+                border: 1px solid var(--color-accent);
+                border-radius: var(--radius-md);
+                background: var(--color-surface);
+                box-shadow: var(--shadow-card);
+                overflow: hidden;
+            }
+
+            .summary-card-bar {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                align-items: center;
+                padding: 14px 18px;
+                border-bottom: 1px solid var(--color-accent);
+                background: var(--color-surface-alt);
+            }
+
+            .summary-card-bar h3 {
+                margin: 0;
+                font-size: 16px;
+                font-weight: 800;
+                color: var(--color-text-main);
+            }
+
+            .summary-filters label {
+                color: var(--color-text-muted);
+                font-size: 12px;
+                font-weight: 800;
+            }
+
+            .summary-filters .form-select,
+            .summary-filters .form-input {
+                min-width: 170px;
+            }
+
+            .summary-detail-list {
+                margin: 0;
+                padding: 0;
+                list-style: none;
+                display: grid;
+                gap: 4px;
+                text-align: right;
+            }
+
+            .summary-detail-list li {
+                line-height: 1.55;
+                color: var(--color-text-main);
+                font-size: 12px;
+            }
+
+            .summary-empty {
+                padding: 34px;
+                text-align: center;
+                color: var(--color-text-muted);
+            }
+
+            .summary-print-root {
+                position: absolute;
+                left: -99999px;
+                top: 0;
+            }
+
+            @media (max-width: 780px) {
+                .summary-head-card,
+                .summary-card-bar {
+                    align-items: stretch;
+                    flex-direction: column;
+                }
+
+                .summary-actions > *,
+                .summary-filters .form-select,
+                .summary-filters .form-input {
+                    width: 100%;
+                }
+            }
+        </style>
     </head>
 
     <body>
         <div class="toast-container" id="toast-container"></div>
-
         <aside class="sidebar" id="sidebar"></aside>
 
         <main class="main-content">
             <header class="header">
                 <div class="header-left">
                     <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
-                    <h2 class="page-title"><i class="fas fa-door-open"></i> قاعات الامتحان</h2>
+                    <h2 class="page-title"><i class="fas fa-clipboard-list"></i> ملخص تكليفات الأساتذة</h2>
                 </div>
                 <div class="header-right">
-                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
-                        <i class="fas fa-moon"></i>
-                    </button>
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر"><i class="fas fa-moon"></i></button>
                 </div>
             </header>
 
-            <div class="grades-container">
-                <div class="search-section">
-                    <form
-                        id="form"
-                        class="search-form"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px"
-                    >
-                        <input type="hidden" id="id" />
-                        <input id="name" placeholder="اسم القاعة" required />
-                        <input id="capacity" type="number" placeholder="السعة" />
-                        <input id="building" placeholder="المبنى" />
-                        <button class="btn btn-success" type="submit">حفظ</button>
-                    </form>
-                </div>
+            <div class="summary-shell">
+                <section class="summary-head-card">
+                    <div class="summary-head-title">
+                        <h3>لائحة الأساتذة حسب التكليف</h3>
+                        <p>تعتمد على آخر توزيع محفوظ: الحراسة، الاحتياط حسب الحصة، والمداومة حسب المادة.</p>
+                    </div>
+                    <div class="summary-actions">
+                        <button type="button" class="sup-btn sup-btn-confirm" id="btn-refresh-summary"><i class="fas fa-sync-alt"></i> تحيين</button>
+                        <button type="button" class="sup-btn" id="btn-print-summary"><i class="fas fa-eye"></i> معاينة الطباعة</button>
+                        <button type="button" class="sup-btn" id="btn-back-proctors"><i class="fas fa-arrow-right"></i> رجوع إلى التوزيع</button>
+                    </div>
+                </section>
 
-                <div class="students-results">
-                    <table class="students-table students-table-card">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>اسم القاعة</th>
-                                <th>السعة</th>
-                                <th>المبنى</th>
-                                <th>الإجراء</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody"></tbody>
-                    </table>
-                </div>
+                <section class="summary-stats" id="summary-stats"></section>
+
+                <section class="summary-card">
+                    <div class="summary-card-bar">
+                        <h3><i class="fas fa-filter"></i> الفلاتر</h3>
+                        <div class="summary-filters">
+                            <label for="teacher-filter">الأستاذ</label>
+                            <select class="form-select" id="teacher-filter"><option value="">كل الأساتذة</option></select>
+                            <label for="task-filter">نوع التكليف</label>
+                            <select class="form-select" id="task-filter">
+                                <option value="">كل التكليفات</option>
+                                <option value="guard">الحراسة</option>
+                                <option value="reserve">الاحتياط</option>
+                                <option value="duty">المداومة</option>
+                            </select>
+                            <label for="summary-search">بحث</label>
+                            <input class="form-input" id="summary-search" type="search" placeholder="اسم أو حصة أو مادة" />
+                        </div>
+                    </div>
+                    <div class="sup-table-wrapper">
+                        <table class="sup-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>الأستاذ</th>
+                                    <th>الحراسة</th>
+                                    <th>الاحتياط</th>
+                                    <th>المداومة</th>
+                                    <th>حصص الحراسة</th>
+                                    <th>ساعات الحراسة</th>
+                                    <th>مجموع التكليفات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="summary-tbody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </main>
 
         <script>
-            function escapeHtml(text) {
-                if (text === null || text === undefined) return '';
-                return String(text)
+            const state = {
+                rows: [],
+                filtered: []
+            };
+
+            document.addEventListener('DOMContentLoaded', () => {
+                document.getElementById('btn-refresh-summary').addEventListener('click', renderSummary);
+                document.getElementById('btn-print-summary').addEventListener('click', previewSummaryPrint);
+                document.getElementById('btn-back-proctors').addEventListener('click', () => {
+                    window.location.href = 'exams-proctors.html';
+                });
+                ['teacher-filter', 'task-filter', 'summary-search'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', renderSummaryTable);
+                    document.getElementById(id).addEventListener('change', renderSummaryTable);
+                });
+                renderSummary();
+            });
+
+            function escHtml(value) {
+                if (value === null || value === undefined) return '';
+                return String(value)
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;')
@@ -75,81 +257,273 @@
                     .replace(/'/g, '&#39;');
             }
 
-            const year = getSchoolYear();
-            let rows = [];
-
-            document.addEventListener('DOMContentLoaded', async () => {
-                await loadRows();
-                document.getElementById('form').addEventListener('submit', save);
-            });
-
-            async function loadRows() {
-                rows = (await window.api.examRooms.getAll(year)) || [];
-                document.getElementById('tbody').innerHTML = rows.length
-                    ? rows
-                          .map(
-                              (r, i) => `
-                <tr>
-                    <td data-label="#">${i + 1}</td>
-                    <td data-label="اسم القاعة">${escapeHtml(r.room_name || '-')}</td>
-                    <td data-label="السعة">${escapeHtml(r.capacity || '-')}</td>
-                    <td data-label="المبنى">${escapeHtml(r.equipment || '-')}</td>
-                    <td data-label="الإجراء">
-                        <button class="btn btn-secondary" onclick="editRow(${Number(r.id)})"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-secondary" onclick="delRow(${Number(r.id)})"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `
-                          )
-                          .join('')
-                    : '<tr><td colspan="5" style="padding: 20px; text-align: center;">لا توجد بيانات</td></tr>';
-            }
-
-            async function save(e) {
-                e.preventDefault();
-                const payload = {
-                    id: document.getElementById('id').value ? Number(document.getElementById('id').value) : undefined,
-                    room_name: document.getElementById('name').value.trim(),
-                    capacity: document.getElementById('capacity').value,
-                    equipment: document.getElementById('building').value.trim(),
-                    school_year: year
-                };
-                const res = await window.api.examRooms.save(payload);
-                if (!res || res.success === false) {
-                    showToast('فشل الحفظ', 'error');
-                    return;
-                }
-                showToast('تم الحفظ', 'success');
-                e.target.reset();
-                document.getElementById('id').value = '';
-                await loadRows();
-            }
-
-            function editRow(id) {
-                const r = rows.find((x) => x.id === id);
-                if (!r) return;
-                document.getElementById('id').value = r.id;
-                document.getElementById('name').value = r.room_name || '';
-                document.getElementById('capacity').value = r.capacity || '';
-                document.getElementById('building').value = r.equipment || '';
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-
-            async function delRow(id) {
-                const confirmed = await showConfirm({
-                    type: 'danger',
-                    title: 'حذف قاعة',
-                    message: 'حذف هذه القاعة؟',
-                    detail: 'لا يمكن التراجع عن هذا الإجراء.',
-                    confirmText: 'حذف'
+            function getScheduleEntries() {
+                const data = JSON.parse(localStorage.getItem('examScheduleData') || '{}');
+                return Object.entries(data).flatMap(([levelName, arr]) => {
+                    if (!Array.isArray(arr)) return [];
+                    return arr.map(item => Object.assign({ level_name: levelName }, item || {}));
                 });
-                if (!confirmed.confirmed) return;
-                const res = await window.api.examRooms.delete(id);
-                if (!res || res.success === false) {
-                    showToast('فشل الحذف', 'error');
+            }
+
+            function getScheduleDateKey(entry) {
+                const year = entry.date_year || '';
+                const month = entry.date_month ? String(entry.date_month).padStart(2, '0') : '';
+                const day = entry.date_day ? String(entry.date_day).padStart(2, '0') : '';
+                return [year, month, day].filter(Boolean).join('-');
+            }
+
+            function getSessionKey(entry) {
+                return [getScheduleDateKey(entry), entry.period || 'صباحا', entry.session || 'الحصة الأولى'].join('|');
+            }
+
+            function getDurationHours(entry) {
+                const explicit = parseDurationHours(entry.duration);
+                if (explicit > 0) return explicit;
+                return diffTimeHours(entry.time_from, entry.time_to);
+            }
+
+            function parseDurationHours(value) {
+                const text = String(value || '').trim().toLowerCase();
+                if (!text) return 0;
+                const hourMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(h|س|ساعة|ساعات)?/);
+                if (!hourMatch) return 0;
+                return Number(hourMatch[1].replace(',', '.')) || 0;
+            }
+
+            function diffTimeHours(from, to) {
+                if (!from || !to || !String(from).includes(':') || !String(to).includes(':')) return 0;
+                const [fh, fm] = String(from).split(':').map(Number);
+                const [th, tm] = String(to).split(':').map(Number);
+                if (![fh, fm, th, tm].every(Number.isFinite)) return 0;
+                const start = fh * 60 + fm;
+                const end = th * 60 + tm;
+                return end > start ? (end - start) / 60 : 0;
+            }
+
+            function buildDurationMap() {
+                const map = new Map();
+                getScheduleEntries().forEach(entry => {
+                    const key = [getSessionKey(entry), entry.subject_name || ''].join('|');
+                    const hours = getDurationHours(entry);
+                    if (!map.has(key) || hours > 0) map.set(key, hours);
+                });
+                return map;
+            }
+
+            function createTeacherRow(name) {
+                return {
+                    name,
+                    guard: [],
+                    reserve: [],
+                    duty: [],
+                    guardCount: 0,
+                    reserveCount: 0,
+                    dutyCount: 0,
+                    guardHours: 0,
+                    totalTasks: 0
+                };
+            }
+
+            function getTeacher(map, name) {
+                const clean = String(name || '').trim();
+                if (!clean) return null;
+                if (!map.has(clean)) map.set(clean, createTeacherRow(clean));
+                return map.get(clean);
+            }
+
+            async function getAllProctorNames() {
+                try {
+                    const rows = await window.api.examProctors.getAll(getSchoolYear());
+                    return (rows || [])
+                        .map(row => row.teacher_full_name || row.teacher_name || '')
+                        .map(name => String(name || '').trim())
+                        .filter(Boolean);
+                } catch {
+                    return [];
+                }
+            }
+
+            async function buildSummaryRows() {
+                const distribution = JSON.parse(localStorage.getItem('examAutoDistributionData') || '[]');
+                const durationMap = buildDurationMap();
+                const teacherMap = new Map();
+                const reserveSeen = new Set();
+                const dutySeen = new Set();
+
+                (await getAllProctorNames()).forEach(name => getTeacher(teacherMap, name));
+
+                distribution.forEach(row => {
+                    const sessionKey = row.session_key || row.session_label || '';
+                    const subject = row.subject_name || '';
+                    const duration = durationMap.get([sessionKey, subject].join('|')) || 0;
+                    (row.proctors || []).forEach(name => {
+                        const teacher = getTeacher(teacherMap, name);
+                        if (!teacher) return;
+                        teacher.guardCount += 1;
+                        teacher.guardHours += duration;
+                        teacher.guard.push([row.session_label, subject, row.room_number || row.room_name].filter(Boolean).join(' - '));
+                    });
+
+                    (row.reserves || []).forEach(name => {
+                        const reserveKey = [sessionKey, name].join('|');
+                        if (reserveSeen.has(reserveKey)) return;
+                        reserveSeen.add(reserveKey);
+                        const teacher = getTeacher(teacherMap, name);
+                        if (!teacher) return;
+                        teacher.reserveCount += 1;
+                        teacher.reserve.push(row.session_label || subject || 'احتياط');
+                    });
+
+                    (row.duty_teachers || []).forEach(name => {
+                        const dutyKey = [sessionKey, subject, name].join('|');
+                        if (dutySeen.has(dutyKey)) return;
+                        dutySeen.add(dutyKey);
+                        const teacher = getTeacher(teacherMap, name);
+                        if (!teacher) return;
+                        teacher.dutyCount += 1;
+                        teacher.duty.push([row.session_label, subject].filter(Boolean).join(' - '));
+                    });
+                });
+
+                return Array.from(teacherMap.values())
+                    .map(row => Object.assign(row, {
+                        guardHours: Math.round(row.guardHours * 100) / 100,
+                        totalTasks: row.guardCount + row.reserveCount + row.dutyCount
+                    }))
+                    .sort((a, b) => b.totalTasks - a.totalTasks || a.name.localeCompare(b.name, 'ar'));
+            }
+
+            async function renderSummary() {
+                state.rows = await buildSummaryRows();
+                renderTeacherFilter();
+                renderStats();
+                renderSummaryTable();
+            }
+
+            function renderTeacherFilter() {
+                const filter = document.getElementById('teacher-filter');
+                const previous = filter.value;
+                filter.innerHTML = '<option value="">كل الأساتذة</option>' + state.rows
+                    .map(row => '<option value="' + escHtml(row.name) + '">' + escHtml(row.name) + '</option>')
+                    .join('');
+                if (previous && state.rows.some(row => row.name === previous)) filter.value = previous;
+            }
+
+            function renderStats() {
+                const totals = state.rows.reduce((acc, row) => {
+                    acc.teachers += 1;
+                    acc.guard += row.guardCount;
+                    acc.reserve += row.reserveCount;
+                    acc.duty += row.dutyCount;
+                    acc.hours += row.guardHours;
+                    return acc;
+                }, { teachers: 0, guard: 0, reserve: 0, duty: 0, hours: 0 });
+                document.getElementById('summary-stats').innerHTML = [
+                    ['الأساتذة المكلفون', totals.teachers],
+                    ['حصص الحراسة', totals.guard],
+                    ['حصص الاحتياط', totals.reserve],
+                    ['حصص المداومة', totals.duty],
+                    ['ساعات الحراسة', formatHours(totals.hours)]
+                ].map(([label, value]) => '<div class="summary-stat"><span>' + escHtml(label) + '</span><strong>' + escHtml(value) + '</strong></div>').join('');
+            }
+
+            function rowMatchesTask(row, task) {
+                if (!task) return true;
+                if (task === 'guard') return row.guardCount > 0;
+                if (task === 'reserve') return row.reserveCount > 0;
+                if (task === 'duty') return row.dutyCount > 0;
+                return true;
+            }
+
+            function rowMatchesSearch(row, term) {
+                if (!term) return true;
+                const haystack = [row.name, row.guard.join(' '), row.reserve.join(' '), row.duty.join(' ')].join(' ').toLowerCase();
+                return haystack.includes(term);
+            }
+
+            function renderSummaryTable() {
+                const teacher = document.getElementById('teacher-filter').value || '';
+                const task = document.getElementById('task-filter').value || '';
+                const term = (document.getElementById('summary-search').value || '').trim().toLowerCase();
+                state.filtered = state.rows.filter(row => {
+                    if (teacher && row.name !== teacher) return false;
+                    if (!rowMatchesTask(row, task)) return false;
+                    return rowMatchesSearch(row, term);
+                });
+
+                const tbody = document.getElementById('summary-tbody');
+                if (!state.rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="summary-empty"><i class="fas fa-info-circle"></i> لا توجد نتيجة توزيع محفوظة. نفذ التوزيع واحفظ النتيجة أولا.</td></tr>';
                     return;
                 }
-                await loadRows();
+                if (!state.filtered.length) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="summary-empty"><i class="fas fa-filter"></i> لا توجد نتائج مطابقة للفلاتر.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = state.filtered.map((row, idx) => '<tr>' +
+                    '<td>' + (idx + 1) + '</td>' +
+                    '<td class="sup-name-cell">' + escHtml(row.name) + '</td>' +
+                    '<td>' + renderDetails(row.guard) + '</td>' +
+                    '<td>' + renderDetails(row.reserve) + '</td>' +
+                    '<td>' + renderDetails(row.duty) + '</td>' +
+                    '<td><strong>' + row.guardCount + '</strong></td>' +
+                    '<td><strong>' + escHtml(formatHours(row.guardHours)) + '</strong></td>' +
+                    '<td><strong>' + row.totalTasks + '</strong></td>' +
+                    '</tr>').join('');
+            }
+
+            function renderDetails(items) {
+                if (!items.length) return '—';
+                return '<ul class="summary-detail-list">' + items.map(item => '<li>' + escHtml(item) + '</li>').join('') + '</ul>';
+            }
+
+            function formatHours(value) {
+                const num = Number(value) || 0;
+                if (!num) return '0';
+                return (Number.isInteger(num) ? String(num) : num.toFixed(2).replace(/\.?0+$/, '')) + ' س';
+            }
+
+            function buildPrintHtml(rows) {
+                const body = rows.map((row, idx) => '<tr>' +
+                    '<td>' + (idx + 1) + '</td>' +
+                    '<td>' + escHtml(row.name) + '</td>' +
+                    '<td>' + row.guardCount + '</td>' +
+                    '<td>' + row.reserveCount + '</td>' +
+                    '<td>' + row.dutyCount + '</td>' +
+                    '<td>' + escHtml(formatHours(row.guardHours)) + '</td>' +
+                    '<td>' + row.totalTasks + '</td>' +
+                    '</tr>').join('');
+                return '<div class="gs-sheet-wrapper"><div class="gs-sheet">' +
+                    '<div class="gs-sheet-title">ملخص تكليفات الأساتذة</div>' +
+                    '<table><thead><tr><th>#</th><th>الأستاذ</th><th>الحراسة</th><th>الاحتياط</th><th>المداومة</th><th>ساعات الحراسة</th><th>المجموع</th></tr></thead><tbody>' +
+                    (body || '<tr><td colspan="7" style="text-align:center">لا توجد معطيات</td></tr>') +
+                    '</tbody></table></div></div>';
+            }
+
+            function previewSummaryPrint() {
+                const rows = state.filtered.length ? state.filtered : state.rows;
+                if (!rows.length) { showToast('لا توجد معطيات للطباعة', 'warning'); return; }
+                if (!window.PrintSystem || typeof window.PrintSystem.preview !== 'function') {
+                    showToast('نظام معاينة الطباعة غير متاح', 'error');
+                    return;
+                }
+                const root = document.createElement('div');
+                root.className = 'summary-print-root';
+                root.innerHTML = buildPrintHtml(rows);
+                document.body.appendChild(root);
+                try {
+                    window.PrintSystem.preview({
+                        contentSelector: '.summary-print-root',
+                        title: 'ملخص تكليفات الأساتذة',
+                        pageSize: 'A4',
+                        landscape: true,
+                        noHeader: false,
+                        defaultFileName: 'ملخص_تكليفات_الأساتذة'
+                    });
+                } finally {
+                    root.remove();
+                }
             }
         </script>
     </body>

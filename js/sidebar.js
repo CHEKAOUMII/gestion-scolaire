@@ -77,7 +77,7 @@ function injectSidebar() {
                     <ul class="sub-menu" id="sidebar-exams-submenu" hidden>
                         <li><a href="exams-schedule.html"><i class="fas fa-calendar-check"></i> برمجة الامتحانات</a></li>
                         <li><a href="exams-proctors.html"><i class="fas fa-user-shield"></i> توزيع الحراسة</a></li>
-                        <li><a href="exams-rooms.html"><i class="fas fa-door-open"></i> قاعات الامتحان</a></li>
+                        <li><a href="exams-rooms.html"><i class="fas fa-clipboard-list"></i> ملخص تكليفات الأساتذة</a></li>
                         <li><a href="exams-tests.html"><i class="fas fa-clipboard-list"></i> تدبير الفروض</a></li>
                     </ul>
                 </li>

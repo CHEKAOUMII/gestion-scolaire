@@ -92,25 +92,62 @@ function registerExamsIpc(ipcMain) {
 
     handleWrite(ipcMain, 'examProctors:saveManual', WRITE_ROLES, (db, _event, payload) => {
         const year = requireSchoolYear(payload.school_year);
+        if (payload.date) {
+            validateDate('date', payload.date);
+        }
         const resolvedTeacher = resolveTeacherIdentity(db, {
             teacher_id: payload.teacher_id,
             teacher_name: payload.teacher_name,
             school_year: year,
             source: 'examProctors:saveManual'
         });
-        db.prepare(
+        if (payload.id) {
+            const safeId = Number(payload.id);
+            if (!Number.isFinite(safeId) || safeId <= 0) {
+                return { success: false, error: 'Invalid ID' };
+            }
+            const result = db
+                .prepare(
+                    `
+                    UPDATE exam_proctors
+                    SET exam_id = ?, teacher_id = ?, teacher_name = ?, room = ?, date = ?, session = ?, school_year = ?
+                    WHERE id = ? AND school_year = ?
+                `
+                )
+                .run(
+                    payload.exam_id || null,
+                    resolvedTeacher.teacher_id || null,
+                    resolvedTeacher.teacher_name || payload.teacher_name || null,
+                    payload.room || null,
+                    payload.date || null,
+                    payload.session || null,
+                    year,
+                    safeId,
+                    year
+                );
+            if (result.changes === 0) {
+                return { success: false, error: 'Record not found or school year mismatch' };
+            }
+            return { success: true, id: safeId };
+        }
+
+        const result = db
+            .prepare(
+                `
+                INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, room, date, session, school_year)
+                VALUES(?, ?, ?, ?, ?, ?, ?)
             `
-                INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, room, school_year)
-                VALUES(?, ?, ?, ?, ?)
-            `
-        ).run(
-            payload.exam_id || null,
-            resolvedTeacher.teacher_id || null,
-            resolvedTeacher.teacher_name || payload.teacher_name || null,
-            payload.room || null,
-            year
-        );
-        return { success: true };
+            )
+            .run(
+                payload.exam_id || null,
+                resolvedTeacher.teacher_id || null,
+                resolvedTeacher.teacher_name || payload.teacher_name || null,
+                payload.room || null,
+                payload.date || null,
+                payload.session || null,
+                year
+            );
+        return { success: true, id: Number(result.lastInsertRowid) };
     });
 
     handleWrite(ipcMain, 'examProctors:generateRoundRobin', ['admin'], (db, _event, payload) => {
@@ -135,6 +172,55 @@ function registerExamsIpc(ipcMain) {
         });
         generate();
         return { success: true, count: exams.length };
+    });
+
+    handleWrite(ipcMain, 'examProctors:bulkImport', WRITE_ROLES, (db, _event, payload) => {
+        const year = requireSchoolYear(payload.school_year);
+        const rows = payload.rows;
+        if (!Array.isArray(rows) || !rows.length) {
+            return { success: false, error: 'No rows to import' };
+        }
+        let inserted = 0;
+        let skipped = 0;
+        const insert = db.prepare(`
+            INSERT INTO exam_proctors(exam_id, teacher_id, teacher_name, teacher_name_fr, cin, som, room, date, session, gender, specialty, workplace, school_year)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        const bulkInsert = db.transaction(() => {
+            for (const row of rows) {
+                const name = (row.teacher_name || '').trim();
+                if (!name) { skipped++; continue; }
+                const resolved = resolveTeacherIdentity(db, {
+                    teacher_name: name,
+                    school_year: year,
+                    source: 'examProctors:bulkImport'
+                });
+                insert.run(
+                    row.exam_id || null,
+                    resolved.teacher_id || null,
+                    resolved.teacher_name || name,
+                    row.teacher_name_fr || null,
+                    row.cin || null,
+                    row.som || null,
+                    row.room || null,
+                    row.date || null,
+                    row.session || null,
+                    row.gender || null,
+                    row.specialty || null,
+                    row.workplace || null,
+                    year
+                );
+                inserted++;
+            }
+        });
+        bulkInsert();
+        return { success: true, inserted, skipped };
+    });
+
+    handleWrite(ipcMain, 'examProctors:deleteAll', ['admin'], (db, _event, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        const result = db.prepare('DELETE FROM exam_proctors WHERE school_year = ?').run(year);
+        return { success: true, deleted: result.changes };
     });
 
     handleWrite(ipcMain, 'examProctors:delete', WRITE_ROLES, (db, _event, id) => {

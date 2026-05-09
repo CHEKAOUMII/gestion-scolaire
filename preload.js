@@ -184,6 +184,8 @@ contextBridge.exposeInMainWorld('api', {
     examProctors: {
         generateRoundRobin: (payload) => ipcRenderer.invoke('examProctors:generateRoundRobin', payload),
         saveManual: (payload) => ipcRenderer.invoke('examProctors:saveManual', payload),
+        bulkImport: (payload) => ipcRenderer.invoke('examProctors:bulkImport', payload),
+        deleteAll: (schoolYear) => ipcRenderer.invoke('examProctors:deleteAll', schoolYear),
         getAll: (schoolYear) => ipcRenderer.invoke('examProctors:getAll', schoolYear),
         delete: (id) => ipcRenderer.invoke('examProctors:delete', id)
     },

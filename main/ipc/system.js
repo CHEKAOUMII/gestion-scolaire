@@ -85,6 +85,7 @@ async function provisionFirebaseUser(db, payload) {
     }
 
     const data = await postFirebaseFunction(db, 'provisionSchoolUser', {
+        schoolId: getSchoolId(db),
         email,
         name: String(payload.name || '').trim(),
         role: payload.role || 'principal',
@@ -142,7 +143,7 @@ async function updateFirebaseUserRole(db, user, role) {
         throw err;
     }
 
-    const data = await postFirebaseFunction(db, 'updateSchoolUserRole', { targetUid: uid, role });
+    const data = await postFirebaseFunction(db, 'updateSchoolUserRole', { schoolId: getSchoolId(db), targetUid: uid, role });
     return { status: 'updated', uid: data.uid || uid };
 }
 
@@ -154,7 +155,11 @@ async function updateFirebaseUserDisabled(db, user, disabled) {
         throw err;
     }
 
-    const data = await postFirebaseFunction(db, 'setSchoolUserDisabled', { targetUid: uid, disabled: !!disabled });
+    const data = await postFirebaseFunction(db, 'setSchoolUserDisabled', {
+        schoolId: getSchoolId(db),
+        targetUid: uid,
+        disabled: !!disabled
+    });
     return { status: 'updated', uid: data.uid || uid };
 }
 

@@ -163,6 +163,7 @@
                 inputEl.className = 'msg-confirm-input';
                 inputEl.id = 'msg-confirm-input';
                 inputEl.placeholder = config.inputPlaceholder || '';
+                inputEl.value = config.inputValue || '';
                 inputEl.autocomplete = 'off';
                 body.appendChild(inputEl);
             }
@@ -184,7 +185,7 @@
             confirmBtn.textContent = config.confirmText || typeConfig.confirmText;
 
             if (config.requireInput) {
-                confirmBtn.disabled = true;
+                confirmBtn.disabled = !inputEl.value.trim();
                 inputEl.addEventListener('input', function () {
                     confirmBtn.disabled = !inputEl.value.trim();
                 });

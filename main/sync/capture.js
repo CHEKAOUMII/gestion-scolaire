@@ -51,7 +51,7 @@ const CHANNEL_REGISTRY = {
     // === exams.js ===
     'exams:save': { tables: ['exams'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'exams:delete': { tables: ['exams'], operation: 'DEL', idExtractor: 'argId' },
-    'examProctors:saveManual': { tables: ['exam_proctors'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
+    'examProctors:saveManual': { tables: ['exam_proctors'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'examProctors:generateRoundRobin': {
         tables: ['exam_proctors'],
         operation: 'MIXED',
@@ -60,6 +60,20 @@ const CHANNEL_REGISTRY = {
         bulk: true
     },
     'examProctors:delete': { tables: ['exam_proctors'], operation: 'DEL', idExtractor: 'argId' },
+    'examProctors:bulkImport': {
+        tables: ['exam_proctors'],
+        operation: 'MIXED',
+        idExtractor: 'preQuery+bulk',
+        preCapture: true,
+        bulk: true
+    },
+    'examProctors:deleteAll': {
+        tables: ['exam_proctors'],
+        operation: 'MIXED',
+        idExtractor: 'preQuery+bulk',
+        preCapture: true,
+        bulk: true
+    },
     'examRooms:save': { tables: ['exam_rooms'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'examRooms:delete': { tables: ['exam_rooms'], operation: 'DEL', idExtractor: 'argId' },
     'tests:save': { tables: ['tests'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },

@@ -17,7 +17,7 @@ const ERROR_MESSAGES = {
     FORBIDDEN: 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
     INTERNAL_ERROR: 'حدث خطأ داخلي',
     INVALID_ADMIN_NAME: 'اسم المدير مطلوب',
-    INVALID_MASSAR: 'رمز ماسار غير صالح - يجب أن يبدأ بحرف متبوعاً بـ 4-8 أرقام',
+    INVALID_MASSAR: 'رمز المؤسسة غير صالح - يجب أن يتكون من أرقام في البداية ثم حرف أو حرفين في النهاية',
     INVALID_PASSWORD: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
     MASSAR_MISMATCH: 'رمز ماسار لا يطابق المؤسسة التي أصدرت رمز الربط',
     SERVER_UNAVAILABLE: 'تعذر التحقق عبر السيرفر حالياً',
@@ -25,7 +25,7 @@ const ERROR_MESSAGES = {
     UNAUTHENTICATED: 'يرجى تسجيل الدخول أولاً'
 };
 
-const MASSAR_REGEX = /^[A-Za-z]\d{4,8}$/;
+const INSTITUTION_CODE_REGEX = /^\d+[A-Za-z]{1,2}$/;
 
 function fail(code, error) {
     return {
@@ -43,8 +43,11 @@ function ok(payload = {}) {
 }
 
 function normalizeMassarCode(value) {
-    const normalized = String(value || '').trim().toUpperCase();
-    return MASSAR_REGEX.test(normalized) ? normalized : '';
+    return String(value || '').trim().toUpperCase();
+}
+
+function isValidMassarCode(value) {
+    return INSTITUTION_CODE_REGEX.test(normalizeMassarCode(value));
 }
 
 function getInstitutionStatusRecord(db) {
@@ -403,7 +406,7 @@ function registerInstitutionIpc(ipcMain) {
 
     handleWriteSoftAuth(ipcMain, 'institution:relink', [], async (db, payload) => {
         const massarCode = normalizeMassarCode(payload?.massarCode);
-        if (!massarCode) {
+        if (!isValidMassarCode(massarCode)) {
             return fail('INVALID_MASSAR');
         }
 
@@ -446,7 +449,7 @@ function registerInstitutionIpc(ipcMain) {
         const adminEmail = String(payload?.adminEmail || '').trim().toLowerCase();
         const adminPassword = String(payload?.adminPassword || '');
 
-        if (!massarCode) {
+        if (!isValidMassarCode(massarCode)) {
             return fail('INVALID_MASSAR');
         }
         if (!adminName) {
@@ -569,7 +572,7 @@ function registerInstitutionIpc(ipcMain) {
         const reason = String(payload?.reason || '').trim();
         const syncSchoolIdentity = !!(payload?.syncSchoolIdentity ?? payload?.syncIdentity);
 
-        if (newCode && !MASSAR_REGEX.test(newCode)) {
+        if (newCode && !isValidMassarCode(newCode)) {
             return fail('INVALID_MASSAR');
         }
 

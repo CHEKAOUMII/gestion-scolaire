@@ -34,7 +34,8 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(i.get\\('name'\\)\\) for i in d.get\\('items',[]\\)]\")",
       "Bash(npx eslint *)",
       "WebFetch(domain:)",
-      "Bash(npx electron *)"
+      "Bash(npx electron *)",
+      "Bash(xargs ls *)"
     ]
   },
   "enabledPlugins": {}
