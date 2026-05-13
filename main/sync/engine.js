@@ -1236,16 +1236,24 @@ function handlePullConflict(db, item, pending) {
 function applyPutOperation(db, item, mapping) {
     const columnKeys = Object.keys(item.data).filter((k) => k !== 'id');
 
+    // Detect the primary key column for this table (defaults to 'id')
+    var pkColumn = 'id';
+    try {
+        const tableInfo = db.prepare(`PRAGMA table_info("${item.tableName}")`).all();
+        const pkCol = tableInfo.find(col => col.pk === 1);
+        if (pkCol) pkColumn = pkCol.name;
+    } catch (e) { /* fallback to 'id' */ }
+
     if (mapping) {
-        const columns = filterToValidColumns(db, item.tableName, columnKeys);
+        const columns = filterToValidColumns(db, item.tableName, columnKeys.filter(k => k !== pkColumn));
         if (columns.length > 0) {
             const setClause = columns.map((c) => `"${c}" = ?`).join(', ');
             const values = columns.map((c) => item.data[c]);
             values.push(mapping.local_id);
             try {
-                db.prepare(`UPDATE "${item.tableName}" SET ${setClause} WHERE id = ?`).run(...values);
+                db.prepare(`UPDATE "${item.tableName}" SET ${setClause} WHERE "${pkColumn}" = ?`).run(...values);
             } catch (updateErr) {
-                console.warn(`[sync:pull] UPDATE failed for ${item.tableName} id=${mapping.local_id}:`, updateErr.message);
+                console.warn(`[sync:pull] UPDATE failed for ${item.tableName} ${pkColumn}=${mapping.local_id}:`, updateErr.message);
                 return false;
             }
         }
@@ -1331,9 +1339,16 @@ function applySingleItem(db, item, pendingMap, deferredStudentFiles, stats, isDe
         } else if (item.operation === 'DEL') {
             if (mapping) {
                 try {
-                    db.prepare(`DELETE FROM "${item.tableName}" WHERE id = ?`).run(mapping.local_id);
+                    // Detect primary key column for this table
+                    var delPkColumn = 'id';
+                    try {
+                        const tInfo = db.prepare(`PRAGMA table_info("${item.tableName}")`).all();
+                        const pkC = tInfo.find(col => col.pk === 1);
+                        if (pkC) delPkColumn = pkC.name;
+                    } catch (e) { /* fallback to 'id' */ }
+                    db.prepare(`DELETE FROM "${item.tableName}" WHERE "${delPkColumn}" = ?`).run(mapping.local_id);
                 } catch (delErr) {
-                    console.warn(`[sync:pull] DELETE failed for ${item.tableName} id=${mapping.local_id}:`, delErr.message);
+                    console.warn(`[sync:pull] DELETE failed for ${item.tableName} key=${mapping.local_id}:`, delErr.message);
                     stats.failedCount++;
                     return;
                 }

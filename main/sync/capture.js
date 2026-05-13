@@ -78,6 +78,31 @@ const CHANNEL_REGISTRY = {
     'examRooms:delete': { tables: ['exam_rooms'], operation: 'DEL', idExtractor: 'argId' },
     'tests:save': { tables: ['tests'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'tests:delete': { tables: ['tests'], operation: 'DEL', idExtractor: 'argId' },
+    'examInvitations:upsert': { tables: ['exam_invitations'], operation: 'UPSERT', idExtractor: 'argIdOrLastInsert' },
+    'examInvitations:delete': { tables: ['exam_invitations'], operation: 'DEL', idExtractor: 'argId' },
+    'examInvitations:deleteAll': {
+        tables: ['exam_invitations'],
+        operation: 'MIXED',
+        idExtractor: 'preQuery+bulk',
+        preCapture: true,
+        bulk: true
+    },
+    'examAttendance:upsert': { tables: ['exam_attendance'], operation: 'UPSERT', idExtractor: 'argIdOrLastInsert' },
+    'examAttendance:bulkUpsert': {
+        tables: ['exam_attendance'],
+        operation: 'UPSERT',
+        idExtractor: 'preQuery+bulk',
+        preCapture: true,
+        bulk: true
+    },
+    'examAttendance:delete': { tables: ['exam_attendance'], operation: 'DEL', idExtractor: 'argId' },
+    'examAttendance:deleteAll': {
+        tables: ['exam_attendance'],
+        operation: 'MIXED',
+        idExtractor: 'preQuery+bulk',
+        preCapture: true,
+        bulk: true
+    },
 
     // === schoolOps.js ===
     'studentFiles:upsert': { tables: ['student_files'], operation: 'UPSERT', idExtractor: 'compositeKey' },
@@ -224,6 +249,10 @@ const CHANNEL_REGISTRY = {
     // === timetable-data.js ===
     'timetableData:save': { tables: ['timetable_data'], operation: 'UPSERT', idExtractor: 'argKey', exclude: true },
     'timetableData:delete': { tables: ['timetable_data'], operation: 'DEL', idExtractor: 'argKey', exclude: true },
+
+    // === exam-config-data.js ===
+    'examConfigData:save': { tables: ['exam_config_data'], operation: 'UPSERT', idExtractor: 'argKey', exclude: true },
+    'examConfigData:delete': { tables: ['exam_config_data'], operation: 'DEL', idExtractor: 'argKey', exclude: true },
 
     // === institution.js ===
     'institution:relink': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },

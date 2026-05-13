@@ -9,7 +9,7 @@ function registerExamsIpc(ipcMain) {
 
     handleRead(ipcMain, 'exams:getAll', (db, schoolYear) => {
         return db
-            .prepare('SELECT * FROM exams WHERE school_year = ? ORDER BY exam_date, exam_time')
+            .prepare('SELECT id, title, section, subject, exam_date, exam_time, school_year, created_at FROM exams WHERE school_year = ? ORDER BY exam_date, exam_time')
             .all(normalizeYear(schoolYear));
     });
 
@@ -69,7 +69,11 @@ function registerExamsIpc(ipcMain) {
         if (!Number.isFinite(examId) || examId <= 0) {
             return { success: false, error: 'Invalid ID' };
         }
-        db.prepare('DELETE FROM exams WHERE id = ?').run(examId);
+        const del = db.transaction(() => {
+            db.prepare('DELETE FROM exam_proctors WHERE exam_id = ?').run(examId);
+            db.prepare('DELETE FROM exams WHERE id = ?').run(examId);
+        });
+        del();
         return { success: true };
     });
 
@@ -236,7 +240,7 @@ function registerExamsIpc(ipcMain) {
 
     handleRead(ipcMain, 'examRooms:getAll', (db, schoolYear) => {
         return db
-            .prepare('SELECT * FROM exam_rooms WHERE school_year = ? ORDER BY room_name')
+            .prepare('SELECT id, room_name, capacity, equipment, school_year, created_at FROM exam_rooms WHERE school_year = ? ORDER BY room_name')
             .all(normalizeYear(schoolYear));
     });
 
@@ -279,7 +283,7 @@ function registerExamsIpc(ipcMain) {
 
     handleRead(ipcMain, 'tests:getAll', (db, schoolYear) => {
         return db
-            .prepare('SELECT * FROM tests WHERE school_year = ? ORDER BY test_date, id')
+            .prepare('SELECT id, title, section, subject, teacher_id, teacher_name, status, test_date, school_year, created_at FROM tests WHERE school_year = ? ORDER BY test_date, id')
             .all(normalizeYear(schoolYear));
     });
 
@@ -345,6 +349,146 @@ function registerExamsIpc(ipcMain) {
         }
         db.prepare('DELETE FROM tests WHERE id = ?').run(testId);
         return { success: true };
+    });
+
+    // ── Exam invitations (read = open, write = admin/staff) ──
+
+    handleRead(ipcMain, 'examInvitations:getAll', (db, schoolYear) => {
+        return db
+            .prepare('SELECT id, school_year, teacher_id, teacher_name, sent_at, notes, created_at FROM exam_invitations WHERE school_year = ? ORDER BY id DESC')
+            .all(normalizeYear(schoolYear));
+    });
+
+    handleWrite(ipcMain, 'examInvitations:upsert', WRITE_ROLES, (db, _event, payload) => {
+        const year = requireSchoolYear(payload.school_year);
+        const name = String(payload.teacher_name || '').trim();
+        if (!name) return { success: false, error: 'teacher_name required' };
+        const result = db
+            .prepare(
+                `INSERT INTO exam_invitations(school_year, teacher_id, teacher_name, sent_at, notes)
+                 VALUES(?, ?, ?, ?, ?)
+                 ON CONFLICT(school_year, teacher_name) DO UPDATE SET
+                    teacher_id = excluded.teacher_id,
+                    sent_at = excluded.sent_at,
+                    notes = excluded.notes`
+            )
+            .run(year, payload.teacher_id || null, name, payload.sent_at || null, payload.notes || null);
+        return { success: true, id: Number(result.lastInsertRowid) };
+    });
+
+    handleWrite(ipcMain, 'examInvitations:delete', WRITE_ROLES, (db, _event, id) => {
+        const safeId = Number(id);
+        if (!Number.isFinite(safeId) || safeId <= 0) return { success: false, error: 'Invalid ID' };
+        db.prepare('DELETE FROM exam_invitations WHERE id = ?').run(safeId);
+        return { success: true };
+    });
+
+    handleWrite(ipcMain, 'examInvitations:deleteAll', ['admin'], (db, _event, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        const result = db.prepare('DELETE FROM exam_invitations WHERE school_year = ?').run(year);
+        return { success: true, deleted: result.changes };
+    });
+
+    // ── Exam attendance (read = open, write = admin/staff) ──
+
+    handleRead(ipcMain, 'examAttendance:getAll', (db, schoolYear) => {
+        return db
+            .prepare('SELECT id, school_year, session_key, session_label, session_date, teacher_id, teacher_name, role, status, notes, recorded_at FROM exam_attendance WHERE school_year = ? ORDER BY session_date, session_key, teacher_name')
+            .all(normalizeYear(schoolYear));
+    });
+
+    handleRead(ipcMain, 'examAttendance:getBySession', (db, schoolYear, sessionKey) => {
+        return db
+            .prepare('SELECT id, school_year, session_key, session_label, session_date, teacher_id, teacher_name, role, status, notes, recorded_at FROM exam_attendance WHERE school_year = ? AND session_key = ? ORDER BY teacher_name')
+            .all(normalizeYear(schoolYear), String(sessionKey || ''));
+    });
+
+    handleWrite(ipcMain, 'examAttendance:upsert', WRITE_ROLES, (db, _event, payload) => {
+        const year = requireSchoolYear(payload.school_year);
+        const name = String(payload.teacher_name || '').trim();
+        const sessionKey = String(payload.session_key || '').trim();
+        if (!name || !sessionKey) return { success: false, error: 'teacher_name and session_key required' };
+        const status = ['present', 'absent', 'late', 'excused'].includes(payload.status) ? payload.status : 'present';
+        const role = ['proctor', 'reserve', 'duty'].includes(payload.role) ? payload.role : 'proctor';
+        const result = db
+            .prepare(
+                `INSERT INTO exam_attendance(school_year, session_key, session_label, session_date,
+                    teacher_id, teacher_name, role, status, notes)
+                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(school_year, session_key, teacher_name) DO UPDATE SET
+                    teacher_id = excluded.teacher_id,
+                    role = excluded.role,
+                    status = excluded.status,
+                    notes = excluded.notes,
+                    session_label = excluded.session_label,
+                    session_date = excluded.session_date,
+                    recorded_at = CURRENT_TIMESTAMP`
+            )
+            .run(
+                year,
+                sessionKey,
+                payload.session_label || null,
+                payload.session_date || null,
+                payload.teacher_id || null,
+                name,
+                role,
+                status,
+                payload.notes || null
+            );
+        return { success: true, id: Number(result.lastInsertRowid) };
+    });
+
+    handleWrite(ipcMain, 'examAttendance:delete', WRITE_ROLES, (db, _event, id) => {
+        const safeId = Number(id);
+        if (!Number.isFinite(safeId) || safeId <= 0) return { success: false, error: 'Invalid ID' };
+        db.prepare('DELETE FROM exam_attendance WHERE id = ?').run(safeId);
+        return { success: true };
+    });
+
+    handleWrite(ipcMain, 'examAttendance:bulkUpsert', WRITE_ROLES, (db, _event, payload) => {
+        const year = requireSchoolYear(payload.school_year);
+        const records = payload.records;
+        if (!Array.isArray(records) || !records.length) {
+            return { success: false, error: 'No records to upsert' };
+        }
+        const stmt = db.prepare(
+            `INSERT INTO exam_attendance(school_year, session_key, session_label, session_date,
+                teacher_id, teacher_name, role, status, notes)
+             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(school_year, session_key, teacher_name) DO UPDATE SET
+                teacher_id = excluded.teacher_id,
+                role = excluded.role,
+                status = excluded.status,
+                notes = excluded.notes,
+                session_label = excluded.session_label,
+                session_date = excluded.session_date,
+                recorded_at = CURRENT_TIMESTAMP`
+        );
+        const run = db.transaction((recs) => {
+            let count = 0;
+            for (const r of recs) {
+                const name = String(r.teacher_name || '').trim();
+                const sessionKey = String(r.session_key || '').trim();
+                if (!name || !sessionKey) continue;
+                const status = ['present', 'absent', 'late', 'excused'].includes(r.status) ? r.status : 'present';
+                const role = ['proctor', 'reserve', 'duty'].includes(r.role) ? r.role : 'proctor';
+                stmt.run(
+                    year, sessionKey,
+                    r.session_label || null, r.session_date || null,
+                    r.teacher_id || null, name, role, status, r.notes || null
+                );
+                count++;
+            }
+            return count;
+        });
+        const count = run(records);
+        return { success: true, count };
+    });
+
+    handleWrite(ipcMain, 'examAttendance:deleteAll', ['admin'], (db, _event, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        const result = db.prepare('DELETE FROM exam_attendance WHERE school_year = ?').run(year);
+        return { success: true, deleted: result.changes };
     });
 }
 

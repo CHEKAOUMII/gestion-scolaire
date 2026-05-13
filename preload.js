@@ -190,6 +190,24 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('examProctors:delete', id)
     },
 
+    // Exam invitations (الاستدعاءات)
+    examInvitations: {
+        getAll: (schoolYear) => ipcRenderer.invoke('examInvitations:getAll', schoolYear),
+        upsert: (payload) => ipcRenderer.invoke('examInvitations:upsert', payload),
+        delete: (id) => ipcRenderer.invoke('examInvitations:delete', id),
+        deleteAll: (schoolYear) => ipcRenderer.invoke('examInvitations:deleteAll', schoolYear)
+    },
+
+    // Exam attendance tracking (تتبع الحضور)
+    examAttendance: {
+        getAll: (schoolYear) => ipcRenderer.invoke('examAttendance:getAll', schoolYear),
+        getBySession: (schoolYear, sessionKey) => ipcRenderer.invoke('examAttendance:getBySession', schoolYear, sessionKey),
+        upsert: (payload) => ipcRenderer.invoke('examAttendance:upsert', payload),
+        bulkUpsert: (payload) => ipcRenderer.invoke('examAttendance:bulkUpsert', payload),
+        delete: (id) => ipcRenderer.invoke('examAttendance:delete', id),
+        deleteAll: (schoolYear) => ipcRenderer.invoke('examAttendance:deleteAll', schoolYear)
+    },
+
     // Exam rooms
     examRooms: {
         getAll: (schoolYear) => ipcRenderer.invoke('examRooms:getAll', schoolYear),
@@ -203,6 +221,13 @@ contextBridge.exposeInMainWorld('api', {
         delete: (schoolYear) => ipcRenderer.invoke('timetableData:delete', schoolYear)
     },
 
+    examConfig: {
+        get: (schoolYear, configKey) => ipcRenderer.invoke('examConfigData:get', schoolYear, configKey),
+        getAll: (schoolYear) => ipcRenderer.invoke('examConfigData:getAll', schoolYear),
+        save: (payload) => ipcRenderer.invoke('examConfigData:save', payload),
+        delete: (payload) => ipcRenderer.invoke('examConfigData:delete', payload)
+    },
+
     // Supervised tests
     tests: {
         getAll: (schoolYear) => ipcRenderer.invoke('tests:getAll', schoolYear),
@@ -214,6 +239,7 @@ contextBridge.exposeInMainWorld('api', {
     reports: {
         printDocument: (payload) => ipcRenderer.invoke('reports:printDocument', payload),
         getIdentity: () => ipcRenderer.invoke('reports:getIdentity'),
+        getIdentityDiagnostics: () => ipcRenderer.invoke('reports:getIdentityDiagnostics'),
         updateIdentity: (updates) => ipcRenderer.invoke('reports:updateIdentity', updates),
         renderLetterhead: (overrides) => ipcRenderer.invoke('reports:renderLetterhead', overrides),
         generateAdminForm: (payload) => ipcRenderer.invoke('reports:generateAdminForm', payload)

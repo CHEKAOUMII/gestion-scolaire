@@ -713,6 +713,9 @@ function ensureInstitutionSchema(existingDb) {
 }
 
 function ensureColumn(table, column, definition) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table) || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)) {
+        throw new Error(`ensureColumn: invalid identifier — table="${table}", column="${column}"`);
+    }
     const db = getDb();
     const columns = db.pragma(`table_info(${table})`);
     const exists = columns.some((col) => col.name === column);

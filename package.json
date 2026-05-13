@@ -4,8 +4,8 @@
     "description": "برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا",
     "main": "main.js",
     "scripts": {
-        "css:build": "set NODE_ENV=production&& postcss css/tailwind-input.css -o css/tailwind-output.css",
-        "css:watch": "set NODE_ENV=development&& postcss css/tailwind-input.css -o css/tailwind-output.css --watch",
+        "css:build": "cross-env NODE_ENV=production postcss css/tailwind-input.css -o css/tailwind-output.css",
+        "css:watch": "cross-env NODE_ENV=development postcss css/tailwind-input.css -o css/tailwind-output.css --watch",
         "start": "npm run css:build && set ELECTRON_RUN_AS_NODE=&& electron .",
         "dev": "concurrently \"npm run css:watch\" \"set ELECTRON_RUN_AS_NODE=&& electron .\"",
         "build": "npm run css:build && electron-builder",

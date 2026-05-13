@@ -521,7 +521,8 @@ function registerSystemIpc(ipcMain) {
                 printBackground: options.printBackground !== false,
                 landscape: !!options.landscape,
                 pageSize: options.pageSize || 'A4',
-                margins: options.margins || { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 }
+                margins: options.margins || { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
+                preferCSSPageSize: !!options.preferCSSPageSize
             });
 
             const win = BrowserWindow.fromWebContents(webContents);

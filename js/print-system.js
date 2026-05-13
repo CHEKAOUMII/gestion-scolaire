@@ -105,6 +105,11 @@ function _updateOrientationUI() {
     if (sheet) {
         sheet.style.width = _landscape ? '297mm' : '210mm';
         sheet.style.minHeight = _landscape ? '210mm' : '297mm';
+        if (Object.prototype.hasOwnProperty.call(_options || {}, 'sheetPadding')) {
+            sheet.style.setProperty('padding', String(_options.sheetPadding || 0), 'important');
+        } else {
+            sheet.style.removeProperty('padding');
+        }
     }
 }
 
@@ -242,6 +247,7 @@ function _enablePrintMode(capturedSheet) {
         root.appendChild(printSheet);
     }
     document.body.classList.add('ux-printing-active');
+    document.body.classList.toggle('ux-print-edge-to-edge', !!_options.edgeToEdge);
     document.body.classList.toggle('ux-print-landscape', _landscape);
 
     let pageStyle = document.getElementById('ux-print-page-rule');
@@ -252,11 +258,19 @@ function _enablePrintMode(capturedSheet) {
     }
     const pageSize = _options.pageSize || 'A4';
     const orient = _landscape ? 'landscape' : 'portrait';
-    pageStyle.textContent = `@page { size: ${pageSize} ${orient}; margin: 5mm 4mm; }`;
+    const margin = Object.assign(
+        { top: '5mm', right: '4mm', bottom: '5mm', left: '4mm' },
+        _options.pageMargins || {}
+    );
+    const extraRules = _options.edgeToEdge
+        ? '#ux-print-root .ux-pp-sheet{padding:0!important;margin:0 auto!important;width:210mm!important;min-height:auto!important;box-shadow:none!important;border-radius:0!important;overflow:visible!important;}' +
+          '#ux-print-root .gs-sheet{padding:0!important;margin:0!important;min-height:auto!important;box-shadow:none!important;border-radius:0!important;overflow:visible!important;}'
+        : '';
+    pageStyle.textContent = `@page { size: ${pageSize} ${orient}; margin: ${margin.top} ${margin.right} ${margin.bottom} ${margin.left}; }${extraRules}`;
 }
 
 function _disablePrintMode() {
-    document.body.classList.remove('ux-printing-active', 'ux-print-landscape');
+    document.body.classList.remove('ux-printing-active', 'ux-print-landscape', 'ux-print-edge-to-edge');
     document.getElementById('ux-print-root')?.replaceChildren();
     document.getElementById('ux-print-page-rule')?.remove();
     _restoreTheme();
@@ -276,7 +290,10 @@ async function _executePrint() {
                 printBackground: true,
                 pageSize: _options.pageSize || 'A4',
                 landscape: _landscape,
-                margins: { marginType: 'custom', top: 0.2, bottom: 0.2, left: 0.16, right: 0.16 },
+                margins: Object.assign(
+                    { marginType: 'custom', top: 0.2, bottom: 0.2, left: 0.16, right: 0.16 },
+                    _options.pdfMargins || {}
+                ),
             });
         } else {
             window.print();
@@ -300,7 +317,11 @@ async function _exportPdf() {
                 printBackground: true,
                 pageSize: _options.pageSize || 'A4',
                 landscape: _landscape,
-                margins: { top: 0.2, bottom: 0.2, left: 0.16, right: 0.16 },
+                preferCSSPageSize: !!_options.preferCSSPageSize,
+                margins: Object.assign(
+                    { top: 0.2, bottom: 0.2, left: 0.16, right: 0.16 },
+                    _options.pdfMargins || {}
+                ),
             });
             if (result?.success && typeof showToast === 'function') {
                 showToast('تم تصدير الملف بنجاح', 'success');

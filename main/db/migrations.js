@@ -1204,6 +1204,78 @@ const MIGRATIONS = [
             ensureColumn('exam_proctors', 'teacher_name_fr', 'TEXT');
         }
     },
+    {
+        version: '2026-05-058-exam-invitations',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS exam_invitations (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    school_year     TEXT NOT NULL,
+                    teacher_id      INTEGER,
+                    teacher_name    TEXT NOT NULL,
+                    sent_at         DATETIME,
+                    notes           TEXT,
+                    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(school_year, teacher_name)
+                )
+            `);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exam_invitations_year ON exam_invitations(school_year)`);
+        }
+    },
+    {
+        version: '2026-05-059-exam-attendance',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS exam_attendance (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    school_year     TEXT NOT NULL,
+                    session_key     TEXT NOT NULL,
+                    session_label   TEXT,
+                    session_date    TEXT,
+                    teacher_id      INTEGER,
+                    teacher_name    TEXT NOT NULL,
+                    role            TEXT DEFAULT 'proctor',
+                    status          TEXT DEFAULT 'present'
+                                    CHECK(status IN ('present','absent','late','excused')),
+                    notes           TEXT,
+                    recorded_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(school_year, session_key, teacher_name)
+                )
+            `);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exam_attendance_session ON exam_attendance(school_year, session_key)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exam_attendance_teacher ON exam_attendance(school_year, teacher_name)`);
+        }
+    },
+    {
+        version: '2026-05-060-exam-indexes',
+        up: () => {
+            const db = getDb();
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exams_year_date ON exams(school_year, exam_date)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exam_proctors_year ON exam_proctors(school_year)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exam_rooms_year ON exam_rooms(school_year)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exam_invitations_year_teacher ON exam_invitations(school_year, teacher_name)`);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_teacher_absences_year ON teacher_absences(school_year)`);
+        }
+    },
+    {
+        version: '2026-05-061-exam-config-data',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS exam_config_data (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    school_year  TEXT NOT NULL,
+                    config_key   TEXT NOT NULL,
+                    data_json    TEXT NOT NULL,
+                    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(school_year, config_key)
+                )
+            `);
+            db.exec(`CREATE INDEX IF NOT EXISTS idx_exam_config_year ON exam_config_data(school_year)`);
+        }
+    },
 ];
 
 function ensureMigrationsTable() {
