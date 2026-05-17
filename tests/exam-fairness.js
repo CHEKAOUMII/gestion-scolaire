@@ -14,7 +14,7 @@ const source = fs.readFileSync(HTML_PATH, 'utf8');
 
 // --- Helper: extract a top-level `function NAME(...) { ... }` block by brace matching.
 function extractFunction(name, src) {
-    const re = new RegExp('function\\s+' + name + '\\s*\\([^)]*\\)\\s*\\{', 'g');
+    const re = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\([^)]*\\)\\s*\\{', 'g');
     const m = re.exec(src);
     if (!m) throw new Error('Function not found in source: ' + name);
     let depth = 1;
@@ -53,6 +53,13 @@ function makeQuotaSandbox(proctorsList) {
         },
         getAutoDistributionSessionKey: (entry) =>
             [entry.day, entry.period, entry.session].join('|'),
+        computeReservesForSession: (guardNeed, rules) => {
+            if (!rules) return 0;
+            if (rules.reservesMode === 'percent') {
+                return Math.max(0, Math.round((Number(guardNeed) || 0) * (Number(rules.reservesPercent) || 0) / 100));
+            }
+            return Math.max(0, Number(rules.reservesPerSession) || 0);
+        },
         getTeacherLoadDetails: (loadState, exKey) => ({
             duty: (loadState && loadState[exKey] && loadState[exKey].duty) || 0
         })
@@ -168,6 +175,8 @@ near(sum / N, 0.5, 0.03, 'seeded mean close to 0.5 (n=5000)');
 // =========== buildPerTeacherQuota ===========
 console.log('\n[buildPerTeacherQuota]');
 
+(async function () {
+
 // Scenario 1: 4 teachers, 2 schedule entries, no duty pre-loaded
 // rooms per entry = 3, proctorsPerRoom = 2 → totalGuard = 2 * 3 * 2 = 12
 // reservesPerSession = 1, sessionsCount = 2 → totalReserve = 2
@@ -188,7 +197,7 @@ console.log('\n[buildPerTeacherQuota]');
     ];
     const rules = { proctorsPerRoom: 2, reservesPerSession: 1 };
     const loadState = {};
-    const result = ctx.buildPerTeacherQuota(entries, rules, loadState);
+    const result = await ctx.buildPerTeacherQuota(entries, rules, loadState);
 
     eq(result.totalGuard, 12, 'scenario1: totalGuard = 12');
     eq(result.totalReserve, 2, 'scenario1: totalReserve = 2');
@@ -219,7 +228,7 @@ console.log('\n[buildPerTeacherQuota]');
     ];
     const rules = { proctorsPerRoom: 2, reservesPerSession: 0 };
     const loadState = { A: { duty: 2 } };
-    const result = ctx.buildPerTeacherQuota(entries, rules, loadState);
+    const result = await ctx.buildPerTeacherQuota(entries, rules, loadState);
 
     eq(result.totalDuty, 2, 'scenario2: totalDuty = 2 (teacher A has pre-loaded duty)');
     eq(result.totalFinal, 8, 'scenario2: totalFinal = 8');
@@ -241,7 +250,7 @@ console.log('\n[buildPerTeacherQuota]');
         { level_name: 'L1', day: '1', period: 'صباحا', session: 'الحصة الأولى' }
     ];
     const rules = { proctorsPerRoom: 2, reservesPerSession: 0 };
-    const result = ctx.buildPerTeacherQuota(entries, rules, {});
+    const result = await ctx.buildPerTeacherQuota(entries, rules, {});
 
     eq(result.total, 6, 'scenario3 backcompat: total field present (= totalGuard)');
     eq(result.min, 3, 'scenario3 backcompat: min = floor(6/2)');
@@ -252,7 +261,7 @@ console.log('\n[buildPerTeacherQuota]');
 // Scenario 4: edge case — zero teachers should not divide by zero
 {
     const ctx = makeQuotaSandbox([]);
-    const result = ctx.buildPerTeacherQuota([], { proctorsPerRoom: 2, reservesPerSession: 0 }, {});
+    const result = await ctx.buildPerTeacherQuota([], { proctorsPerRoom: 2, reservesPerSession: 0 }, {});
     eq(result.totalGuard, 0, 'scenario4: empty proctors → totalGuard = 0');
     eq(result.totalFinal, 0, 'scenario4: empty proctors → totalFinal = 0');
     truthy(Number.isFinite(result.fairFinalCeil), 'scenario4: no NaN/Infinity in fair ceil');
@@ -268,3 +277,4 @@ if (fail === 0) {
     failures.forEach(f => console.log('  - ' + f.label + (f.detail ? ' (' + f.detail + ')' : '')));
     process.exit(1);
 }
+})();

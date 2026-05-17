@@ -1,0 +1,32 @@
+'use strict';
+const path = require('path'), fs = require('fs'), vm = require('vm');
+const ROOT = '/home/chekaoumi/Desktop/gestionScholaire2';
+const src = fs.readFileSync(path.join(ROOT, 'js/algorithms/proctor-distribution-v2.js'), 'utf8');
+const sb = { console, Date, Math, Number, Object, Array, Set, Map, JSON, isFinite, isNaN, Infinity, parseInt };
+sb.window = sb; sb.globalThis = sb;
+vm.createContext(sb); vm.runInContext(src, sb);
+const V2 = sb.ProctorDistributionV2 || sb.window.ProctorDistributionV2;
+const { buildC1SingleClassGapInput } = require(path.join(ROOT, 'tests/fixtures/proctor-v2-strict-fairness-fixtures.js'));
+const input = buildC1SingleClassGapInput();
+const out = V2.run(input);
+const rows = out.result || [];
+const slotCount = {};
+for (const r of rows) for (const k of (r.proctor_keys||[])) if (k) slotCount[k] = (slotCount[k]||0) + 1;
+let max=0, min=Infinity, zeros=0;
+for (const p of input.proctorsList) {
+  const g = slotCount[p.cin] || 0;
+  if (g > max) max = g; if (g < min) min = g; if (g === 0) zeros++;
+}
+const filled = rows.reduce((a,r) => a + (r.proctor_keys||[]).filter(Boolean).length, 0);
+console.log('=== END-TO-END VERIFICATION ===');
+console.log('phase2DurationMs:', out.diagnostics.phase2DurationMs);
+console.log('phase2TimedOut:', out.diagnostics.phase2TimedOut);
+console.log('phase2TimeoutMs:', out.diagnostics.phase2TimeoutMs);
+console.log('coverageRepairSwaps:', out.diagnostics.coverageRepairSwaps);
+console.log('coverageRepairUnresolved:', out.diagnostics.coverageRepairUnresolved);
+console.log('total filled:', filled, '/ 368');
+console.log('max slot count:', max, ' min:', min, ' uncovered:', zeros);
+console.log('P1 max-min<=1:', (max - min <= 1) ? 'PASS' : 'FAIL');
+console.log('P2 max<=3:', (max <= 3) ? 'PASS' : 'FAIL');
+console.log('P3 zeros=0:', (zeros === 0) ? 'PASS' : 'FAIL');
+console.log('Coverage filled=368:', (filled === 368) ? 'PASS' : 'FAIL');

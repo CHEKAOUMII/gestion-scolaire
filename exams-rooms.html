@@ -13,6 +13,7 @@
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
         <script src="js/print-system.js" defer></script>
+        <script src="js/data/proctor-key-resolver.js" defer></script>
         <style>
             .summary-shell {
                 display: grid;
@@ -785,8 +786,9 @@
                 return map;
             }
 
-            function createTeacherRow(name) {
+            function createTeacherRow(name, key) {
                 return {
+                    key: key || name,
                     name,
                     guard: [],
                     reserve: [],
@@ -830,39 +832,133 @@
                 const reserveSeen = new Set();
                 const dutySeen = new Set();
 
-                (await getAllProctorNames()).forEach(name => getTeacher(teacherMap, name));
+                // H5 fix — load full proctor rows once and aggregate by proctor_keys
+                // (stable cin || '__idx_N'), not by teacher_name. Two empty-cin proctors
+                // sharing a display name no longer collapse into one bucket.
+                // See .kiro/specs/proctor-distribution-db-memory-mismatch/design.md.
+                let proctorsList = [];
+                try {
+                    proctorsList = (await window.api.examProctors.getAll(getSchoolYear())) || [];
+                } catch {
+                    proctorsList = [];
+                }
+                const proctorMap = (window.GS2 && window.GS2.buildProctorDisplayMap)
+                    ? window.GS2.buildProctorDisplayMap(proctorsList)
+                    : new Map();
+                const nameToKey = new Map();
+                proctorsList.forEach((proc, idx) => {
+                    const key = proc && proc.cin ? proc.cin : ('__idx_' + idx);
+                    const displayName = String((proc && (proc.teacher_full_name || proc.teacher_name)) || '').trim();
+                    if (displayName && !nameToKey.has(displayName)) nameToKey.set(displayName, key);
+                });
+
+                // Pre-populate teacherMap with every proctor (keyed by stable key) so
+                // teachers with zero tasks still appear in the summary list.
+                proctorsList.forEach((proc, idx) => {
+                    const key = proc && proc.cin ? proc.cin : ('__idx_' + idx);
+                    const displayName = proctorMap.get(key)
+                        || String((proc && (proc.teacher_full_name || proc.teacher_name)) || '').trim()
+                        || key;
+                    if (!teacherMap.has(key)) teacherMap.set(key, createTeacherRow(displayName, key));
+                });
+
+                let legacyWarned = false;
+                function bucketForKey(key, fallbackName) {
+                    const k = String(key || '').trim();
+                    if (!k) return null;
+                    if (!teacherMap.has(k)) {
+                        const displayName = proctorMap.get(k) || String(fallbackName || '').trim() || k;
+                        teacherMap.set(k, createTeacherRow(displayName, k));
+                    }
+                    return teacherMap.get(k);
+                }
+                function bucketForLegacyName(name) {
+                    const clean = String(name || '').trim();
+                    if (!clean) return null;
+                    if (!legacyWarned) {
+                        console.warn('[buildSummaryRows] legacy row without proctor_keys, falling back to name aggregation');
+                        legacyWarned = true;
+                    }
+                    // Resolve the display name back to a stable key when possible so
+                    // legacy rows merge into the prefilled bucket; otherwise fabricate
+                    // a name-scoped key. Edge Case 2 / 10: pre-existing buggy DB rows
+                    // keep their pre-fix display semantics — no regression, no rewrite.
+                    const key = nameToKey.get(clean) || ('legacy_name|' + clean);
+                    return bucketForKey(key, clean);
+                }
 
                 distribution.forEach(row => {
                     const sessionKey = row.session_key || row.session_label || '';
                     const subject = row.subject_name || '';
                     const duration = durationMap.get([sessionKey, subject].join('|')) || 0;
-                    (row.proctors || []).forEach(name => {
-                        const teacher = getTeacher(teacherMap, name);
-                        if (!teacher) return;
-                        teacher.guardCount += 1;
-                        teacher.guardHours += duration;
-                        teacher.guard.push([row.session_label, subject, row.room_number || row.room_name].filter(Boolean).join(' - '));
-                    });
 
-                    (row.reserves || []).forEach(name => {
-                        const reserveKey = [sessionKey, name].join('|');
-                        if (reserveSeen.has(reserveKey)) return;
-                        reserveSeen.add(reserveKey);
-                        const teacher = getTeacher(teacherMap, name);
-                        if (!teacher) return;
-                        teacher.reserveCount += 1;
-                        teacher.reserve.push(row.session_label || subject || 'احتياط');
-                    });
+                    const guardKeys = Array.isArray(row.proctor_keys) ? row.proctor_keys : null;
+                    if (guardKeys && guardKeys.length) {
+                        guardKeys.forEach((key, slotIdx) => {
+                            const fallbackName = (row.proctors && row.proctors[slotIdx]) || '';
+                            const teacher = bucketForKey(key, fallbackName);
+                            if (!teacher) return;
+                            teacher.guardCount += 1;
+                            teacher.guardHours += duration;
+                            teacher.guard.push([row.session_label, subject, row.room_number || row.room_name].filter(Boolean).join(' - '));
+                        });
+                    } else {
+                        (row.proctors || []).forEach(name => {
+                            const teacher = bucketForLegacyName(name);
+                            if (!teacher) return;
+                            teacher.guardCount += 1;
+                            teacher.guardHours += duration;
+                            teacher.guard.push([row.session_label, subject, row.room_number || row.room_name].filter(Boolean).join(' - '));
+                        });
+                    }
 
-                    (row.duty_teachers || []).forEach(name => {
-                        const dutyKey = [sessionKey, subject, name].join('|');
-                        if (dutySeen.has(dutyKey)) return;
-                        dutySeen.add(dutyKey);
-                        const teacher = getTeacher(teacherMap, name);
-                        if (!teacher) return;
-                        teacher.dutyCount += 1;
-                        teacher.duty.push([row.session_label, subject].filter(Boolean).join(' - '));
-                    });
+                    const reserveKeysArr = Array.isArray(row.reserve_keys) ? row.reserve_keys : null;
+                    if (reserveKeysArr && reserveKeysArr.length) {
+                        reserveKeysArr.forEach((key, slotIdx) => {
+                            const dedupKey = [sessionKey, key].join('|');
+                            if (reserveSeen.has(dedupKey)) return;
+                            reserveSeen.add(dedupKey);
+                            const fallbackName = (row.reserves && row.reserves[slotIdx]) || '';
+                            const teacher = bucketForKey(key, fallbackName);
+                            if (!teacher) return;
+                            teacher.reserveCount += 1;
+                            teacher.reserve.push(row.session_label || subject || 'احتياط');
+                        });
+                    } else {
+                        (row.reserves || []).forEach(name => {
+                            const dedupKey = [sessionKey, name].join('|');
+                            if (reserveSeen.has(dedupKey)) return;
+                            reserveSeen.add(dedupKey);
+                            const teacher = bucketForLegacyName(name);
+                            if (!teacher) return;
+                            teacher.reserveCount += 1;
+                            teacher.reserve.push(row.session_label || subject || 'احتياط');
+                        });
+                    }
+
+                    const dutyKeysArr = Array.isArray(row.duty_teacher_keys) ? row.duty_teacher_keys : null;
+                    if (dutyKeysArr && dutyKeysArr.length) {
+                        dutyKeysArr.forEach((key, slotIdx) => {
+                            const dedupKey = [sessionKey, subject, key].join('|');
+                            if (dutySeen.has(dedupKey)) return;
+                            dutySeen.add(dedupKey);
+                            const fallbackName = (row.duty_teachers && row.duty_teachers[slotIdx]) || '';
+                            const teacher = bucketForKey(key, fallbackName);
+                            if (!teacher) return;
+                            teacher.dutyCount += 1;
+                            teacher.duty.push([row.session_label, subject].filter(Boolean).join(' - '));
+                        });
+                    } else {
+                        (row.duty_teachers || []).forEach(name => {
+                            const dedupKey = [sessionKey, subject, name].join('|');
+                            if (dutySeen.has(dedupKey)) return;
+                            dutySeen.add(dedupKey);
+                            const teacher = bucketForLegacyName(name);
+                            if (!teacher) return;
+                            teacher.dutyCount += 1;
+                            teacher.duty.push([row.session_label, subject].filter(Boolean).join(' - '));
+                        });
+                    }
                 });
 
                 return Array.from(teacherMap.values())

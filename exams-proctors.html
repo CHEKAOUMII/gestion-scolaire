@@ -14,6 +14,7 @@
         <script src="js/ux-enhancements.js" defer></script>
         <script src="js/print-system.js" defer></script>
         <script src="js/algorithms/proctor-distribution-v2.js" defer></script>
+        <script src="js/data/proctor-key-resolver.js" defer></script>
 
     </head>
 
@@ -278,6 +279,10 @@
                             <div class="dist-inline-field">
                                 <label for="dist-reserves-per-session-input">عدد الاحتياطي في كل حصة</label>
                                 <input type="number" id="dist-reserves-per-session-input" class="form-input" min="0" max="20" value="4">
+                            </div>
+                            <div class="dist-inline-field">
+                                <label for="dist-expected-duty-tasks-input">عدد مهام المداومة المتوقَّع</label>
+                                <input type="number" id="dist-expected-duty-tasks-input" class="form-input" min="0" step="1" value="0" title="يستعمل لحساب متوسط حصص الحراسة لكل أستاذ عند تطبيق العدالة. لا يحدد من يداوم فعلياً — ذلك يبقى من شاشة &quot;الأساتذة المداومون&quot;.">
                             </div>
                             <button type="button" class="sup-btn sup-btn-confirm" id="btn-save-quick-rules"><i class="fas fa-save"></i> حفظ</button>
                         </div>
@@ -1125,10 +1130,18 @@
                     const raw = localStorage.getItem(key);
                     if (raw === null) continue;
                     const existing = await window.api.examConfig.get(year, key);
-                    if (existing !== null) continue;
+                    if (existing !== null) {
+                        // Already migrated — remove stale localStorage copy to prevent re-migration after deletes
+                        localStorage.removeItem(key);
+                        continue;
+                    }
                     let data;
                     try { data = JSON.parse(raw); } catch { data = raw; }
-                    await window.api.examConfig.save({ school_year: year, config_key: key, data });
+                    const res = await window.api.examConfig.save({ school_year: year, config_key: key, data });
+                    if (!res || res.success !== false) {
+                        // Migration succeeded — remove from localStorage so a future delete is final
+                        localStorage.removeItem(key);
+                    }
                 }
             }
 
@@ -1216,10 +1229,19 @@
                 if (quickSaveBtn) quickSaveBtn.addEventListener('click', async () => {
                     const proctorsVal = Number(document.getElementById('dist-proctors-per-room-input').value || 2);
                     const reservesVal = Number(document.getElementById('dist-reserves-per-session-input').value || 0);
+                    const expectedDutyInput = document.getElementById('dist-expected-duty-tasks-input');
+                    const expectedDutyVal = Number(expectedDutyInput ? expectedDutyInput.value : 0);
                     const rules = await getDistributionRules();
                     rules.proctorsPerRoom = Math.max(1, proctorsVal);
-                    rules.reservesPerSession = Math.max(0, reservesVal);
+                    if (rules.reservesMode === 'percent') {
+                        rules.reservesPercent = Math.max(0, Math.min(100, reservesVal));
+                    } else {
+                        rules.reservesPerSession = Math.max(0, reservesVal);
+                    }
                     await window.api.examConfig.save({ school_year: year, config_key: 'examDistributionRules', data: rules });
+                    const examCenterConfig = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                    examCenterConfig.expected_duty_tasks = Math.max(0, Number.isFinite(expectedDutyVal) ? Math.floor(expectedDutyVal) : 0);
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examCenterConfig', data: examCenterConfig });
                     await updateDistStatuses();
                     showToast('تم حفظ الإعدادات السريعة', 'success');
                 });
@@ -1433,12 +1455,13 @@
                 }
                 return Array.from(grouped.values()).map(row => {
                     const groupCount = row.groupNumber === 1 ? groupCounts.g1 : row.groupNumber === 2 ? groupCounts.g2 : 0;
-                    const totalNeed = row.guardNeed + rules.reservesPerSession;
+                    const reserveNeed = computeReservesForSession(row.guardNeed, rules);
+                    const totalNeed = row.guardNeed + reserveNeed;
                     return Object.assign(row, {
                         sessionsCount: row.sessions.size,
                         groupLabel: getGroupLabel(row.groupNumber),
                         groupCount,
-                        reserveNeed: rules.reservesPerSession,
+                        reserveNeed,
                         totalNeed,
                         enough: groupCount >= totalNeed && totalNeed > 0
                     });
@@ -1536,18 +1559,55 @@
                 const saved = (await window.api.examConfig.get(year, 'examDistributionRules')) || {};
                 const proctorsPerRoom = Number(saved.proctorsPerRoom ?? config.supervisors_per_room ?? 2);
                 const reservesPerSession = Number(saved.reservesPerSession ?? config.max_reserves ?? 0);
+                const reservesMode = (saved.reservesMode ?? config.max_reserves_mode) === 'percent' ? 'percent' : 'fixed';
+                const reservesPercentRaw = Number(saved.reservesPercent ?? config.max_reserves_percent ?? 20);
+                const reservesPercent = Number.isFinite(reservesPercentRaw) && reservesPercentRaw >= 0 ? Math.min(reservesPercentRaw, 100) : 20;
                 return {
                     proctorsPerRoom: Number.isFinite(proctorsPerRoom) && proctorsPerRoom > 0 ? proctorsPerRoom : 2,
-                    reservesPerSession: Number.isFinite(reservesPerSession) && reservesPerSession >= 0 ? reservesPerSession : 0
+                    reservesPerSession: Number.isFinite(reservesPerSession) && reservesPerSession >= 0 ? reservesPerSession : 0,
+                    reservesMode,
+                    reservesPercent
                 };
+            }
+
+            // Compute the number of reserve proctors required for a single session,
+            // honoring the configured mode (fixed count or percent of session guard need).
+            function computeReservesForSession(guardNeed, rules) {
+                if (!rules) return 0;
+                if (rules.reservesMode === 'percent') {
+                    const need = Number(guardNeed) || 0;
+                    const pct = Number(rules.reservesPercent) || 0;
+                    return Math.max(0, Math.round(need * pct / 100));
+                }
+                return Math.max(0, Number(rules.reservesPerSession) || 0);
             }
 
             async function initDistributionRulesPanel() {
                 const rules = await getDistributionRules();
+                const examCenterConfig = await getExamConfig();
                 const proctorsInput = document.getElementById('dist-proctors-per-room-input');
                 const reservesInput = document.getElementById('dist-reserves-per-session-input');
+                const expectedDutyInput = document.getElementById('dist-expected-duty-tasks-input');
                 if (proctorsInput) proctorsInput.value = rules.proctorsPerRoom;
-                if (reservesInput) reservesInput.value = rules.reservesPerSession;
+                if (expectedDutyInput) {
+                    expectedDutyInput.value = String(Math.max(0, Number(examCenterConfig.expected_duty_tasks) || 0));
+                }
+                if (reservesInput) {
+                    const reservesLabel = document.querySelector('label[for="dist-reserves-per-session-input"]');
+                    if (rules.reservesMode === 'percent') {
+                        reservesInput.value = rules.reservesPercent;
+                        reservesInput.min = '0';
+                        reservesInput.max = '100';
+                        reservesInput.title = 'نسبة مئوية من حراس الحصة (تُحسب لكل حصة على حدة)';
+                        if (reservesLabel) reservesLabel.textContent = 'نسبة الاحتياط (% من حراس الحصة)';
+                    } else {
+                        reservesInput.value = rules.reservesPerSession;
+                        reservesInput.min = '0';
+                        reservesInput.max = '20';
+                        reservesInput.title = '';
+                        if (reservesLabel) reservesLabel.textContent = 'عدد الاحتياطي في كل حصة';
+                    }
+                }
             }
 
             async function saveDistributionRule(key, value) {
@@ -2592,6 +2652,28 @@
                     }
                 }
 
+                // Derive reservesConfig for the v2 algorithm directly from
+                // `examCenterConfig.max_reserves_mode/max_reserves/max_reserves_percent`
+                // so the percent / fixed mode reaches `phase2_5PopulateReserves`
+                // (bugfix C4 / Requirements 1.4, 2.4, 2.5, 2.8). When
+                // `max_reserves_mode` is absent we fall back to the legacy
+                // `examDistributionRules.reservesPerSession` value as a fixed
+                // count (Requirement 3.10) so older saved configs keep working.
+                // `examDistributionRules` itself is intentionally NOT removed —
+                // every other v2 consumer keeps reading it.
+                var examCenterConfig = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                var reservesConfig = examCenterConfig.max_reserves_mode
+                    ? {
+                        mode: examCenterConfig.max_reserves_mode === 'percent' ? 'percent' : 'fixed',
+                        fixed: Math.max(0, Number(examCenterConfig.max_reserves) || 0),
+                        percent: Math.max(0, Math.min(100, Number(examCenterConfig.max_reserves_percent) || 0))
+                    }
+                    : {
+                        mode: 'fixed',
+                        fixed: Math.max(0, Number((rules || {}).reservesPerSession) || 0),
+                        percent: 0
+                    };
+
                 return {
                     proctorsList: proctorsList,
                     scheduleEntries: scheduleEntries,
@@ -2599,6 +2681,8 @@
                     dutyData: (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {},
                     meAssignments: meAssignments,
                     examDistributionRules: rules,
+                    reservesConfig: reservesConfig,
+                    D_expected: Math.max(0, Number(examCenterConfig.expected_duty_tasks) || 0),
                     options: {
                         roomsList: roomsList,
                         allowHalfdayReuse: options.allowHalfdayReuse !== false,
@@ -2662,8 +2746,9 @@
                     buildAutoLoadStateFromRows(output.result, true)
                 );
 
-                // Save to localStorage with v2 format (backward compatible)
-                saveV2ResultToLocalStorage(output);
+                // Save to v2 format (awaited so subsequent reads see the latest write — Task 5
+                // precondition for the proctor-distribution-db-memory-mismatch bugfix)
+                await saveV2ResultToLocalStorage(output);
 
                 // Render results
                 renderAutoDistributionResult();
@@ -2904,6 +2989,9 @@
                 html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
                 html += buildDiagChip('fas fa-cogs', 'المرحلة 1', formatDuration(d.phase1DurationMs), '#6366f1');
                 html += buildDiagChip('fas fa-th', 'المرحلة 2', formatDuration(d.phase2DurationMs), '#0891b2');
+                if (d.phase2_5DurationMs != null) {
+                    html += buildDiagChip('fas fa-user-shield', 'الاحتياط', formatDuration(d.phase2_5DurationMs), '#0f766e');
+                }
                 html += buildDiagChip('fas fa-fire', 'المرحلة 3', d.phase3Skipped ? 'مُتخطّاة' : formatDuration(d.phase3DurationMs), '#d97706');
                 // Total duration (Req 7.4)
                 var totalDur = d.totalDurationMs;
@@ -2926,6 +3014,33 @@
                     html += buildDiagChip('fas fa-arrow-up', 'الحد الأقصى', safeNum(d.loadBalance.max, 0), '#dc2626');
                     html += buildDiagChip('fas fa-balance-scale', 'جيني', safeNum(d.loadBalance.giniCoefficient, 3), '#0284c7');
                     html += '</div>';
+                }
+
+                if (d.totalReservesPlaced != null || d.sessionsWithShortage != null || d.percentRoundedToZero != null) {
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                    html += buildDiagChip('fas fa-user-shield', 'الاحتياط الموزع', String(d.totalReservesPlaced || 0), '#0f766e');
+                    html += buildDiagChip('fas fa-user-minus', 'حصص بها خصاص احتياط', String(d.sessionsWithShortage || 0), '#b45309');
+                    html += buildDiagChip('fas fa-percent', 'نسبة قُرّبت للصفر', String(d.percentRoundedToZero || 0), '#7c3aed');
+                    html += '</div>';
+                }
+
+                if (d.coverageRepairSwaps != null || d.coverageRepairUnresolved != null || d.eligibilityClassCount != null || d.maxPrimaryLoadGapWithinClass != null) {
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                    html += buildDiagChip('fas fa-exchange-alt', 'إصلاح التغطية', String(d.coverageRepairSwaps || 0), '#2563eb');
+                    html += buildDiagChip('fas fa-user-times', 'غير مغطّى', String(d.coverageRepairUnresolved || 0), '#dc2626');
+                    html += buildDiagChip('fas fa-layer-group', 'فئات الأهلية', String(d.eligibilityClassCount || 0), '#7c3aed');
+                    html += buildDiagChip('fas fa-balance-scale-right', 'أقصى فرق داخل فئة', String(d.maxPrimaryLoadGapWithinClass == null ? 0 : d.maxPrimaryLoadGapWithinClass), '#0891b2');
+                    html += '</div>';
+                }
+
+                if (d.warnings && d.warnings.length) {
+                    var divergenceWarnings = d.warnings.filter(function (w) { return w && w.type === 'd_expected_divergence'; });
+                    if (divergenceWarnings.length > 0) {
+                        html += '<div style="margin-bottom:12px;padding:8px 10px;border:1px solid #f59e0b;border-radius:6px;background:#fffbeb;color:#92400e;font-size:12px;line-height:1.6;">';
+                        html += '<i class="fas fa-exclamation-triangle" style="margin-left:4px;"></i>';
+                        html += divergenceWarnings.map(function (w) { return escapeHtmlSafe(w.message || 'تحذير في عدد المداومة المتوقعة'); }).join('<br>');
+                        html += '</div>';
+                    }
                 }
 
                 // 3. Soft violations by type (Req 8.4)
@@ -3178,7 +3293,8 @@
                     const key = getAutoDistributionHalfdayKey(entry);
                     const rooms = await getRoomRowsForLevel(entry.level_name);
                     const roomCount = rooms.length;
-                    const need = roomCount * rules.proctorsPerRoom + rules.reservesPerSession;
+                    const guardNeed = roomCount * rules.proctorsPerRoom;
+                    const need = guardNeed + computeReservesForSession(guardNeed, rules);
                     const label = getAutoDistributionHalfdayLabel(entry);
                     const current = sessions.get(key);
                     if (!current || need > current.need) {
@@ -4008,8 +4124,14 @@
              */
             async function buildPerTeacherQuota(scheduleEntries, rules, loadState) {
                 let totalGuardTasks = 0;
+                // Per-session max guardNeed for accurate reserve totals (matches per-session
+                // policy used by readiness/auto-distribution).
+                const sessionGuardNeedMax = new Map();
                 for (const entry of (scheduleEntries || [])) {
-                    totalGuardTasks += (await getRoomRowsForLevel(entry.level_name)).length * rules.proctorsPerRoom;
+                    const guardNeedEntry = (await getRoomRowsForLevel(entry.level_name)).length * rules.proctorsPerRoom;
+                    totalGuardTasks += guardNeedEntry;
+                    const sKey = getAutoDistributionSessionKey(entry);
+                    sessionGuardNeedMax.set(sKey, Math.max(sessionGuardNeedMax.get(sKey) || 0, guardNeedEntry));
                 }
                 const teacherCount = Math.max(proctorsList.length, 1);
                 let totalDuty = 0;
@@ -4018,7 +4140,8 @@
                     totalDuty += getTeacherLoadDetails(loadState, exKey).duty;
                 });
                 const sessionsCount = countDistinctSessions(scheduleEntries);
-                const totalReserve = sessionsCount * (rules.reservesPerSession || 0);
+                let totalReserve = 0;
+                sessionGuardNeedMax.forEach(guardNeed => { totalReserve += computeReservesForSession(guardNeed, rules); });
                 const totalFinal = totalGuardTasks + totalDuty + totalReserve;
                 const fairFinalCeil = Math.ceil(totalFinal / teacherCount);
                 const fairFinalFloor = Math.floor(totalFinal / teacherCount);
@@ -4765,16 +4888,24 @@
                     const halfdayAssignments = assignmentMaps.halfdayAssignmentsByKey.get(context.halfdayKey) || [];
                     const dayAssignments = assignmentMaps.dayAssignmentsByKey.get(context.dayKey) || [];
                     const sessionUsed = getSessionUsedFromRows(result, context.sessionKey);
+                    // Compute the session's required reserves count using the configured mode
+                    // (fixed count or percent of session guard need).
+                    let sessionGuardNeed = 0;
+                    for (const e of context.sessionEntries) {
+                        const rc = (await getRoomRowsForLevel(e.level_name)).length;
+                        sessionGuardNeed = Math.max(sessionGuardNeed, rc * rules.proctorsPerRoom);
+                    }
+                    const sessionReservesNeeded = computeReservesForSession(sessionGuardNeed, rules);
                     const strictReservePool = await getEligibleSessionReserveProctors(context.sessionEntries, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, halfdayLimits, false);
-                    const reservePool = strictReservePool.length >= rules.reservesPerSession
+                    const reservePool = strictReservePool.length >= sessionReservesNeeded
                         ? strictReservePool
                         : await getEligibleSessionReserveProctors(context.sessionEntries, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, halfdayLimits, true);
-                    const reserveTargetCount = getSessionReserveTargetCount(reservePool, rules.reservesPerSession, options, loadState);
+                    const reserveTargetCount = getSessionReserveTargetCount(reservePool, sessionReservesNeeded, options, loadState);
                     const reserves = takeSessionReserves(reservePool, reserveTargetCount, loadState, sessionUsed, halfdayAssignments, dayAssignments, context.halfdayKey, context.sessionEntries[0] || {});
                     const reserveNames = reserves.map(item => item.proc.teacher_name || '').filter(Boolean);
                     const reserveKeys = reserves.map(item => item.exKey);
                     const missingReserves = Math.max(reserveTargetCount - reserveNames.length, 0);
-                    const extraReserves = Math.max(reserveNames.length - rules.reservesPerSession, 0);
+                    const extraReserves = Math.max(reserveNames.length - sessionReservesNeeded, 0);
                     const reserveSoftReasons = Array.from(new Set(reserves.flatMap(item => item.softViolations || [])));
                     context.sessionRows.forEach((row, rowIdx) => {
                         row.reserves = reserveNames;
@@ -5156,9 +5287,15 @@
                     confirmText: 'حذف التوزيع'
                 });
 	                if (!r.confirmed) return;
+	                const delRes = await window.api.examConfig.delete({ school_year: year, config_key: 'examAutoDistributionData' });
+	                if (delRes && delRes.success === false) {
+	                    showToast('تعذّر حذف التوزيع: ' + (delRes.error || 'خطأ غير معروف'), 'error');
+	                    return;
+	                }
+	                // Also clear any stale localStorage copy so it isn't re-migrated on next page load
+	                try { localStorage.removeItem('examAutoDistributionData'); } catch {}
 	                autoDistributionResult = [];
 	                autoDistributionSummary = null;
-	                await window.api.examConfig.delete({ school_year: year, config_key: 'examAutoDistributionData' });
 	                renderAutoDistributionResult();
 	                await updateDistStatuses();
 	                showToast('تم حذف التوزيع', 'success');

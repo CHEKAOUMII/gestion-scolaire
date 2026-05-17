@@ -405,7 +405,7 @@ function testRoomsListAsObjectMissingLevel() {
 function testProctorKeyUsesIndex() {
   // Proctor without cin or som should use index-based key
   var proctors = [
-    makeProctor('أحمد', ''),  // no cin, no som → idx_0
+    makeProctor('أحمد', ''),  // no cin, no som → __idx_0
     makeProctor('فاطمة', 'CIN002')
   ];
   // Remove som too
@@ -419,7 +419,7 @@ function testProctorKeyUsesIndex() {
   var model = internals.buildCSPModel(entries, proctors, {}, {}, rules, options);
 
   var domain = model.domains.get(model.variables[0].id);
-  assert.strictEqual(domain.has('idx_0'), true, 'Proctor without cin/som should use idx_0 key');
+  assert.strictEqual(domain.has('__idx_0'), true, 'Proctor without cin/som should use __idx_0 key');
   assert.strictEqual(domain.has('CIN002'), true, 'Proctor with cin should use cin key');
 
   console.log('  [pass] testProctorKeyUsesIndex');

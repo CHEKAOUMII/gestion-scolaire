@@ -133,10 +133,14 @@ function testAddGuardLoad() {
   assert.strictEqual(state['teacher_1'].guardCount, 2, 'guardCount incremented for afternoon');
   assert.strictEqual(state['teacher_1'].afternoonCount, 1, 'afternoonCount incremented');
 
-  // Duplicate halfday — should not increment
+  // Post slot-metric switch (spec proctor-v2-slot-metric-reserves-affinity):
+  // addGuardLoad now increments guardCount on EVERY call (slot-based) — the
+  // halfday Set is retained for reuse-rule semantics (idempotent membership).
   const dup = internals.addGuardLoad(state, 'teacher_1', '2026-03-15|صباحا', 'أحمد');
-  assert.strictEqual(dup, false, 'Duplicate halfday returns false');
-  assert.strictEqual(state['teacher_1'].guardCount, 2, 'guardCount not incremented for duplicate');
+  assert.strictEqual(dup, true, 'Slot-based addGuardLoad returns true on every non-empty call');
+  assert.strictEqual(state['teacher_1'].guardCount, 3, 'guardCount slot-counted on duplicate halfday');
+  assert.strictEqual(state['teacher_1'].guardHalfdays.size, 2, 'guardHalfdays Set still dedups by key');
+  assert.strictEqual(state['teacher_1'].morningCount, 2, 'morningCount slot-counted');
 
   // Invalid inputs
   assert.strictEqual(internals.addGuardLoad(state, '', '2026-03-15|صباحا', 'x'), false, 'Empty key returns false');
@@ -286,6 +290,18 @@ function testBuildSeededPRNG() {
   console.log('  [pass] buildSeededPRNG');
 }
 
+function testComputeReserveTarget() {
+  assert.strictEqual(internals.computeReserveTarget(null, 8), 0, 'null config returns 0');
+  assert.strictEqual(internals.computeReserveTarget({ mode: 'percent', percent: 0, fixed: 0 }, 8), 0, 'percent=0 returns 0');
+  assert.strictEqual(internals.computeReserveTarget({ mode: 'percent', percent: 100, fixed: 0 }, 8), 8, 'percent=100 returns guardCount');
+  assert.strictEqual(internals.computeReserveTarget({ mode: 'percent', percent: 25, fixed: 0 }, 0), 0, 'guardCount=0 returns 0');
+  assert.strictEqual(internals.computeReserveTarget({ mode: 'percent', percent: 25, fixed: 0 }, 1), 1, 'percent mode uses Math.ceil');
+  assert.strictEqual(internals.computeReserveTarget({ mode: 'fixed', fixed: 0, percent: 0 }, 8), 0, 'fixed=0 returns 0');
+  assert.strictEqual(internals.computeReserveTarget({ mode: 'fixed', fixed: 10, percent: 0 }, 0), 10, 'fixed target is independent of guardCount');
+
+  console.log('  [pass] computeReserveTarget');
+}
+
 function run() {
   console.log('[test] proctor-distribution-v2 utilities (Task 1.2)');
   testComputeBounds();
@@ -302,6 +318,7 @@ function run() {
   testComputeLoadStats();
   testIsMorningHalfday();
   testBuildSeededPRNG();
+  testComputeReserveTarget();
   console.log('[test] All Task 1.2 utility tests passed');
 }
 
