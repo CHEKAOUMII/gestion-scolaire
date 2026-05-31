@@ -545,6 +545,46 @@
     var eligibleCount = Math.max(0, Number(N) || 0);
     if (classIds.length === 0) return bounds;
 
+    // NEW: derive global fairness floor (Option C — global-fairness)
+    //
+    //   LB_global = floor((totalGuardSlots + D_expected) / N_eligible)
+    //
+    // Where:
+    //   totalGuardSlots = sum over scheduleEntries of
+    //                       getGuardSlotsForScheduleIndex(scheduleEntries, idx,
+    //                                                     proctorsPerRoom,
+    //                                                     guardSlotsByIndex)
+    //   D_expected      = expectedDuty (already computed above)
+    //   N_eligible      = eligibleCount (already passed as parameter N above)
+    //
+    // The +1 (applied in cappedUpper at the per-class emission site)
+    // accommodates the existing ceil/floor pair in the only-one-class
+    // branch, which legitimately produces classLowerBound = floor(...)
+    // and classUpperBound = floor(...) + 1 when (totalGuardSlots +
+    // D_expected) is not exactly divisible by N_eligible.
+    //
+    // Rationale (Option C): mathematically simpler than per-class
+    // alternatives; semantically aligned with the only-one-class branch
+    // below which already computes exactly this quantity for the
+    // all-eligible case; deterministic without per-class
+    // average-peer-size scans.
+    //
+    // See:
+    //   - .kiro/specs/proctor-v2-singleton-class-bounds/design.md
+    //     §"Fix Strategy: Option C — Global-Fairness Floor"
+    //   - docs/agent-notes/proctor-v2-singleton-class-bounds.md
+    //     §"Recommendation: Option C (global-fairness)"
+    var totalGuardSlots = 0;
+    var entries = scheduleEntries || [];
+    for (var ti = 0; ti < entries.length; ti++) {
+      totalGuardSlots += getGuardSlotsForScheduleIndex(
+        scheduleEntries, ti, proctorsPerRoom, guardSlotsByIndex
+      );
+    }
+    var lbGlobal = eligibleCount > 0
+      ? Math.floor((totalGuardSlots + expectedDuty) / eligibleCount)
+      : 0;
+
     var gById = new Map();
     for (var gi = 0; gi < classIds.length; gi++) {
       var gId = classIds[gi];
@@ -606,9 +646,45 @@
       var bG = gById.get(bId) || 0;
       var bD = dShareById.get(bId) || 0;
       var bTotal = bG + bD;
+
+      // NEW: cap per-class bounds by global fairness floor (Option C),
+      //      with monotonicity guard for the degenerate case bTotal <= lbGlobal.
+      // See design.md §"Specific Changes" point 2.
+      //
+      // Algebraic properties:
+      //   - When floor(bTotal/bSize) <= lbGlobal, the cap is a no-op and
+      //     the emitted bounds are byte-identical to the pre-fix output
+      //     (preservation of NOT isBugCondition(X) inputs).
+      //   - When floor(bTotal/bSize) > lbGlobal, cappedLower = lbGlobal
+      //     and cappedUpper is at most lbGlobal + 1 (matching the
+      //     ceil/floor pair of the only-one-class branch when divisibility
+      //     fails).
+      //   - The monotonicity guard (bTotal <= lbGlobal) preserves the
+      //     pre-fix degenerate case exactly: when bSize = 1,
+      //     floor(bTotal/1) = ceil(bTotal/1) = bTotal, so emitting
+      //     (bTotal, bTotal) is byte-identical to (rawLower, rawUpper).
+      //   - cappedUpper >= cappedLower always (the max(...) clause).
+      var rawLower = Math.floor(bTotal / bSize);
+      var rawUpper = Math.ceil(bTotal / bSize);
+      var cappedLower, cappedUpper;
+      if (bTotal < lbGlobal) {
+        // Monotonicity guard — never raise a class's lower bound above its
+        // achievable total. Fires for tiny classes (G_class = 0, or
+        // bTotal < lbGlobal). Preserves pre-fix behavior exactly for the
+        // degenerate case.
+        cappedLower = bTotal;
+        cappedUpper = bTotal;
+      } else {
+        // Cap rule (Option C — global-fairness): clamp rawLower DOWN to
+        // lbGlobal when rawLower exceeds it. The upper bound is allowed
+        // up to lbGlobal + 1 (matching the ceil/floor pair of the
+        // only-one-class branch when divisibility fails).
+        cappedLower = Math.min(rawLower, lbGlobal);
+        cappedUpper = Math.max(cappedLower, Math.min(rawUpper, lbGlobal + 1));
+      }
       bounds.set(bId, {
-        classLowerBound: Math.floor(bTotal / bSize),
-        classUpperBound: Math.ceil(bTotal / bSize),
+        classLowerBound: cappedLower,
+        classUpperBound: cappedUpper,
         G_class: bG,
         D_expected_class: bD
       });

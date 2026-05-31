@@ -14,6 +14,7 @@
         <script src="js/ux-enhancements.js" defer></script>
         <script src="js/print-system.js" defer></script>
         <script src="js/algorithms/proctor-distribution-v2.js" defer></script>
+        <script src="js/algorithms/proctor-v3.bundle.js" defer></script>
         <script src="js/data/proctor-key-resolver.js" defer></script>
 
     </head>
@@ -774,6 +775,10 @@
                                         <input type="radio" name="algo-version" value="v2" checked>
                                         <span>الخوارزمية المُحسَّنة (v2) — هجينة: CSP + Hungarian + SA</span>
                                     </label>
+                                    <label class="dist-algo-option" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                        <input type="radio" name="algo-version" value="v3">
+                                        <span>V3 (الخوارزمية الجديدة) — وحدة Node خالصة، قيود ثابتة بنيوياً</span>
+                                    </label>
                                 </div>
                             </div>
                             <div class="auto-rules-card" aria-label="شروط التوزيع الآلي">
@@ -905,10 +910,25 @@
                                         <tr>
                                             <th>الحصة</th>
                                             <th>المادة</th>
+                                            <th>النوع</th>
                                             <th>الاحتياط</th>
                                         </tr>
                                     </thead>
                                     <tbody id="auto-reserves-tbody"></tbody>
+                                </table>
+                            </div>
+                            <div class="exam-settings-title" style="margin-top:18px"><i class="fas fa-user-shield"></i> لائحة المداومة حسب الحصة</div>
+                            <div class="sup-table-wrapper">
+                                <table class="sup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>الحصة</th>
+                                            <th>المادة</th>
+                                            <th>النوع</th>
+                                            <th>المداوم</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="auto-duty-tbody"></tbody>
                                 </table>
                             </div>
                             <!-- Diagnostics Panel (Task 10.1) -->
@@ -1295,6 +1315,7 @@
                 if (_savedAD) {
                     if (Array.isArray(_savedAD)) _savedADRows = _savedAD;
                     else if (_savedAD.algorithmVersion === 'v2' && Array.isArray(_savedAD.rows)) _savedADRows = _savedAD.rows;
+                    else if (_savedAD.algorithmVersion === 'v3' && Array.isArray(_savedAD.rows)) _savedADRows = _savedAD.rows;
                 }
                 setDistStatus('auto-distribute', (autoDistributionResult.length || _savedADRows.length) > 0 ? 'done' : 'todo');
                 await updateDistributionLocks();
@@ -1562,11 +1583,16 @@
                 const reservesMode = (saved.reservesMode ?? config.max_reserves_mode) === 'percent' ? 'percent' : 'fixed';
                 const reservesPercentRaw = Number(saved.reservesPercent ?? config.max_reserves_percent ?? 20);
                 const reservesPercent = Number.isFinite(reservesPercentRaw) && reservesPercentRaw >= 0 ? Math.min(reservesPercentRaw, 100) : 20;
+                // AC 1.8: when `algorithmVersion` is absent from the saved rules,
+                // default to V2 to preserve legacy behavior.
+                const algorithmVersion = (saved.algorithmVersion === 'v3') ? 'v3'
+                    : (saved.algorithmVersion === 'v1') ? 'v1' : 'v2';
                 return {
                     proctorsPerRoom: Number.isFinite(proctorsPerRoom) && proctorsPerRoom > 0 ? proctorsPerRoom : 2,
                     reservesPerSession: Number.isFinite(reservesPerSession) && reservesPerSession >= 0 ? reservesPerSession : 0,
                     reservesMode,
-                    reservesPercent
+                    reservesPercent,
+                    algorithmVersion
                 };
             }
 
@@ -2503,6 +2529,9 @@
                     if (savedRaw && !Array.isArray(savedRaw) && savedRaw.algorithmVersion === 'v2') {
                         autoDistributionResult = Array.isArray(savedRaw.rows) ? savedRaw.rows : [];
                         savedDiagnostics = savedRaw.diagnostics || null;
+                    } else if (savedRaw && !Array.isArray(savedRaw) && savedRaw.algorithmVersion === 'v3') {
+                        autoDistributionResult = Array.isArray(savedRaw.rows) ? savedRaw.rows : [];
+                        savedDiagnostics = savedRaw.diagnostics || null;
                     } else if (Array.isArray(savedRaw)) {
                         autoDistributionResult = savedRaw;
                     } else {
@@ -2512,7 +2541,8 @@
                     autoDistributionResult = [];
                 }
                 await initAutoDistributionOptions();
-                initAlgorithmToggle(savedVersion);
+                var persistedRules = await getDistributionRules();
+                initAlgorithmToggle(savedVersion, persistedRules.algorithmVersion);
                 document.getElementById('btn-run-auto-distribution').addEventListener('click', handleDistributionButtonClick);
                 document.getElementById('btn-save-auto-distribution').addEventListener('click', saveAutoDistributionResult);
                 document.getElementById('btn-delete-auto-distribution').addEventListener('click', deleteAutoDistributionResult);
@@ -2557,6 +2587,7 @@
                 try {
                     var parsed = JSON.parse(rawData);
                     if (parsed && !Array.isArray(parsed) && parsed.algorithmVersion === 'v2') return 'v2';
+                    if (parsed && !Array.isArray(parsed) && parsed.algorithmVersion === 'v3') return 'v3';
                     if (Array.isArray(parsed)) return 'v1';
                     return null;
                 } catch (e) { return null; }
@@ -2564,46 +2595,95 @@
 
             /**
              * Returns the currently selected algorithm version from the toggle.
-             * @returns {'v1'|'v2'}
+             * @returns {'v1'|'v2'|'v3'}
              */
             function getSelectedAlgorithmVersion() {
                 var checked = document.querySelector('input[name="algo-version"]:checked');
-                return (checked && checked.value === 'v1') ? 'v1' : 'v2';
+                if (checked && checked.value === 'v1') return 'v1';
+                if (checked && checked.value === 'v3') return 'v3';
+                return 'v2';
+            }
+
+            /**
+             * Persists the user's algorithm-version choice into
+             * `examDistributionRules.algorithmVersion` (Requirements 1.5–1.8).
+             * The field is additive: the V2/V1 code paths read it but ignore
+             * it, while the V3 path uses it to drive routing. Other distribution
+             * rule fields are preserved.
+             * @param {'v1'|'v2'|'v3'} version
+             */
+            async function persistAlgorithmVersion(version) {
+                try {
+                    var rules = await getDistributionRules();
+                    rules.algorithmVersion = (version === 'v3') ? 'v3'
+                        : (version === 'v1') ? 'v1' : 'v2';
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examDistributionRules', data: rules });
+                } catch (e) {
+                    // Persistence failure is non-fatal: the in-memory toggle still
+                    // drives this session's routing. Surface a non-blocking notice.
+                    showToast('تعذّر حفظ اختيار الخوارزمية: ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'warning');
+                }
             }
 
             /**
              * Initializes the algorithm toggle state based on saved data.
-             * Per Requirement 9.2: if saved data has algorithmVersion='v2', set toggle to v2.
-             * Per Requirement 9.3: if no algorithmVersion field or no saved data, default to v2 for new sessions.
-             * Per Requirement 1.3.1: default to v2 for new sessions (no prior selection).
+             * Per Requirement 1.8: if `examDistributionRules.algorithmVersion` is
+             * absent, the toggle defaults to V2 to preserve legacy behavior.
+             * The persisted user choice (`persistedVersion`) takes precedence over
+             * the format detected from any saved result (`savedVersion`).
              * @param {'v1'|'v2'|null} savedVersion
+             * @param {'v1'|'v2'|'v3'|undefined} persistedVersion
              */
-            function initAlgorithmToggle(savedVersion) {
+            function initAlgorithmToggle(savedVersion, persistedVersion) {
                 var v1Radio = document.querySelector('input[name="algo-version"][value="v1"]');
                 var v2Radio = document.querySelector('input[name="algo-version"][value="v2"]');
+                var v3Radio = document.querySelector('input[name="algo-version"][value="v3"]');
                 if (!v1Radio || !v2Radio) return;
 
-                if (savedVersion === 'v1') {
-                    // Saved data is v1 format (plain array without algorithmVersion)
-                    v1Radio.checked = true;
-                    v2Radio.checked = false;
-                } else {
-                    // savedVersion is 'v2' or null (new session) → default to v2
-                    v1Radio.checked = false;
-                    v2Radio.checked = true;
-                }
+                // The user's explicit toggle choice persisted in
+                // `examDistributionRules.algorithmVersion` wins. AC 1.8: when it is
+                // absent, fall back to the saved result format and finally to V2.
+                var effective = (persistedVersion === 'v1' || persistedVersion === 'v2' || persistedVersion === 'v3')
+                    ? persistedVersion
+                    : (savedVersion === 'v1' ? 'v1' : 'v2');
+
+                v1Radio.checked = (effective === 'v1');
+                v2Radio.checked = (effective === 'v2');
+                if (v3Radio) v3Radio.checked = (effective === 'v3');
+
+                // Persist the choice whenever the toggle changes (Requirements 1.5–1.8).
+                document.querySelectorAll('input[name="algo-version"]').forEach(function(radio) {
+                    radio.addEventListener('change', function() {
+                        persistAlgorithmVersion(getSelectedAlgorithmVersion());
+                    });
+                });
             }
 
             /**
-             * Handles the distribution button click — routes to v1 or v2 based on toggle.
+             * Handles the distribution button click — routes to V1, V2, or V3
+             * based on the toggle (Requirements 1.6, 1.7).
              */
             function handleDistributionButtonClick() {
                 var version = getSelectedAlgorithmVersion();
-                if (version === 'v2') {
-                    runAutoDistributionV2();
-                } else {
-                    runAutoDistribution();
+                // Persist the active choice so subsequent sessions honor it (AC 1.5–1.8).
+                persistAlgorithmVersion(version);
+                if (version === 'v3') {
+                    // Requirement 1.7: route to the V3 module. The full invocation
+                    // path (`runAutoDistributionV3`) lands in Task 35; until then the
+                    // routing decision is wired up and guarded so V2 stays untouched.
+                    if (typeof runAutoDistributionV3 === 'function') {
+                        runAutoDistributionV3();
+                    } else {
+                        showToast('مسار الخوارزمية الجديدة (V3) غير مُفعّل بعد', 'warning');
+                    }
+                    return;
                 }
+                if (version === 'v2') {
+                    // Requirement 1.6: selecting V2 runs V2 with no behavior change.
+                    runAutoDistributionV2();
+                    return;
+                }
+                runAutoDistribution();
             }
 
             /**
@@ -2790,6 +2870,217 @@
                     diagnostics: output.diagnostics || null
                 };
                 await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionData', data: dataToSave });
+            }
+
+            // ============================================================
+            // V3 Invocation Path (Task 35 — Requirements 1.7, 4.3, 4.4, 4.5)
+            // ============================================================
+
+            /**
+             * Builds the GS3_Input_Contract from existing page state for the
+             * V3 algorithm. V3 accepts the same input contract as V2
+             * (Requirement 1.3), so this reuses `buildV2Input()` for the
+             * shared fields and overlays the V3-canonical field locations the
+             * V3 module reads directly:
+             *   - `examCenterConfig`   : read by Phase 3 (D_expected) and
+             *                            Phase 9 (reserves config).
+             *   - `examCenterLevels`   : read by Phase 1b for room counts.
+             *   - `examCenterRoomsData`: read by Phase 1b as the canonical
+             *                            rooms source (falls back to
+             *                            `options.roomsList` which buildV2Input
+             *                            already supplies).
+             *
+             * @param {{ allowSameDayBothHalfdays?: boolean }} [overrides]
+             *        Optional rule overrides. Used by the same-day relaxation
+             *        flow (Requirement 4.4) to re-run with
+             *        `allowSameDayBothHalfdays: true`.
+             * @returns {Object} GS3_Input_Contract
+             */
+            async function buildV3Input(overrides) {
+                var input = await buildV2Input();
+
+                // examCenterConfig drives D_expected (Phase 3) and the
+                // reserves config fallback chain (Phase 9). buildV2Input
+                // already derived `reservesConfig` and `D_expected`; pass the
+                // raw config object through too so V3's own readers find it.
+                var examCenterConfig = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                input.examCenterConfig = examCenterConfig;
+
+                // examCenterLevels (room counts per level) + the canonical
+                // rooms-by-level map. Phase 1b reads `examCenterRoomsData`
+                // first, then falls back to `options.roomsList` (already set
+                // by buildV2Input), so supplying examCenterLevels lets V3
+                // synthesize placeholder rooms exactly like V2.
+                try {
+                    input.examCenterLevels = await getExamCenterLevelsForActiveYear();
+                } catch (e) {
+                    input.examCenterLevels = {};
+                }
+                input.examCenterRoomsData = (input.options && input.options.roomsList) || {};
+
+                // Same-Day_Allowance_Flag lives in examDistributionRules
+                // (Requirement 4.5 — persisted with the rules). Default false.
+                if (!input.examDistributionRules || typeof input.examDistributionRules !== 'object') {
+                    input.examDistributionRules = {};
+                }
+                if (overrides && typeof overrides.allowSameDayBothHalfdays === 'boolean') {
+                    input.examDistributionRules.allowSameDayBothHalfdays = overrides.allowSameDayBothHalfdays;
+                } else if (typeof input.examDistributionRules.allowSameDayBothHalfdays !== 'boolean') {
+                    input.examDistributionRules.allowSameDayBothHalfdays = false;
+                }
+
+                return input;
+            }
+
+            /**
+             * Saves a V3 result under the shared `examAutoDistributionData`
+             * key with `algorithmVersion: 'v3'` (Requirement 1.7). Mirrors
+             * the V2 save format so the rest of the page (and the display
+             * pages) can read `{ rows, algorithmVersion, diagnostics }`.
+             * @param {{ result: Array, diagnostics: Object }} output
+             */
+            async function saveV3ResultToLocalStorage(output) {
+                var dataToSave = {
+                    rows: output.result,
+                    algorithmVersion: 'v3',
+                    diagnostics: output.diagnostics || null
+                };
+                await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionData', data: dataToSave });
+            }
+
+            /**
+             * Runs the V3 distribution algorithm and handles the result
+             * (Requirement 1.7). On the `same_day_relaxation_suggested`
+             * warning (Requirement 4.2), shows a confirmation dialog
+             * (Requirement 4.3) and, if the user confirms, persists
+             * `allowSameDayBothHalfdays: true` (Requirement 4.5) and re-runs
+             * V3 with the relaxed flag (Requirement 4.4).
+             *
+             * @param {Object} [prebuiltInput] - internal: an already-built
+             *        V3 input (used by the relaxation re-run to avoid
+             *        rebuilding from scratch). When omitted, the input is
+             *        built fresh from page state.
+             * @param {boolean} [isRelaxedRerun] - internal guard: when true,
+             *        the same-day relaxation prompt is NOT shown again (we
+             *        already relaxed), preventing an infinite loop.
+             */
+            async function runAutoDistributionV3(prebuiltInput, isRelaxedRerun) {
+                if (!window.ProctorDistributionV3 || typeof window.ProctorDistributionV3.run !== 'function') {
+                    showToast('خطأ: وحدة الخوارزمية الجديدة (V3) غير محمّلة', 'error');
+                    return;
+                }
+
+                var scheduleEntries = (await getScheduleEntries()).filter(function (s) {
+                    return s && (s.date_day || s.time_from || s.subject_name);
+                });
+                if (!scheduleEntries.length) {
+                    showToast('لا توجد جدولة محفوظة', 'warning');
+                    return;
+                }
+
+                var input = prebuiltInput || await buildV3Input();
+
+                var output;
+                try {
+                    output = window.ProctorDistributionV3.run(input);
+                } catch (e) {
+                    showToast('خطأ في تنفيذ الخوارزمية الجديدة (V3): ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'error');
+                    return;
+                }
+
+                if (!output || !output.result) {
+                    showToast('خطأ في تنفيذ الخوارزمية الجديدة (V3)', 'error');
+                    return;
+                }
+
+                // Store result in memory + summary (same helpers V2 uses).
+                autoDistributionResult = output.result;
+                autoDistributionSummary = buildAutoDistributionSummary(
+                    buildAutoLoadStateFromRows(output.result, true)
+                );
+
+                await saveV3ResultToLocalStorage(output);
+
+                renderAutoDistributionResult();
+                await updateDistStatuses();
+                renderDiagnosticsPanel(output.diagnostics || null);
+
+                // Success toast (Requirement 1.7).
+                var totalRows = output.result.length;
+                var durationMs = (output.diagnostics && output.diagnostics.totalDurationMs) || 0;
+                var msg = 'تم تنفيذ التوزيع (v3) على ' + totalRows + ' مهمة قاعة';
+                if (durationMs > 0) msg += ' في ' + durationMs + 'ms';
+                showToast(msg, output.orchestratorState === 'COMPLETED' ? 'success' : 'warning');
+
+                // Requirement 4.2 / 4.3 / 4.4 / 4.5 — same-day relaxation flow.
+                // Only prompt if this is NOT already a relaxed re-run.
+                if (!isRelaxedRerun) {
+                    var warnings = (output.diagnostics && Array.isArray(output.diagnostics.warnings))
+                        ? output.diagnostics.warnings : [];
+                    var relaxWarning = null;
+                    for (var i = 0; i < warnings.length; i += 1) {
+                        if (warnings[i] && warnings[i].type === 'same_day_relaxation_suggested') {
+                            relaxWarning = warnings[i];
+                            break;
+                        }
+                    }
+                    if (relaxWarning) {
+                        await handleSameDayRelaxation(relaxWarning, input);
+                    }
+                }
+            }
+
+            /**
+             * Shows the same-day relaxation confirmation dialog
+             * (Requirement 4.3) and, on confirmation, persists the flag
+             * (Requirement 4.5) and re-runs V3 with
+             * `allowSameDayBothHalfdays: true` (Requirement 4.4).
+             *
+             * @param {{ impactedSlotsCount?: number, message?: string }} warning
+             * @param {Object} previousInput - the input used for the strict run.
+             */
+            async function handleSameDayRelaxation(warning, previousInput) {
+                var impacted = (warning && typeof warning.impactedSlotsCount === 'number')
+                    ? warning.impactedSlotsCount : 0;
+                var baseMessage = (warning && warning.message)
+                    ? warning.message
+                    : 'غير ممكن التغطية بدون السماح بحراسة نفس الأستاذ صباحاً ومساءً في نفس اليوم. هل تريد تفعيل هذا الخيار؟';
+
+                var r = await showConfirm({
+                    type: 'warning',
+                    title: 'تعذّرت التغطية الكاملة',
+                    message: baseMessage,
+                    detail: impacted > 0 ? ('عدد الخانات المتأثرة: ' + impacted) : '',
+                    confirmText: 'تفعيل وإعادة التوزيع',
+                    cancelText: 'إلغاء'
+                });
+
+                if (!r || !r.confirmed) {
+                    // Requirement 4.3 "إلغاء" branch — keep the strict result.
+                    return;
+                }
+
+                // Requirement 4.5 — persist allowSameDayBothHalfdays:true in
+                // examDistributionRules so subsequent runs honor the choice.
+                try {
+                    var rules = await getDistributionRules();
+                    rules.allowSameDayBothHalfdays = true;
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examDistributionRules', data: rules });
+                } catch (e) {
+                    showToast('تعذّر حفظ خيار السماح بنفس اليوم: ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'warning');
+                }
+
+                // Requirement 4.4 — re-invoke V3 with the relaxed flag. Reuse
+                // the previous input (cloned) and flip the rule so we don't
+                // depend on the persisted save having propagated yet.
+                var relaxedInput = Object.assign({}, previousInput);
+                relaxedInput.examDistributionRules = Object.assign(
+                    {},
+                    previousInput.examDistributionRules || {},
+                    { allowSameDayBothHalfdays: true }
+                );
+
+                await runAutoDistributionV3(relaxedInput, true);
             }
 
             // ============================================================
@@ -4991,6 +5282,7 @@
 		                        '</tr>').join('');
 	                }
 	                renderAutoReserveTable(visibleRows);
+	                renderAutoDutyTable();
 	                const sessions = new Set(autoDistributionResult.map(r => r.session_label)).size;
                 const reservesBySession = new Map();
                 autoDistributionResult.forEach(row => {
@@ -5165,17 +5457,74 @@
 	                if (!tbody) return;
 	                const reserveRows = getAutoReserveRows(rows || []);
 	                if (!autoDistributionResult.length) {
-	                    tbody.innerHTML = '<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--color-text-muted)">لم يتم تنفيذ التوزيع بعد</td></tr>';
+	                    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--color-text-muted)">لم يتم تنفيذ التوزيع بعد</td></tr>';
 	                    return;
 	                }
 	                if (!reserveRows.length) {
-	                    tbody.innerHTML = '<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--color-text-muted)">لا توجد لائحة احتياط لهذه الفلترة</td></tr>';
+	                    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--color-text-muted)">لا توجد لائحة احتياط لهذه الفلترة</td></tr>';
 	                    return;
 	                }
 	                tbody.innerHTML = reserveRows.map(row => '<tr>' +
 	                    '<td>' + escHtml(row.session_label || '—') + '</td>' +
 	                    '<td>' + escHtml(row.subject_name || '—') + '</td>' +
+	                    '<td><span class="assign-type-badge assign-type-reserve">احتياط</span></td>' +
 	                    '<td>' + escHtml((row.reserves || []).join('، ') || '—') + '</td>' +
+	                    '</tr>').join('');
+	            }
+
+	            /**
+	             * Builds duty rows (المداومة) from `dutyData`, independent from
+	             * the distribution result. Duty assignments are stored per
+	             * `sessionKey|subject` with a bucket of proctor keys; names are
+	             * resolved against `proctorsList`. Returns one row per duty session.
+	             */
+	            function getAutoDutyRows() {
+	                if (!dutyData || typeof dutyData !== 'object') return [];
+	                // Map any proctor key shape (cin | som | idx_N | __idx_N) to a display name.
+	                const keyToName = {};
+	                (proctorsList || []).forEach((p, i) => {
+	                    const name = p.teacher_full_name || p.teacher_name || ('#' + i);
+	                    if (p.cin) keyToName[String(p.cin).trim()] = name;
+	                    if (p.som) keyToName[String(p.som).trim()] = name;
+	                    keyToName['idx_' + i] = name;
+	                    keyToName['__idx_' + i] = name;
+	                });
+	                const rows = [];
+	                Object.keys(dutyData).forEach(dutyKey => {
+	                    const bucket = dutyData[dutyKey];
+	                    if (!bucket || typeof bucket !== 'object') return;
+	                    const names = Object.keys(bucket)
+	                        .filter(k => bucket[k])
+	                        .map(k => keyToName[String(k).trim()] || String(k));
+	                    if (!names.length) return;
+	                    // dutyKey shapes: "date|day|period|session|subject" (canonical)
+	                    // or legacy "day|period|session|subject".
+	                    const parts = dutyKey.split('|');
+	                    const subject = parts.length ? parts[parts.length - 1] : '';
+	                    const sessionParts = parts.slice(0, -1);
+	                    rows.push({
+	                        session_label: sessionParts.join(' / ') || dutyKey,
+	                        subject_name: subject || '—',
+	                        duty: names,
+	                        _sortKey: dutyKey
+	                    });
+	                });
+	                return rows.sort((a, b) => String(a._sortKey).localeCompare(String(b._sortKey), 'ar'));
+	            }
+
+	            function renderAutoDutyTable() {
+	                const tbody = document.getElementById('auto-duty-tbody');
+	                if (!tbody) return;
+	                const dutyRows = getAutoDutyRows();
+	                if (!dutyRows.length) {
+	                    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--color-text-muted)">لا توجد مداومة مسجّلة</td></tr>';
+	                    return;
+	                }
+	                tbody.innerHTML = dutyRows.map(row => '<tr>' +
+	                    '<td>' + escHtml(row.session_label || '—') + '</td>' +
+	                    '<td>' + escHtml(row.subject_name || '—') + '</td>' +
+	                    '<td><span class="assign-type-badge assign-type-duty">مداومة</span></td>' +
+	                    '<td>' + escHtml((row.duty || []).join('، ') || '—') + '</td>' +
 	                    '</tr>').join('');
 	            }
 
@@ -5203,7 +5552,16 @@
 	                    '<td>' + (idx + 1) + '</td>' +
 	                    '<td>' + escHtml(row.session_label || '—') + '</td>' +
 	                    '<td>' + escHtml(row.subject_name || '—') + '</td>' +
+	                    '<td>احتياط</td>' +
 	                    '<td>' + escHtml((row.reserves || []).join('، ') || '—') + '</td>' +
+	                    '</tr>').join('');
+	                const dutyRows = getAutoDutyRows();
+	                const dutyTableRows = dutyRows.map((row, idx) => '<tr>' +
+	                    '<td>' + (idx + 1) + '</td>' +
+	                    '<td>' + escHtml(row.session_label || '—') + '</td>' +
+	                    '<td>' + escHtml(row.subject_name || '—') + '</td>' +
+	                    '<td>مداومة</td>' +
+	                    '<td>' + escHtml((row.duty || []).join('، ') || '—') + '</td>' +
 	                    '</tr>').join('');
 
 	                return '<div class="gs-sheet-wrapper"><div class="gs-sheet auto-distribution-print-sheet">' +
@@ -5215,8 +5573,12 @@
 	                    (proctorRows || '<tr><td colspan="10" style="text-align:center">لا توجد معطيات</td></tr>') +
 	                    '</tbody></table>' +
 	                    '<h3 style="margin:18px 0 8px;font-size:15px;color:var(--color-primary)">لائحة الاحتياط</h3>' +
-	                    '<table><thead><tr><th>#</th><th>الحصة</th><th>المادة</th><th>الاحتياط</th></tr></thead><tbody>' +
-	                    (reserveTableRows || '<tr><td colspan="4" style="text-align:center">لا توجد لائحة احتياط</td></tr>') +
+	                    '<table><thead><tr><th>#</th><th>الحصة</th><th>المادة</th><th>النوع</th><th>الاحتياط</th></tr></thead><tbody>' +
+	                    (reserveTableRows || '<tr><td colspan="5" style="text-align:center">لا توجد لائحة احتياط</td></tr>') +
+	                    '</tbody></table>' +
+	                    '<h3 style="margin:18px 0 8px;font-size:15px;color:var(--color-primary)">لائحة المداومة</h3>' +
+	                    '<table><thead><tr><th>#</th><th>الحصة</th><th>المادة</th><th>النوع</th><th>المداوم</th></tr></thead><tbody>' +
+	                    (dutyTableRows || '<tr><td colspan="5" style="text-align:center">لا توجد مداومة مسجّلة</td></tr>') +
 	                    '</tbody></table>' +
 	                    '</div></div>';
 	            }
@@ -5277,7 +5639,7 @@
                 var hasSaved = false;
                 if (savedRaw) {
                     if (Array.isArray(savedRaw)) hasSaved = savedRaw.length > 0;
-                    else if (savedRaw && savedRaw.algorithmVersion === 'v2') hasSaved = Array.isArray(savedRaw.rows) && savedRaw.rows.length > 0;
+                    else if (savedRaw && (savedRaw.algorithmVersion === 'v2' || savedRaw.algorithmVersion === 'v3')) hasSaved = Array.isArray(savedRaw.rows) && savedRaw.rows.length > 0;
                 }
                 if (!hasCurrent && !hasSaved) { showToast('لا يوجد توزيع لحذفه', 'warning'); return; }
                 const r = await showConfirm({

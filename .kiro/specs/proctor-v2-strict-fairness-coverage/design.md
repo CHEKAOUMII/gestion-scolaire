@@ -174,7 +174,7 @@ END FUNCTION
 
 | Case | Behaviour |
 |------|-----------|
-| `proctorsList` empty | Returns empty map; downstream `computeClassBounds` returns empty bounds; `costFunction` hard cap inactive. |
+| `proctorsList` empty | Returns empty map; downstream `computeClassBounds` returns empty bounds; `costFunction` hard cap inactive. |B — العدّ بالسلوتات فقط
 | Every proctor exempt for every session | Returns empty map; orchestrator emits a warning via the existing `phase2Diagnostics` and proceeds. |
 | Two proctors with identical eligibility but different `baselineDutyCount` | Land in different classes — bounds correctly bracket their respective `primaryLoad`. |
 | `loadState.dutyHalfdays` not yet populated | Function MUST be called *after* `phase1PrePass`; otherwise `baselineDutyCount = 0` for everyone and classes coalesce incorrectly. Document the call-order invariant in `phase2Build`. |

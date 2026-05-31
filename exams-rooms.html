@@ -824,7 +824,9 @@
                 const distribution = (function(raw) {
                     if (!raw) return [];
                     if (Array.isArray(raw)) return raw;
-                    if (raw && raw.algorithmVersion === 'v2' && Array.isArray(raw.rows)) return raw.rows;
+                    // V2 and V3 share the same envelope shape ({ rows, algorithmVersion, diagnostics })
+                    // and the same Result_Row field set, so both unwrap identically here.
+                    if (raw && (raw.algorithmVersion === 'v2' || raw.algorithmVersion === 'v3') && Array.isArray(raw.rows)) return raw.rows;
                     return [];
                 })(await window.api.examConfig.get(SCHOOL_YEAR, 'examAutoDistributionData'));
                 const durationMap = await buildDurationMap();
@@ -1111,7 +1113,9 @@
                 var raw = await window.api.examConfig.get(SCHOOL_YEAR, 'examAutoDistributionData');
                 if (!raw) return [];
                 if (Array.isArray(raw)) return raw;
-                if (raw && raw.algorithmVersion === 'v2' && Array.isArray(raw.rows)) return raw.rows;
+                // V2 and V3 share the same envelope shape ({ rows, algorithmVersion, diagnostics });
+                // both unwrap identically because V3 Result_Rows are V2-shape compatible.
+                if (raw && (raw.algorithmVersion === 'v2' || raw.algorithmVersion === 'v3') && Array.isArray(raw.rows)) return raw.rows;
                 return [];
             }
 
