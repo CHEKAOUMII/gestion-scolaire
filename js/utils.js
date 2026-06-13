@@ -141,7 +141,7 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'settings-license.html', title: 'الترخيص والأجهزة', group: 'الإعدادات', completed: true },
     { page: 'settings-logs.html', title: 'سجل النشاطات', group: 'الإعدادات', completed: true },
     { page: 'settings-sync.html', title: 'المزامنة السحابية', group: 'الإعدادات', completed: true },
-    { page: 'student-profile-prototype.html', title: 'ملف التلميذ', group: 'التلاميذ', completed: false },
+    { page: 'student-profile-prototype.html', title: 'ملف التلميذ', group: 'التلاميذ', completed: true },
     {
         page: 'communication-center-prototype.html',
         title: 'مركز التواصل (جديد)',

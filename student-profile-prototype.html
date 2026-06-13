@@ -13,6 +13,8 @@
     <script src="js/message-system.js" defer></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/cc-rules.js" defer></script>
+    <script src="js/student-averages.js" defer></script>
+    <script src="js/student-risk.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
     <script src="js/print-system.js" defer></script>
     <!-- bm- styles moved to css/tailwind-input.css -->
@@ -79,6 +81,14 @@
                     <div class="sp-card">
                         <h3 class="sp-card-title"><i class="fas fa-chart-bar"></i> إحصائيات سريعة</h3>
                         <div class="sp-mini-stats">
+                            <div class="sp-mini-stat">
+                                <h4>معدل الدورة 1</h4>
+                                <div class="val" id="sp-stat-term1">—</div>
+                            </div>
+                            <div class="sp-mini-stat">
+                                <h4>معدل الدورة 2</h4>
+                                <div class="val" id="sp-stat-term2">—</div>
+                            </div>
                             <div class="sp-mini-stat">
                                 <h4>المعدل العام</h4>
                                 <div class="val" id="sp-stat-avg">-</div>
@@ -502,12 +512,12 @@
                                 </div>
                                 <div class="bm-risk-bar-bg"><div id="bm-risk-bar" class="bm-risk-bar-fill" style="width:0%;background:var(--color-accent)"></div></div>
                                 <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--color-text-light)">
-                                    <span>0 — منخفض</span><span>40 — متوسط</span><span>70 — مرتفع</span><span>100 — حرج</span>
+                                    <span>0 — عادي</span><span>31 — خطر</span><span>61 — حرج</span><span>100</span>
                                 </div>
                             </div>
-                            <div style="margin-bottom:12px">
-                                <div class="bm-progress-row"><span class="bm-progress-lbl">الغيابات</span><div class="bm-progress-bg"><div id="bm-pb-abs" class="bm-progress-fill" style="width:0%;background:var(--color-danger-solid)"></div></div><span id="bm-pt-abs" style="font-size:11px;min-width:30px;color:var(--color-text-muted)">0</span></div>
-                                <div class="bm-progress-row"><span class="bm-progress-lbl">النتائج الدراسية</span><div class="bm-progress-bg"><div id="bm-pb-gr" class="bm-progress-fill" style="width:0%;background:var(--color-warning-solid)"></div></div><span id="bm-pt-gr" style="font-size:11px;min-width:30px;color:var(--color-text-muted)">0</span></div>
+                            <div class="bm-sub-lbl" style="margin-bottom:6px">تفصيل المحاور (الوزن في المؤشر المركّب)</div>
+                            <div id="bm-axis-breakdown" style="margin-bottom:12px">
+                                <!-- Populated by renderStudentRiskTab() in js/pages/student-profile.js -->
                             </div>
                             <div class="bm-sub-lbl" style="margin-bottom:6px">علامات الخطر النشطة</div>
                             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
@@ -564,54 +574,13 @@
         }
 
         function bmUpdateRisk() {
-            /* Read absence/grade totals from the existing sp-stat elements populated by student-profile.js */
-            const totAbsEl = document.getElementById('sp-stat-absence');
-            const avgEl = document.getElementById('sp-stat-avg');
-            const totAbs = parseFloat(totAbsEl ? totAbsEl.textContent : 0) || 0;
-            const avg = parseFloat(avgEl ? avgEl.textContent : 0) || 0;
-
-            let absScore = 0, grScore = 0;
-            if (totAbs > 40) absScore = 35; else if (totAbs > 20) absScore = 25; else if (totAbs > 10) absScore = 15; else if (totAbs > 5) absScore = 8;
-            if (avg > 0 && avg < 8) grScore = 35; else if (avg >= 8 && avg < 10) grScore = 22; else if (avg >= 10 && avg < 12) grScore = 10;
-
-            /* Add points for active danger badges */
-            document.querySelectorAll('#tab-risk .bm-badge:not(.bm-badge-off)').forEach(() => { grScore = Math.min(grScore + 5, 50); });
-
-            const total = Math.min(absScore + grScore, 100);
-            const bar = document.getElementById('bm-risk-bar');
-            const lbl = document.getElementById('bm-risk-main-lbl');
-            const rec = document.getElementById('bm-recommendation');
-            const pbAbs = document.getElementById('bm-pb-abs');
-            const pbGr = document.getElementById('bm-pb-gr');
-            const ptAbs = document.getElementById('bm-pt-abs');
-            const ptGr = document.getElementById('bm-pt-gr');
-
-            if (!bar) return;
-            bar.style.width = total + '%';
-            if (pbAbs) pbAbs.style.width = Math.min(absScore * 2, 100) + '%';
-            if (pbGr) pbGr.style.width = Math.min(grScore * 2, 100) + '%';
-            if (ptAbs) ptAbs.textContent = absScore;
-            if (ptGr) ptGr.textContent = grScore;
-
-            if (total >= 70) {
-                bar.style.background = 'var(--color-danger-solid)'; lbl.style.color = 'var(--color-danger-text)';
-                lbl.textContent = 'خطر حرج — ' + total + '%';
-                rec.style.borderInlineEndColor = 'var(--color-danger-solid)';
-                rec.textContent = 'تدخل فوري مطلوب: اجتماع عاجل مع الأسرة، إحالة للمرشد التربوي والأخصائي النفسي، وضع خطة فردية للدعم.';
-            } else if (total >= 40) {
-                bar.style.background = 'var(--color-warning-solid)'; lbl.style.color = 'var(--color-warning-text)';
-                lbl.textContent = 'خطر متوسط — ' + total + '%';
-                rec.style.borderInlineEndColor = 'var(--color-warning-solid)';
-                rec.textContent = 'متابعة أسبوعية، التواصل مع الأسرة، تفعيل دعم تربوي داخل المؤسسة، رصد التطورات.';
-            } else if (total > 0) {
-                bar.style.background = 'var(--color-success-solid)'; lbl.style.color = 'var(--color-success-text)';
-                lbl.textContent = 'خطر منخفض — ' + total + '%';
-                rec.style.borderInlineEndColor = 'var(--color-success-solid)';
-                rec.textContent = 'الوضع تحت السيطرة. متابعة دورية شهرية مع تعزيز الإيجابيات.';
-            } else {
-                bar.style.background = 'var(--color-accent)'; lbl.textContent = '—';
-                rec.style.borderInlineEndColor = 'var(--color-accent)';
-                rec.textContent = 'تُحسب التوصية تلقائياً من بيانات الغياب والنقط في التبويبات الأخرى.';
+            /* Thin wrapper: the data-driven computation lives in
+               js/pages/student-profile.js (renderStudentRiskTab), which reads
+               the real grades/absence/profile data and uses the pure engine in
+               js/student-risk.js. Kept global so badge onclick / scale handlers
+               and the sp-stats-updated listener below keep working. */
+            if (typeof window.renderStudentRiskTab === 'function') {
+                window.renderStudentRiskTab();
             }
         }
 

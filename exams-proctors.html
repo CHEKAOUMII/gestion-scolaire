@@ -7,6 +7,7 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <link rel="stylesheet" href="css/ed-matrix.css" />
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -16,6 +17,7 @@
         <script src="js/algorithms/proctor-distribution-v2.js" defer></script>
         <script src="js/algorithms/proctor-v3.bundle.js" defer></script>
         <script src="js/data/proctor-key-resolver.js" defer></script>
+        <script src="js/exams/ed-matrix-logic.js" defer></script>
 
     </head>
 
@@ -200,7 +202,7 @@
                     <div class="dist-setting-group dist-setting-group--open" data-phase="1">
                         <button class="dist-setting-group-title" type="button" aria-expanded="true">
                             <i class="fas fa-users" aria-hidden="true"></i> الموارد البشرية
-                            <span class="dist-group-progress" id="dist-progress-1">0/4</span>
+                            <span class="dist-group-progress" id="dist-progress-1">0/3</span>
                             <i class="fas fa-chevron-down dist-group-chevron" aria-hidden="true"></i>
                         </button>
                         <div class="dist-setting-group-body">
@@ -221,19 +223,11 @@
                         <i class="fas fa-chevron-left dist-setting-arrow"></i>
                     </button>
 
-                    <button class="dist-setting-btn dist-setting--red" data-dist="exemptions" type="button">
+                    <button class="dist-setting-btn dist-setting--red" data-dist="exemptions-duty" type="button">
                         <span class="dist-setting-num">3</span>
-                        <span class="dist-setting-icon"><i class="fas fa-user-minus"></i></span>
-                        <span class="dist-setting-label">الإعفاءات والقيود<span class="dist-setting-desc">حسب الجمعة، الفترة، اليوم أو ظروف خاصة</span></span>
-                        <span class="dist-setting-status" id="dist-status-exemptions"></span>
-                        <i class="fas fa-chevron-left dist-setting-arrow"></i>
-                    </button>
-
-                    <button class="dist-setting-btn dist-setting--purple" data-dist="duty" type="button">
-                        <span class="dist-setting-num">4</span>
-                        <span class="dist-setting-icon"><i class="fas fa-book-reader"></i></span>
-                        <span class="dist-setting-label">الأساتذة المداومون<span class="dist-setting-desc">اختيار أساتذة حسب الحصة والمادة دون إدخالهم في الحراسة</span></span>
-                        <span class="dist-setting-status" id="dist-status-duty"></span>
+                        <span class="dist-setting-icon"><i class="fas fa-users-cog"></i></span>
+                        <span class="dist-setting-label">الإعفاءات والمداومة<span class="dist-setting-desc">حالة كل مراقب: حراسة / معفى / مداومة / احتياط حسب الحصة</span></span>
+                        <span class="dist-setting-status" id="dist-status-exemptions-duty"></span>
                         <i class="fas fa-chevron-left dist-setting-arrow"></i>
                     </button>
                         </div>
@@ -586,108 +580,35 @@
                     <div class="exam-settings-card"><div class="dist-placeholder"><i class="fas fa-cogs"></i><p>سيتم تفعيل هذا الإعداد قريباً</p></div></div>
                 </div>
 
-                <div class="dist-sub-panel" id="dist-sub-exemptions" style="display:none">
+                <div class="dist-sub-panel" id="dist-sub-exemptions-duty" style="display:none">
                     <div class="epm-panel-header">
                         <button class="epm-back-btn dist-back-btn" type="button"><i class="fas fa-arrow-right"></i> رجوع</button>
-                        <h3><i class="fas fa-user-minus"></i> الإعفاءات</h3>
+                        <h3><i class="fas fa-users-cog"></i> الإعفاءات والمداومة</h3>
                     </div>
                     <div class="exam-settings-card">
-                        <div class="exam-settings-title"><i class="fas fa-user-minus"></i> إعفاء مراقب حسب الحصة أو الفترة أو اليوم</div>
-                        <div class="exm-exempt-toolbar">
-                            <div class="exm-exempt-mode">
-                                <label><input type="radio" name="exempt-scope" value="day" checked> تفريغ باليوم</label>
-                                <label><input type="radio" name="exempt-scope" value="period"> تفريغ بالفترة: ص / م</label>
-                                <label><input type="radio" name="exempt-scope" value="session"> تفريغ بالحصة</label>
-                            </div>
-                            <div class="exm-exempt-controls">
-                                <label for="exempt-day-select">اليوم</label>
-                                <select class="form-select" id="exempt-day-select"></select>
-                                <label for="exempt-period-select">الفترة</label>
-                                <select class="form-select" id="exempt-period-select">
-                                    <option value="صباحا">صباحا</option>
-                                    <option value="زوالا">زوالا</option>
-                                </select>
-                                <label for="exempt-session-select">الحصة</label>
-                                <select class="form-select" id="exempt-session-select">
-                                    <option value="الحصة الأولى">الحصة الأولى</option>
-                                    <option value="الحصة الثانية">الحصة الثانية</option>
-                                    <option value="الحصة الثالثة">الحصة الثالثة</option>
-                                </select>
-                            </div>
+                        <div class="exam-settings-title"><i class="fas fa-users-cog"></i> تحديد حالة كل مراقب حسب الحصة</div>
+                        <div class="dist-period-hint" style="margin-bottom:12px">
+                            <i class="fas fa-info-circle"></i>
+                            مصفوفة المراقبين: كل سطر مراقب وكل عمود حصة امتحان. انقر على أي خلية لتغيير حالة المراقب في تلك الحصة: <strong>حراسة</strong> (افتراضي) أو <strong>معفى</strong> أو <strong>مداومة</strong> أو <strong>احتياط</strong>. تؤخذ هذه الحالات بعين الاعتبار عند التوزيع الآلي.
                         </div>
-                        <div class="exm-exempt-strip">
-                            <div class="exm-exempt-day" id="exempt-context-label">اليوم الأول</div>
-                            <div class="exm-exempt-stats">
-                                <span>مجموع المشاركين: <strong id="exempt-active-count">0</strong></span>
-                                <span>المعفون: <strong id="exempt-off-count">0</strong></span>
-                                <span>مجموع المراقبين: <strong id="exempt-total-count">0</strong></span>
-                            </div>
+                        <div class="exm-exempt-controls" style="margin:8px 0 12px">
+                            <label for="ed-search"><i class="fas fa-search"></i> بحث</label>
+                            <input type="text" id="ed-search" class="form-input" placeholder="بحث بالاسم أو التخصص..." style="min-width:220px">
+                            <label for="ed-status-filter">تصفية بالحالة</label>
+                            <select class="form-select" id="ed-status-filter">
+                                <option value="">كل الحالات</option>
+                                <option value="guard">حراسة</option>
+                                <option value="exempt">معفى</option>
+                                <option value="duty">مداومة</option>
+                                <option value="reserve">احتياط</option>
+                            </select>
                         </div>
-                        <div class="sup-table-wrapper">
-                            <table class="sup-table exm-exempt-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:55px">#</th>
-                                        <th>مادة التخصص</th>
-                                        <th>الاسم و النسب</th>
-                                        <th style="width:140px">مشارك في المراقبة</th>
-                                        <th>مادة الامتحان</th>
-                                        <th style="width:120px">معدل حصص المراقبة</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="exempt-tbody"></tbody>
-                            </table>
-                        </div>
+                        <!-- Matrix Grid render target (feature: exemptions-duty-matrix-grid).
+                             Populated by renderMatrixGrid(); wired by initExemptionsDutyMatrix. -->
+                        <div class="ed-matrix-wrapper" id="ed-matrix-container"></div>
                         <div class="form-actions">
-                            <button type="button" class="btn-save-lg" id="btn-save-exemptions"><i class="fas fa-save"></i> حفظ الإعفاءات</button>
-                            <button type="button" class="sup-btn sup-btn-clear-all" id="btn-clear-exemptions"><i class="fas fa-undo"></i> إعادة تهيئة هذا النطاق</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="dist-sub-panel" id="dist-sub-duty" style="display:none">
-                    <div class="epm-panel-header">
-                        <button class="epm-back-btn dist-back-btn" type="button"><i class="fas fa-arrow-right"></i> رجوع</button>
-                        <h3><i class="fas fa-book-reader"></i> الأساتذة المداومون</h3>
-                    </div>
-                    <div class="exam-settings-card">
-                        <div class="exam-settings-title"><i class="fas fa-book-reader"></i> تحديد الأساتذة المداومين في مواد الامتحان</div>
-                        <div class="exm-exempt-toolbar">
-                            <div class="exm-exempt-controls">
-                                <label for="duty-session-select">الحصة</label>
-                                <select class="form-select" id="duty-session-select"></select>
-                                <label for="duty-subject-select">المادة</label>
-                                <select class="form-select" id="duty-subject-select"></select>
-                            </div>
-                            <div class="dist-period-hint" style="margin:0">
-                                <i class="fas fa-info-circle"></i>
-                                تؤخذ المداومة بعين الاعتبار لاحقا عند توزيع المراقبة، والأولوية للأساتذة الأقل حصص مراقبة.
-                            </div>
-                        </div>
-                        <div class="exm-exempt-strip">
-                            <div class="exm-exempt-day" id="duty-context-label">اختر الحصة والمادة</div>
-                            <div class="exm-exempt-stats">
-                                <span>عدد المداومين في الحصة: <strong id="duty-selected-count">0</strong></span>
-                                <span>مجموع حصص الامتحان: <strong id="duty-session-count">0</strong></span>
-                                <span>عدد التخصص بدون مداوم: <strong id="duty-missing-count">0</strong></span>
-                            </div>
-                        </div>
-                        <div class="sup-table-wrapper">
-                            <table class="sup-table exm-exempt-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:55px">#</th>
-                                        <th>اسم الأستاذ</th>
-                                        <th>مادة التخصص</th>
-                                        <th style="width:130px">تأكيد المداومة</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="duty-tbody"></tbody>
-                            </table>
-                        </div>
-                        <div class="form-actions">
-                            <button type="button" class="btn-save-lg" id="btn-save-duty"><i class="fas fa-save"></i> حفظ المداومة</button>
-                            <button type="button" class="sup-btn sup-btn-clear-all" id="btn-clear-duty"><i class="fas fa-undo"></i> إعادة تهيئة هذه الحصة</button>
+                            <button type="button" class="btn-save-lg" id="btn-save-ed"><i class="fas fa-save"></i> حفظ</button>
+                            <button type="button" class="sup-btn sup-btn-clear-all" id="btn-clear-ed"><i class="fas fa-undo"></i> إعادة تهيئة هذا النطاق</button>
                         </div>
                     </div>
                 </div>
@@ -1117,6 +1038,7 @@
             let periodEditIdx = -1;
             let exemptionsData = {};
             let dutyData = {};
+            let reservesData = {};
 
             let meAssignments = {};
             let meExamDays = [];
@@ -1127,8 +1049,7 @@
             const DISTRIBUTION_STEP_LABELS = {
                 'proctors-data': 'لائحة المراقبين',
                 participants: 'المشاركون الإضافيون',
-                exemptions: 'الإعفاءات والقيود',
-                duty: 'الأساتذة المداومون',
+                'exemptions-duty': 'الإعفاءات والمداومة',
                 periods: 'تحديد فترات الامتحان',
                 'morning-evening': 'توزيع المجموعتين المتناوبتين',
                 'proctors-per-room': 'عدد المراقبين في كل قاعة',
@@ -1142,7 +1063,7 @@
                 'examCenterConfig', 'examCenterLevels', 'examCenterRoomsData',
                 'examCenterRoomsCount', 'examScheduleData', 'examAutoDistributionData',
                 'examPeriodsData', 'examDistributionRules', 'examExemptionsData',
-                'examDutyTeachersData', 'examMorningEveningData',
+                'examDutyTeachersData', 'examReservesData', 'examMorningEveningData',
                 'examAutoDistributionOptions', 'examCandidatesData'
             ];
             async function migrateExamLocalStorageToDb() {
@@ -1172,8 +1093,7 @@
                 initDashboard();
                 await initDistSettings();
                 await initPeriodsPanel();
-                await initExemptionsPanel();
-                await initDutyPanel();
+                await initExemptionsDutyMatrix();
                 await initDistributionRulesPanel();
                 await loadBannerFromConfig();
                 await loadProctors();
@@ -1294,9 +1214,10 @@
                 setDistStatus('proctors-data', proctorsList.length > 0 ? 'done' : 'todo');
                 setDistStatus('participants', 'todo');
                 exemptionsData = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
-                setDistStatus('exemptions', Object.keys(exemptionsData).length > 0 ? 'done' : 'todo');
                 dutyData = (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {};
-                setDistStatus('duty', Object.keys(dutyData).length > 0 ? 'done' : 'todo');
+                reservesData = (await window.api.examConfig.get(year, 'examReservesData')) || {};
+                const edHasData = Object.keys(exemptionsData).length > 0 || Object.keys(dutyData).length > 0 || Object.keys(reservesData).length > 0;
+                setDistStatus('exemptions-duty', edHasData ? 'done' : 'todo');
                 periodsList = (await window.api.examConfig.get(year, 'examPeriodsData')) || [];
                 setDistStatus('periods', periodsList.length > 0 ? 'done' : 'todo');
                 var meHasData = Object.values(meAssignments).some(v => v === 1 || v === 2);
@@ -1349,7 +1270,7 @@
 
             function updateStepperAndProgress() {
                 const phaseKeys = {
-                    1: ['proctors-data', 'participants', 'exemptions', 'duty'],
+                    1: ['proctors-data', 'participants', 'exemptions-duty'],
                     2: ['periods', 'morning-evening', 'proctors-per-room', 'reserves-per-session'],
                     3: ['manual-adjust', 'auto-distribute']
                 };
@@ -1530,11 +1451,8 @@
                 const meHasData = Object.values(meAssignments).some(v => v === 1 || v === 2);
                 const missing = [];
 
-                if (['participants', 'exemptions', 'duty', 'morning-evening', 'reserves-per-session', 'reserves', 'manual-adjust', 'auto-distribute'].includes(key) && !hasProctors) {
+                if (['participants', 'exemptions-duty', 'morning-evening', 'reserves-per-session', 'reserves', 'manual-adjust', 'auto-distribute'].includes(key) && !hasProctors) {
                     missing.push('لائحة المراقبين');
-                }
-                if (['duty'].includes(key) && !ready.hasSchedule) {
-                    missing.push('البرمجة');
                 }
                 if (['morning-evening', 'reserves-per-session', 'reserves', 'manual-adjust', 'auto-distribute'].includes(key) && !ready.hasPeriods) {
                     missing.push('الفترات');
@@ -1811,330 +1729,786 @@
                 return parts[2] + '/' + parts[1] + '/' + parts[0];
             }
 
-            /* ═══ Exemptions Panel ═══ */
-            async function initExemptionsPanel() {
-                exemptionsData = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
-                await populateExemptionDays();
-                document.querySelectorAll('input[name="exempt-scope"]').forEach(r => r.addEventListener('change', renderExemptionsTable));
-                ['exempt-day-select', 'exempt-period-select', 'exempt-session-select'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.addEventListener('change', renderExemptionsTable);
-                });
-                document.getElementById('btn-save-exemptions').addEventListener('click', saveExemptions);
-                document.getElementById('btn-clear-exemptions').addEventListener('click', clearCurrentExemptions);
-                await renderExemptionsTable();
-            }
-
-            function getExemptionContext() {
-                const scope = document.querySelector('input[name="exempt-scope"]:checked')?.value || 'day';
-                const day = document.getElementById('exempt-day-select').value || 'الأول';
-                const period = document.getElementById('exempt-period-select').value || 'صباحا';
-                const session = document.getElementById('exempt-session-select').value || 'الحصة الأولى';
-                const keyParts = [scope, day];
-                if (scope === 'period' || scope === 'session') keyParts.push(period);
-                if (scope === 'session') keyParts.push(session);
-                return { scope, day, period, session, key: keyParts.join('|') };
-            }
-
-            async function populateExemptionDays() {
-                const daySelect = document.getElementById('exempt-day-select');
-                if (!daySelect) return;
-                const days = new Set(['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس']);
-                (await getScheduleEntries()).forEach(s => { if (s.day) days.add(s.day); });
-                daySelect.innerHTML = Array.from(days).map(d => '<option value="' + escHtml(d) + '">' + escHtml(d) + '</option>').join('');
-            }
-
-            async function getCurrentExamSubjectLabel(ctx) {
-                const matches = (await getScheduleEntries()).filter(s => {
-                    if (!s || s.day !== ctx.day) return false;
-                    if (ctx.scope === 'period') return (s.period || '') === ctx.period;
-                    if (ctx.scope === 'session') return (s.period || '') === ctx.period && (s.session || '') === ctx.session;
-                    return true;
-                });
-                const labels = Array.from(new Set(matches.map(s => s.subject_name).filter(Boolean)));
-                return labels.join('، ');
-            }
-
-            function getExemptionContextLabel(ctx) {
-                if (ctx.scope === 'session') return ctx.day + ' | ' + ctx.period + ' | ' + ctx.session;
-                if (ctx.scope === 'period') return ctx.day + ' | ' + ctx.period;
-                return ctx.day;
-            }
+            /* ═══ Exemptions & Duty: see initExemptionsDutyMatrix (matrix grid) ═══ */
 
             function getProctorExemptionKey(proc, idx) {
                 return proc.cin || proc.som || ('idx_' + idx);
             }
 
-            async function renderExemptionsTable() {
-                await populateExemptionDays();
-                const tbody = document.getElementById('exempt-tbody');
-                if (!tbody) return;
-                const ctx = getExemptionContext();
-                const bucket = exemptionsData[ctx.key] || {};
-                const subjectLabel = await getCurrentExamSubjectLabel(ctx);
-                const contextLabel = getExemptionContextLabel(ctx);
-                document.getElementById('exempt-context-label').textContent = contextLabel;
+            /* ═══════════════════════════════════════════════════════════════
+               Matrix Grid renderer (feature: exemptions-duty-matrix-grid, Task 11.1)
+               Pure rendering of a MatrixModel into the grid DOM. No save / reset /
+               search-control / inline-edit wiring here (those land in tasks 12–15).
+               Delegates all computation to window.EdMatrixLogic.
+               ═══════════════════════════════════════════════════════════════ */
 
-                if (!proctorsList.length) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-info-circle" style="margin-left:6px"></i>يرجى إضافة المراقبين أولا</td></tr>';
-                    updateExemptionStats(0, 0);
+            // Identity columns in RTL display order (right → left): ترتيب, الاسم,
+            // رقم التأجير, المؤسسة, مادة التخصص (Requirement 2.1). `width` feeds the
+            // cumulative `right` offset that pins each column when scrolling.
+            const ED_MATRIX_IDENTITY_COLS = [
+                { key: 'order', label: 'ترتيب', width: 54 },
+                { key: 'name', label: 'الاسم', width: 180 },
+                { key: 'registration', label: 'رقم التأجير', width: 110 },
+                { key: 'institution', label: 'المؤسسة', width: 150 },
+                { key: 'specialty', label: 'مادة التخصص', width: 150 }
+            ];
+            // Trailing Summary_Columns (Requirement 8.x): guard / duty / reserve / exempt.
+            const ED_MATRIX_SUMMARY_COLS = [
+                { key: 'guard', label: 'حراسة' },
+                { key: 'duty', label: 'مداومة' },
+                { key: 'reserve', label: 'احتياط' },
+                { key: 'exempt', label: 'معفى' }
+            ];
+            // ONE identical placeholder for every empty/null identity field (Req 2.2).
+            const ED_IDENTITY_PLACEHOLDER = '—';
+            // Explicit marker for a non-enum in-memory status (Req 3.4).
+            const ED_UNRECOGNIZED_MARKER = '؟';
+
+            // Read a row's status for one session; cells is a Map (model) or a
+            // plain object; absence resolves to guard (the default, Req 4.1).
+            function edMatrixCellStatus(cells, sessionKey) {
+                if (!cells) return 'guard';
+                if (typeof Map !== 'undefined' && cells instanceof Map) {
+                    return cells.has(sessionKey) ? cells.get(sessionKey) : 'guard';
+                }
+                return Object.prototype.hasOwnProperty.call(cells, sessionKey) ? cells[sessionKey] : 'guard';
+            }
+
+            /**
+             * Render a MatrixModel into the grid DOM (replaces renderEdTable's
+             * single-session list with the full proctor × session matrix).
+             *
+             * @param {{sessions:Array, dateGroups:Array, rows:Array, totalSessions:number}} matrixModel
+             * @param {{searchText?:string, statusFilter?:string, sort?:object}} [viewState]
+             *        When provided, visible rows = applySearchFilterSort(rows, viewState).
+             * @param {HTMLElement} [targetContainer] defaults to #ed-matrix-container.
+             * @returns {HTMLElement|null} the container the grid was rendered into.
+             */
+            function renderMatrixGrid(matrixModel, viewState, targetContainer) {
+                const logic = window.EdMatrixLogic || {};
+                const STATUS_CODE = logic.STATUS_CODE || { guard: 'ك', exempt: 'معفى', duty: 'م', reserve: 'إح' };
+                const KNOWN = { guard: 1, exempt: 1, duty: 1, reserve: 1 };
+
+                const container = targetContainer || document.getElementById('ed-matrix-container');
+                const model = matrixModel || { sessions: [], dateGroups: [], rows: [], totalSessions: 0 };
+                const sessions = Array.isArray(model.sessions) ? model.sessions : [];
+                const dateGroups = Array.isArray(model.dateGroups) ? model.dateGroups : [];
+                const allRows = Array.isArray(model.rows) ? model.rows : [];
+
+                // Visible rows: search/filter/sort if a viewState is supplied,
+                // otherwise render every row (Task 11.1 contract).
+                let rows = allRows;
+                if (viewState && typeof logic.applySearchFilterSort === 'function') {
+                    rows = logic.applySearchFilterSort(allRows, viewState) || [];
+                }
+
+                // Empty states (Req 1.5/1.6/1.7): "add proctors first" wins over
+                // "no sessions available".
+                if (!allRows.length) {
+                    if (container) {
+                        container.innerHTML = '<div class="ed-matrix-empty" data-ed-empty="no-proctors">'
+                            + '<i class="fas fa-info-circle" style="margin-left:6px"></i>يرجى إضافة المراقبين أولا</div>';
+                    }
+                    return container;
+                }
+                if (!sessions.length) {
+                    if (container) {
+                        container.innerHTML = '<div class="ed-matrix-empty" data-ed-empty="no-sessions">'
+                            + '<i class="fas fa-info-circle" style="margin-left:6px"></i>لا توجد حصص متاحة للتعديل</div>';
+                    }
+                    return container;
+                }
+
+                // Stacked sticky right-offsets for the frozen identity columns
+                // (RTL, Requirements 10.1 + 10.4).
+                let cumRight = 0;
+                const identityCols = ED_MATRIX_IDENTITY_COLS.map((c, i) => {
+                    const col = { key: c.key, label: c.label, width: c.width, right: cumRight, index: i };
+                    cumRight += c.width;
+                    return col;
+                });
+                const identityStyle = (c) => 'style="right:' + c.right + 'px;min-width:' + c.width + 'px;width:' + c.width + 'px"';
+                const identityClass = (c) => 'ed-identity-col ed-identity-col-' + c.key;
+
+                // Header row 1: identity headers (rowspan 2) + date-group headers
+                // (colspan over their sessions) + summary headers (rowspan 2).
+                // Identity headers are sortable (Task 15.1, Req 9.5): they carry
+                // data-ed-matrix-sort + an aria-sort/indicator reflecting viewState.
+                const sortState = (viewState && viewState.sort) ? viewState.sort : null;
+                let head = '<tr>';
+                identityCols.forEach(c => {
+                    const isSorted = !!(sortState && sortState.column === c.key);
+                    const dir = isSorted ? (sortState.direction === 'desc' ? 'desc' : 'asc') : '';
+                    const icon = isSorted ? (dir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+                    const ariaSort = isSorted ? (dir === 'asc' ? 'ascending' : 'descending') : 'none';
+                    head += '<th rowspan="2" class="' + identityClass(c) + ' ed-matrix-sortable" ' + identityStyle(c)
+                        + ' data-ed-matrix-sort="' + escHtml(c.key) + '" aria-sort="' + ariaSort + '">'
+                        + escHtml(c.label) + ' <i class="fas ' + icon + '" aria-hidden="true"></i></th>';
+                });
+                dateGroups.forEach(g => {
+                    const span = g.span || (Array.isArray(g.columns) ? g.columns.length : 1);
+                    const label = g.dateLabel || ED_IDENTITY_PLACEHOLDER;
+                    head += '<th class="ed-date-group-header" colspan="' + span + '">' + escHtml(label) + '</th>';
+                });
+                ED_MATRIX_SUMMARY_COLS.forEach(s => {
+                    head += '<th rowspan="2" class="ed-summary-col ed-summary-col-' + s.key + '">' + escHtml(s.label) + '</th>';
+                });
+                head += '</tr>';
+
+                // Header row 2: one session header per column, grouped under its date.
+                head += '<tr>';
+                dateGroups.forEach(g => {
+                    (g.columns || []).forEach(col => {
+                        const sub = (Array.isArray(col.subjects) && col.subjects.length) ? col.subjects.join('، ') : '';
+                        const title = col.period + ' | ' + col.session + (sub ? ' | ' + sub : '');
+                        head += '<th class="ed-session-header" data-session-key="' + escHtml(col.sessionKey) + '" title="' + escHtml(title) + '">'
+                            + escHtml(col.period) + '<br>' + escHtml(col.session) + '</th>';
+                    });
+                });
+                head += '</tr>';
+
+                // Body: one row per proctor, identity → status cells → summaries.
+                let body = '';
+                rows.forEach((row, rowIdx) => {
+                    const identity = row.identity || {};
+                    body += '<tr data-row-key="' + escHtml(row.proctorKey) + '">';
+                    identityCols.forEach(c => {
+                        let raw;
+                        if (c.key === 'order') {
+                            raw = rowIdx + 1; // gapless 1..n in display order (Req 2.4/2.5)
+                        } else {
+                            raw = identity[c.key];
+                        }
+                        const missing = c.key !== 'order' && (raw === null || raw === undefined || String(raw).trim() === '');
+                        const cellVal = missing ? ED_IDENTITY_PLACEHOLDER : escHtml(raw);
+                        const missClass = missing ? ' ed-identity-missing' : '';
+                        body += '<td class="' + identityClass(c) + missClass + '" ' + identityStyle(c) + '>' + cellVal + '</td>';
+                    });
+                    dateGroups.forEach(g => {
+                        (g.columns || []).forEach(col => {
+                            const status = edMatrixCellStatus(row.cells, col.sessionKey);
+                            const baseAttrs = ' data-row-key="' + escHtml(row.proctorKey) + '" data-session-key="' + escHtml(col.sessionKey) + '"';
+                            if (KNOWN[status]) {
+                                body += '<td class="ed-status-cell ed-status-' + status + '"' + baseAttrs + ' data-status="' + status + '">'
+                                    + escHtml(STATUS_CODE[status]) + '</td>';
+                            } else {
+                                // Unrecognized in-memory value: explicit marker, none
+                                // of the four Status_Codes/colors (Requirement 3.4).
+                                body += '<td class="ed-status-cell ed-cell-unrecognized"' + baseAttrs + ' data-status="' + escHtml(String(status)) + '" title="حالة غير معروفة">'
+                                    + ED_UNRECOGNIZED_MARKER + '</td>';
+                            }
+                        });
+                    });
+                    const summary = row.summary || { guard: 0, duty: 0, reserve: 0, exempt: 0 };
+                    ED_MATRIX_SUMMARY_COLS.forEach(s => {
+                        body += '<td class="ed-summary-col ed-summary-col-' + s.key + '">' + (summary[s.key] || 0) + '</td>';
+                    });
+                    body += '</tr>';
+                });
+
+                // No rows match the active search/filter (Req 9.6 — rendered here,
+                // fully tested in task 15.2).
+                if (!rows.length) {
+                    const span = identityCols.length + sessions.length + ED_MATRIX_SUMMARY_COLS.length;
+                    body = '<tr><td class="ed-matrix-empty" data-ed-empty="no-match" colspan="' + span + '">'
+                        + '<i class="fas fa-info-circle" style="margin-left:6px"></i>لا يوجد مراقبون مطابقون للبحث والتصفية</td></tr>';
+                }
+
+                const tableHtml = '<table class="ed-matrix" dir="rtl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+                if (container) container.innerHTML = tableHtml;
+                return container;
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Inline cell editing (feature: exemptions-duty-matrix-grid, Task 12.1)
+               Interaction layer over the rendered matrix. Maintains an in-memory
+               MatrixModel (`edMatrixModel`, set by the panel-wiring task 13) and
+               edits a single Status_Cell at a time. No persistence here — Save is
+               task 13. Delegates summary recompute to window.EdMatrixLogic.
+               ═══════════════════════════════════════════════════════════════ */
+
+            // Current in-memory MatrixModel (shape from EdMatrixLogic.buildMatrixModel:
+            // { sessions, dateGroups, rows, totalSessions }). Task 13 assigns this on
+            // panel load; the 12.x tests and inline editing read/mutate it here.
+            let edMatrixModel = null;
+            // View state (search/filter/sort) driving applySearchFilterSort on
+            // each re-render (Task 15.1). Initialized as an object so the matrix
+            // renders a renumbered subset and the no-match message can appear.
+            let edMatrixViewState = { searchText: '', statusFilter: '', sort: null };
+            // The currently-open inline editor popup element, or null.
+            let edOpenCellEditor = null;
+
+            // Locate a Proctor_Row in the current model by its proctorKey. Returns
+            // null if the model/row is missing (callers stay no-throw).
+            function edFindMatrixRow(rowKey) {
+                if (!edMatrixModel || !Array.isArray(edMatrixModel.rows)) return null;
+                for (let i = 0; i < edMatrixModel.rows.length; i++) {
+                    const r = edMatrixModel.rows[i];
+                    if (r && r.proctorKey === rowKey) return r;
+                }
+                return null;
+            }
+
+            // Write a status into a row's cells (Map or plain-object), no-throw.
+            function edWriteRowCell(row, sessionKey, status) {
+                if (!row || !row.cells) return;
+                const cells = row.cells;
+                if (typeof Map !== 'undefined' && cells instanceof Map) {
+                    cells.set(sessionKey, status);
+                } else if (typeof cells === 'object') {
+                    cells[sessionKey] = status;
+                }
+            }
+
+            // Find the rendered Status_Cell <td> for a (rowKey, sessionKey) pair.
+            // Matches on data attributes so arbitrary key contents are safe.
+            function edFindCellEl(rowKey, sessionKey, container) {
+                const cont = container || document.getElementById('ed-matrix-container');
+                if (!cont) return null;
+                const cells = cont.querySelectorAll('td.ed-status-cell');
+                for (let i = 0; i < cells.length; i++) {
+                    if (cells[i].getAttribute('data-row-key') === rowKey &&
+                        cells[i].getAttribute('data-session-key') === sessionKey) {
+                        return cells[i];
+                    }
+                }
+                return null;
+            }
+
+            // Dismiss the open inline editor, if any (Req 5.6 — leaves cell unchanged).
+            function closeCellEditor() {
+                if (edOpenCellEditor && edOpenCellEditor.parentNode) {
+                    edOpenCellEditor.parentNode.removeChild(edOpenCellEditor);
+                }
+                edOpenCellEditor = null;
+                document.removeEventListener('mousedown', edCellEditorOutsideHandler, true);
+                document.removeEventListener('keydown', edCellEditorKeyHandler, true);
+            }
+
+            function edCellEditorOutsideHandler(ev) {
+                if (edOpenCellEditor && !edOpenCellEditor.contains(ev.target)) {
+                    closeCellEditor();
+                }
+            }
+
+            function edCellEditorKeyHandler(ev) {
+                if (ev && ev.key === 'Escape') closeCellEditor();
+            }
+
+            /**
+             * Present the four Proctor_Status options for ONE activated cell
+             * (Requirement 5.1). Dismissing without choosing (outside click /
+             * Escape) leaves the cell unchanged (Requirement 5.6). No-op if the
+             * model, row, or rendered cell is missing.
+             *
+             * @param {string} rowKey   — the Proctor_Row's proctorKey.
+             * @param {string} sessionKey — the Session_Column key.
+             */
+            function openCellEditor(rowKey, sessionKey) {
+                closeCellEditor(); // never stack editors
+
+                const row = edFindMatrixRow(rowKey);
+                if (!row) return;
+                const container = document.getElementById('ed-matrix-container');
+                if (!container) return;
+                const cellEl = edFindCellEl(rowKey, sessionKey, container);
+                if (!cellEl) return;
+
+                const logic = window.EdMatrixLogic || {};
+                const STATUS_CODE = logic.STATUS_CODE || { guard: 'ك', exempt: 'معفى', duty: 'م', reserve: 'إح' };
+                const current = edMatrixCellStatus(row.cells, sessionKey);
+                const OPTIONS = [
+                    ['guard', 'حراسة'],
+                    ['exempt', 'معفى'],
+                    ['duty', 'مداومة'],
+                    ['reserve', 'احتياط']
+                ];
+
+                const menu = document.createElement('div');
+                menu.className = 'ed-cell-editor';
+                menu.setAttribute('role', 'menu');
+                menu.setAttribute('dir', 'rtl');
+                OPTIONS.forEach(o => {
+                    const status = o[0];
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'ed-cell-editor-opt ed-status-' + status + (status === current ? ' is-current' : '');
+                    btn.setAttribute('data-status', status);
+                    btn.innerHTML = '<span class="ed-cell-editor-code">' + escHtml(STATUS_CODE[status]) + '</span>' + escHtml(o[1]);
+                    btn.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        onCellStatusSelected(rowKey, sessionKey, status);
+                        closeCellEditor();
+                    });
+                    menu.appendChild(btn);
+                });
+
+                container.appendChild(menu);
+                // Anchor just below the cell, accounting for scroll position
+                // (container is position:relative, overflow:auto).
+                const cRect = cellEl.getBoundingClientRect();
+                const wRect = container.getBoundingClientRect();
+                menu.style.top = (cRect.bottom - wRect.top + container.scrollTop) + 'px';
+                menu.style.left = (cRect.left - wRect.left + container.scrollLeft) + 'px';
+
+                edOpenCellEditor = menu;
+                // Defer binding so the activating click doesn't immediately dismiss.
+                setTimeout(function () {
+                    document.addEventListener('mousedown', edCellEditorOutsideHandler, true);
+                    document.addEventListener('keydown', edCellEditorKeyHandler, true);
+                }, 0);
+            }
+
+            /**
+             * Apply a status selection to one cell (Requirements 5.2–5.5, 3.3, 8.5).
+             * - Selecting the current status leaves the cell unchanged (5.5).
+             * - Otherwise update the in-memory model, recompute the row summary,
+             *   and re-render the cell (full code+color replacement, 3.3) and the
+             *   row's Summary_Columns (within 1s, 8.5).
+             * - On recompute failure: revert the cell, keep the prior summaries,
+             *   surface an error, and persist nothing (5.4).
+             *
+             * @param {string} rowKey
+             * @param {string} sessionKey
+             * @param {string} newStatus — one of guard/exempt/duty/reserve.
+             */
+            function onCellStatusSelected(rowKey, sessionKey, newStatus) {
+                const KNOWN = { guard: 1, exempt: 1, duty: 1, reserve: 1 };
+                if (!KNOWN[newStatus]) return; // defensive: ignore non-enum selections
+
+                const row = edFindMatrixRow(rowKey);
+                if (!row) return;
+
+                const prevStatus = edMatrixCellStatus(row.cells, sessionKey);
+                // Selecting the status the cell already holds is a no-op (Req 5.5).
+                if (newStatus === prevStatus) return;
+
+                const prevSummary = row.summary || { guard: 0, duty: 0, reserve: 0, exempt: 0 };
+
+                // Commit the change to the in-memory model.
+                edWriteRowCell(row, sessionKey, newStatus);
+
+                try {
+                    const logic = window.EdMatrixLogic || {};
+                    if (typeof logic.computeRowSummary !== 'function') {
+                        throw new Error('computeRowSummary unavailable');
+                    }
+                    const cellValues = (typeof Map !== 'undefined' && row.cells instanceof Map)
+                        ? row.cells.values()
+                        : (row.cells && typeof row.cells === 'object' ? Object.values(row.cells) : []);
+                    const newSummary = logic.computeRowSummary(cellValues);
+                    row.summary = newSummary;
+                    // Re-render only what changed for snappiness (Req 3.3, 8.5).
+                    edRerenderCell(rowKey, sessionKey, newStatus);
+                    edRerenderRowSummary(rowKey, newSummary);
+                } catch (e) {
+                    // Recompute failed: revert cell + retain prior summaries, show an
+                    // error indication, no persistence (Req 5.4).
+                    edWriteRowCell(row, sessionKey, prevStatus);
+                    row.summary = prevSummary;
+                    if (typeof showToast === 'function') {
+                        showToast('تعذّر تحديث ملخص الصف، تم التراجع عن التغيير', 'error');
+                    }
+                }
+            }
+
+            // Re-render a single Status_Cell, fully replacing its code AND color
+            // class so nothing from the previous status remains (Requirement 3.3).
+            function edRerenderCell(rowKey, sessionKey, status) {
+                const cellEl = edFindCellEl(rowKey, sessionKey);
+                if (!cellEl) return;
+                const logic = window.EdMatrixLogic || {};
+                const STATUS_CODE = logic.STATUS_CODE || { guard: 'ك', exempt: 'معفى', duty: 'م', reserve: 'إح' };
+                const KNOWN = { guard: 1, exempt: 1, duty: 1, reserve: 1 };
+                if (KNOWN[status]) {
+                    cellEl.className = 'ed-status-cell ed-status-' + status;
+                    cellEl.setAttribute('data-status', status);
+                    cellEl.removeAttribute('title');
+                    cellEl.textContent = STATUS_CODE[status];
+                } else {
+                    cellEl.className = 'ed-status-cell ed-cell-unrecognized';
+                    cellEl.setAttribute('data-status', String(status));
+                    cellEl.setAttribute('title', 'حالة غير معروفة');
+                    cellEl.textContent = ED_UNRECOGNIZED_MARKER;
+                }
+            }
+
+            // Update a row's Summary_Columns in place from a fresh summary object.
+            function edRerenderRowSummary(rowKey, summary) {
+                const container = document.getElementById('ed-matrix-container');
+                if (!container) return;
+                const trs = container.querySelectorAll('tbody tr[data-row-key]');
+                let tr = null;
+                for (let i = 0; i < trs.length; i++) {
+                    if (trs[i].getAttribute('data-row-key') === rowKey) { tr = trs[i]; break; }
+                }
+                if (!tr) return;
+                const s = summary || { guard: 0, duty: 0, reserve: 0, exempt: 0 };
+                ED_MATRIX_SUMMARY_COLS.forEach(col => {
+                    const cell = tr.querySelector('td.ed-summary-col-' + col.key);
+                    if (cell) cell.textContent = (s[col.key] || 0);
+                });
+            }
+
+            // Wire cell activation via event delegation on the matrix container.
+            // Idempotent: the listener lives on the container (not its replaced
+            // children) so a single bind survives every re-render. Task 13 calls
+            // this once after the first render.
+            function edWireMatrixCellEditing(container) {
+                const cont = container || document.getElementById('ed-matrix-container');
+                if (!cont || cont.dataset.edEditingWired === '1') return;
+                cont.dataset.edEditingWired = '1';
+                cont.addEventListener('click', function (ev) {
+                    const cell = (ev.target && ev.target.closest) ? ev.target.closest('td.ed-status-cell') : null;
+                    if (!cell || !cont.contains(cell)) return;
+                    const rowKey = cell.getAttribute('data-row-key');
+                    const sessionKey = cell.getAttribute('data-session-key');
+                    if (rowKey == null || sessionKey == null) return;
+                    openCellEditor(rowKey, sessionKey);
+                });
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Reset scope (feature: exemptions-duty-matrix-grid, Task 14.1)
+               resetMatrix(scope): present a confirmation prompt and make NO
+               store change until the user confirms; on confirm, clear the
+               exempt/duty/reserve entries for every in-scope (proctor, session)
+               on a CLONE of the store, persist through window.api.examConfig,
+               and ONLY commit to the in-memory store + re-render (every in-scope
+               cell as guard ك) on success. On cancel or persistence failure the
+               prior store and all cell statuses are retained.
+               _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
+               ═══════════════════════════════════════════════════════════════ */
+
+            // Mirror EdMatrixLogic.getSessionColumnBucketKeys: every duty/reserve
+            // bucket key for a Session_Column — for each subject (empty-subject
+            // fallback included), both the dated `sessionKey|subject` and the
+            // legacy `day|period|session|subject` shapes — so a cleared cell
+            // removes the proctor from pre-existing data of either shape.
+            function edSessionColumnBucketKeys(col) {
+                const logic = window.EdMatrixLogic || {};
+                const datedBase = col.sessionKey || '';
+                const legacyBase = (typeof logic.getLegacyScheduleSessionKey === 'function')
+                    ? logic.getLegacyScheduleSessionKey({ day: col.day, period: col.period, session: col.session })
+                    : [col.day || 'الأول', col.period || 'صباحا', col.session || 'الحصة الأولى'].join('|');
+                const subjects = Array.isArray(col.subjects) ? col.subjects : [];
+                const subjectList = subjects.length ? subjects : [''];
+                const keys = [];
+                subjectList.forEach(s => {
+                    const subject = s || '';
+                    keys.push(datedBase + '|' + subject);
+                    keys.push(legacyBase + '|' + subject);
+                });
+                return keys;
+            }
+
+            // Remove one proctor's exempt/duty/reserve entries for one
+            // Session_Column from a (cloned) store, pruning emptied buckets.
+            // Mutates the passed store clone only — never the live globals.
+            function edClearCellStoreEntries(store, proctorKey, col) {
+                const exemptKey = col.exemptKey;
+                if (exemptKey && store.exemptionsData && store.exemptionsData[exemptKey]) {
+                    delete store.exemptionsData[exemptKey][proctorKey];
+                    if (!Object.keys(store.exemptionsData[exemptKey]).length) delete store.exemptionsData[exemptKey];
+                }
+                const bucketKeys = edSessionColumnBucketKeys(col);
+                [store.dutyData, store.reservesData].forEach(map => {
+                    if (!map) return;
+                    bucketKeys.forEach(bk => {
+                        if (map[bk]) {
+                            delete map[bk][proctorKey];
+                            if (!Object.keys(map[bk]).length) delete map[bk];
+                        }
+                    });
+                });
+            }
+
+            // Resolve which Proctor_Rows and Session_Columns of the current
+            // in-memory model are in the reset scope. A falsy/'all'/string scope
+            // means the whole matrix; an object scope may narrow it with
+            // `rowKeys` (proctorKey[]) and/or `sessionKeys` (sessionKey[]).
+            function edResolveResetScope(scope) {
+                const model = edMatrixModel || { rows: [], sessions: [] };
+                let rows = Array.isArray(model.rows) ? model.rows.slice() : [];
+                let sessions = Array.isArray(model.sessions) ? model.sessions.slice() : [];
+                if (scope && typeof scope === 'object') {
+                    if (Array.isArray(scope.rowKeys)) {
+                        const set = new Set(scope.rowKeys);
+                        rows = rows.filter(r => r && set.has(r.proctorKey));
+                    }
+                    if (Array.isArray(scope.sessionKeys)) {
+                        const set = new Set(scope.sessionKeys);
+                        sessions = sessions.filter(s => s && set.has(s.sessionKey));
+                    }
+                }
+                return { rows, sessions };
+            }
+
+            /**
+             * Reset the exempt/duty/reserve statuses for a scope back to guard.
+             *
+             * @param {('all'|{rowKeys?:string[], sessionKeys?:string[]})} [scope]
+             *        Omitted / 'all' resets the whole matrix; an object narrows
+             *        the reset to specific rows and/or sessions.
+             */
+            async function resetMatrix(scope) {
+                // Confirmation prompt — NO store change until explicit confirm
+                // (Req 11.4). Cancel leaves store + cells unchanged (Req 11.3).
+                const r = await showConfirm({
+                    type: 'warning',
+                    title: 'إعادة تهيئة',
+                    message: 'إعادة كل الحالات (إعفاء/مداومة/احتياط) ضمن النطاق إلى حراسة؟',
+                    detail: 'سيتم عرض كل الخلايا المعنية كحراسة (ك).',
+                    confirmText: 'إعادة تهيئة'
+                });
+                if (!r || !r.confirmed) return;
+
+                const { rows, sessions } = edResolveResetScope(scope);
+                if (!rows.length || !sessions.length) {
+                    showToast('لا توجد حالات لإعادة تهيئتها', 'warning');
                     return;
                 }
 
-                tbody.innerHTML = proctorsList.map((p, i) => {
-                    const key = getProctorExemptionKey(p, i);
-                    const status = bucket[key] || 'yes';
-                    const sessionsAvg = getProctorAverageSessions(p, i);
-                    return '<tr>' +
-                        '<td>' + (i + 1) + '</td>' +
-                        '<td>' + escHtml(p.specialty || 'غير متوفر') + '</td>' +
-                        '<td class="sup-name-cell">' + escHtml(p.teacher_name || '') + '</td>' +
-                        '<td><select class="dist-me-group-select exempt-status" data-proctor-key="' + escHtml(key) + '">' +
-                            '<option value="yes"' + (status === 'yes' ? ' selected' : '') + '>نعم</option>' +
-                            '<option value="no"' + (status === 'no' ? ' selected' : '') + '>لا</option>' +
-                        '</select></td>' +
-                        '<td>' + escHtml(subjectLabel) + '</td>' +
-                        '<td><span class="exm-exempt-average">' + escHtml(sessionsAvg) + '</span></td>' +
-                    '</tr>';
-                }).join('');
-
-                tbody.querySelectorAll('.exempt-status').forEach(sel => {
-                    sel.addEventListener('change', () => updateExemptionStatsFromTable());
+                // Compute the cleared store on a CLONE — the live globals stay
+                // untouched until persistence succeeds (Req 11.4, 11.5).
+                const clone = {
+                    exemptionsData: JSON.parse(JSON.stringify(exemptionsData || {})),
+                    dutyData: JSON.parse(JSON.stringify(dutyData || {})),
+                    reservesData: JSON.parse(JSON.stringify(reservesData || {}))
+                };
+                rows.forEach(row => {
+                    sessions.forEach(col => edClearCellStoreEntries(clone, row.proctorKey, col));
                 });
-                updateExemptionStatsFromTable();
+
+                // Persist through window.api.examConfig (Req 11.1).
+                try {
+                    const res1 = await window.api.examConfig.save({ school_year: year, config_key: 'examExemptionsData', data: clone.exemptionsData });
+                    const res2 = await window.api.examConfig.save({ school_year: year, config_key: 'examDutyTeachersData', data: clone.dutyData });
+                    const res3 = await window.api.examConfig.save({ school_year: year, config_key: 'examReservesData', data: clone.reservesData });
+                    if ((res1 && res1.success === false) || (res2 && res2.success === false) || (res3 && res3.success === false)) {
+                        throw new Error('persist-failed');
+                    }
+                } catch (e) {
+                    // Persistence failure: retain the prior store and ALL cell
+                    // statuses; show an error indication (Req 11.5).
+                    showToast('تعذّرت إعادة التهيئة — تم الاحتفاظ بالحالة السابقة', 'error');
+                    return;
+                }
+
+                // Success: commit the cloned store to the in-memory globals.
+                exemptionsData = clone.exemptionsData;
+                dutyData = clone.dutyData;
+                reservesData = clone.reservesData;
+
+                // Set every in-scope cell to guard in the in-memory model and
+                // recompute each affected row's Summary_Columns (Req 11.2).
+                const logic = window.EdMatrixLogic || {};
+                const rowKeySet = new Set(rows.map(row => row.proctorKey));
+                const sessionKeys = sessions.map(s => s.sessionKey);
+                if (edMatrixModel && Array.isArray(edMatrixModel.rows)) {
+                    edMatrixModel.rows.forEach(row => {
+                        if (!row || !rowKeySet.has(row.proctorKey)) return;
+                        sessionKeys.forEach(sk => edWriteRowCell(row, sk, 'guard'));
+                        if (typeof logic.computeRowSummary === 'function') {
+                            const vals = (typeof Map !== 'undefined' && row.cells instanceof Map)
+                                ? row.cells.values()
+                                : (row.cells && typeof row.cells === 'object' ? Object.values(row.cells) : []);
+                            row.summary = logic.computeRowSummary(vals);
+                        }
+                    });
+                    // Re-render so every in-scope cell shows guard (ك) (Req 11.2).
+                    renderMatrixGrid(edMatrixModel, edMatrixViewState);
+                    edWireMatrixCellEditing();
+                }
+
+                if (typeof updateDistStatuses === 'function') await updateDistStatuses();
+                showToast('تمت إعادة التهيئة بنجاح', 'success');
             }
 
-            function getProctorAverageSessions(proc, idx) {
-                const key = getProctorKey(proc, idx);
-                const assigned = Object.values(meAssignments).some(v => v === 1 || v === 2) ? meAssignments[key] : 0;
-                if (!assigned) return '—';
-                const totalDays = generateExamDays().length || 0;
-                return totalDays ? Math.ceil(totalDays) : '—';
+            /* ═══════════════════════════════════════════════════════════════
+               Panel wiring + Save persistence
+               (feature: exemptions-duty-matrix-grid, Task 13.1)
+               Replaces the legacy initExemptionsDutyPanel / renderEdTable flow:
+               loads the Exemptions_Duty_Store + proctors + schedule, builds the
+               in-memory MatrixModel via EdMatrixLogic, renders the grid, wires
+               inline cell editing and the Save/Reset buttons. saveMatrix reduces
+               the model back to the three store maps on a clone and persists
+               them through window.api.examConfig.
+               _Requirements: 6.1, 6.5, 6.6, 8.6_
+               ═══════════════════════════════════════════════════════════════ */
+
+            /**
+             * Build the in-memory MatrixModel from the current proctors,
+             * schedule, and store, then render the grid and (idempotently) wire
+             * inline cell editing. Used on panel open and whenever the proctors
+             * list changes (Requirements 1.1, 1.2, 8.6). Summaries are computed
+             * by buildMatrixModel → computeRowSummary as part of the build.
+             */
+            async function renderExemptionsDutyMatrix() {
+                const logic = window.EdMatrixLogic;
+                if (!logic) return;
+                const scheduleEntries = await getScheduleEntries();
+                const sessionColumns = logic.buildSessionColumns(scheduleEntries);
+                const store = { exemptionsData, dutyData, reservesData };
+                edMatrixModel = logic.buildMatrixModel(proctorsList, sessionColumns, store);
+                renderMatrixGrid(edMatrixModel, edMatrixViewState);
+                edWireMatrixCellEditing();
             }
 
-            function updateExemptionStatsFromTable() {
-                const selects = Array.from(document.querySelectorAll('#exempt-tbody .exempt-status'));
-                const off = selects.filter(s => s.value === 'no').length;
-                updateExemptionStats(selects.length, off);
+            /**
+             * Re-render the matrix from the CURRENT in-memory model using the
+             * active search/filter/sort view state (Task 15.1). This NEVER
+             * rebuilds the model from the store, so in-memory (unsaved) cell
+             * edits are preserved; applySearchFilterSort only reads the rows and
+             * renumbers the visible subset, leaving every cell status untouched
+             * (Requirement 9.7). The no-match message is emitted by
+             * renderMatrixGrid when the subset is empty (Requirement 9.6).
+             */
+            function edApplyMatrixView() {
+                if (!edMatrixModel) return;
+                renderMatrixGrid(edMatrixModel, edMatrixViewState);
+                edWireMatrixCellEditing();
             }
 
-            function updateExemptionStats(total, off) {
-                document.getElementById('exempt-total-count').textContent = total;
-                document.getElementById('exempt-off-count').textContent = off;
-                document.getElementById('exempt-active-count').textContent = Math.max(total - off, 0);
+            /**
+             * Wire the search input, status-filter dropdown, and sortable
+             * identity-column headers to edMatrixViewState + edApplyMatrixView
+             * (Task 15.1, Requirements 9.1–9.7, 10.4). Idempotent: each control
+             * is flagged on first bind, and the header handler is delegated on
+             * the matrix container so it survives every innerHTML re-render.
+             */
+            function edWireMatrixControls() {
+                const searchEl = document.getElementById('ed-search');
+                if (searchEl && searchEl.dataset.edMatrixWired !== '1') {
+                    searchEl.dataset.edMatrixWired = '1';
+                    searchEl.addEventListener('input', function () {
+                        edMatrixViewState.searchText = searchEl.value || '';
+                        edApplyMatrixView();
+                    });
+                }
+                const filterEl = document.getElementById('ed-status-filter');
+                if (filterEl && filterEl.dataset.edMatrixWired !== '1') {
+                    filterEl.dataset.edMatrixWired = '1';
+                    filterEl.addEventListener('change', function () {
+                        edMatrixViewState.statusFilter = filterEl.value || '';
+                        edApplyMatrixView();
+                    });
+                }
+                const cont = document.getElementById('ed-matrix-container');
+                if (cont && cont.dataset.edSortWired !== '1') {
+                    cont.dataset.edSortWired = '1';
+                    cont.addEventListener('click', function (ev) {
+                        const th = (ev.target && ev.target.closest) ? ev.target.closest('th[data-ed-matrix-sort]') : null;
+                        if (!th || !cont.contains(th)) return;
+                        const column = th.getAttribute('data-ed-matrix-sort');
+                        if (!column) return;
+                        const logic = window.EdMatrixLogic || {};
+                        edMatrixViewState.sort = (typeof logic.nextSortState === 'function')
+                            ? logic.nextSortState(edMatrixViewState.sort, column)
+                            : { column: column, direction: (edMatrixViewState.sort && edMatrixViewState.sort.column === column && edMatrixViewState.sort.direction === 'asc') ? 'desc' : 'asc' };
+                        edApplyMatrixView();
+                    });
+                }
             }
 
-            async function saveExemptions() {
-                const ctx = getExemptionContext();
-                const bucket = {};
-                document.querySelectorAll('#exempt-tbody .exempt-status').forEach(sel => {
-                    if (sel.value === 'no') bucket[sel.dataset.proctorKey] = 'no';
-                });
-                if (Object.keys(bucket).length) exemptionsData[ctx.key] = bucket;
-                else delete exemptionsData[ctx.key];
-                await window.api.examConfig.save({ school_year: year, config_key: 'examExemptionsData', data: exemptionsData });
-                await updateDistStatuses();
-                showToast('تم حفظ الإعفاءات لهذا النطاق', 'success');
-            }
-
-            async function clearCurrentExemptions() {
-                const ctx = getExemptionContext();
-                const r = await showConfirm({ type: 'warning', title: 'إعادة تهيئة الإعفاءات', message: 'إزالة إعفاءات "' + getExemptionContextLabel(ctx) + '"؟', confirmText: 'إعادة تهيئة' });
-                if (!r.confirmed) return;
-                delete exemptionsData[ctx.key];
-                await window.api.examConfig.save({ school_year: year, config_key: 'examExemptionsData', data: exemptionsData });
-                await renderExemptionsTable();
-                await updateDistStatuses();
-                showToast('تمت إعادة تهيئة الإعفاءات', 'success');
-            }
-
-            /* ═══ Duty Teachers Panel ═══ */
-            async function initDutyPanel() {
+            /**
+             * Initialize the Exemptions & Duty matrix panel: load the store,
+             * wire the Save/Reset buttons and the search/filter/sort controls,
+             * then build and render the grid (Requirement 6.1 data model).
+             * Replaces the legacy initExemptionsDutyPanel single-session flow.
+             */
+            async function initExemptionsDutyMatrix() {
+                exemptionsData = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
                 dutyData = (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {};
-                await populateDutySelectors();
-                ['duty-session-select', 'duty-subject-select'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.addEventListener('change', renderDutyTable);
-                });
-                document.getElementById('btn-save-duty').addEventListener('click', saveDutyTeachers);
-                document.getElementById('btn-clear-duty').addEventListener('click', clearCurrentDuty);
-                await renderDutyTable();
+                reservesData = (await window.api.examConfig.get(year, 'examReservesData')) || {};
+
+                const saveBtn = document.getElementById('btn-save-ed');
+                if (saveBtn) saveBtn.addEventListener('click', saveMatrix);
+                const clearBtn = document.getElementById('btn-clear-ed');
+                if (clearBtn) clearBtn.addEventListener('click', () => resetMatrix('all'));
+
+                edWireMatrixControls();
+                await renderExemptionsDutyMatrix();
             }
 
-	            async function getScheduledSessionOptions() {
-	                return (await getScheduleEntries())
-	                    .filter(s => s && (s.subject_name || s.day || s.period || s.session))
-	                    .map((s, idx) => {
-	                        const day = s.day || 'اليوم';
-	                        const period = s.period || 'الفترة';
-	                        const session = s.session || 'الحصة';
-	                        const subject = s.subject_name || 'مادة';
-	                        const dateParts = formatScheduleDate(s);
-	                        return {
-	                            key: [day, period, session, subject, idx].join('|'),
-	                            sessionKey: getScheduleSessionKey(s),
-	                            legacySessionKey: getLegacyScheduleSessionKey(s),
-	                            subject,
-	                            label: [day + (dateParts ? ' (' + dateParts + ')' : ''), session, period, s.level_name || '', subject].filter(Boolean).join(' / '),
-	                            sortKey: getScheduleSortKey(s),
-	                        };
-	                    })
-	                    .sort((a, b) => a.sortKey.localeCompare(b.sortKey, 'ar'));
-	            }
+            /**
+             * Persist the current matrix to the Exemptions_Duty_Store
+             * (Requirements 6.1, 6.5, 6.6). The model is reduced to the three
+             * store maps on a fresh clone (reduceMatrixToStore never mutates the
+             * model and returns new objects), and the pre-save in-memory store is
+             * snapshotted so a failed save restores it exactly.
+             *
+             * On success: refresh the distribution status view + success toast.
+             * On failure: restore the pre-save store, skip the refresh, show error.
+             */
+            async function saveMatrix() {
+                const logic = window.EdMatrixLogic;
+                if (!logic || !edMatrixModel) { showToast('لا توجد بيانات لحفظها', 'warning'); return; }
 
-            async function populateDutySelectors() {
-                const sessionSelect = document.getElementById('duty-session-select');
-                const subjectSelect = document.getElementById('duty-subject-select');
-                if (!sessionSelect || !subjectSelect) return;
-                const entries = await getScheduledSessionOptions();
-                const previousSession = sessionSelect.value;
-                const previousSubject = subjectSelect.value;
-                sessionSelect.innerHTML = entries.length
-                    ? entries.map(e =>
-                        '<option value="' + escHtml(e.key) + '"' +
-                        ' data-session-key="' + escHtml(e.sessionKey) + '"' +
-                        ' data-legacy-session-key="' + escHtml(e.legacySessionKey) + '"' +
-                        ' data-subject="' + escHtml(e.subject) + '">' + escHtml(e.label) + '</option>'
-                    ).join('')
-                    : '<option value="">لا توجد حصص مبرمجة</option>';
-                if (previousSession && Array.from(sessionSelect.options).some(o => o.value === previousSession)) sessionSelect.value = previousSession;
+                // Reduce the in-memory matrix to the three store maps (guard cells
+                // omitted, every key from getProctorExemptionKey) — Req 6.1, 6.2, 6.3.
+                const reduced = logic.reduceMatrixToStore(edMatrixModel);
 
-                const selectedOption = sessionSelect.selectedOptions[0];
-                const selectedSubject = selectedOption ? (selectedOption.dataset.subject || '') : '';
-                const subjects = selectedSubject ? [selectedSubject] : [];
-                subjectSelect.innerHTML = subjects.length
-                    ? subjects.map(s => '<option value="' + escHtml(s) + '">' + escHtml(s) + '</option>').join('')
-                    : '<option value="">لا توجد مواد</option>';
-                if (previousSubject && Array.from(subjectSelect.options).some(o => o.value === previousSubject)) subjectSelect.value = previousSubject;
-            }
+                // Snapshot the pre-save in-memory store for restore on failure (Req 6.6).
+                const snapshot = { exemptionsData, dutyData, reservesData };
 
-            function getDutyContext() {
-                const sessionSelect = document.getElementById('duty-session-select');
-                const selectedOption = sessionSelect?.selectedOptions?.[0];
-                const sessionKey = selectedOption?.dataset?.sessionKey || '';
-                const legacySessionKey = selectedOption?.dataset?.legacySessionKey || '';
-                const subject = document.getElementById('duty-subject-select').value || '';
-                return { sessionKey, legacySessionKey, subject, key: sessionKey + '|' + subject };
-            }
+                // Optimistically adopt the reduced store as the new in-memory store.
+                exemptionsData = reduced.exemptionsData;
+                dutyData = reduced.dutyData;
+                reservesData = reduced.reservesData;
 
-            async function renderDutyTable() {
-                await populateDutySelectors();
-                const tbody = document.getElementById('duty-tbody');
-                if (!tbody) return;
-                const ctx = getDutyContext();
-                const legacyKey = ctx.legacySessionKey ? ctx.legacySessionKey + '|' + ctx.subject : '';
-                const selected = Object.assign({}, legacyKey ? (dutyData[legacyKey] || {}) : {}, dutyData[ctx.key] || {});
-                const label = [ctx.sessionKey.replace(/\|/g, ' / '), ctx.subject].filter(Boolean).join(' - ');
-                document.getElementById('duty-context-label').textContent = label || 'اختر الحصة والمادة';
-
-                if (!ctx.sessionKey || !ctx.subject) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-calendar-alt" style="margin-left:6px"></i>يرجى حفظ جدولة الامتحان أولا</td></tr>';
-                    updateDutyStats(0, 0);
-                    return;
+                try {
+                    const res1 = await window.api.examConfig.save({ school_year: year, config_key: 'examExemptionsData', data: reduced.exemptionsData });
+                    const res2 = await window.api.examConfig.save({ school_year: year, config_key: 'examDutyTeachersData', data: reduced.dutyData });
+                    const res3 = await window.api.examConfig.save({ school_year: year, config_key: 'examReservesData', data: reduced.reservesData });
+                    if ((res1 && res1.success === false) || (res2 && res2.success === false) || (res3 && res3.success === false)) {
+                        throw new Error('persist-failed');
+                    }
+                    // Success: refresh the distribution status view + success toast (Req 6.5).
+                    if (typeof updateDistStatuses === 'function') await updateDistStatuses();
+                    showToast('تم حفظ حالات المراقبين', 'success');
+                } catch (e) {
+                    // Failure: restore the pre-save store, skip the refresh, show error (Req 6.6).
+                    exemptionsData = snapshot.exemptionsData;
+                    dutyData = snapshot.dutyData;
+                    reservesData = snapshot.reservesData;
+                    showToast('تعذّر حفظ الحالات — لم يكتمل الحفظ', 'error');
                 }
-	                if (!proctorsList.length) {
-	                    tbody.innerHTML = '<tr><td colspan="4" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-info-circle" style="margin-left:6px"></i>يرجى إضافة المراقبين أولا</td></tr>';
-	                    updateDutyStats(0, 0);
-	                    return;
-	                }
-
-	                const selectedKeys = new Set(Object.keys(selected));
-	                let dutyCandidates = proctorsList.map((p, i) => ({ p, i, load: getProctorDutyLoad(p, i) }))
-	                    .filter(item => proctorMatchesDutySubject(item.p, ctx.subject) || selectedKeys.has(getProctorExemptionKey(item.p, item.i)));
-	                if (!dutyCandidates.length) dutyCandidates = proctorsList.map((p, i) => ({ p, i, load: getProctorDutyLoad(p, i) }));
-
-	                const sorted = dutyCandidates
-	                    .sort((a, b) => a.load - b.load || String(a.p.teacher_name || '').localeCompare(String(b.p.teacher_name || ''), 'ar'));
-	                tbody.innerHTML = sorted.map((item, rowIdx) => {
-                    const key = getProctorExemptionKey(item.p, item.i);
-                    const checked = selected[key] ? ' checked' : '';
-                    return '<tr>' +
-                        '<td>' + (rowIdx + 1) + '</td>' +
-                        '<td class="sup-name-cell">' + escHtml(item.p.teacher_name || '') + '</td>' +
-                        '<td>' + escHtml(item.p.specialty || 'غير متوفر') + '</td>' +
-                        '<td><input type="checkbox" class="duty-check" data-proctor-key="' + escHtml(key) + '"' + checked + '></td>' +
-                    '</tr>';
-                }).join('');
-                tbody.querySelectorAll('.duty-check').forEach(chk => chk.addEventListener('change', updateDutyStatsFromTable));
-	                updateDutyStatsFromTable();
-	            }
-
-	            function normalizeDutyText(value) {
-	                return String(value || '')
-	                    .toLowerCase()
-	                    .replace(/[أإآ]/g, 'ا')
-	                    .replace(/ة/g, 'ه')
-	                    .replace(/ى/g, 'ي')
-	                    .replace(/[^\u0600-\u06FFa-z0-9]+/g, ' ')
-	                    .replace(/\s+/g, ' ')
-	                    .trim();
-	            }
-
-	            function getDutySubjectAliases(subject) {
-	                const normalized = normalizeDutyText(subject);
-	                const aliases = [normalized];
-	                if (normalized.includes('فيزياء') || normalized.includes('كيمياء')) aliases.push('فيزياء', 'كيمياء', 'علوم فيزيائيه', 'physique', 'chimie');
-	                if (normalized.includes('تاريخ') || normalized.includes('جغراف')) aliases.push('تاريخ', 'جغرافيا', 'اجتماعيات');
-	                if (normalized.includes('حياه') || normalized.includes('ارض')) aliases.push('علوم الحياه والارض', 'علوم الحياه', 'علوم الارض', 'svt');
-	                if (normalized.includes('عربيه')) aliases.push('اللغه العربيه', 'عربي');
-	                if (normalized.includes('فرنسيه') || normalized.includes('اجنبيه')) aliases.push('فرنسيه', 'فرنسي', 'francais', 'french');
-	                if (normalized.includes('انجليزيه')) aliases.push('انجليزيه', 'انجليزي', 'english');
-	                if (normalized.includes('اسلاميه')) aliases.push('تربيه اسلاميه', 'اسلاميات');
-	                if (normalized.includes('فلسفه')) aliases.push('فلسفه');
-	                if (normalized.includes('رياضيات')) aliases.push('رياضيات', 'math', 'mathematique');
-	                return Array.from(new Set(aliases.map(normalizeDutyText).filter(Boolean)));
-	            }
-
-	            function proctorMatchesDutySubject(proctor, subject) {
-	                const specialty = normalizeDutyText(proctor.specialty || '');
-	                if (!specialty) return false;
-	                return getDutySubjectAliases(subject).some(alias => specialty.includes(alias) || alias.includes(specialty));
-	            }
-
-            function getProctorDutyLoad(proc, idx) {
-                const key = getProctorExemptionKey(proc, idx);
-                return Object.values(dutyData).filter(bucket => bucket && bucket[key]).length;
             }
 
-            function updateDutyStatsFromTable() {
-                const checks = Array.from(document.querySelectorAll('#duty-tbody .duty-check'));
-                const selected = checks.filter(ch => ch.checked).length;
-                updateDutyStats(checks.length, selected);
+            /* ═══ Subject matching helpers (used by distribution) ═══ */
+            function normalizeDutyText(value) {
+                return String(value || '')
+                    .toLowerCase()
+                    .replace(/[أإآ]/g, 'ا')
+                    .replace(/ة/g, 'ه')
+                    .replace(/ى/g, 'ي')
+                    .replace(/[^\u0600-\u06FFa-z0-9]+/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
             }
 
-            async function updateDutyStats(total, selected) {
-                document.getElementById('duty-selected-count').textContent = selected;
-                document.getElementById('duty-session-count').textContent = (await getScheduleEntries()).length;
-                document.getElementById('duty-missing-count').textContent = Math.max(total - selected, 0);
+            function getDutySubjectAliases(subject) {
+                const normalized = normalizeDutyText(subject);
+                const aliases = [normalized];
+                if (normalized.includes('فيزياء') || normalized.includes('كيمياء')) aliases.push('فيزياء', 'كيمياء', 'علوم فيزيائيه', 'physique', 'chimie');
+                if (normalized.includes('تاريخ') || normalized.includes('جغراف')) aliases.push('تاريخ', 'جغرافيا', 'اجتماعيات');
+                if (normalized.includes('حياه') || normalized.includes('ارض')) aliases.push('علوم الحياه والارض', 'علوم الحياه', 'علوم الارض', 'svt');
+                if (normalized.includes('عربيه')) aliases.push('اللغه العربيه', 'عربي');
+                if (normalized.includes('فرنسيه') || normalized.includes('اجنبيه')) aliases.push('فرنسيه', 'فرنسي', 'francais', 'french');
+                if (normalized.includes('انجليزيه')) aliases.push('انجليزيه', 'انجليزي', 'english');
+                if (normalized.includes('اسلاميه')) aliases.push('تربيه اسلاميه', 'اسلاميات');
+                if (normalized.includes('فلسفه')) aliases.push('فلسفه');
+                if (normalized.includes('رياضيات')) aliases.push('رياضيات', 'math', 'mathematique');
+                return Array.from(new Set(aliases.map(normalizeDutyText).filter(Boolean)));
             }
 
-            async function saveDutyTeachers() {
-                const ctx = getDutyContext();
-                if (!ctx.sessionKey || !ctx.subject) { showToast('يرجى اختيار الحصة والمادة', 'warning'); return; }
-                const bucket = {};
-                document.querySelectorAll('#duty-tbody .duty-check').forEach(chk => {
-                    if (chk.checked) bucket[chk.dataset.proctorKey] = true;
-                });
-                if (Object.keys(bucket).length) dutyData[ctx.key] = bucket;
-                else delete dutyData[ctx.key];
-                if (ctx.legacySessionKey) delete dutyData[ctx.legacySessionKey + '|' + ctx.subject];
-                await window.api.examConfig.save({ school_year: year, config_key: 'examDutyTeachersData', data: dutyData });
-                await updateDistStatuses();
-                showToast('تم حفظ الأساتذة المداومين لهذه الحصة', 'success');
+            function proctorMatchesDutySubject(proctor, subject) {
+                const specialty = normalizeDutyText(proctor.specialty || '');
+                if (!specialty) return false;
+                return getDutySubjectAliases(subject).some(alias => specialty.includes(alias) || alias.includes(specialty));
             }
 
-            async function clearCurrentDuty() {
-                const ctx = getDutyContext();
-                if (!ctx.key.trim()) return;
-                const r = await showConfirm({ type: 'warning', title: 'إعادة تهيئة المداومة', message: 'إزالة المداومين من هذه الحصة؟', confirmText: 'إعادة تهيئة' });
-                if (!r.confirmed) return;
-                delete dutyData[ctx.key];
-                if (ctx.legacySessionKey) delete dutyData[ctx.legacySessionKey + '|' + ctx.subject];
-                await window.api.examConfig.save({ school_year: year, config_key: 'examDutyTeachersData', data: dutyData });
-                await renderDutyTable();
-                await updateDistStatuses();
-                showToast('تمت إعادة تهيئة المداومة', 'success');
-            }
 
             /* ═══ Morning / Evening Panel ═══ */
             async function initMorningEveningPanel() {
@@ -2754,10 +3128,30 @@
                         percent: 0
                     };
 
+                // حساب الإعفاءات الفعّالة: تُضاف حالات "الاحتياط" كإعفاء على مستوى الحصة
+                // كي تستبعد الخوارزمية أساتذة الاحتياط من الحراسة دون المساس بالبيانات المحفوظة.
+                var _baseExemptions = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
+                var _reservesForAlgo = (await window.api.examConfig.get(year, 'examReservesData')) || {};
+                var _effectiveExemptions = {};
+                Object.keys(_baseExemptions).forEach(function (k) { _effectiveExemptions[k] = Object.assign({}, _baseExemptions[k]); });
+                (scheduleEntries || []).forEach(function (entry) {
+                    var day = entry.day || 'الأول';
+                    var period = entry.period || 'صباحا';
+                    var session = entry.session || 'الحصة الأولى';
+                    var sessionScopeKey = ['session', day, period, session].join('|');
+                    var rk = getScheduleSessionKey(entry) + '|' + (entry.subject_name || '');
+                    var lk = getLegacyScheduleSessionKey(entry) + '|' + (entry.subject_name || '');
+                    var bucket = Object.assign({}, _reservesForAlgo[lk] || {}, _reservesForAlgo[rk] || {});
+                    var reservedKeys = Object.keys(bucket).filter(function (key) { return bucket[key]; });
+                    if (!reservedKeys.length) return;
+                    if (!_effectiveExemptions[sessionScopeKey]) _effectiveExemptions[sessionScopeKey] = {};
+                    reservedKeys.forEach(function (key) { _effectiveExemptions[sessionScopeKey][key] = 'no'; });
+                });
+
                 return {
                     proctorsList: proctorsList,
                     scheduleEntries: scheduleEntries,
-                    exemptionsData: (await window.api.examConfig.get(year, 'examExemptionsData')) || {},
+                    exemptionsData: _effectiveExemptions,
                     dutyData: (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {},
                     meAssignments: meAssignments,
                     examDistributionRules: rules,
@@ -3932,6 +4326,30 @@
                 return Boolean((dutyData[dutyKey] && dutyData[dutyKey][key]) || (dutyData[legacyDutyKey] && dutyData[legacyDutyKey][key]));
             }
 
+            function isProctorReservedForSchedule(proc, idx, scheduleEntry) {
+                const key = getProctorExemptionKey(proc, idx);
+                const reserveKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const legacyReserveKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                return Boolean((reservesData[reserveKey] && reservesData[reserveKey][key]) || (reservesData[legacyReserveKey] && reservesData[legacyReserveKey][key]));
+            }
+
+            function getReservedTeacherKeysForSchedule(scheduleEntry) {
+                const reserveKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const legacyReserveKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const selected = Object.assign({}, reservesData[legacyReserveKey] || {}, reservesData[reserveKey] || {});
+                return Object.keys(selected).filter(key => selected[key]);
+            }
+
+            function getReservedTeacherNamesForSchedule(scheduleEntry) {
+                const keys = new Set(getReservedTeacherKeysForSchedule(scheduleEntry));
+                return proctorsList
+                    .map((proc, idx) => ({ proc, key: getProctorExemptionKey(proc, idx) }))
+                    .filter(item => keys.has(item.key))
+                    .map(item => item.proc.teacher_name || '')
+                    .filter(Boolean);
+            }
+
+
             function getDutyTeacherNamesForSchedule(scheduleEntry) {
                 const dutyKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
                 const legacyDutyKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
@@ -4209,6 +4627,7 @@
                         if (isAutoProctorAtHalfdayLimit(item, loadState, options, halfdayLimits)) return false;
                         if (isProctorExemptForSchedule(item.proc, item.idx, scheduleEntry)) return false;
                         if (isDutyTeacherForSchedule(item.proc, item.idx, scheduleEntry)) return false;
+                        if (isProctorReservedForSchedule(item.proc, item.idx, scheduleEntry)) return false;
                         return true;
                     });
                 const decorated = [];
@@ -4237,6 +4656,7 @@
                         else if (isAutoProctorAtHalfdayLimit(item, loadState, options, halfdayLimits)) reason = 'بلغ سقف أنصاف الأيام';
                         else if (isProctorExemptForSchedule(item.proc, item.idx, scheduleEntry)) reason = 'معفى';
                         else if (isDutyTeacherForSchedule(item.proc, item.idx, scheduleEntry)) reason = 'مداوم لنفس المادة';
+                        else if (isProctorReservedForSchedule(item.proc, item.idx, scheduleEntry)) reason = 'احتياط';
                         if (reason) stats.blocked[reason] = (stats.blocked[reason] || 0) + 1;
                         else stats.available++;
                     });
@@ -5193,8 +5613,18 @@
                         : await getEligibleSessionReserveProctors(context.sessionEntries, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, halfdayLimits, true);
                     const reserveTargetCount = getSessionReserveTargetCount(reservePool, sessionReservesNeeded, options, loadState);
                     const reserves = takeSessionReserves(reservePool, reserveTargetCount, loadState, sessionUsed, halfdayAssignments, dayAssignments, context.halfdayKey, context.sessionEntries[0] || {});
-                    const reserveNames = reserves.map(item => item.proc.teacher_name || '').filter(Boolean);
-                    const reserveKeys = reserves.map(item => item.exKey);
+                    let reserveNames = reserves.map(item => item.proc.teacher_name || '').filter(Boolean);
+                    let reserveKeys = reserves.map(item => item.exKey);
+                    // إدراج الاحتياط اليدوي (حالة "احتياط") إلزاميًا في لائحة الاحتياط
+                    const forcedReserveKeys = [];
+                    context.sessionEntries.forEach(e => getReservedTeacherKeysForSchedule(e).forEach(k => { if (!forcedReserveKeys.includes(k)) forcedReserveKeys.push(k); }));
+                    forcedReserveKeys.forEach(k => {
+                        if (reserveKeys.includes(k)) return;
+                        const proc = proctorsList.find((pp, ii) => getProctorExemptionKey(pp, ii) === k);
+                        reserveKeys.push(k);
+                        reserveNames.push((proc && proc.teacher_name) || '');
+                    });
+                    reserveNames = reserveNames.filter(Boolean);
                     const missingReserves = Math.max(reserveTargetCount - reserveNames.length, 0);
                     const extraReserves = Math.max(reserveNames.length - sessionReservesNeeded, 0);
                     const reserveSoftReasons = Array.from(new Set(reserves.flatMap(item => item.softViolations || [])));
@@ -6003,7 +6433,7 @@
                 const data = collectScheduleFromTable();
                 scheduleList[level.name] = data;
                 await window.api.examConfig.save({ school_year: year, config_key: 'examScheduleData', data: scheduleList });
-                await populateDutySelectors();
+                await renderExemptionsDutyMatrix();
                 showToast('تم حفظ جدولة "' + level.name + '" بنجاح', 'success');
                 updateScheduleDashboardStatus();
                 await updateDistStatuses();
@@ -6019,7 +6449,7 @@
                 delete scheduleList[level.name];
                 await window.api.examConfig.save({ school_year: year, config_key: 'examScheduleData', data: scheduleList });
                 renderScheduleForLevel(Number(idx));
-                await populateDutySelectors();
+                await renderExemptionsDutyMatrix();
                 showToast('تمت إعادة تهيئة الجدولة', 'success');
                 updateScheduleDashboardStatus();
                 await updateDistStatuses();
@@ -6053,8 +6483,7 @@
                 } catch { proctorsList = []; }
                 procCurrentPage = 1;
                 renderProctorsTable();
-                await renderExemptionsTable();
-                await renderDutyTable();
+                await renderExemptionsDutyMatrix();
                 await updateDistStatuses();
                 initProctorsPanel();
             }

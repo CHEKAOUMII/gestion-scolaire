@@ -120,6 +120,101 @@ Object.entries(cb).forEach(([k, b]) => {
   if (load > b.classUpperBound) { boundViol++; add('FAIR', 'UPPER', `${keyToName[k]||k} guardCount ${load} > classUpperBound ${b.classUpperBound}`); }
 });
 
+// ===== dutyCount computation =====
+const dutyCount = {};
+const adapter = {};
+proctors.forEach((p, i) => {
+  const cin = (p.cin && String(p.cin).trim()) ? String(p.cin).trim() : '';
+  const canonical = cin || ('__idx_' + i);
+  adapter[canonical] = canonical;
+  if (cin) {
+    adapter[cin] = canonical;
+  }
+  const som = (p.som && String(p.som).trim()) ? String(p.som).trim() : '';
+  if (som) {
+    if (adapter[som] === undefined) {
+      adapter[som] = canonical;
+    }
+  }
+  adapter['idx_' + i] = canonical;
+  adapter['__idx_' + i] = canonical;
+});
+function toCanonical(extKey) {
+  if (!extKey) return null;
+  const s = String(extKey).trim();
+  return adapter[s] || null;
+}
+if (inputs.dutyData) {
+  Object.values(inputs.dutyData).forEach(inner => {
+    if (inner && typeof inner === 'object') {
+      Object.keys(inner).forEach(extKey => {
+        const canonical = toCanonical(extKey);
+        if (canonical) {
+          dutyCount[canonical] = (dutyCount[canonical] || 0) + 1;
+        }
+      });
+    }
+  });
+}
+
+// ===== Reserve_Global_Upper (cap) =====
+const G = Object.values(guardCount).reduce((a, b) => a + b, 0);
+const R = Object.values(reserveCount).reduce((a, b) => a + b, 0);
+let capD = 0;
+if (diag && diag.bounds && diag.bounds.global && typeof diag.bounds.global.dExpected === 'number') {
+  capD = diag.bounds.global.dExpected;
+} else if (inputs.examCenterConfig && inputs.examCenterConfig.expected_duty_tasks != null) {
+  capD = Math.max(0, Math.floor(Number(inputs.examCenterConfig.expected_duty_tasks)));
+} else if (inputs.D_expected != null) {
+  capD = Math.max(0, Math.floor(Number(inputs.D_expected)));
+}
+let capN = proctors.length;
+if (diag && diag.bounds && diag.bounds.global && typeof diag.bounds.global.nEligible === 'number') {
+  capN = diag.bounds.global.nEligible;
+}
+const cap = capN > 0 ? Math.ceil((G + R + capD) / capN) : 0;
+
+// ===== Final_Load histogram + violations =====
+const finalLoads = {};
+const histFinalLoad = {};
+let finalLoadViolations = 0;
+validKeys.forEach(k => {
+  const g = guardCount[k] || 0;
+  const d = dutyCount[k] || 0;
+  const r = reserveCount[k] || 0;
+  const fl = g + d + r;
+  finalLoads[k] = fl;
+  histFinalLoad[fl] = (histFinalLoad[fl] || 0) + 1;
+  if (fl > cap) {
+    finalLoadViolations++;
+    add('FAIR', 'FINAL-LOAD-OVERFLOW', `${keyToName[k]||k} Final_Load ${fl} > cap ${cap} (G=${g}, D=${d}, R=${r})`, { key: k, fl, cap });
+  }
+});
+
+// ===== Cross-check finalLoadOverflows =====
+const jsonOverflows = diag.finalLoadOverflows || [];
+const jsonOverflowKeys = new Set(jsonOverflows.map(o => o.canonicalKey));
+validKeys.forEach(k => {
+  const fl = finalLoads[k] || 0;
+  const rc = reserveCount[k] || 0;
+  if (fl > cap && rc > 0) {
+    if (!jsonOverflowKeys.has(k)) {
+      add('HARD', 'OVERFLOW-MISSING-DIAG', `Proctor ${keyToName[k]||k} (key ${k}) has Final_Load ${fl} > cap ${cap} and Reserve_Count ${rc} > 0, but is missing from diagnostics.finalLoadOverflows`, k);
+    }
+  }
+});
+jsonOverflows.forEach(o => {
+  const k = o.canonicalKey;
+  if (!validKeys.has(k)) {
+    add('HARD', 'OVERFLOW-INVALID-KEY', `diagnostics.finalLoadOverflows contains invalid key ${k}`, o);
+  } else {
+    const fl = finalLoads[k] || 0;
+    if (fl <= cap) {
+      add('HARD', 'OVERFLOW-FALSE-POSITIVE', `diagnostics.finalLoadOverflows lists ${keyToName[k]||k} (key ${k}) as overflow, but their actual Final_Load is ${fl} <= cap ${cap}`, o);
+    }
+  }
+});
+
 // ===== reserves config sanity =====
 const totalReserves = Object.values(reserveCount).reduce((a, b) => a + b, 0);
 
@@ -134,10 +229,13 @@ console.log('══════════════════════�
 console.log('algorithmVersion :', dist.algorithmVersion);
 console.log('proctors         :', proctors.length);
 console.log('result rows      :', rows.length);
-console.log('total guard slots:', Object.values(guardCount).reduce((a, b) => a + b, 0));
+console.log('total guard slots:', G);
 console.log('total reserves   :', totalReserves);
 console.log('histogram(guard) :', JSON.stringify(histGuard));
 console.log('histogram(primary,diag):', JSON.stringify(histPrimary));
+console.log('histogram(final) :', JSON.stringify(histFinalLoad));
+console.log('Reserve_Global_Upper (cap) :', cap, '(G=' + G + ', R=' + R + ', D=' + capD + ', N=' + capN + ')');
+console.log('finalLoadOverflows (diag)  :', jsonOverflows.length, 'entries');
 console.log('globalLowerBound :', diag.globalLowerBound, '| globalUpperBound:', diag.globalUpperBound);
 console.log('same-day flag    :', sameDayFlag);
 console.log('');

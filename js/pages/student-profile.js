@@ -5,6 +5,17 @@
 
 const SCHOOL_YEAR = getSchoolYear();
 
+// Risk-tab inputs stashed by the render functions (general average, per-subject
+// averages, absence hours) so renderStudentRiskTab() can feed the pure engine
+// in js/student-risk.js without re-parsing the DOM. Profile-tab signals
+// (economic/social/health) are read live via the existing tab collectors.
+const _riskState = {
+    generalAverage: null,
+    subjectAverages: [],
+    justifiedHours: 0,
+    unjustifiedHours: 0
+};
+
 // ─── Gender helpers (shared with students-list.js) ───
 function isMale(gender) {
     const g = String(gender || '')
@@ -292,41 +303,34 @@ function renderPersonalInfo(student) {
 
 // ─── Render Mini Stats ───
 function renderMiniStats(grades, absences, student) {
-    // Calculate general average
+    // Detect the student's branch once; reused for the shared computation below.
+    const branch =
+        typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
+
+    // Per-term and general averages via the shared pure computation layer
+    // (js/student-averages.js). This replaces the previous inline pooled
+    // computation so the quick-stats card and grades tab can never drift.
+    const averages =
+        typeof computeStudentAverages === 'function'
+            ? computeStudentAverages(grades, branch)
+            : { term1: null, term2: null, general: null };
+
+    // Subject count for the quick-stats card (unchanged behavior): count the
+    // distinct base subjects across the student's grade records.
     const dedup = {};
     grades.forEach((g) => {
         const key = `${String(g.subject || '').trim()}||${g.semester || ''}`;
         dedup[key] = g;
     });
-    const dedupedGrades = Object.values(dedup);
-
-    const bySubject = {};
-    dedupedGrades.forEach((g) => {
+    const subjectSet = new Set();
+    Object.values(dedup).forEach((g) => {
         const subj =
             (typeof ccBaseSubject === 'function'
                 ? ccBaseSubject(normalizeSubjectName(g.subject))
                 : normalizeSubjectName(g.subject)) || 'غير محدد';
-        if (!bySubject[subj]) bySubject[subj] = [];
-        bySubject[subj].push(g);
+        subjectSet.add(subj);
     });
-
-    const subjects = Object.keys(bySubject);
-    const subjectAvgsArr = subjects.map((s) => {
-        const avg =
-            typeof computeSubjectAverage === 'function'
-                ? computeSubjectAverage(s, bySubject[s])
-                : bySubject[s].reduce((a, g) => a + g.grade, 0) / bySubject[s].length;
-        return { subject: s, avg };
-    });
-
-    const branch =
-        typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
-    const generalAvg =
-        typeof computeWeightedGeneralAverage === 'function'
-            ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
-            : subjectAvgsArr.length
-              ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length
-              : 0;
+    const subjectCount = subjectSet.size;
 
     // Absence hours
     let justifiedHours = 0;
@@ -338,16 +342,42 @@ function renderMiniStats(grades, absences, student) {
     });
     const totalAbsHours = justifiedHours + unjustifiedHours;
 
+    // Stash absence + general average for the dropout-risk engine (Axis A/B).
+    _riskState.generalAverage = typeof averages.general === 'number' ? averages.general : null;
+    _riskState.justifiedHours = justifiedHours;
+    _riskState.unjustifiedHours = unjustifiedHours;
+
+    // Render an average value cell: show the formatted text, applying grade
+    // color only when formatAverage returns a non-null color (placeholders
+    // are rendered without color).
+    const renderAvgCell = (el, value) => {
+        if (!el) return;
+        const formatted =
+            typeof formatAverage === 'function'
+                ? formatAverage(value)
+                : { text: value == null ? '—' : Number(value).toFixed(2), color: null };
+        if (formatted.color) {
+            el.innerHTML = `<span style="color:${formatted.color}">${formatted.text}</span>`;
+        } else {
+            el.textContent = formatted.text;
+        }
+    };
+
     // Update mini stats
     const avgEl = document.getElementById('sp-stat-avg');
+    const term1El = document.getElementById('sp-stat-term1');
+    const term2El = document.getElementById('sp-stat-term2');
     const subjectsEl = document.getElementById('sp-stat-subjects');
     const absEl = document.getElementById('sp-stat-absence');
 
-    if (avgEl) {
-        avgEl.innerHTML = `<span style="color:${gradeHex(generalAvg)}">${generalAvg.toFixed(2)}</span>`;
-    }
+    // sp-stat-avg holds General_Average so the print/risk consumer that reads
+    // parseFloat(textContent) keeps working (numeric value or NaN-placeholder).
+    renderAvgCell(avgEl, averages.general);
+    renderAvgCell(term1El, averages.term1);
+    renderAvgCell(term2El, averages.term2);
+
     if (subjectsEl) {
-        subjectsEl.textContent = subjects.length;
+        subjectsEl.textContent = subjectCount;
     }
     if (absEl) {
         absEl.innerHTML = `<span style="color:${totalAbsHours > 10 ? '#f44336' : '#4caf50'}">${totalAbsHours}</span>`;
@@ -401,23 +431,48 @@ function renderGradesTab(student, rawGrades) {
         return { subject: s, avg };
     });
 
+    // Stash per-subject averages for the dropout-risk engine (Axis A: share of
+    // subjects below the pass mark).
+    _riskState.subjectAverages = subjectAvgsArr
+        .map((x) => x.avg)
+        .filter((v) => typeof v === 'number' && isFinite(v));
+
     const branch =
         typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
-    const generalAvg =
-        typeof computeWeightedGeneralAverage === 'function'
-            ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
-            : subjectAvgsArr.length
-              ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length
-              : 0;
+
+    // Per-term and general averages via the shared pure computation layer
+    // (js/student-averages.js), the same call used by renderMiniStats. This
+    // guarantees the grades-tab KPIs and the quick-stats card never drift
+    // (Requirement 6.1). `rawGrades` (all terms) is passed; the module handles
+    // its own per-term dedup/partitioning internally.
+    const averages =
+        typeof computeStudentAverages === 'function'
+            ? computeStudentAverages(rawGrades, branch)
+            : { term1: null, term2: null, general: null };
+
     const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
     const minGrade = Math.min(...studentGrades.map((g) => g.grade));
 
+    // Build an average KPI cell, applying grade color only when formatAverage
+    // returns a non-null color (placeholders are rendered without color).
+    const avgKpi = (label, value) => {
+        const f =
+            typeof formatAverage === 'function'
+                ? formatAverage(value)
+                : { text: value == null ? '—' : Number(value).toFixed(2), color: null };
+        const style = f.color ? ` style="color:${f.color}"` : '';
+        return `
+            <div class="sp-kpi">
+                <div class="sp-kpi-val"${style}>${f.text}</div>
+                <div class="sp-kpi-label">${label}</div>
+            </div>`;
+    };
+
     let html = `
         <div class="sp-kpis-row">
-            <div class="sp-kpi">
-                <div class="sp-kpi-val" style="color:${gradeHex(generalAvg)}">${generalAvg.toFixed(2)}</div>
-                <div class="sp-kpi-label">المعدل العام</div>
-            </div>
+            ${avgKpi('المعدل العام', averages.general)}
+            ${avgKpi('معدل الدورة 1', averages.term1)}
+            ${avgKpi('معدل الدورة 2', averages.term2)}
             <div class="sp-kpi">
                 <div class="sp-kpi-val">${subjects.length}</div>
                 <div class="sp-kpi-label">عدد المواد</div>
@@ -1019,6 +1074,115 @@ function activateRiskBadge(dataValue) {
         badge.className = 'bm-badge bm-badge-' + color;
         badge.setAttribute('aria-checked', 'true');
     }
+}
+
+// ── Dropout-Risk Tab Renderer ──
+// Gathers the real grades/absence/profile signals and runs the pure two-layer
+// engine in js/student-risk.js (per .kiro/مؤشر_الخطر_دليل_الحساب.md), then
+// paints the gauge, the per-axis breakdown and the recommendation. Exposed as
+// window.renderStudentRiskTab so the inline bmUpdateRisk() wrapper, the badge
+// onclick handlers and the scale handlers all route here.
+
+const _RISK_LEVEL_SOLID = ['var(--color-success-solid)', 'var(--color-warning-solid)', 'var(--color-danger-solid)'];
+const _RISK_LEVEL_TEXT = ['var(--color-success-text)', 'var(--color-warning-text)', 'var(--color-danger-text)'];
+
+function collectRiskInputs() {
+    const eco = typeof collectEconomicData === 'function' ? collectEconomicData() : {};
+    const social = typeof collectSocialData === 'function' ? collectSocialData() : {};
+    const health = typeof collectHealthData === 'function' ? collectHealthData() : {};
+
+    const distance = Number(eco.distance_km);
+
+    return {
+        generalAverage: _riskState.generalAverage,
+        subjectAverages: _riskState.subjectAverages,
+        justifiedHours: _riskState.justifiedHours,
+        unjustifiedHours: _riskState.unjustifiedHours,
+        // disciplinePenalties / scheduledHours are not tracked yet → left undefined
+        social: {
+            risks: social.social_risks || [],
+            familyStatus: social.family_status,
+            distanceKm: isFinite(distance) ? distance : null
+        },
+        economic: {
+            status: eco.eco_status,
+            supportPrograms: eco.support_programs || [],
+            unmetNeeds: eco.unmet_needs || [],
+            incomeSource: eco.income_source
+        },
+        health: {
+            healthGen: health.health_gen,
+            disability: health.disability,
+            learningDisorders: health.learning_disorders || [],
+            psychSymptoms: health.psych_symptoms || [],
+            substances: health.substances || [],
+            treatment: health.treatment,
+            psychSupport: health.psych_support,
+            psychReferral: health.psych_referral
+        }
+    };
+}
+
+function renderStudentRiskTab() {
+    if (typeof window.computeStudentRisk !== 'function') return;
+
+    const result = window.computeStudentRisk(collectRiskInputs());
+    const { layer1, layer2, final } = result;
+
+    const bar = document.getElementById('bm-risk-bar');
+    const lbl = document.getElementById('bm-risk-main-lbl');
+    const rec = document.getElementById('bm-recommendation');
+    const breakdown = document.getElementById('bm-axis-breakdown');
+    if (!bar || !lbl) return;
+
+    const solid = _RISK_LEVEL_SOLID[final.level] || 'var(--color-accent)';
+
+    // Gauge.
+    bar.style.width = final.score + '%';
+    bar.style.background = solid;
+    lbl.style.color = _RISK_LEVEL_TEXT[final.level] || 'var(--color-text)';
+    lbl.textContent = final.label + ' — ' + final.score + '%';
+
+    // Per-axis breakdown rows (reuses the .bm-progress-* styles).
+    if (breakdown) {
+        breakdown.innerHTML = layer2 && layer2.axes
+            ? Object.keys(layer2.axes)
+                  .map((key) => {
+                      const axis = layer2.axes[key];
+                      const meta = layer1.criteria.find((c) => c.key === key) || {};
+                      const axColor = _RISK_LEVEL_SOLID[axis.level] || 'var(--color-accent)';
+                      const weightPct = Math.round((axis.weight || 0) * 100);
+                      const levelLbl = axis.level != null ? (window.GS2?.StudentRisk?.LEVEL_LABEL[axis.level] || '') : '—';
+                      return `
+                        <div class="bm-progress-row" title="${escapeHtml(meta.detail || '')}">
+                            <span class="bm-progress-lbl">${escapeHtml(meta.label || key)} <small style="color:var(--color-text-light)">(${weightPct}%)</small></span>
+                            <div class="bm-progress-bg"><div class="bm-progress-fill" style="width:${axis.score}%;background:${axColor}"></div></div>
+                            <span style="font-size:11px;min-width:64px;text-align:start;color:var(--color-text-muted)">${Math.round(axis.score)} · ${levelLbl}</span>
+                        </div>`;
+                  })
+                  .join('')
+            : '';
+    }
+
+    // Recommendation. When Layer 1 (worst-wins) escalates above the composite
+    // level, surface that the classification is driven by a single criterion.
+    if (rec) {
+        rec.style.borderInlineEndColor = solid;
+        let text = result.recommendation;
+        if (layer1.level > layer2.level) {
+            const worst = layer1.criteria
+                .filter((c) => c.level === layer1.level)
+                .map((c) => c.label)
+                .join('، ');
+            text = `صُنّف «${final.label}» بناءً على معيار فردي حرج (${worst}) رغم أن المؤشر المركّب = ${layer2.composite}%. ${text}`;
+        }
+        rec.textContent = text;
+    }
+}
+
+// Expose for the inline bmUpdateRisk() wrapper and event handlers.
+if (typeof window !== 'undefined') {
+    window.renderStudentRiskTab = renderStudentRiskTab;
 }
 
 // ── Dirty Tracking ──

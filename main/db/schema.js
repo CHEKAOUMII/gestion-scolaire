@@ -615,7 +615,7 @@ function ensurePageVisibilitySchema(existingDb) {
     // Read default hidden pages and version from the bundled config file
     const path = require('path');
     const fs = require('fs');
-    let hiddenPages = new Set(['student-profile-prototype.html', 'communication-center-prototype.html']);
+    let hiddenPages = new Set(['communication-center-prototype.html']);
     let configVersion = 0;
     try {
         const defaultsPath = path.join(__dirname, '..', '..', 'page-visibility-defaults.json');
