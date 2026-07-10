@@ -1,4 +1,5 @@
 const { getDb } = require('../db/context');
+const { ensureSchoolIdentitySchema } = require('../db/schema');
 
 const DEFAULT_IDENTITY = {
     country: 'المملكة المغربية',
@@ -19,13 +20,8 @@ const DEFAULT_IDENTITY = {
 };
 
 function ensureIdentityTable(db) {
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS school_identity (
-            key         TEXT PRIMARY KEY,
-            value       TEXT NOT NULL DEFAULT '',
-            updated_at  INTEGER DEFAULT (strftime('%s','now') * 1000)
-        )
-    `);
+    // Canonical DDL lives in db/schema.js (R5); this module owns only the default seeding.
+    ensureSchoolIdentitySchema(db);
 
     const seed = db.prepare('INSERT OR IGNORE INTO school_identity (key, value) VALUES (?, ?)');
     const txn = db.transaction(() => {

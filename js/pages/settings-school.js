@@ -45,13 +45,6 @@ const ASSET_DEFINITIONS = [
 const assets = Object.fromEntries(ASSET_DEFINITIONS.map((def) => [def.type, { base64: '', mime: 'image/png' }]));
 const assetContainers = new Map();
 
-function escapeHtml(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
-
 function inferMimeFromBase64(base64) {
     if (!base64) return 'image/png';
     if (base64.startsWith('/9j/')) return 'image/jpeg';
@@ -325,17 +318,66 @@ async function loadSyncInstitutionSection() {
         section.hidden = false;
 
         const linkWrap = document.getElementById('sync-inst-link-wrap');
-        if (linkWrap) {
-            try {
-                const raw = localStorage.getItem('gsl_auth_session_v1');
-                const sess = raw ? JSON.parse(raw) : null;
-                const role = String(sess?.role || '').toLowerCase();
-                if (role === 'principal' || role === 'developer') {
-                    linkWrap.hidden = false;
+        const saveBtn = document.getElementById('sync-inst-save-btn');
+        let isPrincipalOrDeveloper = false;
+        try {
+            const raw = localStorage.getItem('gsl_auth_session_v1');
+            const sess = raw ? JSON.parse(raw) : null;
+            const role = String(sess?.role || '').toLowerCase();
+            isPrincipalOrDeveloper = role === 'principal' || role === 'developer';
+        } catch (err) {
+            console.warn('settings-school: failed to inspect auth session', err);
+        }
+
+        if (codeInput) codeInput.disabled = !isPrincipalOrDeveloper;
+        if (linkWrap && isPrincipalOrDeveloper) linkWrap.hidden = false;
+
+        if (saveBtn && !saveBtn.dataset.wired) {
+            saveBtn.dataset.wired = '1';
+            saveBtn.addEventListener('click', async () => {
+                const errorEl = document.getElementById('sync-inst-code-error');
+                if (errorEl) {
+                    errorEl.textContent = '';
+                    errorEl.classList.add('hidden');
                 }
-            } catch (err) {
-                console.warn('settings-school: failed to inspect auth session', err);
-            }
+
+                const massarCode = String(codeInput?.value || '').trim().toUpperCase();
+                if (codeInput) codeInput.value = massarCode;
+
+                if (!massarCode) {
+                    if (errorEl) {
+                        errorEl.textContent = 'رمز ماسار مطلوب';
+                        errorEl.classList.remove('hidden');
+                    }
+                    return;
+                }
+                if (massarCode.length > 20 || !/^[A-Z0-9]+$/.test(massarCode)) {
+                    if (errorEl) {
+                        errorEl.textContent = 'رمز ماسار غير صالح - يجب أن يتكون من حروف إنجليزية كبيرة وأرقام فقط، بحد أقصى 20 حرفاً';
+                        errorEl.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                saveBtn.disabled = true;
+                const originalHtml = saveBtn.innerHTML;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> جارٍ الحفظ...';
+
+                try {
+                    const result = await window.api.institution.updateMassarCode({ massarCode });
+                    if (result?.success) {
+                        showToast(result.message || 'تم تحديث رمز المؤسسة بنجاح', 'success');
+                    } else {
+                        showToast(result?.error || 'تعذر تحديث رمز المؤسسة', 'error');
+                    }
+                } catch (err) {
+                    console.error('settings-school: updateMassarCode failed', err);
+                    showToast('حدث خطأ غير متوقع أثناء تحديث رمز المؤسسة', 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalHtml;
+                }
+            });
         }
     } catch (err) {
         console.warn('settings-school: failed to load sync institution status', err);

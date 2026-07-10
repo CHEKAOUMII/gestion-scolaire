@@ -1,6 +1,8 @@
 'use strict';
 
-const { handleRead, handleWrite } = require('./ipc-helpers');
+const { authErrorResponse, handleRead, handleWrite } = require('./ipc-helpers');
+const { requireRole } = require('./auth');
+const { getDb } = require('../db/context');
 const { applySyncDefaults } = require('../sync/defaults');
 const {
     flushSyncOutbox,
@@ -8,41 +10,102 @@ const {
     restartSyncPushBackground,
     restartSyncPullBackground,
     isPushTimerRunning,
-    isPullTimerRunning
+    isPullTimerRunning,
+    isPushCycleRunning,
+    isPullCycleRunning
 } = require('../sync/engine');
-const { isAuthenticated, testConnection } = require('../sync/credentials');
+const { isAuthenticated, testConnection, resolveSyncSchoolId } = require('../sync/credentials');
 const { isSnapshotRunning, runSnapshotCycle, restartSnapshotBackground } = require('../sync/snapshot');
 
-function registerSyncIpc(ipcMain) {
-    // ── Read channels (no auth required) ──
+const SYNC_ADMIN_ROLES = ['admin'];
+const SYNC_NUMBER_LIMITS = {
+    syncIntervalMinutes: { min: 1, max: 30 },
+    pushBatchSize: { min: 1, max: 1000 },
+    maxRetries: { min: 0, max: 50 },
+    retentionDays: { min: 1, max: 365 },
+    snapshotIntervalMinutes: { min: 5, max: 1440 }
+};
 
-    handleRead(ipcMain, 'sync:getConfig', (db) => {
-        const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config) return null;
-        const syncDefaults = applySyncDefaults(config);
-        const configured = !!(
-            (config.school_id || '').trim() &&
-            (syncDefaults.firebaseFunctionsUrl || '').trim() &&
-            (syncDefaults.firebaseProjectId || '').trim()
-        );
-        return {
-            enabled: configured && !!config.enabled,
-            configured,
-            syncIntervalMinutes: config.sync_interval_minutes || 10,
-            firebaseFunctionsUrl: syncDefaults.firebaseFunctionsUrl,
-            firebaseProjectId: syncDefaults.firebaseProjectId,
-            firebaseApiKey: config.firebase_api_key || null,
-            firebaseAuthDomain: config.firebase_auth_domain || null,
-            firebaseAppId: config.firebase_app_id || null,
-            schoolId: config.school_id || null,
-            pushBatchSize: config.push_batch_size || 100,
-            maxRetries: config.max_retries || 10,
-            retentionDays: config.retention_days || 7
-        };
+function handleAdminRead(ipcMain, channel, handler) {
+    ipcMain.handle(channel, async (event, ...args) => {
+        try {
+            requireRole(event, SYNC_ADMIN_ROLES);
+            const db = getDb();
+            return await handler(db, ...args);
+        } catch (err) {
+            return authErrorResponse(err);
+        }
     });
+}
+
+function readSyncConfig(db) {
+    return (
+        db
+            .prepare(
+                `SELECT sync_config.*, institution_config.massar_code AS massar_code
+             FROM sync_config
+             LEFT JOIN institution_config ON institution_config.id = 1
+             WHERE sync_config.id = 1`
+            )
+            .get() || null
+    );
+}
+
+function getSyncConfig(db) {
+    const config = readSyncConfig(db);
+    if (!config) return null;
+
+    const syncDefaults = applySyncDefaults(config);
+    const configured = !!(
+        resolveSyncSchoolId(config) &&
+        (syncDefaults.firebaseFunctionsUrl || '').trim() &&
+        (syncDefaults.firebaseProjectId || '').trim()
+    );
+
+    return {
+        enabled: configured && !!config.enabled,
+        configured,
+        syncIntervalMinutes: config.sync_interval_minutes || 10,
+        firebaseFunctionsUrl: syncDefaults.firebaseFunctionsUrl,
+        firebaseProjectId: syncDefaults.firebaseProjectId,
+        firebaseApiKey: config.firebase_api_key || null,
+        firebaseAuthDomain: config.firebase_auth_domain || null,
+        firebaseAppId: config.firebase_app_id || null,
+        pushBatchSize: config.push_batch_size || 100,
+        maxRetries: config.max_retries || 10,
+        retentionDays: config.retention_days || 7
+    };
+}
+
+function validateSyncNumber(key, value, limits) {
+    if (!Number.isInteger(value) || value < limits.min || value > limits.max) {
+        return `${key} must be between ${limits.min} and ${limits.max}`;
+    }
+    return null;
+}
+
+function normalizeSyncConfigUpdates(updates) {
+    const normalizedUpdates = { ...updates };
+    if (normalizedUpdates.firebaseFunctionsUrl === undefined && normalizedUpdates.authLambdaUrl !== undefined) {
+        normalizedUpdates.firebaseFunctionsUrl = normalizedUpdates.authLambdaUrl;
+    }
+
+    for (const [key, limits] of Object.entries(SYNC_NUMBER_LIMITS)) {
+        if (normalizedUpdates[key] === undefined) continue;
+        const numericValue = Number(normalizedUpdates[key]);
+        const error = validateSyncNumber(key, numericValue, limits);
+        if (error) return { error };
+        normalizedUpdates[key] = numericValue;
+    }
+
+    return { updates: normalizedUpdates };
+}
+
+function registerSyncIpc(ipcMain) {
+    handleAdminRead(ipcMain, 'sync:getConfig', getSyncConfig);
 
     handleRead(ipcMain, 'sync:getStatus', (db) => {
-        const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
+        const config = readSyncConfig(db);
         const pendingCount = db
             .prepare("SELECT COUNT(*) as count FROM sync_outbox WHERE status = 'pending'")
             .get().count;
@@ -53,7 +116,7 @@ function registerSyncIpc(ipcMain) {
 
         const syncDefaults = applySyncDefaults(config || {});
         const configured = !!(
-            (config?.school_id || '').trim() &&
+            resolveSyncSchoolId(config || {}) &&
             (syncDefaults.firebaseFunctionsUrl || '').trim() &&
             (syncDefaults.firebaseProjectId || '').trim()
         );
@@ -62,6 +125,13 @@ function registerSyncIpc(ipcMain) {
             configured,
             pushRunning: isPushTimerRunning(),
             pullRunning: isPullTimerRunning(),
+            // True only during an actively running cycle (not merely when the timer is
+            // installed). The UI drives its spinning 'syncing' state from these so a
+            // stalled engine (timer still installed but every cycle failing with
+            // permission-denied) doesn't spin forever — it falls through to the `error`
+            // branch and shows the translated message.
+            pushCycleActive: isPushCycleRunning(),
+            pullCycleActive: isPullCycleRunning(),
             lastPushAt: config ? config.last_push_at : null,
             lastPullAt: config ? config.last_pull_at : null,
             lastPushError: config ? config.last_push_error : null,
@@ -85,17 +155,11 @@ function registerSyncIpc(ipcMain) {
             return { success: false, error: 'Invalid updates' };
         }
 
-        if (updates.syncIntervalMinutes !== undefined) {
-            const interval = Number(updates.syncIntervalMinutes);
-            if (isNaN(interval) || interval < 1 || interval > 30) {
-                return { success: false, error: 'syncIntervalMinutes must be between 1 and 30' };
-            }
+        const normalizedResult = normalizeSyncConfigUpdates(updates);
+        if (normalizedResult.error) {
+            return { success: false, error: normalizedResult.error };
         }
-
-        const normalizedUpdates = { ...updates };
-        if (normalizedUpdates.firebaseFunctionsUrl === undefined && normalizedUpdates.authLambdaUrl !== undefined) {
-            normalizedUpdates.firebaseFunctionsUrl = normalizedUpdates.authLambdaUrl;
-        }
+        const normalizedUpdates = normalizedResult.updates;
 
         const fieldMap = {
             enabled: 'enabled',
@@ -105,7 +169,10 @@ function registerSyncIpc(ipcMain) {
             firebaseApiKey: 'firebase_api_key',
             firebaseAuthDomain: 'firebase_auth_domain',
             firebaseAppId: 'firebase_app_id',
-            schoolId: 'school_id',
+            // NOTE: schoolId/school_id is deliberately excluded — it is the immutable,
+            // server-generated tenant key and may only ever be written by
+            // institution:setup-new or institution:relink. Any schoolId present in the
+            // incoming payload is silently ignored here.
             pushBatchSize: 'push_batch_size',
             maxRetries: 'max_retries',
             retentionDays: 'retention_days',
@@ -136,9 +203,9 @@ function registerSyncIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'sync:triggerNow', ['admin'], async (db, _event) => {
-        const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
+        const config = readSyncConfig(db);
         const syncDefaults = applySyncDefaults(config || {});
-        if (!config || !config.school_id || !syncDefaults.firebaseFunctionsUrl) {
+        if (!config || !resolveSyncSchoolId(config) || !syncDefaults.firebaseFunctionsUrl) {
             return { success: false, push: null, pull: null, snapshot: null, error: 'Sync is not configured' };
         }
 
@@ -174,7 +241,7 @@ function registerSyncIpc(ipcMain) {
         };
     });
 
-    handleRead(ipcMain, 'sync:getConflictLog', (db, options) => {
+    handleAdminRead(ipcMain, 'sync:getConflictLog', (db, options) => {
         const opts = options || {};
         const status = opts.status || 'all';
         const limit = Math.min(Number(opts.limit) || 50, 200);
@@ -234,6 +301,11 @@ function registerSyncIpc(ipcMain) {
                 resolvedData
             };
         });
+    });
+
+    handleAdminRead(ipcMain, 'sync:getConflictForensics', (_db, options) => {
+        const { analyzeConflictForensics } = require('../sync/conflict-forensics');
+        return analyzeConflictForensics(options || {});
     });
 
     handleWrite(ipcMain, 'sync:resolveConflict', ['admin'], (db, _event, payload) => {

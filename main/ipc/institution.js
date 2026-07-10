@@ -7,25 +7,34 @@ const { hashPassword } = require('../auth/password');
 const { collectCurrentFingerprint } = require('../licensing/deviceFingerprint');
 const { applySyncDefaults } = require('../sync/defaults');
 const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
-const { clearCredentials } = require('../sync/credentials');
-const { restartSyncPushBackground, restartSyncPullBackground } = require('../sync/engine');
-const { restartSnapshotBackground } = require('../sync/snapshot');
 
 const ERROR_MESSAGES = {
     ALREADY_CONFIGURED: 'تم إعداد المؤسسة مسبقاً على هذا الجهاز',
+    BOOTSTRAP_TIMEOUT: 'انتهت مهلة الاتصال بالخادم',
     BOOTSTRAP_UNAUTHORIZED: 'تعذر إنشاء المؤسسة لأن نسخة التطبيق لا تحمل بيانات bootstrap الصحيحة',
     FORBIDDEN: 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
     INTERNAL_ERROR: 'حدث خطأ داخلي',
     INVALID_ADMIN_NAME: 'اسم المدير مطلوب',
-    INVALID_MASSAR: 'رمز المؤسسة غير صالح - يجب أن يتكون من أرقام في البداية ثم حرف أو حرفين في النهاية',
+    INVALID_BOOTSTRAP_RESPONSE: 'استجابة الخادم لا تحتوي على معرّف مؤسسة صالح',
+    INVALID_MASSAR: 'رمز المؤسسة غير صالح - يجب أن يتكون من حروف إنجليزية كبيرة وأرقام فقط، بحد أقصى 20 حرفاً',
     INVALID_PASSWORD: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
-    MASSAR_MISMATCH: 'رمز ماسار لا يطابق المؤسسة التي أصدرت رمز الربط',
+    MASSAR_AMBIGUOUS: 'يوجد أكثر من مؤسسة بنفس رمز ماسار',
+    MASSAR_NOT_FOUND: 'لم يتم العثور على مؤسسة بهذا الرمز',
+    SCHOOL_ID_IMMUTABLE: 'لا يمكن تعديل رمز المؤسسة التقني؛ هو ثابت ولا يتغير',
     SERVER_UNAVAILABLE: 'تعذر التحقق عبر السيرفر حالياً',
     SETUP_REQUIRED: 'يجب إعداد المؤسسة أولاً',
     UNAUTHENTICATED: 'يرجى تسجيل الدخول أولاً'
 };
 
-const INSTITUTION_CODE_REGEX = /^\d+[A-Za-z]{1,2}$/;
+const INSTITUTION_CODE_REGEX = /^[A-Z0-9]+$/;
+const MASSAR_CODE_MAX_LENGTH = 20;
+
+// Pre-refactor Massar/GRESA codes always matched this digits-then-1-2-letters shape (e.g.
+// "12345A"). It is used ONLY to tell a genuine legacy code — safe to display — apart from a
+// new server-generated opaque School_Id (20–30 random [A-Z0-9] chars, which never matches
+// this shape) when deriving a display Massar_Code for rows that have no explicit massar_code.
+// setup_mode cannot be used for this: the old setup flow also stamped 'firebase-new'.
+const LEGACY_MASSAR_CODE_SHAPE = /^\d+[A-Za-z]{1,2}$/;
 
 function fail(code, error) {
     return {
@@ -50,33 +59,46 @@ function isValidMassarCode(value) {
     return INSTITUTION_CODE_REGEX.test(normalizeMassarCode(value));
 }
 
+function looksLikeLegacyMassarCode(value) {
+    return LEGACY_MASSAR_CODE_SHAPE.test(normalizeMassarCode(value));
+}
+
 function getInstitutionStatusRecord(db) {
-    let institutionRow;
-    try {
-        institutionRow = db
-            .prepare('SELECT setup_completed, code_etablissement, institution_name FROM institution_config WHERE id = 1')
-            .get();
-    } catch {
-        try {
-            institutionRow = db
-                .prepare('SELECT setup_completed, massar_code AS code_etablissement, institution_name FROM institution_config WHERE id = 1')
-                .get();
-        } catch {
-            institutionRow = null;
-        }
-    }
+    const institutionRow = db
+        .prepare(
+            'SELECT setup_completed, code_etablissement, massar_code, institution_name FROM institution_config WHERE id = 1'
+        )
+        .get();
     const syncRow = db.prepare('SELECT school_id FROM sync_config WHERE id = 1').get();
-    const massarCode = normalizeMassarCode(institutionRow?.code_etablissement) || normalizeMassarCode(syncRow?.school_id);
+
+    const explicitMassar = normalizeMassarCode(institutionRow?.massar_code);
+    const legacyCode = normalizeMassarCode(institutionRow?.code_etablissement);
+    const legacySchoolId = normalizeMassarCode(syncRow?.school_id);
+
+    // Displayed Massar_Code: the explicit value always wins. Only when it is empty do we fall
+    // back to code_etablissement / school_id, and then ONLY if that value is a genuine legacy
+    // Massar code. Under the new scheme those columns hold the opaque server-generated
+    // School_Id (the tenant key), which must never be shown to the user as a Massar_Code —
+    // so an institution set up without a Massar_Code correctly reports none (Req 3.3, 3.5).
+    const massarCode =
+        explicitMassar ||
+        (looksLikeLegacyMassarCode(legacyCode) ? legacyCode : '') ||
+        (looksLikeLegacyMassarCode(legacySchoolId) ? legacySchoolId : '') ||
+        null;
+
     const institutionName = String(institutionRow?.institution_name || '').trim() || null;
+
+    // setupCompleted reflects provisioning state, NOT whether a displayable Massar_Code exists
+    // (a new institution may legitimately have none). Detect it from the presence of any stored
+    // identifier — including the opaque School_Id — mirroring the original completion logic.
+    const anyIdentifier = explicitMassar || legacyCode || legacySchoolId;
     const setupCompleted =
-        !!massarCode &&
-        (!!Number(institutionRow?.setup_completed) ||
-            !!normalizeMassarCode(institutionRow?.code_etablissement) ||
-            !institutionRow);
+        !!anyIdentifier &&
+        (!!Number(institutionRow?.setup_completed) || !!legacyCode || !institutionRow);
 
     return {
         setupCompleted,
-        massarCode: massarCode || null,
+        massarCode,
         institutionName
     };
 }
@@ -297,8 +319,6 @@ function getFirebaseFunctionsUrl(db) {
 
 function mapFailureCode(rawCode) {
     switch (String(rawCode || '').trim()) {
-        case 'MASSAR_MISMATCH':
-            return 'MASSAR_MISMATCH';
         case 'ALREADY_CONFIGURED':
             return 'ALREADY_CONFIGURED';
         case 'INVALID_MASSAR':
@@ -309,6 +329,12 @@ function mapFailureCode(rawCode) {
             return 'INVALID_ADMIN_NAME';
         case 'BOOTSTRAP_UNAUTHORIZED':
             return 'BOOTSTRAP_UNAUTHORIZED';
+        case 'BOOTSTRAP_TIMEOUT':
+            return 'BOOTSTRAP_TIMEOUT';
+        case 'MASSAR_NOT_FOUND':
+            return 'MASSAR_NOT_FOUND';
+        case 'MASSAR_AMBIGUOUS':
+            return 'MASSAR_AMBIGUOUS';
         default:
             return 'SERVER_UNAVAILABLE';
     }
@@ -320,11 +346,15 @@ async function postFirebaseFunction(functionsUrl, functionName, body) {
         return fail('SERVER_UNAVAILABLE', 'لم يتم ضبط رابط Firebase Functions لهذا الجهاز');
     }
 
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), 30_000);
+
     try {
         const response = await fetch(`${normalizedUrl}/${functionName}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body || {})
+            body: JSON.stringify(body || {}),
+            signal: controller.signal
         });
         const text = await response.text();
         let data = {};
@@ -347,7 +377,12 @@ async function postFirebaseFunction(functionsUrl, functionName, body) {
 
         return ok({ data });
     } catch (err) {
+        if (err.name === 'AbortError') {
+            return fail('BOOTSTRAP_TIMEOUT', 'انتهت مهلة الاتصال بالخادم');
+        }
         return fail('SERVER_UNAVAILABLE', 'تعذر الاتصال بـ Firebase Functions: ' + err.message);
+    } finally {
+        clearTimeout(timeoutTimer);
     }
 }
 
@@ -356,13 +391,17 @@ function normalizeBootstrapResponse(data, fallback) {
     const institution = payload.institution || payload.school || payload.meta || {};
     const user = payload.user || payload.adminUser || payload.admin || {};
     const firebaseConfig = payload.firebaseConfig || payload.firebase || {};
+    // schoolId is the server-generated opaque tenant key — it must NEVER be derived from the
+    // entered massarCode; only from what the server itself returned as schoolId/gresaCode.
     const schoolId =
-        normalizeMassarCode(payload.schoolId ?? payload.gresaCode ?? payload.massarCode) ||
-        normalizeMassarCode(institution.schoolId ?? institution.gresaCode ?? institution.massarCode) ||
-        fallback.massarCode;
+        normalizeMassarCode(payload.schoolId ?? payload.gresaCode) ||
+        normalizeMassarCode(institution.schoolId ?? institution.gresaCode) ||
+        '';
+    const massarCode = normalizeMassarCode(payload.massarCode ?? institution.massarCode ?? fallback.massarCode);
 
     return {
         schoolId,
+        massarCode,
         institutionName:
             String(
                 payload.institutionName ??
@@ -406,34 +445,63 @@ function registerInstitutionIpc(ipcMain) {
 
     handleWriteSoftAuth(ipcMain, 'institution:relink', [], async (db, payload) => {
         const massarCode = normalizeMassarCode(payload?.massarCode);
-        if (!isValidMassarCode(massarCode)) {
+        if (!massarCode) {
+            return fail('INVALID_MASSAR', 'رمز المؤسسة مطلوب');
+        }
+        if (massarCode.length > MASSAR_CODE_MAX_LENGTH || !isValidMassarCode(massarCode)) {
             return fail('INVALID_MASSAR');
         }
 
-        const columns = db.pragma('table_info(institution_config)');
-        const colNames = new Set(columns.map((c) => c.name));
-
-        if (!colNames.has('code_etablissement')) {
-            db.exec('ALTER TABLE institution_config ADD COLUMN code_etablissement TEXT');
+        const functionsUrl = getFirebaseFunctionsUrl(db);
+        if (!functionsUrl) {
+            return fail('SERVER_UNAVAILABLE');
+        }
+        if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
+            return fail(
+                'BOOTSTRAP_UNAUTHORIZED',
+                'نسخة التطبيق لا تحتوي على GESTION_BOOTSTRAP_SECRET. أعد بناء التطبيق بعد ضبط secret في GitHub Actions.'
+            );
         }
 
-        db.prepare(
-            `INSERT INTO institution_config (id, code_etablissement, setup_completed, setup_mode, updated_at)
-             VALUES (1, ?, 0, NULL, CURRENT_TIMESTAMP)
-             ON CONFLICT(id) DO UPDATE SET
-                 code_etablissement = excluded.code_etablissement,
-                 setup_completed = 0,
-                 setup_mode = NULL,
-                 updated_at = CURRENT_TIMESTAMP`
-        ).run(massarCode);
-
-        if (colNames.has('massar_code')) {
-            db.prepare('UPDATE institution_config SET massar_code = ? WHERE id = 1').run(massarCode);
+        const lookup = await postFirebaseFunction(functionsUrl, 'lookupInstitutionBySchoolMassarCode', {
+            massarCode,
+            // MUST be sent explicitly — postFirebaseFunction only forwards the body given to
+            // it, it does not attach this secret automatically.
+            bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || ''
+        });
+        if (!lookup.success) {
+            if (lookup.code === 'MASSAR_NOT_FOUND') return fail('MASSAR_NOT_FOUND');
+            if (lookup.code === 'MASSAR_AMBIGUOUS') return fail('MASSAR_AMBIGUOUS');
+            return lookup;
         }
 
-        db.prepare(
-            'UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
-        ).run(massarCode);
+        const resolvedSchoolId = String(lookup.data?.schoolId || '').trim();
+        if (!resolvedSchoolId) {
+            return fail('MASSAR_NOT_FOUND');
+        }
+
+        const transaction = db.transaction(() => {
+            db.prepare(
+                `INSERT INTO institution_config (id, code_etablissement, massar_code, setup_completed, setup_mode, updated_at)
+                 VALUES (1, ?, ?, 0, NULL, CURRENT_TIMESTAMP)
+                 ON CONFLICT(id) DO UPDATE SET
+                     code_etablissement = excluded.code_etablissement,
+                     massar_code = excluded.massar_code,
+                     setup_completed = 0,
+                     setup_mode = NULL,
+                     updated_at = CURRENT_TIMESTAMP`
+            ).run(resolvedSchoolId, massarCode);
+
+            db.prepare(
+                'UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+            ).run(resolvedSchoolId);
+        });
+
+        try {
+            transaction();
+        } catch (err) {
+            return fail('INTERNAL_ERROR', 'حدث خطأ أثناء ربط المؤسسة: ' + err.message);
+        }
 
         return ok({ message: 'تم تحديث رمز المؤسسة. يمكنك الآن إعداد الربط بـ Firebase.', massarCode });
     });
@@ -449,8 +517,11 @@ function registerInstitutionIpc(ipcMain) {
         const adminEmail = String(payload?.adminEmail || '').trim().toLowerCase();
         const adminPassword = String(payload?.adminPassword || '');
 
-        if (!isValidMassarCode(massarCode)) {
+        if (massarCode && (massarCode.length > MASSAR_CODE_MAX_LENGTH || !isValidMassarCode(massarCode))) {
             return fail('INVALID_MASSAR');
+        }
+        if (!institutionName) {
+            return fail('INVALID_INSTITUTION_NAME', 'اسم المؤسسة مطلوب');
         }
         if (!adminName) {
             return fail('INVALID_ADMIN_NAME');
@@ -479,8 +550,6 @@ function registerInstitutionIpc(ipcMain) {
 
         const bootstrapResult = await postFirebaseFunction(functionsUrl, 'bootstrapInstitution', {
             massarCode,
-            gresaCode: massarCode,
-            schoolId: massarCode,
             institutionName,
             adminName,
             adminEmail,
@@ -501,9 +570,10 @@ function registerInstitutionIpc(ipcMain) {
             adminEmail,
             functionsUrl
         });
-        if (!bootstrap.schoolId || bootstrap.schoolId !== massarCode) {
-            return fail('MASSAR_MISMATCH');
+        if (!bootstrap.schoolId || bootstrap.schoolId.length < 1 || bootstrap.schoolId.length > 64) {
+            return fail('INVALID_BOOTSTRAP_RESPONSE');
         }
+        const massarCodeDiffersFromSchoolId = !!massarCode && massarCode !== bootstrap.schoolId;
 
         const transaction = db.transaction(() => {
             db.prepare(
@@ -511,6 +581,7 @@ function registerInstitutionIpc(ipcMain) {
                     INSERT INTO institution_config (
                         id,
                         code_etablissement,
+                        massar_code,
                         institution_name,
                         setup_completed,
                         setup_mode,
@@ -519,9 +590,10 @@ function registerInstitutionIpc(ipcMain) {
                         onboarding_completed_at,
                         updated_at
                     )
-                    VALUES (1, ?, ?, 1, 'firebase-new', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    VALUES (1, ?, ?, ?, 1, 'firebase-new', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT(id) DO UPDATE SET
                         code_etablissement = excluded.code_etablissement,
+                        massar_code = excluded.massar_code,
                         institution_name = excluded.institution_name,
                         setup_completed = 1,
                         setup_mode = 'firebase-new',
@@ -530,7 +602,7 @@ function registerInstitutionIpc(ipcMain) {
                         onboarding_completed_at = COALESCE(onboarding_completed_at, CURRENT_TIMESTAMP),
                         updated_at = CURRENT_TIMESTAMP
                 `
-            ).run(bootstrap.schoolId, bootstrap.institutionName, deviceContext.deviceHash);
+            ).run(bootstrap.schoolId, massarCode || null, bootstrap.institutionName, deviceContext.deviceHash);
 
             upsertSyncConfig(db, bootstrap.syncConfig);
             upsertFirebaseCachedUser(db, { ...bootstrap.user, role: 'principal' }, adminPassword, 'principal');
@@ -541,7 +613,10 @@ function registerInstitutionIpc(ipcMain) {
             return ok({
                 message: 'تم إعداد المؤسسة بنجاح',
                 setupCompleted: true,
-                institution: buildInstitutionSummary(bootstrap.schoolId, bootstrap.institutionName),
+                schoolId: bootstrap.schoolId,
+                massarCode: massarCode || null,
+                massarCodeDiffersFromSchoolId,
+                institution: buildInstitutionSummary(massarCode || bootstrap.massarCode, bootstrap.institutionName),
                 currentDevice: buildCurrentDeviceSummary(db, deviceContext),
                 autoLoginEmail: bootstrap.user.email || adminEmail,
                 loginPayload: {
@@ -559,47 +634,81 @@ function registerInstitutionIpc(ipcMain) {
         }
     });
 
+    handleWrite(ipcMain, 'institution:updateMassarCode', ['principal'], async (db, event, payload) => {
+        const status = getInstitutionStatusRecord(db);
+        if (!status.setupCompleted) {
+            return fail('SETUP_REQUIRED');
+        }
+
+        const massarCode = normalizeMassarCode(payload?.massarCode);
+        if (!massarCode) {
+            return fail('INVALID_MASSAR', 'رمز المؤسسة مطلوب');
+        }
+        if (massarCode.length > MASSAR_CODE_MAX_LENGTH || !isValidMassarCode(massarCode)) {
+            return fail('INVALID_MASSAR');
+        }
+
+        const functionsUrl = getFirebaseFunctionsUrl(db);
+        if (!functionsUrl) {
+            return fail('SERVER_UNAVAILABLE');
+        }
+        let idToken;
+        try {
+            idToken = await getCurrentFirebaseIdToken(true);
+        } catch {
+            return fail('UNAUTHENTICATED');
+        }
+        if (!idToken) {
+            return fail('UNAUTHENTICATED');
+        }
+
+        const result = await postFirebaseFunction(functionsUrl, 'updateInstitutionMassarCode', { idToken, massarCode });
+        if (!result.success) {
+            return fail('INTERNAL_ERROR', 'فشل تحديث رمز المؤسسة');
+        }
+
+        // The Cloud Function has already confirmed the remote write; it is authoritative from
+        // this point on. Retry the local cache write once before surfacing a
+        // remote-succeeded-but-local-stale warning — retrying the same UPDATE is safe/idempotent.
+        const persistLocally = () =>
+            db.prepare('UPDATE institution_config SET massar_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(massarCode);
+        try {
+            persistLocally();
+        } catch {
+            try {
+                persistLocally();
+            } catch (retryErr) {
+                return ok({
+                    massarCode,
+                    localCacheStale: true,
+                    message: 'تم تحديث رمز المؤسسة على الخادم، لكن تعذر تحديث النسخة المحلية. أعد المحاولة.',
+                    warning: retryErr.message
+                });
+            }
+        }
+
+        return ok({ massarCode, message: 'تم تحديث رمز المؤسسة بنجاح' });
+    });
+
     handleWrite(ipcMain, 'institution:submitIdentityChangeRequest', ['principal'], async (db, event, payload) => {
         const status = getInstitutionStatusRecord(db);
         if (!status.setupCompleted) {
             return fail('SETUP_REQUIRED');
         }
 
-        const rawCode = payload?.codeEtablissement ?? payload?.newSchoolId;
+        // School_Id/Massar_Code are immutable via this approval mechanism — Massar edits go
+        // through the direct institution:updateMassarCode path (Req 8/9) instead.
+        if (payload?.codeEtablissement || payload?.newSchoolId) {
+            return fail('SCHOOL_ID_IMMUTABLE');
+        }
+
         const rawName = payload?.institutionName ?? payload?.newInstitutionName;
-        const newCode = rawCode ? normalizeMassarCode(rawCode) : null;
         const newName = rawName ? String(rawName).trim() : null;
         const reason = String(payload?.reason || '').trim();
-        const syncSchoolIdentity = !!(payload?.syncSchoolIdentity ?? payload?.syncIdentity);
 
-        if (newCode && !isValidMassarCode(newCode)) {
-            return fail('INVALID_MASSAR');
-        }
-
-        const codeChanged = newCode && newCode !== status.massarCode;
         const nameChanged = newName && newName !== status.institutionName;
-        if (!codeChanged && !nameChanged) {
+        if (!nameChanged) {
             return fail('INVALID_REQUEST', 'لم يتم إدخال أي تعديل جديد');
-        }
-
-        if (codeChanged) {
-            const pendingCount = db.prepare(
-                'SELECT COUNT(*) AS cnt FROM sync_outbox WHERE status IN (?, ?)'
-            ).get('pending', 'failed')?.cnt || 0;
-            if (pendingCount > 0) {
-                return fail('SYNC_PENDING', `يوجد ${pendingCount} عملية مزامنة معلقة. شغّل المزامنة أولاً قبل إرسال طلب تغيير الرمز.`);
-            }
-
-            try {
-                const unresolvedCount = db.prepare(
-                    "SELECT COUNT(*) AS cnt FROM sync_conflicts WHERE resolution = 'unresolved'"
-                ).get()?.cnt || 0;
-                if (unresolvedCount > 0) {
-                    return fail('CONFLICTS_UNRESOLVED', `يوجد ${unresolvedCount} تعارض غير محلول. حلّ التعارضات أولاً.`);
-                }
-            } catch {
-                // sync_conflicts table may not exist yet
-            }
         }
 
         const functionsUrl = getFirebaseFunctionsUrl(db);
@@ -619,10 +728,8 @@ function registerInstitutionIpc(ipcMain) {
 
         const result = await postFirebaseFunction(functionsUrl, 'submitInstitutionIdentityChangeRequest', {
             idToken,
-            newSchoolId: codeChanged ? newCode : undefined,
-            institutionName: nameChanged ? newName : undefined,
-            reason: reason || undefined,
-            syncSchoolIdentity
+            institutionName: newName,
+            reason: reason || undefined
         });
 
         if (!result.success) {
@@ -706,8 +813,13 @@ function registerInstitutionIpc(ipcMain) {
             return fail('REQUEST_NOT_FOUND', 'لم يتم العثور على طلب معتمد بهذا المعرّف');
         }
 
-        const codeChanged = !!approvedRequest.codeChanged;
-        const newSchoolId = approvedRequest.resultSchoolId || approvedRequest.newSchoolId;
+        // School_Id/Massar_Code changes are no longer applied through this mechanism — only
+        // the institution name. If a pre-existing pending/approved request predates this
+        // feature and still carries a code-change component, refuse to apply it.
+        if (approvedRequest.codeChanged) {
+            return fail('SCHOOL_ID_IMMUTABLE');
+        }
+
         const newName = approvedRequest.newInstitutionName;
 
         try {
@@ -716,45 +828,11 @@ function registerInstitutionIpc(ipcMain) {
                     db.prepare(
                         'UPDATE institution_config SET institution_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
                     ).run(newName);
-                }
-
-                if (codeChanged && newSchoolId) {
-                    db.prepare(
-                        'UPDATE institution_config SET code_etablissement = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
-                    ).run(newSchoolId);
 
                     try {
                         db.prepare(
-                            'UPDATE institution_config SET massar_code = ? WHERE id = 1'
-                        ).run(newSchoolId);
-                    } catch {
-                        // massar_code column may not exist
-                    }
-
-                    db.prepare(
-                        `UPDATE sync_config SET
-                            school_id = ?,
-                            pull_cursor = NULL,
-                            last_pull_at = NULL,
-                            last_pull_error = NULL,
-                            last_push_error = NULL,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = 1`
-                    ).run(newSchoolId);
-                }
-
-                if (approvedRequest.syncSchoolIdentity) {
-                    try {
-                        if (newSchoolId && codeChanged) {
-                            db.prepare(
-                                'UPDATE school_identity SET school_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
-                            ).run(newSchoolId);
-                        }
-                        if (newName) {
-                            db.prepare(
-                                'UPDATE school_identity SET school_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
-                            ).run(newName);
-                        }
+                            'UPDATE school_identity SET school_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
+                        ).run(newName);
                     } catch {
                         // school_identity table may not exist
                     }
@@ -765,20 +843,11 @@ function registerInstitutionIpc(ipcMain) {
             return fail('INTERNAL_ERROR', 'فشل تحديث قاعدة البيانات المحلية: ' + err.message);
         }
 
-        if (codeChanged) {
-            try { clearCredentials(); } catch {}
-            try { restartSyncPushBackground(); } catch {}
-            try { restartSyncPullBackground(); } catch {}
-            try { restartSnapshotBackground(); } catch {}
-        }
-
         return ok({
-            codeChanged,
-            requireRelogin: codeChanged,
+            codeChanged: false,
+            requireRelogin: false,
             institution: getInstitutionStatusRecord(db),
-            message: codeChanged
-                ? 'تم تطبيق التعديل. يجب إعادة تسجيل الدخول.'
-                : 'تم تطبيق التعديل بنجاح.'
+            message: 'تم تطبيق التعديل بنجاح.'
         });
     });
 }

@@ -22,7 +22,10 @@
                 class="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-[var(--color-primary-dark)] p-10 text-center text-white"
             >
                 <div>
-                    <i class="fas fa-exclamation-triangle mb-4 block text-5xl text-[var(--color-warning-solid)]"></i>
+                    <i
+                        class="fas fa-exclamation-triangle mb-4 block text-5xl text-[var(--color-warning-solid)]"
+                        aria-hidden="true"
+                    ></i>
                     <h2 class="text-2xl font-bold">يجب تفعيل JavaScript لاستخدام هذا التطبيق</h2>
                 </div>
             </div>
@@ -45,7 +48,7 @@
                         aria-label="فتح القائمة الجانبية"
                         title="القائمة"
                     >
-                        <i class="fas fa-bars"></i>
+                        <i class="fas fa-bars" aria-hidden="true"></i>
                     </button>
                     <div class="search-box relative min-w-0 max-w-[500px] flex-1 basis-[160px]" role="search">
                         <input
@@ -57,6 +60,7 @@
                         />
                         <i
                             class="fas fa-search pointer-events-none absolute start-5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+                            aria-hidden="true"
                         ></i>
                     </div>
                 </div>
@@ -68,7 +72,7 @@
                         aria-label="تبديل المظهر"
                         title="تبديل المظهر"
                     >
-                        <i class="fas fa-moon"></i>
+                        <i class="fas fa-moon" aria-hidden="true"></i>
                     </button>
                     <button
                         class="theme-toggle"
@@ -77,7 +81,7 @@
                         aria-label="عرض اختصارات لوحة المفاتيح"
                         title="اختصارات لوحة المفاتيح (?)"
                     >
-                        <i class="fas fa-keyboard"></i>
+                        <i class="fas fa-keyboard" aria-hidden="true"></i>
                     </button>
                     <div
                         class="user-info max-w-[10rem] overflow-hidden text-ellipsis whitespace-nowrap rounded-[10px] bg-[var(--color-primary-mist)] px-3 py-2 font-bold text-[var(--color-primary-dark)]"
@@ -88,13 +92,12 @@
                 </div>
             </header>
 
-            <!-- Page Header with gradient accent -->
             <div class="mb-6 px-1">
                 <div
                     class="inline-flex items-center gap-2.5 rounded-xl bg-[var(--gradient-primary)] px-4 py-2.5 shadow-[var(--shadow-card)]"
                 >
                     <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
-                        <i class="fas fa-cloud text-sm text-white"></i>
+                        <i class="fas fa-cloud text-sm text-white" aria-hidden="true"></i>
                     </div>
                     <div>
                         <h2 class="page-title m-0 text-[1rem] font-bold leading-tight text-white">المزامنة السحابية</h2>
@@ -104,14 +107,24 @@
             </div>
 
             <div class="grades-container grid gap-6" id="sync-page-content">
-                <!-- US1: Status Section -->
                 <div class="students-results overflow-hidden" id="sync-status-section">
-                    <h3 class="flex items-center gap-2"><i class="fas fa-heartbeat"></i> حالة المزامنة</h3>
+                    <h3 class="flex items-center gap-2">
+                        <i class="fas fa-heartbeat" aria-hidden="true"></i> حالة المزامنة
+                    </h3>
                     <div class="px-6 pb-6">
-                        <div id="sync-state-banner" class="sync-status-banner">
+                        <div
+                            id="sync-state-banner"
+                            class="sync-status-banner"
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                        >
                             <div class="sync-status-banner-icon">
                                 <span class="sync-status-banner-indicator" aria-hidden="true"></span>
-                                <i class="fas fa-pause-circle text-xl text-[var(--color-info-text)]"></i>
+                                <i
+                                    class="fas fa-pause-circle text-xl text-[var(--color-info-text)]"
+                                    aria-hidden="true"
+                                ></i>
                             </div>
                             <span class="font-bold text-[var(--color-text-main)]">جاري التحميل...</span>
                         </div>
@@ -123,7 +136,7 @@
                             <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
                                     <div class="sync-status-icon sync-status-icon--connection">
-                                        <i class="fas fa-wifi text-lg"></i>
+                                        <i class="fas fa-wifi text-lg" aria-hidden="true"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <div class="sync-status-card-title">حالة الاتصال</div>
@@ -134,7 +147,7 @@
                             <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
                                     <div class="sync-status-icon sync-status-icon--push">
-                                        <i class="fas fa-cloud-upload-alt text-lg"></i>
+                                        <i class="fas fa-cloud-upload-alt text-lg" aria-hidden="true"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <div class="sync-status-card-title">آخر رفع</div>
@@ -145,7 +158,7 @@
                             <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
                                     <div class="sync-status-icon sync-status-icon--pull">
-                                        <i class="fas fa-cloud-download-alt text-lg"></i>
+                                        <i class="fas fa-cloud-download-alt text-lg" aria-hidden="true"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <div class="sync-status-card-title">آخر سحب</div>
@@ -156,7 +169,7 @@
                             <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
                                     <div class="sync-status-icon sync-status-icon--pending">
-                                        <i class="fas fa-hourglass-half text-lg"></i>
+                                        <i class="fas fa-hourglass-half text-lg" aria-hidden="true"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <div class="sync-status-card-title">التغييرات المعلقة</div>
@@ -167,7 +180,7 @@
                             <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
                                     <div class="sync-status-icon sync-status-icon--failed">
-                                        <i class="fas fa-exclamation-triangle text-lg"></i>
+                                        <i class="fas fa-exclamation-triangle text-lg" aria-hidden="true"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <div class="sync-status-card-title">العناصر الفاشلة</div>
@@ -178,7 +191,7 @@
                             <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
                                     <div class="sync-status-icon sync-status-icon--conflicts">
-                                        <i class="fas fa-code-branch text-lg"></i>
+                                        <i class="fas fa-code-branch text-lg" aria-hidden="true"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <div class="sync-status-card-title">التعارضات</div>
@@ -189,7 +202,7 @@
                             <div class="sync-status-card">
                                 <div class="flex items-start gap-3">
                                     <div class="sync-status-icon sync-status-icon--snapshot">
-                                        <i class="fas fa-camera text-lg"></i>
+                                        <i class="fas fa-camera text-lg" aria-hidden="true"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <div class="sync-status-card-title">آخر فحص</div>
@@ -201,23 +214,41 @@
                     </div>
                 </div>
 
-                <!-- US2: Configuration Section -->
+                <div class="students-results overflow-hidden" id="error-log-section">
+                    <h3 class="flex items-center gap-2">
+                        <i class="fas fa-file-medical-alt" aria-hidden="true"></i> سجل الأخطاء / التشخيص
+                    </h3>
+                    <div class="px-6 pb-6">
+                        <p class="mb-4 text-sm text-[var(--color-text-muted)]">
+                            يُسجّل البرنامج الأخطاء تلقائياً في ملف على هذا الجهاز بلا أي تدخّل منك. عند حدوث مشكلة،
+                            صدّر الملف النصي وأرسله للدعم لتشخيص السبب.
+                        </p>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button class="btn btn-primary" id="btn-export-error-log" type="button">
+                                <i class="fas fa-file-export" aria-hidden="true"></i> تصدير سجل الأخطاء (ملف نصي)
+                            </button>
+                            <button class="btn btn-secondary" id="btn-reveal-error-log" type="button">
+                                <i class="fas fa-folder-open" aria-hidden="true"></i> فتح مجلد السجلّات
+                            </button>
+                            <button class="btn btn-secondary" id="btn-view-recent-errors" type="button">
+                                <i class="fas fa-list-ul" aria-hidden="true"></i> عرض آخر الأخطاء
+                            </button>
+                        </div>
+                        <div
+                            id="recent-errors-result"
+                            class="mt-4 hidden"
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                            tabindex="-1"
+                        ></div>
+                    </div>
+                </div>
+
                 <div class="students-results admin-only overflow-hidden" id="sync-config-section">
-                    <h3><i class="fas fa-cog"></i> إعدادات المزامنة</h3>
+                    <h3><i class="fas fa-cog" aria-hidden="true"></i> إعدادات المزامنة</h3>
                     <form id="sync-config-form" class="px-6 pb-6">
                         <div class="grid gap-5 md:grid-cols-2">
-                            <div>
-                                <label
-                                    for="cfg-school-id"
-                                    class="mb-1.5 block text-sm font-semibold text-[var(--color-text-main)]"
-                                    >معرف المؤسسة</label
-                                >
-                                <input
-                                    type="text"
-                                    id="cfg-school-id"
-                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
-                                />
-                            </div>
                             <div>
                                 <label
                                     for="cfg-functions-url"
@@ -225,9 +256,15 @@
                                     >رابط Firebase Functions</label
                                 >
                                 <input
-                                    type="text"
+                                    type="url"
                                     id="cfg-functions-url"
-                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    class="sync-form-control"
+                                    required
+                                    autocomplete="url"
+                                    inputmode="url"
+                                    dir="ltr"
+                                    spellcheck="false"
+                                    autocapitalize="off"
                                 />
                             </div>
                             <div>
@@ -239,7 +276,12 @@
                                 <input
                                     type="text"
                                     id="cfg-project-id"
-                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    class="sync-form-control"
+                                    required
+                                    autocomplete="off"
+                                    dir="ltr"
+                                    spellcheck="false"
+                                    autocapitalize="off"
                                 />
                             </div>
                             <div>
@@ -253,8 +295,10 @@
                                     id="cfg-interval"
                                     min="1"
                                     max="30"
+                                    step="1"
                                     value="10"
-                                    class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                    class="sync-form-control"
+                                    required
                                 />
                             </div>
                         </div>
@@ -262,7 +306,7 @@
                             <summary
                                 class="cursor-pointer select-none rounded-lg px-3 py-2 font-semibold text-[var(--color-text-muted)] transition-colors duration-150 hover:bg-[var(--color-primary-mist)] hover:text-[var(--color-primary)]"
                             >
-                                <i class="fas fa-sliders-h"></i> إعدادات متقدمة
+                                <i class="fas fa-sliders-h" aria-hidden="true"></i> إعدادات متقدمة
                             </summary>
                             <div class="mt-4 grid gap-5 md:grid-cols-2">
                                 <div>
@@ -274,8 +318,12 @@
                                     <input
                                         type="number"
                                         id="cfg-batch-size"
+                                        min="1"
+                                        max="1000"
+                                        step="1"
                                         value="100"
-                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                        class="sync-form-control"
+                                        required
                                     />
                                 </div>
                                 <div>
@@ -287,8 +335,12 @@
                                     <input
                                         type="number"
                                         id="cfg-max-retries"
+                                        min="0"
+                                        max="50"
+                                        step="1"
                                         value="10"
-                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                        class="sync-form-control"
+                                        required
                                     />
                                 </div>
                                 <div>
@@ -300,8 +352,12 @@
                                     <input
                                         type="number"
                                         id="cfg-retention"
+                                        min="1"
+                                        max="365"
+                                        step="1"
                                         value="7"
-                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                        class="sync-form-control"
+                                        required
                                     />
                                 </div>
                                 <div>
@@ -313,8 +369,12 @@
                                     <input
                                         type="number"
                                         id="cfg-snapshot-interval"
+                                        min="5"
+                                        max="1440"
+                                        step="1"
                                         value="30"
-                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                        class="sync-form-control"
+                                        required
                                     />
                                 </div>
                                 <div>
@@ -326,8 +386,12 @@
                                     <input
                                         type="password"
                                         id="cfg-api-key"
+                                        class="sync-form-control"
+                                        required
                                         autocomplete="off"
-                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                        dir="ltr"
+                                        spellcheck="false"
+                                        autocapitalize="off"
                                     />
                                 </div>
                                 <div>
@@ -339,7 +403,12 @@
                                     <input
                                         type="text"
                                         id="cfg-auth-domain"
-                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                        class="sync-form-control"
+                                        autocomplete="off"
+                                        inputmode="url"
+                                        dir="ltr"
+                                        spellcheck="false"
+                                        autocapitalize="off"
                                     />
                                 </div>
                                 <div>
@@ -351,35 +420,51 @@
                                     <input
                                         type="text"
                                         id="cfg-app-id"
-                                        class="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2.5 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-mist)]"
+                                        class="sync-form-control"
+                                        required
+                                        autocomplete="off"
+                                        dir="ltr"
+                                        spellcheck="false"
+                                        autocapitalize="off"
                                     />
                                 </div>
                             </div>
                         </details>
-                        <div id="config-validation" class="validation-message warning mt-4 hidden"></div>
+                        <div
+                            id="config-validation"
+                            class="validation-message warning mt-4 hidden"
+                            role="alert"
+                            aria-live="assertive"
+                            aria-atomic="true"
+                            tabindex="-1"
+                        ></div>
                         <div class="mt-5 flex flex-wrap gap-3 items-center border-t border-[var(--glass-border)] pt-5">
                             <button class="btn btn-primary" type="submit">
-                                <i class="fas fa-save"></i> حفظ الإعدادات
+                                <i class="fas fa-save" aria-hidden="true"></i> حفظ الإعدادات
                             </button>
                             <button class="btn btn-secondary admin-only" id="btn-test-connection" type="button">
-                                <i class="fas fa-plug"></i> اختبار الاتصال
+                                <i class="fas fa-plug" aria-hidden="true"></i> اختبار الاتصال
                             </button>
                         </div>
-                        <div id="test-connection-result" class="mt-3 hidden rounded-lg px-4 py-3 text-sm"></div>
+                        <div
+                            id="test-connection-result"
+                            class="mt-3 hidden rounded-lg px-4 py-3 text-sm"
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                            tabindex="-1"
+                        ></div>
                     </form>
                 </div>
 
-                <!-- US3: Manual Sync Section -->
                 <div class="students-results admin-only overflow-hidden" id="sync-trigger-section">
-                    <h3 class="flex items-center gap-2"><i class="fas fa-bolt text-amber-500"></i> مزامنة يدوية</h3>
+                    <h3 class="flex items-center gap-2">
+                        <i class="fas fa-bolt text-amber-500" aria-hidden="true"></i> مزامنة يدوية
+                    </h3>
                     <div class="px-6 pb-6">
-                        <div class="flex items-center gap-4">
-                            <button
-                                class="sync-primary-action group inline-flex items-center gap-2.5 rounded-xl border border-[var(--color-primary)] bg-[var(--color-primary)] px-5 py-3 font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-[var(--color-primary-dark)] active:translate-y-px"
-                                id="btn-sync-now"
-                                type="button"
-                            >
-                                <i class="fas fa-sync"></i>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <button class="btn btn-primary sync-primary-action" id="btn-sync-now" type="button">
+                                <i class="fas fa-sync" aria-hidden="true"></i>
                                 <span>مزامنة الآن</span>
                             </button>
                             <span class="text-xs text-[var(--color-text-muted)]"
@@ -389,22 +474,23 @@
                         <div
                             id="sync-results"
                             class="mt-4 hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4"
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                            tabindex="-1"
                         ></div>
                     </div>
                 </div>
 
-                <!-- US4: Conflict Log Section -->
-                <div class="students-results overflow-hidden" id="sync-conflicts-section">
+                <div class="students-results admin-only overflow-hidden" id="sync-conflicts-section">
                     <h3>
-                        <i class="fas fa-code-branch"></i> سجل التعارضات <span class="badge" id="conflict-badge"></span>
+                        <i class="fas fa-code-branch" aria-hidden="true"></i> سجل التعارضات
+                        <span class="badge" id="conflict-badge"></span>
                     </h3>
                     <div class="px-6 pb-5">
-                        <div class="flex items-center gap-3 mb-4">
+                        <div class="flex flex-wrap items-center gap-3 mb-4">
                             <label for="conflict-filter" class="sr-only">تصفية التعارضات</label>
-                            <select
-                                id="conflict-filter"
-                                class="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-2 text-sm transition-colors duration-150 focus:border-[var(--color-primary)] focus:outline-none"
-                            >
+                            <select id="conflict-filter" class="sync-form-control max-w-xs">
                                 <option value="all">الكل</option>
                                 <option value="unresolved" selected>غير محلولة</option>
                                 <option value="resolved">محلولة</option>
@@ -424,33 +510,55 @@
                                     <th>الحقول المتعارضة</th>
                                     <th>الحالة</th>
                                     <th>التاريخ</th>
-                                    <th class="admin-only">الإجراء</th>
+                                    <th>الإجراء</th>
                                 </tr>
                             </thead>
                             <tbody id="conflict-tbody">
                                 <tr>
                                     <td colspan="7" class="loading-cell">
-                                        <i class="fas fa-spinner fa-spin"></i> جاري التحميل...
+                                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i> جاري التحميل...
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                    <div class="flex items-center justify-between px-6 py-4" id="conflict-pagination">
+                    <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4" id="conflict-pagination">
                         <button class="btn btn-secondary btn-sm conflict-prev-btn" type="button" disabled>
-                            <i class="fas fa-chevron-right"></i> السابقة
+                            <i class="fas fa-chevron-right" aria-hidden="true"></i> السابقة
                         </button>
                         <span class="conflict-page-info text-sm text-[var(--color-text-muted)]">صفحة 1</span>
                         <button class="btn btn-secondary btn-sm conflict-next-btn" type="button">
-                            <i class="fas fa-chevron-left"></i> التالية
+                            <i class="fas fa-chevron-left" aria-hidden="true"></i> التالية
                         </button>
                     </div>
                 </div>
 
+                <div class="students-results admin-only overflow-hidden" id="sync-forensics-section">
+                    <h3 class="flex items-center gap-2">
+                        <i class="fas fa-magnifying-glass-chart" aria-hidden="true"></i> تشخيص أسباب التعارضات
+                    </h3>
+                    <div class="px-6 pb-6">
+                        <div class="flex flex-wrap items-center gap-3 mb-4">
+                            <button class="btn btn-primary" id="btn-analyze-forensics" type="button">
+                                <i class="fas fa-stethoscope" aria-hidden="true"></i> تحليل السجل
+                            </button>
+                            <span class="text-xs text-[var(--color-text-muted)]" id="forensics-status">
+                                يقرأ ملف <code dir="ltr">sync-conflicts.log</code> ويلخّص الأسباب الجذرية
+                            </span>
+                        </div>
+                        <div
+                            id="forensics-result"
+                            class="hidden"
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                            tabindex="-1"
+                        ></div>
+                    </div>
+                </div>
             </div>
         </main>
 
-        <!-- Quick Navigation Panel -->
         <div
             class="quick-nav-panel"
             id="quick-nav-panel"
@@ -459,14 +567,14 @@
             aria-hidden="true"
         >
             <div class="quick-nav-header">
-                <h3><i class="fas fa-compass"></i> التنقل السريع</h3>
+                <h3><i class="fas fa-compass" aria-hidden="true"></i> التنقل السريع</h3>
                 <button
                     class="quick-nav-close"
                     id="quick-nav-close"
                     type="button"
                     aria-label="إغلاق لوحة التنقل السريع"
                 >
-                    <i class="fas fa-times"></i>
+                    <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
             </div>
             <div class="quick-nav-search">
@@ -484,10 +592,9 @@
             aria-expanded="false"
             title="التنقل السريع (Ctrl+K)"
         >
-            <i class="fas fa-compass"></i>
+            <i class="fas fa-compass" aria-hidden="true"></i>
         </button>
 
-        <!-- Keyboard Shortcuts Modal -->
         <div
             class="shortcuts-modal"
             id="shortcuts-modal"
@@ -498,9 +605,11 @@
         >
             <div class="shortcuts-content" tabindex="-1">
                 <div class="modal-header">
-                    <h3 id="shortcuts-modal-title"><i class="fas fa-keyboard"></i> اختصارات لوحة المفاتيح</h3>
+                    <h3 id="shortcuts-modal-title">
+                        <i class="fas fa-keyboard" aria-hidden="true"></i> اختصارات لوحة المفاتيح
+                    </h3>
                     <button class="close-modal" id="shortcuts-close" type="button" aria-label="إغلاق نافذة الاختصارات">
-                        <i class="fas fa-times"></i>
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
                 <div class="modal-body">

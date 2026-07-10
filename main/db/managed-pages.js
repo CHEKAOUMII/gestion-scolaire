@@ -39,6 +39,7 @@ module.exports = [
     'settings-school.html',
     'settings-imports.html',
     'settings-users.html',
+    'settings-defaults.html',
     'app-admin.html',
     'settings-license.html',
     'settings-logs.html',

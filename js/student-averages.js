@@ -46,6 +46,35 @@
         return Math.round(x * 100) / 100;
     }
 
+    /**
+     * Discriminate an *entered* grade value from a *not-entered* placeholder by
+     * inspecting the RAW value BEFORE any numeric coercion. This is the single
+     * source of truth shared by the renderer, the pure averaging layers
+     * (`computeTermAverage`, `computeSubjectAverage`) and the tests.
+     *
+     * Returns `true` only when the raw value is a real, deliberately-recorded
+     * mark — a finite number (including a genuine `0`) or a numeric string
+     * (including `'0'`). Returns `false` for not-entered placeholders:
+     * `null`, `undefined`, empty/whitespace-only strings, and any non-numeric
+     * value (e.g. `'x'`, `'—'`, `NaN`, `Infinity`).
+     *
+     * NOTE: a genuine numeric `0` / `'0'` (exam absence/cheating) is ENTERED
+     * and must keep counting in averages and KPIs.
+     *
+     * @param {*} raw  The raw grade value as delivered (pre-coercion).
+     * @returns {boolean}
+     */
+    function isGradeEntered(raw) {
+        if (raw === null || raw === undefined) return false;
+        if (typeof raw === 'number') return isFinite(raw);
+        if (typeof raw === 'string') {
+            var trimmed = raw.trim();
+            if (trimmed === '') return false;
+            return isFinite(Number(trimmed));
+        }
+        return false;
+    }
+
     // -----------------------------------------------------------------------
     // Dependency resolution
     //
@@ -123,6 +152,15 @@
     function computeTermAverage(termGrades, branch) {
         if (!termGrades || !termGrades.length) return null;
 
+        // 0. Drop not-entered records (raw value inspected before coercion) so a
+        //    coerced placeholder `0` never reaches the grouping/averaging math.
+        //    A term whose records are all not-entered collapses to `null`
+        //    (mapped to "—"/"قيد الإنجاز" by `formatAverage`).
+        var enteredGrades = termGrades.filter(function (g) {
+            return isGradeEntered(g && g.grade);
+        });
+        if (!enteredGrades.length) return null;
+
         var ccBaseSubjectFn = getCcBaseSubject();
         var normalizeSubjectNameFn = getNormalizeSubjectName();
         var computeSubjectAverageFn = getComputeSubjectAverage();
@@ -131,7 +169,7 @@
         // 1. Deduplicate by subject + semester (keep last occurrence), matching
         //    the existing renderMiniStats / renderGradesTab behavior.
         var dedup = {};
-        termGrades.forEach(function (g) {
+        enteredGrades.forEach(function (g) {
             var key = String((g && g.subject) || '').trim() + '||' + ((g && g.semester) || '');
             dedup[key] = g;
         });
@@ -273,10 +311,15 @@
     var api = {
         AVG_PLACEHOLDER: AVG_PLACEHOLDER,
         round2: round2,
+        isGradeEntered: isGradeEntered,
         computeTermAverage: computeTermAverage,
         computeStudentAverages: computeStudentAverages,
         formatAverage: formatAverage
     };
+
+    // Bare global (browser window + Node/VM global scope) so the renderer,
+    // `js/cc-rules.js` and the tests all share one `isGradeEntered` definition.
+    _root.isGradeEntered = isGradeEntered;
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
@@ -286,6 +329,7 @@
         window.GS2.StudentAverages = api;
         // Convenience direct globals for the renderer (vanilla-script convention).
         window.AVG_PLACEHOLDER = AVG_PLACEHOLDER;
+        window.isGradeEntered = isGradeEntered;
         window.computeTermAverage = computeTermAverage;
         window.computeStudentAverages = computeStudentAverages;
         window.formatAverage = formatAverage;

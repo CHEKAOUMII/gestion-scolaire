@@ -1,5 +1,5 @@
 const Database = require('better-sqlite3');
-const { setDb, getDbPath } = require('./context');
+const { setDb, getDbPath, applyConnectionPragmas } = require('./context');
 const { createTables } = require('./schema');
 const { runMigrations } = require('./migrations');
 
@@ -10,9 +10,9 @@ function initDatabase() {
     try {
         db = new Database(dbPath);
 
-        // Enable WAL mode for better concurrent performance
-        db.pragma('journal_mode = WAL');
-        db.pragma('foreign_keys = ON');
+        // Connection tuning: WAL, FK enforcement, busy_timeout, synchronous=NORMAL,
+        // wal_autocheckpoint (R3). Centralized so restore paths stay in sync.
+        applyConnectionPragmas(db);
 
         setDb(db);
         console.log('[db] Database opened at:', dbPath);

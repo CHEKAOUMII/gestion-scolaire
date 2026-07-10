@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { getAuth, signInWithEmailAndPassword } = require('firebase/auth');
 const { getApps, initializeApp } = require('firebase/app');
 const { doc, getDoc } = require('firebase/firestore');
-const { getFirestoreDb, getFirebaseConfig, readSchoolId, isInvalidCredentialError } = require('../firebase/config');
+const { getFirestoreDb, getFirebaseConfig, isInvalidCredentialError } = require('../firebase/config');
 const { getDb } = require('../db/context');
 
 const USER_AUTH_APP_NAME = 'pencil-user-auth';
@@ -15,7 +15,33 @@ let _refreshPromise = null;
 let _lastRestorationAttempt = 0;
 
 function readSyncConfig(db) {
-    return db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+    return (
+        db
+            .prepare(
+                `SELECT sync_config.*, institution_config.massar_code AS massar_code
+             FROM sync_config
+             LEFT JOIN institution_config ON institution_config.id = 1
+             WHERE sync_config.id = 1`
+            )
+            .get() || {}
+    );
+}
+
+function cleanSyncSchoolId(value) {
+    return (
+        String(value || '')
+            .trim()
+            .toUpperCase() || null
+    );
+}
+
+function resolveSyncSchoolId(config = {}, credentials = null) {
+    return (
+        cleanSyncSchoolId(credentials?.schoolId) ||
+        cleanSyncSchoolId(config?.school_id) ||
+        cleanSyncSchoolId(config?.massar_code) ||
+        null
+    );
 }
 
 function getFunctionsUrl(config) {
@@ -23,10 +49,6 @@ function getFunctionsUrl(config) {
         .trim()
         .replace(/\/+$/, '');
     return url || null;
-}
-
-function readSchoolIdFromDb(db) {
-    return readSchoolId(db);
 }
 
 function ensureFirebaseApp() {
@@ -55,7 +77,9 @@ function getDeviceHashForEncryption() {
         const db = getDb();
         const config = readSyncConfig(db);
         if (config.device_hash) return config.device_hash;
-    } catch { /* fall through */ }
+    } catch {
+        /* fall through */
+    }
     try {
         const { getDeviceHash } = require('./capture');
         return getDeviceHash();
@@ -70,7 +94,9 @@ function encryptCredential(plaintext) {
         if (safeStorage.isEncryptionAvailable()) {
             return safeStorage.encryptString(plaintext).toString('base64');
         }
-    } catch { /* safeStorage unavailable — use fallback */ }
+    } catch {
+        /* safeStorage unavailable — use fallback */
+    }
 
     const key = crypto.createHash('sha256').update(getDeviceHashForEncryption()).digest();
     const iv = crypto.randomBytes(16);
@@ -195,13 +221,14 @@ async function getFirebaseSession() {
             tokenResult = await auth.currentUser.getIdTokenResult(false);
         }
 
-        const schoolId = String(tokenResult?.claims?.schoolId || '').trim().toUpperCase();
-        const localSchoolId = readSchoolIdFromDb(getDb());
+        const schoolId = cleanSyncSchoolId(tokenResult?.claims?.schoolId);
+        const localConfig = readSyncConfig(getDb());
+        const configuredSchoolId = cleanSyncSchoolId(localConfig.school_id);
         if (!schoolId) {
             console.log('[sync:credentials] Firebase token is missing schoolId claim');
             return null;
         }
-        if (localSchoolId && schoolId !== localSchoolId) {
+        if (configuredSchoolId && schoolId !== configuredSchoolId) {
             console.warn('[sync:credentials] Firebase token schoolId does not match local sync_config');
             return null;
         }
@@ -232,9 +259,28 @@ async function refreshCredentials() {
     }
 }
 
+function hasLiveFirebaseUser() {
+    try {
+        const app = ensureFirebaseApp();
+        if (!app) return false;
+        return !!getAuth(app).currentUser;
+    } catch {
+        return false;
+    }
+}
+
 async function getCredentials() {
     if (_cachedCredentials && _cachedCredentials.expiresAt - Math.floor(Date.now() / 1000) > 300) {
-        return _cachedCredentials;
+        // A non-expired cache is NOT sufficient. If the Firebase user has since been signed
+        // out (auth.currentUser === null) — e.g. after a logout that ran signOut() — then
+        // reusing this cached session makes the sync engine issue UNAUTHENTICATED Firestore
+        // reads/writes, which the server rejects with PERMISSION_DENIED even though the
+        // account and rules are perfectly valid. Only serve the cache while a live Firebase
+        // user is actually present; otherwise fall through and rebuild the session.
+        if (hasLiveFirebaseUser()) {
+            return _cachedCredentials;
+        }
+        _cachedCredentials = null;
     }
 
     if (_refreshPromise) return _refreshPromise;
@@ -291,5 +337,7 @@ module.exports = {
     testConnection,
     restoreFirebaseSession,
     persistCredential,
-    clearStoredCredential
+    clearStoredCredential,
+    resolveSyncSchoolId,
+    hasLiveFirebaseUser
 };

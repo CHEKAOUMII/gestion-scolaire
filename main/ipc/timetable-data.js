@@ -2,6 +2,12 @@ const { handleRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = re
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 
+// R9 — size guard for the timetable_data JSON blob, mirroring the size-limit half
+// of the student_profile_data pattern. A full-year timetable is legitimately large,
+// so the cap is generous (~5 MB of serialized JSON) but bounded to reject runaway
+// or malformed oversized writes before they hit the database.
+const TIMETABLE_MAX_JSON = 5_000_000;
+
 function registerTimetableDataIpc(ipcMain) {
     // Read: get timetable JSON blob for a school year
     handleRead(ipcMain, 'timetableData:get', (db, schoolYear) => {
@@ -24,7 +30,15 @@ function registerTimetableDataIpc(ipcMain) {
         if (!data || typeof data !== 'object') {
             return { success: false, error: 'Invalid timetable data' };
         }
-        const json = JSON.stringify(data);
+        let json;
+        try {
+            json = JSON.stringify(data);
+        } catch {
+            return { success: false, error: 'Invalid timetable data: not serializable' };
+        }
+        if (json.length > TIMETABLE_MAX_JSON) {
+            return { success: false, error: 'Timetable data exceeds maximum allowed size' };
+        }
         db.prepare(`
             INSERT INTO timetable_data (school_year, data_json, updated_at)
             VALUES (?, ?, CURRENT_TIMESTAMP)

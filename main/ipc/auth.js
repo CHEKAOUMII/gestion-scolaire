@@ -17,9 +17,10 @@ const { ALLOWED_ROLES: ALLOWED_ROLES_ARR, resolveRole: resolveRoleAlias } = requ
 const MAX_PIN_ATTEMPTS = 5;
 
 // ── Developer credentials (env-var gated, never in production builds) ──
-const DEV_CREDENTIALS = process.env.PENCIL_DEV_MODE === '1' && process.env.PENCIL_DEV_PASSWORD_HASH
-    ? { email: 'dev@pencil.local', passwordHash: process.env.PENCIL_DEV_PASSWORD_HASH }
-    : null;
+const DEV_CREDENTIALS =
+    process.env.PENCIL_DEV_MODE === '1' && process.env.PENCIL_DEV_PASSWORD_HASH
+        ? { email: 'dev@pencil.local', passwordHash: process.env.PENCIL_DEV_PASSWORD_HASH }
+        : null;
 
 // ── Login throttling (persisted to SQLite) ──
 const MAX_ATTEMPTS_BEFORE_LOCK = 5;
@@ -86,7 +87,11 @@ function cleanupStaleAttempts() {
 }
 
 function normalizeRole(value) {
-    const role = resolveRoleAlias(String(value || '').trim().toLowerCase());
+    const role = resolveRoleAlias(
+        String(value || '')
+            .trim()
+            .toLowerCase()
+    );
     // Allow all storable roles plus 'developer' (hardcoded login bypass).
     return ALLOWED_ROLES_ARR.includes(role) || role === 'developer' ? role : 'principal';
 }
@@ -221,7 +226,9 @@ async function handleLinkRequest(email) {
     try {
         const db = getDb();
         const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
-        const localSchoolCode = String(instRow.code_etablissement || '').trim().toUpperCase();
+        const localSchoolCode = String(instRow.code_etablissement || '')
+            .trim()
+            .toUpperCase();
         if (!localSchoolCode) return null;
 
         const idToken = await getCurrentFirebaseIdToken(false);
@@ -266,7 +273,7 @@ function getLoginErrorMessage(code) {
     }
 }
 
-function postLoginSetup(event, loginResult, email, password) {
+async function postLoginSetup(event, loginResult, email, password) {
     clearLoginAttempts(email);
     const session = setSessionForEvent(event, loginResult.userRow);
     logAuthDebug('ipc.login.success-response', {
@@ -276,7 +283,28 @@ function postLoginSetup(event, loginResult, email, password) {
         role: session?.role || null
     });
 
+    // Mark the auth transition so any sync cycle still in flight from before this sign-in
+    // knows it spanned a login and treats its errors as a transient interruption.
+    try {
+        require('../sync/engine').bumpSyncAuthEpoch();
+    } catch (epochErr) {
+        console.warn('[auth] Failed to bump sync-auth epoch on login:', epochErr.message);
+    }
+
     if (loginResult.mode === 'online') {
+        // Clear any stale sync error left by a cycle that was interrupted by the previous
+        // sign-out. Without this, a transient "sync rejected — re-login" error recorded
+        // during the signed-out window keeps showing in the UI until the next fully-clean
+        // push completes (which can take minutes on a data-heavy device). Signing back in
+        // is a clean slate; a genuine error will simply be re-recorded by the next cycle.
+        try {
+            getDb()
+                .prepare('UPDATE sync_config SET last_push_error = NULL, last_pull_error = NULL WHERE id = 1')
+                .run();
+        } catch (clearErr) {
+            console.warn('[auth] Failed to clear stale sync errors on login:', clearErr.message);
+        }
+
         try {
             const { persistCredential, clearCredentials } = require('../sync/credentials');
             persistCredential(email, password);
@@ -284,16 +312,35 @@ function postLoginSetup(event, loginResult, email, password) {
         } catch (credErr) {
             console.warn('[auth] Failed to persist sync credential after login:', credErr.message);
         }
-    }
 
-    try {
-        const { restartSyncPushBackground, restartSyncPullBackground } = require('../sync/engine');
-        const { restartSnapshotBackground } = require('../sync/snapshot');
-        restartSyncPushBackground();
-        restartSyncPullBackground();
-        restartSnapshotBackground();
-    } catch (syncErr) {
-        console.warn('[auth] Failed to restart sync after login:', syncErr.message);
+        try {
+            const { recoverFirestoreClient } = require('../firebase/config');
+            await recoverFirestoreClient();
+        } catch (recoverErr) {
+            console.warn('[auth] Failed to refresh Firebase client after login:', recoverErr.message);
+        }
+
+        try {
+            const { restartSyncPushBackground, restartSyncPullBackground } = require('../sync/engine');
+            const { restartSnapshotBackground } = require('../sync/snapshot');
+            restartSyncPushBackground();
+            restartSyncPullBackground();
+            restartSnapshotBackground();
+        } catch (syncErr) {
+            console.warn('[auth] Failed to restart sync after login:', syncErr.message);
+        }
+    } else {
+        try {
+            const { stopSyncPushBackground, stopSyncPullBackground } = require('../sync/engine');
+            const { stopSnapshotBackground } = require('../sync/snapshot');
+            const { clearCredentials } = require('../sync/credentials');
+            stopSyncPushBackground();
+            stopSyncPullBackground();
+            stopSnapshotBackground();
+            clearCredentials();
+        } catch (syncErr) {
+            console.warn('[auth] Failed to stop cloud sync after offline login:', syncErr.message);
+        }
     }
 
     return { success: true, authenticated: true, user: session, authMode: loginResult.mode };
@@ -339,12 +386,14 @@ function registerAuthIpc(ipcMain) {
                 }
 
                 logAuthDebug('ipc.login.failed-response', {
-                    email, code,
+                    email,
+                    code,
                     internalCode: err.code || null,
                     message: err.message || String(err)
                 });
                 return {
-                    success: false, code,
+                    success: false,
+                    code,
                     error: getLoginErrorMessage(code),
                     _diag: {
                         firebaseCode: err.code || null,
@@ -354,7 +403,7 @@ function registerAuthIpc(ipcMain) {
                 };
             }
 
-            return postLoginSetup(event, loginResult, email, password);
+            return await postLoginSetup(event, loginResult, email, password);
         } catch (err) {
             return { success: false, error: err.message };
         }
@@ -391,13 +440,32 @@ function registerAuthIpc(ipcMain) {
 
     ipcMain.handle('auth:logout', async (event) => {
         try {
+            // Stop the background sync loops BEFORE tearing down the Firebase session.
+            // Otherwise a push/pull cycle can fire during the signed-out window and hit
+            // Firestore with request.auth == null → PERMISSION_DENIED.
+            try {
+                const { stopSyncPushBackground, stopSyncPullBackground, bumpSyncAuthEpoch } =
+                    require('../sync/engine');
+                // Mark the auth transition first so any push/pull cycle already in flight
+                // (which these stop() calls cannot abort) recognizes that its session was
+                // torn down and treats the resulting PERMISSION_DENIED as transient.
+                bumpSyncAuthEpoch();
+                stopSyncPushBackground();
+                stopSyncPullBackground();
+            } catch (syncErr) {
+                console.warn('[auth] Failed to stop sync on logout:', syncErr.message);
+            }
             try {
                 await logoutFirebaseUser();
             } catch (err) {
                 console.warn('[auth] Firebase logout failed:', err.message);
             }
             try {
-                const { clearStoredCredential } = require('../sync/credentials');
+                // clearStoredCredential() nulls the DB copy; clearCredentials() purges the
+                // in-memory cached session so a stale, still-valid-looking session object is
+                // never handed to a sync cycle after signOut().
+                const { clearStoredCredential, clearCredentials } = require('../sync/credentials');
+                clearCredentials();
                 clearStoredCredential();
             } catch (credErr) {
                 console.warn('[auth] Failed to clear stored credential:', credErr.message);
@@ -669,7 +737,9 @@ function registerAuthIpc(ipcMain) {
     ipcMain.handle('auth:submitLinkRequest', async (_event, payload) => {
         try {
             const idToken = payload?.idToken;
-            const schoolCode = String(payload?.schoolCode || '').trim().toUpperCase();
+            const schoolCode = String(payload?.schoolCode || '')
+                .trim()
+                .toUpperCase();
             const deviceName = String(payload?.deviceName || '').trim();
             if (!idToken || !schoolCode) {
                 return { success: false, code: 'INVALID_REQUEST', error: 'بيانات غير كاملة' };
@@ -679,7 +749,11 @@ function registerAuthIpc(ipcMain) {
             const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
             const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
             if (!functionsUrl) {
-                return { success: false, code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED', error: 'لم يتم ضبط رابط Cloud Functions' };
+                return {
+                    success: false,
+                    code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED',
+                    error: 'لم يتم ضبط رابط Cloud Functions'
+                };
             }
 
             const response = await fetch(`${functionsUrl}/submitLinkRequest`, {
@@ -714,7 +788,11 @@ function registerAuthIpc(ipcMain) {
             const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
             const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
             if (!functionsUrl) {
-                return { success: false, code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED', error: 'لم يتم ضبط رابط Cloud Functions' };
+                return {
+                    success: false,
+                    code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED',
+                    error: 'لم يتم ضبط رابط Cloud Functions'
+                };
             }
 
             const idToken = await getCurrentFirebaseIdToken(true);
@@ -755,7 +833,11 @@ function registerAuthIpc(ipcMain) {
             const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
             const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
             if (!functionsUrl) {
-                return { success: false, code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED', error: 'لم يتم ضبط رابط Cloud Functions' };
+                return {
+                    success: false,
+                    code: 'FIREBASE_FUNCTIONS_NOT_CONFIGURED',
+                    error: 'لم يتم ضبط رابط Cloud Functions'
+                };
             }
 
             const idToken = await getCurrentFirebaseIdToken(true);

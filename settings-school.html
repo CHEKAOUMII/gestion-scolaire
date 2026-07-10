@@ -33,22 +33,23 @@
             </header>
 
             <div class="grades-container">
-                <!-- Section 0: Sync-linked institution identity (read-only) -->
+                <!-- Section 0: Sync-linked institution identity -->
                 <section class="identity-section" id="sync-institution-section" aria-labelledby="sync-institution-title" hidden>
                     <div class="section-title" id="sync-institution-title"><i class="fas fa-cloud" aria-hidden="true"></i> هوية المؤسسة المرتبطة بالمزامنة</div>
                     <div class="identity-form">
                         <div class="form-group">
-                            <label for="sync-inst-code">رمز المؤسسة (المزامنة)</label>
-                            <input id="sync-inst-code" name="sync-inst-code" disabled dir="ltr" autocomplete="off" />
+                            <label for="sync-inst-code">رمز ماسار</label>
+                            <input id="sync-inst-code" name="sync-inst-code" dir="ltr" autocomplete="off" maxlength="20" placeholder="مثال: 12345A" />
+                            <p id="sync-inst-code-error" class="field-error hidden"></p>
                         </div>
                         <div class="form-group">
                             <label for="sync-inst-name">اسم المؤسسة (المزامنة)</label>
                             <input id="sync-inst-name" name="sync-inst-name" disabled autocomplete="off" />
                         </div>
                         <div class="school-section-actions" id="sync-inst-link-wrap" hidden>
-                            <a href="settings-users.html" class="btn btn-secondary btn-sm">
-                                <i class="fas fa-edit" aria-hidden="true"></i> طلب تعديل هوية المؤسسة
-                            </a>
+                            <button type="button" id="sync-inst-save-btn" class="btn btn-secondary btn-sm">
+                                <i class="fas fa-save" aria-hidden="true"></i> حفظ رمز ماسار
+                            </button>
                         </div>
                     </div>
                 </section>

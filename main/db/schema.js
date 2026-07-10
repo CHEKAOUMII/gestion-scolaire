@@ -348,6 +348,8 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_lookup ON teacher_aliases(school_year, alias_normalized);
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_teacher ON teacher_aliases(teacher_id, school_year);
         CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
+        CREATE INDEX IF NOT EXISTS idx_system_logs_entity   ON system_logs(entity_type, created_at);
+        CREATE INDEX IF NOT EXISTS idx_system_logs_action   ON system_logs(action, created_at);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_date ON staff_attendance(attendance_date, school_year);
         CREATE UNIQUE INDEX IF NOT EXISTS uidx_staff_attendance_absence
@@ -712,6 +714,43 @@ function ensureInstitutionSchema(existingDb) {
     ensureColumn('institution_config', 'onboarding_completed_at', 'DATETIME');
 }
 
+// R5 — canonical DDL for the notifications table. Previously this schema was
+// defined in BOTH migration 2026-03-015 AND main/notifications/store.js; because
+// both used CREATE TABLE IF NOT EXISTS, the first writer silently won and the two
+// copies could drift. This is now the single source of truth; store.js calls it.
+function ensureNotificationsSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS notifications (
+            id          TEXT PRIMARY KEY,
+            type        TEXT NOT NULL,
+            severity    TEXT NOT NULL,
+            title       TEXT,
+            body        TEXT,
+            icon        TEXT,
+            read        INTEGER DEFAULT 0,
+            created_at  INTEGER NOT NULL,
+            meta        TEXT
+        )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read)`);
+}
+
+// R5 — canonical DDL for the school_identity table. Previously duplicated in
+// migration 2026-03-14 AND main/reports/identity.js. Single source of truth now;
+// identity.js calls it (and keeps its own default-row seeding).
+function ensureSchoolIdentitySchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS school_identity (
+            key         TEXT PRIMARY KEY,
+            value       TEXT NOT NULL DEFAULT '',
+            updated_at  INTEGER DEFAULT (strftime('%s','now') * 1000)
+        )
+    `);
+}
+
 function ensureColumn(table, column, definition) {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table) || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)) {
         throw new Error(`ensureColumn: invalid identifier — table="${table}", column="${column}"`);
@@ -729,7 +768,9 @@ module.exports = {
     ensureColumn,
     ensureInstitutionSchema,
     ensureLicensingSchema,
+    ensureNotificationsSchema,
     ensureOwnerSyncSchema,
+    ensureSchoolIdentitySchema,
     ensureSyncSchema,
     ensurePageVisibilitySchema
 };

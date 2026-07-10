@@ -5,6 +5,118 @@ const { requireFields, validateRange } = require('./validation');
 const { normalizeSubjectName } = require('../../js/data/ma-education-labels');
 const { resolveTeacherIdentity } = require('../teachers/identity');
 
+// ── studentProfile:saveTab validation (R5) ──
+// Per-tab key allowlist mirrors the renderer collectors in js/pages/student-profile.js.
+// Unknown keys are stripped; values must be scalars or arrays of scalars; the
+// serialized payload is capped to guard against oversized writes.
+const PROFILE_TAB_ALLOWLIST = {
+    economic: [
+        'eco_status',
+        'income_source',
+        'family_size',
+        'schooling_children',
+        'distance_km',
+        'transport',
+        'support_programs',
+        'unmet_needs',
+        'notes'
+    ],
+    social: [
+        'family_status',
+        'parents_edu',
+        'housing',
+        'study_place',
+        'teachers_rel',
+        'peers_rel',
+        'social_risks',
+        'notes'
+    ],
+    health: [
+        'health_gen',
+        'disability',
+        'learning_disorders',
+        'sleep',
+        'nutrition',
+        'substances',
+        'chronic',
+        'treatment',
+        'mood',
+        'motivation',
+        'confidence',
+        'psych_symptoms',
+        'psych_support',
+        'psych_referral',
+        'health_notes',
+        'psych_notes'
+    ],
+    followup: [
+        'guardian_name',
+        'guardian_phone',
+        'calls_count',
+        'meetings_count',
+        'last_contact',
+        'actions_taken',
+        'interview_notes',
+        'plan_notes',
+        'next_date'
+    ]
+};
+
+// Maximum length of the serialized data_json payload accepted by saveTab.
+const PROFILE_TAB_MAX_JSON = 16000;
+
+function isProfileScalar(value) {
+    return (
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+    );
+}
+
+function isAllowedProfileValue(value) {
+    if (Array.isArray(value)) {
+        return value.every(
+            (item) => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+        );
+    }
+    return isProfileScalar(value);
+}
+
+// Validate + sanitize an incoming data_json payload for a profile tab.
+// Returns { ok: true, data: <serialized json> } or { ok: false, error }.
+function sanitizeProfileTabData(tabKey, rawData) {
+    const incoming = typeof rawData === 'string' ? rawData : JSON.stringify(rawData ?? {});
+    if (incoming.length > PROFILE_TAB_MAX_JSON) {
+        return { ok: false, error: 'data_json exceeds maximum allowed size' };
+    }
+
+    let parsed;
+    try {
+        parsed = typeof rawData === 'string' ? JSON.parse(rawData || '{}') : rawData ?? {};
+    } catch {
+        return { ok: false, error: 'Invalid data_json: not valid JSON' };
+    }
+
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { ok: false, error: 'Invalid data_json: expected an object' };
+    }
+
+    const allowed = PROFILE_TAB_ALLOWLIST[tabKey] || [];
+    const sanitized = {};
+    for (const key of allowed) {
+        if (!Object.prototype.hasOwnProperty.call(parsed, key)) continue;
+        const value = parsed[key];
+        if (value === undefined) continue;
+        if (!isAllowedProfileValue(value)) {
+            return { ok: false, error: `Invalid value type for field '${key}'` };
+        }
+        sanitized[key] = value;
+    }
+
+    return { ok: true, data: JSON.stringify(sanitized) };
+}
+
 function registerStudentsIpc(ipcMain) {
     // ── Read handlers (no auth required — app starts without login) ──
 
@@ -337,7 +449,8 @@ function registerStudentsIpc(ipcMain) {
         'levels',
         'levelsMapping',
         'pageVisibilityMap',
-        'school_info'
+        'school_info',
+        'systemLogsRetentionDays'
     ]);
 
     handleWrite(ipcMain, 'settings:set', ['admin'], (db, _event, key, value) => {
@@ -522,10 +635,21 @@ function registerStudentsIpc(ipcMain) {
             school_year: grade.school_year,
             source: 'grades:save'
         });
+        // Explicit upsert on the existing unique key (student_code, subject, semester,
+        // school_year). Unlike INSERT OR REPLACE (which is DELETE+INSERT in SQLite and so
+        // churns grades.id + created_at on every re-save — breaking sync_id_map linkage),
+        // ON CONFLICT DO UPDATE preserves the row identity and creation timestamp (R1).
         db.prepare(
             `
-                INSERT OR REPLACE INTO grades (student_id, student_code, teacher_id, subject, grade, semester, teacher_name, level, section, school_year)
+                INSERT INTO grades (student_id, student_code, teacher_id, subject, grade, semester, teacher_name, level, section, school_year)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(student_code, subject, semester, school_year) DO UPDATE SET
+                    student_id = excluded.student_id,
+                    teacher_id = excluded.teacher_id,
+                    grade = excluded.grade,
+                    teacher_name = excluded.teacher_name,
+                    level = excluded.level,
+                    section = excluded.section
             `
         ).run(
             grade.student_id,
@@ -550,9 +674,18 @@ function registerStudentsIpc(ipcMain) {
         if (grades.length > 5000) {
             return { success: false, error: 'Batch size exceeds maximum of 5000' };
         }
+        // Upsert instead of INSERT OR REPLACE (see grades:save above, R1): preserves
+        // grades.id + created_at across re-imports so synced rows keep a stable identity.
         const insert = db.prepare(`
-                INSERT OR REPLACE INTO grades (student_id, student_code, teacher_id, subject, grade, semester, teacher_name, level, section, school_year)
+                INSERT INTO grades (student_id, student_code, teacher_id, subject, grade, semester, teacher_name, level, section, school_year)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(student_code, subject, semester, school_year) DO UPDATE SET
+                    student_id = excluded.student_id,
+                    teacher_id = excluded.teacher_id,
+                    grade = excluded.grade,
+                    teacher_name = excluded.teacher_name,
+                    level = excluded.level,
+                    section = excluded.section
             `);
         const insertMany = db.transaction((items) => {
             for (const grade of items) {
@@ -794,9 +927,11 @@ function registerStudentsIpc(ipcMain) {
         }
 
         const studentCode = String(payload.student_code).trim();
-        const dataJson = typeof payload.data_json === 'string'
-            ? payload.data_json
-            : JSON.stringify(payload.data_json || {});
+        const sanitized = sanitizeProfileTabData(tabKey, payload.data_json);
+        if (!sanitized.ok) {
+            return { success: false, error: sanitized.error };
+        }
+        const dataJson = sanitized.data;
 
         db.prepare(`
             INSERT INTO student_profile_data (student_id, student_code, tab_key, data_json, school_year, updated_at, updated_by)
@@ -810,6 +945,58 @@ function registerStudentsIpc(ipcMain) {
             studentCode,
             tabKey,
             dataJson,
+            payload.school_year,
+            payload.updated_by || null
+        );
+        return { success: true };
+    });
+
+    // ── Persisted risk snapshot (H3/R7) ──
+    // Upserts the computed dropout-risk score/level keyed by
+    // (student_code, school_year). Mirrors the saveTab auth + validation shape.
+    handleWriteSoftAuth(ipcMain, 'studentProfile:saveRiskSnapshot', WRITE_ROLES, (db, payload) => {
+        requireFields(payload, ['student_code', 'school_year']);
+        requireSchoolYear(payload.school_year);
+
+        const studentCode = String(payload.student_code).trim();
+        if (!studentCode) {
+            return { success: false, error: 'Invalid student_code' };
+        }
+
+        const rawScore = Number(payload.risk_score);
+        const riskScore = Number.isFinite(rawScore) ? Math.round(rawScore) : null;
+        const riskLevel = payload.risk_level != null ? String(payload.risk_level).slice(0, 50) : null;
+
+        // student_id now sits behind a FK (student_id → students(id), migration 065), so
+        // it must reference a real student or be NULL — never the legacy 0 sentinel.
+        // Prefer a valid provided id, else resolve from (student_code, school_year).
+        let riskStudentId = Number(payload.student_id);
+        if (!Number.isFinite(riskStudentId) || riskStudentId <= 0) {
+            riskStudentId = null;
+        } else if (!db.prepare('SELECT 1 FROM students WHERE id = ?').get(riskStudentId)) {
+            riskStudentId = null;
+        }
+        if (riskStudentId == null) {
+            const resolvedStudent = db
+                .prepare('SELECT id FROM students WHERE code = ? AND school_year = ?')
+                .get(studentCode, payload.school_year);
+            riskStudentId = resolvedStudent ? resolvedStudent.id : null;
+        }
+
+        db.prepare(`
+            INSERT INTO student_risk_snapshot (student_id, student_code, risk_score, risk_level, school_year, updated_at, updated_by)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(student_code, school_year) DO UPDATE SET
+                student_id = excluded.student_id,
+                risk_score = excluded.risk_score,
+                risk_level = excluded.risk_level,
+                updated_at = CURRENT_TIMESTAMP,
+                updated_by = excluded.updated_by
+        `).run(
+            riskStudentId,
+            studentCode,
+            riskScore,
+            riskLevel,
             payload.school_year,
             payload.updated_by || null
         );

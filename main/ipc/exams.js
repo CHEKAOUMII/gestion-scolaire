@@ -1,8 +1,52 @@
 const { handleRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
-const { resolveTeacherIdentity } = require('../teachers/identity');
+const { resolveTeacherIdentity, teacherIdOrNull } = require('../teachers/identity');
 const { requireFields, validateDate } = require('./validation');
+
+// R7 — exam_attendance uniqueness is now teacher_id-scoped (with a teacher_name
+// fallback only when teacher_id IS NULL), matching the partial unique indexes added
+// in migration 065. Shared by examAttendance:upsert and :bulkUpsert so both honour the
+// same conflict targets.
+function upsertExamAttendanceRecord(db, rec) {
+    const { year, sessionKey, teacherId, name, role, status } = rec;
+    const sessionLabel = rec.session_label || null;
+    const sessionDate = rec.session_date || null;
+    const notes = rec.notes || null;
+
+    if (teacherId) {
+        return db
+            .prepare(
+                `INSERT INTO exam_attendance(school_year, session_key, session_label, session_date,
+                    teacher_id, teacher_name, role, status, notes)
+                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(school_year, session_key, teacher_id) WHERE teacher_id IS NOT NULL DO UPDATE SET
+                    teacher_name = excluded.teacher_name,
+                    role = excluded.role,
+                    status = excluded.status,
+                    notes = excluded.notes,
+                    session_label = excluded.session_label,
+                    session_date = excluded.session_date,
+                    recorded_at = CURRENT_TIMESTAMP`
+            )
+            .run(year, sessionKey, sessionLabel, sessionDate, teacherId, name, role, status, notes);
+    }
+
+    return db
+        .prepare(
+            `INSERT INTO exam_attendance(school_year, session_key, session_label, session_date,
+                teacher_id, teacher_name, role, status, notes)
+             VALUES(?, ?, ?, ?, NULL, ?, ?, ?, ?)
+             ON CONFLICT(school_year, session_key, teacher_name) WHERE teacher_id IS NULL DO UPDATE SET
+                role = excluded.role,
+                status = excluded.status,
+                notes = excluded.notes,
+                session_label = excluded.session_label,
+                session_date = excluded.session_date,
+                recorded_at = CURRENT_TIMESTAMP`
+        )
+        .run(year, sessionKey, sessionLabel, sessionDate, name, role, status, notes);
+}
 
 function registerExamsIpc(ipcMain) {
     // ── Read handlers (no auth required) ──
@@ -363,16 +407,33 @@ function registerExamsIpc(ipcMain) {
         const year = requireSchoolYear(payload.school_year);
         const name = String(payload.teacher_name || '').trim();
         if (!name) return { success: false, error: 'teacher_name required' };
-        const result = db
-            .prepare(
-                `INSERT INTO exam_invitations(school_year, teacher_id, teacher_name, sent_at, notes)
-                 VALUES(?, ?, ?, ?, ?)
-                 ON CONFLICT(school_year, teacher_name) DO UPDATE SET
-                    teacher_id = excluded.teacher_id,
-                    sent_at = excluded.sent_at,
-                    notes = excluded.notes`
-            )
-            .run(year, payload.teacher_id || null, name, payload.sent_at || null, payload.notes || null);
+        // R7: dedup by teacher_id when we can resolve one (a rename no longer forks the
+        // row, and two same-name teachers no longer collide); fall back to teacher_name
+        // only for id-less rows. teacherIdOrNull keeps the teacher_id FK satisfied.
+        const teacherId = teacherIdOrNull(db, payload.teacher_id);
+        let result;
+        if (teacherId) {
+            result = db
+                .prepare(
+                    `INSERT INTO exam_invitations(school_year, teacher_id, teacher_name, sent_at, notes)
+                     VALUES(?, ?, ?, ?, ?)
+                     ON CONFLICT(school_year, teacher_id) WHERE teacher_id IS NOT NULL DO UPDATE SET
+                        teacher_name = excluded.teacher_name,
+                        sent_at = excluded.sent_at,
+                        notes = excluded.notes`
+                )
+                .run(year, teacherId, name, payload.sent_at || null, payload.notes || null);
+        } else {
+            result = db
+                .prepare(
+                    `INSERT INTO exam_invitations(school_year, teacher_id, teacher_name, sent_at, notes)
+                     VALUES(?, NULL, ?, ?, ?)
+                     ON CONFLICT(school_year, teacher_name) WHERE teacher_id IS NULL DO UPDATE SET
+                        sent_at = excluded.sent_at,
+                        notes = excluded.notes`
+                )
+                .run(year, name, payload.sent_at || null, payload.notes || null);
+        }
         return { success: true, id: Number(result.lastInsertRowid) };
     });
 
@@ -410,31 +471,17 @@ function registerExamsIpc(ipcMain) {
         if (!name || !sessionKey) return { success: false, error: 'teacher_name and session_key required' };
         const status = ['present', 'absent', 'late', 'excused'].includes(payload.status) ? payload.status : 'present';
         const role = ['proctor', 'reserve', 'duty'].includes(payload.role) ? payload.role : 'proctor';
-        const result = db
-            .prepare(
-                `INSERT INTO exam_attendance(school_year, session_key, session_label, session_date,
-                    teacher_id, teacher_name, role, status, notes)
-                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(school_year, session_key, teacher_name) DO UPDATE SET
-                    teacher_id = excluded.teacher_id,
-                    role = excluded.role,
-                    status = excluded.status,
-                    notes = excluded.notes,
-                    session_label = excluded.session_label,
-                    session_date = excluded.session_date,
-                    recorded_at = CURRENT_TIMESTAMP`
-            )
-            .run(
-                year,
-                sessionKey,
-                payload.session_label || null,
-                payload.session_date || null,
-                payload.teacher_id || null,
-                name,
-                role,
-                status,
-                payload.notes || null
-            );
+        const result = upsertExamAttendanceRecord(db, {
+            year,
+            sessionKey,
+            teacherId: teacherIdOrNull(db, payload.teacher_id),
+            name,
+            role,
+            status,
+            session_label: payload.session_label,
+            session_date: payload.session_date,
+            notes: payload.notes
+        });
         return { success: true, id: Number(result.lastInsertRowid) };
     });
 
@@ -451,19 +498,6 @@ function registerExamsIpc(ipcMain) {
         if (!Array.isArray(records) || !records.length) {
             return { success: false, error: 'No records to upsert' };
         }
-        const stmt = db.prepare(
-            `INSERT INTO exam_attendance(school_year, session_key, session_label, session_date,
-                teacher_id, teacher_name, role, status, notes)
-             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(school_year, session_key, teacher_name) DO UPDATE SET
-                teacher_id = excluded.teacher_id,
-                role = excluded.role,
-                status = excluded.status,
-                notes = excluded.notes,
-                session_label = excluded.session_label,
-                session_date = excluded.session_date,
-                recorded_at = CURRENT_TIMESTAMP`
-        );
         const run = db.transaction((recs) => {
             let count = 0;
             for (const r of recs) {
@@ -472,11 +506,17 @@ function registerExamsIpc(ipcMain) {
                 if (!name || !sessionKey) continue;
                 const status = ['present', 'absent', 'late', 'excused'].includes(r.status) ? r.status : 'present';
                 const role = ['proctor', 'reserve', 'duty'].includes(r.role) ? r.role : 'proctor';
-                stmt.run(
-                    year, sessionKey,
-                    r.session_label || null, r.session_date || null,
-                    r.teacher_id || null, name, role, status, r.notes || null
-                );
+                upsertExamAttendanceRecord(db, {
+                    year,
+                    sessionKey,
+                    teacherId: teacherIdOrNull(db, r.teacher_id),
+                    name,
+                    role,
+                    status,
+                    session_label: r.session_label,
+                    session_date: r.session_date,
+                    notes: r.notes
+                });
                 count++;
             }
             return count;

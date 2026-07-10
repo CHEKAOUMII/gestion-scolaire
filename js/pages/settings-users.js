@@ -587,8 +587,6 @@ async function savePageVisibilityChanges() {
     }
 }
 
-const MASSAR_REGEX = /^\d+[A-Za-z]{1,2}$/;
-
 function identityStatusBadge(status) {
     const map = {
         pending: '<span class="settings-visibility-badge settings-visibility-badge--visible"><i class="fas fa-clock"></i> قيد المراجعة</span>',
@@ -678,9 +676,7 @@ async function loadIdentityChangeSection() {
         identityCurrentStatus = status;
         panel.style.display = '';
 
-        const codeInput = document.getElementById('ic-current-code');
         const nameInput = document.getElementById('ic-current-name');
-        if (codeInput) codeInput.value = status.massarCode || '';
         if (nameInput) nameInput.value = status.institutionName || '';
 
         await loadIdentityChangeRequests();
@@ -695,40 +691,19 @@ async function submitIdentityChangeRequest() {
         return;
     }
 
-    const newCode = document.getElementById('ic-new-code')?.value.trim() || '';
     const newName = document.getElementById('ic-new-name')?.value.trim() || '';
     const reason = document.getElementById('ic-reason')?.value.trim() || '';
     const syncIdentity = document.getElementById('ic-sync-identity')?.checked ?? true;
 
-    if (!newCode && !newName) {
-        showToast('يرجى إدخال الرمز الجديد أو الاسم الجديد على الأقل', 'warning');
+    if (!newName) {
+        showToast('يرجى إدخال الاسم الجديد', 'warning');
         return;
-    }
-
-    if (newCode && !MASSAR_REGEX.test(newCode)) {
-        showToast('رمز المؤسسة غير صالح. يجب أن يتكون من أرقام في البداية ثم حرف أو حرفين في النهاية', 'error');
-        return;
-    }
-
-    const currentCode = identityCurrentStatus?.massarCode || '';
-    const codeChanged = newCode && newCode !== currentCode;
-
-    if (codeChanged) {
-        const { confirmed } = await showConfirm({
-            title: 'تأكيد تغيير رمز المؤسسة',
-            message: `هل تريد طلب تغيير رمز المؤسسة من "${currentCode}" إلى "${newCode}"؟`,
-            detail: 'تغيير الرمز عملية حساسة تتطلب نقل جميع البيانات. سيتم مراجعة الطلب من طرف مدير التطبيق.',
-            type: 'warning',
-            confirmText: 'إرسال الطلب'
-        });
-        if (!confirmed) return;
     }
 
     const handle = showToast.loading('جاري إرسال الطلب...');
     try {
         const result = await window.api.institution.submitIdentityChangeRequest({
-            codeEtablissement: newCode || undefined,
-            institutionName: newName || undefined,
+            institutionName: newName,
             reason,
             syncSchoolIdentity: syncIdentity
         });
@@ -739,7 +714,6 @@ async function submitIdentityChangeRequest() {
         }
 
         handle.success('تم إرسال الطلب بنجاح');
-        document.getElementById('ic-new-code').value = '';
         document.getElementById('ic-new-name').value = '';
         document.getElementById('ic-reason').value = '';
         await loadIdentityChangeRequests();

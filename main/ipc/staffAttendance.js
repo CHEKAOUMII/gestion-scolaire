@@ -107,7 +107,7 @@ function registerStaffAttendanceIpc(ipcMain) {
             UNION ALL
             SELECT id, full_name, subject
             FROM unresolved_grade_teachers
-            ORDER BY full_name, COALESCE(subject, '')
+            ORDER BY full_name, subject
         `
             )
             .all(normalizeYear(schoolYear), normalizeYear(schoolYear));

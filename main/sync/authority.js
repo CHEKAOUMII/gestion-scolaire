@@ -27,6 +27,8 @@ const WRITER_AUTHORITY = {
     compensation_tracking: ALL_WRITERS,
     settings:              ALL_WRITERS,
     page_visibility:       ALL_WRITERS,
+    exam_count_rules:      ALL_WRITERS,
+    page_role_access:      ALL_WRITERS,
     system_tags:           ALL_WRITERS
 };
 
@@ -49,6 +51,8 @@ const ENTITY_TYPE_REGISTRY = {
     compensation_tracking: { entityType: 'compensation' },
     settings:              { entityType: 'settings' },
     page_visibility:       { entityType: 'page_visibility' },
+    exam_count_rules:      { entityType: 'exam_count_rule' },
+    page_role_access:      { entityType: 'page_role_access' },
     system_tags:           { entityType: 'system_tag' }
 };
 

@@ -21,7 +21,8 @@ contextBridge.exposeInMainWorld('api', {
     // Student Profile Data (bataqa mutabaat)
     studentProfile: {
         getAllTabs: (studentCode, schoolYear) => ipcRenderer.invoke('studentProfile:getAllTabs', studentCode, schoolYear),
-        saveTab: (payload) => ipcRenderer.invoke('studentProfile:saveTab', payload)
+        saveTab: (payload) => ipcRenderer.invoke('studentProfile:saveTab', payload),
+        saveRiskSnapshot: (payload) => ipcRenderer.invoke('studentProfile:saveRiskSnapshot', payload)
     },
 
     // Lookup catalogs
@@ -57,6 +58,17 @@ contextBridge.exposeInMainWorld('api', {
     pageVisibility: {
         getMap: () => ipcRenderer.invoke('pageVisibility:getMap'),
         setVisibility: (payload) => ipcRenderer.invoke('pageVisibility:setVisibility', payload)
+    },
+
+    appDefaults: {
+        listLevels: () => ipcRenderer.invoke('appDefaults:listLevels'),
+        getExamCounts: (levelCode) => ipcRenderer.invoke('appDefaults:getExamCounts', levelCode),
+        saveExamCounts: (payload) => ipcRenderer.invoke('appDefaults:saveExamCounts', payload),
+        getExamCount: (levelCode, subject) =>
+            ipcRenderer.invoke('appDefaults:getExamCount', { levelCode, subject }),
+        listPages: () => ipcRenderer.invoke('appDefaults:listPages'),
+        getPageAccessMap: () => ipcRenderer.invoke('appDefaults:getPageAccessMap'),
+        savePageAccess: (payload) => ipcRenderer.invoke('appDefaults:savePageAccess', payload)
     },
 
     // Statistics
@@ -148,6 +160,7 @@ contextBridge.exposeInMainWorld('api', {
     // System tags (daily report)
     systemTags: {
         getByDate: (date, schoolYear) => ipcRenderer.invoke('systemTags:getByDate', date, schoolYear),
+        getTeacherTags: (schoolYear) => ipcRenderer.invoke('systemTags:getTeacherTags', schoolYear),
         save: (payload) => ipcRenderer.invoke('systemTags:save', payload),
         saveNote: (payload) => ipcRenderer.invoke('systemTags:saveNote', payload),
         delete: (id) => ipcRenderer.invoke('systemTags:delete', id),
@@ -359,6 +372,7 @@ contextBridge.exposeInMainWorld('api', {
         setConfig: (updates) => ipcRenderer.invoke('sync:setConfig', updates),
         triggerNow: () => ipcRenderer.invoke('sync:triggerNow'),
         getConflictLog: (options) => ipcRenderer.invoke('sync:getConflictLog', options),
+        getConflictForensics: (options) => ipcRenderer.invoke('sync:getConflictForensics', options),
         resolveConflict: (payload) => ipcRenderer.invoke('sync:resolveConflict', payload),
         testConnection: () => ipcRenderer.invoke('sync:testConnection')
     },
@@ -367,6 +381,7 @@ contextBridge.exposeInMainWorld('api', {
         getStatus: () => ipcRenderer.invoke('institution:get-status'),
         relink: (payload) => ipcRenderer.invoke('institution:relink', payload),
         setupNew: (payload) => ipcRenderer.invoke('institution:setup-new', payload),
+        updateMassarCode: (payload) => ipcRenderer.invoke('institution:updateMassarCode', payload),
         submitIdentityChangeRequest: (payload) => ipcRenderer.invoke('institution:submitIdentityChangeRequest', payload),
         getIdentityChangeRequests: (payload) => ipcRenderer.invoke('institution:getIdentityChangeRequests', payload),
         applyApprovedIdentityChange: (payload) => ipcRenderer.invoke('institution:applyApprovedIdentityChange', payload)
@@ -376,6 +391,12 @@ contextBridge.exposeInMainWorld('api', {
         listIdentityChangeRequests: (payload) => ipcRenderer.invoke('appAdmin:listIdentityChangeRequests', payload),
         approveIdentityChangeRequest: (payload) => ipcRenderer.invoke('appAdmin:approveIdentityChangeRequest', payload),
         rejectIdentityChangeRequest: (payload) => ipcRenderer.invoke('appAdmin:rejectIdentityChangeRequest', payload)
+    },
+
+    diagnostics: {
+        getRecent: (options) => ipcRenderer.invoke('diagnostics:getRecent', options),
+        exportLog: () => ipcRenderer.invoke('diagnostics:exportLog'),
+        revealLog: () => ipcRenderer.invoke('diagnostics:revealLog')
     },
 
 });

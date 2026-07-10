@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function isValidMassarCode(code) {
-        return /^\d+[A-Za-z]{1,2}$/.test(
+        return /^[A-Z0-9]+$/.test(
             String(code || '')
                 .trim()
                 .toUpperCase()
@@ -161,8 +161,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let hasError = false;
 
-        if (!isValidMassarCode(massarCode)) {
-            showFieldError('new-massar-error', 'رمز المؤسسة غير صالح - يجب أن يتكون من أرقام في البداية ثم حرف أو حرفين في النهاية');
+        // Massar code is optional (Req 5.1/5.2): only validate format/length when non-empty.
+        if (massarCode) {
+            if (massarCode.length > 20 || !isValidMassarCode(massarCode)) {
+                showFieldError('new-massar-error', 'رمز المؤسسة غير صالح - يجب أن يتكون من حروف إنجليزية كبيرة وأرقام فقط، بحد أقصى 20 حرفاً');
+                hasError = true;
+            }
+        }
+        if (!institutionName) {
+            showFieldError('new-institution-name-error', 'اسم المؤسسة مطلوب');
             hasError = true;
         }
         if (!adminName) {
@@ -204,6 +211,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (result?.success) {
                 showSetupToast(result.message || 'تم إعداد المؤسسة بنجاح', 'success');
+                if (result.massarCodeDiffersFromSchoolId) {
+                    showSetupToast(
+                        'تم إعداد المؤسسة بمعرّف فريد؛ يمكنك متابعة استخدام رمز ماسار كما أدخلته للعرض والبحث',
+                        'info'
+                    );
+                }
 
                 // Auto-login as admin
                 let loggedIn = false;

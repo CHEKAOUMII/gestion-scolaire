@@ -305,7 +305,9 @@
         return item;
     }
 
+    // Delegates to the canonical escapeHtml in js/utils.js (loaded earlier).
     function escapeHtml(text) {
+        if (window.escapeHtml) return window.escapeHtml(text);
         var div = document.createElement('div');
         div.textContent = String(text);
         return div.innerHTML;

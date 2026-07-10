@@ -5,6 +5,7 @@ const { ENTITY_TYPE_REGISTRY } = require('./authority');
 const { ensureSyncIdMapping, stripSensitiveFields, recordOutboxEntry, SENSITIVE_FIELDS } = require('./capture');
 const { isPullCycleRunning } = require('./engine');
 const { computeRowChecksum } = require('./merge');
+const { resolveSyncSchoolId } = require('./credentials');
 
 let _snapshotTimer = null;
 let _snapshotRunning = false;
@@ -21,6 +22,19 @@ function buildSnapshotResult(overrides = {}) {
         lastError: null,
         ...overrides
     };
+}
+
+function readSyncConfig(db) {
+    return (
+        db
+            .prepare(
+                `SELECT sync_config.*, institution_config.massar_code AS massar_code
+             FROM sync_config
+             LEFT JOIN institution_config ON institution_config.id = 1
+             WHERE sync_config.id = 1`
+            )
+            .get() || {}
+    );
 }
 
 function snapshotTable(db, tableName) {
@@ -40,9 +54,7 @@ function snapshotTable(db, tableName) {
         const cleanRow = stripSensitiveFields({ ...row });
         const checksum = computeRowChecksum(cleanRow, SENSITIVE_FIELDS);
 
-        const stored = db
-            .prepare('SELECT checksum FROM sync_snapshots WHERE row_sync_id = ?')
-            .get(rowSyncId);
+        const stored = db.prepare('SELECT checksum FROM sync_snapshots WHERE row_sync_id = ?').get(rowSyncId);
 
         if (!stored || stored.checksum !== checksum) {
             changesDetected++;
@@ -56,9 +68,7 @@ function snapshotTable(db, tableName) {
         }
     }
 
-    const storedSnapshots = db
-        .prepare('SELECT row_sync_id FROM sync_snapshots WHERE table_name = ?')
-        .all(tableName);
+    const storedSnapshots = db.prepare('SELECT row_sync_id FROM sync_snapshots WHERE table_name = ?').all(tableName);
     for (const stored of storedSnapshots) {
         if (!currentRowSyncIds.has(stored.row_sync_id)) {
             changesDetected++;
@@ -94,8 +104,8 @@ async function runSnapshotCycle() {
 
     try {
         const db = getDb();
-        const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !Number(config.enabled) || !config.school_id) {
+        const config = readSyncConfig(db);
+        if (!Number(config.enabled) || !resolveSyncSchoolId(config)) {
             return buildSnapshotResult({ skipped: true, reason: 'disabled' });
         }
 
@@ -116,7 +126,9 @@ async function runSnapshotCycle() {
         ).run();
 
         if (changesDetected > 0) {
-            console.log(`[sync:snapshot] Completed: ${tablesChecked} tables checked, ${changesDetected} changes detected, ${enqueued} enqueued, ${pruned} pruned`);
+            console.log(
+                `[sync:snapshot] Completed: ${tablesChecked} tables checked, ${changesDetected} changes detected, ${enqueued} enqueued, ${pruned} pruned`
+            );
         }
         return buildSnapshotResult({ tablesChecked, changesDetected, enqueued, pruned });
     } catch (err) {
@@ -127,7 +139,13 @@ async function runSnapshotCycle() {
         } catch (dbErr) {
             console.warn('[sync:snapshot] Failed to record snapshot error in DB:', dbErr.message);
         }
-        return buildSnapshotResult({ success: false, tablesChecked, changesDetected, enqueued, lastError: err.message });
+        return buildSnapshotResult({
+            success: false,
+            tablesChecked,
+            changesDetected,
+            enqueued,
+            lastError: err.message
+        });
     } finally {
         _snapshotRunning = false;
     }
@@ -142,8 +160,8 @@ function startSnapshotBackground() {
 
     try {
         const db = getDb();
-        const config = db.prepare('SELECT * FROM sync_config WHERE id = 1').get();
-        if (!config || !Number(config.enabled) || !config.school_id) return;
+        const config = readSyncConfig(db);
+        if (!Number(config.enabled) || !resolveSyncSchoolId(config)) return;
 
         // Run an immediate cycle
         void runSnapshotCycle();

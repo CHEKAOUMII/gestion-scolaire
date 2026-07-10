@@ -2,9 +2,17 @@
 
 const crypto = require('crypto');
 const {
-    collection, doc, setDoc, getDocs,
-    query, orderBy, limit, startAfter,
-    Timestamp, writeBatch, documentId
+    collection,
+    doc,
+    setDoc,
+    getDocs,
+    query,
+    orderBy,
+    limit,
+    startAfter,
+    Timestamp,
+    writeBatch,
+    documentId
 } = require('firebase/firestore');
 
 const BOOTSTRAP_PAGE_SIZE = 500;
@@ -27,6 +35,14 @@ function normalizeCursorUpdatedAt(value) {
     return numeric > 9999999999 ? Math.floor(numeric / 1000) : Math.floor(numeric);
 }
 
+function decodeDocumentIdPart(value) {
+    try {
+        return decodeURIComponent(String(value || '').trim());
+    } catch {
+        return String(value || '').trim();
+    }
+}
+
 function buildChangeId(entry) {
     const updatedAt = normalizeUpdatedAt(entry.updatedAt);
     const version = Number(entry.version) || 1;
@@ -42,7 +58,18 @@ function buildChangeId(entry) {
  * Writes a sync log entry when a document is pushed to Firestore.
  * Path: syncLog/{schoolId}/changes/{changeId}
  */
-async function logChange(db, schoolId, entityType, entityId, operation, data, version, deviceHash, rowSyncId, schoolYear) {
+async function logChange(
+    db,
+    schoolId,
+    entityType,
+    entityId,
+    operation,
+    data,
+    version,
+    deviceHash,
+    rowSyncId,
+    schoolYear
+) {
     const updatedAt = normalizeUpdatedAt(Date.now());
     const changeId = buildChangeId({ updatedAt, version, entityType, rowSyncId, entityId });
 
@@ -108,10 +135,7 @@ async function pullChanges(db, schoolId, cursor, maxResults = 500) {
                   changeId: ''
               };
 
-    const clauses = [
-        orderBy('updatedAt'),
-        orderBy(documentId())
-    ];
+    const clauses = [orderBy('updatedAt'), orderBy(documentId())];
 
     if (normalizedCursor.changeId) {
         clauses.push(startAfter(normalizedCursor.updatedAt, normalizedCursor.changeId));
@@ -121,10 +145,7 @@ async function pullChanges(db, schoolId, cursor, maxResults = 500) {
 
     clauses.push(limit(maxResults));
 
-    const q = query(
-        changesRef,
-        ...clauses
-    );
+    const q = query(changesRef, ...clauses);
 
     const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -170,9 +191,26 @@ async function bootstrapFromCollections(db, schoolId, collectionMap, entityTypeR
 
                 for (const docSnap of snapshot.docs) {
                     const raw = docSnap.data() || {};
+
+                    // Skip soft-delete tombstones. The push path historically mirrored
+                    // DEL operations into the entity collection as merge-tombstones
+                    // ({ operation: 'DEL', ... }) instead of physically deleting the doc.
+                    // Bootstrap reads the entity collection directly (not syncLog), so
+                    // without this guard a tombstone is re-materialized as a live PUT —
+                    // e.g. a students tombstone carries only `code`, and the INSERT fails
+                    // with "NOT NULL constraint failed: students.full_name". These docs
+                    // represent already-deleted rows and must not be imported.
+                    if (String(raw.operation || '').toUpperCase() === 'DEL') {
+                        continue;
+                    }
+
                     const cleanData = { ...raw };
                     for (const key of SYNC_METADATA_KEYS) {
                         delete cleanData[key];
+                    }
+
+                    if (tableName === 'students' && !String(cleanData.code || '').trim()) {
+                        cleanData.code = decodeDocumentIdPart(docSnap.id);
                     }
 
                     items.push({
@@ -183,7 +221,7 @@ async function bootstrapFromCollections(db, schoolId, collectionMap, entityTypeR
                         data: cleanData,
                         version: raw.version || 1,
                         deviceHash: raw.deviceHash || '',
-                        rowSyncId: raw.rowSyncId || '',
+                        rowSyncId: raw.rowSyncId || `bootstrap:${tableName}:${docSnap.id}`,
                         schoolYear: raw.schoolYear || '',
                         updatedAt: raw.updatedAt || Math.floor(Date.now() / 1000)
                     });
@@ -208,4 +246,11 @@ async function bootstrapFromCollections(db, schoolId, collectionMap, entityTypeR
     return items;
 }
 
-module.exports = { logChange, logChangeBatch, pullChanges, bootstrapFromCollections, buildChangeId, normalizeUpdatedAt };
+module.exports = {
+    logChange,
+    logChangeBatch,
+    pullChanges,
+    bootstrapFromCollections,
+    buildChangeId,
+    normalizeUpdatedAt
+};

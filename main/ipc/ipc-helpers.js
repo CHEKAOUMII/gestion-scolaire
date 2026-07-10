@@ -33,7 +33,8 @@ function getDefaultYear() {
  * Single source of truth — replaces the 9 copy-pasted versions.
  */
 function authErrorResponse(err) {
-    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
+    const isAuthError =
+        err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN' || err?.code === 'SESSION_LOCKED';
     return {
         success: false,
         code: isAuthError ? err.code : 'INTERNAL_ERROR',
@@ -73,6 +74,16 @@ function handleRead(ipcMain, channel, handler) {
             const db = getDb();
             return await handler(db, ...args);
         } catch (err) {
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
             return { success: false, error: err.message };
         }
     });
@@ -96,6 +107,16 @@ function handleWrite(ipcMain, channel, roles, handler) {
             const db = getDb();
             return await handler(db, event, ...args);
         } catch (err) {
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
             return authErrorResponse(err);
         }
     };
@@ -145,6 +166,16 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
             const db = getDb();
             return await handler(db, ...args);
         } catch (err) {
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
             return authErrorResponse(err);
         }
     };

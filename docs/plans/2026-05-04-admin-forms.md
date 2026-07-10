@@ -254,7 +254,7 @@
     category: 'health' | 'pledge' | 'notification' | 'disciplinary' | 'form',
     studentLinked: true | false,
     icon: 'fa-...',
-    iconClass: 'text-[var(--color-...)]',
+    iconClass: 'text-[var(--color-primary)]',
     title: '...',
     description: '...',
     fields: [...]

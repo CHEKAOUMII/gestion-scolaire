@@ -59,6 +59,7 @@ function injectSidebar() {
                         <li><a href="results-hub.html"><i class="fas fa-chart-pie"></i> مركز النتائج</a></li>
                         <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
                         <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
+                        <li><a href="exam-papers.html"><i class="fas fa-file-import"></i> تتبع أوراق التحرير</a></li>
                         <li><a href="grades-results.html"><i class="fas fa-file-invoice"></i> بيان النتائج</a></li>
                         <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> مركز الدعم التربوي</a></li>
                     </ul>
@@ -99,6 +100,7 @@ function injectSidebar() {
                         <li><a href="settings-school.html"><i class="fas fa-school"></i> معلومات المؤسسة</a></li>
                         <li><a href="settings-imports.html"><i class="fas fa-file-import"></i> استيراد البيانات</a></li>
                         <li id="sidebar-users-link" class="hidden" data-dev-only><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
+                        <li id="sidebar-defaults-link" class="hidden" data-admin-only><a href="settings-defaults.html"><i class="fas fa-sliders-h"></i> إعدادات التطبيق</a></li>
                         <li><a href="settings-logs.html"><i class="fas fa-history"></i> سجل النشاطات</a></li>
                         <li id="sidebar-license-link" class="hidden" data-dev-only><a href="settings-license.html"><i class="fas fa-key"></i> الترخيص والأجهزة</a></li>
                         <li id="sidebar-app-admin-link" class="hidden" data-admin-only><a href="app-admin.html"><i class="fas fa-cogs"></i> إدارة التطبيق</a></li>
@@ -187,6 +189,8 @@ function injectSidebar() {
                 if (role === 'developer' || role === 'admin') {
                     const appAdminLink = document.getElementById('sidebar-app-admin-link');
                     if (appAdminLink) appAdminLink.classList.remove('hidden');
+                    const defaultsLink = document.getElementById('sidebar-defaults-link');
+                    if (defaultsLink) defaultsLink.classList.remove('hidden');
                 }
             }
         }

@@ -29,6 +29,8 @@ const COLLECTION_MAP = {
     compensation_tracking: { collection: 'compensation', idFields: ['id'] },
     settings: { collection: 'settings', idFields: ['key'] },
     page_visibility: { collection: 'pageVisibility', idFields: ['page_key'] },
+    exam_count_rules: { collection: 'examCountRules', idFields: ['level_code', 'subject'] },
+    page_role_access: { collection: 'pageRoleAccess', idFields: ['page_key', 'role'] },
     device_revocation: { collection: 'deviceRevocations', idFields: ['revokedDeviceHash'] },
     system_tags: { collection: 'systemTags', idFields: ['id'] }
 };

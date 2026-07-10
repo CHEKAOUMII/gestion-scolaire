@@ -19,11 +19,12 @@ function collectInvokeChannels(preloadSource) {
 function collectHandleChannels(ipcSources) {
     // Match both direct ipcMain.handle('channel') and helper patterns:
     // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'),
-    // handleWriteSoftAuth(ipcMain, 'channel'), registerProtectedRead(ipcMain, 'channel')
+    // handleWriteSoftAuth(ipcMain, 'channel'), handleAdminRead(ipcMain, 'channel'),
+    // registerProtectedRead(ipcMain, 'channel')
     const directMatches = [...ipcSources.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((m) => m[1]);
     const helperMatches = [
         ...ipcSources.matchAll(
-            /(?:handleRead|handleWrite|handleWriteSoftAuth|registerProtectedRead)\(ipcMain,\s*'([^']+)'/g
+            /(?:handleRead|handleWrite|handleWriteSoftAuth|handleAdminRead|registerProtectedRead)\(ipcMain,\s*'([^']+)'/g
         )
     ].map((m) => m[1]);
     return unique([...directMatches, ...helperMatches]);

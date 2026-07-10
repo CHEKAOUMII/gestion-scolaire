@@ -169,10 +169,23 @@ function resolveTeacherIdentity(db, payload = {}) {
     };
 }
 
+// R6/R7 — return the given teacher_id only if it references a real teacher row,
+// otherwise null. Side-effect-free (unlike resolveTeacherIdentity, which also
+// registers aliases). Used by insert/upsert paths that now sit behind a
+// teacher_id → teachers(id) foreign key so a stale id degrades to NULL (keeping
+// the teacher_name snapshot) instead of failing the write.
+function teacherIdOrNull(db, teacherId) {
+    const n = Number(teacherId);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const row = db.prepare('SELECT 1 FROM teachers WHERE id = ?').get(n);
+    return row ? n : null;
+}
+
 module.exports = {
     normalizeTeacherName,
     listTeacherAliases,
     ensureTeacherAlias,
     seedTeacherAliases,
-    resolveTeacherIdentity
+    resolveTeacherIdentity,
+    teacherIdOrNull
 };

@@ -181,6 +181,11 @@ function computeSubjectAverage(baseSubjectName, grades) {
     const activityGrades = [];
 
     grades.forEach(g => {
+        // Skip not-entered placeholders by inspecting the RAW value before
+        // coercion (shared `isGradeEntered` discriminator). A genuine numeric
+        // `0` / `'0'` is ENTERED and still counts. The existing
+        // `Number.isFinite` guard is kept as a defensive backstop.
+        if (typeof isGradeEntered === 'function' && !isGradeEntered(g.grade)) return;
         const val = Number(g.grade);
         if (!Number.isFinite(val)) return;
         if (ccIsActivity(g.subject)) {

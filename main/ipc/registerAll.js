@@ -18,6 +18,8 @@ const { registerTimetableDataIpc } = require('./timetable-data');
 const { registerExamConfigDataIpc } = require('./exam-config-data');
 const { registerInspectorsIpc } = require('./inspectors');
 const { registerAppAdminIpc } = require('./app-admin');
+const { registerDiagnosticsIpc } = require('./diagnostics');
+const { registerAppDefaultsIpc } = require('./appDefaults');
 const { startOutboxCleanup } = require('../sync/capture');
 
 function registerAllIpcHandlers(ipcMain) {
@@ -41,6 +43,8 @@ function registerAllIpcHandlers(ipcMain) {
     registerExamConfigDataIpc(ipcMain);
     registerInspectorsIpc(ipcMain);
     registerAppAdminIpc(ipcMain);
+    registerDiagnosticsIpc(ipcMain);
+    registerAppDefaultsIpc(ipcMain);
     startOutboxCleanup();
 }
 

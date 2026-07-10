@@ -177,6 +177,7 @@ const CONTENT_RESTORE_TABLES = [
     'student_files',
     'student_movements',
     'student_profile_data',
+    'student_risk_snapshot',
     'teachers',
     'teacher_aliases',
     'teacher_absences',
@@ -239,6 +240,23 @@ function registerSystemIpc(ipcMain) {
                 VALUES(?, ?, ?, ?)
             `
             ).run(payload.action, payload.details || null, payload.entity_type || null, payload.entity_id || null);
+
+            // Mirror renderer errors into the persistent, uploadable error-log file.
+            // The renderer global error boundary (js/utils.js) already routes here with
+            // entity_type='renderer', so we capture it without any renderer-side change.
+            if (payload && payload.entity_type === 'renderer') {
+                try {
+                    require('../diagnostics/error-log').logAppError({
+                        source: 'renderer',
+                        action: payload.action,
+                        page: payload.entity_id,
+                        extra: payload.details
+                    });
+                } catch (_) {
+                    /* logging must never block */
+                }
+            }
+
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };
@@ -526,8 +544,12 @@ function registerSystemIpc(ipcMain) {
             });
 
             const win = BrowserWindow.fromWebContents(webContents);
+            const suggested = String(options.defaultFileName || `document_${Date.now()}.pdf`)
+                .replace(/[\\/:*?"<>|]+/g, '_')
+                .trim();
+            const defaultPath = /\.pdf$/i.test(suggested) ? suggested : `${suggested || 'document'}.pdf`;
             const { filePath } = await dialog.showSaveDialog(win, {
-                defaultPath: `document_${Date.now()}.pdf`,
+                defaultPath,
                 filters: [{ name: 'PDF', extensions: ['pdf'] }]
             });
 
@@ -634,7 +656,7 @@ function registerSystemIpc(ipcMain) {
             console.log('[backup] restoreDb: base64 payload length =', dbBase64.length);
 
             const Database = require('better-sqlite3');
-            const { setDb, getDbPath } = require('../db/context');
+            const { setDb, getDbPath, applyConnectionPragmas } = require('../db/context');
             const { createTables } = require('../db/schema');
             const { runMigrations } = require('../db/migrations');
             const fs = require('fs');
@@ -701,8 +723,7 @@ function registerSystemIpc(ipcMain) {
 
             try {
                 const newDb = new Database(dbPath);
-                newDb.pragma('journal_mode = WAL');
-                newDb.pragma('foreign_keys = ON');
+                applyConnectionPragmas(newDb);
                 setDb(newDb);
 
                 console.log('[backup] restoreDb: running createTables...');
@@ -728,8 +749,7 @@ function registerSystemIpc(ipcMain) {
                     fs.renameSync(rollbackPath, dbPath);
 
                     const rollbackDb = new Database(dbPath);
-                    rollbackDb.pragma('journal_mode = WAL');
-                    rollbackDb.pragma('foreign_keys = ON');
+                    applyConnectionPragmas(rollbackDb);
                     setDb(rollbackDb);
                     console.log('[backup] restoreDb: rolled back to previous database');
                 }

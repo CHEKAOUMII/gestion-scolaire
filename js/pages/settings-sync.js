@@ -1,44 +1,55 @@
 /**
  * Sync Settings Page — js/pages/settings-sync.js
  * إعدادات المزامنة السحابية
- * ⚠️ Sync config section restricted to role === 'admin' OR 'developer'
+ * ⚠️ Sync config, conflict log, and forensics actions are restricted to admin/developer users.
  * Sync activation is automatic after institution linking/setup; no user toggle.
  */
 
-// ── Hide sync config section for non-admin / non-developer users ──
-(function devSectionGuard() {
-    let isPrivileged = false;
-    try {
-        const rawSession = localStorage.getItem('gsl_auth_session_v1');
-        if (rawSession) {
-            const sess = JSON.parse(rawSession);
-            const role = String(sess?.role || '').toLowerCase();
-            if (role === 'developer' || role === 'admin') isPrivileged = true;
-        }
-    } catch (_) {
-        /* */
-    }
-    if (!isPrivileged) {
-        // Hide sync config section once DOM is ready
-        const hide = () => {
-            const configSection = document.getElementById('sync-config-section');
-            if (configSection) configSection.style.display = 'none';
-        };
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', hide);
-        } else {
-            hide();
-        }
-    }
-})();
+const SYNC_ADMIN_ROLES = new Set(['admin', 'developer']);
+const AUTH_FAILURE_CODES = new Set(['UNAUTHENTICATED', 'FORBIDDEN', 'SESSION_LOCKED']);
+const SYNC_ERROR_TOAST_COOLDOWN_MS = 30000;
 
 let statusTimer = null;
-let isAdmin = false;
+let isAdmin = canManageSync();
 let currentOffset = 0;
 const conflictPageSize = 50;
 const conflictRowState = new WeakMap();
 const syncErrorNoticeState = new Map();
-const SYNC_ERROR_TOAST_COOLDOWN_MS = 30000;
+
+if (!isAdmin && document.body) {
+    document.body.classList.add('sync-readonly');
+}
+
+function readLocalSession() {
+    try {
+        const rawSession = localStorage.getItem('gsl_auth_session_v1');
+        return rawSession ? JSON.parse(rawSession) : null;
+    } catch (err) {
+        console.warn('[settings-sync] ignored invalid local auth session:', err);
+        return null;
+    }
+}
+
+function canManageSync() {
+    const role = String(readLocalSession()?.role || '').toLowerCase();
+    return SYNC_ADMIN_ROLES.has(role);
+}
+
+function applySyncAccessMode() {
+    document.body.classList.toggle('sync-readonly', !isAdmin);
+}
+
+function isAuthFailure(response) {
+    return response?.success === false && AUTH_FAILURE_CODES.has(response.code);
+}
+
+function requireSyncAdmin(actionLabel = 'تنفيذ هذا الإجراء') {
+    if (isAdmin) return true;
+    if (typeof showToast === 'function') {
+        showToast(`ليست لديك صلاحية ${actionLabel}`, 'error');
+    }
+    return false;
+}
 
 function getErrorMessage(err, fallback = 'خطأ غير متوقع') {
     return String(err?.message || err?.error || err || fallback);
@@ -65,36 +76,27 @@ function notifySyncError(key, userMessage, err, options = {}) {
     }
 
     syncErrorNoticeState.set(key, now);
-    showToast(`${userMessage}${details && details !== userMessage ? ': ' + details : ''}`, 'error', options.duration || 5000);
+    showToast(
+        `${userMessage}${details && details !== userMessage ? ': ' + details : ''}`,
+        'error',
+        options.duration || 5000
+    );
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Check user role
-    try {
-        const rawSession = localStorage.getItem('gsl_auth_session_v1');
-        if (rawSession) {
-            const sess = JSON.parse(rawSession);
-            const role = String(sess?.role || '').toLowerCase();
-            isAdmin = role === 'admin' || role === 'developer';
-        }
-    } catch (_) {
-        /* ignore parse errors */
-    }
+    isAdmin = canManageSync();
+    applySyncAccessMode();
 
-    // 2. Hide admin-only elements for non-privileged users (admin & developer can see all)
-    if (!isAdmin) {
-        document.body.classList.add('sync-readonly');
+    if (isAdmin) {
+        await loadConfig();
     }
-
-    // 3. Load initial data
-    await loadConfig();
     await refreshStatus();
-    await loadConflicts();
+    if (isAdmin) {
+        await loadConflicts();
+    }
 
-    // 4. Set up auto-refresh (every 10 seconds)
     statusTimer = setInterval(refreshStatus, 10000);
 
-    // 5. Cleanup on page unload
     window.addEventListener('beforeunload', () => {
         clearInterval(statusTimer);
     });
@@ -146,6 +148,31 @@ function appendText(parent, text) {
     parent.appendChild(document.createTextNode(String(text ?? '')));
 }
 
+function createInlineCode(text) {
+    const code = document.createElement('code');
+    code.dir = 'ltr';
+    code.textContent = String(text ?? '');
+    return code;
+}
+
+function setLiveRegionTone(container, tone = 'status') {
+    if (!container) return;
+    const isAlert = tone === 'danger' || tone === 'error';
+    container.setAttribute('role', isAlert ? 'alert' : 'status');
+    container.setAttribute('aria-live', isAlert ? 'assertive' : 'polite');
+    container.setAttribute('aria-atomic', 'true');
+}
+
+function createSyncStatusBannerIcon(iconName, iconClass = '') {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sync-status-banner-icon';
+    const indicator = document.createElement('span');
+    indicator.className = 'sync-status-banner-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    wrapper.append(indicator, createSyncIcon(iconName, iconClass));
+    return wrapper;
+}
+
 function createSyncInfoLine({ iconName, iconClass = '', text = '', className = 'text-sm' }) {
     const line = document.createElement('p');
     line.className = className;
@@ -159,7 +186,7 @@ function createSyncInfoLine({ iconName, iconClass = '', text = '', className = '
 
 function createSyncResultCard(title, titleIcon, contentNodes = []) {
     const card = document.createElement('div');
-    card.className = 'rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3';
+    card.className = 'min-w-0 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3';
 
     const heading = document.createElement('h4');
     heading.className = 'mb-2 font-bold text-[var(--color-text-main)]';
@@ -174,8 +201,10 @@ function createSyncResultCard(title, titleIcon, contentNodes = []) {
 function renderSyncResultsPanel(container, result) {
     if (!container) return;
 
+    setLiveRegionTone(container, result?.error || result?.success === false ? 'danger' : 'status');
+
     const grid = document.createElement('div');
-    grid.className = 'grid gap-3 sm:grid-cols-3';
+    grid.className = 'grid min-w-0 gap-3 sm:grid-cols-3';
 
     const buildStageNodes = (stage, summaryTextBuilder) => {
         if (!stage) {
@@ -307,11 +336,24 @@ function createConflictStatusBadge(status) {
     return badge;
 }
 
-function createConflictActionButton({ className, iconName, label, title, dataset = {} }) {
+function createConflictActionButton({
+    className,
+    iconName,
+    label,
+    title,
+    ariaLabel,
+    controls,
+    expanded,
+    dataset = {}
+}) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = className;
     if (title) button.title = title;
+    const accessibleName = ariaLabel || title || label;
+    if (accessibleName) button.setAttribute('aria-label', accessibleName);
+    if (controls) button.setAttribute('aria-controls', controls);
+    if (expanded !== undefined) button.setAttribute('aria-expanded', String(expanded));
     Object.entries(dataset).forEach(([key, value]) => {
         button.dataset[key] = value;
     });
@@ -346,12 +388,16 @@ function createConflictRow(conflict, index) {
         } else if (cellIndex === 4) {
             td.appendChild(createConflictStatusBadge(conflict.status));
         } else if (cellIndex === 6) {
+            const detailId = `conflict-detail-${conflict.id}`;
             td.className = 'admin-only';
             td.appendChild(
                 createConflictActionButton({
                     className: 'btn btn-sm btn-secondary conflict-expand-btn',
                     iconName: 'fa-eye',
-                    title: 'عرض التفاصيل'
+                    title: 'عرض تفاصيل التعارض',
+                    ariaLabel: 'عرض تفاصيل التعارض',
+                    controls: detailId,
+                    expanded: false
                 })
             );
             if (conflict.status === 'unresolved' && isAdmin) {
@@ -361,6 +407,7 @@ function createConflictRow(conflict, index) {
                         className: 'btn btn-sm btn-primary admin-only conflict-resolve-btn',
                         iconName: 'fa-desktop',
                         label: 'محلي',
+                        ariaLabel: 'استخدام النسخة المحلية لحل التعارض',
                         dataset: { id: String(conflict.id), action: 'local' }
                     })
                 );
@@ -370,6 +417,7 @@ function createConflictRow(conflict, index) {
                         className: 'btn btn-sm btn-warning admin-only conflict-resolve-btn',
                         iconName: 'fa-cloud',
                         label: 'بعيد',
+                        ariaLabel: 'استخدام النسخة البعيدة لحل التعارض',
                         dataset: { id: String(conflict.id), action: 'remote' }
                     })
                 );
@@ -386,21 +434,24 @@ function createConflictRow(conflict, index) {
 function createConflictDetailRow(conflict) {
     const detailRow = document.createElement('tr');
     detailRow.className = 'conflict-detail-row';
+    detailRow.id = `conflict-detail-${conflict.id}`;
     const td = document.createElement('td');
     td.colSpan = 7;
 
     const wrapper = document.createElement('div');
-    wrapper.className = 'flex gap-4 p-3';
+    wrapper.className = 'flex flex-col gap-4 p-3 lg:flex-row';
 
     const createPane = (title, iconName, data) => {
         const pane = document.createElement('div');
-        pane.className = 'flex-1';
+        pane.className = 'min-w-0 flex-1';
         const heading = document.createElement('div');
         heading.className = 'mb-1 text-sm font-bold text-[var(--color-text-muted)]';
         heading.appendChild(createSyncIcon(iconName, 'me-1'));
         appendText(heading, ` ${title}`);
         const pre = document.createElement('pre');
         pre.className = 'max-h-60 overflow-auto rounded bg-[var(--glass-bg)] p-2 text-xs';
+        pre.dir = 'ltr';
+        pre.tabIndex = 0;
         pre.appendChild(
             buildHighlightedJsonFragment(
                 data,
@@ -431,10 +482,17 @@ function createEmptyTableRow(colspan, text, className = '') {
 
 /**
  * Derive sync state from status object.
+ *
+ * The spinning 'syncing' state is driven from `pushCycleActive` / `pullCycleActive`
+ * (an actual in-flight cycle), NOT from `pushRunning`/`pullRunning` which only
+ * report whether the background timer is installed. A stalled engine — timer
+ * installed but every cycle failing with permission-denied — used to spin forever
+ * because `pushRunning` stayed true; with the cycle flags it correctly falls through
+ * to the `error` branch between ticks so the translated message is shown.
  */
 function deriveSyncState(status) {
     if (!status || !status.configured) return 'disabled';
-    if (status.pushRunning || status.pullRunning || status.snapshotRunning) return 'syncing';
+    if (status.pushCycleActive || status.pullCycleActive || status.snapshotRunning) return 'syncing';
     if (!status.authenticated) return 'offline';
     if (status.lastPushError || status.lastPullError) return 'error';
     return 'connected';
@@ -447,75 +505,65 @@ async function refreshStatus() {
 
         const state = deriveSyncState(status);
 
-        // Update state banner
+        const stateMap = {
+            connected: {
+                bannerClass: 'sync-status-banner--success',
+                icon: 'fa-check-circle',
+                iconClass: 'text-xl',
+                label: 'متصل ومزامن',
+                connectionLabel: 'متصل',
+                connectionIconClass: 'text-[var(--color-success-text)]'
+            },
+            syncing: {
+                bannerClass: 'sync-status-banner--success',
+                icon: 'fa-sync',
+                iconClass: 'fa-spin text-xl',
+                label: 'جاري المزامنة...',
+                connectionLabel: 'مزامنة',
+                connectionIconClass: 'fa-spin text-[var(--color-success-text)]'
+            },
+            offline: {
+                bannerClass: 'sync-status-banner--warning',
+                icon: 'fa-exclamation-triangle',
+                iconClass: 'text-xl',
+                label: 'غير متصل — التغييرات في قائمة الانتظار',
+                connectionLabel: 'غير متصل',
+                connectionIconClass: 'text-[var(--color-warning-text)]'
+            },
+            error: {
+                bannerClass: 'sync-status-banner--danger',
+                icon: 'fa-times-circle',
+                iconClass: 'text-xl',
+                label: status.lastPushError || status.lastPullError || 'خطأ في المزامنة',
+                connectionLabel: 'خطأ',
+                connectionIconClass: 'text-[var(--color-danger-text)]'
+            },
+            disabled: {
+                bannerClass: 'sync-status-banner--neutral',
+                icon: 'fa-pause-circle',
+                iconClass: 'text-xl',
+                label: 'المزامنة تنتظر إعداد المؤسسة',
+                connectionLabel: 'غير مهيأة',
+                connectionIconClass: 'text-[var(--color-text-muted)]'
+            }
+        };
+        const stateMeta = stateMap[state] || stateMap.disabled;
+
         const banner = document.getElementById('sync-state-banner');
         if (banner) {
-            banner.className = 'mb-4 flex items-center gap-3 rounded-xl border px-4 py-3.5';
-            let bannerIcon = '';
-            let bannerText = '';
-            switch (state) {
-                case 'connected':
-                    banner.classList.add(
-                        'border-[var(--color-success-border)]',
-                        'bg-[var(--color-success-surface)]',
-                        'text-[var(--color-success-text)]'
-                    );
-                    bannerIcon = '<i class="fas fa-check-circle text-xl"></i>';
-                    bannerText = 'متصل ومزامن';
-                    break;
-                case 'syncing':
-                    banner.classList.add(
-                        'border-[var(--color-success-border)]',
-                        'bg-[var(--color-success-surface)]',
-                        'text-[var(--color-success-text)]'
-                    );
-                    bannerIcon = '<i class="fas fa-sync fa-spin text-xl"></i>';
-                    bannerText = 'جاري المزامنة...';
-                    break;
-                case 'offline':
-                    banner.classList.add(
-                        'border-[var(--color-warning-border)]',
-                        'bg-[var(--color-warning-surface)]',
-                        'text-[var(--color-warning-text)]'
-                    );
-                    bannerIcon = '<i class="fas fa-exclamation-triangle text-xl"></i>';
-                    bannerText = 'غير متصل — التغييرات في قائمة الانتظار';
-                    break;
-                case 'error':
-                    banner.classList.add(
-                        'border-[var(--color-danger-border)]',
-                        'bg-[var(--color-danger-surface)]',
-                        'text-[var(--color-danger-text)]'
-                    );
-                    bannerIcon = '<i class="fas fa-times-circle text-xl"></i>';
-                    bannerText = status.lastPushError || status.lastPullError || 'خطأ في المزامنة';
-                    break;
-                case 'disabled':
-                    banner.classList.add(
-                        'border-[var(--color-neutral-border)]',
-                        'bg-[var(--color-neutral-surface)]',
-                        'text-[var(--color-neutral-text)]'
-                    );
-                    bannerIcon = '<i class="fas fa-pause-circle text-xl"></i>';
-                    bannerText = 'المزامنة تنتظر إعداد المؤسسة';
-                    break;
-            }
-            banner.innerHTML = `${bannerIcon}<span class="font-bold">${bannerText}</span>`;
+            const text = document.createElement('span');
+            text.className = 'font-bold';
+            text.textContent = stateMeta.label;
+            banner.className = `sync-status-banner ${stateMeta.bannerClass}`;
+            banner.replaceChildren(createSyncStatusBannerIcon(stateMeta.icon, stateMeta.iconClass), text);
         }
 
-        // Update KPI cards
-        // 1. Connection state
         const connEl = document.getElementById('status-connection');
         if (connEl) {
-            const stateMap = {
-                connected: { icon: 'fa-check-circle text-[var(--color-success-text)]', label: 'متصل' },
-                syncing: { icon: 'fa-sync fa-spin text-[var(--color-success-text)]', label: 'مزامنة' },
-                offline: { icon: 'fa-exclamation-triangle text-[var(--color-warning-text)]', label: 'غير متصل' },
-                error: { icon: 'fa-times-circle text-[var(--color-danger-text)]', label: 'خطأ' },
-                disabled: { icon: 'fa-pause-circle text-[var(--color-text-muted)]', label: 'غير مهيأة' }
-            };
-            const s = stateMap[state] || stateMap.disabled;
-            connEl.innerHTML = `<i class="fas ${s.icon} me-1"></i> ${s.label}`;
+            connEl.replaceChildren(
+                createSyncIcon(stateMeta.icon, `${stateMeta.connectionIconClass} me-1`),
+                document.createTextNode(` ${stateMeta.connectionLabel}`)
+            );
         }
 
         // 2. Last push
@@ -585,13 +633,15 @@ async function refreshStatus() {
             snapEl.textContent = formatRelativeTime(status.lastSnapshotAt);
         }
 
-        // Control Sync Now button state (US3)
         const syncNowBtn = document.getElementById('btn-sync-now');
         if (syncNowBtn) {
-            if (!status.configured) {
+            if (!isAdmin) {
+                syncNowBtn.disabled = true;
+                syncNowBtn.title = 'ليست لديك صلاحية تشغيل المزامنة';
+            } else if (!status.configured) {
                 syncNowBtn.disabled = true;
                 syncNowBtn.title = 'أكمل إعداد المؤسسة أولاً';
-            } else if (status.pushRunning || status.pullRunning) {
+            } else if (status.pushCycleActive || status.pullCycleActive) {
                 syncNowBtn.disabled = true;
                 syncNowBtn.title = 'المزامنة جارية';
             } else {
@@ -607,17 +657,23 @@ async function refreshStatus() {
 // ==================== Configuration (US2) ====================
 
 async function loadConfig() {
+    if (!isAdmin) return;
+
     try {
         const config = await window.api.sync.getConfig();
         const status = await window.api.sync.getStatus();
 
-        if (!config) return;
+        if (isAuthFailure(config)) {
+            isAdmin = false;
+            applySyncAccessMode();
+            return;
+        }
+        if (!config || config.success === false) return;
 
         const setVal = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.value = val;
         };
-        setVal('cfg-school-id', config.schoolId || '');
         setVal('cfg-functions-url', config.firebaseFunctionsUrl || '');
         setVal('cfg-project-id', config.firebaseProjectId || '');
         setVal('cfg-api-key', config.firebaseApiKey || '');
@@ -640,28 +696,43 @@ function initConfigForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!requireSyncAdmin('حفظ إعدادات المزامنة')) return;
 
         const validationDiv = document.getElementById('config-validation');
 
-        const schoolId = document.getElementById('cfg-school-id')?.value?.trim();
         const functionsUrl = document.getElementById('cfg-functions-url')?.value?.trim();
         const projectId = document.getElementById('cfg-project-id')?.value?.trim();
         const apiKey = document.getElementById('cfg-api-key')?.value?.trim();
         const authDomain = document.getElementById('cfg-auth-domain')?.value?.trim();
         const appId = document.getElementById('cfg-app-id')?.value?.trim();
-        const interval = parseInt(document.getElementById('cfg-interval')?.value, 10);
-        const batchSize = parseInt(document.getElementById('cfg-batch-size')?.value, 10);
-        const maxRetries = parseInt(document.getElementById('cfg-max-retries')?.value, 10);
-        const retention = parseInt(document.getElementById('cfg-retention')?.value, 10);
-        const snapshotInterval = parseInt(document.getElementById('cfg-snapshot-interval')?.value, 10);
+        const numberValue = (id) => {
+            const rawValue = document.getElementById(id)?.value?.trim();
+            return rawValue === '' ? NaN : Number(rawValue);
+        };
+        const interval = numberValue('cfg-interval');
+        const batchSize = numberValue('cfg-batch-size');
+        const maxRetries = numberValue('cfg-max-retries');
+        const retention = numberValue('cfg-retention');
+        const snapshotInterval = numberValue('cfg-snapshot-interval');
 
-        // Client-side validation
         const errors = [];
-        if (isNaN(interval) || interval < 1 || interval > 30) {
+        if (!Number.isInteger(interval) || interval < 1 || interval > 30) {
             errors.push('فترة المزامنة يجب أن تكون بين 1 و 30 دقيقة');
         }
-        if (!schoolId) {
-            errors.push('معرف المؤسسة مطلوب للمزامنة');
+        if (!isNaN(batchSize) && (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 1000)) {
+            errors.push('حجم الدفعة يجب أن يكون بين 1 و 1000');
+        }
+        if (!isNaN(maxRetries) && (!Number.isInteger(maxRetries) || maxRetries < 0 || maxRetries > 50)) {
+            errors.push('أقصى محاولات يجب أن يكون بين 0 و 50');
+        }
+        if (!isNaN(retention) && (!Number.isInteger(retention) || retention < 1 || retention > 365)) {
+            errors.push('أيام الاحتفاظ يجب أن تكون بين 1 و 365');
+        }
+        if (
+            !isNaN(snapshotInterval) &&
+            (!Number.isInteger(snapshotInterval) || snapshotInterval < 5 || snapshotInterval > 1440)
+        ) {
+            errors.push('فترة الفحص يجب أن تكون بين 5 و 1440 دقيقة');
         }
         if (!functionsUrl) {
             errors.push('رابط Firebase Functions مطلوب للمزامنة');
@@ -680,14 +751,17 @@ function initConfigForm() {
             if (validationDiv) {
                 validationDiv.textContent = errors.join(' | ');
                 validationDiv.classList.remove('hidden');
+                validationDiv.focus();
             }
             return;
         }
-        if (validationDiv) validationDiv.classList.add('hidden');
+        if (validationDiv) {
+            validationDiv.textContent = '';
+            validationDiv.classList.add('hidden');
+        }
 
         const updates = {
             enabled: 1,
-            schoolId,
             firebaseFunctionsUrl: functionsUrl,
             firebaseProjectId: projectId,
             firebaseApiKey: apiKey,
@@ -707,6 +781,10 @@ function initConfigForm() {
                 await loadConfig();
                 await refreshStatus();
             } else {
+                if (isAuthFailure(result)) {
+                    isAdmin = false;
+                    applySyncAccessMode();
+                }
                 showToast(result.error || 'فشل حفظ الإعدادات', 'error');
             }
         } catch (err) {
@@ -717,42 +795,58 @@ function initConfigForm() {
 
 // ==================== Test Connection ====================
 
+function showSyncResultMessage(container, tone, iconName, text) {
+    if (!container) return;
+    const toneClasses = {
+        success:
+            'mt-3 rounded-lg border border-[var(--color-success-border)] bg-[var(--color-success-surface)] px-4 py-3 text-sm text-[var(--color-success-text)]',
+        warning:
+            'mt-3 rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-surface)] px-4 py-3 text-sm text-[var(--color-warning-text)]',
+        danger: 'mt-3 rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] px-4 py-3 text-sm text-[var(--color-danger-text)]'
+    };
+    setLiveRegionTone(container, tone);
+    container.className = toneClasses[tone] || toneClasses.danger;
+    container.replaceChildren(createSyncIcon(iconName, 'me-2'), document.createTextNode(text));
+    container.classList.remove('hidden');
+    container.focus();
+}
+
 function initTestConnection() {
     const btn = document.getElementById('btn-test-connection');
     if (!btn) return;
 
     btn.addEventListener('click', async () => {
+        if (!requireSyncAdmin('اختبار الاتصال')) return;
+
         const resultDiv = document.getElementById('test-connection-result');
         btn.disabled = true;
         setButtonContent(btn, { icon: 'fa-spinner', text: 'جاري الاختبار...', spin: true });
         if (resultDiv) {
             resultDiv.classList.add('hidden');
-            resultDiv.textContent = '';
+            resultDiv.replaceChildren();
+            setLiveRegionTone(resultDiv, 'status');
         }
 
         try {
             const result = await window.api.sync.testConnection();
-            if (resultDiv) {
-                resultDiv.classList.remove('hidden');
-                if (result.success) {
-                    resultDiv.className =
-                        'mt-3 rounded-lg border border-[var(--color-success-border)] bg-[var(--color-success-surface)] px-4 py-3 text-sm text-[var(--color-success-text)]';
-                    resultDiv.innerHTML = `<i class="fas fa-check-circle me-2"></i>الاتصال ناجح${result.schoolId ? ' — معرف المؤسسة: ' + result.schoolId : ''}`;
-                } else {
-                    const stepLabel = { lambda: 'Lambda', cognito: 'Cognito', dynamodb: 'DynamoDB' }[result.step] || '';
-                    resultDiv.className =
-                        'mt-3 rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] px-4 py-3 text-sm text-[var(--color-danger-text)]';
-                    resultDiv.innerHTML = `<i class="fas fa-times-circle me-2"></i>${stepLabel ? stepLabel + ': ' : ''}${result.error || 'فشل الاتصال'}`;
+            if (result.success) {
+                showSyncResultMessage(resultDiv, 'success', 'fa-check-circle', 'الاتصال ناجح');
+            } else {
+                const stepLabel = { lambda: 'Lambda', cognito: 'Cognito', dynamodb: 'DynamoDB' }[result.step] || '';
+                if (isAuthFailure(result)) {
+                    isAdmin = false;
+                    applySyncAccessMode();
                 }
+                showSyncResultMessage(
+                    resultDiv,
+                    'danger',
+                    'fa-times-circle',
+                    `${stepLabel ? stepLabel + ': ' : ''}${result.error || 'فشل الاتصال'}`
+                );
             }
         } catch (err) {
             notifySyncError('testConnection', 'حدث خطأ أثناء اختبار الاتصال', err, { immediate: true });
-            if (resultDiv) {
-                resultDiv.classList.remove('hidden');
-                resultDiv.className =
-                    'mt-3 rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] px-4 py-3 text-sm text-[var(--color-danger-text)]';
-                resultDiv.textContent = getErrorMessage(err);
-            }
+            showSyncResultMessage(resultDiv, 'danger', 'fa-times-circle', getErrorMessage(err));
         } finally {
             setButtonContent(btn, { icon: 'fa-plug', text: 'اختبار الاتصال' });
             btn.disabled = false;
@@ -767,21 +861,34 @@ function initSyncNow() {
     if (!btn) return;
 
     btn.addEventListener('click', async () => {
-        if (btn.disabled) return;
+        if (btn.disabled || !requireSyncAdmin('تشغيل المزامنة')) return;
 
         btn.disabled = true;
         setButtonContent(btn, { icon: 'fa-spinner', text: 'جاري المزامنة...', spin: true });
+        const resultsDiv = document.getElementById('sync-results');
+        if (resultsDiv) {
+            resultsDiv.classList.add('hidden');
+            resultsDiv.replaceChildren();
+            setLiveRegionTone(resultsDiv, 'status');
+        }
 
         try {
             const loadingToast =
-                typeof window.showToast?.loading === 'function' ? window.showToast.loading('جاري تنفيذ المزامنة...') : null;
+                typeof window.showToast?.loading === 'function'
+                    ? window.showToast.loading('جاري تنفيذ المزامنة...')
+                    : null;
             const result = await window.api.sync.triggerNow();
 
             // Show results
-            const resultsDiv = document.getElementById('sync-results');
             if (resultsDiv && result) {
                 resultsDiv.classList.remove('hidden');
                 renderSyncResultsPanel(resultsDiv, result);
+                resultsDiv.focus();
+            }
+
+            if (isAuthFailure(result)) {
+                isAdmin = false;
+                applySyncAccessMode();
             }
 
             if (result?.error) {
@@ -816,6 +923,8 @@ const entityTypeLabels = {
 };
 
 async function loadConflicts() {
+    if (!isAdmin) return;
+
     try {
         const filterEl = document.getElementById('conflict-filter');
         const filterValue = filterEl?.value || 'unresolved';
@@ -826,11 +935,17 @@ async function loadConflicts() {
             offset: currentOffset
         });
 
+        if (isAuthFailure(conflicts)) {
+            isAdmin = false;
+            applySyncAccessMode();
+            return;
+        }
+
         const tbody = document.getElementById('conflict-tbody');
         const badge = document.getElementById('conflict-badge');
         if (!tbody) return;
 
-        if (!conflicts || conflicts.length === 0) {
+        if (!Array.isArray(conflicts) || conflicts.length === 0) {
             tbody.replaceChildren(createEmptyTableRow(7, 'لا توجد تعارضات', 'loading-cell'));
             if (badge) badge.textContent = '';
             updateConflictPagination(0);
@@ -867,6 +982,7 @@ function initConflictHandlers() {
     const filterEl = document.getElementById('conflict-filter');
     if (filterEl) {
         filterEl.addEventListener('change', () => {
+            if (!isAdmin) return;
             currentOffset = 0;
             loadConflicts();
         });
@@ -876,6 +992,7 @@ function initConflictHandlers() {
     const paginationDiv = document.getElementById('conflict-pagination');
     if (paginationDiv) {
         paginationDiv.addEventListener('click', (e) => {
+            if (!isAdmin) return;
             const btn = e.target.closest('button');
             if (!btn) return;
             if (btn.classList.contains('conflict-prev-btn')) {
@@ -893,6 +1010,8 @@ function initConflictHandlers() {
     if (!tbody) return;
 
     tbody.addEventListener('click', async (e) => {
+        if (!isAdmin) return;
+
         // Expand/collapse detail
         const expandBtn = e.target.closest('.conflict-expand-btn');
         if (expandBtn) {
@@ -900,6 +1019,7 @@ function initConflictHandlers() {
             if (!row) return;
             const nextRow = row.nextElementSibling;
             if (nextRow && nextRow.classList.contains('conflict-detail-row')) {
+                expandBtn.setAttribute('aria-expanded', 'false');
                 nextRow.remove();
                 return;
             }
@@ -907,13 +1027,18 @@ function initConflictHandlers() {
             const conflict = conflictRowState.get(row);
             if (!conflict) return;
             const detailRow = createConflictDetailRow(conflict);
+            const controls = expandBtn.getAttribute('aria-controls');
+            if (controls) detailRow.id = controls;
             row.after(detailRow);
+            expandBtn.setAttribute('aria-expanded', 'true');
             return;
         }
 
         // Resolve conflict
         const resolveBtn = e.target.closest('.conflict-resolve-btn');
         if (resolveBtn) {
+            if (!requireSyncAdmin('حل التعارض')) return;
+
             const conflictId = parseInt(resolveBtn.dataset.id, 10);
             const resolution = resolveBtn.dataset.action;
             if (!conflictId || !resolution) return;
@@ -930,6 +1055,10 @@ function initConflictHandlers() {
                     await loadConflicts();
                     await refreshStatus();
                 } else {
+                    if (isAuthFailure(result)) {
+                        isAdmin = false;
+                        applySyncAccessMode();
+                    }
                     showToast(result.error || 'فشل حل التعارض', 'error');
                     buttons?.forEach((b) => (b.disabled = false));
                 }
@@ -950,10 +1079,415 @@ if (document.readyState === 'loading') {
         initTestConnection();
         initSyncNow();
         initConflictHandlers();
+        initForensics();
+        initErrorLog();
     });
 } else {
     initConfigForm();
     initTestConnection();
     initSyncNow();
     initConflictHandlers();
+    initForensics();
+    initErrorLog();
+}
+
+// ==================== Conflict Forensics / Root-Cause Analyzer ====================
+
+function createForensicsStatCard(label, value, accentClass = 'text-[var(--color-text-main)]') {
+    const card = document.createElement('div');
+    card.className = 'rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3 text-center';
+    const valueEl = document.createElement('div');
+    valueEl.className = `text-2xl font-bold ${accentClass}`;
+    valueEl.textContent = String(value);
+    const labelEl = document.createElement('div');
+    labelEl.className = 'mt-1 text-xs text-[var(--color-text-muted)]';
+    labelEl.textContent = label;
+    card.appendChild(valueEl);
+    card.appendChild(labelEl);
+    return card;
+}
+
+function createForensicsSimpleTable(headers, rows) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'table-responsive mt-2';
+    const table = document.createElement('table');
+    table.className = 'students-table';
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headers.forEach((h) => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    rows.forEach((cells) => {
+        const tr = document.createElement('tr');
+        cells.forEach((c) => {
+            const td = document.createElement('td');
+            td.textContent = String(c ?? '—');
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    return wrapper;
+}
+
+function createForensicsSubheading(text, iconName) {
+    const h = document.createElement('h4');
+    h.className = 'mt-5 mb-2 font-bold text-[var(--color-text-main)]';
+    if (iconName) {
+        h.appendChild(createSyncIcon(iconName, 'me-1'));
+    }
+    appendText(h, ` ${text}`);
+    return h;
+}
+
+function renderForensicsResult(container, data) {
+    if (!container) return;
+    const nodes = [];
+
+    // Not enabled / not available banner
+    if (!data || !data.available) {
+        const banner = document.createElement('div');
+        banner.className =
+            'rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-surface)] px-4 py-3 text-sm text-[var(--color-warning-text)]';
+        banner.appendChild(createSyncIcon('fa-info-circle', 'me-1'));
+        if (data && !data.enabled) {
+            appendText(banner, ' التسجيل الجنائي معطّل. شغّل التطبيق مع ');
+            banner.appendChild(createInlineCode('SYNC_CONFLICT_FORENSICS=1'));
+            appendText(banner, ' ثم استخدم النظام لتوليد بيانات.');
+        } else {
+            appendText(banner, ' لا يوجد ملف سجل بعد. لم تُسجَّل أي تعارضات حتى الآن.');
+        }
+        setLiveRegionTone(container, 'warning');
+        container.replaceChildren(banner);
+        container.classList.remove('hidden');
+        return;
+    }
+
+    // Diagnoses (most important — show first)
+    if (Array.isArray(data.diagnoses) && data.diagnoses.length) {
+        const diagBox = document.createElement('div');
+        diagBox.className =
+            'rounded-lg border border-[var(--color-info-border)] bg-[var(--color-info-surface)] px-4 py-3 text-sm text-[var(--color-info-text)]';
+        const title = document.createElement('div');
+        title.className = 'mb-2 font-bold';
+        title.appendChild(createSyncIcon('fa-lightbulb', 'me-1'));
+        appendText(title, ' التشخيص');
+        diagBox.appendChild(title);
+        const ul = document.createElement('ul');
+        ul.className = 'list-disc space-y-1 pe-5';
+        data.diagnoses.forEach((d) => {
+            const li = document.createElement('li');
+            li.textContent = d;
+            ul.appendChild(li);
+        });
+        diagBox.appendChild(ul);
+        nodes.push(diagBox);
+    }
+
+    // Stat cards
+    const statsGrid = document.createElement('div');
+    statsGrid.className = 'mt-4 grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5';
+    statsGrid.appendChild(createForensicsStatCard('إجمالي التعارضات', data.total));
+    statsGrid.appendChild(createForensicsStatCard('رفع (push)', data.byPhase?.push || 0));
+    statsGrid.appendChild(createForensicsStatCard('سحب (pull)', data.byPhase?.pull || 0));
+    statsGrid.appendChild(
+        createForensicsStatCard(
+            'بلا سلف (ancestor)',
+            `${data.noAncestorPct}%`,
+            data.noAncestorPct >= 40 ? 'text-[var(--color-danger-text)]' : 'text-[var(--color-text-main)]'
+        )
+    );
+    statsGrid.appendChild(
+        createForensicsStatCard(
+            'فروق زمنية مشبوهة',
+            data.clockSkew?.suspicious || 0,
+            (data.clockSkew?.suspicious || 0) > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-text-main)]'
+        )
+    );
+    nodes.push(statsGrid);
+
+    // Repeated rows (version desync signal)
+    if (Array.isArray(data.repeatedRows) && data.repeatedRows.length) {
+        nodes.push(createForensicsSubheading('صفوف متكرّرة التعارض (مؤشّر اختلال الإصدار)', 'fa-repeat'));
+        nodes.push(
+            createForensicsSimpleTable(
+                ['الجدول', 'المعرّف', 'عدد التعارضات', 'أعلى إصدار بعيد', 'أدنى إصدار محلي'],
+                data.repeatedRows.map((r) => [
+                    r.table,
+                    r.rowSyncId && r.rowSyncId.length > 28 ? r.rowSyncId.slice(0, 28) + '…' : r.rowSyncId,
+                    r.count,
+                    r.maxRemoteVersion,
+                    r.minLocalVersion ?? '—'
+                ])
+            )
+        );
+    }
+
+    // Top conflicting fields
+    if (Array.isArray(data.topConflictingFields) && data.topConflictingFields.length) {
+        nodes.push(createForensicsSubheading('أكثر الحقول تعارضاً', 'fa-list-ol'));
+        nodes.push(
+            createForensicsSimpleTable(
+                ['الحقل', 'عدد المرات'],
+                data.topConflictingFields.map((f) => [f.field, f.count])
+            )
+        );
+    }
+
+    // Log path footnote
+    if (data.logPath) {
+        const foot = document.createElement('p');
+        foot.className = 'mt-4 text-xs text-[var(--color-text-muted)]';
+        foot.appendChild(createSyncIcon('fa-file-lines', 'me-1'));
+        appendText(foot, ` مصدر البيانات: ${data.logPath}`);
+        nodes.push(foot);
+    }
+
+    setLiveRegionTone(container, 'status');
+    container.replaceChildren(...nodes);
+    container.classList.remove('hidden');
+}
+
+function initForensics() {
+    const btn = document.getElementById('btn-analyze-forensics');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        if (!requireSyncAdmin('تحليل سجل التعارضات')) return;
+
+        const resultDiv = document.getElementById('forensics-result');
+        const statusEl = document.getElementById('forensics-status');
+        btn.disabled = true;
+        setButtonContent(btn, { icon: 'fa-spinner', text: 'جاري التحليل...', spin: true });
+        if (resultDiv) {
+            resultDiv.classList.add('hidden');
+            resultDiv.replaceChildren();
+            setLiveRegionTone(resultDiv, 'status');
+        }
+        if (statusEl) statusEl.textContent = 'جاري التحليل...';
+
+        try {
+            const data = await window.api.sync.getConflictForensics({ maxLines: 5000 });
+            if (isAuthFailure(data)) {
+                isAdmin = false;
+                applySyncAccessMode();
+                showSyncResultMessage(resultDiv, 'danger', 'fa-times-circle', data.error || 'ليست لديك صلاحية التحليل');
+                return;
+            }
+
+            renderForensicsResult(resultDiv, data);
+            resultDiv?.focus();
+            if (statusEl) {
+                statusEl.textContent = data?.available
+                    ? `آخر تحليل: ${new Date().toLocaleTimeString('ar')}`
+                    : 'لا توجد بيانات بعد';
+            }
+        } catch (err) {
+            notifySyncError('getConflictForensics', 'تعذّر تحليل سجل التعارضات', err, { immediate: true });
+            showSyncResultMessage(resultDiv, 'danger', 'fa-times-circle', getErrorMessage(err));
+            if (statusEl) statusEl.textContent = 'فشل التحليل';
+        } finally {
+            btn.disabled = false;
+            setButtonContent(btn, { icon: 'fa-stethoscope', text: 'تحليل السجل' });
+        }
+    });
+}
+
+// ==================== Error Log (available to all users) ====================
+
+const ERROR_SOURCE_LABELS = {
+    main: 'العملية الرئيسية',
+    ipc: 'الخادم الداخلي',
+    renderer: 'الواجهة',
+    unparsed: 'غير مقروء',
+    unknown: 'غير معروف'
+};
+
+// Render the file-log error entries plus, optionally, the DB-stored
+// `last_push_error` / `last_pull_error` (which live on sync_config, NOT the file
+// log). Without the DB errors, an empty file log would show the misleading banner
+// "لا توجد أخطاء مسجّلة — كل شيء يعمل بشكل سيم." even when a push cycle just
+// failed with PERMISSION_DENIED — because push errors are written to the DB column
+// by recordPushMeta, not to the file app log. When `dbErrors` carries a non-empty
+// push/pull error, it is surfaced (danger styling) ahead of the file-log table,
+// so the user sees the real cause of the stall instead of the reassuring banner.
+function renderRecentErrors(container, data, dbErrors) {
+    if (!container) return;
+
+    const hasDbError = !!(
+        dbErrors &&
+        (String(dbErrors.lastPushError || '').trim() || String(dbErrors.lastPullError || '').trim())
+    );
+    const hasFileEntries = !!(data && data.available && Array.isArray(data.entries) && data.entries.length);
+
+    if (!hasDbError && !hasFileEntries) {
+        const empty = document.createElement('div');
+        empty.className =
+            'rounded-lg border border-[var(--color-info-border)] bg-[var(--color-info-surface)] px-4 py-3 text-sm text-[var(--color-info-text)]';
+        empty.appendChild(createSyncIcon('fa-circle-check', 'me-1'));
+        appendText(empty, ' لا توجد أخطاء مسجّلة — كل شيء يعمل بشكل سليم.');
+        container.replaceChildren(empty);
+        container.classList.remove('hidden');
+        return;
+    }
+
+    const nodes = [];
+
+    // DB-stored sync errors first (they are the actionable ones — the file log may
+    // contain nothing while a push cycle is failing on PERMISSION_DENIED).
+    if (hasDbError) {
+        const dbBox = document.createElement('div');
+        dbBox.className =
+            'mb-3 rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] px-4 py-3 text-sm text-[var(--color-danger-text)]';
+        const dbTitle = document.createElement('div');
+        dbTitle.className = 'mb-1 font-bold';
+        dbTitle.appendChild(createSyncIcon('fa-cloud-arrow-up', 'me-1'));
+        appendText(dbTitle, ' أخطاء مزامنة مسجّلة في قاعدة البيانات');
+        dbBox.appendChild(dbTitle);
+
+        if (dbErrors.lastPushError) {
+            const line = document.createElement('p');
+            line.className = 'mt-1';
+            line.appendChild(createSyncIcon('fa-upload', 'me-1'));
+            appendText(line, ` الرفع: ${dbErrors.lastPushError}`);
+            dbBox.appendChild(line);
+        }
+        if (dbErrors.lastPullError) {
+            const line = document.createElement('p');
+            line.className = 'mt-1';
+            line.appendChild(createSyncIcon('fa-download', 'me-1'));
+            appendText(line, ` السحب: ${dbErrors.lastPullError}`);
+            dbBox.appendChild(line);
+        }
+        nodes.push(dbBox);
+    }
+
+    // File-log entries (when present)
+    if (hasFileEntries) {
+        const summary = document.createElement('p');
+        summary.className = 'mb-2 text-xs text-[var(--color-text-muted)]';
+        appendText(summary, `إجمالي الأسطر المسجّلة: ${data.total} — تُعرض أحدث ${Math.min(data.entries.length, 100)}`);
+        nodes.push(summary);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-responsive';
+        const table = document.createElement('table');
+        table.className = 'students-table';
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['#', 'المصدر', 'العملية', 'الرسالة', 'الصفحة', 'الوقت'].forEach((label) => {
+            const th = document.createElement('th');
+            th.textContent = label;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        data.entries.slice(0, 100).forEach((entry, index) => {
+            const tr = document.createElement('tr');
+            const cells = [
+                String(index + 1),
+                ERROR_SOURCE_LABELS[entry.source] || entry.source || '—',
+                entry.action || '—',
+                entry.message || '—',
+                entry.page || '—',
+                formatRelativeTime(entry.ts)
+            ];
+            cells.forEach((value, cellIndex) => {
+                const td = document.createElement('td');
+                td.textContent = value;
+                if (cellIndex === 3) {
+                    td.title = entry.stack || entry.message || '';
+                    td.className = 'max-w-md truncate';
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrapper.appendChild(table);
+        nodes.push(wrapper);
+    }
+
+    container.replaceChildren(...nodes);
+    container.classList.remove('hidden');
+}
+
+function initErrorLog() {
+    const exportBtn = document.getElementById('btn-export-error-log');
+    const revealBtn = document.getElementById('btn-reveal-error-log');
+    const viewBtn = document.getElementById('btn-view-recent-errors');
+    const resultDiv = document.getElementById('recent-errors-result');
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            exportBtn.disabled = true;
+            setButtonContent(exportBtn, { icon: 'fa-spinner', text: 'جاري التصدير...', spin: true });
+            try {
+                const result = await window.api.diagnostics.exportLog();
+                if (result?.success) {
+                    showToast('تم تصدير سجل الأخطاء بنجاح', 'success');
+                } else {
+                    showToast(result?.error || 'تعذّر تصدير السجل', 'error');
+                }
+            } catch (err) {
+                notifySyncError('exportErrorLog', 'حدث خطأ أثناء تصدير السجل', err, { immediate: true });
+            } finally {
+                exportBtn.disabled = false;
+                setButtonContent(exportBtn, { icon: 'fa-file-export', text: 'تصدير سجل الأخطاء (ملف نصي)' });
+            }
+        });
+    }
+
+    if (revealBtn) {
+        revealBtn.addEventListener('click', async () => {
+            try {
+                const result = await window.api.diagnostics.revealLog();
+                if (!result?.success) {
+                    showToast(result?.error || 'تعذّر فتح مجلد السجلّات', 'error');
+                }
+            } catch (err) {
+                notifySyncError('revealErrorLog', 'حدث خطأ أثناء فتح المجلد', err, { immediate: true });
+            }
+        });
+    }
+
+    if (viewBtn) {
+        viewBtn.addEventListener('click', async () => {
+            viewBtn.disabled = true;
+            setButtonContent(viewBtn, { icon: 'fa-spinner', text: 'جاري التحميل...', spin: true });
+            if (resultDiv) {
+                resultDiv.classList.add('hidden');
+                resultDiv.replaceChildren();
+            }
+            try {
+                // Fetch both the file-log entries and the live DB-stored sync
+                // errors in parallel — the latter live on sync_config
+                // (last_push_error / last_pull_error), NOT the file log, and are
+                // the actionable cause of a stalled "uploading" state.
+                const [data, status] = await Promise.all([
+                    window.api.diagnostics.getRecent({ maxLines: 500 }),
+                    window.api.sync.getStatus().catch(() => null)
+                ]);
+                const dbErrors = status
+                    ? { lastPushError: status.lastPushError, lastPullError: status.lastPullError }
+                    : null;
+                renderRecentErrors(resultDiv, data, dbErrors);
+                resultDiv?.focus();
+            } catch (err) {
+                notifySyncError('getRecentErrors', 'تعذّر تحميل الأخطاء', err, { immediate: true });
+            } finally {
+                viewBtn.disabled = false;
+                setButtonContent(viewBtn, { icon: 'fa-list-ul', text: 'عرض آخر الأخطاء' });
+            }
+        });
+    }
 }

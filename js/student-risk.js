@@ -121,17 +121,54 @@
     function isNum(x) { return typeof x === 'number' && isFinite(x); }
     function arr(x) { return Array.isArray(x) ? x : []; }
 
+    // Recursively Object.freeze an object and every nested object/array so a
+    // shared reference (e.g. api.DEFAULT_CONFIG) can never be mutated and
+    // corrupt subsequent computations process-wide.
+    function deepFreeze(obj) {
+        if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
+            Object.keys(obj).forEach(function (k) { deepFreeze(obj[k]); });
+            Object.freeze(obj);
+        }
+        return obj;
+    }
+
+    // Produce a fresh, mutable clone of a config-shaped object (one level of
+    // nesting, with nested arrays copied too). Used so callers never receive
+    // the frozen shared DEFAULT_CONFIG reference directly.
+    function cloneConfig(src) {
+        var out = {};
+        Object.keys(src).forEach(function (k) {
+            var v = src[k];
+            if (Array.isArray(v)) {
+                out[k] = v.slice();
+            } else if (v && typeof v === 'object') {
+                out[k] = cloneConfig(v);
+            } else {
+                out[k] = v;
+            }
+        });
+        return out;
+    }
+
     // Deep-ish merge of a caller config over the defaults (one level of nesting).
+    // ALWAYS returns a brand-new, mutable object — never the frozen shared
+    // DEFAULT_CONFIG reference.
     function mergeConfig(override) {
-        if (!override) return DEFAULT_CONFIG;
+        if (!override) return cloneConfig(DEFAULT_CONFIG);
         var out = {};
         Object.keys(DEFAULT_CONFIG).forEach(function (k) {
             var base = DEFAULT_CONFIG[k];
             var ov = override[k];
             if (base && typeof base === 'object' && !Array.isArray(base) && ov && typeof ov === 'object') {
                 out[k] = Object.assign({}, base, ov);
+            } else if (ov !== undefined) {
+                out[k] = ov;
+            } else if (Array.isArray(base)) {
+                out[k] = base.slice();
+            } else if (base && typeof base === 'object') {
+                out[k] = cloneConfig(base);
             } else {
-                out[k] = (ov !== undefined) ? ov : base;
+                out[k] = base;
             }
         });
         return out;
@@ -440,10 +477,14 @@
     // Public API (UMD-style export guard, mirrors js/student-averages.js)
     // -----------------------------------------------------------------------
 
+    // Deep-freeze the shared defaults before exposing them on the api so a
+    // caller mutating `api.DEFAULT_CONFIG.weights` (or any nested value) cannot
+    // corrupt every subsequent computation process-wide. Callers that need a
+    // tweaked config receive a fresh, mutable object from mergeConfig().
     var api = {
         LEVEL: LEVEL,
         LEVEL_LABEL: LEVEL_LABEL,
-        DEFAULT_CONFIG: DEFAULT_CONFIG,
+        DEFAULT_CONFIG: deepFreeze(DEFAULT_CONFIG),
         computeStudentRisk: computeStudentRisk
     };
 
@@ -451,8 +492,10 @@
         module.exports = api;
     }
     if (typeof window !== 'undefined') {
+        // GS2 namespace is the primary surface for the renderer.
         window.GS2 = window.GS2 || {};
         window.GS2.StudentRisk = api;
+        // Bare global kept only for backward compatibility.
         window.computeStudentRisk = computeStudentRisk;
     }
 })();

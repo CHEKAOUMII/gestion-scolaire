@@ -178,7 +178,13 @@ const CHANNEL_REGISTRY = {
     'systemTags:save': { tables: ['system_tags'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'systemTags:saveNote': { tables: ['system_tags'], operation: 'PUT', idExtractor: 'inputArray', bulk: true },
     'systemTags:delete': { tables: ['system_tags'], operation: 'DEL', idExtractor: 'argId' },
-    'systemTags:deleteByGroup': { tables: ['system_tags'], operation: 'DEL', idExtractor: 'preQuery', preCapture: true, bulk: true },
+    'systemTags:deleteByGroup': {
+        tables: ['system_tags'],
+        operation: 'DEL',
+        idExtractor: 'preQuery',
+        preCapture: true,
+        bulk: true
+    },
     'compensation:saveBatch': {
         tables: ['compensation_tracking'],
         operation: 'PUT',
@@ -188,7 +194,12 @@ const CHANNEL_REGISTRY = {
     'compensation:toggleCompensated': { tables: ['compensation_tracking'], operation: 'PUT', idExtractor: 'argId' },
     'supportSessions:add': { tables: ['support_sessions'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
     'supportSessions:delete': { tables: ['support_sessions'], operation: 'DEL', idExtractor: 'argId' },
-    'supportSessions:import': { tables: ['support_sessions'], operation: 'UPSERT', idExtractor: 'inputArray', bulk: true },
+    'supportSessions:import': {
+        tables: ['support_sessions'],
+        operation: 'UPSERT',
+        idExtractor: 'inputArray',
+        bulk: true
+    },
 
     // === students.js ===
     'students:add': { tables: ['students'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
@@ -204,6 +215,11 @@ const CHANNEL_REGISTRY = {
     },
     'students:updateStatusBulk': { tables: ['students'], operation: 'PUT', idExtractor: 'inputArray', bulk: true },
     'studentProfile:saveTab': { tables: ['student_profile_data'], operation: 'UPSERT', idExtractor: 'compositeKey' },
+    'studentProfile:saveRiskSnapshot': {
+        tables: ['student_risk_snapshot'],
+        operation: 'UPSERT',
+        idExtractor: 'compositeKey'
+    },
     'settings:set': { tables: ['settings'], operation: 'PUT', idExtractor: 'argKey' },
     'settings:setSchoolYear': { tables: ['settings'], operation: 'PUT', idExtractor: 'literal' },
     'grades:save': { tables: ['grades'], operation: 'PUT', idExtractor: 'compositeKey' },
@@ -240,6 +256,20 @@ const CHANNEL_REGISTRY = {
     // === pageVisibility.js ===
     'pageVisibility:setVisibility': { tables: ['page_visibility'], operation: 'PUT', idExtractor: 'argKey' },
 
+    // === appDefaults.js (bulk matrix saves — exclude full rewrite from fine-grained outbox) ===
+    'appDefaults:saveExamCounts': {
+        tables: ['exam_count_rules'],
+        operation: 'PUT',
+        idExtractor: 'none',
+        exclude: true
+    },
+    'appDefaults:savePageAccess': {
+        tables: ['page_role_access'],
+        operation: 'PUT',
+        idExtractor: 'none',
+        exclude: true
+    },
+
     // === sync.js ===
     'sync:setConfig': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:triggerNow': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
@@ -257,6 +287,7 @@ const CHANNEL_REGISTRY = {
     // === institution.js ===
     'institution:relink': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'institution:setup-new': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'institution:updateMassarCode': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'institution:submitIdentityChangeRequest': { tables: [], operation: 'POST', idExtractor: 'none', exclude: true },
     'institution:getIdentityChangeRequests': { tables: [], operation: 'GET', idExtractor: 'none', exclude: true },
     'institution:applyApprovedIdentityChange': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
@@ -320,7 +351,7 @@ function stripSensitiveFields(rowData) {
 
 function recordOutboxEntry(db, tableName, localId, operation, rowData, schoolYear) {
     const rowSyncId = ensureSyncIdMapping(db, tableName, localId);
-    const cleanedData = operation === 'DEL' ? null : stripSensitiveFields(rowData);
+    const cleanedData = rowData ? stripSensitiveFields(rowData) : null;
 
     db.prepare(
         `
@@ -379,6 +410,8 @@ function wrapWithSyncCapture(channel, originalHandler) {
     }
 
     return async function wrappedHandler(event, ...args) {
+        const preCapturedRow = captureRowBeforeDelete(registryEntry, args);
+
         // Run the original handler first — if it throws, we do not capture
         const result = await originalHandler(event, ...args);
 
@@ -391,7 +424,7 @@ function wrapWithSyncCapture(channel, originalHandler) {
         // Capture in a try/catch — never disrupt the original result
         try {
             const db = getDb();
-            captureAfterWrite(db, channel, registryEntry, args, result);
+            captureAfterWrite(db, channel, registryEntry, args, result, preCapturedRow);
             scheduleDebouncedPush();
         } catch (captureErr) {
             console.warn(`[sync:capture] Capture failed for channel '${channel}':`, captureErr.message);
@@ -420,11 +453,23 @@ function captureLastInsertRowid(db, tableName, _entry, handlerArgs, handlerResul
     }
 }
 
-function captureArgId(db, tableName, entry, handlerArgs, _handlerResult, schoolYear) {
+function captureRowBeforeDelete(registryEntry, handlerArgs) {
+    if (registryEntry.operation !== 'DEL' || registryEntry.idExtractor !== 'argId') return null;
+    try {
+        const db = getDb();
+        const tableName = registryEntry.tables[0];
+        const id = extractIdFromArgs(handlerArgs);
+        return id ? fetchRowById(db, tableName, id) : null;
+    } catch {
+        return null;
+    }
+}
+
+function captureArgId(db, tableName, entry, handlerArgs, _handlerResult, schoolYear, preCapturedRow = null) {
     const id = extractIdFromArgs(handlerArgs);
     if (!id) return;
     if (entry.operation === 'DEL') {
-        recordOutboxEntry(db, tableName, id, 'DEL', null, schoolYear);
+        recordOutboxEntry(db, tableName, id, 'DEL', preCapturedRow, schoolYear);
     } else {
         recordOutboxEntry(db, tableName, id, 'PUT', fetchRowById(db, tableName, id), schoolYear);
     }
@@ -459,7 +504,14 @@ function captureLiteral(db, _tableName, _entry, _handlerArgs, _handlerResult, sc
 function captureCompositeKey(db, tableName, _entry, handlerArgs, _handlerResult, schoolYear) {
     const compositeData = extractCompositeFromArgs(handlerArgs, tableName);
     if (compositeData?.id) {
-        recordOutboxEntry(db, tableName, compositeData.id, 'PUT', fetchRowById(db, tableName, compositeData.id), schoolYear);
+        recordOutboxEntry(
+            db,
+            tableName,
+            compositeData.id,
+            'PUT',
+            fetchRowById(db, tableName, compositeData.id),
+            schoolYear
+        );
     }
 }
 
@@ -472,15 +524,21 @@ const EXTRACTOR_DISPATCH = {
     compositeKey: captureCompositeKey
 };
 
-const BULK_EXTRACTORS = new Set(['inputArray', 'queryMatch', 'preQuery', 'preQuery+bulk', 'lastInsertRowid+conditional']);
+const BULK_EXTRACTORS = new Set([
+    'inputArray',
+    'queryMatch',
+    'preQuery',
+    'preQuery+bulk',
+    'lastInsertRowid+conditional'
+]);
 
-function captureAfterWrite(db, channel, entry, handlerArgs, handlerResult) {
+function captureAfterWrite(db, channel, entry, handlerArgs, handlerResult, preCapturedRow = null) {
     const tableName = entry.tables[0];
-    const schoolYear = extractSchoolYear(handlerArgs);
+    const schoolYear = extractSchoolYear(handlerArgs) || preCapturedRow?.school_year || null;
     const handler = EXTRACTOR_DISPATCH[entry.idExtractor];
 
     if (handler) {
-        handler(db, tableName, entry, handlerArgs, handlerResult, schoolYear);
+        handler(db, tableName, entry, handlerArgs, handlerResult, schoolYear, preCapturedRow);
     } else if (BULK_EXTRACTORS.has(entry.idExtractor)) {
         recordBulkSummary(db, channel, entry, handlerArgs, schoolYear);
     }
@@ -653,6 +711,10 @@ function summarizeArgs(handlerArgs) {
 
 let _cleanupTimer = null;
 
+// Default retention window for the system_logs audit table (R2). Overridable at
+// runtime via the 'systemLogsRetentionDays' key in the settings table.
+const DEFAULT_SYSTEM_LOGS_RETENTION_DAYS = 90;
+
 function runOutboxCleanup(db) {
     try {
         const config = db.prepare('SELECT retention_days FROM sync_config WHERE id = 1').get();
@@ -667,18 +729,57 @@ function runOutboxCleanup(db) {
     }
 }
 
+// R2 — bound the unbounded, highest-write audit table. Keeps the most recent
+// N days (default 90, configurable via the 'systemLogsRetentionDays' setting) so
+// the audit log stays useful without growing forever.
+function runSystemLogsCleanup(db) {
+    try {
+        const row = db.prepare("SELECT value FROM settings WHERE key = 'systemLogsRetentionDays'").get();
+        let days = Number(row && row.value);
+        if (!Number.isFinite(days) || days <= 0) {
+            days = DEFAULT_SYSTEM_LOGS_RETENTION_DAYS;
+        }
+        db.prepare(`DELETE FROM system_logs WHERE created_at < datetime('now', '-' || ? || ' days')`).run(days);
+    } catch (err) {
+        console.warn('[sync:capture] system_logs cleanup failed:', err.message);
+    }
+}
+
+// R9 — bulk-purge sync_snapshots rows whose row_sync_id no longer maps to a live
+// local row (sync_id_map). Point-deletes happen inline during snapshot cycles, but
+// nothing swept orphans left behind by out-of-band deletions; this closes that gap
+// on the same maintenance cadence.
+function runSyncSnapshotsOrphanPurge(db) {
+    try {
+        db.prepare(
+            `
+            DELETE FROM sync_snapshots
+            WHERE row_sync_id NOT IN (SELECT row_sync_id FROM sync_id_map)
+        `
+        ).run();
+    } catch (err) {
+        console.warn('[sync:capture] sync_snapshots orphan purge failed:', err.message);
+    }
+}
+
+function runMaintenanceCleanup(db) {
+    runOutboxCleanup(db);
+    runSystemLogsCleanup(db);
+    runSyncSnapshotsOrphanPurge(db);
+}
+
 function startOutboxCleanup() {
     if (_cleanupTimer) return;
 
     try {
         const db = getDb();
-        runOutboxCleanup(db);
+        runMaintenanceCleanup(db);
 
         const SIX_HOURS = 6 * 60 * 60 * 1000;
         _cleanupTimer = setInterval(() => {
             try {
                 const db = getDb();
-                runOutboxCleanup(db);
+                runMaintenanceCleanup(db);
             } catch (err) {
                 console.warn('[sync:capture] Periodic outbox cleanup failed:', err.message);
             }

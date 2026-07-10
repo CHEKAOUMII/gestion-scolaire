@@ -6,7 +6,8 @@ const {
     ensureTeacherAlias,
     normalizeTeacherName,
     seedTeacherAliases,
-    resolveTeacherIdentity
+    resolveTeacherIdentity,
+    teacherIdOrNull
 } = require('../teachers/identity');
 
 function detachTeacherReferences(db, teacherRows) {
@@ -930,7 +931,7 @@ function registerStaffIpc(ipcMain) {
                 `
             )
             .run(
-                session.teacher_id || null,
+                teacherIdOrNull(db, session.teacher_id),
                 session.teacher_name || null,
                 session.subject,
                 session.section,
@@ -1033,6 +1034,7 @@ function registerStaffIpc(ipcMain) {
                     continue;
                 }
 
+                const resolvedTeacherId = teacherIdOrNull(db, session.teacher_id);
                 const exists = db
                     .prepare(
                         `
@@ -1046,7 +1048,7 @@ function registerStaffIpc(ipcMain) {
                         session.session_date,
                         session.time_from,
                         schoolYear,
-                        session.teacher_id || null
+                        resolvedTeacherId
                     );
 
                 if (exists) {
@@ -1055,7 +1057,7 @@ function registerStaffIpc(ipcMain) {
                 }
 
                 insert.run(
-                    session.teacher_id || null,
+                    resolvedTeacherId,
                     session.teacher_name || null,
                     session.subject,
                     session.section,
@@ -1086,6 +1088,20 @@ function registerStaffIpc(ipcMain) {
                  ORDER BY entity_type, entity_name, id`
             )
             .all(date, year);
+    });
+
+    // All teacher-mentioned tags for the year (inspection visits, activities, …).
+    // Consumed by tracking-teachers-performance to surface a teacher's
+    // inspection visits and the activities they took part in.
+    handleRead(ipcMain, 'systemTags:getTeacherTags', (db, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        return db
+            .prepare(
+                `SELECT * FROM system_tags
+                 WHERE entity_type = 'teacher' AND school_year = ?
+                 ORDER BY tag_date DESC, id DESC`
+            )
+            .all(year);
     });
 
     handleWriteSoftAuth(ipcMain, 'systemTags:save', WRITE_ROLES, (db, payload) => {
