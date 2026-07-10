@@ -35,7 +35,14 @@
       "Bash(npx eslint *)",
       "WebFetch(domain:)",
       "Bash(npx electron *)",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "Bash(git stash *)",
+      "Bash(npm run *)",
+      "Bash(echo \"exit before my change: $?\")",
+      "Read(//tmp/**)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(git diff *)",
+      "Bash(echo \"exit: $?\")"
     ]
   },
   "enabledPlugins": {}
