@@ -96,6 +96,9 @@
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -108,6 +111,8 @@ var clearGuardOccupancy = hardConstraints.clearGuardOccupancy;
 
 var amCount = loadStateUtils.amCount;
 var pmCount = loadStateUtils.pmCount;
+var isAmPeriod = loadStateUtils.isAmPeriod;
+var isPmPeriod = loadStateUtils.isPmPeriod;
 
 // Default time budget for Phase 8 (per design.md §4 Phase 8 — 3 seconds).
 var DEFAULT_TIME_BUDGET_MS = 3000;
@@ -115,12 +120,6 @@ var DEFAULT_TIME_BUDGET_MS = 3000;
 // Hard cap on iterations to defend against pathological loops where every
 // candidate exchange is barely-improving and the budget is generous.
 var MAX_ITERATIONS = 5000;
-
-// AM/PM period tokens — kept in sync with utils/load-state.js. Duplicated
-// here so this module remains self-contained. 'زوالا' (noon/PM) is one of
-// the two period strings used by the production fixture (45454.json).
-var AM_PERIODS = ['صباحا', 'AM', 'morning'];
-var PM_PERIODS = ['مساء', 'زوالا', 'PM', 'afternoon'];
 
 // Threshold above which a proctor is considered "imbalanced" (AC 6.5).
 // AC 6.5 says aim for imbalance ≤ 1; we treat ≥ 2 as needing repair.
@@ -161,18 +160,9 @@ function periodFromHalfdayKey(halfdayKey) {
     return halfdayKey.slice(idx + 1);
 }
 
-function isAmPeriod(period) {
-    return typeof period === 'string' && AM_PERIODS.indexOf(period) !== -1;
-}
-
-function isPmPeriod(period) {
-    return typeof period === 'string' && PM_PERIODS.indexOf(period) !== -1;
-}
-
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**

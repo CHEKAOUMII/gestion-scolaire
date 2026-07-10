@@ -15,6 +15,7 @@
         <script src="js/sidebar.js" defer></script>
         <script src="js/backup.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/shared/chart-theme.js" defer></script>
     </head>
 
     <body>
@@ -112,11 +113,7 @@
             <section class="dashboard-hero" aria-labelledby="dashboard-title">
                 <div class="dashboard-hero-main">
                     <p class="dashboard-eyebrow">لوحة التحكم الرئيسية</p>
-                    <h2 class="dashboard-title" id="dashboard-title">متابعة سريعة لوضع المؤسسة خلال اليوم</h2>
-                    <p class="dashboard-description">
-                        ابدأ بالمؤشرات الأساسية لتكوين صورة عامة، ثم راجع الرسوم البيانية، واختم بحركية التلاميذ لمتابعة
-                        أهم التغييرات اليومية بخطوات واضحة.
-                    </p>
+                    <h2 class="dashboard-title" id="dashboard-title">متابعة سريعة لوضع المؤسسة</h2>
                     <div class="dashboard-meta" aria-label="سياق البيانات الحالية">
                         <div class="dashboard-meta-card">
                             <span class="dashboard-meta-label">الموسم الدراسي</span>
@@ -131,40 +128,14 @@
                             <strong id="dashboard-last-refresh">لم يتم التحديث بعد</strong>
                         </div>
                     </div>
-                    <div class="dashboard-context-list" aria-label="ملخص الواجهة">
-                        <span class="dashboard-context-pill"
-                            ><i class="fas fa-school" aria-hidden="true"></i> عرض موحد لأهم بيانات المؤسسة</span
-                        >
-                        <span class="dashboard-context-pill"
-                            ><i class="fas fa-clock" aria-hidden="true"></i> مناسب للمراجعة اليومية واتخاذ القرار
-                            بسرعة</span
-                        >
-                    </div>
                 </div>
-                <nav class="dashboard-hero-nav" aria-label="أقسام لوحة التحكم">
-                    <a href="#stats-section" class="dashboard-hero-link">
-                        <span>المؤشرات الأساسية</span>
-                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
-                    </a>
-                    <a href="#charts-section" class="dashboard-hero-link">
-                        <span>الرسوم البيانية</span>
-                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
-                    </a>
-                    <a href="#movement-section" class="dashboard-hero-link">
-                        <span>حركية التلاميذ</span>
-                        <i class="fas fa-arrow-left" aria-hidden="true"></i>
-                    </a>
-                </nav>
             </section>
 
             <!-- Stats Section with Skeleton -->
             <section class="stats-section" id="stats-section">
                 <div class="dashboard-section-intro">
-                    <div>
-                        <p class="dashboard-section-kicker">الخطوة الأولى</p>
-                        <h2>المؤشرات الأساسية</h2>
-                    </div>
-                    <p>راجع أهم الأرقام أولاً لمعرفة الوضع العام قبل الانتقال إلى التفاصيل.</p>
+                    <i class="fas fa-chart-pie" aria-hidden="true"></i>
+                    <h2>المؤشرات الأساسية</h2>
                 </div>
                 <p class="dashboard-loading-note" aria-live="polite">
                     جار تحميل المؤشرات الأساسية. ستظهر البطاقات فور اكتمال القراءة.
@@ -220,11 +191,8 @@
             <!-- Charts Section with Skeleton -->
             <section class="charts-section" id="charts-section">
                 <div class="dashboard-section-intro">
-                    <div>
-                        <p class="dashboard-section-kicker">الخطوة الثانية</p>
-                        <h2>الرسوم البيانية الأساسية</h2>
-                    </div>
-                    <p>استخدم العرض البصري لفهم الاتجاهات العامة ومجالات التفاوت بسرعة.</p>
+                    <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                    <h2>الرسوم البيانية الأساسية</h2>
                 </div>
                 <p class="dashboard-loading-note" aria-live="polite">
                     جار إعداد الرسوم البيانية الأساسية. قد يستغرق ذلك لحظات حسب حجم البيانات.
@@ -263,56 +231,14 @@
 
             <!-- Teacher & Student Status Charts Section with Skeleton -->
             <section class="charts-section" id="extra-charts-section">
-                <div class="dashboard-section-intro">
-                    <div>
-                        <p class="dashboard-section-kicker">الخطوة الثالثة</p>
-                        <h2>متابعة وضعيات التلاميذ والأطر</h2>
-                    </div>
-                    <p>راجع هذا القسم لاكتشاف الوضعيات التي تحتاج متابعة أو تدخلاً سريعاً.</p>
-                </div>
-                <p class="dashboard-loading-note" aria-live="polite">
-                    جار تحميل البيانات المكملة لإبراز الحالات التي تستحق الانتباه.
-                </p>
-                <div class="charts-grid skeleton-grid">
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                </div>
+                <button type="button" class="extra-charts-toggle" aria-expanded="false" disabled>
+                    <i class="fas fa-layer-group" aria-hidden="true"></i>
+                    <span>تحاليل إضافية</span>
+                    <i class="fas fa-chevron-down extra-charts-caret" aria-hidden="true"></i>
+                </button>
             </section>
 
             <section class="movement-section" id="movement-section">
-                <div class="dashboard-section-intro">
-                    <div>
-                        <p class="dashboard-section-kicker">الخطوة الأخيرة</p>
-                        <h2>حركية التلاميذ</h2>
-                    </div>
-                    <p>اختم المراجعة بمتابعة الوصولات والمغادرات والحالات الخاصة المسجلة خلال اليوم.</p>
-                </div>
                 <div class="movement-skeleton skeleton-card" aria-hidden="true">
                     <div class="skeleton-chart-top">
                         <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>

@@ -97,6 +97,10 @@
 //      via the `reserveHalfdays` set (AC 3.7a).
 
 'use strict';
+var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -123,9 +127,8 @@ function isPlainObject(value) {
  * @returns {string}
  */
 function canonicalKeyOf(proctor, idx) {
-    var cin = (proctor && proctor.cin != null) ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**

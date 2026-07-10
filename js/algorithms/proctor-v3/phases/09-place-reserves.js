@@ -65,6 +65,9 @@
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -112,9 +115,8 @@ function shallowCopyRow(row) {
 }
 
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**

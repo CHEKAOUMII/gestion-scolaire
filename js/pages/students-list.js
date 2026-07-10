@@ -24,19 +24,7 @@ const avatarColors = [
     'var(--avatar-color-8)'
 ];
 
-// Gender normalization helpers (DB may store 'M'/'F', 'ذكر'/'أنثى', etc.)
-function isMale(gender) {
-    const g = String(gender || '')
-        .trim()
-        .toLowerCase();
-    return g === 'm' || g === 'male' || g === 'ذكر';
-}
-function isFemale(gender) {
-    const g = String(gender || '')
-        .trim()
-        .toLowerCase();
-    return g === 'f' || g === 'female' || g === 'أنثى';
-}
+// CH8: isMale / isFemale / getGenderLabel via js/shared/gender.js
 
 function getAvatarColor(name) {
     let hash = 0;

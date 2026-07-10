@@ -98,32 +98,12 @@ function setButtonIconLabel(button, iconClass, label) {
     button.replaceChildren(icon, text);
 }
 
-// Helper: Extract base class name (remove ONLY grouping suffixes like :G1, :G2)
-function getBaseClassName(className) {
-    if (!className) return '';
-    // Remove ONLY grouping patterns: :G1, :G2 (NOT class numbers like -1, -2)
-    return className
-        .replace(/:[Gg]\d+$/g, '') // Remove :G1, :G2, :g1, :g2 at end
-        .trim();
-}
-
-// Day mappings for FET format
-const dayMappings = {
-    lundi_m: { day: 'الاثنين', period: 'morning', index: 0 },
-    lundi_s: { day: 'الاثنين', period: 'afternoon', index: 0 },
-    Mardi_m: { day: 'الثلاثاء', period: 'morning', index: 1 },
-    Mardi_s: { day: 'الثلاثاء', period: 'afternoon', index: 1 },
-    Mercredi_m: { day: 'الأربعاء', period: 'morning', index: 2 },
-    Mercredi_s: { day: 'الأربعاء', period: 'afternoon', index: 2 },
-    Jeudi_m: { day: 'الخميس', period: 'morning', index: 3 },
-    Jeudi_s: { day: 'الخميس', period: 'afternoon', index: 3 },
-    Vendredi_m: { day: 'الجمعة', period: 'morning', index: 4 },
-    Vendredi_s: { day: 'الجمعة', period: 'afternoon', index: 4 },
-    Samedi_m: { day: 'السبت', period: 'morning', index: 5 },
-    Samedi_s: { day: 'السبت', period: 'afternoon', index: 5 }
-};
-
-const arabicDays = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+// CH10: getBaseClassName / dayMappings / arabicDays via js/shared/fet-import.js
+const dayMappings = typeof FET_DAY_MAPPINGS !== 'undefined' ? FET_DAY_MAPPINGS : {};
+const arabicDays =
+    typeof FET_ARABIC_DAYS !== 'undefined'
+        ? FET_ARABIC_DAYS.slice()
+        : ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const periods = ['H1', 'H2', 'H3', 'H4'];
 
 // Store original timetables for diff comparison
@@ -132,9 +112,9 @@ let diffModeActive = false;
 
 // ==================== UX ENHANCEMENTS: NEW FEATURES ====================
 
-// Redo stack for redo functionality
-let redoStack = [];
+// Legacy redo stack removed — undo uses editMode.pendingChanges only.
 let selectedCells = [];
+
 
 // ==================== Dark Mode Toggle ====================
 // Local theme functions removed in favor of shared ux-enhancements.js
@@ -164,16 +144,16 @@ function initLocalKeyboardShortcuts() {
             toggleEditMode();
         }
 
-        // Ctrl+Z: Undo
+        // Ctrl+Z: Undo last pending edit-group
         if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
             e.preventDefault();
-            performUndo();
+            undoLastChange();
         }
 
-        // Ctrl+Shift+Z: Redo
+        // Ctrl+Shift+Z: Redo not implemented for live edit mode
         if (e.ctrlKey && e.shiftKey && e.key === 'z') {
             e.preventDefault();
-            performRedo();
+            showToast('إعادة التغيير غير متاحة حالياً', 'info');
         }
 
         // /: Focus search
@@ -545,12 +525,16 @@ function openTimetablePrintPreview() {
         return;
     }
     const teacherName = document.getElementById('current-teacher-name')?.textContent?.trim() || '';
-    const title = teacherName ? `الجدول الزمني - ${teacherName}` : 'الجدول الزمني';
+    const title = teacherName ? `جدول حصص الأستاذ - ${teacherName}` : 'جدول حصص الأساتذة';
+    const safeName = (teacherName || 'timetable').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60);
     PrintSystem.preview({
         contentSelector: '#timetable-wrapper',
         title,
         pageSize: 'A4',
-        landscape: true
+        landscape: true,
+        density: 1,
+        showDensityControl: true,
+        defaultFileName: `جدول_أستاذ_${safeName}.pdf`
     });
 }
 
@@ -603,22 +587,14 @@ function cancelMultiSelect() {
 }
 
 // ==================== Enhanced Undo/Redo ====================
+// Header/keyboard undo uses the same pendingChanges stack as the edit bar.
 function performUndo() {
-    const undoBtn = document.getElementById('undo-btn');
-    if (undoBtn && !undoBtn.disabled) {
-        undoChange();
-    }
+    undoLastChange();
 }
 
 function performRedo() {
-    if (redoStack.length > 0) {
-        const action = redoStack.pop();
-        // Re-apply the action
-        changeLog.push(action);
-        refreshTimetable();
-        updateUndoRedoButtons();
-        showToast('تم إعادة التغيير', 'info');
-    }
+    // Live edit mode does not keep a redo stack; keep the control for layout only.
+    showToast('إعادة التغيير غير متاحة حالياً', 'info');
 }
 
 function updateUndoRedoButtons() {
@@ -627,14 +603,14 @@ function updateUndoRedoButtons() {
     const undoRedoGroup = document.getElementById('header-undo-redo');
 
     if (editMode && undoRedoGroup) {
-        undoRedoGroup.style.display = 'flex';
+        undoRedoGroup.style.display = editMode.active ? 'flex' : 'none';
     }
 
     if (headerUndoBtn) {
-        headerUndoBtn.disabled = changeLog.length === 0;
+        headerUndoBtn.disabled = !editMode?.pendingChanges?.length;
     }
     if (headerRedoBtn) {
-        headerRedoBtn.disabled = redoStack.length === 0;
+        headerRedoBtn.disabled = true;
     }
 }
 
@@ -858,7 +834,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadSavedData();
 });
 
-// Save data to database
+// Save data to database.
+// Returns { success, error }. Callers that must know whether the write actually
+// landed (e.g. saveAllChanges) MUST check `success`; the main process can reject a
+// write (role/soft-auth or the JSON size guard) by returning { success: false },
+// and swallowing that would report a false success while the DB stays unchanged.
 async function saveDataToStorage() {
     try {
         const dataToSave = {
@@ -870,10 +850,21 @@ async function saveDataToStorage() {
             unresolvedTeacherKeys: Array.isArray(fetData.unresolvedTeacherKeys) ? fetData.unresolvedTeacherKeys : []
         };
         const schoolYear = getSchoolYear();
-        await window.api?.timetable?.save?.({ school_year: schoolYear, data: dataToSave });
+        const saveFn = window.api?.timetable?.save;
+        if (typeof saveFn !== 'function') {
+            console.error('Timetable save API unavailable');
+            return { success: false, error: 'save-api-unavailable' };
+        }
+        const result = await saveFn({ school_year: schoolYear, data: dataToSave });
+        if (result && result.success === false) {
+            console.error('Timetable save rejected:', result.error);
+            return { success: false, error: result.error || 'rejected' };
+        }
         console.log('Data saved to database');
+        return { success: true };
     } catch (e) {
         console.error('Error saving timetable data:', e);
+        return { success: false, error: e?.message || String(e) };
     }
 }
 
@@ -1106,11 +1097,10 @@ function parseTeachersXML(xmlDoc) {
             const arabicDay = mapping.day;
             const periodType = mapping.period;
 
-            if (!fetData.timetables[cleanName][arabicDay]) {
-                fetData.timetables[cleanName][arabicDay] = {
-                    morning: {},
-                    afternoon: {}
-                };
+            if (typeof ensureFetDaySkeleton === 'function') {
+                ensureFetDaySkeleton(fetData.timetables[cleanName], arabicDay);
+            } else if (!fetData.timetables[cleanName][arabicDay]) {
+                fetData.timetables[cleanName][arabicDay] = { morning: {}, afternoon: {} };
             }
 
             const hours = day.querySelectorAll('Hour');
@@ -1944,7 +1934,9 @@ function toggleEditMode() {
 
         // Add click handlers to cells
         addCellClickHandlers();
+        updateUndoRedoButtons();
         showToast('تم تفعيل وضع التعديل', 'info');
+
     } else {
         exitEditMode();
     }
@@ -1967,22 +1959,93 @@ function exitEditMode() {
 
     // Remove click handlers
     removeCellClickHandlers();
+    updateUndoRedoButtons();
 }
 
-function addCellClickHandlers() {
+// Event delegation for edit-mode cell interactions (avoids listener accumulation
+// when the tbody is re-rendered after every move/undo).
+let _editDelegationBound = false;
+
+function getEditTargetCell(eventTarget) {
+    const tbody = document.querySelector('#timetable tbody');
+    if (!tbody || !eventTarget) return null;
+    const cell = eventTarget.closest?.('td[data-day][data-period][data-period-type]');
+    if (!cell || !tbody.contains(cell)) return null;
+    return cell;
+}
+
+function ensureEditEventDelegation() {
+    const tbody = document.querySelector('#timetable tbody');
+    if (!tbody || tbody.dataset.editDelegation === '1') return;
+
+    tbody.addEventListener('click', (e) => {
+        if (!editMode.active) return;
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleCellClick({ currentTarget: cell, target: e.target, preventDefault: () => e.preventDefault() });
+    });
+
+    tbody.addEventListener('dragstart', (e) => {
+        if (!editMode.active) {
+            e.preventDefault();
+            return;
+        }
+        const cell = getEditTargetCell(e.target);
+        if (!cell) {
+            e.preventDefault();
+            return;
+        }
+        handleDragStart({
+            currentTarget: cell,
+            target: e.target,
+            preventDefault: () => e.preventDefault(),
+            dataTransfer: e.dataTransfer
+        });
+    });
+
+    tbody.addEventListener('dragend', (e) => {
+        handleDragEnd(e);
+    });
+
+    tbody.addEventListener('dragover', (e) => {
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleDragOver({
+            currentTarget: cell,
+            target: e.target,
+            preventDefault: () => e.preventDefault(),
+            dataTransfer: e.dataTransfer
+        });
+    });
+
+    tbody.addEventListener('drop', (e) => {
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleDrop({
+            currentTarget: cell,
+            target: e.target,
+            preventDefault: () => e.preventDefault(),
+            dataTransfer: e.dataTransfer
+        });
+    });
+
+    tbody.addEventListener('dragleave', (e) => {
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleDragLeave({
+            currentTarget: cell,
+            relatedTarget: e.relatedTarget
+        });
+    });
+
+    tbody.dataset.editDelegation = '1';
+    _editDelegationBound = true;
+}
+
+function decorateCellsForEdit() {
     const cells = document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
     cells.forEach((cell) => {
-        cell.addEventListener('click', handleCellClick);
-
-        // Add drag and drop functionality
         cell.setAttribute('draggable', 'true');
-        cell.addEventListener('dragstart', handleDragStart);
-        cell.addEventListener('dragend', handleDragEnd);
-        cell.addEventListener('dragover', handleDragOver);
-        cell.addEventListener('drop', handleDrop);
-        cell.addEventListener('dragleave', handleDragLeave);
-
-        // Add drag handle icon
         if (!cell.querySelector('.drag-handle')) {
             const handle = document.createElement('i');
             handle.className = 'fas fa-grip-vertical drag-handle';
@@ -1992,20 +2055,15 @@ function addCellClickHandlers() {
     });
 }
 
+function addCellClickHandlers() {
+    ensureEditEventDelegation();
+    decorateCellsForEdit();
+}
+
 function removeCellClickHandlers() {
     const cells = document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
     cells.forEach((cell) => {
-        cell.removeEventListener('click', handleCellClick);
-
-        // Remove drag and drop
         cell.removeAttribute('draggable');
-        cell.removeEventListener('dragstart', handleDragStart);
-        cell.removeEventListener('dragend', handleDragEnd);
-        cell.removeEventListener('dragover', handleDragOver);
-        cell.removeEventListener('drop', handleDrop);
-        cell.removeEventListener('dragleave', handleDragLeave);
-
-        // Remove drag handle
         const handle = cell.querySelector('.drag-handle');
         if (handle) handle.remove();
     });
@@ -2307,6 +2365,7 @@ function handleDragStart(e) {
     // Hack: Wait for browser to take the drag ghost IMAGE of the native DOM, THEN apply the dimming CSS!
     setTimeout(() => {
         cell.classList.add('drag-source');
+        if (srcPeriods.length > 1) cell.classList.add('drag-source-double');
     }, 0);
 
     // Highlight available slots for this class so user sees valid destinations
@@ -2323,7 +2382,7 @@ function handleDragStart(e) {
 
 function handleDragEnd(e) {
     document.querySelectorAll('#timetable tbody td').forEach((c) => {
-        c.classList.remove('drag-over', 'drag-over-ext', 'drag-source');
+        c.classList.remove('drag-over', 'drag-over-ext', 'drag-source', 'drag-source-double');
     });
     clearSlotHighlighting();
     _dragSource = null;
@@ -2335,7 +2394,7 @@ function handleDrop(e) {
     e.preventDefault();
     document
         .querySelectorAll('#timetable tbody td')
-        .forEach((c) => c.classList.remove('drag-over', 'drag-over-ext', 'drag-source'));
+        .forEach((c) => c.classList.remove('drag-over', 'drag-over-ext', 'drag-source', 'drag-source-double'));
 
     if (!_dragSource) return;
 
@@ -2416,65 +2475,26 @@ function buildClassTimetable(className) {
     return classTimetable;
 }
 
-// Check if placing a lesson at a slot would create a gap in the class schedule
-function wouldCreateGap(classTimetable, targetDay, targetPeriod, currentDay, currentPeriod) {
-    const periods = ['H1', 'H2', 'H3', 'H4'];
+// Pure move helpers live in js/shared/timetable-move-logic.js (tested in Node).
+// Thin wrappers keep existing call sites unchanged and inject live fetData deps.
 
-    // Build the day's schedule AFTER the potential move
-    const daySchedule = periods.map((p) => {
-        const periodType = ['H1', 'H2'].includes(p) ? 'morning' : 'afternoon';
-
-        // If this is the target slot, it will be occupied
-        if (targetDay === targetDay && p === targetPeriod) return true;
-
-        // If this is the source slot being moved FROM (same day), it will be empty
-        if (targetDay === currentDay && p === currentPeriod) return false;
-
-        // Otherwise check current timetable
-        return !!classTimetable[targetDay]?.[periodType]?.[p];
-    });
-
-    console.log(`Gap check for ${targetDay} ${targetPeriod}:`, daySchedule);
-
-    // Find first and last occupied slots
-    let firstOccupied = -1;
-    let lastOccupied = -1;
-
-    for (let i = 0; i < periods.length; i++) {
-        if (daySchedule[i]) {
-            if (firstOccupied === -1) firstOccupied = i;
-            lastOccupied = i;
-        }
-    }
-
-    // If no occupied slots or only one, no gap possible
-    if (firstOccupied === -1 || firstOccupied === lastOccupied) return false;
-
-    // Check for gaps between first and last occupied
-    for (let i = firstOccupied + 1; i < lastOccupied; i++) {
-        if (!daySchedule[i]) {
-            console.log(`Gap detected at period ${periods[i]}`);
-            return true; // Found a gap
-        }
-    }
-
-    return false;
-}
-
-// (Slot highlighting implemented below via highlightAvailableSlots() using validateMoveTarget.)
-
-function getRenderedTimetableCells() {
-    return document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
+function getMoveLogic() {
+    return window.TimetableMoveLogic || window.GS2?.TimetableMoveLogic || null;
 }
 
 function buildTimetableSlotKey(day, periodType, period) {
+    const logic = getMoveLogic();
+    if (logic) return logic.buildTimetableSlotKey(day, periodType, period);
     return `${day}|${periodType}|${period}`;
 }
 
-function getConsecutivePeriods(periodStart, count) {
+function getConsecutivePeriods(periodStart, count, periodType) {
+    const logic = getMoveLogic();
+    if (logic) return logic.getConsecutivePeriods(periodStart, count, periodType);
+    // Fallback: all four keys H1–H4 are valid consecutive slots inside one periodType
+    // (morning/afternoon is a separate dimension), so no band clamp is applied.
     const startIdx = periods.indexOf(periodStart);
     if (startIdx === -1 || count <= 0) return [];
-
     const result = [];
     for (let i = 0; i < count; i++) {
         const period = periods[startIdx + i];
@@ -2482,6 +2502,46 @@ function getConsecutivePeriods(periodStart, count) {
         result.push(period);
     }
     return result;
+}
+
+function hasInternalGap(occupancy) {
+    const logic = getMoveLogic();
+    if (logic) return logic.hasInternalGap(occupancy);
+    const firstIndex = occupancy.findIndex(Boolean);
+    if (firstIndex === -1) return false;
+    let lastIndex = -1;
+    for (let index = occupancy.length - 1; index >= 0; index--) {
+        if (occupancy[index]) {
+            lastIndex = index;
+            break;
+        }
+    }
+    if (lastIndex <= firstIndex) return false;
+    for (let index = firstIndex + 1; index < lastIndex; index++) {
+        if (!occupancy[index]) return true;
+    }
+    return false;
+}
+
+function buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
+    const logic = getMoveLogic();
+    if (logic) return logic.buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys);
+    return periods.map((period) => {
+        const slotKey = buildTimetableSlotKey(day, periodType, period);
+        if (destinationKeys.has(slotKey)) return true;
+        if (sourceKeys.has(slotKey)) return false;
+        return !!classTimetable[day]?.[periodType]?.[period];
+    });
+}
+
+function causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
+    const logic = getMoveLogic();
+    if (logic) return logic.causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys);
+    return hasInternalGap(buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys));
+}
+
+function getRenderedTimetableCells() {
+    return document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
 }
 
 function getRenderedCellForSlot(day, periodType, period) {
@@ -2507,41 +2567,6 @@ function getRenderedCellForSlot(day, periodType, period) {
     return null;
 }
 
-function hasInternalGap(occupancy) {
-    const firstIndex = occupancy.findIndex(Boolean);
-    if (firstIndex === -1) return false;
-
-    let lastIndex = -1;
-    for (let index = occupancy.length - 1; index >= 0; index--) {
-        if (occupancy[index]) {
-            lastIndex = index;
-            break;
-        }
-    }
-
-    if (lastIndex <= firstIndex) return false;
-
-    for (let index = firstIndex + 1; index < lastIndex; index++) {
-        if (!occupancy[index]) return true;
-    }
-
-    return false;
-}
-
-function buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
-    return periods.map((period) => {
-        const slotKey = buildTimetableSlotKey(day, periodType, period);
-        if (destinationKeys.has(slotKey)) return true;
-        if (sourceKeys.has(slotKey)) return false;
-        return !!classTimetable[day]?.[periodType]?.[period];
-    });
-}
-
-function causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
-    const occupancy = buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys);
-    return hasInternalGap(occupancy);
-}
-
 function validateMoveTarget({
     teacher,
     className,
@@ -2553,65 +2578,39 @@ function validateMoveTarget({
     destPeriod,
     destPeriodType
 }) {
+    const logic = getMoveLogic();
+    if (logic) {
+        return logic.validateMoveTarget(
+            {
+                teacher,
+                className,
+                room,
+                sourceDay,
+                sourcePeriodType,
+                sourcePeriods,
+                destDay,
+                destPeriod,
+                destPeriodType
+            },
+            {
+                getSlotData,
+                isRoomOccupied,
+                buildClassTimetable
+            }
+        );
+    }
+
+    // Fallback if shared module failed to load
     if (!teacher || !destDay || !destPeriod || !destPeriodType || !Array.isArray(sourcePeriods) || sourcePeriods.length === 0) {
         return { valid: false, message: 'الوجهة غير صالحة.' };
     }
 
-    const destPeriods = getConsecutivePeriods(destPeriod, sourcePeriods.length);
+    const destPeriods = getConsecutivePeriods(destPeriod, sourcePeriods.length, destPeriodType);
     if (destPeriods.length !== sourcePeriods.length) {
         return {
             valid: false,
             message: `لا يمكن النقل: تحتاج ${sourcePeriods.length} خانات متتالية داخل نفس الفترة.`
         };
-    }
-
-    const sourceKeys = new Set(sourcePeriods.map((period) => buildTimetableSlotKey(sourceDay, sourcePeriodType, period)));
-    const destinationKeys = new Set(destPeriods.map((period) => buildTimetableSlotKey(destDay, destPeriodType, period)));
-    const classTimetable = className ? buildClassTimetable(className) : null;
-
-    for (const period of destPeriods) {
-        const slotKey = buildTimetableSlotKey(destDay, destPeriodType, period);
-        const teacherActivity = getSlotData(teacher, destDay, period, destPeriodType);
-        if (teacherActivity && !sourceKeys.has(slotKey)) {
-            return {
-                valid: false,
-                message: `غير متاح: الأستاذ مشغول في ${destDay} ${period}.`
-            };
-        }
-
-        if (classTimetable) {
-            const classActivity = classTimetable[destDay]?.[destPeriodType]?.[period];
-            const isVacatedSourceSlot = sourceKeys.has(slotKey) && classActivity?.teacher === teacher;
-            if (classActivity && !isVacatedSourceSlot) {
-                return {
-                    valid: false,
-                    message: `غير متاح: القسم مشغول في ${destDay} ${period} مع ${classActivity.teacher}.`
-                };
-            }
-        }
-
-        if (room) {
-            const roomCheck = isRoomOccupied(room, destDay, period, destPeriodType, teacher);
-            if (roomCheck.occupied) {
-                return {
-                    valid: false,
-                    message: `غير متاح: القاعة ${room} مشغولة في ${destDay} ${period}.`
-                };
-            }
-        }
-    }
-
-    if (classTimetable) {
-        const affectedSlices = new Set([`${sourceDay}|${sourcePeriodType}`, `${destDay}|${destPeriodType}`]);
-        for (const slice of affectedSlices) {
-            const [day, periodType] = slice.split('|');
-            if (causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys)) {
-                return {
-                    valid: false,
-                    message: `غير متاح: النقل سيُحدث فراغًا في جدول القسم خلال ${day} ${periodType === 'morning' ? 'الصباح' : 'المساء'}.`
-                };
-            }
-        }
     }
 
     return { valid: true, destPeriods };
@@ -2772,7 +2771,7 @@ function _getDragOverCells(targetCell) {
     const startPeriod = targetCell.dataset.period;
     if (!day || !periodType || !startPeriod) return [targetCell];
 
-    const periodsToCover = getConsecutivePeriods(startPeriod, _dragSource.numPeriods);
+    const periodsToCover = getConsecutivePeriods(startPeriod, _dragSource.numPeriods, periodType);
     const result = [];
     periodsToCover.forEach((period) => {
         const cell = getRenderedCellForSlot(day, periodType, period);
@@ -2848,7 +2847,18 @@ function confirmSlotEdit() {
 
     coveredPeriods.forEach((p, idx) => {
         const oldData = getSlotData(editMode.currentTeacher, day, p, periodType);
-        const newData = deleteSlot ? null : { subject, students: className, room };
+        const logic = getMoveLogic();
+        const newData = logic
+            ? logic.buildEditedSlotData({
+                  deleteSlot,
+                  subject,
+                  students: className,
+                  room,
+                  oldData
+              })
+            : deleteSlot
+              ? null
+              : { subject, students: className, room, ...(oldData || {}) };
 
         // Record for undo
         editMode.pendingChanges.push({
@@ -3070,23 +3080,34 @@ function updateUndoButton() {
     const undoBtn = document.getElementById('undo-btn');
     const undoCount = document.getElementById('undo-count');
 
+    if (!undoBtn) {
+        updateUndoRedoButtons();
+        return;
+    }
+
     if (editMode.pendingChanges.length > 0) {
         undoBtn.disabled = false;
-        undoCount.textContent = editMode.pendingChanges.length;
-        undoCount.style.display = 'inline-block';
+        if (undoCount) {
+            undoCount.textContent = editMode.pendingChanges.length;
+            undoCount.style.display = 'inline-block';
+        }
     } else {
         undoBtn.disabled = true;
-        undoCount.style.display = 'none';
+        if (undoCount) undoCount.style.display = 'none';
     }
+    updateUndoRedoButtons();
 }
 
 // Helper: return all period keys between periodStart and periodEnd (inclusive)
 function buildPeriodRange(periodStart, periodEnd) {
+    const logic = getMoveLogic();
+    if (logic) return logic.buildPeriodRange(periodStart, periodEnd);
     const startIdx = periods.indexOf(periodStart);
     const endIdx = periods.indexOf(periodEnd);
     if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return [periodStart];
     return periods.slice(startIdx, endIdx + 1);
 }
+
 
 function undoLastChange() {
     if (editMode.pendingChanges.length === 0) return;
@@ -3142,10 +3163,27 @@ async function cancelEditMode() {
         }
     }
 
-    // Clear all pending changes
-    editMode.pendingChanges = [];
+    // Restore pre-edit snapshot so Cancel never leaves the live grid dirty
+    const logic = getMoveLogic();
+    if (editMode.originalTimetable && editMode.currentTeacher) {
+        if (logic) {
+            logic.restoreTeacherTimetableSnapshot(
+                fetData.timetables,
+                editMode.currentTeacher,
+                editMode.originalTimetable
+            );
+        } else {
+            fetData.timetables[editMode.currentTeacher] = JSON.parse(
+                JSON.stringify(editMode.originalTimetable)
+            );
+        }
+        const subjectFilter = document.getElementById('subject-filter')?.value || '';
+        renderTeacherTimetable(editMode.currentTeacher, subjectFilter);
+    }
 
-    // Remove all modified markers
+    editMode.pendingChanges = [];
+    updateUndoButton();
+
     document.querySelectorAll('.cell-modified').forEach((cell) => {
         cell.classList.remove('cell-modified');
     });
@@ -3302,29 +3340,62 @@ function clearDiffHighlighting() {
     });
 }
 
-// Save all changes — data already applied live; just persist to storage and exit
+// Save all changes — data already applied live; just persist to storage and exit.
+// Students/rooms tabs are derived from the *saved* snapshot (not live fetData).
 function saveAllChanges() {
     if (editMode.pendingChanges.length === 0) {
         showToast('لا توجد تغييرات معلقة', 'info');
         return;
     }
 
-    // Move pending changes to permanent history
-    const savedAt = new Date().toISOString();
-    editMode.pendingChanges.forEach((change) => {
-        editMode.changeHistory.push({ ...change, savedAt });
-    });
     const savedCount = editMode.pendingChanges.length;
+    const savedAt = new Date().toISOString();
+    // Snapshot now, but only commit to history once the DB write is confirmed.
+    const committedChanges = editMode.pendingChanges.map((change) => ({ ...change, savedAt }));
 
-    // Persist to localStorage
-    saveDataToStorage();
+    // Persist FIRST. Finalize (history, clear pending, exit edit mode, refresh derived
+    // tabs) only when the database accepted the write. Otherwise the teacher tab would
+    // keep the in-memory move while the DB — and the derived students/rooms tabs and any
+    // page reload — still show the lesson in its original slot.
+    Promise.resolve(saveDataToStorage())
+        .then((result) => {
+            if (!result || result.success === false) {
+                showToast('تعذّر حفظ التغييرات في قاعدة البيانات. التعديلات ما زالت معلّقة، حاول مرة أخرى.', 'error');
+                return;
+            }
+            committedChanges.forEach((change) => editMode.changeHistory.push(change));
+            editMode.pendingChanges = [];
+            updateUndoButton();
+            exitEditMode();
+            refreshDerivedTimetableTabs();
+            showToast(`تم حفظ ${savedCount} تغيير بنجاح`, 'success');
+        })
+        .catch((err) => {
+            console.error('Error after saving timetable:', err);
+            showToast('تعذّر حفظ التغييرات في قاعدة البيانات. التعديلات ما زالت معلّقة، حاول مرة أخرى.', 'error');
+        });
+}
 
-    // Clear pending changes
-    editMode.pendingChanges = [];
-    updateUndoButton();
+/**
+ * Students/rooms read from the database via api.timetable.get — not live fetData.
+ * After a successful save, re-init the active derived tab (or both when visible).
+ */
+function refreshDerivedTimetableTabs() {
+    const activeTab = localStorage.getItem('timetableActiveTab') || 'tab-teachers';
+    if (activeTab === 'tab-students' && window.StudentTimetable?.init) {
+        window.StudentTimetable.init();
+    } else if (activeTab === 'tab-rooms' && window.RoomTimetable?.init) {
+        window.RoomTimetable.init();
+    }
 
-    exitEditMode();
-    showToast(`تم حفظ ${savedCount} تغيير بنجاح`, 'success');
+    const studentsPanel = document.getElementById('tab-students');
+    const roomsPanel = document.getElementById('tab-rooms');
+    if (studentsPanel && studentsPanel.style.display !== 'none' && window.StudentTimetable?.init) {
+        window.StudentTimetable.init();
+    }
+    if (roomsPanel && roomsPanel.style.display !== 'none' && window.RoomTimetable?.init) {
+        window.RoomTimetable.init();
+    }
 }
 
 // Change log

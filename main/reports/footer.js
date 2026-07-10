@@ -1,4 +1,5 @@
 const { getIdentity, getAssetBase64 } = require('./identity');
+const { esc } = require('./html-escape');
 
 /**
  * Renders the official, locked footer with seal and signature fields.
@@ -93,14 +94,6 @@ function renderFooter(overrides = {}) {
             border-top: 1px dashed #e5e5e5;
         ">${esc(id.footer_text)}</div>
     </div>`;
-}
-
-function esc(s) {
-    return String(s || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }
 
 module.exports = { renderFooter };

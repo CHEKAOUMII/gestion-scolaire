@@ -30,6 +30,9 @@ Thumbs.db
 *.temp
 .cache/
 
+# jscpd local reports (regenerate with npm run dup:report)
+.jscpd-report/
+
 # Sensitive / data files — never commit PII or database artifacts
 school_backup_*.json
 *.xlsx
@@ -54,3 +57,47 @@ firebase/*adminsdk*.json
 .claude/
 testsprite_tests/
 .worktrees
+
+# Auto-generated entries
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Sensitive files (auto-detected)
+.env
+build
+debug.log
+dist
+node_modules
+rebuild_timetable.ps1
+rebuild_timetable.py
+testsprite_run.log
+timetable-redistribution.html
+

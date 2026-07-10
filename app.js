@@ -37,6 +37,10 @@ function loadExternalScriptOnce(src, globalName) {
 }
 
 function ensureChartLoaded() {
+    // CH6: prefer shared loader when chart-theme.js is on the page
+    if (typeof ensureChartJsLoaded === 'function') {
+        return ensureChartJsLoaded();
+    }
     if (window.Chart) return Promise.resolve(window.Chart);
     if (!chartLibPromise) {
         chartLibPromise = loadExternalScriptOnce(EXTERNAL_LIBS.chart, 'Chart');
@@ -395,6 +399,11 @@ function calculateAgeStats() {
     return ageGroups;
 }
 
+// Compact single-line section label (icon + short title) used across dashboard sections.
+function dashboardSectionLabel(icon, title) {
+    return `<div class="dashboard-section-intro"><i class="fas fa-${icon}" aria-hidden="true"></i><h2>${title}</h2></div>`;
+}
+
 // Render Stats Cards
 function renderStatsCards(stats) {
     if (!stats) stats = calculateStats();
@@ -417,17 +426,7 @@ function renderStatsCards(stats) {
         </div>`;
     }
 
-    function sectionIntro(kicker, title, description) {
-        return `<div class="dashboard-section-intro">
-            <div>
-                <p class="dashboard-section-kicker">${kicker}</p>
-                <h2>${title}</h2>
-            </div>
-            <p>${description}</p>
-        </div>`;
-    }
-
-    const html = `${sectionIntro('الخطوة الأولى', 'المؤشرات الأساسية', 'قراءة سريعة لأهم الأرقام قبل الانتقال إلى التحليل البصري.')}
+    const html = `${dashboardSectionLabel('chart-pie', 'المؤشرات الأساسية')}
         <div class="stats-grid">
         ${statCard('users', 'عدد التلاميذ', stats.total, `${stats.sections} أقسام`, 0.0)}
         ${statCard('female', 'عدد الإناث', stats.females, `${femalesPct}%`, 0.06)}
@@ -571,6 +570,50 @@ function destroyChartInstances() {
         }
         chartInstances[key] = null;
     });
+}
+
+// Destroy only the given chart instances so each render function manages its own charts
+// without wiping the ones owned by the other dashboard section.
+function destroyCharts(keys) {
+    keys.forEach((key) => {
+        const instance = chartInstances[key];
+        if (instance && typeof instance.destroy === 'function') {
+            instance.destroy();
+        }
+        chartInstances[key] = null;
+    });
+}
+
+// Whether the "additional analytics" panel is expanded. Stored at module scope so the
+// state survives the innerHTML rebuilds triggered by the theme observer.
+let extraChartsExpanded = false;
+
+// Shared loader for the auxiliary data both chart groups need (teachers + student status).
+// Memoizes the in-flight promise so concurrent renders (charts + extra charts) and cheap
+// re-renders (theme toggle, age filter) reuse a single fetch. Pass force=true to refresh.
+let dashboardAuxPromise = null;
+function loadDashboardAux(force = false) {
+    if (force) dashboardAuxPromise = null;
+    if (!dashboardAuxPromise) {
+        dashboardAuxPromise = (async () => {
+            let teachers = [];
+            let statusSummary = { dropouts: 0, expelled: 0, notEnrolled: 0, totalStudents: 0 };
+            try {
+                const [teacherResult, statusResult] = await Promise.all([
+                    window.api.teachers.getAll(currentSchoolYear),
+                    window.api.students.getByStatus({ schoolYear: currentSchoolYear })
+                ]);
+                if (Array.isArray(teacherResult)) teachers = teacherResult;
+                if (statusResult && statusResult.success && statusResult.summary) {
+                    statusSummary = statusResult.summary;
+                }
+            } catch (err) {
+                console.warn('Failed to load dashboard aux data:', err);
+            }
+            return { teachers, statusSummary };
+        })();
+    }
+    return dashboardAuxPromise;
 }
 
 // Birth place normalization — module-level so it's allocated once, not per renderCharts() call
@@ -747,20 +790,7 @@ function resolvePlace(raw) {
     return trimmed;
 }
 
-function getChartThemeColors() {
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const styles = getComputedStyle(document.documentElement);
-    const get = (v) => styles.getPropertyValue(v).trim();
-    return {
-        textColor: get('--color-text-main'),
-        mutedColor: get('--color-text-muted'),
-        gridColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-        primary: get('--color-primary'),
-        primaryLight: get('--color-primary-light'),
-        primaryDark: get('--color-primary-dark'),
-        accent: '#9B64AB'
-    };
-}
+// CH6: getChartThemeColors from js/shared/chart-theme.js (loaded before app.js)
 
 async function renderCharts(filterSection = 'all', stats) {
     try {
@@ -776,9 +806,13 @@ async function renderCharts(filterSection = 'all', stats) {
         return;
     }
 
-    destroyChartInstances();
-
     if (!stats) stats = calculateStats();
+    const { teachers, statusSummary } = await loadDashboardAux();
+
+    // This function owns only the always-visible primary charts. The secondary charts live in
+    // renderExtraCharts, so destroy just our own instances instead of wiping every chart.
+    destroyCharts(['studentStatus', 'levels', 'teacherSubject', 'age']);
+
     const sortedSectionsList = sortSectionNames(stats.sectionsList);
     const sectionsOptions = sortedSectionsList
         .map(
@@ -786,96 +820,33 @@ async function renderCharts(filterSection = 'all', stats) {
         )
         .join('');
 
-    const html = `<div class="dashboard-section-intro">
-        <div>
-            <p class="dashboard-section-kicker">الخطوة الثانية</p>
-            <h2>الرسوم البيانية الأساسية</h2>
-        </div>
-        <p>تفصيل بصري يساعد على فهم التوزيع العام بسرعة قبل مراجعة الحالات الخاصة.</p>
-    </div>
+    const html = `${dashboardSectionLabel('chart-bar', 'الرسوم البيانية الأساسية')}
     <div class="charts-grid">
-        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب السن</h3><div class="chart-controls"><select id="age-section-filter"><option value="all" ${filterSection === 'all' ? 'selected' : ''}>جميع الأقسام</option>${sectionsOptions}</select><button><i class="fas fa-print"></i> طباعة</button></div></div><div class="chart-body"><canvas id="ageChart"></canvas></div></div>
-        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-pie-chart"></i> توزيع التلاميذ حسب الجنس</h3></div><div class="chart-body"><canvas id="genderChart"></canvas></div></div>
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-user-graduate"></i> وضعية التلاميذ</h3></div><div class="chart-body"><canvas id="studentStatusChart"></canvas></div></div>
         <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب المستويات</h3></div><div class="chart-body"><canvas id="levelsChart"></canvas></div></div>
-        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-map-marker-alt"></i> توزيع التلاميذ حسب مكان الازدياد</h3></div><div class="chart-body"><canvas id="placeChart"></canvas></div></div>
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chalkboard-teacher"></i> توزيع الأساتذة حسب التخصص</h3></div><div class="chart-body"><canvas id="teacherSubjectChart"></canvas></div></div>
+        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chart-bar"></i> إحصاء التلاميذ حسب السن</h3><div class="chart-controls"><select id="age-section-filter"><option value="all" ${filterSection === 'all' ? 'selected' : ''}>جميع الأقسام</option>${sectionsOptions}</select></div></div><div class="chart-body"><canvas id="ageChart"></canvas></div></div>
     </div>`;
     document.getElementById('charts-section').innerHTML = html;
 
-    // Filter data based on section
-    const filteredData =
-        filterSection === 'all' ? studentsData : studentsData.filter((s) => s.section === filterSection);
-
-    // Age Chart with filtered data
-    const ageStats = {};
-    const currentYear = new Date().getFullYear();
-    filteredData.forEach((s) => {
-        if (!s.birthDate) return;
-        // Extract birth year from various date formats (YYYY-MM-DD, DD/MM/YYYY, YYYY, etc.)
-        let birthYear;
-        const parts = s.birthDate.split(/[-/]/);
-        if (parts[0].length === 4) {
-            birthYear = parseInt(parts[0]); // YYYY-MM-DD
-        } else if (parts.length >= 3 && parts[2].length === 4) {
-            birthYear = parseInt(parts[2]); // DD/MM/YYYY
-        } else {
-            birthYear = parseInt(parts[0]);
-        }
-        if (!birthYear || isNaN(birthYear)) return;
-        const age = currentYear - birthYear;
-        // Only accept reasonable student ages (10-40)
-        if (age < 10 || age > 40) return;
-        if (!ageStats[age]) ageStats[age] = { total: 0, males: 0, females: 0 };
-        ageStats[age].total++;
-        s.gender === 'ذكر' ? ageStats[age].males++ : ageStats[age].females++;
-    });
-
-    const ages = Object.keys(ageStats).sort((a, b) => a - b);
     const tc = getChartThemeColors();
-    chartInstances.age = new Chart(document.getElementById('ageChart'), {
-        type: 'bar',
-        data: {
-            labels: ages.map((a) => a + ' سنة'),
-            datasets: [
-                {
-                    label: 'عدد التلاميذ',
-                    data: ages.map((a) => ageStats[a].total),
-                    backgroundColor: tc.primary,
-                    borderRadius: 6
-                },
-                {
-                    label: 'الإناث',
-                    data: ages.map((a) => ageStats[a].females),
-                    backgroundColor: tc.primaryLight,
-                    borderRadius: 6
-                },
-                {
-                    label: 'الذكور',
-                    data: ages.map((a) => ageStats[a].males),
-                    backgroundColor: tc.accent,
-                    borderRadius: 6
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } },
-            scales: {
-                x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } },
-                y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }
-            }
-        }
-    });
 
-    // Gender Chart
-    chartInstances.gender = new Chart(document.getElementById('genderChart'), {
+    // --- Student Status (doughnut) ---
+    const activeStudents =
+        statusSummary.totalStudents - statusSummary.dropouts - statusSummary.expelled - statusSummary.notEnrolled;
+    chartInstances.studentStatus = new Chart(document.getElementById('studentStatusChart'), {
         type: 'doughnut',
         data: {
-            labels: ['الإناث', 'الذكور'],
+            labels: ['متمدرسون', 'منقطعون', 'مطرودون', 'غير ملتحقين'],
             datasets: [
                 {
-                    data: [stats.females, stats.males],
-                    backgroundColor: [tc.primaryLight, tc.accent],
+                    data: [
+                        Math.max(activeStudents, 0),
+                        statusSummary.dropouts,
+                        statusSummary.expelled,
+                        statusSummary.notEnrolled
+                    ],
+                    backgroundColor: ['#4CAF50', '#FF9800', '#F44336', '#9E9E9E'],
                     borderWidth: 0,
                     hoverOffset: 8
                 }
@@ -888,7 +859,7 @@ async function renderCharts(filterSection = 'all', stats) {
         }
     });
 
-    // Levels Chart - Show stats per section
+    // --- Levels Chart — students per section ---
     const sectionStats = {};
     studentsData.forEach((s) => {
         if (!sectionStats[s.section]) sectionStats[s.section] = { total: 0, males: 0, females: 0 };
@@ -932,7 +903,147 @@ async function renderCharts(filterSection = 'all', stats) {
         }
     });
 
-    // Birth Place Chart
+    // --- Teacher by Subject/Specialty (horizontal bar) ---
+    const subjectCounts = {};
+    teachers.forEach((t) => {
+        const subj = (t.subject || t.specialty_subject || '').trim() || 'غير محدد';
+        subjectCounts[subj] = (subjectCounts[subj] || 0) + 1;
+    });
+    const subjectEntries = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]);
+    const subjectColors = generatePalette(subjectEntries.length);
+    if (subjectEntries.length > 0) {
+        chartInstances.teacherSubject = new Chart(document.getElementById('teacherSubjectChart'), {
+            type: 'bar',
+            data: {
+                labels: subjectEntries.map((e) => e[0]),
+                datasets: [
+                    {
+                        label: 'عدد الأساتذة',
+                        data: subjectEntries.map((e) => e[1]),
+                        backgroundColor: subjectColors,
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false }, tooltip: { rtl: true, textDirection: 'rtl' } },
+                scales: {
+                    x: {
+                        reverse: true,
+                        position: 'top',
+                        min: 0,
+                        grid: { color: tc.gridColor },
+                        ticks: { color: tc.textColor, stepSize: 1 }
+                    },
+                    y: {
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: {
+                            color: tc.textColor,
+                            font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // --- Age Chart with filtered data ---
+    const filteredData =
+        filterSection === 'all' ? studentsData : studentsData.filter((s) => s.section === filterSection);
+    const ageStats = {};
+    const currentYear = new Date().getFullYear();
+    filteredData.forEach((s) => {
+        if (!s.birthDate) return;
+        // Extract birth year from various date formats (YYYY-MM-DD, DD/MM/YYYY, YYYY, etc.)
+        let birthYear;
+        const parts = s.birthDate.split(/[-/]/);
+        if (parts[0].length === 4) {
+            birthYear = parseInt(parts[0]); // YYYY-MM-DD
+        } else if (parts.length >= 3 && parts[2].length === 4) {
+            birthYear = parseInt(parts[2]); // DD/MM/YYYY
+        } else {
+            birthYear = parseInt(parts[0]);
+        }
+        if (!birthYear || isNaN(birthYear)) return;
+        const age = currentYear - birthYear;
+        // Only accept reasonable student ages (10-40)
+        if (age < 10 || age > 40) return;
+        if (!ageStats[age]) ageStats[age] = { total: 0, males: 0, females: 0 };
+        ageStats[age].total++;
+        s.gender === 'ذكر' ? ageStats[age].males++ : ageStats[age].females++;
+    });
+
+    const ages = Object.keys(ageStats).sort((a, b) => a - b);
+    chartInstances.age = new Chart(document.getElementById('ageChart'), {
+        type: 'bar',
+        data: {
+            labels: ages.map((a) => a + ' سنة'),
+            datasets: [
+                {
+                    label: 'عدد التلاميذ',
+                    data: ages.map((a) => ageStats[a].total),
+                    backgroundColor: tc.primary,
+                    borderRadius: 6
+                },
+                {
+                    label: 'الإناث',
+                    data: ages.map((a) => ageStats[a].females),
+                    backgroundColor: tc.primaryLight,
+                    borderRadius: 6
+                },
+                {
+                    label: 'الذكور',
+                    data: ages.map((a) => ageStats[a].males),
+                    backgroundColor: tc.accent,
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } },
+            scales: {
+                x: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } },
+                y: { ticks: { color: tc.textColor }, grid: { color: tc.gridColor } }
+            }
+        }
+    });
+
+    // Add section filter event listener (remove old listener first to avoid leak)
+    const filterEl = document.getElementById('age-section-filter');
+    if (filterEl) {
+        filterEl.onchange = (e) => {
+            renderCharts(e.target.value);
+        };
+    }
+}
+
+// Render Extra Charts — collapsed "additional analytics" panel (secondary charts)
+async function renderExtraCharts() {
+    const section = document.getElementById('extra-charts-section');
+    if (!section) return;
+
+    try {
+        await ensureChartLoaded();
+    } catch (error) {
+        console.error('Chart.js load failed for extra charts:', error);
+        section.innerHTML = '';
+        return;
+    }
+
+    // This function owns only the collapsed "additional analytics" charts.
+    destroyCharts(['gender', 'place', 'teacherGender', 'teacherAge', 'surplusTeachers']);
+
+    const { teachers } = await loadDashboardAux();
+    const stats = calculateStats();
+    const tc = getChartThemeColors();
+
+    // --- Birth place (top 10) ---
     const places = {};
     studentsData.forEach((s) => {
         const raw = (s.birthPlace || '').trim() || '-';
@@ -942,6 +1053,116 @@ async function renderCharts(filterSection = 'all', stats) {
     const topPlaces = Object.entries(places)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
+
+    // --- Teacher by Gender ---
+    let teacherMales = 0;
+    let teacherFemales = 0;
+    teachers.forEach((t) => {
+        if (t.gender === 'ذكر') teacherMales++;
+        else if (t.gender === 'أنثى') teacherFemales++;
+    });
+
+    // --- Teacher by Age ---
+    const teacherAgeGroups = {};
+    const currentYear = new Date().getFullYear();
+    teachers.forEach((t) => {
+        if (!t.birth_date) return;
+        const birthYear = parseInt(t.birth_date.split('-')[0]);
+        if (!birthYear || isNaN(birthYear)) return;
+        const age = currentYear - birthYear;
+        // Group by decade ranges
+        let group;
+        if (age < 30) group = 'أقل من 30';
+        else if (age < 40) group = '30-39';
+        else if (age < 50) group = '40-49';
+        else if (age < 60) group = '50-59';
+        else group = '60+';
+        teacherAgeGroups[group] = (teacherAgeGroups[group] || 0) + 1;
+    });
+    const ageOrder = ['أقل من 30', '30-39', '40-49', '50-59', '60+'];
+    const ageLabels = ageOrder.filter((g) => teacherAgeGroups[g]);
+    const ageData = ageLabels.map((g) => teacherAgeGroups[g]);
+    const ageColors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'];
+
+    // --- Surplus Teachers (فائضون) ---
+    function isSurplusDashboard(t) {
+        if (Number(t.is_surplus) === 1) return true;
+        const pos = (t.position || '').toLowerCase();
+        const stat = (t.statut || '').toLowerCase();
+        const func = (t.function_title || '').toLowerCase();
+        const combined = `${pos} ${stat} ${func}`;
+        return (
+            combined.includes('surnombre') ||
+            combined.includes('exc\u00e9dentaire') ||
+            combined.includes('excedentaire') ||
+            combined.includes('\u0641\u0627\u0626\u0636')
+        );
+    }
+    const surplusTeachers = teachers.filter(isSurplusDashboard);
+    const surplusTotal = surplusTeachers.length;
+    const surplusBySubject = {};
+    surplusTeachers.forEach((t) => {
+        const subj = (t.specialty_subject || t.subject || '').trim() || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f';
+        surplusBySubject[subj] = (surplusBySubject[subj] || 0) + 1;
+    });
+    const surplusEntries = Object.entries(surplusBySubject).sort((a, b) => b[1] - a[1]);
+    const surplusMales = surplusTeachers.filter((t) => t.gender === '\u0630\u0643\u0631').length;
+    const surplusFemales = surplusTeachers.filter((t) => t.gender === '\u0623\u0646\u062b\u0649').length;
+
+    const expanded = extraChartsExpanded;
+    const collapseKeys = ['gender', 'place', 'teacherGender', 'teacherAge', 'surplusTeachers'];
+
+    // Secondary charts sit behind a collapsible panel to keep the dashboard short.
+    const html = `
+        <button type="button" class="extra-charts-toggle" id="extra-charts-toggle" aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="extra-charts-collapse">
+            <i class="fas fa-layer-group" aria-hidden="true"></i>
+            <span>تحاليل إضافية</span>
+            <i class="fas fa-chevron-down extra-charts-caret" aria-hidden="true"></i>
+        </button>
+        <div class="extra-charts-collapse" id="extra-charts-collapse"${expanded ? '' : ' hidden'}>
+            <div class="charts-grid">
+                <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-pie-chart"></i> توزيع التلاميذ حسب الجنس</h3></div><div class="chart-body"><canvas id="genderChart"></canvas></div></div>
+                <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-map-marker-alt"></i> توزيع التلاميذ حسب مكان الازدياد</h3></div><div class="chart-body"><canvas id="placeChart"></canvas></div></div>
+                <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-venus-mars"></i> توزيع الأساتذة حسب الجنس</h3></div><div class="chart-body"><canvas id="teacherGenderChart"></canvas></div></div>
+                <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-birthday-cake"></i> توزيع الأساتذة حسب الفئة العمرية</h3></div><div class="chart-body"><canvas id="teacherAgeChart"></canvas></div></div>
+                ${
+                    surplusTotal > 0
+                        ? `<div class="chart-card" style="border-color:var(--color-warning,#f59e0b)">
+            <div class="chart-header" style="border-color:var(--color-warning,#f59e0b)">
+                <h3 style="color:var(--color-warning,#f59e0b)"><i class="fas fa-exclamation-triangle"></i> الأساتذة الفائضون (${surplusTotal})</h3>
+                <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">ذكور: ${surplusMales} — إناث: ${surplusFemales}</div>
+            </div>
+            <div class="chart-body"><canvas id="surplusTeachersChart"></canvas></div>
+        </div>`
+                        : ''
+                }
+            </div>
+        </div>`;
+
+    section.innerHTML = html;
+
+    // Gender Chart (doughnut) — mirrors the students KPI split
+    chartInstances.gender = new Chart(document.getElementById('genderChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['الإناث', 'الذكور'],
+            datasets: [
+                {
+                    data: [stats.females, stats.males],
+                    backgroundColor: [tc.primaryLight, tc.accent],
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }
+        }
+    });
+
+    // Birth Place Chart (horizontal bar)
     chartInstances.place = new Chart(document.getElementById('placeChart'), {
         type: 'bar',
         data: {
@@ -986,193 +1207,7 @@ async function renderCharts(filterSection = 'all', stats) {
         }
     });
 
-    // Add section filter event listener (remove old listener first to avoid leak)
-    const filterEl = document.getElementById('age-section-filter');
-    if (filterEl) {
-        filterEl.onchange = (e) => {
-            renderCharts(e.target.value);
-        };
-    }
-}
-
-// Render Extra Charts (Teacher stats + Student status)
-async function renderExtraCharts() {
-    try {
-        await ensureChartLoaded();
-    } catch (error) {
-        console.error('Chart.js load failed for extra charts:', error);
-        const section = document.getElementById('extra-charts-section');
-        if (section) section.innerHTML = '';
-        return;
-    }
-
-    // Destroy previous instances
-    ['teacherSubject', 'teacherGender', 'teacherAge', 'studentStatus', 'surplusTeachers'].forEach((key) => {
-        if (chartInstances[key] && typeof chartInstances[key].destroy === 'function') {
-            chartInstances[key].destroy();
-        }
-        chartInstances[key] = null;
-    });
-
-    // Load teacher data and student status data in parallel
-    let teachers = [];
-    let statusSummary = { dropouts: 0, expelled: 0, notEnrolled: 0, totalStudents: 0 };
-
-    try {
-        const [teacherResult, statusResult] = await Promise.all([
-            window.api.teachers.getAll(currentSchoolYear),
-            window.api.students.getByStatus({ schoolYear: currentSchoolYear })
-        ]);
-        if (Array.isArray(teacherResult)) teachers = teacherResult;
-        if (statusResult && statusResult.success && statusResult.summary) {
-            statusSummary = statusResult.summary;
-        }
-    } catch (err) {
-        console.warn('Failed to load extra chart data:', err);
-    }
-
-    const tc = getChartThemeColors();
-
-    // --- Teacher by Subject/Specialty ---
-    const subjectCounts = {};
-    teachers.forEach((t) => {
-        const subj = (t.subject || t.specialty_subject || '').trim() || 'غير محدد';
-        subjectCounts[subj] = (subjectCounts[subj] || 0) + 1;
-    });
-    const subjectEntries = Object.entries(subjectCounts).sort((a, b) => b[1] - a[1]);
-    const subjectColors = generatePalette(subjectEntries.length);
-
-    // --- Teacher by Gender ---
-    let teacherMales = 0;
-    let teacherFemales = 0;
-    teachers.forEach((t) => {
-        if (t.gender === 'ذكر') teacherMales++;
-        else if (t.gender === 'أنثى') teacherFemales++;
-    });
-
-    // --- Teacher by Age ---
-    const teacherAgeGroups = {};
-    const currentYear = new Date().getFullYear();
-    teachers.forEach((t) => {
-        if (!t.birth_date) return;
-        const birthYear = parseInt(t.birth_date.split('-')[0]);
-        if (!birthYear || isNaN(birthYear)) return;
-        const age = currentYear - birthYear;
-        // Group by decade ranges
-        let group;
-        if (age < 30) group = 'أقل من 30';
-        else if (age < 40) group = '30-39';
-        else if (age < 50) group = '40-49';
-        else if (age < 60) group = '50-59';
-        else group = '60+';
-        teacherAgeGroups[group] = (teacherAgeGroups[group] || 0) + 1;
-    });
-    const ageOrder = ['أقل من 30', '30-39', '40-49', '50-59', '60+'];
-    const ageLabels = ageOrder.filter((g) => teacherAgeGroups[g]);
-    const ageData = ageLabels.map((g) => teacherAgeGroups[g]);
-    const ageColors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'];
-
-    // --- Student Status ---
-    const activeStudents =
-        statusSummary.totalStudents - statusSummary.dropouts - statusSummary.expelled - statusSummary.notEnrolled;
-
-    // --- Surplus Teachers (فائضون) ---
-    function isSurplusDashboard(t) {
-        if (Number(t.is_surplus) === 1) return true;
-        const pos = (t.position || '').toLowerCase();
-        const stat = (t.statut || '').toLowerCase();
-        const func = (t.function_title || '').toLowerCase();
-        const combined = `${pos} ${stat} ${func}`;
-        return (
-            combined.includes('surnombre') ||
-            combined.includes('exc\u00e9dentaire') ||
-            combined.includes('excedentaire') ||
-            combined.includes('\u0641\u0627\u0626\u0636')
-        );
-    }
-    const surplusTeachers = teachers.filter(isSurplusDashboard);
-    const surplusTotal = surplusTeachers.length;
-    const surplusBySubject = {};
-    surplusTeachers.forEach((t) => {
-        const subj = (t.specialty_subject || t.subject || '').trim() || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f';
-        surplusBySubject[subj] = (surplusBySubject[subj] || 0) + 1;
-    });
-    const surplusEntries = Object.entries(surplusBySubject).sort((a, b) => b[1] - a[1]);
-    const surplusMales = surplusTeachers.filter((t) => t.gender === '\u0630\u0643\u0631').length;
-    const surplusFemales = surplusTeachers.filter((t) => t.gender === '\u0623\u0646\u062b\u0649').length;
-
-    // Build HTML
-    const html = `<div class="dashboard-section-intro">
-        <div>
-            <p class="dashboard-section-kicker">الخطوة الثالثة</p>
-            <h2>متابعة وضعيات التلاميذ والأطر</h2>
-        </div>
-        <p>عرض مكمل لرصد الحالات التي تستحق انتباها إداريا قبل الانتقال إلى الحركية.</p>
-    </div>
-    <div class="charts-grid">
-        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-chalkboard-teacher"></i> توزيع الأساتذة حسب التخصص</h3></div><div class="chart-body"><canvas id="teacherSubjectChart"></canvas></div></div>
-        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-venus-mars"></i> توزيع الأساتذة حسب الجنس</h3></div><div class="chart-body"><canvas id="teacherGenderChart"></canvas></div></div>
-        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-birthday-cake"></i> توزيع الأساتذة حسب الفئة العمرية</h3></div><div class="chart-body"><canvas id="teacherAgeChart"></canvas></div></div>
-        <div class="chart-card"><div class="chart-header"><h3><i class="fas fa-user-graduate"></i> وضعية التلاميذ</h3></div><div class="chart-body"><canvas id="studentStatusChart"></canvas></div></div>
-        ${
-            surplusTotal > 0
-                ? `<div class="chart-card" style="border-color:var(--color-warning,#f59e0b)">
-            <div class="chart-header" style="border-color:var(--color-warning,#f59e0b)">
-                <h3 style="color:var(--color-warning,#f59e0b)"><i class="fas fa-exclamation-triangle"></i> الأساتذة الفائضون (${surplusTotal})</h3>
-                <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">ذكور: ${surplusMales} — إناث: ${surplusFemales}</div>
-            </div>
-            <div class="chart-body"><canvas id="surplusTeachersChart"></canvas></div>
-        </div>`
-                : ''
-        }
-    </div>`;
-
-    const section = document.getElementById('extra-charts-section');
-    if (!section) return;
-    section.innerHTML = html;
-
-    // Chart 1: Teacher by Subject (horizontal bar)
-    if (subjectEntries.length > 0) {
-        chartInstances.teacherSubject = new Chart(document.getElementById('teacherSubjectChart'), {
-            type: 'bar',
-            data: {
-                labels: subjectEntries.map((e) => e[0]),
-                datasets: [
-                    {
-                        label: 'عدد الأساتذة',
-                        data: subjectEntries.map((e) => e[1]),
-                        backgroundColor: subjectColors,
-                        borderRadius: 6
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                plugins: { legend: { display: false }, tooltip: { rtl: true, textDirection: 'rtl' } },
-                scales: {
-                    x: {
-                        reverse: true,
-                        position: 'top',
-                        min: 0,
-                        grid: { color: tc.gridColor },
-                        ticks: { color: tc.textColor, stepSize: 1 }
-                    },
-                    y: {
-                        position: 'right',
-                        grid: { display: false },
-                        ticks: {
-                            color: tc.textColor,
-                            font: { family: "'IBM Plex Sans Arabic', sans-serif", weight: '600' }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    // Chart 2: Teacher by Gender (doughnut)
+    // Teacher by Gender (doughnut)
     chartInstances.teacherGender = new Chart(document.getElementById('teacherGenderChart'), {
         type: 'doughnut',
         data: {
@@ -1193,7 +1228,7 @@ async function renderExtraCharts() {
         }
     });
 
-    // Chart 3: Teacher by Age Group (bar)
+    // Teacher by Age Group (bar)
     if (ageLabels.length > 0) {
         chartInstances.teacherAge = new Chart(document.getElementById('teacherAgeChart'), {
             type: 'bar',
@@ -1220,33 +1255,7 @@ async function renderExtraCharts() {
         });
     }
 
-    // Chart 4: Student Status (doughnut)
-    chartInstances.studentStatus = new Chart(document.getElementById('studentStatusChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['متمدرسون', 'منقطعون', 'مطرودون', 'غير ملتحقين'],
-            datasets: [
-                {
-                    data: [
-                        Math.max(activeStudents, 0),
-                        statusSummary.dropouts,
-                        statusSummary.expelled,
-                        statusSummary.notEnrolled
-                    ],
-                    backgroundColor: ['#4CAF50', '#FF9800', '#F44336', '#9E9E9E'],
-                    borderWidth: 0,
-                    hoverOffset: 8
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: tc.textColor } } }
-        }
-    });
-
-    // Chart 5: Surplus Teachers by Subject (horizontal bar) — shown only when data exists
+    // Surplus Teachers by Subject (horizontal bar) — shown only when data exists
     if (surplusTotal > 0) {
         const surplusCanvas = document.getElementById('surplusTeachersChart');
         if (surplusCanvas) {
@@ -1313,6 +1322,35 @@ async function renderExtraCharts() {
             });
         }
     }
+
+    // Progressive disclosure: charts created inside a hidden container render at 0px,
+    // so resize them whenever the panel becomes visible.
+    const toggleBtn = document.getElementById('extra-charts-toggle');
+    const collapseEl = document.getElementById('extra-charts-collapse');
+    const resizeCollapsedCharts = () => {
+        collapseKeys.forEach((k) => {
+            const inst = chartInstances[k];
+            if (inst && typeof inst.resize === 'function') inst.resize();
+        });
+    };
+    if (toggleBtn && collapseEl) {
+        toggleBtn.addEventListener('click', () => {
+            const willExpand = collapseEl.hasAttribute('hidden');
+            if (willExpand) {
+                collapseEl.removeAttribute('hidden');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                extraChartsExpanded = true;
+                requestAnimationFrame(resizeCollapsedCharts);
+            } else {
+                collapseEl.setAttribute('hidden', '');
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                extraChartsExpanded = false;
+            }
+        });
+    }
+
+    // Rebuilt while already expanded (e.g. theme toggle) → fix chart sizing after paint.
+    if (expanded) requestAnimationFrame(resizeCollapsedCharts);
 }
 
 function generatePalette(count) {
@@ -1372,21 +1410,13 @@ async function renderMovement(stats) {
     const activeStudents = Math.max(stats.total - dropouts - notEnrolled - expelled, 0);
 
     document.getElementById('movement-section').innerHTML = `
-        <div class="dashboard-section-intro">
-            <div>
-                <p class="dashboard-section-kicker">الخطوة الأخيرة</p>
-                <h2>حركية التلاميذ</h2>
-            </div>
-            <p>مراجعة المغادرين والوافدين والحالات الدراسية النهائية في مكان واحد.</p>
-        </div>
-        <div class="movement-header"><h3><i class="fas fa-exchange-alt"></i> حركية التلاميذ</h3><div class="movement-filters"><select><option>جميع الأقسام</option></select><select><option>الوضعية الحالية</option></select><button class="btn-apply"><i class="fas fa-check"></i> تحيين</button></div></div>
+        <div class="movement-header"><h3><i class="fas fa-exchange-alt"></i> حركية التلاميذ</h3></div>
         <div class="movement-stats">
             <div class="movement-stat registered"><span class="stat-value">${stats.total}</span><span class="stat-label"><i class="fas fa-users"></i> المسجلون</span></div>
             <div class="movement-stat studying"><span class="stat-value">${activeStudents}</span><span class="stat-label"><i class="fas fa-book-reader"></i> المتمدرسون</span></div>
             <div class="movement-stat dropouts"><span class="stat-value">${dropouts}</span><span class="stat-label"><i class="fas fa-user-slash"></i> المنقطعون</span></div>
             <div class="movement-stat non-enrolled"><span class="stat-value">${notEnrolled}</span><span class="stat-label"><i class="fas fa-user-times"></i> غير الملتحقين</span></div>
             <div class="movement-stat"><span class="stat-value">${departures}</span><span class="stat-label"><i class="fas fa-sign-out-alt"></i> المغادرون</span></div>
-            <div class="movement-stat"><span class="stat-value">0</span><span class="stat-label"><i class="fas fa-handshake"></i> المدمجون</span></div>
             <div class="movement-stat"><span class="stat-value">${internals}</span><span class="stat-label"><i class="fas fa-exchange-alt"></i> المنتقلون</span></div>
             <div class="movement-stat"><span class="stat-value">${arrivals}</span><span class="stat-label"><i class="fas fa-sign-in-alt"></i> الوافدون</span></div>
         </div>`;
@@ -1598,6 +1628,8 @@ function refreshDashboard() {
     const stats = calculateStats();
     updateDashboardContext(stats);
     renderStatsCards(stats);
+    // Refresh the cached teacher + status data once so both chart groups render from fresh data.
+    loadDashboardAux(true);
     renderCharts('all', stats);
     void renderExtraCharts();
     void renderMovement(stats);

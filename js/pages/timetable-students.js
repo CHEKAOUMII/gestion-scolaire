@@ -1,16 +1,10 @@
 const StudentTimetable = (function() {
-    const days = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    // C5: days / hour labels / theme via js/shared/timetable-view.js (+ utils hour maps)
+    const days = typeof TT_VIEW_DAYS !== 'undefined' ? TT_VIEW_DAYS : ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
     // Dynamically discovered from FET data
     let discoveredMorningHours = [];
     let discoveredAfternoonHours = [];
-
-    const defaultHourLabels = {
-        H1: '08:30-09:30',
-        H2: '09:30-10:30',
-        H3: '10:30-11:30',
-        H4: '11:30-12:30'
-    };
 
     let timetableData = null;
     let classesIndex = {}; // className -> [{teacher, day, period, hour, subject, room, group}]
@@ -76,26 +70,25 @@ const StudentTimetable = (function() {
             printBtn.addEventListener('click', () => {
                 const className = document.getElementById('student-class-select')?.value || '';
                 const title = className ? `جدول حصص التلاميذ - ${className}` : 'جدول حصص التلاميذ';
+                const safeName =
+                    typeof ttSafeFileName === 'function' ? ttSafeFileName(className || 'students') : className || 'students';
                 PrintSystem.preview({
                     contentSelector: '#student-schedule',
                     title,
                     pageSize: 'A4',
-                    landscape: true
+                    landscape: true,
+                    density: 1,
+                    showDensityControl: true,
+                    defaultFileName: `جدول_تلاميذ_${safeName}.pdf`
                 });
             });
         }
 
-        // Re-render timetable on theme change so subject colors adapt
-        const themeObserver = new MutationObserver((mutations) => {
-            mutations.forEach((m) => {
-                if (m.attributeName === 'data-theme') {
-                    if (classSelect?.value) {
-                        showClassSchedule(classSelect.value);
-                    }
-                }
+        if (typeof ttObserveTheme === 'function') {
+            ttObserveTheme(() => {
+                if (classSelect?.value) showClassSchedule(classSelect.value);
             });
-        });
-        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        }
     }
 
     async function loadTimetableData() {
@@ -151,7 +144,10 @@ const StudentTimetable = (function() {
             }
 
             // Sort hours naturally
-            const naturalSort = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            const naturalSort =
+                typeof ttNaturalSortHours === 'function'
+                    ? ttNaturalSortHours
+                    : (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
             discoveredMorningHours = [...morningSet].sort(naturalSort);
             discoveredAfternoonHours = [...afternoonSet].sort(naturalSort);
 
@@ -201,8 +197,8 @@ const StudentTimetable = (function() {
         });
     }
 
-    function getHourLabel(hourKey) {
-        return defaultHourLabels[hourKey] || hourKey;
+    function getHourLabel(hourKey, period) {
+        return typeof ttResolveHourLabel === 'function' ? ttResolveHourLabel(hourKey, period) : hourKey;
     }
 
     let subjectPalette = null;
@@ -249,29 +245,17 @@ const StudentTimetable = (function() {
         // Show stats with animation
         document.getElementById('student-class-stats-grid').classList.add('visible');
 
-        // Build lookup: day+period+hour -> lessons[]
-        const lookup = {};
-        lessons.forEach((l) => {
-            const key = `${l.day}|${l.period}|${l.hour}`;
-            if (lookup[key]) {
-                lookup[key].push(l);
-            } else {
-                lookup[key] = [l];
-            }
-        });
+        const lookup = typeof ttBuildSlotLookup === 'function' ? ttBuildSlotLookup(lessons) : {};
 
         // Reset subject color map
         subjectColorMap = {};
 
-        // All hours in order
-        const allHoursOrdered = [];
-        discoveredMorningHours.forEach((h) => allHoursOrdered.push({ key: h, period: 'morning' }));
-        discoveredAfternoonHours.forEach((h) => allHoursOrdered.push({ key: h, period: 'afternoon' }));
-
-        const separatorAfter =
-            discoveredMorningHours.length > 0 && discoveredAfternoonHours.length > 0
-                ? discoveredMorningHours.length
-                : -1;
+        const hoursPack =
+            typeof ttBuildHoursOrdered === 'function'
+                ? ttBuildHoursOrdered(discoveredMorningHours, discoveredAfternoonHours)
+                : { allHoursOrdered: [], separatorAfter: -1 };
+        const allHoursOrdered = hoursPack.allHoursOrdered;
+        const separatorAfter = hoursPack.separatorAfter;
 
         let html = `
 <div class="class-info-bar">
@@ -300,7 +284,7 @@ const StudentTimetable = (function() {
             if (separatorAfter > 0 && i === separatorAfter) {
                 html += `<th style="width:4px; padding:0; background: var(--gradient-glass);"></th>`;
             }
-            html += `<th>${getHourLabel(h.key)}</th>`;
+            html += `<th>${getHourLabel(h.key, h.period)}</th>`;
         });
 
         html += `</tr></thead><tbody>`;

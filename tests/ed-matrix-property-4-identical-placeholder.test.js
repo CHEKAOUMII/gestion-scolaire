@@ -11,16 +11,16 @@
 // ---------------------------------------------------------------------------
 // Approach — guard the REAL renderer.
 // ---------------------------------------------------------------------------
-// `renderMatrixGrid()` lives inside an inline <script> in `exams-proctors.html`
-// (it is NOT a requirable module). To exercise the production function rather
-// than a re-implementation, this test EXTRACTS the contiguous source block that
-// spans the module-level matrix constants (ED_MATRIX_IDENTITY_COLS,
-// ED_MATRIX_SUMMARY_COLS, ED_IDENTITY_PLACEHOLDER, ED_UNRECOGNIZED_MARKER), the
-// `edMatrixCellStatus` helper, and `renderMatrixGrid` itself — by string slicing
-// from `const ED_MATRIX_IDENTITY_COLS` to the brace-matched end of
+// `renderMatrixGrid()` lives in `js/pages/exams-proctors.js` (not a requirable
+// module). To exercise the production function rather than a re-implementation,
+// this test EXTRACTS the contiguous source block that spans the module-level
+// matrix constants (ED_MATRIX_IDENTITY_COLS, ED_MATRIX_SUMMARY_COLS,
+// ED_IDENTITY_PLACEHOLDER, ED_UNRECOGNIZED_MARKER), the `edMatrixCellStatus`
+// helper, and `renderMatrixGrid` itself — by string slicing from
+// `const ED_MATRIX_IDENTITY_COLS` to the brace-matched end of
 // `renderMatrixGrid` — and evaluates it with Node's `vm` in a context that
 // supplies its dependencies:
-//   - escHtml            : a faithful copy of the page's escaper
+//   - escapeHtml         : canonical from js/utils.js (CH1)
 //   - window             : { EdMatrixLogic: require('../js/exams/ed-matrix-logic.js') }
 //   - document           : a stub (never used — we always pass an explicit target)
 //   - Map/Object/...     : Node's own intrinsics, so `cells instanceof Map`
@@ -52,18 +52,18 @@ const L = require('../js/exams/ed-matrix-logic.js');
 const MIN_CASES = 100;
 
 // ---------------------------------------------------------------------------
-// 1) Extract renderMatrixGrid + its module-level deps from exams-proctors.html.
+// 1) Extract renderMatrixGrid + its module-level deps from exams-proctors page JS.
 // ---------------------------------------------------------------------------
 
-const HTML_PATH = path.join(__dirname, '..', 'exams-proctors.html');
-const source = fs.readFileSync(HTML_PATH, 'utf8');
+const PAGE_PATH = path.join(__dirname, '..', 'js', 'pages', 'exams-proctors.js');
+const source = fs.readFileSync(PAGE_PATH, 'utf8');
 
 function extractRendererSnippet(src) {
     // Start at the first matrix const; this block also contains edMatrixCellStatus
     // and renderMatrixGrid, in source order.
     const constStart = src.indexOf('const ED_MATRIX_IDENTITY_COLS');
     if (constStart === -1) {
-        throw new Error('Could not locate const ED_MATRIX_IDENTITY_COLS in exams-proctors.html');
+        throw new Error('Could not locate const ED_MATRIX_IDENTITY_COLS in js/pages/exams-proctors.js');
     }
 
     // Find `function renderMatrixGrid(` after the const start, then brace-match.
@@ -71,7 +71,7 @@ function extractRendererSnippet(src) {
     re.lastIndex = constStart;
     const m = re.exec(src);
     if (!m) {
-        throw new Error('Could not locate function renderMatrixGrid in exams-proctors.html');
+        throw new Error('Could not locate function renderMatrixGrid in js/pages/exams-proctors.js');
     }
 
     let i = src.indexOf('{', m.index);
@@ -93,11 +93,14 @@ function extractRendererSnippet(src) {
     return src.slice(constStart, i);
 }
 
-// Faithful copy of the page's escHtml (exams-proctors.html ~line 1195).
-function escHtml(t) {
-    if (t === null || t === undefined) return '';
-    return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// CH1: load canonical escapeHtml from js/utils.js (not a local copy).
+function loadCanonicalEscapeHtml() {
+    const utilsSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'utils.js'), 'utf8');
+    const m = utilsSrc.match(/function escapeHtml\(text\) \{[\s\S]*?\n\}/);
+    if (!m) throw new Error('escapeHtml must exist in js/utils.js');
+    return new Function(m[0] + '\nreturn escapeHtml;')();
 }
+const escapeHtml = loadCanonicalEscapeHtml();
 
 function buildRenderer() {
     const snippet = extractRendererSnippet(source);
@@ -115,7 +118,7 @@ function buildRenderer() {
     // Pass Node's own intrinsics so `cells instanceof Map` holds across realms
     // (the model's cells are Node Maps from the required logic module).
     const sandbox = {
-        escHtml: escHtml,
+        escapeHtml: escapeHtml,
         window: { EdMatrixLogic: L },
         document: { getElementById: function () { return null; } },
         Map: Map,
@@ -130,7 +133,7 @@ function buildRenderer() {
         console: console
     };
     vm.createContext(sandbox);
-    vm.runInContext(wrapped, sandbox, { filename: 'exams-proctors.html#renderMatrixGrid' });
+    vm.runInContext(wrapped, sandbox, { filename: 'js/pages/exams-proctors.js#renderMatrixGrid' });
 
     const exp = sandbox.__EXPORTS__;
     assert.ok(exp && typeof exp.renderMatrixGrid === 'function',
@@ -287,7 +290,7 @@ function checkProperty4(proctors, schedule) {
 // ---------------------------------------------------------------------------
 
 console.log('[test] exemptions-duty-matrix-grid — Property 4: missing identity fields render an identical placeholder');
-console.log('       extracted renderMatrixGrid from exams-proctors.html and evaluated it via vm; placeholder = ' + JSON.stringify(PLACEHOLDER));
+console.log('       extracted renderMatrixGrid from js/pages/exams-proctors.js and evaluated it via vm; placeholder = ' + JSON.stringify(PLACEHOLDER));
 
 try {
     // The single fixed placeholder is exactly the page's ED_IDENTITY_PLACEHOLDER.

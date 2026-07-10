@@ -548,6 +548,10 @@ module.exports = {
 //      via the `reserveHalfdays` set (AC 3.7a).
 
 'use strict';
+var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -574,9 +578,8 @@ function isPlainObject(value) {
  * @returns {string}
  */
 function canonicalKeyOf(proctor, idx) {
-    var cin = (proctor && proctor.cin != null) ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -1799,6 +1802,9 @@ if (typeof window !== 'undefined') {
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '.', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var phase00 = require(path.join(__dirname, 'phases', '00-validate.js'));
 var phase01 = require(path.join(__dirname, 'phases', '01-normalize-keys.js'));
@@ -1866,9 +1872,8 @@ function shallowCopyState(state) {
 }
 
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 function nowMs() {
@@ -4078,6 +4083,9 @@ module.exports = {
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -4155,9 +4163,8 @@ function ciNormalize(s) {
  * don't need to re-import it in this hot path).
  */
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -4800,6 +4807,9 @@ module.exports = {
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -4813,6 +4823,8 @@ var recordGuardOccupancy = hardConstraints.recordGuardOccupancy;
 var clearGuardOccupancy = hardConstraints.clearGuardOccupancy;
 
 var primaryLoad = loadStateUtils.primaryLoad;
+var decrementGuardLoad = loadStateUtils.decrementGuardLoad;
+var incrementGuardLoad = loadStateUtils.incrementGuardLoad;
 
 // Default time budget for Phase 5 (per design.md §4 Phase 5 — 5 seconds).
 var DEFAULT_TIME_BUDGET_MS = 5000;
@@ -4821,11 +4833,8 @@ var DEFAULT_TIME_BUDGET_MS = 5000;
 // computing maxAttempts per proctor. Matches the design pseudocode.
 var ATTEMPT_SAFETY_MARGIN = 5;
 
-// AM_PERIODS / PM_PERIODS mirror the recognized period values from
-// utils/load-state.js — we intentionally do NOT import them because that
-// module exposes them only via _internals (testing-only).
-var AM_PERIODS = ['صباحا', 'AM', 'morning'];
-var PM_PERIODS = ['مساء', 'PM', 'afternoon'];
+// AM_PERIODS / PM_PERIODS / increment|decrementGuardLoad from load-state SSOT
+// (includes 'زوالا' on PM — repair phases previously omitted it).
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -4870,9 +4879,8 @@ function dayKeyFromHalfdayKey(halfdayKey) {
 }
 
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -4889,56 +4897,6 @@ function buildProctorIndex(proctorsList) {
         byKey[k] = { proctor: p, idx: i };
     }
     return byKey;
-}
-
-/**
- * Decrement guardCount and the matching AM/PM bucket for a load-state
- * entry. Counterpart of `addGuardLoad`. Floors at 0 defensively.
- *
- * Note: `wouldDoubleBookSession` and `wouldViolateSameDay` rely on the
- * `guardSessions` and `guardHalfdays` Sets (maintained by
- * `recordGuardOccupancy`). The caller must invoke `clearGuardOccupancy`
- * separately when the donor no longer occupies the session/halfday.
- */
-function decrementGuardLoad(loadState, key, period) {
-    if (!isPlainObject(loadState) || !isPlainObject(loadState.proctors)) return;
-    var entry = loadState.proctors[key];
-    if (!entry) return;
-    if (entry.guardCount > 0) entry.guardCount -= 1;
-    if (typeof period === 'string') {
-        if (AM_PERIODS.indexOf(period) !== -1) {
-            if (entry.amCount > 0) entry.amCount -= 1;
-        } else if (PM_PERIODS.indexOf(period) !== -1) {
-            if (entry.pmCount > 0) entry.pmCount -= 1;
-        }
-    }
-}
-
-/**
- * Increment guardCount and the matching AM/PM bucket. Counterpart of
- * `decrementGuardLoad`. Lazily creates an entry if absent.
- */
-function incrementGuardLoad(loadState, key, period) {
-    if (!isPlainObject(loadState) || !isPlainObject(loadState.proctors)) return;
-    var entry = loadState.proctors[key];
-    if (!entry) {
-        entry = {
-            guardCount: 0,
-            dutyCount: 0,
-            reserveCount: 0,
-            amCount: 0,
-            pmCount: 0
-        };
-        loadState.proctors[key] = entry;
-    }
-    entry.guardCount += 1;
-    if (typeof period === 'string') {
-        if (AM_PERIODS.indexOf(period) !== -1) {
-            entry.amCount += 1;
-        } else if (PM_PERIODS.indexOf(period) !== -1) {
-            entry.pmCount += 1;
-        }
-    }
 }
 
 /**
@@ -5571,6 +5529,9 @@ module.exports = {
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -5584,6 +5545,8 @@ var recordGuardOccupancy = hardConstraints.recordGuardOccupancy;
 var clearGuardOccupancy = hardConstraints.clearGuardOccupancy;
 
 var primaryLoad = loadStateUtils.primaryLoad;
+var decrementGuardLoad = loadStateUtils.decrementGuardLoad;
+var incrementGuardLoad = loadStateUtils.incrementGuardLoad;
 
 // Default time budget for Phase 7 (per design.md §4 Phase 7 — 5 seconds).
 var DEFAULT_TIME_BUDGET_MS = 5000;
@@ -5592,12 +5555,6 @@ var DEFAULT_TIME_BUDGET_MS = 5000;
 // time budget is generous but the swap search keeps thrashing. Each
 // iteration costs at most O(rows × slots × |donors| × |recipients|).
 var MAX_ITERATIONS = 5000;
-
-// AM/PM period tokens — kept in sync with utils/load-state.js. Duplicated
-// here so this module remains self-contained (load-state.js exposes them
-// only via _internals for testing).
-var AM_PERIODS = ['صباحا', 'AM', 'morning'];
-var PM_PERIODS = ['مساء', 'PM', 'afternoon'];
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -5635,9 +5592,8 @@ function periodFromHalfdayKey(halfdayKey) {
 }
 
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -5654,47 +5610,6 @@ function buildProctorIndex(proctorsList) {
         byKey[k] = { proctor: p, idx: i };
     }
     return byKey;
-}
-
-/**
- * Mirror of Phase 5's load mutators. Decrement guardCount and the matching
- * AM/PM bucket. Floors at 0 defensively.
- */
-function decrementGuardLoad(loadState, key, period) {
-    if (!isPlainObject(loadState) || !isPlainObject(loadState.proctors)) return;
-    var entry = loadState.proctors[key];
-    if (!entry) return;
-    if (entry.guardCount > 0) entry.guardCount -= 1;
-    if (typeof period === 'string') {
-        if (AM_PERIODS.indexOf(period) !== -1) {
-            if (entry.amCount > 0) entry.amCount -= 1;
-        } else if (PM_PERIODS.indexOf(period) !== -1) {
-            if (entry.pmCount > 0) entry.pmCount -= 1;
-        }
-    }
-}
-
-function incrementGuardLoad(loadState, key, period) {
-    if (!isPlainObject(loadState) || !isPlainObject(loadState.proctors)) return;
-    var entry = loadState.proctors[key];
-    if (!entry) {
-        entry = {
-            guardCount: 0,
-            dutyCount: 0,
-            reserveCount: 0,
-            amCount: 0,
-            pmCount: 0
-        };
-        loadState.proctors[key] = entry;
-    }
-    entry.guardCount += 1;
-    if (typeof period === 'string') {
-        if (AM_PERIODS.indexOf(period) !== -1) {
-            entry.amCount += 1;
-        } else if (PM_PERIODS.indexOf(period) !== -1) {
-            entry.pmCount += 1;
-        }
-    }
 }
 
 function donorStillInSession(rows, donorKey, sessionKey, excludeRowIndex, excludeSlotIndex) {
@@ -6329,6 +6244,9 @@ module.exports = {
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -6341,6 +6259,8 @@ var clearGuardOccupancy = hardConstraints.clearGuardOccupancy;
 
 var amCount = loadStateUtils.amCount;
 var pmCount = loadStateUtils.pmCount;
+var isAmPeriod = loadStateUtils.isAmPeriod;
+var isPmPeriod = loadStateUtils.isPmPeriod;
 
 // Default time budget for Phase 8 (per design.md §4 Phase 8 — 3 seconds).
 var DEFAULT_TIME_BUDGET_MS = 3000;
@@ -6348,12 +6268,6 @@ var DEFAULT_TIME_BUDGET_MS = 3000;
 // Hard cap on iterations to defend against pathological loops where every
 // candidate exchange is barely-improving and the budget is generous.
 var MAX_ITERATIONS = 5000;
-
-// AM/PM period tokens — kept in sync with utils/load-state.js. Duplicated
-// here so this module remains self-contained. 'زوالا' (noon/PM) is one of
-// the two period strings used by the production fixture (45454.json).
-var AM_PERIODS = ['صباحا', 'AM', 'morning'];
-var PM_PERIODS = ['مساء', 'زوالا', 'PM', 'afternoon'];
 
 // Threshold above which a proctor is considered "imbalanced" (AC 6.5).
 // AC 6.5 says aim for imbalance ≤ 1; we treat ≥ 2 as needing repair.
@@ -6394,18 +6308,9 @@ function periodFromHalfdayKey(halfdayKey) {
     return halfdayKey.slice(idx + 1);
 }
 
-function isAmPeriod(period) {
-    return typeof period === 'string' && AM_PERIODS.indexOf(period) !== -1;
-}
-
-function isPmPeriod(period) {
-    return typeof period === 'string' && PM_PERIODS.indexOf(period) !== -1;
-}
-
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -7136,6 +7041,9 @@ module.exports = {
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -7183,9 +7091,8 @@ function shallowCopyRow(row) {
 }
 
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -8081,6 +7988,9 @@ module.exports = {
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var diagnosticsModule = require(path.join(__dirname, '..', 'diagnostics.js'));
 var resolverModule = require(path.join(
@@ -8135,9 +8045,8 @@ function shallowCopyRow(row) {
 }
 
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -9917,6 +9826,49 @@ function addGuardLoad(loadState, key, halfdayKey, dayKey, sessionKey, period) {
 }
 
 /**
+ * Decrement guardCount and matching AM/PM bucket. Floors at 0.
+ * Counterpart of addGuardLoad for repair/swap phases (coverage, bimodal).
+ * Does not touch guardSessions / guardHalfdays occupancy Sets — caller clears those.
+ *
+ * @param {Object} loadState
+ * @param {string} key
+ * @param {string} [period]
+ */
+function removeGuardLoad(loadState, key, period) {
+    const entry = getEntry(loadState, key);
+    if (!entry) return;
+    if (entry.guardCount > 0) entry.guardCount -= 1;
+    if (typeof period === 'string') {
+        if (AM_PERIODS.indexOf(period) !== -1) {
+            if (entry.amCount > 0) entry.amCount -= 1;
+        } else if (PM_PERIODS.indexOf(period) !== -1) {
+            if (entry.pmCount > 0) entry.pmCount -= 1;
+        }
+    }
+}
+
+/** Alias used by repair phases (05 / 07). */
+function decrementGuardLoad(loadState, key, period) {
+    removeGuardLoad(loadState, key, period);
+}
+
+/**
+ * 3-arg convenience for repair swaps (loadState, key, period only).
+ * Delegates to addGuardLoad with empty informational keys.
+ */
+function incrementGuardLoad(loadState, key, period) {
+    addGuardLoad(loadState, key, '', '', '', period);
+}
+
+function isAmPeriod(period) {
+    return typeof period === 'string' && AM_PERIODS.indexOf(period) !== -1;
+}
+
+function isPmPeriod(period) {
+    return typeof period === 'string' && PM_PERIODS.indexOf(period) !== -1;
+}
+
+/**
  * Increment duty count for `key` (slot-based).
  *
  * User-defined per-halfday duty entries map 1:1 with duty load — each call
@@ -10020,10 +9972,18 @@ module.exports = {
     addGuardLoad,
     addDutyLoad,
     addReserveLoad,
+    removeGuardLoad,
+    decrementGuardLoad,
+    incrementGuardLoad,
     primaryLoad,
     finalLoad,
     amCount,
     pmCount,
+    isAmPeriod,
+    isPmPeriod,
+    // Public SSOT for period bucketing (phases must not re-declare incomplete lists)
+    AM_PERIODS,
+    PM_PERIODS,
     // Exposed for testing / advanced consumers
     _internals: {
         AM_PERIODS,

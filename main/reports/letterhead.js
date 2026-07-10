@@ -1,4 +1,5 @@
 const { getIdentity, getAssetBase64 } = require('./identity');
+const { esc } = require('./html-escape');
 
 /**
  * Renders the official, locked document letterhead.
@@ -67,14 +68,6 @@ function renderLetterhead(overrides = {}) {
                 : ''
         }
     </div>`;
-}
-
-function esc(s) {
-    return String(s || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }
 
 module.exports = { renderLetterhead };

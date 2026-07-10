@@ -1,0 +1,6277 @@
+// CH1: HTML escaping via window.escapeHtml (js/utils.js)
+let year;
+            const PAGE_SIZE = 20;
+
+            let proctorsList = [];
+            let procCurrentPage = 1;
+            let procSearchTerm = '';
+            let procDropzoneVisible = false;
+            let procPendingImportRows = [];
+
+            let candidatesList = [];
+            let candCurrentPage = 1;
+            let candSearchTerm = '';
+            let candDropzoneVisible = false;
+
+            let scheduleList = [];
+            let addedLevels = [];
+
+            let periodsList = [];
+            let periodEditIdx = -1;
+            let exemptionsData = {};
+            let dutyData = {};
+            let reservesData = {};
+
+            let meAssignments = {};
+            let meExamDays = [];
+            let mePeopleSort = { field: 'name', dir: 'asc' };
+            let autoDistributionResult = [];
+            let autoDistributionSummary = null;
+
+            const DISTRIBUTION_STEP_LABELS = {
+                'proctors-data': 'لائحة المراقبين',
+                participants: 'المشاركون الإضافيون',
+                'exemptions-duty': 'الإعفاءات والمداومة',
+                periods: 'تحديد فترات الامتحان',
+                'morning-evening': 'توزيع المجموعتين المتناوبتين',
+                'proctors-per-room': 'عدد المراقبين في كل قاعة',
+                'reserves-per-session': 'عدد الاحتياطي في كل حصة',
+                reserves: 'لائحة الاحتياطيين',
+                'manual-adjust': 'التعديل اليدوي',
+                'auto-distribute': 'التوزيع الآلي'
+            };
+
+            const EXAM_LS_KEYS = [
+                'examCenterConfig', 'examCenterLevels', 'examCenterRoomsData',
+                'examCenterRoomsCount', 'examScheduleData', 'examAutoDistributionData',
+                'examPeriodsData', 'examDistributionRules', 'examExemptionsData',
+                'examDutyTeachersData', 'examReservesData', 'examMorningEveningData',
+                'examAutoDistributionOptions', 'examCandidatesData'
+            ];
+            async function migrateExamLocalStorageToDb() {
+                for (const key of EXAM_LS_KEYS) {
+                    const raw = localStorage.getItem(key);
+                    if (raw === null) continue;
+                    const existing = await window.api.examConfig.get(year, key);
+                    if (existing !== null) {
+                        // Already migrated — remove stale localStorage copy to prevent re-migration after deletes
+                        localStorage.removeItem(key);
+                        continue;
+                    }
+                    let data;
+                    try { data = JSON.parse(raw); } catch { data = raw; }
+                    const res = await window.api.examConfig.save({ school_year: year, config_key: key, data });
+                    if (!res || res.success !== false) {
+                        // Migration succeeded — remove from localStorage so a future delete is final
+                        localStorage.removeItem(key);
+                    }
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                year = getSchoolYear();
+                await migrateExamLocalStorageToDb();
+                addedLevels = (await window.api.examConfig.get(year, 'examCenterLevels')) || [];
+                initDashboard();
+                await initDistSettings();
+                await initPeriodsPanel();
+                await initExemptionsDutyMatrix();
+                await initDistributionRulesPanel();
+                await loadBannerFromConfig();
+                await loadProctors();
+                await initMorningEveningPanel();
+                await initSchedulePanel();
+                await initAutoDistributionPanel();
+                await loadCandidatesFromStorage();
+                await initSchedulePrintFilters();
+                initSummaryPanel();
+                updateDashboardCounts();
+                await updateDistStatuses();
+            });
+
+            async function loadBannerFromConfig() {
+                const config = await window.api.examConfig.get(year, 'examCenterConfig');
+                if (!config) return;
+                const arabicMonths = { '1': 'يناير', '2': 'فبراير', '3': 'مارس', '4': 'أبريل', '5': 'ماي', '6': 'يونيو', '7': 'يوليوز', '8': 'غشت', '9': 'شتنبر', '10': 'أكتوبر', '11': 'نونبر', '12': 'دجنبر' };
+                document.getElementById('epm-banner-text').textContent =
+                    config.exam_name + '  |  دورة ' + (arabicMonths[config.exam_month] || '') + ' ' + (config.exam_year || '');
+            }
+
+            /* ═══ Distribution Settings Navigation ═══ */
+            async function initDistSettings() {
+                document.querySelectorAll('.dist-setting-btn[data-dist]').forEach(btn => {
+                    btn.addEventListener('click', () => openDistSubPanel(btn.dataset.dist));
+                });
+                document.querySelectorAll('.dist-back-btn').forEach(btn => {
+                    btn.addEventListener('click', closeDistSubPanel);
+                });
+                const exitBtn = document.getElementById('dist-exit-btn');
+                if (exitBtn) exitBtn.addEventListener('click', showDashboard);
+                const refreshBtn = document.getElementById('dist-refresh-readiness');
+                if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+                    periodsList = (await window.api.examConfig.get(year, 'examPeriodsData')) || [];
+                    await renderPlanningReadiness();
+                    await updateDistStatuses();
+                    showToast('تم تحديث معطيات البرمجة', 'success');
+                });
+                const planningBtn = document.getElementById('dist-open-planning');
+                if (planningBtn) planningBtn.addEventListener('click', () => {
+                    window.location.href = 'exams-schedule.html';
+                });
+
+                // Accordion toggle
+                document.querySelectorAll('.dist-setting-group-title').forEach(title => {
+                    title.addEventListener('click', () => {
+                        const group = title.closest('.dist-setting-group');
+                        if (!group) return;
+                        group.classList.toggle('dist-setting-group--open');
+                        title.setAttribute('aria-expanded', group.classList.contains('dist-setting-group--open') ? 'true' : 'false');
+                    });
+                });
+
+                // Stepper click scrolls to group
+                document.querySelectorAll('.dist-stepper-step[data-phase]').forEach(step => {
+                    step.addEventListener('click', () => {
+                        const phase = step.dataset.phase;
+                        const group = document.querySelector('.dist-setting-group[data-phase="' + phase + '"]');
+                        if (!group) return;
+                        document.querySelectorAll('.dist-setting-group').forEach(g => g.classList.remove('dist-setting-group--open'));
+                        group.classList.add('dist-setting-group--open');
+                        document.querySelectorAll('.dist-setting-group-title').forEach(t => t.setAttribute('aria-expanded', 'false'));
+                        const groupTitle = group.querySelector('.dist-setting-group-title');
+                        if (groupTitle) groupTitle.setAttribute('aria-expanded', 'true');
+                        document.querySelectorAll('.dist-stepper-step').forEach(s => s.removeAttribute('aria-current'));
+                        step.setAttribute('aria-current', 'step');
+                        group.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    });
+                });
+
+                // Inline quick-rules save (merged settings 7+8)
+                const quickSaveBtn = document.getElementById('btn-save-quick-rules');
+                if (quickSaveBtn) quickSaveBtn.addEventListener('click', async () => {
+                    const proctorsVal = Number(document.getElementById('dist-proctors-per-room-input').value || 2);
+                    const reservesVal = Number(document.getElementById('dist-reserves-per-session-input').value || 0);
+                    const expectedDutyInput = document.getElementById('dist-expected-duty-tasks-input');
+                    const expectedDutyVal = Number(expectedDutyInput ? expectedDutyInput.value : 0);
+                    const rules = await getDistributionRules();
+                    rules.proctorsPerRoom = Math.max(1, proctorsVal);
+                    if (rules.reservesMode === 'percent') {
+                        rules.reservesPercent = Math.max(0, Math.min(100, reservesVal));
+                    } else {
+                        rules.reservesPerSession = Math.max(0, reservesVal);
+                    }
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examDistributionRules', data: rules });
+                    const examCenterConfig = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                    examCenterConfig.expected_duty_tasks = Math.max(0, Number.isFinite(expectedDutyVal) ? Math.floor(expectedDutyVal) : 0);
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examCenterConfig', data: examCenterConfig });
+                    await updateDistStatuses();
+                    showToast('تم حفظ الإعدادات السريعة', 'success');
+                });
+
+                await renderPlanningReadiness();
+                await updateDistStatuses();
+            }
+
+            async function openDistSubPanel(name) {
+                const state = await getDistributionStepState(name);
+                if (state.locked) {
+                    showToast('لا يمكن فتح "' + (DISTRIBUTION_STEP_LABELS[name] || 'هذا الإعداد') + '" الآن. يتطلب: ' + state.missing.join(' + '), 'warning');
+                    return;
+                }
+                document.getElementById('dist-settings-list').style.display = 'none';
+                document.querySelectorAll('.dist-sub-panel').forEach(p => p.style.display = 'none');
+                const sub = document.getElementById('dist-sub-' + name);
+                if (sub) sub.style.display = '';
+            }
+
+            async function closeDistSubPanel() {
+                document.querySelectorAll('.dist-sub-panel').forEach(p => p.style.display = 'none');
+                document.getElementById('dist-settings-list').style.display = '';
+                await renderPlanningReadiness();
+                await updateDistStatuses();
+            }
+
+            async function updateDistStatuses() {
+                await renderPlanningReadiness();
+                setDistStatus('proctors-data', proctorsList.length > 0 ? 'done' : 'todo');
+                setDistStatus('participants', 'todo');
+                exemptionsData = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
+                dutyData = (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {};
+                reservesData = (await window.api.examConfig.get(year, 'examReservesData')) || {};
+                const edHasData = Object.keys(exemptionsData).length > 0 || Object.keys(dutyData).length > 0 || Object.keys(reservesData).length > 0;
+                setDistStatus('exemptions-duty', edHasData ? 'done' : 'todo');
+                periodsList = (await window.api.examConfig.get(year, 'examPeriodsData')) || [];
+                setDistStatus('periods', periodsList.length > 0 ? 'done' : 'todo');
+                var meHasData = Object.values(meAssignments).some(v => v === 1 || v === 2);
+                setDistStatus('morning-evening', meHasData ? 'done' : 'todo');
+                var _rules = await getDistributionRules();
+                setDistStatus('proctors-per-room', _rules.proctorsPerRoom > 0 ? 'done' : 'todo');
+                setDistStatus('reserves-per-session', _rules.reservesPerSession >= 0 ? 'done' : 'todo');
+                setDistStatus('reserves', 'todo');
+                setDistStatus('manual-adjust', 'todo');
+                const savedAutoDistribution = (function() {
+                    var raw = window.api.examConfig.get(year, 'examAutoDistributionData');
+                    return raw;
+                })();
+                var _savedAD = (await savedAutoDistribution) || null;
+                var _savedADRows = [];
+                if (_savedAD) {
+                    if (Array.isArray(_savedAD)) _savedADRows = _savedAD;
+                    else if (_savedAD.algorithmVersion === 'v2' && Array.isArray(_savedAD.rows)) _savedADRows = _savedAD.rows;
+                    else if (_savedAD.algorithmVersion === 'v3' && Array.isArray(_savedAD.rows)) _savedADRows = _savedAD.rows;
+                }
+                setDistStatus('auto-distribute', (autoDistributionResult.length || _savedADRows.length) > 0 ? 'done' : 'todo');
+                await updateDistributionLocks();
+                await renderMorningEveningFeasibilityNote();
+                updateStepperAndProgress();
+            }
+
+            function setDistStatus(key, state) {
+                const el = document.getElementById('dist-status-' + key);
+                if (!el) return;
+                el.textContent = '';
+                const icon = document.createElement('i');
+                if (state === true) state = 'done';
+                if (state === false) state = 'todo';
+                if (state === 'locked') {
+                    icon.className = 'fas fa-lock';
+                    icon.style.color = '#b0b7c3';
+                    icon.title = 'يتطلب إعدادات أخرى';
+                } else if (state === 'done') {
+                    icon.className = 'fas fa-check-circle';
+                    icon.style.color = '#2ecc71';
+                    icon.title = 'مكتمل';
+                } else {
+                    icon.className = 'fas fa-circle';
+                    icon.style.color = '#ddd';
+                    icon.style.fontSize = '12px';
+                    icon.title = 'غير مكتمل';
+                }
+                el.appendChild(icon);
+            }
+
+            function updateStepperAndProgress() {
+                const phaseKeys = {
+                    1: ['proctors-data', 'participants', 'exemptions-duty'],
+                    2: ['periods', 'morning-evening', 'proctors-per-room', 'reserves-per-session'],
+                    3: ['manual-adjust', 'auto-distribute']
+                };
+                const phaseDone = {};
+                for (const [phase, keys] of Object.entries(phaseKeys)) {
+                    let done = 0;
+                    keys.forEach(k => {
+                        const el = document.getElementById('dist-status-' + k);
+                        if (el && el.querySelector('.fa-check-circle')) done++;
+                    });
+                    phaseDone[phase] = done;
+                    const progressEl = document.getElementById('dist-progress-' + phase);
+                    if (progressEl) {
+                        progressEl.textContent = done + '/' + keys.length;
+                        progressEl.classList.toggle('dist-group-progress--done', done === keys.length);
+                    }
+                }
+
+                document.querySelectorAll('.dist-stepper-step').forEach(step => {
+                    const phase = step.dataset.phase;
+                    if (!phase) return;
+                    const keys = phaseKeys[phase];
+                    const done = phaseDone[phase] || 0;
+                    const allDone = done === keys.length;
+                    step.classList.toggle('dist-stepper-step--done', allDone);
+                    step.classList.toggle('dist-stepper-step--active', !allDone && done > 0);
+                });
+            }
+
+            async function getScheduleEntries() {
+                const schedData = (await window.api.examConfig.get(year, 'examScheduleData')) || {};
+                return Object.entries(schedData).flatMap(([levelName, arr]) => {
+                    if (!Array.isArray(arr)) return [];
+                    return arr.map(item => Object.assign({ level_name: levelName }, item || {}));
+                });
+            }
+
+            async function getPlanningReadiness() {
+                const roomsData = (await window.api.examConfig.get(year, 'examCenterRoomsData')) || {};
+                const roomRows = Object.values(roomsData).filter(r => r && (r.roomName || r.count || r.firstNum || r.lastNum));
+                const scheduleEntries = await getScheduleEntries();
+                const scheduledEntries = scheduleEntries.filter(s => s && (s.date_day || s.date || s.time_from || s.time));
+                const periods = (await window.api.examConfig.get(year, 'examPeriodsData')) || [];
+                const roomsCount = roomRows.length;
+                const sessionsCount = scheduledEntries.length;
+                const periodsCount = Array.isArray(periods) ? periods.length : 0;
+                const examDays = generateExamDaysFromPeriods(periods);
+                const guardTasks = Math.max(roomsCount, 0) * Math.max(examDays.length * 2, sessionsCount ? 1 : 0);
+
+                return {
+                    roomsCount,
+                    sessionsCount,
+                    periodsCount,
+                    examDaysCount: examDays.length,
+                    guardTasks,
+                    hasRooms: roomsCount > 0,
+                    hasSchedule: sessionsCount > 0,
+                    hasPeriods: periodsCount > 0
+                };
+            }
+
+            function generateExamDaysFromPeriods(periods) {
+                const days = [];
+                if (!Array.isArray(periods)) return days;
+                periods.forEach(period => {
+                    if (!period.date_from || !period.date_to) return;
+                    const start = new Date(period.date_from);
+                    const end = new Date(period.date_to);
+                    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        days.push(d.toISOString().slice(0, 10));
+                    }
+                });
+                return Array.from(new Set(days));
+            }
+
+            async function renderPlanningReadiness() {
+                const ready = await getPlanningReadiness();
+                updateReadyItem('ready-rooms', ready.hasRooms, ready.roomsCount + ' قاعة');
+                updateReadyItem('ready-schedule', ready.hasSchedule, ready.sessionsCount + ' حصة');
+                updateReadyItem('ready-periods', ready.hasPeriods, ready.periodsCount + ' فترة');
+                updateReadyItem('ready-load', ready.guardTasks > 0, ready.guardTasks + ' مهمة');
+
+                const missing = [];
+                if (!ready.hasRooms) missing.push('القاعات');
+                if (!ready.hasSchedule) missing.push('البرمجة');
+                if (!ready.hasPeriods) missing.push('الفترات');
+
+                const note = document.getElementById('dist-readiness-note');
+                if (!note) return;
+                note.className = 'dist-readiness-note ' + (missing.length ? 'dist-readiness-note--warning' : 'dist-readiness-note--ok');
+                note.innerHTML = missing.length
+                    ? '<i class="fas fa-exclamation-triangle"></i> أكمل في صفحة برمجة الامتحان: ' + escapeHtml(missing.join('، '))
+                    : '<i class="fas fa-check-circle"></i> معطيات البرمجة جاهزة لاستعمالها في التوزيع.';
+                await renderReadinessHalfdayTable();
+            }
+
+            async function getReadinessHalfdayRows() {
+                const rules = await getDistributionRules();
+                const groupCounts = getMorningEveningGroupCounts();
+                const scheduleEntries = (await getScheduleEntries())
+                    .filter(s => s && (s.date_day || s.time_from || s.subject_name))
+                    .sort((a, b) => getScheduleSortKey(a).localeCompare(getScheduleSortKey(b), 'ar'));
+                const grouped = new Map();
+                for (const entry of scheduleEntries) {
+                    const key = getAutoDistributionHalfdayKey(entry);
+                    const rooms = await getRoomRowsForLevel(entry.level_name);
+                    const roomCount = rooms.length;
+                    const guardNeed = roomCount * rules.proctorsPerRoom;
+                    const sessionKey = getAutoDistributionSessionKey(entry);
+                    const base = grouped.get(key) || {
+                        key,
+                        label: getAutoDistributionHalfdayLabel(entry),
+                        period: entry.period || 'صباحا',
+                        groupNumber: await getExpectedGroupForSession(entry),
+                        sessions: new Set(),
+                        roomsCount: 0,
+                        guardNeed: 0
+                    };
+                    base.sessions.add(sessionKey);
+                    base.roomsCount = Math.max(base.roomsCount, roomCount);
+                    base.guardNeed = Math.max(base.guardNeed, guardNeed);
+                    grouped.set(key, base);
+                }
+                return Array.from(grouped.values()).map(row => {
+                    const groupCount = row.groupNumber === 1 ? groupCounts.g1 : row.groupNumber === 2 ? groupCounts.g2 : 0;
+                    const reserveNeed = computeReservesForSession(row.guardNeed, rules);
+                    const totalNeed = row.guardNeed + reserveNeed;
+                    return Object.assign(row, {
+                        sessionsCount: row.sessions.size,
+                        groupLabel: getGroupLabel(row.groupNumber),
+                        groupCount,
+                        reserveNeed,
+                        totalNeed,
+                        enough: groupCount >= totalNeed && totalNeed > 0
+                    });
+                });
+            }
+
+            async function renderReadinessHalfdayTable() {
+                const box = document.getElementById('dist-readiness-halfdays');
+                if (!box) return;
+                const rows = await getReadinessHalfdayRows();
+                if (!rows.length) {
+                    box.innerHTML = '<div class="dist-halfday-empty"><i class="fas fa-info-circle"></i> بعد حفظ الجدولة والقاعات ستظهر هنا حاجيات كل نصف يوم.</div>';
+                    return;
+                }
+                box.innerHTML = '<div class="dist-halfday-title"><i class="fas fa-table"></i> حاجيات الحراسة حسب أنصاف الأيام</div>' +
+                    '<div class="dist-halfday-table-wrap"><table class="dist-halfday-table">' +
+                    '<thead><tr><th>نصف اليوم</th><th>الحصص</th><th>أكبر عدد قاعات</th><th>مهام أكبر حصة</th><th>الاحتياط</th><th>الحاجة القصوى</th><th>المجموعة المكلفة</th><th>عدد المجموعة</th><th>الوضع</th></tr></thead>' +
+                    '<tbody>' + rows.map(row => '<tr>' +
+                        '<td>' + escapeHtml(row.label || row.key) + '</td>' +
+                        '<td>' + row.sessionsCount + '</td>' +
+                        '<td>' + row.roomsCount + '</td>' +
+                        '<td>' + row.guardNeed + '</td>' +
+                        '<td>' + row.reserveNeed + '</td>' +
+                        '<td><strong>' + row.totalNeed + '</strong></td>' +
+                        '<td>' + escapeHtml(row.groupLabel) + '</td>' +
+                        '<td>' + row.groupCount + '</td>' +
+                        '<td><span class="dist-halfday-status ' + (row.enough ? 'dist-halfday-status--ok' : 'dist-halfday-status--warn') + '">' +
+                            (row.enough ? 'كافٍ' : 'خصاص ' + Math.max(row.totalNeed - row.groupCount, 0)) +
+                        '</span></td>' +
+                    '</tr>').join('') + '</tbody></table></div>';
+            }
+
+            function updateReadyItem(id, done, value) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.toggle('dist-ready-item--done', done);
+                el.classList.toggle('dist-ready-item--missing', !done);
+                const valueEl = el.querySelector('.dist-ready-value');
+                if (valueEl) valueEl.textContent = value;
+            }
+
+            async function getDistributionStepState(key) {
+                const ready = await getPlanningReadiness();
+                const hasProctors = proctorsList.length > 0;
+                const meHasData = Object.values(meAssignments).some(v => v === 1 || v === 2);
+                const missing = [];
+
+                if (['participants', 'exemptions-duty', 'morning-evening', 'reserves-per-session', 'reserves', 'manual-adjust', 'auto-distribute'].includes(key) && !hasProctors) {
+                    missing.push('لائحة المراقبين');
+                }
+                if (['morning-evening', 'reserves-per-session', 'reserves', 'manual-adjust', 'auto-distribute'].includes(key) && !ready.hasPeriods) {
+                    missing.push('الفترات');
+                }
+                if (['proctors-per-room', 'manual-adjust', 'auto-distribute'].includes(key) && !ready.hasRooms) {
+                    missing.push('القاعات');
+                }
+                if (['reserves-per-session', 'reserves', 'manual-adjust', 'auto-distribute'].includes(key) && !ready.hasSchedule) {
+                    missing.push('البرمجة');
+                }
+                if (['manual-adjust'].includes(key) && !meHasData) {
+                    missing.push('توزيع المجموعتين المتناوبتين');
+                }
+
+                return { locked: missing.length > 0, missing };
+            }
+
+            async function updateDistributionLocks() {
+                const btns = document.querySelectorAll('.dist-setting-btn[data-dist]');
+                for (const btn of btns) {
+                    const state = await getDistributionStepState(btn.dataset.dist);
+                    btn.classList.toggle('dist-setting-btn--locked', state.locked);
+                    btn.setAttribute('aria-disabled', state.locked ? 'true' : 'false');
+                    btn.title = state.locked ? 'يتطلب: ' + state.missing.join(' + ') : '';
+                    if (state.locked) {
+                        setDistStatus(btn.dataset.dist, 'locked');
+                        const desc = btn.querySelector('.dist-setting-desc');
+                        if (desc && !desc.dataset.originalText) desc.dataset.originalText = desc.textContent;
+                        if (desc) desc.textContent = 'يتطلب: ' + state.missing.join(' + ');
+                    } else {
+                        const desc = btn.querySelector('.dist-setting-desc');
+                        if (desc && desc.dataset.originalText) desc.textContent = desc.dataset.originalText;
+                    }
+                }
+            }
+
+            async function getExamConfig() {
+                return (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+            }
+
+            async function getDistributionRules() {
+                const config = await getExamConfig();
+                const saved = (await window.api.examConfig.get(year, 'examDistributionRules')) || {};
+                const proctorsPerRoom = Number(saved.proctorsPerRoom ?? config.supervisors_per_room ?? 2);
+                const reservesPerSession = Number(saved.reservesPerSession ?? config.max_reserves ?? 0);
+                const reservesMode = (saved.reservesMode ?? config.max_reserves_mode) === 'percent' ? 'percent' : 'fixed';
+                const reservesPercentRaw = Number(saved.reservesPercent ?? config.max_reserves_percent ?? 20);
+                const reservesPercent = Number.isFinite(reservesPercentRaw) && reservesPercentRaw >= 0 ? Math.min(reservesPercentRaw, 100) : 20;
+                // AC 1.8: when `algorithmVersion` is absent from the saved rules,
+                // default to V2 to preserve legacy behavior.
+                const algorithmVersion = (saved.algorithmVersion === 'v3') ? 'v3'
+                    : (saved.algorithmVersion === 'v1') ? 'v1' : 'v2';
+                return {
+                    proctorsPerRoom: Number.isFinite(proctorsPerRoom) && proctorsPerRoom > 0 ? proctorsPerRoom : 2,
+                    reservesPerSession: Number.isFinite(reservesPerSession) && reservesPerSession >= 0 ? reservesPerSession : 0,
+                    reservesMode,
+                    reservesPercent,
+                    algorithmVersion
+                };
+            }
+
+            // Compute the number of reserve proctors required for a single session,
+            // honoring the configured mode (fixed count or percent of session guard need).
+            function computeReservesForSession(guardNeed, rules) {
+                if (!rules) return 0;
+                if (rules.reservesMode === 'percent') {
+                    const need = Number(guardNeed) || 0;
+                    const pct = Number(rules.reservesPercent) || 0;
+                    return Math.max(0, Math.round(need * pct / 100));
+                }
+                return Math.max(0, Number(rules.reservesPerSession) || 0);
+            }
+
+            async function initDistributionRulesPanel() {
+                const rules = await getDistributionRules();
+                const examCenterConfig = await getExamConfig();
+                const proctorsInput = document.getElementById('dist-proctors-per-room-input');
+                const reservesInput = document.getElementById('dist-reserves-per-session-input');
+                const expectedDutyInput = document.getElementById('dist-expected-duty-tasks-input');
+                if (proctorsInput) proctorsInput.value = rules.proctorsPerRoom;
+                if (expectedDutyInput) {
+                    expectedDutyInput.value = String(Math.max(0, Number(examCenterConfig.expected_duty_tasks) || 0));
+                }
+                if (reservesInput) {
+                    const reservesLabel = document.querySelector('label[for="dist-reserves-per-session-input"]');
+                    if (rules.reservesMode === 'percent') {
+                        reservesInput.value = rules.reservesPercent;
+                        reservesInput.min = '0';
+                        reservesInput.max = '100';
+                        reservesInput.title = 'نسبة مئوية من حراس الحصة (تُحسب لكل حصة على حدة)';
+                        if (reservesLabel) reservesLabel.textContent = 'نسبة الاحتياط (% من حراس الحصة)';
+                    } else {
+                        reservesInput.value = rules.reservesPerSession;
+                        reservesInput.min = '0';
+                        reservesInput.max = '20';
+                        reservesInput.title = '';
+                        if (reservesLabel) reservesLabel.textContent = 'عدد الاحتياطي في كل حصة';
+                    }
+                }
+            }
+
+            async function saveDistributionRule(key, value) {
+                const rules = await getDistributionRules();
+                if (key === 'proctorsPerRoom') rules.proctorsPerRoom = Math.max(1, Number(value) || 2);
+                if (key === 'reservesPerSession') rules.reservesPerSession = Math.max(0, Number(value) || 0);
+                await window.api.examConfig.save({ school_year: year, config_key: 'examDistributionRules', data: rules });
+                await updateDistStatuses();
+                showToast('تم حفظ قاعدة التوزيع', 'success');
+            }
+
+            /* ═══ Periods Panel ═══ */
+            async function initPeriodsPanel() {
+                periodsList = (await window.api.examConfig.get(year, 'examPeriodsData')) || [];
+                renderPeriodsTable();
+                resetPeriodForm();
+                await renderPlanningReadiness();
+                await updateDistStatuses();
+
+                document.getElementById('btn-period-save').addEventListener('click', savePeriod);
+                document.getElementById('btn-period-add').addEventListener('click', () => {
+                    periodEditIdx = -1;
+                    resetPeriodForm();
+                });
+                document.getElementById('btn-period-cancel').addEventListener('click', () => {
+                    periodEditIdx = -1;
+                    resetPeriodForm();
+                });
+                document.getElementById('btn-periods-clear-all').addEventListener('click', clearAllPeriods);
+            }
+
+            function resetPeriodForm() {
+                document.getElementById('period-name').value = '';
+                document.getElementById('period-date-from').value = '';
+                document.getElementById('period-date-to').value = '';
+                document.getElementById('period-num').value = periodEditIdx >= 0 ? periodEditIdx + 1 : periodsList.length + 1;
+                periodEditIdx = -1;
+                document.getElementById('btn-period-edit-mode').style.display = 'none';
+                document.getElementById('btn-period-save').style.display = '';
+            }
+
+            async function savePeriod() {
+                const name = document.getElementById('period-name').value.trim();
+                const dateFrom = document.getElementById('period-date-from').value;
+                const dateTo = document.getElementById('period-date-to').value;
+
+                if (!name) { showToast('يرجى إدخال اسم الفترة', 'warning'); return; }
+                if (!dateFrom || !dateTo) { showToast('يرجى تحديد تاريخ البداية والنهاية', 'warning'); return; }
+                if (dateFrom > dateTo) { showToast('تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 'warning'); return; }
+
+                const entry = { name, date_from: dateFrom, date_to: dateTo };
+
+                if (periodEditIdx >= 0) {
+                    periodsList[periodEditIdx] = entry;
+                    showToast('تم تعديل الفترة بنجاح', 'success');
+                } else {
+                    periodsList.push(entry);
+                    showToast('تمت إضافة الفترة بنجاح', 'success');
+                }
+
+                await window.api.examConfig.save({ school_year: year, config_key: 'examPeriodsData', data: periodsList });
+                periodEditIdx = -1;
+                resetPeriodForm();
+                renderPeriodsTable();
+                await updateDistStatuses();
+            }
+
+            function renderPeriodsTable() {
+                const tbody = document.getElementById('periods-tbody');
+                tbody.textContent = '';
+
+                if (!periodsList.length) {
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+                    td.colSpan = 5;
+                    td.style.cssText = 'padding:30px;text-align:center;color:var(--color-text-muted)';
+                    const icon = document.createElement('i');
+                    icon.className = 'fas fa-info-circle';
+                    icon.style.marginLeft = '6px';
+                    td.appendChild(icon);
+                    td.appendChild(document.createTextNode('لم يتم تحديد أي فترة بعد'));
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                } else {
+                    periodsList.forEach((p, i) => {
+                        const tr = document.createElement('tr');
+
+                        const tdNum = document.createElement('td');
+                        tdNum.textContent = i + 1;
+                        tr.appendChild(tdNum);
+
+                        const tdName = document.createElement('td');
+                        tdName.style.fontWeight = '600';
+                        tdName.textContent = p.name;
+                        tr.appendChild(tdName);
+
+                        const tdFrom = document.createElement('td');
+                        tdFrom.textContent = formatDateAr(p.date_from);
+                        tr.appendChild(tdFrom);
+
+                        const tdTo = document.createElement('td');
+                        tdTo.textContent = formatDateAr(p.date_to);
+                        tr.appendChild(tdTo);
+
+                        const tdActions = document.createElement('td');
+                        tdActions.className = 'no-print';
+
+                        const editBtn = document.createElement('button');
+                        editBtn.className = 'sup-del-btn';
+                        editBtn.title = 'تعديل';
+                        editBtn.addEventListener('click', () => editPeriod(i));
+                        const editIcon = document.createElement('i');
+                        editIcon.className = 'fas fa-edit';
+                        editBtn.appendChild(editIcon);
+
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'sup-del-btn';
+                        delBtn.title = 'حذف';
+                        delBtn.addEventListener('click', () => deletePeriod(i));
+                        const delIcon = document.createElement('i');
+                        delIcon.className = 'fas fa-times';
+                        delBtn.appendChild(delIcon);
+
+                        tdActions.appendChild(editBtn);
+                        tdActions.appendChild(document.createTextNode(' '));
+                        tdActions.appendChild(delBtn);
+                        tr.appendChild(tdActions);
+
+                        tbody.appendChild(tr);
+                    });
+                }
+                document.getElementById('period-count-badge').textContent = periodsList.length;
+            }
+
+            function editPeriod(idx) {
+                if (idx < 0 || idx >= periodsList.length) return;
+                const p = periodsList[idx];
+                periodEditIdx = idx;
+                document.getElementById('period-name').value = p.name;
+                document.getElementById('period-date-from').value = p.date_from;
+                document.getElementById('period-date-to').value = p.date_to;
+                document.getElementById('period-num').value = idx + 1;
+                document.getElementById('btn-period-edit-mode').style.display = '';
+                document.getElementById('btn-period-save').style.display = '';
+            }
+
+            async function deletePeriod(idx) {
+                if (idx < 0 || idx >= periodsList.length) return;
+                const r = await showConfirm({ type: 'danger', title: 'حذف فترة', message: 'حذف "' + periodsList[idx].name + '"؟', confirmText: 'حذف' });
+                if (!r.confirmed) return;
+                periodsList.splice(idx, 1);
+                await window.api.examConfig.save({ school_year: year, config_key: 'examPeriodsData', data: periodsList });
+                renderPeriodsTable();
+                resetPeriodForm();
+                await updateDistStatuses();
+                showToast('تم حذف الفترة', 'success');
+            }
+
+            async function clearAllPeriods() {
+                if (!periodsList.length) { showToast('لا توجد فترات', 'warning'); return; }
+                const r = await showConfirm({ type: 'danger', title: 'حذف الكل', message: 'حذف جميع الفترات (' + periodsList.length + ')؟', confirmText: 'حذف الكل' });
+                if (!r.confirmed) return;
+                periodsList = [];
+                await window.api.examConfig.delete({ school_year: year, config_key: 'examPeriodsData' });
+                renderPeriodsTable();
+                resetPeriodForm();
+                await updateDistStatuses();
+                showToast('تم حذف جميع الفترات', 'success');
+            }
+
+            // CH4: formatDateAr default style 'dmy' via js/shared/date-utils.js
+
+            /* ═══ Exemptions & Duty: see initExemptionsDutyMatrix (matrix grid) ═══ */
+
+            function getProctorExemptionKey(proc, idx) {
+                return proc.cin || proc.som || ('idx_' + idx);
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Matrix Grid renderer (feature: exemptions-duty-matrix-grid, Task 11.1)
+               Pure rendering of a MatrixModel into the grid DOM. No save / reset /
+               search-control / inline-edit wiring here (those land in tasks 12–15).
+               Delegates all computation to window.EdMatrixLogic.
+               ═══════════════════════════════════════════════════════════════ */
+
+            // Identity columns in RTL display order (right → left): ترتيب, الاسم,
+            // رقم التأجير, المؤسسة, مادة التخصص (Requirement 2.1). `width` feeds the
+            // cumulative `right` offset that pins each column when scrolling.
+            const ED_MATRIX_IDENTITY_COLS = [
+                { key: 'order', label: 'ترتيب', width: 54 },
+                { key: 'name', label: 'الاسم', width: 180 },
+                { key: 'registration', label: 'رقم التأجير', width: 110 },
+                { key: 'institution', label: 'المؤسسة', width: 150 },
+                { key: 'specialty', label: 'مادة التخصص', width: 150 }
+            ];
+            // Trailing Summary_Columns (Requirement 8.x): guard / duty / reserve / exempt.
+            const ED_MATRIX_SUMMARY_COLS = [
+                { key: 'guard', label: 'حراسة' },
+                { key: 'duty', label: 'مداومة' },
+                { key: 'reserve', label: 'احتياط' },
+                { key: 'exempt', label: 'معفى' }
+            ];
+            // ONE identical placeholder for every empty/null identity field (Req 2.2).
+            const ED_IDENTITY_PLACEHOLDER = '—';
+            // Explicit marker for a non-enum in-memory status (Req 3.4).
+            const ED_UNRECOGNIZED_MARKER = '؟';
+
+            // Read a row's status for one session; cells is a Map (model) or a
+            // plain object; absence resolves to guard (the default, Req 4.1).
+            function edMatrixCellStatus(cells, sessionKey) {
+                if (!cells) return 'guard';
+                if (typeof Map !== 'undefined' && cells instanceof Map) {
+                    return cells.has(sessionKey) ? cells.get(sessionKey) : 'guard';
+                }
+                return Object.prototype.hasOwnProperty.call(cells, sessionKey) ? cells[sessionKey] : 'guard';
+            }
+
+            /**
+             * Render a MatrixModel into the grid DOM (replaces renderEdTable's
+             * single-session list with the full proctor × session matrix).
+             *
+             * @param {{sessions:Array, dateGroups:Array, rows:Array, totalSessions:number}} matrixModel
+             * @param {{searchText?:string, statusFilter?:string, sort?:object}} [viewState]
+             *        When provided, visible rows = applySearchFilterSort(rows, viewState).
+             * @param {HTMLElement} [targetContainer] defaults to #ed-matrix-container.
+             * @returns {HTMLElement|null} the container the grid was rendered into.
+             */
+            function renderMatrixGrid(matrixModel, viewState, targetContainer) {
+                const logic = window.EdMatrixLogic || {};
+                const STATUS_CODE = logic.STATUS_CODE || { guard: 'ك', exempt: 'معفى', duty: 'م', reserve: 'إح' };
+                const KNOWN = { guard: 1, exempt: 1, duty: 1, reserve: 1 };
+
+                const container = targetContainer || document.getElementById('ed-matrix-container');
+                const model = matrixModel || { sessions: [], dateGroups: [], rows: [], totalSessions: 0 };
+                const sessions = Array.isArray(model.sessions) ? model.sessions : [];
+                const dateGroups = Array.isArray(model.dateGroups) ? model.dateGroups : [];
+                const allRows = Array.isArray(model.rows) ? model.rows : [];
+
+                // Visible rows: search/filter/sort if a viewState is supplied,
+                // otherwise render every row (Task 11.1 contract).
+                let rows = allRows;
+                if (viewState && typeof logic.applySearchFilterSort === 'function') {
+                    rows = logic.applySearchFilterSort(allRows, viewState) || [];
+                }
+
+                // Empty states (Req 1.5/1.6/1.7): "add proctors first" wins over
+                // "no sessions available".
+                if (!allRows.length) {
+                    if (container) {
+                        container.innerHTML = '<div class="ed-matrix-empty" data-ed-empty="no-proctors">'
+                            + '<i class="fas fa-info-circle" style="margin-left:6px"></i>يرجى إضافة المراقبين أولا</div>';
+                    }
+                    return container;
+                }
+                if (!sessions.length) {
+                    if (container) {
+                        container.innerHTML = '<div class="ed-matrix-empty" data-ed-empty="no-sessions">'
+                            + '<i class="fas fa-info-circle" style="margin-left:6px"></i>لا توجد حصص متاحة للتعديل</div>';
+                    }
+                    return container;
+                }
+
+                // Stacked sticky right-offsets for the frozen identity columns
+                // (RTL, Requirements 10.1 + 10.4).
+                let cumRight = 0;
+                const identityCols = ED_MATRIX_IDENTITY_COLS.map((c, i) => {
+                    const col = { key: c.key, label: c.label, width: c.width, right: cumRight, index: i };
+                    cumRight += c.width;
+                    return col;
+                });
+                const identityStyle = (c) => 'style="right:' + c.right + 'px;min-width:' + c.width + 'px;width:' + c.width + 'px"';
+                const identityClass = (c) => 'ed-identity-col ed-identity-col-' + c.key;
+
+                // Header row 1: identity headers (rowspan 2) + date-group headers
+                // (colspan over their sessions) + summary headers (rowspan 2).
+                // Identity headers are sortable (Task 15.1, Req 9.5): they carry
+                // data-ed-matrix-sort + an aria-sort/indicator reflecting viewState.
+                const sortState = (viewState && viewState.sort) ? viewState.sort : null;
+                let head = '<tr>';
+                identityCols.forEach(c => {
+                    const isSorted = !!(sortState && sortState.column === c.key);
+                    const dir = isSorted ? (sortState.direction === 'desc' ? 'desc' : 'asc') : '';
+                    const icon = isSorted ? (dir === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+                    const ariaSort = isSorted ? (dir === 'asc' ? 'ascending' : 'descending') : 'none';
+                    head += '<th rowspan="2" class="' + identityClass(c) + ' ed-matrix-sortable" ' + identityStyle(c)
+                        + ' data-ed-matrix-sort="' + escapeHtml(c.key) + '" aria-sort="' + ariaSort + '">'
+                        + escapeHtml(c.label) + ' <i class="fas ' + icon + '" aria-hidden="true"></i></th>';
+                });
+                dateGroups.forEach(g => {
+                    const span = g.span || (Array.isArray(g.columns) ? g.columns.length : 1);
+                    const label = g.dateLabel || ED_IDENTITY_PLACEHOLDER;
+                    head += '<th class="ed-date-group-header" colspan="' + span + '">' + escapeHtml(label) + '</th>';
+                });
+                ED_MATRIX_SUMMARY_COLS.forEach(s => {
+                    head += '<th rowspan="2" class="ed-summary-col ed-summary-col-' + s.key + '">' + escapeHtml(s.label) + '</th>';
+                });
+                head += '</tr>';
+
+                // Header row 2: one session header per column, grouped under its date.
+                head += '<tr>';
+                dateGroups.forEach(g => {
+                    (g.columns || []).forEach(col => {
+                        const sub = (Array.isArray(col.subjects) && col.subjects.length) ? col.subjects.join('، ') : '';
+                        const title = col.period + ' | ' + col.session + (sub ? ' | ' + sub : '');
+                        head += '<th class="ed-session-header" data-session-key="' + escapeHtml(col.sessionKey) + '" title="' + escapeHtml(title) + '">'
+                            + escapeHtml(col.period) + '<br>' + escapeHtml(col.session) + '</th>';
+                    });
+                });
+                head += '</tr>';
+
+                // Body: one row per proctor, identity → status cells → summaries.
+                let body = '';
+                rows.forEach((row, rowIdx) => {
+                    const identity = row.identity || {};
+                    body += '<tr data-row-key="' + escapeHtml(row.proctorKey) + '">';
+                    identityCols.forEach(c => {
+                        let raw;
+                        if (c.key === 'order') {
+                            raw = rowIdx + 1; // gapless 1..n in display order (Req 2.4/2.5)
+                        } else {
+                            raw = identity[c.key];
+                        }
+                        const missing = c.key !== 'order' && (raw === null || raw === undefined || String(raw).trim() === '');
+                        const cellVal = missing ? ED_IDENTITY_PLACEHOLDER : escapeHtml(raw);
+                        const missClass = missing ? ' ed-identity-missing' : '';
+                        body += '<td class="' + identityClass(c) + missClass + '" ' + identityStyle(c) + '>' + cellVal + '</td>';
+                    });
+                    dateGroups.forEach(g => {
+                        (g.columns || []).forEach(col => {
+                            const status = edMatrixCellStatus(row.cells, col.sessionKey);
+                            const baseAttrs = ' data-row-key="' + escapeHtml(row.proctorKey) + '" data-session-key="' + escapeHtml(col.sessionKey) + '"';
+                            if (KNOWN[status]) {
+                                body += '<td class="ed-status-cell ed-status-' + status + '"' + baseAttrs + ' data-status="' + status + '">'
+                                    + escapeHtml(STATUS_CODE[status]) + '</td>';
+                            } else {
+                                // Unrecognized in-memory value: explicit marker, none
+                                // of the four Status_Codes/colors (Requirement 3.4).
+                                body += '<td class="ed-status-cell ed-cell-unrecognized"' + baseAttrs + ' data-status="' + escapeHtml(String(status)) + '" title="حالة غير معروفة">'
+                                    + ED_UNRECOGNIZED_MARKER + '</td>';
+                            }
+                        });
+                    });
+                    const summary = row.summary || { guard: 0, duty: 0, reserve: 0, exempt: 0 };
+                    ED_MATRIX_SUMMARY_COLS.forEach(s => {
+                        body += '<td class="ed-summary-col ed-summary-col-' + s.key + '">' + (summary[s.key] || 0) + '</td>';
+                    });
+                    body += '</tr>';
+                });
+
+                // No rows match the active search/filter (Req 9.6 — rendered here,
+                // fully tested in task 15.2).
+                if (!rows.length) {
+                    const span = identityCols.length + sessions.length + ED_MATRIX_SUMMARY_COLS.length;
+                    body = '<tr><td class="ed-matrix-empty" data-ed-empty="no-match" colspan="' + span + '">'
+                        + '<i class="fas fa-info-circle" style="margin-left:6px"></i>لا يوجد مراقبون مطابقون للبحث والتصفية</td></tr>';
+                }
+
+                const tableHtml = '<table class="ed-matrix" dir="rtl"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+                if (container) container.innerHTML = tableHtml;
+                return container;
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Inline cell editing (feature: exemptions-duty-matrix-grid, Task 12.1)
+               Interaction layer over the rendered matrix. Maintains an in-memory
+               MatrixModel (`edMatrixModel`, set by the panel-wiring task 13) and
+               edits a single Status_Cell at a time. No persistence here — Save is
+               task 13. Delegates summary recompute to window.EdMatrixLogic.
+               ═══════════════════════════════════════════════════════════════ */
+
+            // Current in-memory MatrixModel (shape from EdMatrixLogic.buildMatrixModel:
+            // { sessions, dateGroups, rows, totalSessions }). Task 13 assigns this on
+            // panel load; the 12.x tests and inline editing read/mutate it here.
+            let edMatrixModel = null;
+            // View state (search/filter/sort) driving applySearchFilterSort on
+            // each re-render (Task 15.1). Initialized as an object so the matrix
+            // renders a renumbered subset and the no-match message can appear.
+            let edMatrixViewState = { searchText: '', statusFilter: '', sort: null };
+            // The currently-open inline editor popup element, or null.
+            let edOpenCellEditor = null;
+
+            // Locate a Proctor_Row in the current model by its proctorKey. Returns
+            // null if the model/row is missing (callers stay no-throw).
+            function edFindMatrixRow(rowKey) {
+                if (!edMatrixModel || !Array.isArray(edMatrixModel.rows)) return null;
+                for (let i = 0; i < edMatrixModel.rows.length; i++) {
+                    const r = edMatrixModel.rows[i];
+                    if (r && r.proctorKey === rowKey) return r;
+                }
+                return null;
+            }
+
+            // Write a status into a row's cells (Map or plain-object), no-throw.
+            function edWriteRowCell(row, sessionKey, status) {
+                if (!row || !row.cells) return;
+                const cells = row.cells;
+                if (typeof Map !== 'undefined' && cells instanceof Map) {
+                    cells.set(sessionKey, status);
+                } else if (typeof cells === 'object') {
+                    cells[sessionKey] = status;
+                }
+            }
+
+            // Find the rendered Status_Cell <td> for a (rowKey, sessionKey) pair.
+            // Matches on data attributes so arbitrary key contents are safe.
+            function edFindCellEl(rowKey, sessionKey, container) {
+                const cont = container || document.getElementById('ed-matrix-container');
+                if (!cont) return null;
+                const cells = cont.querySelectorAll('td.ed-status-cell');
+                for (let i = 0; i < cells.length; i++) {
+                    if (cells[i].getAttribute('data-row-key') === rowKey &&
+                        cells[i].getAttribute('data-session-key') === sessionKey) {
+                        return cells[i];
+                    }
+                }
+                return null;
+            }
+
+            // Dismiss the open inline editor, if any (Req 5.6 — leaves cell unchanged).
+            function closeCellEditor() {
+                if (edOpenCellEditor && edOpenCellEditor.parentNode) {
+                    edOpenCellEditor.parentNode.removeChild(edOpenCellEditor);
+                }
+                edOpenCellEditor = null;
+                document.removeEventListener('mousedown', edCellEditorOutsideHandler, true);
+                document.removeEventListener('keydown', edCellEditorKeyHandler, true);
+            }
+
+            function edCellEditorOutsideHandler(ev) {
+                if (edOpenCellEditor && !edOpenCellEditor.contains(ev.target)) {
+                    closeCellEditor();
+                }
+            }
+
+            function edCellEditorKeyHandler(ev) {
+                if (ev && ev.key === 'Escape') closeCellEditor();
+            }
+
+            /**
+             * Present the four Proctor_Status options for ONE activated cell
+             * (Requirement 5.1). Dismissing without choosing (outside click /
+             * Escape) leaves the cell unchanged (Requirement 5.6). No-op if the
+             * model, row, or rendered cell is missing.
+             *
+             * @param {string} rowKey   — the Proctor_Row's proctorKey.
+             * @param {string} sessionKey — the Session_Column key.
+             */
+            function openCellEditor(rowKey, sessionKey) {
+                closeCellEditor(); // never stack editors
+
+                const row = edFindMatrixRow(rowKey);
+                if (!row) return;
+                const container = document.getElementById('ed-matrix-container');
+                if (!container) return;
+                const cellEl = edFindCellEl(rowKey, sessionKey, container);
+                if (!cellEl) return;
+
+                const logic = window.EdMatrixLogic || {};
+                const STATUS_CODE = logic.STATUS_CODE || { guard: 'ك', exempt: 'معفى', duty: 'م', reserve: 'إح' };
+                const current = edMatrixCellStatus(row.cells, sessionKey);
+                const OPTIONS = [
+                    ['guard', 'حراسة'],
+                    ['exempt', 'معفى'],
+                    ['duty', 'مداومة'],
+                    ['reserve', 'احتياط']
+                ];
+
+                const menu = document.createElement('div');
+                menu.className = 'ed-cell-editor';
+                menu.setAttribute('role', 'menu');
+                menu.setAttribute('dir', 'rtl');
+                OPTIONS.forEach(o => {
+                    const status = o[0];
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'ed-cell-editor-opt ed-status-' + status + (status === current ? ' is-current' : '');
+                    btn.setAttribute('data-status', status);
+                    btn.innerHTML = '<span class="ed-cell-editor-code">' + escapeHtml(STATUS_CODE[status]) + '</span>' + escapeHtml(o[1]);
+                    btn.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        onCellStatusSelected(rowKey, sessionKey, status);
+                        closeCellEditor();
+                    });
+                    menu.appendChild(btn);
+                });
+
+                container.appendChild(menu);
+                // Anchor just below the cell, accounting for scroll position
+                // (container is position:relative, overflow:auto).
+                const cRect = cellEl.getBoundingClientRect();
+                const wRect = container.getBoundingClientRect();
+                menu.style.top = (cRect.bottom - wRect.top + container.scrollTop) + 'px';
+                menu.style.left = (cRect.left - wRect.left + container.scrollLeft) + 'px';
+
+                edOpenCellEditor = menu;
+                // Defer binding so the activating click doesn't immediately dismiss.
+                setTimeout(function () {
+                    document.addEventListener('mousedown', edCellEditorOutsideHandler, true);
+                    document.addEventListener('keydown', edCellEditorKeyHandler, true);
+                }, 0);
+            }
+
+            /**
+             * Apply a status selection to one cell (Requirements 5.2–5.5, 3.3, 8.5).
+             * - Selecting the current status leaves the cell unchanged (5.5).
+             * - Otherwise update the in-memory model, recompute the row summary,
+             *   and re-render the cell (full code+color replacement, 3.3) and the
+             *   row's Summary_Columns (within 1s, 8.5).
+             * - On recompute failure: revert the cell, keep the prior summaries,
+             *   surface an error, and persist nothing (5.4).
+             *
+             * @param {string} rowKey
+             * @param {string} sessionKey
+             * @param {string} newStatus — one of guard/exempt/duty/reserve.
+             */
+            function onCellStatusSelected(rowKey, sessionKey, newStatus) {
+                const KNOWN = { guard: 1, exempt: 1, duty: 1, reserve: 1 };
+                if (!KNOWN[newStatus]) return; // defensive: ignore non-enum selections
+
+                const row = edFindMatrixRow(rowKey);
+                if (!row) return;
+
+                const prevStatus = edMatrixCellStatus(row.cells, sessionKey);
+                // Selecting the status the cell already holds is a no-op (Req 5.5).
+                if (newStatus === prevStatus) return;
+
+                const prevSummary = row.summary || { guard: 0, duty: 0, reserve: 0, exempt: 0 };
+
+                // Commit the change to the in-memory model.
+                edWriteRowCell(row, sessionKey, newStatus);
+
+                try {
+                    const logic = window.EdMatrixLogic || {};
+                    if (typeof logic.computeRowSummary !== 'function') {
+                        throw new Error('computeRowSummary unavailable');
+                    }
+                    const cellValues = (typeof Map !== 'undefined' && row.cells instanceof Map)
+                        ? row.cells.values()
+                        : (row.cells && typeof row.cells === 'object' ? Object.values(row.cells) : []);
+                    const newSummary = logic.computeRowSummary(cellValues);
+                    row.summary = newSummary;
+                    // Re-render only what changed for snappiness (Req 3.3, 8.5).
+                    edRerenderCell(rowKey, sessionKey, newStatus);
+                    edRerenderRowSummary(rowKey, newSummary);
+                } catch (e) {
+                    // Recompute failed: revert cell + retain prior summaries, show an
+                    // error indication, no persistence (Req 5.4).
+                    edWriteRowCell(row, sessionKey, prevStatus);
+                    row.summary = prevSummary;
+                    if (typeof showToast === 'function') {
+                        showToast('تعذّر تحديث ملخص الصف، تم التراجع عن التغيير', 'error');
+                    }
+                }
+            }
+
+            // Re-render a single Status_Cell, fully replacing its code AND color
+            // class so nothing from the previous status remains (Requirement 3.3).
+            function edRerenderCell(rowKey, sessionKey, status) {
+                const cellEl = edFindCellEl(rowKey, sessionKey);
+                if (!cellEl) return;
+                const logic = window.EdMatrixLogic || {};
+                const STATUS_CODE = logic.STATUS_CODE || { guard: 'ك', exempt: 'معفى', duty: 'م', reserve: 'إح' };
+                const KNOWN = { guard: 1, exempt: 1, duty: 1, reserve: 1 };
+                if (KNOWN[status]) {
+                    cellEl.className = 'ed-status-cell ed-status-' + status;
+                    cellEl.setAttribute('data-status', status);
+                    cellEl.removeAttribute('title');
+                    cellEl.textContent = STATUS_CODE[status];
+                } else {
+                    cellEl.className = 'ed-status-cell ed-cell-unrecognized';
+                    cellEl.setAttribute('data-status', String(status));
+                    cellEl.setAttribute('title', 'حالة غير معروفة');
+                    cellEl.textContent = ED_UNRECOGNIZED_MARKER;
+                }
+            }
+
+            // Update a row's Summary_Columns in place from a fresh summary object.
+            function edRerenderRowSummary(rowKey, summary) {
+                const container = document.getElementById('ed-matrix-container');
+                if (!container) return;
+                const trs = container.querySelectorAll('tbody tr[data-row-key]');
+                let tr = null;
+                for (let i = 0; i < trs.length; i++) {
+                    if (trs[i].getAttribute('data-row-key') === rowKey) { tr = trs[i]; break; }
+                }
+                if (!tr) return;
+                const s = summary || { guard: 0, duty: 0, reserve: 0, exempt: 0 };
+                ED_MATRIX_SUMMARY_COLS.forEach(col => {
+                    const cell = tr.querySelector('td.ed-summary-col-' + col.key);
+                    if (cell) cell.textContent = (s[col.key] || 0);
+                });
+            }
+
+            // Wire cell activation via event delegation on the matrix container.
+            // Idempotent: the listener lives on the container (not its replaced
+            // children) so a single bind survives every re-render. Task 13 calls
+            // this once after the first render.
+            function edWireMatrixCellEditing(container) {
+                const cont = container || document.getElementById('ed-matrix-container');
+                if (!cont || cont.dataset.edEditingWired === '1') return;
+                cont.dataset.edEditingWired = '1';
+                cont.addEventListener('click', function (ev) {
+                    const cell = (ev.target && ev.target.closest) ? ev.target.closest('td.ed-status-cell') : null;
+                    if (!cell || !cont.contains(cell)) return;
+                    const rowKey = cell.getAttribute('data-row-key');
+                    const sessionKey = cell.getAttribute('data-session-key');
+                    if (rowKey == null || sessionKey == null) return;
+                    openCellEditor(rowKey, sessionKey);
+                });
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Reset scope (feature: exemptions-duty-matrix-grid, Task 14.1)
+               resetMatrix(scope): present a confirmation prompt and make NO
+               store change until the user confirms; on confirm, clear the
+               exempt/duty/reserve entries for every in-scope (proctor, session)
+               on a CLONE of the store, persist through window.api.examConfig,
+               and ONLY commit to the in-memory store + re-render (every in-scope
+               cell as guard ك) on success. On cancel or persistence failure the
+               prior store and all cell statuses are retained.
+               _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
+               ═══════════════════════════════════════════════════════════════ */
+
+            // Mirror EdMatrixLogic.getSessionColumnBucketKeys: every duty/reserve
+            // bucket key for a Session_Column — for each subject (empty-subject
+            // fallback included), both the dated `sessionKey|subject` and the
+            // legacy `day|period|session|subject` shapes — so a cleared cell
+            // removes the proctor from pre-existing data of either shape.
+            function edSessionColumnBucketKeys(col) {
+                const logic = window.EdMatrixLogic || {};
+                const datedBase = col.sessionKey || '';
+                const legacyBase = (typeof logic.getLegacyScheduleSessionKey === 'function')
+                    ? logic.getLegacyScheduleSessionKey({ day: col.day, period: col.period, session: col.session })
+                    : [col.day || 'الأول', col.period || 'صباحا', col.session || 'الحصة الأولى'].join('|');
+                const subjects = Array.isArray(col.subjects) ? col.subjects : [];
+                const subjectList = subjects.length ? subjects : [''];
+                const keys = [];
+                subjectList.forEach(s => {
+                    const subject = s || '';
+                    keys.push(datedBase + '|' + subject);
+                    keys.push(legacyBase + '|' + subject);
+                });
+                return keys;
+            }
+
+            // Remove one proctor's exempt/duty/reserve entries for one
+            // Session_Column from a (cloned) store, pruning emptied buckets.
+            // Mutates the passed store clone only — never the live globals.
+            function edClearCellStoreEntries(store, proctorKey, col) {
+                const exemptKey = col.exemptKey;
+                if (exemptKey && store.exemptionsData && store.exemptionsData[exemptKey]) {
+                    delete store.exemptionsData[exemptKey][proctorKey];
+                    if (!Object.keys(store.exemptionsData[exemptKey]).length) delete store.exemptionsData[exemptKey];
+                }
+                const bucketKeys = edSessionColumnBucketKeys(col);
+                [store.dutyData, store.reservesData].forEach(map => {
+                    if (!map) return;
+                    bucketKeys.forEach(bk => {
+                        if (map[bk]) {
+                            delete map[bk][proctorKey];
+                            if (!Object.keys(map[bk]).length) delete map[bk];
+                        }
+                    });
+                });
+            }
+
+            // Resolve which Proctor_Rows and Session_Columns of the current
+            // in-memory model are in the reset scope. A falsy/'all'/string scope
+            // means the whole matrix; an object scope may narrow it with
+            // `rowKeys` (proctorKey[]) and/or `sessionKeys` (sessionKey[]).
+            function edResolveResetScope(scope) {
+                const model = edMatrixModel || { rows: [], sessions: [] };
+                let rows = Array.isArray(model.rows) ? model.rows.slice() : [];
+                let sessions = Array.isArray(model.sessions) ? model.sessions.slice() : [];
+                if (scope && typeof scope === 'object') {
+                    if (Array.isArray(scope.rowKeys)) {
+                        const set = new Set(scope.rowKeys);
+                        rows = rows.filter(r => r && set.has(r.proctorKey));
+                    }
+                    if (Array.isArray(scope.sessionKeys)) {
+                        const set = new Set(scope.sessionKeys);
+                        sessions = sessions.filter(s => s && set.has(s.sessionKey));
+                    }
+                }
+                return { rows, sessions };
+            }
+
+            /**
+             * Reset the exempt/duty/reserve statuses for a scope back to guard.
+             *
+             * @param {('all'|{rowKeys?:string[], sessionKeys?:string[]})} [scope]
+             *        Omitted / 'all' resets the whole matrix; an object narrows
+             *        the reset to specific rows and/or sessions.
+             */
+            async function resetMatrix(scope) {
+                // Confirmation prompt — NO store change until explicit confirm
+                // (Req 11.4). Cancel leaves store + cells unchanged (Req 11.3).
+                const r = await showConfirm({
+                    type: 'warning',
+                    title: 'إعادة تهيئة',
+                    message: 'إعادة كل الحالات (إعفاء/مداومة/احتياط) ضمن النطاق إلى حراسة؟',
+                    detail: 'سيتم عرض كل الخلايا المعنية كحراسة (ك).',
+                    confirmText: 'إعادة تهيئة'
+                });
+                if (!r || !r.confirmed) return;
+
+                const { rows, sessions } = edResolveResetScope(scope);
+                if (!rows.length || !sessions.length) {
+                    showToast('لا توجد حالات لإعادة تهيئتها', 'warning');
+                    return;
+                }
+
+                // Compute the cleared store on a CLONE — the live globals stay
+                // untouched until persistence succeeds (Req 11.4, 11.5).
+                const clone = {
+                    exemptionsData: JSON.parse(JSON.stringify(exemptionsData || {})),
+                    dutyData: JSON.parse(JSON.stringify(dutyData || {})),
+                    reservesData: JSON.parse(JSON.stringify(reservesData || {}))
+                };
+                rows.forEach(row => {
+                    sessions.forEach(col => edClearCellStoreEntries(clone, row.proctorKey, col));
+                });
+
+                // Persist through window.api.examConfig (Req 11.1).
+                try {
+                    const res1 = await window.api.examConfig.save({ school_year: year, config_key: 'examExemptionsData', data: clone.exemptionsData });
+                    const res2 = await window.api.examConfig.save({ school_year: year, config_key: 'examDutyTeachersData', data: clone.dutyData });
+                    const res3 = await window.api.examConfig.save({ school_year: year, config_key: 'examReservesData', data: clone.reservesData });
+                    if ((res1 && res1.success === false) || (res2 && res2.success === false) || (res3 && res3.success === false)) {
+                        throw new Error('persist-failed');
+                    }
+                } catch (e) {
+                    // Persistence failure: retain the prior store and ALL cell
+                    // statuses; show an error indication (Req 11.5).
+                    showToast('تعذّرت إعادة التهيئة — تم الاحتفاظ بالحالة السابقة', 'error');
+                    return;
+                }
+
+                // Success: commit the cloned store to the in-memory globals.
+                exemptionsData = clone.exemptionsData;
+                dutyData = clone.dutyData;
+                reservesData = clone.reservesData;
+
+                // Set every in-scope cell to guard in the in-memory model and
+                // recompute each affected row's Summary_Columns (Req 11.2).
+                const logic = window.EdMatrixLogic || {};
+                const rowKeySet = new Set(rows.map(row => row.proctorKey));
+                const sessionKeys = sessions.map(s => s.sessionKey);
+                if (edMatrixModel && Array.isArray(edMatrixModel.rows)) {
+                    edMatrixModel.rows.forEach(row => {
+                        if (!row || !rowKeySet.has(row.proctorKey)) return;
+                        sessionKeys.forEach(sk => edWriteRowCell(row, sk, 'guard'));
+                        if (typeof logic.computeRowSummary === 'function') {
+                            const vals = (typeof Map !== 'undefined' && row.cells instanceof Map)
+                                ? row.cells.values()
+                                : (row.cells && typeof row.cells === 'object' ? Object.values(row.cells) : []);
+                            row.summary = logic.computeRowSummary(vals);
+                        }
+                    });
+                    // Re-render so every in-scope cell shows guard (ك) (Req 11.2).
+                    renderMatrixGrid(edMatrixModel, edMatrixViewState);
+                    edWireMatrixCellEditing();
+                }
+
+                if (typeof updateDistStatuses === 'function') await updateDistStatuses();
+                showToast('تمت إعادة التهيئة بنجاح', 'success');
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Panel wiring + Save persistence
+               (feature: exemptions-duty-matrix-grid, Task 13.1)
+               Replaces the legacy initExemptionsDutyPanel / renderEdTable flow:
+               loads the Exemptions_Duty_Store + proctors + schedule, builds the
+               in-memory MatrixModel via EdMatrixLogic, renders the grid, wires
+               inline cell editing and the Save/Reset buttons. saveMatrix reduces
+               the model back to the three store maps on a clone and persists
+               them through window.api.examConfig.
+               _Requirements: 6.1, 6.5, 6.6, 8.6_
+               ═══════════════════════════════════════════════════════════════ */
+
+            /**
+             * Build the in-memory MatrixModel from the current proctors,
+             * schedule, and store, then render the grid and (idempotently) wire
+             * inline cell editing. Used on panel open and whenever the proctors
+             * list changes (Requirements 1.1, 1.2, 8.6). Summaries are computed
+             * by buildMatrixModel → computeRowSummary as part of the build.
+             */
+            async function renderExemptionsDutyMatrix() {
+                const logic = window.EdMatrixLogic;
+                if (!logic) return;
+                const scheduleEntries = await getScheduleEntries();
+                const sessionColumns = logic.buildSessionColumns(scheduleEntries);
+                const store = { exemptionsData, dutyData, reservesData };
+                edMatrixModel = logic.buildMatrixModel(proctorsList, sessionColumns, store);
+                renderMatrixGrid(edMatrixModel, edMatrixViewState);
+                edWireMatrixCellEditing();
+            }
+
+            /**
+             * Re-render the matrix from the CURRENT in-memory model using the
+             * active search/filter/sort view state (Task 15.1). This NEVER
+             * rebuilds the model from the store, so in-memory (unsaved) cell
+             * edits are preserved; applySearchFilterSort only reads the rows and
+             * renumbers the visible subset, leaving every cell status untouched
+             * (Requirement 9.7). The no-match message is emitted by
+             * renderMatrixGrid when the subset is empty (Requirement 9.6).
+             */
+            function edApplyMatrixView() {
+                if (!edMatrixModel) return;
+                renderMatrixGrid(edMatrixModel, edMatrixViewState);
+                edWireMatrixCellEditing();
+            }
+
+            /**
+             * Wire the search input, status-filter dropdown, and sortable
+             * identity-column headers to edMatrixViewState + edApplyMatrixView
+             * (Task 15.1, Requirements 9.1–9.7, 10.4). Idempotent: each control
+             * is flagged on first bind, and the header handler is delegated on
+             * the matrix container so it survives every innerHTML re-render.
+             */
+            function edWireMatrixControls() {
+                const searchEl = document.getElementById('ed-search');
+                if (searchEl && searchEl.dataset.edMatrixWired !== '1') {
+                    searchEl.dataset.edMatrixWired = '1';
+                    searchEl.addEventListener('input', function () {
+                        edMatrixViewState.searchText = searchEl.value || '';
+                        edApplyMatrixView();
+                    });
+                }
+                const filterEl = document.getElementById('ed-status-filter');
+                if (filterEl && filterEl.dataset.edMatrixWired !== '1') {
+                    filterEl.dataset.edMatrixWired = '1';
+                    filterEl.addEventListener('change', function () {
+                        edMatrixViewState.statusFilter = filterEl.value || '';
+                        edApplyMatrixView();
+                    });
+                }
+                const cont = document.getElementById('ed-matrix-container');
+                if (cont && cont.dataset.edSortWired !== '1') {
+                    cont.dataset.edSortWired = '1';
+                    cont.addEventListener('click', function (ev) {
+                        const th = (ev.target && ev.target.closest) ? ev.target.closest('th[data-ed-matrix-sort]') : null;
+                        if (!th || !cont.contains(th)) return;
+                        const column = th.getAttribute('data-ed-matrix-sort');
+                        if (!column) return;
+                        const logic = window.EdMatrixLogic || {};
+                        edMatrixViewState.sort = (typeof logic.nextSortState === 'function')
+                            ? logic.nextSortState(edMatrixViewState.sort, column)
+                            : { column: column, direction: (edMatrixViewState.sort && edMatrixViewState.sort.column === column && edMatrixViewState.sort.direction === 'asc') ? 'desc' : 'asc' };
+                        edApplyMatrixView();
+                    });
+                }
+            }
+
+            /**
+             * Initialize the Exemptions & Duty matrix panel: load the store,
+             * wire the Save/Reset buttons and the search/filter/sort controls,
+             * then build and render the grid (Requirement 6.1 data model).
+             * Replaces the legacy initExemptionsDutyPanel single-session flow.
+             */
+            async function initExemptionsDutyMatrix() {
+                exemptionsData = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
+                dutyData = (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {};
+                reservesData = (await window.api.examConfig.get(year, 'examReservesData')) || {};
+
+                const saveBtn = document.getElementById('btn-save-ed');
+                if (saveBtn) saveBtn.addEventListener('click', saveMatrix);
+                const clearBtn = document.getElementById('btn-clear-ed');
+                if (clearBtn) clearBtn.addEventListener('click', () => resetMatrix('all'));
+
+                edWireMatrixControls();
+                await renderExemptionsDutyMatrix();
+            }
+
+            /**
+             * Persist the current matrix to the Exemptions_Duty_Store
+             * (Requirements 6.1, 6.5, 6.6). The model is reduced to the three
+             * store maps on a fresh clone (reduceMatrixToStore never mutates the
+             * model and returns new objects), and the pre-save in-memory store is
+             * snapshotted so a failed save restores it exactly.
+             *
+             * On success: refresh the distribution status view + success toast.
+             * On failure: restore the pre-save store, skip the refresh, show error.
+             */
+            async function saveMatrix() {
+                const logic = window.EdMatrixLogic;
+                if (!logic || !edMatrixModel) { showToast('لا توجد بيانات لحفظها', 'warning'); return; }
+
+                // Reduce the in-memory matrix to the three store maps (guard cells
+                // omitted, every key from getProctorExemptionKey) — Req 6.1, 6.2, 6.3.
+                const reduced = logic.reduceMatrixToStore(edMatrixModel);
+
+                // Snapshot the pre-save in-memory store for restore on failure (Req 6.6).
+                const snapshot = { exemptionsData, dutyData, reservesData };
+
+                // Optimistically adopt the reduced store as the new in-memory store.
+                exemptionsData = reduced.exemptionsData;
+                dutyData = reduced.dutyData;
+                reservesData = reduced.reservesData;
+
+                try {
+                    const res1 = await window.api.examConfig.save({ school_year: year, config_key: 'examExemptionsData', data: reduced.exemptionsData });
+                    const res2 = await window.api.examConfig.save({ school_year: year, config_key: 'examDutyTeachersData', data: reduced.dutyData });
+                    const res3 = await window.api.examConfig.save({ school_year: year, config_key: 'examReservesData', data: reduced.reservesData });
+                    if ((res1 && res1.success === false) || (res2 && res2.success === false) || (res3 && res3.success === false)) {
+                        throw new Error('persist-failed');
+                    }
+                    // Success: refresh the distribution status view + success toast (Req 6.5).
+                    if (typeof updateDistStatuses === 'function') await updateDistStatuses();
+                    showToast('تم حفظ حالات المراقبين', 'success');
+                } catch (e) {
+                    // Failure: restore the pre-save store, skip the refresh, show error (Req 6.6).
+                    exemptionsData = snapshot.exemptionsData;
+                    dutyData = snapshot.dutyData;
+                    reservesData = snapshot.reservesData;
+                    showToast('تعذّر حفظ الحالات — لم يكتمل الحفظ', 'error');
+                }
+            }
+
+            /* ═══ Subject matching helpers (used by distribution) ═══ */
+            function normalizeDutyText(value) {
+                return String(value || '')
+                    .toLowerCase()
+                    .replace(/[أإآ]/g, 'ا')
+                    .replace(/ة/g, 'ه')
+                    .replace(/ى/g, 'ي')
+                    .replace(/[^\u0600-\u06FFa-z0-9]+/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+
+            function getDutySubjectAliases(subject) {
+                const normalized = normalizeDutyText(subject);
+                const aliases = [normalized];
+                if (normalized.includes('فيزياء') || normalized.includes('كيمياء')) aliases.push('فيزياء', 'كيمياء', 'علوم فيزيائيه', 'physique', 'chimie');
+                if (normalized.includes('تاريخ') || normalized.includes('جغراف')) aliases.push('تاريخ', 'جغرافيا', 'اجتماعيات');
+                if (normalized.includes('حياه') || normalized.includes('ارض')) aliases.push('علوم الحياه والارض', 'علوم الحياه', 'علوم الارض', 'svt');
+                if (normalized.includes('عربيه')) aliases.push('اللغه العربيه', 'عربي');
+                if (normalized.includes('فرنسيه') || normalized.includes('اجنبيه')) aliases.push('فرنسيه', 'فرنسي', 'francais', 'french');
+                if (normalized.includes('انجليزيه')) aliases.push('انجليزيه', 'انجليزي', 'english');
+                if (normalized.includes('اسلاميه')) aliases.push('تربيه اسلاميه', 'اسلاميات');
+                if (normalized.includes('فلسفه')) aliases.push('فلسفه');
+                if (normalized.includes('رياضيات')) aliases.push('رياضيات', 'math', 'mathematique');
+                return Array.from(new Set(aliases.map(normalizeDutyText).filter(Boolean)));
+            }
+
+            function proctorMatchesDutySubject(proctor, subject) {
+                const specialty = normalizeDutyText(proctor.specialty || '');
+                if (!specialty) return false;
+                return getDutySubjectAliases(subject).some(alias => specialty.includes(alias) || alias.includes(specialty));
+            }
+
+
+            /* ═══ Morning / Evening Panel ═══ */
+            async function initMorningEveningPanel() {
+                const saved = await window.api.examConfig.get(year, 'examMorningEveningData');
+                meAssignments = (saved && saved.assignments) ? saved.assignments : {};
+
+                document.getElementById('btn-me-auto').addEventListener('click', autoDistributeME);
+                document.getElementById('btn-me-reset').addEventListener('click', resetMEData);
+                document.getElementById('btn-me-save').addEventListener('click', saveMEData);
+                document.getElementById('btn-me-list').addEventListener('click', closeDistSubPanel);
+
+                await renderMEPanel();
+            }
+
+            function generateExamDays() {
+                const days = [];
+                var dayCounter = {};
+                periodsList.forEach(period => {
+                    if (!period.date_from || !period.date_to) return;
+                    const start = new Date(period.date_from);
+                    const end = new Date(period.date_to);
+                    if (!dayCounter[period.name]) dayCounter[period.name] = 0;
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        const iso = d.toISOString().slice(0, 10);
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        dayCounter[period.name]++;
+                        days.push({ date: iso, label: dd + '/' + mm, periodName: period.name, dayNum: dayCounter[period.name] });
+                    }
+                });
+                days.sort((a, b) => a.date.localeCompare(b.date));
+                return days;
+            }
+
+            function getProctorKey(proc, idx) {
+                return proc.cin ? proc.cin : '__idx_' + idx;
+            }
+
+            async function renderMEPanel() {
+                meExamDays = generateExamDays();
+                const noData = document.getElementById('me-no-data');
+                const tableWrap = document.getElementById('me-table-wrap');
+                const footer = document.getElementById('me-footer');
+                const infoBar = document.getElementById('me-info-bar');
+                const msgEl = document.getElementById('me-no-data-msg');
+
+                if (!proctorsList.length && !meExamDays.length) {
+                    msgEl.textContent = 'يرجى إضافة المراقبين وتحديد فترات الامتحان أولاً';
+                    noData.style.display = '';
+                    tableWrap.style.display = 'none';
+                    footer.style.display = 'none';
+                    infoBar.style.display = 'none';
+                    await updateMEStats();
+                    return;
+                }
+                if (!proctorsList.length) {
+                    msgEl.textContent = 'يرجى إضافة المراقبين أولاً (الإعداد رقم 4)';
+                    noData.style.display = '';
+                    tableWrap.style.display = 'none';
+                    footer.style.display = 'none';
+                    infoBar.style.display = 'none';
+                    await updateMEStats();
+                    return;
+                }
+                if (!meExamDays.length) {
+                    msgEl.textContent = 'يرجى تحديد فترات الامتحان أولاً (الإعداد رقم 3)';
+                    noData.style.display = '';
+                    tableWrap.style.display = 'none';
+                    footer.style.display = 'none';
+                    infoBar.style.display = 'none';
+                    await updateMEStats();
+                    return;
+                }
+
+                noData.style.display = 'none';
+                tableWrap.style.display = '';
+                footer.style.display = '';
+                infoBar.style.display = '';
+                await renderMETable();
+            }
+
+            async function renderMETable() {
+                await renderMEOverview();
+                await updateMEStats();
+            }
+
+            function getMEAssignedProctors() {
+                const groups = { 0: [], 1: [], 2: [] };
+                proctorsList.forEach((proc, idx) => {
+                    const key = getProctorKey(proc, idx);
+                    const group = meAssignments[key] || 0;
+                    groups[group === 1 || group === 2 ? group : 0].push({ proc, idx, key });
+                });
+                return groups;
+            }
+
+            async function getMEHalfdayPlan() {
+                const plan = { 1: [], 2: [] };
+                (await getAlternatingSessionOptions('صباحا')).forEach((item, idx) => {
+                    const group = idx % 2 === 0 ? 1 : 2;
+                    plan[group].push(Object.assign({}, item, { group, shift: 'صباحا' }));
+                });
+                (await getAlternatingSessionOptions('زوالا')).forEach((item, idx) => {
+                    const group = idx % 2 === 0 ? 2 : 1;
+                    plan[group].push(Object.assign({}, item, { group, shift: 'زوالا' }));
+                });
+                return plan;
+            }
+
+            async function getMEHalfdaySubjectsByKey() {
+                const subjectsByKey = {};
+                (await getScheduleEntries())
+                    .filter(entry => entry && (entry.date_day || entry.time_from || entry.subject_name))
+                    .forEach(entry => {
+                        const key = getAutoDistributionHalfdayKey(entry);
+                        if (!key) return;
+                        if (!subjectsByKey[key]) subjectsByKey[key] = new Set();
+                        if (entry.subject_name) subjectsByKey[key].add(entry.subject_name);
+                    });
+                return subjectsByKey;
+            }
+
+            function renderMEGroupSelect(item) {
+                return '<select class="me2-person-select" data-proctor-key="' + escapeHtml(item.key) + '">' +
+                    '<option value="0"' + ((meAssignments[item.key] || 0) === 0 ? ' selected' : '') + '>—</option>' +
+                    '<option value="1"' + ((meAssignments[item.key] || 0) === 1 ? ' selected' : '') + '>م1</option>' +
+                    '<option value="2"' + ((meAssignments[item.key] || 0) === 2 ? ' selected' : '') + '>م2</option>' +
+                    '</select>';
+            }
+
+            function getMEPeopleSortIcon(field) {
+                if (mePeopleSort.field !== field) return 'fa-sort';
+                return mePeopleSort.dir === 'asc' ? 'fa-sort-up' : 'fa-sort-down';
+            }
+
+            function sortMEPeople(items) {
+                const field = mePeopleSort.field || 'name';
+                const dir = mePeopleSort.dir === 'desc' ? -1 : 1;
+                return items.slice().sort((a, b) => {
+                    const aValue = field === 'specialty' ? (a.proc.specialty || '') : (a.proc.teacher_name || '');
+                    const bValue = field === 'specialty' ? (b.proc.specialty || '') : (b.proc.teacher_name || '');
+                    return String(aValue).localeCompare(String(bValue), 'ar') * dir ||
+                        String(a.proc.teacher_name || '').localeCompare(String(b.proc.teacher_name || ''), 'ar');
+                });
+            }
+
+            function renderMEPeopleList(items) {
+                if (!items.length) return '<div class="me2-empty-line">لا يوجد أستاذ في هذه المجموعة</div>';
+                return '<div class="me2-people-header">' +
+                    '<button type="button" class="me2-sort-btn" data-me-sort="name">الأستاذ <i class="fas ' + getMEPeopleSortIcon('name') + '"></i></button>' +
+                    '<button type="button" class="me2-sort-btn" data-me-sort="specialty">التخصص <i class="fas ' + getMEPeopleSortIcon('specialty') + '"></i></button>' +
+                    '<span>المجموعة</span>' +
+                '</div>' + sortMEPeople(items).map(item =>
+                    '<div class="me2-person-row">' +
+                        '<span class="me2-person-name">' + escapeHtml(item.proc.teacher_name || '') + '</span>' +
+                        '<span class="me2-person-specialty">' + escapeHtml(item.proc.specialty || 'بدون تخصص') + '</span>' +
+                        renderMEGroupSelect(item) +
+                    '</div>'
+                ).join('');
+            }
+
+            function renderMEHalfdayList(items, subjectsByKey) {
+                if (!items.length) return '<div class="me2-empty-line">لا توجد أنصاف أيام مسندة</div>';
+                return items.map(item => {
+                    const subjects = Array.from(subjectsByKey[item.key] || []).filter(Boolean);
+                    return '<div class="me2-halfday-row me2-halfday-row--' + (item.shift === 'صباحا' ? 'morning' : 'evening') + '">' +
+                        '<span class="me2-halfday-shift">' + (item.shift === 'صباحا' ? 'ص' : 'م') + '</span>' +
+                        '<span class="me2-halfday-main">' + escapeHtml(item.label) + '</span>' +
+                        (subjects.length ? '<span class="me2-halfday-subjects">' + escapeHtml(subjects.join('، ')) + '</span>' : '') +
+                    '</div>';
+                }).join('');
+            }
+
+            async function renderMEOverview() {
+                const wrap = document.getElementById('me-overview');
+                if (!wrap) return;
+                const groups = getMEAssignedProctors();
+                const halfdayPlan = await getMEHalfdayPlan();
+                const subjectsByKey = await getMEHalfdaySubjectsByKey();
+                const cards = [1, 2].map(groupNumber => {
+                    const groupName = groupNumber === 1 ? 'المجموعة الأولى' : 'المجموعة الثانية';
+                    const icon = groupNumber === 1 ? 'fa-sun' : 'fa-moon';
+                    const tone = groupNumber === 1 ? 'g1' : 'g2';
+                    return '<section class="me2-group-card me2-group-card--' + tone + '">' +
+                        '<div class="me2-group-head">' +
+                            '<div><i class="fas ' + icon + '"></i><strong>' + groupName + '</strong></div>' +
+                            '<span>' + groups[groupNumber].length + ' أستاذ</span>' +
+                        '</div>' +
+                        '<div class="me2-group-section">' +
+                            '<h4><i class="fas fa-users"></i> الأساتذة</h4>' +
+                            renderMEPeopleList(groups[groupNumber]) +
+                        '</div>' +
+                        '<div class="me2-group-section">' +
+                            '<h4><i class="fas fa-calendar-day"></i> أنصاف الأيام المسندة</h4>' +
+                            renderMEHalfdayList(halfdayPlan[groupNumber], subjectsByKey) +
+                        '</div>' +
+                    '</section>';
+                });
+                if (groups[0].length) {
+                    cards.push('<section class="me2-group-card me2-group-card--unassigned">' +
+                        '<div class="me2-group-head"><div><i class="fas fa-user-clock"></i><strong>غير موزعين</strong></div><span>' + groups[0].length + ' أستاذ</span></div>' +
+                        '<div class="me2-group-section">' + renderMEPeopleList(groups[0]) + '</div>' +
+                    '</section>');
+                }
+                wrap.innerHTML = cards.join('');
+                wrap.querySelectorAll('.me2-sort-btn').forEach(button => {
+                    button.addEventListener('click', async function () {
+                        const field = this.dataset.meSort || 'name';
+                        if (mePeopleSort.field === field) {
+                            mePeopleSort.dir = mePeopleSort.dir === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            mePeopleSort = { field, dir: 'asc' };
+                        }
+                        await renderMETable();
+                    });
+                });
+                wrap.querySelectorAll('.me2-person-select').forEach(select => {
+                    select.addEventListener('change', async function () {
+                        meAssignments[this.dataset.proctorKey] = Number(this.value);
+                        await renderMETable();
+                        await updateDistStatuses();
+                    });
+                });
+            }
+
+            async function buildMEHalfdaySubjectMap() {
+                const halfdays = {};
+                const meEntries = (await getScheduleEntries())
+                    .filter(entry => entry && (entry.date_day || entry.time_from || entry.subject_name))
+                    .sort((a, b) => getScheduleSortKey(a).localeCompare(getScheduleSortKey(b), 'ar'));
+                for (const entry of meEntries) {
+                    const key = getAutoDistributionHalfdayKey(entry);
+                    if (!key) continue;
+                    if (!halfdays[key]) {
+                        halfdays[key] = {
+                            group: await getExpectedGroupForSession(entry),
+                            subjects: new Set()
+                        };
+                    }
+                    if (entry.subject_name) halfdays[key].subjects.add(entry.subject_name);
+                }
+                return halfdays;
+            }
+
+            function getMEGroupSubjectPenalty(proc, groupNumber, halfdayMap) {
+                let penalty = 0;
+                Object.values(halfdayMap).forEach(halfday => {
+                    if (halfday.group !== groupNumber) return;
+                    halfday.subjects.forEach(subject => {
+                        if (proctorMatchesDutySubject(proc, subject)) penalty++;
+                    });
+                });
+                return penalty;
+            }
+
+            function scoreMEGroupForCandidate(candidate, groupNumber, stats) {
+                const target = groupNumber === 1 ? stats.targetG1 : stats.targetG2;
+                const count = stats.groupCounts[groupNumber] || 0;
+                if (count >= target) return Number.POSITIVE_INFINITY;
+
+                const genderCount = candidate.genderGroup ? (stats.genderCounts[groupNumber][candidate.genderGroup] || 0) : 0;
+                const otherGroup = groupNumber === 1 ? 2 : 1;
+                const otherGenderCount = candidate.genderGroup ? (stats.genderCounts[otherGroup][candidate.genderGroup] || 0) : 0;
+                const genderPenalty = Math.max(genderCount - otherGenderCount, 0);
+                const subjectPenalty = groupNumber === 1 ? candidate.g1Penalty : candidate.g2Penalty;
+
+                return (subjectPenalty * 100) + (count * 10) + (genderPenalty * 3);
+            }
+
+            async function autoDistributeME() {
+                if (!proctorsList.length) { showToast('لا يوجد مراقبون', 'warning'); return; }
+
+                const halfdayMap = await buildMEHalfdaySubjectMap();
+                const targetG1 = Math.ceil(proctorsList.length / 2);
+                const targetG2 = proctorsList.length - targetG1;
+                const stats = {
+                    targetG1,
+                    targetG2,
+                    groupCounts: { 1: 0, 2: 0 },
+                    genderCounts: { 1: { M: 0, F: 0 }, 2: { M: 0, F: 0 } }
+                };
+
+                const candidates = proctorsList.map((proc, idx) => {
+                    const g1Penalty = getMEGroupSubjectPenalty(proc, 1, halfdayMap);
+                    const g2Penalty = getMEGroupSubjectPenalty(proc, 2, halfdayMap);
+                    return {
+                        proc,
+                        idx,
+                        key: getProctorKey(proc, idx),
+                        genderGroup: getProctorGenderGroup(proc),
+                        g1Penalty,
+                        g2Penalty,
+                        diff: Math.abs(g1Penalty - g2Penalty)
+                    };
+                }).sort((a, b) => {
+                    return b.diff - a.diff ||
+                        Math.min(b.g1Penalty, b.g2Penalty) - Math.min(a.g1Penalty, a.g2Penalty) ||
+                        String(a.proc.teacher_name || '').localeCompare(String(b.proc.teacher_name || ''), 'ar');
+                });
+
+                meAssignments = {};
+                let avoidedSubjectConflicts = 0;
+                let remainingSubjectConflicts = 0;
+
+                candidates.forEach(candidate => {
+                    const scoreG1 = scoreMEGroupForCandidate(candidate, 1, stats);
+                    const scoreG2 = scoreMEGroupForCandidate(candidate, 2, stats);
+                    const group = scoreG1 <= scoreG2 ? 1 : 2;
+                    const chosenPenalty = group === 1 ? candidate.g1Penalty : candidate.g2Penalty;
+                    const otherPenalty = group === 1 ? candidate.g2Penalty : candidate.g1Penalty;
+
+                    meAssignments[candidate.key] = group;
+                    stats.groupCounts[group]++;
+                    if (candidate.genderGroup) stats.genderCounts[group][candidate.genderGroup]++;
+                    avoidedSubjectConflicts += Math.max(otherPenalty - chosenPenalty, 0);
+                    remainingSubjectConflicts += chosenPenalty;
+                });
+
+                await renderMETable();
+                await updateDistStatuses();
+
+                const details = remainingSubjectConflicts
+                    ? '، بقيت ' + remainingSubjectConflicts + ' حالة تخصص اضطرارية'
+                    : avoidedSubjectConflicts ? '، دون تزامن تخصص ظاهر' : '';
+                showToast('تم التوزيع الذكي: ' + stats.groupCounts[1] + ' في م1 و ' + stats.groupCounts[2] + ' في م2' + details, 'success');
+            }
+
+            async function resetMEData() {
+                var r = await showConfirm({ type: 'warning', title: 'إعادة تهيئة', message: 'إعادة تهيئة توزيع الصباح/المساء؟', confirmText: 'إعادة تهيئة' });
+                if (!r.confirmed) return;
+                meAssignments = {};
+                await window.api.examConfig.delete({ school_year: year, config_key: 'examMorningEveningData' });
+                await renderMETable();
+                await updateDistStatuses();
+                showToast('تمت إعادة التهيئة', 'success');
+            }
+
+            async function saveMEData() {
+                await window.api.examConfig.save({ school_year: year, config_key: 'examMorningEveningData', data: { assignments: meAssignments } });
+                await updateDistStatuses();
+                showToast('تم حفظ توزيع الصباح/المساء', 'success');
+            }
+
+            async function updateMEStats() {
+                var g1 = 0, g2 = 0;
+                proctorsList.forEach((proc, i) => {
+                    var key = getProctorKey(proc, i);
+                    var g = meAssignments[key] || 0;
+                    if (g === 1) g1++;
+                    else if (g === 2) g2++;
+                });
+                document.getElementById('me-g1-count').textContent = g1;
+                document.getElementById('me-g2-count').textContent = g2;
+                document.getElementById('me-total-count').textContent = g1 + g2;
+
+                var roomsData = (await window.api.examConfig.get(year, 'examCenterRoomsData')) || {};
+                var roomCount = Object.keys(roomsData).length;
+                var totalHalfdays = (await getAlternatingSessionOptions('صباحا')).length + (await getAlternatingSessionOptions('زوالا')).length;
+                if (!totalHalfdays) totalHalfdays = meExamDays.length * 2;
+                var perProctor = proctorsList.length ? (totalHalfdays / proctorsList.length).toFixed(1) : 0;
+
+                var infoProctors = document.getElementById('me-info-proctors');
+                var infoSessions = document.getElementById('me-info-sessions');
+                var infoPerProctor = document.getElementById('me-info-per-proctor');
+                var infoRooms = document.getElementById('me-info-rooms');
+                if (infoProctors) infoProctors.textContent = proctorsList.length;
+                if (infoSessions) infoSessions.textContent = totalHalfdays;
+                if (infoPerProctor) infoPerProctor.textContent = perProctor;
+                if (infoRooms) infoRooms.textContent = roomCount;
+            }
+
+            /* ═══ Final Auto Distribution ═══ */
+            const AUTO_DISTRIBUTION_OPTION_DEFAULTS = {
+                avoidSameRoomRepeat: true,
+                preferMixedGenderPair: true,
+                respectMorningEvening: true,
+                avoidSubjectSpecialty: true,
+                balanceTotalTasks: true,
+                useSurplusAsReserve: true,
+                enableReserveRebalance: true,
+                enableThreeWaySwap: true,
+                strictHardConstraints: false,
+                randomSeed: null,
+                priorityPolicy: 'balance'
+            };
+
+            async function initAutoDistributionPanel() {
+                var savedRaw = await window.api.examConfig.get(year, 'examAutoDistributionData');
+                var savedVersion = detectSavedAlgorithmVersion(savedRaw);
+                var savedDiagnostics = null;
+                if (savedRaw) {
+                    if (savedRaw && !Array.isArray(savedRaw) && savedRaw.algorithmVersion === 'v2') {
+                        autoDistributionResult = Array.isArray(savedRaw.rows) ? savedRaw.rows : [];
+                        savedDiagnostics = savedRaw.diagnostics || null;
+                    } else if (savedRaw && !Array.isArray(savedRaw) && savedRaw.algorithmVersion === 'v3') {
+                        autoDistributionResult = Array.isArray(savedRaw.rows) ? savedRaw.rows : [];
+                        savedDiagnostics = savedRaw.diagnostics || null;
+                    } else if (Array.isArray(savedRaw)) {
+                        autoDistributionResult = savedRaw;
+                    } else {
+                        autoDistributionResult = [];
+                    }
+                } else {
+                    autoDistributionResult = [];
+                }
+                await initAutoDistributionOptions();
+                var persistedRules = await getDistributionRules();
+                initAlgorithmToggle(savedVersion, persistedRules.algorithmVersion);
+                document.getElementById('btn-run-auto-distribution').addEventListener('click', handleDistributionButtonClick);
+                document.getElementById('btn-save-auto-distribution').addEventListener('click', saveAutoDistributionResult);
+                document.getElementById('btn-delete-auto-distribution').addEventListener('click', deleteAutoDistributionResult);
+                document.getElementById('btn-print-auto-distribution').addEventListener('click', previewAutoDistributionPrint);
+                const pairedBtn = document.getElementById('btn-print-auto-paired');
+                if (pairedBtn) pairedBtn.addEventListener('click', previewAutoDistributionPairedPrint);
+	                document.getElementById('btn-open-proctors-summary').addEventListener('click', () => {
+	                    window.location.href = 'exams-rooms.html';
+	                });
+	                document.getElementById('auto-halfday-filter').addEventListener('change', () => {
+	                    const sessionFilter = document.getElementById('auto-session-filter');
+	                    if (sessionFilter) sessionFilter.value = '';
+	                    renderAutoDistributionResult();
+	                });
+	                document.getElementById('auto-session-filter').addEventListener('change', renderAutoDistributionResult);
+	                document.getElementById('auto-subject-filter').addEventListener('change', renderAutoDistributionResult);
+                await renderMorningEveningFeasibilityNote();
+                renderAutoDistributionResult();
+                // Initialize diagnostics panel and weights preset (Tasks 10.1 & 10.2)
+                initDiagnosticsPanel();
+                initWeightsPreset();
+                // If saved data has diagnostics, render the panel from saved diagnostics (Req 9.2)
+                if (savedDiagnostics) {
+                    renderDiagnosticsPanel(savedDiagnostics);
+                } else if (savedVersion === 'v2') {
+                    // v2 data without diagnostics (Req 9.5)
+                    renderDiagnosticsPanel(null);
+                }
+            }
+
+            // ============================================================
+            // Algorithm Toggle & V2 Integration (Tasks 9.1 & 9.2)
+            // ============================================================
+
+            /**
+             * Detects the algorithm version from saved localStorage data.
+             * @param {string|null} rawData - Raw JSON string from localStorage
+             * @returns {'v1'|'v2'|null} - Detected version or null if no data
+             */
+            function detectSavedAlgorithmVersion(rawData) {
+                if (!rawData) return null;
+                try {
+                    var parsed = JSON.parse(rawData);
+                    if (parsed && !Array.isArray(parsed) && parsed.algorithmVersion === 'v2') return 'v2';
+                    if (parsed && !Array.isArray(parsed) && parsed.algorithmVersion === 'v3') return 'v3';
+                    if (Array.isArray(parsed)) return 'v1';
+                    return null;
+                } catch (e) { return null; }
+            }
+
+            /**
+             * Returns the currently selected algorithm version from the toggle.
+             * @returns {'v1'|'v2'|'v3'}
+             */
+            function getSelectedAlgorithmVersion() {
+                var checked = document.querySelector('input[name="algo-version"]:checked');
+                if (checked && checked.value === 'v1') return 'v1';
+                if (checked && checked.value === 'v3') return 'v3';
+                return 'v2';
+            }
+
+            /**
+             * Persists the user's algorithm-version choice into
+             * `examDistributionRules.algorithmVersion` (Requirements 1.5–1.8).
+             * The field is additive: the V2/V1 code paths read it but ignore
+             * it, while the V3 path uses it to drive routing. Other distribution
+             * rule fields are preserved.
+             * @param {'v1'|'v2'|'v3'} version
+             */
+            async function persistAlgorithmVersion(version) {
+                try {
+                    var rules = await getDistributionRules();
+                    rules.algorithmVersion = (version === 'v3') ? 'v3'
+                        : (version === 'v1') ? 'v1' : 'v2';
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examDistributionRules', data: rules });
+                } catch (e) {
+                    // Persistence failure is non-fatal: the in-memory toggle still
+                    // drives this session's routing. Surface a non-blocking notice.
+                    showToast('تعذّر حفظ اختيار الخوارزمية: ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'warning');
+                }
+            }
+
+            /**
+             * Initializes the algorithm toggle state based on saved data.
+             * Per Requirement 1.8: if `examDistributionRules.algorithmVersion` is
+             * absent, the toggle defaults to V2 to preserve legacy behavior.
+             * The persisted user choice (`persistedVersion`) takes precedence over
+             * the format detected from any saved result (`savedVersion`).
+             * @param {'v1'|'v2'|null} savedVersion
+             * @param {'v1'|'v2'|'v3'|undefined} persistedVersion
+             */
+            function initAlgorithmToggle(savedVersion, persistedVersion) {
+                var v1Radio = document.querySelector('input[name="algo-version"][value="v1"]');
+                var v2Radio = document.querySelector('input[name="algo-version"][value="v2"]');
+                var v3Radio = document.querySelector('input[name="algo-version"][value="v3"]');
+                if (!v1Radio || !v2Radio) return;
+
+                // The user's explicit toggle choice persisted in
+                // `examDistributionRules.algorithmVersion` wins. AC 1.8: when it is
+                // absent, fall back to the saved result format and finally to V2.
+                var effective = (persistedVersion === 'v1' || persistedVersion === 'v2' || persistedVersion === 'v3')
+                    ? persistedVersion
+                    : (savedVersion === 'v1' ? 'v1' : 'v2');
+
+                v1Radio.checked = (effective === 'v1');
+                v2Radio.checked = (effective === 'v2');
+                if (v3Radio) v3Radio.checked = (effective === 'v3');
+
+                // Persist the choice whenever the toggle changes (Requirements 1.5–1.8).
+                document.querySelectorAll('input[name="algo-version"]').forEach(function(radio) {
+                    radio.addEventListener('change', function() {
+                        persistAlgorithmVersion(getSelectedAlgorithmVersion());
+                    });
+                });
+            }
+
+            /**
+             * Handles the distribution button click — routes to V1, V2, or V3
+             * based on the toggle (Requirements 1.6, 1.7).
+             */
+            function handleDistributionButtonClick() {
+                var version = getSelectedAlgorithmVersion();
+                // Persist the active choice so subsequent sessions honor it (AC 1.5–1.8).
+                persistAlgorithmVersion(version);
+                if (version === 'v3') {
+                    // Requirement 1.7: route to the V3 module. The full invocation
+                    // path (`runAutoDistributionV3`) lands in Task 35; until then the
+                    // routing decision is wired up and guarded so V2 stays untouched.
+                    if (typeof runAutoDistributionV3 === 'function') {
+                        runAutoDistributionV3();
+                    } else {
+                        showToast('مسار الخوارزمية الجديدة (V3) غير مُفعّل بعد', 'warning');
+                    }
+                    return;
+                }
+                if (version === 'v2') {
+                    // Requirement 1.6: selecting V2 runs V2 with no behavior change.
+                    runAutoDistributionV2();
+                    return;
+                }
+                runAutoDistribution();
+            }
+
+            /**
+             * Builds the GS2_Input_Contract from existing page state for v2 algorithm.
+             * @returns {Object} GS2_Input_Contract
+             */
+            async function buildV2Input() {
+                var options = await getAutoDistributionOptions();
+                var rules = await getDistributionRules();
+                var scheduleEntries = (await getScheduleEntries()).filter(function(s) {
+                    return s && (s.date_day || s.time_from || s.subject_name);
+                });
+
+                // Build roomsList: object keyed by level_name → array of rooms
+                // This ensures each schedule entry only gets its own level's rooms
+                var levelsSeen = {};
+                var roomsList = {};
+
+                // Load examCenterLevels once for the active year and use it as
+                // the reference source for how many rooms each scheduled level
+                // must expose to Phase_2_Build. Missing rows are topped up with
+                // synthetic rows inside `getEffectiveRoomRowsForLevel` so the
+                // bug in bugfix.md §1.1–1.3 can no longer silently drop levels.
+                // See design.md §"Control Flow".
+                var examCenterLevelsMap = await getExamCenterLevelsForActiveYear();
+                if (Object.keys(examCenterLevelsMap).length === 0) {
+                    console.warn('[V2 WARN] examCenterLevels not available for active year — falling back to roomsData only');
+                }
+                var syntheticRoomWarnings = [];
+
+                for (const entry of scheduleEntries) {
+                    var lvl = entry.level_name || '';
+                    if (!lvl || levelsSeen[lvl]) continue;
+                    levelsSeen[lvl] = true;
+                    var effective = await getEffectiveRoomRowsForLevel(lvl, examCenterLevelsMap);
+                    roomsList[lvl] = effective.rows;
+                    if (effective.synthetic > 0) {
+                        syntheticRoomWarnings.push({
+                            levelName: lvl,
+                            added: effective.synthetic,
+                            expected: effective.expected,
+                            actual: effective.actual
+                        });
+                        console.warn('[V2 WARN] synthetic rooms added for level "' + lvl + '" — expected ' +
+                            effective.expected + ', actual ' + effective.actual + ', added ' + effective.synthetic);
+                    }
+                }
+
+                // Derive reservesConfig for the v2 algorithm directly from
+                // `examCenterConfig.max_reserves_mode/max_reserves/max_reserves_percent`
+                // so the percent / fixed mode reaches `phase2_5PopulateReserves`
+                // (bugfix C4 / Requirements 1.4, 2.4, 2.5, 2.8). When
+                // `max_reserves_mode` is absent we fall back to the legacy
+                // `examDistributionRules.reservesPerSession` value as a fixed
+                // count (Requirement 3.10) so older saved configs keep working.
+                // `examDistributionRules` itself is intentionally NOT removed —
+                // every other v2 consumer keeps reading it.
+                var examCenterConfig = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                var reservesConfig = examCenterConfig.max_reserves_mode
+                    ? {
+                        mode: examCenterConfig.max_reserves_mode === 'percent' ? 'percent' : 'fixed',
+                        fixed: Math.max(0, Number(examCenterConfig.max_reserves) || 0),
+                        percent: Math.max(0, Math.min(100, Number(examCenterConfig.max_reserves_percent) || 0))
+                    }
+                    : {
+                        mode: 'fixed',
+                        fixed: Math.max(0, Number((rules || {}).reservesPerSession) || 0),
+                        percent: 0
+                    };
+
+                // حساب الإعفاءات الفعّالة: تُضاف حالات "الاحتياط" كإعفاء على مستوى الحصة
+                // كي تستبعد الخوارزمية أساتذة الاحتياط من الحراسة دون المساس بالبيانات المحفوظة.
+                var _baseExemptions = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
+                var _reservesForAlgo = (await window.api.examConfig.get(year, 'examReservesData')) || {};
+                var _effectiveExemptions = {};
+                Object.keys(_baseExemptions).forEach(function (k) { _effectiveExemptions[k] = Object.assign({}, _baseExemptions[k]); });
+                (scheduleEntries || []).forEach(function (entry) {
+                    var day = entry.day || 'الأول';
+                    var period = entry.period || 'صباحا';
+                    var session = entry.session || 'الحصة الأولى';
+                    var sessionScopeKey = ['session', day, period, session].join('|');
+                    var rk = getScheduleSessionKey(entry) + '|' + (entry.subject_name || '');
+                    var lk = getLegacyScheduleSessionKey(entry) + '|' + (entry.subject_name || '');
+                    var bucket = Object.assign({}, _reservesForAlgo[lk] || {}, _reservesForAlgo[rk] || {});
+                    var reservedKeys = Object.keys(bucket).filter(function (key) { return bucket[key]; });
+                    if (!reservedKeys.length) return;
+                    if (!_effectiveExemptions[sessionScopeKey]) _effectiveExemptions[sessionScopeKey] = {};
+                    reservedKeys.forEach(function (key) { _effectiveExemptions[sessionScopeKey][key] = 'no'; });
+                });
+
+                return {
+                    proctorsList: proctorsList,
+                    scheduleEntries: scheduleEntries,
+                    exemptionsData: _effectiveExemptions,
+                    dutyData: (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {},
+                    meAssignments: meAssignments,
+                    examDistributionRules: rules,
+                    reservesConfig: reservesConfig,
+                    D_expected: Math.max(0, Number(examCenterConfig.expected_duty_tasks) || 0),
+                    options: {
+                        roomsList: roomsList,
+                        allowHalfdayReuse: options.allowHalfdayReuse !== false,
+                        allowDayReuse: options.allowDayReuse !== false,
+                        respectMorningEvening: options.respectMorningEvening !== false,
+                        preferMixedGenderPair: options.preferMixedGenderPair !== false,
+                        noRoomRepeat: options.avoidSameRoomRepeat !== false,
+                        avoidSpecialty: options.avoidSubjectSpecialty !== false,
+                        balanceTotalTasks: options.balanceTotalTasks !== false,
+                        useSurplusAsReserve: options.useSurplusAsReserve !== false
+                    },
+                    randomSeed: options.randomSeed || null,
+                    weightsPreset: getWeightsPresetSelection().weightsPreset,
+                    customWeights: getWeightsPresetSelection().customWeights,
+                    enablePhase3: true,
+                    // Passed up to `runAutoDistributionV2` so task 3.5 can render
+                    // the Diagnostics Panel section + aggregated toast. The v2
+                    // algorithm itself ignores this field (not part of the
+                    // GS2_Input_Contract consumed by ProctorDistributionV2.run).
+                    syntheticRoomWarnings: syntheticRoomWarnings
+                };
+            }
+
+            /**
+             * Runs the v2 distribution algorithm and handles the result.
+             */
+            async function runAutoDistributionV2() {
+                if (!window.ProctorDistributionV2 || typeof window.ProctorDistributionV2.run !== 'function') {
+                    showToast('خطأ: ملف الخوارزمية المُحسَّنة غير محمّل', 'error');
+                    return;
+                }
+
+                var scheduleEntries = (await getScheduleEntries()).filter(function(s) {
+                    return s && (s.date_day || s.time_from || s.subject_name);
+                });
+                if (!scheduleEntries.length) {
+                    showToast('لا توجد جدولة محفوظة', 'warning');
+                    return;
+                }
+
+                _v2RunTimestamp = Date.now();
+                var input = await buildV2Input();
+
+                var output = window.ProctorDistributionV2.run(input);
+
+                // Re-entrancy guard: orchestrator returns null if already running
+                if (output === null) {
+                    showToast('الخوارزمية قيد التنفيذ، يرجى الانتظار', 'warning');
+                    return;
+                }
+
+                // Handle error case (orchestrator throws are caught internally, but check)
+                if (!output || !output.result) {
+                    showToast('خطأ في تنفيذ الخوارزمية المُحسَّنة', 'error');
+                    return;
+                }
+
+                // Store result in memory
+                autoDistributionResult = output.result;
+                autoDistributionSummary = buildAutoDistributionSummary(
+                    buildAutoLoadStateFromRows(output.result, true)
+                );
+
+                // Save to v2 format (awaited so subsequent reads see the latest write — Task 5
+                // precondition for the proctor-distribution-db-memory-mismatch bugfix)
+                await saveV2ResultToLocalStorage(output);
+
+                // Render results
+                renderAutoDistributionResult();
+                await updateDistStatuses();
+
+                // Render diagnostics panel (Req 8.1)
+                renderDiagnosticsPanel(output.diagnostics || null);
+
+                // Synthetic rooms UX (bugfix proctor-v2-use-exam-center-levels §2.2, 2.6).
+                // Must run AFTER renderDiagnosticsPanel because this helper
+                // prepends its section into `v2-diagnostics-body` whose content
+                // is (re)built by renderDiagnosticsPanel on every run. Pairs
+                // with a single aggregated warning toast so the user sees the
+                // affected levels without per-level toast spam.
+                var syntheticRoomWarnings = (input && input.syntheticRoomWarnings) || [];
+                renderSyntheticRoomWarnings(syntheticRoomWarnings);
+
+                // Show success toast with diagnostics summary
+                var totalRows = output.result.length;
+                var durationMs = (output.diagnostics && output.diagnostics.totalDurationMs) || 0;
+                var fallbacks = (output.diagnostics && output.diagnostics.fallbackCount) || 0;
+                var msg = 'تم تنفيذ التوزيع (v2) على ' + totalRows + ' مهمة قاعة';
+                if (durationMs > 0) msg += ' في ' + durationMs + 'ms';
+                if (fallbacks > 0) msg += ' (fallback: ' + fallbacks + ')';
+                showToast(msg, 'success');
+            }
+
+            /**
+             * Saves v2 result to localStorage in a backward-compatible format.
+             * Format: { rows: [...], algorithmVersion: 'v2', diagnostics: {...} }
+             * Per Requirement 9.1: same key `examAutoDistributionData` with algorithmVersion and diagnostics.
+             * Per Requirement 9.4: preserves all v1 row fields.
+             * @param {{ result: Array, diagnostics: Object }} output
+             */
+            async function saveV2ResultToLocalStorage(output) {
+                var dataToSave = {
+                    rows: output.result,
+                    algorithmVersion: 'v2',
+                    diagnostics: output.diagnostics || null
+                };
+                await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionData', data: dataToSave });
+            }
+
+            // ============================================================
+            // V3 Invocation Path (Task 35 — Requirements 1.7, 4.3, 4.4, 4.5)
+            // ============================================================
+
+            /**
+             * Builds the GS3_Input_Contract from existing page state for the
+             * V3 algorithm. V3 accepts the same input contract as V2
+             * (Requirement 1.3), so this reuses `buildV2Input()` for the
+             * shared fields and overlays the V3-canonical field locations the
+             * V3 module reads directly:
+             *   - `examCenterConfig`   : read by Phase 3 (D_expected) and
+             *                            Phase 9 (reserves config).
+             *   - `examCenterLevels`   : read by Phase 1b for room counts.
+             *   - `examCenterRoomsData`: read by Phase 1b as the canonical
+             *                            rooms source (falls back to
+             *                            `options.roomsList` which buildV2Input
+             *                            already supplies).
+             *
+             * @param {{ allowSameDayBothHalfdays?: boolean }} [overrides]
+             *        Optional rule overrides. Used by the same-day relaxation
+             *        flow (Requirement 4.4) to re-run with
+             *        `allowSameDayBothHalfdays: true`.
+             * @returns {Object} GS3_Input_Contract
+             */
+            async function buildV3Input(overrides) {
+                var input = await buildV2Input();
+
+                // examCenterConfig drives D_expected (Phase 3) and the
+                // reserves config fallback chain (Phase 9). buildV2Input
+                // already derived `reservesConfig` and `D_expected`; pass the
+                // raw config object through too so V3's own readers find it.
+                var examCenterConfig = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                input.examCenterConfig = examCenterConfig;
+
+                // examCenterLevels (room counts per level) + the canonical
+                // rooms-by-level map. Phase 1b reads `examCenterRoomsData`
+                // first, then falls back to `options.roomsList` (already set
+                // by buildV2Input), so supplying examCenterLevels lets V3
+                // synthesize placeholder rooms exactly like V2.
+                try {
+                    input.examCenterLevels = await getExamCenterLevelsForActiveYear();
+                } catch (e) {
+                    input.examCenterLevels = {};
+                }
+                input.examCenterRoomsData = (input.options && input.options.roomsList) || {};
+
+                // Same-Day_Allowance_Flag lives in examDistributionRules
+                // (Requirement 4.5 — persisted with the rules). Default false.
+                if (!input.examDistributionRules || typeof input.examDistributionRules !== 'object') {
+                    input.examDistributionRules = {};
+                }
+                if (overrides && typeof overrides.allowSameDayBothHalfdays === 'boolean') {
+                    input.examDistributionRules.allowSameDayBothHalfdays = overrides.allowSameDayBothHalfdays;
+                } else if (typeof input.examDistributionRules.allowSameDayBothHalfdays !== 'boolean') {
+                    input.examDistributionRules.allowSameDayBothHalfdays = false;
+                }
+
+                return input;
+            }
+
+            /**
+             * Saves a V3 result under the shared `examAutoDistributionData`
+             * key with `algorithmVersion: 'v3'` (Requirement 1.7). Mirrors
+             * the V2 save format so the rest of the page (and the display
+             * pages) can read `{ rows, algorithmVersion, diagnostics }`.
+             * @param {{ result: Array, diagnostics: Object }} output
+             */
+            async function saveV3ResultToLocalStorage(output) {
+                var dataToSave = {
+                    rows: output.result,
+                    algorithmVersion: 'v3',
+                    diagnostics: output.diagnostics || null
+                };
+                await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionData', data: dataToSave });
+            }
+
+            /**
+             * Runs the V3 distribution algorithm and handles the result
+             * (Requirement 1.7). On the `same_day_relaxation_suggested`
+             * warning (Requirement 4.2), shows a confirmation dialog
+             * (Requirement 4.3) and, if the user confirms, persists
+             * `allowSameDayBothHalfdays: true` (Requirement 4.5) and re-runs
+             * V3 with the relaxed flag (Requirement 4.4).
+             *
+             * @param {Object} [prebuiltInput] - internal: an already-built
+             *        V3 input (used by the relaxation re-run to avoid
+             *        rebuilding from scratch). When omitted, the input is
+             *        built fresh from page state.
+             * @param {boolean} [isRelaxedRerun] - internal guard: when true,
+             *        the same-day relaxation prompt is NOT shown again (we
+             *        already relaxed), preventing an infinite loop.
+             */
+            async function runAutoDistributionV3(prebuiltInput, isRelaxedRerun) {
+                if (!window.ProctorDistributionV3 || typeof window.ProctorDistributionV3.run !== 'function') {
+                    showToast('خطأ: وحدة الخوارزمية الجديدة (V3) غير محمّلة', 'error');
+                    return;
+                }
+
+                var scheduleEntries = (await getScheduleEntries()).filter(function (s) {
+                    return s && (s.date_day || s.time_from || s.subject_name);
+                });
+                if (!scheduleEntries.length) {
+                    showToast('لا توجد جدولة محفوظة', 'warning');
+                    return;
+                }
+
+                var input = prebuiltInput || await buildV3Input();
+
+                var output;
+                try {
+                    output = window.ProctorDistributionV3.run(input);
+                } catch (e) {
+                    showToast('خطأ في تنفيذ الخوارزمية الجديدة (V3): ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'error');
+                    return;
+                }
+
+                if (!output || !output.result) {
+                    showToast('خطأ في تنفيذ الخوارزمية الجديدة (V3)', 'error');
+                    return;
+                }
+
+                // Store result in memory + summary (same helpers V2 uses).
+                autoDistributionResult = output.result;
+                autoDistributionSummary = buildAutoDistributionSummary(
+                    buildAutoLoadStateFromRows(output.result, true)
+                );
+
+                await saveV3ResultToLocalStorage(output);
+
+                renderAutoDistributionResult();
+                await updateDistStatuses();
+                renderDiagnosticsPanel(output.diagnostics || null);
+
+                // Success toast (Requirement 1.7).
+                var totalRows = output.result.length;
+                var durationMs = (output.diagnostics && output.diagnostics.totalDurationMs) || 0;
+                var msg = 'تم تنفيذ التوزيع (v3) على ' + totalRows + ' مهمة قاعة';
+                if (durationMs > 0) msg += ' في ' + durationMs + 'ms';
+                showToast(msg, output.orchestratorState === 'COMPLETED' ? 'success' : 'warning');
+
+                // Requirement 4.2 / 4.3 / 4.4 / 4.5 — same-day relaxation flow.
+                // Only prompt if this is NOT already a relaxed re-run.
+                if (!isRelaxedRerun) {
+                    var warnings = (output.diagnostics && Array.isArray(output.diagnostics.warnings))
+                        ? output.diagnostics.warnings : [];
+                    var relaxWarning = null;
+                    for (var i = 0; i < warnings.length; i += 1) {
+                        if (warnings[i] && warnings[i].type === 'same_day_relaxation_suggested') {
+                            relaxWarning = warnings[i];
+                            break;
+                        }
+                    }
+                    if (relaxWarning) {
+                        await handleSameDayRelaxation(relaxWarning, input);
+                    }
+                }
+            }
+
+            /**
+             * Shows the same-day relaxation confirmation dialog
+             * (Requirement 4.3) and, on confirmation, persists the flag
+             * (Requirement 4.5) and re-runs V3 with
+             * `allowSameDayBothHalfdays: true` (Requirement 4.4).
+             *
+             * @param {{ impactedSlotsCount?: number, message?: string }} warning
+             * @param {Object} previousInput - the input used for the strict run.
+             */
+            async function handleSameDayRelaxation(warning, previousInput) {
+                var impacted = (warning && typeof warning.impactedSlotsCount === 'number')
+                    ? warning.impactedSlotsCount : 0;
+                var baseMessage = (warning && warning.message)
+                    ? warning.message
+                    : 'غير ممكن التغطية بدون السماح بحراسة نفس الأستاذ صباحاً ومساءً في نفس اليوم. هل تريد تفعيل هذا الخيار؟';
+
+                var r = await showConfirm({
+                    type: 'warning',
+                    title: 'تعذّرت التغطية الكاملة',
+                    message: baseMessage,
+                    detail: impacted > 0 ? ('عدد الخانات المتأثرة: ' + impacted) : '',
+                    confirmText: 'تفعيل وإعادة التوزيع',
+                    cancelText: 'إلغاء'
+                });
+
+                if (!r || !r.confirmed) {
+                    // Requirement 4.3 "إلغاء" branch — keep the strict result.
+                    return;
+                }
+
+                // Requirement 4.5 — persist allowSameDayBothHalfdays:true in
+                // examDistributionRules so subsequent runs honor the choice.
+                try {
+                    var rules = await getDistributionRules();
+                    rules.allowSameDayBothHalfdays = true;
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examDistributionRules', data: rules });
+                } catch (e) {
+                    showToast('تعذّر حفظ خيار السماح بنفس اليوم: ' + (e && e.message ? e.message : 'خطأ غير معروف'), 'warning');
+                }
+
+                // Requirement 4.4 — re-invoke V3 with the relaxed flag. Reuse
+                // the previous input (cloned) and flip the rule so we don't
+                // depend on the persisted save having propagated yet.
+                var relaxedInput = Object.assign({}, previousInput);
+                relaxedInput.examDistributionRules = Object.assign(
+                    {},
+                    previousInput.examDistributionRules || {},
+                    { allowSameDayBothHalfdays: true }
+                );
+
+                await runAutoDistributionV3(relaxedInput, true);
+            }
+
+            // ============================================================
+            // Diagnostics Panel (Task 10.1) & Weights Preset (Task 10.2)
+            // ============================================================
+
+            var _diagPanelCollapsed = false;
+            var _v2RunTimestamp = null; // Track when v2 last ran for estimated duration
+
+            /**
+             * Toggles the diagnostics panel body visibility.
+             */
+            function toggleDiagnosticsPanel() {
+                var body = document.getElementById('v2-diagnostics-body');
+                var chevron = document.getElementById('diag-chevron');
+                if (!body) return;
+                _diagPanelCollapsed = !_diagPanelCollapsed;
+                body.style.display = _diagPanelCollapsed ? 'none' : '';
+                if (chevron) {
+                    chevron.style.transform = _diagPanelCollapsed ? 'rotate(-90deg)' : '';
+                }
+            }
+
+            /**
+             * Renders the diagnostics panel with data from the v2 algorithm output.
+             * Per Req 8.1: show below distribution table after v2 run.
+             * Per Req 9.5: show "لا توجد بيانات تشخيصية متاحة" when diagnostics missing.
+             * Per Req 13.4.1: handle DOM errors gracefully with toast.
+             * @param {Object|null|undefined} diagnostics - The diagnostics report from v2
+             */
+            function renderDiagnosticsPanel(diagnostics) {
+                try {
+                    var panel = document.getElementById('v2-diagnostics-panel');
+                    var body = document.getElementById('v2-diagnostics-body');
+                    if (!panel || !body) {
+                        throw new Error('Diagnostics panel DOM elements not found');
+                    }
+
+                    if (!diagnostics) {
+                        // Per Req 9.5: show message when v2 data lacks diagnostics
+                        panel.style.display = '';
+                        body.innerHTML = '<div class="dist-period-hint"><i class="fas fa-info-circle"></i> لا توجد بيانات تشخيصية متاحة لهذا التوزيع</div>';
+                        body.style.display = _diagPanelCollapsed ? 'none' : '';
+                        return;
+                    }
+
+                    panel.style.display = '';
+                    body.innerHTML = buildDiagnosticsHTML(diagnostics);
+                    body.style.display = _diagPanelCollapsed ? 'none' : '';
+                } catch (e) {
+                    // Per Req 13.4.1: DOM error → toast notification
+                    showToast('خطأ في عرض لوحة التشخيص: ' + (e.message || 'خطأ غير معروف'), 'error');
+                }
+            }
+
+            /**
+             * Hides the diagnostics panel.
+             * Per Req 8.8: hide on next v1 run.
+             */
+            function hideDiagnosticsPanel() {
+                var panel = document.getElementById('v2-diagnostics-panel');
+                if (panel) panel.style.display = 'none';
+            }
+
+            /**
+             * Minimal HTML escape for level names inserted into innerHTML.
+             * Added for the synthetic-rooms warning section (bugfix
+             * proctor-v2-use-exam-center-levels §2.2). No existing helper was
+             * found in this file, so we introduce a local one to avoid
+             * XSS-flavoured surprises if a level name ever contains markup.
+             * @param {*} s
+             * @returns {string}
+             */
+            function escapeHtmlSafe(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            /**
+             * Renders the "قاعات افتراضية مُكمَّلة" section inside the
+             * diagnostics panel whenever `buildV2Input` had to synthesize
+             * rooms for scheduled levels whose saved `examCenterRoomsData`
+             * rows were fewer than `examCenterLevels[L].rooms`.
+             *
+             * Called from `runAutoDistributionV2` AFTER `renderDiagnosticsPanel`
+             * (the panel body is rebuilt on every run; we prepend here so the
+             * warning sits at the top).
+             *
+             * Emits exactly one aggregated warning toast — never one per level
+             * (see bugfix.md §2.6 / tasks.md 3.5 manual verification note).
+             *
+             * See bugfix.md §2.2, 2.6 and design.md §"Warning UX".
+             *
+             * @param {Array<{levelName:string,added:number,expected:number,actual:number}>} warnings
+             */
+            function renderSyntheticRoomWarnings(warnings) {
+                try {
+                    var panel = document.getElementById('v2-diagnostics-panel');
+                    var body = document.getElementById('v2-diagnostics-body');
+                    if (!panel || !body) return;
+
+                    // Remove any stale section from a previous run so re-running
+                    // the distribution never accumulates entries or leaves a
+                    // zombie section behind when the new run has no warnings.
+                    var prev = document.getElementById('v2-synthetic-rooms-section');
+                    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+
+                    if (!Array.isArray(warnings) || warnings.length === 0) return;
+
+                    var totalAdded = 0;
+                    for (var i = 0; i < warnings.length; i++) {
+                        totalAdded += Number(warnings[i] && warnings[i].added) || 0;
+                    }
+                    var levelsCount = warnings.length;
+
+                    var rowsHtml = warnings.map(function (w) {
+                        var nameCell = escapeHtmlSafe(w && w.levelName);
+                        var expected = Number(w && w.expected) || 0;
+                        var actual = Number(w && w.actual) || 0;
+                        var added = Number(w && w.added) || 0;
+                        return ''
+                            + '<tr>'
+                            +     '<td style="padding:6px 10px;border-bottom:1px solid #f59e0b;font-size:12px;">' + nameCell + '</td>'
+                            +     '<td style="padding:6px 10px;border-bottom:1px solid #f59e0b;font-size:12px;text-align:center;">' + expected + '</td>'
+                            +     '<td style="padding:6px 10px;border-bottom:1px solid #f59e0b;font-size:12px;text-align:center;">' + actual + '</td>'
+                            +     '<td style="padding:6px 10px;border-bottom:1px solid #f59e0b;font-size:12px;text-align:center;color:#b45309;font-weight:600;">' + added + '</td>'
+                            + '</tr>';
+                    }).join('');
+
+                    var section = document.createElement('div');
+                    section.id = 'v2-synthetic-rooms-section';
+                    section.style.cssText = 'margin-bottom:12px;border:1px solid #f59e0b;border-radius:6px;overflow:hidden;background:#fef3c7;';
+                    section.innerHTML = ''
+                        + '<div style="padding:10px 12px;background:#fde68a;font-weight:600;font-size:13px;color:#92400e;display:flex;align-items:center;gap:6px;">'
+                        +     '<i class="fas fa-exclamation-triangle"></i>'
+                        +     '<span>قاعات افتراضية مُكمَّلة</span>'
+                        + '</div>'
+                        + '<div style="padding:10px 12px;">'
+                        +     '<table style="width:100%;border-collapse:collapse;margin-bottom:10px;">'
+                        +         '<thead><tr style="background:#fef3c7;">'
+                        +             '<th style="padding:6px 10px;font-size:12px;text-align:right;border-bottom:1px solid #f59e0b;color:#92400e;">اسم المستوى</th>'
+                        +             '<th style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #f59e0b;color:#92400e;">العدد المتوقَّع</th>'
+                        +             '<th style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #f59e0b;color:#92400e;">العدد الفعلي</th>'
+                        +             '<th style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #f59e0b;color:#92400e;">عدد الصفوف المُكمَّلة</th>'
+                        +         '</tr></thead>'
+                        +         '<tbody>' + rowsHtml + '</tbody>'
+                        +     '</table>'
+                        +     '<div style="font-size:12px;color:#92400e;margin-bottom:10px;line-height:1.6;">'
+                        +         '<i class="fas fa-info-circle" style="margin-left:4px;"></i>'
+                        +         'الصفوف الافتراضية مُستعمَلة فقط لتوزيع المراقبين ولا تُحفظ. أكمِل الصفوف من صفحة "تهيئ قاعات الامتحان" لإزالتها.'
+                        +     '</div>'
+                        +     '<button id="v2-goto-rooms-btn" type="button" class="btn btn-outline" style="font-size:12px;">'
+                        +         '<i class="fas fa-external-link-alt" style="margin-left:4px;"></i>'
+                        +         'الذهاب إلى صفحة القاعات'
+                        +     '</button>'
+                        + '</div>';
+
+                    // Make sure the panel is visible and prepend so the warning
+                    // sits at the very top of the panel body. Honours the
+                    // current collapsed state so toggling the panel still
+                    // hides the warning alongside the rest.
+                    panel.style.display = '';
+                    body.insertBefore(section, body.firstChild);
+                    body.style.display = _diagPanelCollapsed ? 'none' : '';
+
+                    var btn = document.getElementById('v2-goto-rooms-btn');
+                    if (btn) {
+                        btn.addEventListener('click', function () {
+                            window.location.href = 'exams-rooms.html';
+                        });
+                    }
+
+                    // Aggregated toast — exactly one per run (Req 2.6,
+                    // manual-verification note in tasks.md 3.5).
+                    showToast(
+                        'تم تكميل ' + totalAdded + ' قاعة افتراضية في ' + levelsCount + ' مستوى. راجع لوحة التشخيص.',
+                        'warning'
+                    );
+                } catch (e) {
+                    showToast('خطأ في عرض تحذير القاعات الافتراضية: ' + (e.message || 'خطأ غير معروف'), 'error');
+                }
+            }
+
+            /**
+             * Builds the full diagnostics HTML content.
+             * @param {Object} d - DiagnosticsReport
+             * @returns {string} HTML string
+             */
+            function buildDiagnosticsHTML(d) {
+                var html = '';
+
+                // 1. Phase durations row
+                html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                html += buildDiagChip('fas fa-cogs', 'المرحلة 1', formatDuration(d.phase1DurationMs), '#6366f1');
+                html += buildDiagChip('fas fa-th', 'المرحلة 2', formatDuration(d.phase2DurationMs), '#0891b2');
+                if (d.phase2_5DurationMs != null) {
+                    html += buildDiagChip('fas fa-user-shield', 'الاحتياط', formatDuration(d.phase2_5DurationMs), '#0f766e');
+                }
+                html += buildDiagChip('fas fa-fire', 'المرحلة 3', d.phase3Skipped ? 'مُتخطّاة' : formatDuration(d.phase3DurationMs), '#d97706');
+                // Total duration (Req 7.4)
+                var totalDur = d.totalDurationMs;
+                if (totalDur == null || totalDur === undefined) {
+                    // Req 7.4.1: estimate from timestamps
+                    if (_v2RunTimestamp) {
+                        totalDur = Date.now() - _v2RunTimestamp;
+                        html += buildDiagChip('fas fa-clock', 'المجموع (تقديري)', formatDuration(totalDur), '#64748b');
+                    }
+                } else {
+                    html += buildDiagChip('fas fa-clock', 'المجموع', formatDuration(totalDur), '#16a34a');
+                }
+                html += '</div>';
+
+                // 2. Load balance stats (Req 8.3)
+                if (d.loadBalance) {
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                    html += buildDiagChip('fas fa-chart-bar', 'الانحراف المعياري', safeNum(d.loadBalance.std, 2), '#7c3aed');
+                    html += buildDiagChip('fas fa-arrow-down', 'الحد الأدنى', safeNum(d.loadBalance.min, 0), '#059669');
+                    html += buildDiagChip('fas fa-arrow-up', 'الحد الأقصى', safeNum(d.loadBalance.max, 0), '#dc2626');
+                    html += buildDiagChip('fas fa-balance-scale', 'جيني', safeNum(d.loadBalance.giniCoefficient, 3), '#0284c7');
+                    html += '</div>';
+                }
+
+                if (d.totalReservesPlaced != null || d.sessionsWithShortage != null || d.percentRoundedToZero != null) {
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                    html += buildDiagChip('fas fa-user-shield', 'الاحتياط الموزع', String(d.totalReservesPlaced || 0), '#0f766e');
+                    html += buildDiagChip('fas fa-user-minus', 'حصص بها خصاص احتياط', String(d.sessionsWithShortage || 0), '#b45309');
+                    html += buildDiagChip('fas fa-percent', 'نسبة قُرّبت للصفر', String(d.percentRoundedToZero || 0), '#7c3aed');
+                    html += '</div>';
+                }
+
+                if (d.coverageRepairSwaps != null || d.coverageRepairUnresolved != null || d.eligibilityClassCount != null || d.maxPrimaryLoadGapWithinClass != null) {
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                    html += buildDiagChip('fas fa-exchange-alt', 'إصلاح التغطية', String(d.coverageRepairSwaps || 0), '#2563eb');
+                    html += buildDiagChip('fas fa-user-times', 'غير مغطّى', String(d.coverageRepairUnresolved || 0), '#dc2626');
+                    html += buildDiagChip('fas fa-layer-group', 'فئات الأهلية', String(d.eligibilityClassCount || 0), '#7c3aed');
+                    html += buildDiagChip('fas fa-balance-scale-right', 'أقصى فرق داخل فئة', String(d.maxPrimaryLoadGapWithinClass == null ? 0 : d.maxPrimaryLoadGapWithinClass), '#0891b2');
+                    html += '</div>';
+                }
+
+                if (d.warnings && d.warnings.length) {
+                    var divergenceWarnings = d.warnings.filter(function (w) { return w && w.type === 'd_expected_divergence'; });
+                    if (divergenceWarnings.length > 0) {
+                        html += '<div style="margin-bottom:12px;padding:8px 10px;border:1px solid #f59e0b;border-radius:6px;background:#fffbeb;color:#92400e;font-size:12px;line-height:1.6;">';
+                        html += '<i class="fas fa-exclamation-triangle" style="margin-left:4px;"></i>';
+                        html += divergenceWarnings.map(function (w) { return escapeHtmlSafe(w.message || 'تحذير في عدد المداومة المتوقعة'); }).join('<br>');
+                        html += '</div>';
+                    }
+                }
+
+                // 3. Soft violations by type (Req 8.4)
+                if (d.softViolationsByType) {
+                    var sv = d.softViolationsByType;
+                    html += '<div style="margin-bottom:12px;">';
+                    html += '<div style="font-weight:600;font-size:13px;margin-bottom:6px;"><i class="fas fa-exclamation-triangle" style="color:#d97706;margin-left:4px;"></i> انتهاكات القواعد المرنة</div>';
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+                    html += buildDiagBadge('تكرار القاعة', sv.sameRoomRepeats || 0, '#f59e0b');
+                    html += buildDiagBadge('تخصص المادة', sv.subjectConflicts || 0, '#ef4444');
+                    html += buildDiagBadge('خرق المجموعة', sv.groupMismatches || 0, '#8b5cf6');
+                    html += buildDiagBadge('عدم التوازن الجنسي', sv.genderImbalances || 0, '#ec4899');
+                    html += '</div></div>';
+                }
+
+                // 4. Fallback count (Req 8.5)
+                html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                html += buildDiagChip('fas fa-undo', 'Fallback', String(d.fallbackCount || 0), '#b45309');
+                if (d.fallbackHalfdays && d.fallbackHalfdays.length > 0) {
+                    html += '<span style="font-size:12px;color:var(--color-text-muted);align-self:center;">(' + d.fallbackHalfdays.join('، ') + ')</span>';
+                }
+                html += '</div>';
+
+                // 5. SA info (Req 8.6)
+                if (!d.phase3Skipped) {
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">';
+                    html += buildDiagChip('fas fa-redo', 'التكرارات', String(d.iterationsExecuted || 0), '#4f46e5');
+                    html += buildDiagChip('fas fa-stop-circle', 'توقف مبكر', d.earlyStop ? 'نعم' : 'لا', d.earlyStop ? '#dc2626' : '#16a34a');
+                    if (d.initialObjective != null && d.finalObjective != null) {
+                        html += buildDiagChip('fas fa-chart-line', 'الهدف', safeNum(d.initialObjective, 2) + ' → ' + safeNum(d.finalObjective, 2), '#0891b2');
+                    }
+                    html += '</div>';
+                }
+
+                // 6. Weights info
+                if (d.weightsUsed || d.weightValues) {
+                    html += '<div style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px;">';
+                    html += '<i class="fas fa-sliders-h" style="margin-left:4px;"></i> ';
+                    html += 'الأوزان: ' + (d.weightsUsed || d.preset || '—');
+                    if (d.weightValues) {
+                        html += ' (α=' + d.weightValues.alpha + ', β=' + d.weightValues.beta + ', γ=' + d.weightValues.gamma + ')';
+                    }
+                    html += '</div>';
+                }
+
+                // 7. Collapsible sections: shortages, infeasibilities, warnings, errors (Req 8.7)
+                html += buildCollapsibleDiagSection('shortages', 'fas fa-user-minus', 'النقص في المراقبين', d.shortages, formatShortages);
+                html += buildCollapsibleDiagSection('infeasibilities', 'fas fa-ban', 'حالات عدم الجدوى', d.infeasibilities, formatInfeasibilities);
+                html += buildCollapsibleDiagSection('warnings', 'fas fa-exclamation-circle', 'تحذيرات', d.warnings, formatStringList);
+                html += buildCollapsibleDiagSection('errors', 'fas fa-times-circle', 'أخطاء', d.errors, formatStringList, true);
+
+                return html;
+            }
+
+            function buildDiagChip(icon, label, value, color) {
+                return '<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;background:' + color + '12;border:1px solid ' + color + '30;font-size:12px;">'
+                    + '<i class="' + icon + '" style="color:' + color + ';font-size:11px;"></i>'
+                    + '<span style="color:var(--color-text-muted);">' + label + ':</span>'
+                    + '<strong style="color:' + color + ';">' + value + '</strong>'
+                    + '</div>';
+            }
+
+            function buildDiagBadge(label, count, color) {
+                var opacity = count > 0 ? '1' : '0.5';
+                return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:12px;background:' + color + '15;font-size:12px;opacity:' + opacity + ';">'
+                    + '<strong style="color:' + color + ';">' + count + '</strong>'
+                    + '<span style="color:var(--color-text-muted);">' + label + '</span>'
+                    + '</span>';
+            }
+
+            function buildCollapsibleDiagSection(id, icon, title, data, formatter, isError) {
+                if (!data || (Array.isArray(data) && data.length === 0)) return '';
+                var warnStyle = isError ? 'color:#dc2626;' : 'color:#d97706;';
+                var html = '<div style="margin-bottom:8px;border:1px solid var(--color-border,#e5e7eb);border-radius:6px;overflow:hidden;">';
+                html += '<div style="cursor:pointer;padding:8px 12px;background:var(--color-bg-subtle,#f8f9fa);display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;" onclick="toggleDiagSection(\'' + id + '\')">';
+                html += '<i class="' + icon + '" style="' + warnStyle + '"></i>';
+                html += '<span>' + title + ' (' + (Array.isArray(data) ? data.length : 0) + ')</span>';
+                html += '<i class="fas fa-chevron-down" id="diag-sec-chevron-' + id + '" style="margin-right:auto;font-size:10px;transition:transform 0.2s;"></i>';
+                html += '</div>';
+                html += '<div id="diag-sec-body-' + id + '" style="display:none;padding:8px 12px;font-size:12px;">';
+                html += formatter(data);
+                html += '</div></div>';
+                return html;
+            }
+
+            function toggleDiagSection(id) {
+                var body = document.getElementById('diag-sec-body-' + id);
+                var chevron = document.getElementById('diag-sec-chevron-' + id);
+                if (!body) return;
+                var isHidden = body.style.display === 'none';
+                body.style.display = isHidden ? '' : 'none';
+                if (chevron) chevron.style.transform = isHidden ? 'rotate(-90deg)' : '';
+            }
+
+            function formatDuration(ms) {
+                if (ms == null || ms === undefined) return '—';
+                if (ms < 1) return '<1ms';
+                return ms + 'ms';
+            }
+
+            function safeNum(val, decimals) {
+                if (val == null || val === undefined || isNaN(val)) return '—';
+                return Number(val).toFixed(decimals);
+            }
+
+            function formatShortages(shortages) {
+                if (!shortages || !shortages.length) return '<em>لا يوجد</em>';
+                var html = '<ul style="margin:0;padding:0 16px;list-style:disc;">';
+                shortages.forEach(function(s) {
+                    html += '<li>' + (s.halfdayKey || '—') + ': نقص ' + (s.count || 0) + ' مراقب</li>';
+                });
+                html += '</ul>';
+                return html;
+            }
+
+            function formatInfeasibilities(infeasibilities) {
+                if (!infeasibilities || !infeasibilities.length) return '<em>لا يوجد</em>';
+                var html = '<ul style="margin:0;padding:0 16px;list-style:disc;">';
+                infeasibilities.forEach(function(inf) {
+                    html += '<li>' + (inf.variable || '—') + ': ' + (inf.reason || 'سبب غير محدد') + '</li>';
+                });
+                html += '</ul>';
+                return html;
+            }
+
+            function formatStringList(items) {
+                if (!items || !items.length) return '<em>لا يوجد</em>';
+                var html = '<ul style="margin:0;padding:0 16px;list-style:disc;">';
+                items.forEach(function(item) {
+                    html += '<li>' + item + '</li>';
+                });
+                html += '</ul>';
+                return html;
+            }
+
+            /**
+             * Gets the selected weights preset value, or custom weights if advanced mode is active.
+             * @returns {{ weightsPreset: string, customWeights: Object|null }}
+             */
+            function getWeightsPresetSelection() {
+                var customToggle = document.getElementById('weights-custom-toggle');
+                if (customToggle && customToggle.checked) {
+                    var alpha = parseFloat(document.getElementById('custom-weight-alpha').value) || 3;
+                    var beta = parseFloat(document.getElementById('custom-weight-beta').value) || 1;
+                    var gamma = parseFloat(document.getElementById('custom-weight-gamma').value) || 2;
+                    return {
+                        weightsPreset: 'custom',
+                        customWeights: { alpha: alpha, beta: beta, gamma: gamma }
+                    };
+                }
+                var checked = document.querySelector('input[name="weights-preset"]:checked');
+                return {
+                    weightsPreset: (checked && checked.value) || 'توازن',
+                    customWeights: null
+                };
+            }
+
+            /**
+             * Initializes the weights preset UI: custom toggle, visibility based on algo version.
+             */
+            function initWeightsPreset() {
+                var customToggle = document.getElementById('weights-custom-toggle');
+                var customFields = document.getElementById('dist-custom-weights-fields');
+                if (customToggle && customFields) {
+                    customToggle.addEventListener('change', function() {
+                        customFields.style.display = customToggle.checked ? 'flex' : 'none';
+                    });
+                }
+                // Show/hide weights preset based on algorithm version
+                updateWeightsPresetVisibility();
+                // Listen for algo toggle changes
+                document.querySelectorAll('input[name="algo-version"]').forEach(function(radio) {
+                    radio.addEventListener('change', updateWeightsPresetVisibility);
+                });
+            }
+
+            /**
+             * Shows/hides the weights preset selector based on selected algorithm version.
+             * Weights preset is only relevant for v2.
+             */
+            function updateWeightsPresetVisibility() {
+                var presetPanel = document.getElementById('dist-weights-preset');
+                if (!presetPanel) return;
+                var version = getSelectedAlgorithmVersion();
+                presetPanel.style.display = (version === 'v2') ? '' : 'none';
+            }
+
+            /**
+             * Initializes the diagnostics panel header click handler.
+             */
+            function initDiagnosticsPanel() {
+                var header = document.getElementById('v2-diag-header');
+                if (header) {
+                    header.addEventListener('click', toggleDiagnosticsPanel);
+                }
+            }
+
+            async function getAutoDistributionOptions() {
+                const saved = (await window.api.examConfig.get(year, 'examAutoDistributionOptions')) || {};
+                return Object.assign({}, AUTO_DISTRIBUTION_OPTION_DEFAULTS, saved || {});
+            }
+
+            async function initAutoDistributionOptions() {
+                const options = await getAutoDistributionOptions();
+                const bindings = {
+                    avoidSameRoomRepeat: document.getElementById('auto-rule-no-room-repeat'),
+                    preferMixedGenderPair: document.getElementById('auto-rule-mixed-gender'),
+                    respectMorningEvening: document.getElementById('auto-rule-morning-evening'),
+                    avoidSubjectSpecialty: document.getElementById('auto-rule-avoid-specialty'),
+                    balanceTotalTasks: document.getElementById('auto-rule-balance-load'),
+                    useSurplusAsReserve: document.getElementById('auto-rule-surplus-reserve')
+                };
+                Object.entries(bindings).forEach(([key, input]) => {
+                    if (!input) return;
+                    input.checked = Boolean(options[key]);
+                    input.addEventListener('change', async () => {
+                        const next = await getAutoDistributionOptions();
+                        next[key] = input.checked;
+                        await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionOptions', data: next });
+                    });
+                });
+                const prioritySelect = document.getElementById('auto-priority-policy');
+                if (prioritySelect) {
+                    prioritySelect.value = options.priorityPolicy || 'balance';
+                    prioritySelect.addEventListener('change', async () => {
+                        const next = await getAutoDistributionOptions();
+                        next.priorityPolicy = prioritySelect.value || 'balance';
+                        next.balanceTotalTasks = next.priorityPolicy === 'balance' ? true : Boolean(next.balanceTotalTasks);
+                        await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionOptions', data: next });
+                    });
+                }
+            }
+
+            function getMorningEveningGroupCounts() {
+                let g1 = 0;
+                let g2 = 0;
+                proctorsList.forEach((proc, idx) => {
+                    const group = meAssignments[getProctorKey(proc, idx)] || 0;
+                    if (group === 1) g1++;
+                    else if (group === 2) g2++;
+                });
+                return { g1, g2, smallest: Math.min(g1, g2), assigned: g1 + g2 };
+            }
+
+            async function getAutoSessionNeedStats() {
+                const rules = await getDistributionRules();
+                const scheduleEntries = (await getScheduleEntries()).filter(s => s && (s.date_day || s.time_from || s.subject_name));
+                const sessions = new Map();
+                for (const entry of scheduleEntries) {
+                    const key = getAutoDistributionHalfdayKey(entry);
+                    const rooms = await getRoomRowsForLevel(entry.level_name);
+                    const roomCount = rooms.length;
+                    const guardNeed = roomCount * rules.proctorsPerRoom;
+                    const need = guardNeed + computeReservesForSession(guardNeed, rules);
+                    const label = getAutoDistributionHalfdayLabel(entry);
+                    const current = sessions.get(key);
+                    if (!current || need > current.need) {
+                        sessions.set(key, { need, label, roomCount });
+                    }
+                }
+                const values = Array.from(sessions.values());
+                const max = values.reduce((best, item) => item.need > best.need ? item : best, { need: 0, label: '', roomCount: 0 });
+                return { maxNeed: max.need, maxLabel: max.label, maxRooms: max.roomCount, sessionsCount: values.length };
+            }
+
+            async function getAlternatingSessionOptions(period) {
+                const entries = (await getScheduleEntries())
+                    .filter(s => s && (s.date_day || s.time_from || s.subject_name))
+                    .filter(s => (s.period || 'صباحا') === period)
+                    .sort((a, b) => getScheduleSortKey(a).localeCompare(getScheduleSortKey(b), 'ar'));
+                const sessions = [];
+                const seen = new Set();
+                entries.forEach(entry => {
+                    const key = getAutoDistributionHalfdayKey(entry);
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    sessions.push({ key, label: getAutoDistributionHalfdayLabel(entry), period });
+                });
+                return sessions;
+            }
+
+            async function getAlternatingPlanStats() {
+                const morning = await getAlternatingSessionOptions('صباحا');
+                const evening = await getAlternatingSessionOptions('زوالا');
+                const stats = {
+                    morningTotal: morning.length,
+                    eveningTotal: evening.length,
+                    g1Morning: 0,
+                    g2Morning: 0,
+                    g1Evening: 0,
+                    g2Evening: 0
+                };
+                morning.forEach((_, idx) => {
+                    if (idx % 2 === 0) stats.g1Morning++;
+                    else stats.g2Morning++;
+                });
+                evening.forEach((_, idx) => {
+                    if (idx % 2 === 0) stats.g2Evening++;
+                    else stats.g1Evening++;
+                });
+                return stats;
+            }
+
+            async function renderMorningEveningFeasibilityNote() {
+                const note = document.getElementById('auto-me-feasibility-note');
+                if (!note) return;
+                const groupCounts = getMorningEveningGroupCounts();
+                const needStats = await getAutoSessionNeedStats();
+                const planStats = await getAlternatingPlanStats();
+                const hasGroups = groupCounts.g1 > 0 && groupCounts.g2 > 0;
+                const enough = hasGroups && groupCounts.smallest >= needStats.maxNeed && needStats.maxNeed > 0;
+                const icon = enough ? 'fa-check-circle' : 'fa-exclamation-triangle';
+                note.className = 'dist-period-hint ' + (enough ? 'auto-me-feasibility-note--ok' : 'auto-me-feasibility-note--warn');
+                if (!hasGroups) {
+                    note.innerHTML = '<i class="fas ' + icon + '"></i> <strong>ملاحظة حول المجموعتين المتناوبتين:</strong> لم يتم ضبط مجموعتين كاملتين بعد. المقصود مجموعتان تتناوبان بين الصباح والزوال حسب اليوم، واعتماد هذا الشرط مشروط بتوفر عدد كافٍ داخل كل مجموعة.';
+                    return;
+                }
+                if (!needStats.maxNeed) {
+                    note.innerHTML = '<i class="fas ' + icon + '"></i> <strong>ملاحظة حول المجموعتين المتناوبتين:</strong> لا توجد معطيات كافية لاحتساب الحاجة القصوى للحصة. تأكد من حفظ الجدولة والقاعات.';
+                    return;
+                }
+                note.innerHTML = '<i class="fas ' + icon + '"></i> <strong>ملاحظة حول المجموعتين المتناوبتين:</strong> ' +
+                    (enough
+                        ? 'يمكن اعتماد التناوب مبدئيًا لأن أصغر مجموعة تغطي أكبر حاجة في حصة واحدة.'
+                        : 'اعتماد التناوب قد يتعذر لأن أصغر مجموعة لا تغطي أكبر حاجة في حصة واحدة. عند الخصاص سيحاول التوزيع احترام المجموعة المكلفة بذلك نصف اليوم أولًا ثم يستعمل أساتذة من المجموعة الأخرى عند الضرورة.') +
+                    ' <span style="display:inline-flex;gap:10px;flex-wrap:wrap;margin-right:8px">' +
+                    '<strong>م1: ' + groupCounts.g1 + '</strong>' +
+                    '<strong>م2: ' + groupCounts.g2 + '</strong>' +
+                    '<strong>الصباح: ' + planStats.morningTotal + ' = م1 ' + planStats.g1Morning + ' / م2 ' + planStats.g2Morning + '</strong>' +
+                    '<strong>الزوال: ' + planStats.eveningTotal + ' = م1 ' + planStats.g1Evening + ' / م2 ' + planStats.g2Evening + '</strong>' +
+                    '<strong>الحاجة القصوى: ' + needStats.maxNeed + '</strong>' +
+                    (needStats.maxLabel ? '<strong>' + escapeHtml(needStats.maxLabel) + '</strong>' : '') +
+                    '</span>';
+            }
+
+            async function getRoomRowsForLevel(levelName) {
+                const roomsData = (await window.api.examConfig.get(year, 'examCenterRoomsData')) || {};
+                const rows = Object.entries(roomsData).map(([key, value]) => {
+                    const parts = key.split('__');
+                    return Object.assign({ key, level_name: parts[0] || '', room_num: parts[1] || '' }, value || {});
+                }).filter(r => r.roomName || r.count || r.firstNum || r.lastNum);
+                const levelRows = rows.filter(r => r.level_name === levelName);
+                // Fuzzy fallback: if exact match fails, try trimmed/normalized comparison
+                if (levelRows.length === 0 && rows.length > 0) {
+                    var normalizedTarget = levelName.replace(/\s+/g, ' ').trim();
+                    var fuzzyRows = rows.filter(function(r) {
+                        var normalizedLevel = (r.level_name || '').replace(/\s+/g, ' ').trim();
+                        return normalizedLevel === normalizedTarget || 
+                               normalizedLevel.indexOf(normalizedTarget) !== -1 ||
+                               normalizedTarget.indexOf(normalizedLevel) !== -1;
+                    });
+                    if (fuzzyRows.length > 0) {
+                        console.warn('[V2 WARN] Fuzzy match for "' + levelName + '" → found ' + fuzzyRows.length + ' rooms via "' + fuzzyRows[0].level_name + '"');
+                        return fuzzyRows;
+                    }
+                    // Log available level names for diagnostics
+                    var availableLevels = Array.from(new Set(rows.map(function(r) { return r.level_name; })));
+                    console.warn('[V2 WARN] No rooms found for level: "' + levelName + '"');
+                    console.warn('[V2 WARN] Available levels in roomsData:', availableLevels);
+                }
+                return levelRows;
+            }
+
+            // Pure helper: convert a raw `examCenterLevels` array (as stored via
+            // `window.api.examConfig.save`) into a lookup map
+            //   { [levelName]: { rooms: Number, subjects: Array } }
+            // Tolerates null/undefined/non-array inputs (returns an empty map),
+            // coerces non-numeric `rooms` to 0, defaults missing `subjects` to [],
+            // and skips entries without a `name`. Kept as a pure sync function so
+            // the unit tests can mirror it without loading the full HTML scope
+            // (see tests/proctor-v2-get-exam-center-levels.test.js).
+            function buildExamCenterLevelsMap(rawArray) {
+                const map = Object.create(null);
+                if (!Array.isArray(rawArray)) return map;
+                for (const level of rawArray) {
+                    if (!level || !level.name) continue;
+                    map[level.name] = {
+                        rooms: Number(level.rooms) || 0,
+                        subjects: Array.isArray(level.subjects) ? level.subjects : []
+                    };
+                }
+                return map;
+            }
+
+            // Reads `examCenterLevels` for the active school year from the IPC
+            // config store and returns it as a levelName → { rooms, subjects }
+            // map. The only entry point `buildV2Input` uses to read expected
+            // rooms per level (see design.md §"Data Sources"). Falls back to an
+            // empty map when the config key is missing or the stored value is
+            // not an array, so downstream callers can detect "no data" by
+            // checking `Object.keys(map).length === 0`.
+            async function getExamCenterLevelsForActiveYear() {
+                const raw = (await window.api.examConfig.get(year, 'examCenterLevels')) || [];
+                return buildExamCenterLevelsMap(raw);
+            }
+
+            // Pure helper: builds an in-memory synthetic room row used to top up
+            // `roomsList[L]` when `examCenterRoomsData` is missing rooms for a
+            // scheduled level (bug condition in bugfix.md §1.1-1.3). Shape must
+            // mirror the rows returned by `getRoomRowsForLevel` so Phase_2_Build
+            // treats it as a valid room. See design.md §"Synthetic Room Row
+            // Schema" for the field contract.
+            //
+            // IMPORTANT: `_synthetic: true` is an internal marker; these rows
+            // are never persisted through `window.api.examConfig.save` and
+            // display helpers (e.g. `getSummaryCandidateCountForLevel`) never
+            // see them.
+            function buildSyntheticRoomRow(levelName, roomNum) {
+                return {
+                    key: levelName + '__' + roomNum + '__synthetic',
+                    level_name: levelName,
+                    room_num: String(roomNum),
+                    roomName: 'قاعة افتراضية ' + roomNum,
+                    count: 0,
+                    firstNum: null,
+                    lastNum: null,
+                    _synthetic: true
+                };
+            }
+
+            // Pure helper: returns the largest `parseInt(r.room_num, 10)` across
+            // `rows`, or `0` when `rows` is empty / non-array / every value is
+            // unparseable. Used by the fix path to seed synthetic room numbers
+            // above any existing real room number, guaranteeing non-collision
+            // with persisted rows (design.md Property 3).
+            function computeMaxRoomNum(rows) {
+                if (!Array.isArray(rows) || rows.length === 0) return 0;
+                let max = 0;
+                for (const r of rows) {
+                    const n = r ? parseInt(r.room_num, 10) : NaN;
+                    if (Number.isFinite(n) && n > max) max = n;
+                }
+                return max;
+            }
+
+            // Pure helper: given the `actualRows` that `getRoomRowsForLevel`
+            // returns for a scheduled level and the `examCenterLevelsMap` built
+            // by `getExamCenterLevelsForActiveYear`, decide whether to top up
+            // the rows with synthetic placeholders so `roomsList[L].length`
+            // matches `examCenterLevels[L].rooms` (design.md Property 1).
+            //
+            // Kept sync and side-effect-free for unit testing. The async
+            // wrapper `getEffectiveRoomRowsForLevel` delegates here after
+            // loading `actualRows` via IPC.
+            //
+            // Returns an object (not just the rows) so callers can log a
+            // `syntheticRoomWarnings[]` entry in one pass — see task 3.4.
+            //
+            // Fallback rules (no synthetic rows produced):
+            //   - `expected` is 0 / missing / non-numeric
+            //   - level not present in `examCenterLevelsMap`
+            //   - `examCenterLevelsMap` itself is null/undefined
+            //   - `expected <= actualRows.length` (covers M == N and M > N;
+            //     the fix never shrinks actual rows)
+            function computeEffectiveRoomRows(levelName, actualRows, examCenterLevelsMap) {
+                const rows = Array.isArray(actualRows) ? actualRows : [];
+                const levelEntry = examCenterLevelsMap && examCenterLevelsMap[levelName];
+                const expected = levelEntry && Number(levelEntry.rooms) > 0 ? Number(levelEntry.rooms) : 0;
+                if (expected === 0 || expected <= rows.length) {
+                    return { rows: rows, synthetic: 0, expected: expected, actual: rows.length };
+                }
+                const missing = expected - rows.length;
+                const startNum = computeMaxRoomNum(rows) + 1;
+                const syntheticRows = [];
+                for (let i = 0; i < missing; i++) {
+                    syntheticRows.push(buildSyntheticRoomRow(levelName, startNum + i));
+                }
+                return {
+                    rows: rows.concat(syntheticRows),
+                    synthetic: missing,
+                    expected: expected,
+                    actual: rows.length
+                };
+            }
+
+            // Async wrapper: loads the real rows via the unchanged
+            // `getRoomRowsForLevel` helper then delegates to
+            // `computeEffectiveRoomRows` for the synthetic top-up logic.
+            //
+            // Consumers (see task 3.4 / 3.5): buildV2Input, buildGuardQuota,
+            // buildPerTeacherQuota, getPlanningReadiness — every path that
+            // computes distribution needs and must match the `roomsList`
+            // passed to the v2 algorithm.
+            //
+            // Display helpers (e.g. `getSummaryCandidateCountForLevel`) MUST
+            // stay on the original `getRoomRowsForLevel` so synthetic rows
+            // never affect user-visible counts (design.md §Preservation).
+            async function getEffectiveRoomRowsForLevel(levelName, examCenterLevelsMap) {
+                const actualRows = await getRoomRowsForLevel(levelName);
+                return computeEffectiveRoomRows(levelName, actualRows, examCenterLevelsMap);
+            }
+
+            function getArabicDayIndex(dayLabel) {
+                const map = { 'الأول': 1, 'الثاني': 2, 'الثالث': 3, 'الرابع': 4, 'الخامس': 5, 'السادس': 6, 'السابع': 7 };
+                return map[dayLabel] || 1;
+            }
+
+            async function getExpectedGroupForSession(scheduleEntry) {
+                const period = scheduleEntry.period || 'صباحا';
+                const sessionKey = getAutoDistributionHalfdayKey(scheduleEntry);
+                const sessions = await getAlternatingSessionOptions(period);
+                const idx = sessions.findIndex(item => item.key === sessionKey);
+                if (idx < 0) return 0;
+                if (period === 'صباحا') return idx % 2 === 0 ? 1 : 2;
+                return idx % 2 === 0 ? 2 : 1;
+            }
+
+	            function getGroupLabel(groupNumber) {
+	                if (Number(groupNumber) === 1) return 'المجموعة الأولى';
+	                if (Number(groupNumber) === 2) return 'المجموعة الثانية';
+	                return 'بدون مجموعة';
+	            }
+
+	            function getScheduleDateKey(scheduleEntry) {
+	                const year = scheduleEntry.date_year || '';
+	                const month = scheduleEntry.date_month ? String(scheduleEntry.date_month).padStart(2, '0') : '';
+	                const day = scheduleEntry.date_day ? String(scheduleEntry.date_day).padStart(2, '0') : '';
+	                return [year, month, day].filter(Boolean).join('-');
+	            }
+
+	            function getScheduleSortKey(scheduleEntry) {
+	                const periodOrder = (scheduleEntry.period || '') === 'صباحا' ? '1' : (scheduleEntry.period || '') === 'زوالا' ? '2' : '9';
+	                const sessionOrder = (scheduleEntry.session || '').replace(/[^\u0660-\u06690-9]+/g, '') || scheduleEntry.session || '';
+	                const order = String(scheduleEntry.order || '').padStart(3, '0');
+	                return [getScheduleDateKey(scheduleEntry), periodOrder, sessionOrder, order, scheduleEntry.subject_name || ''].join('|');
+	            }
+
+	            function getScheduleSessionKey(scheduleEntry) {
+	                return [getScheduleDateKey(scheduleEntry), scheduleEntry.day || 'الأول', scheduleEntry.period || 'صباحا', scheduleEntry.session || 'الحصة الأولى'].join('|');
+	            }
+
+	            function getLegacyScheduleSessionKey(scheduleEntry) {
+	                return [scheduleEntry.day || 'الأول', scheduleEntry.period || 'صباحا', scheduleEntry.session || 'الحصة الأولى'].join('|');
+	            }
+
+	            function getAutoDistributionSessionKey(scheduleEntry) {
+	                return [getScheduleDateKey(scheduleEntry), scheduleEntry.period || 'صباحا', scheduleEntry.session || 'الحصة الأولى'].join('|');
+	            }
+
+            function getAutoDistributionHalfdayKey(scheduleEntry) {
+                return [getScheduleDateKey(scheduleEntry), scheduleEntry.period || 'صباحا'].join('|');
+            }
+
+            function getAutoDistributionDayKey(scheduleEntry) {
+                return getScheduleDateKey(scheduleEntry) || scheduleEntry.day || '';
+            }
+
+            function getAutoDistributionHalfdayLabel(scheduleEntry) {
+                return [scheduleEntry.day, scheduleEntry.period || 'صباحا', formatScheduleDate(scheduleEntry)].filter(Boolean).join(' / ');
+            }
+
+            async function getAutoDistributionGroupHalfdayLimits() {
+                const plan = await getMEHalfdayPlan();
+                return {
+                    1: Array.isArray(plan[1]) ? plan[1].length : 0,
+                    2: Array.isArray(plan[2]) ? plan[2].length : 0
+                };
+            }
+
+            function getAutoProctorGroup(item) {
+                return meAssignments[item.key] || 0;
+            }
+
+            function getAutoProctorHalfdayLimit(item, options, halfdayLimits) {
+                if (!options.respectMorningEvening) return Number.POSITIVE_INFINITY;
+                const group = getAutoProctorGroup(item);
+                if (group !== 1 && group !== 2) return Number.POSITIVE_INFINITY;
+                const limit = halfdayLimits[group] || 0;
+                return limit > 0 ? limit : Number.POSITIVE_INFINITY;
+            }
+
+            function isAutoProctorAtHalfdayLimit(item, loadState, options, halfdayLimits) {
+                const limit = getAutoProctorHalfdayLimit(item, options, halfdayLimits);
+                return Number.isFinite(limit) && getTeacherFinalLoad(loadState, item.exKey) >= limit;
+            }
+
+            function getScheduleSessionLabel(scheduleEntry) {
+                return [scheduleEntry.day, scheduleEntry.period, scheduleEntry.session, formatScheduleDate(scheduleEntry)].filter(Boolean).join(' / ');
+            }
+
+            function isProctorExemptForSchedule(proc, idx, scheduleEntry) {
+                const key = getProctorExemptionKey(proc, idx);
+                const day = scheduleEntry.day || 'الأول';
+                const period = scheduleEntry.period || 'صباحا';
+                const session = scheduleEntry.session || 'الحصة الأولى';
+                const scopes = [
+                    ['session', day, period, session].join('|'),
+                    ['period', day, period].join('|'),
+                    ['day', day].join('|')
+                ];
+                return scopes.some(scopeKey => exemptionsData[scopeKey] && exemptionsData[scopeKey][key] === 'no');
+            }
+
+            function isDutyTeacherForSchedule(proc, idx, scheduleEntry) {
+                const key = getProctorExemptionKey(proc, idx);
+                const dutyKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const legacyDutyKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                return Boolean((dutyData[dutyKey] && dutyData[dutyKey][key]) || (dutyData[legacyDutyKey] && dutyData[legacyDutyKey][key]));
+            }
+
+            function isProctorReservedForSchedule(proc, idx, scheduleEntry) {
+                const key = getProctorExemptionKey(proc, idx);
+                const reserveKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const legacyReserveKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                return Boolean((reservesData[reserveKey] && reservesData[reserveKey][key]) || (reservesData[legacyReserveKey] && reservesData[legacyReserveKey][key]));
+            }
+
+            function getReservedTeacherKeysForSchedule(scheduleEntry) {
+                const reserveKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const legacyReserveKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const selected = Object.assign({}, reservesData[legacyReserveKey] || {}, reservesData[reserveKey] || {});
+                return Object.keys(selected).filter(key => selected[key]);
+            }
+
+            function getReservedTeacherNamesForSchedule(scheduleEntry) {
+                const keys = new Set(getReservedTeacherKeysForSchedule(scheduleEntry));
+                return proctorsList
+                    .map((proc, idx) => ({ proc, key: getProctorExemptionKey(proc, idx) }))
+                    .filter(item => keys.has(item.key))
+                    .map(item => item.proc.teacher_name || '')
+                    .filter(Boolean);
+            }
+
+
+            function getDutyTeacherNamesForSchedule(scheduleEntry) {
+                const dutyKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const legacyDutyKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const selected = Object.assign({}, dutyData[legacyDutyKey] || {}, dutyData[dutyKey] || {});
+                return proctorsList
+                    .map((proc, idx) => ({ proc, key: getProctorExemptionKey(proc, idx) }))
+                    .filter(item => selected[item.key])
+                    .map(item => item.proc.teacher_name || '')
+                    .filter(Boolean);
+            }
+
+            function getDutyTeacherKeysForSchedule(scheduleEntry) {
+                const dutyKey = getScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const legacyDutyKey = getLegacyScheduleSessionKey(scheduleEntry) + '|' + (scheduleEntry.subject_name || '');
+                const selected = Object.assign({}, dutyData[legacyDutyKey] || {}, dutyData[dutyKey] || {});
+                return Object.keys(selected).filter(key => selected[key]);
+            }
+
+            function createTeacherLoadState() {
+                const state = {};
+                proctorsList.forEach((proc, idx) => {
+                    const exKey = getProctorExemptionKey(proc, idx);
+                    state[exKey] = {
+                        teacherName: proc.teacher_name || '',
+                        dutyHalfdays: new Set(),
+                        guardHalfdays: new Set(),
+                        reserveHalfdays: new Set()
+                    };
+                });
+                return state;
+            }
+
+            function ensureTeacherLoadEntry(loadState, exKey) {
+                if (!loadState[exKey]) {
+                    loadState[exKey] = {
+                        teacherName: '',
+                        dutyHalfdays: new Set(),
+                        guardHalfdays: new Set(),
+                        reserveHalfdays: new Set()
+                    };
+                }
+                return loadState[exKey];
+            }
+
+            function getTeacherPrimaryLoad(loadState, exKey) {
+                const entry = ensureTeacherLoadEntry(loadState, exKey);
+                return entry.dutyHalfdays.size + entry.guardHalfdays.size;
+            }
+
+            function getTeacherFinalLoad(loadState, exKey) {
+                const entry = ensureTeacherLoadEntry(loadState, exKey);
+                return entry.dutyHalfdays.size + entry.guardHalfdays.size + entry.reserveHalfdays.size;
+            }
+
+            function getTeacherGuardLoad(loadState, exKey) {
+                return ensureTeacherLoadEntry(loadState, exKey).guardHalfdays.size;
+            }
+
+            function getTeacherReserveLoad(loadState, exKey) {
+                return ensureTeacherLoadEntry(loadState, exKey).reserveHalfdays.size;
+            }
+
+            function addTeacherHalfdayLoad(loadState, exKey, type, halfdayKey, teacherName) {
+                if (!exKey || !halfdayKey) return false;
+                const entry = ensureTeacherLoadEntry(loadState, exKey);
+                if (teacherName && !entry.teacherName) entry.teacherName = teacherName;
+                if (type === 'duty') {
+                    const before = entry.dutyHalfdays.size;
+                    entry.dutyHalfdays.add(halfdayKey);
+                    return entry.dutyHalfdays.size > before;
+                }
+                if (type === 'guard') {
+                    const before = entry.guardHalfdays.size;
+                    entry.guardHalfdays.add(halfdayKey);
+                    return entry.guardHalfdays.size > before;
+                }
+                if (type === 'reserve') {
+                    const before = entry.reserveHalfdays.size;
+                    entry.reserveHalfdays.add(halfdayKey);
+                    return entry.reserveHalfdays.size > before;
+                }
+                return false;
+            }
+
+            function hasTeacherHalfdayLoad(loadState, exKey, halfdayKey) {
+                const entry = ensureTeacherLoadEntry(loadState, exKey);
+                return entry.dutyHalfdays.has(halfdayKey) || entry.guardHalfdays.has(halfdayKey) || entry.reserveHalfdays.has(halfdayKey);
+            }
+
+            function getLoadRange(loadState, mode) {
+                const values = proctorsList.map((proc, idx) => {
+                    const exKey = getProctorExemptionKey(proc, idx);
+                    if (mode === 'guard') return getTeacherGuardLoad(loadState, exKey);
+                    return mode === 'final' ? getTeacherFinalLoad(loadState, exKey) : getTeacherPrimaryLoad(loadState, exKey);
+                });
+                if (!values.length) return { min: 0, max: 0, diff: 0 };
+                const min = Math.min.apply(null, values);
+                const max = Math.max.apply(null, values);
+                return { min, max, diff: max - min };
+            }
+
+            function getTeacherLoadDetails(loadState, exKey) {
+                const entry = ensureTeacherLoadEntry(loadState, exKey);
+                return {
+                    duty: entry.dutyHalfdays.size,
+                    guard: entry.guardHalfdays.size,
+                    reserve: entry.reserveHalfdays.size,
+                    primary: getTeacherPrimaryLoad(loadState, exKey),
+                    final: getTeacherFinalLoad(loadState, exKey)
+                };
+            }
+
+            function buildInitialAutoLoadState(scheduleEntries, options) {
+                const loadState = createTeacherLoadState();
+                // المداومة تُحمَّل دائماً بصرف النّظر عن قيمة balanceTotalTasks.
+                // الخيار يؤثّر فقط على سياسة الفرز في sortAutoCandidates، وليس
+                // على البيانات الأساسية للعبء — وإلّا يقع تضارب: الفرز يستعمل
+                // primaryLoad (= duty + guard) بينما loadState فارغ من duty.
+                const counted = new Set();
+                (scheduleEntries || []).forEach(scheduleEntry => {
+                    const halfdayKey = getAutoDistributionHalfdayKey(scheduleEntry);
+                    getDutyTeacherKeysForSchedule(scheduleEntry).forEach(exKey => {
+                        const countKey = halfdayKey + '|' + exKey;
+                        if (counted.has(countKey)) return;
+                        counted.add(countKey);
+                        addTeacherHalfdayLoad(loadState, exKey, 'duty', halfdayKey);
+                    });
+                });
+                return loadState;
+            }
+
+            function getProctorGenderGroup(proc) {
+                const gender = String(proc?.gender || '').trim().toLowerCase();
+                if (gender === 'm' || gender === 'ذكر' || gender === 'male' || gender === 'homme') return 'M';
+                if (gender === 'f' || gender === 'أنثى' || gender === 'انثى' || gender === 'female' || gender === 'femme') return 'F';
+                return '';
+            }
+
+            function getRoomConstraintKey(room) {
+                return String(room?.key || room?.room_num || room?.roomName || '').trim();
+            }
+
+            function parseScheduleTimeMinutes(value) {
+                const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+                if (!match) return null;
+                const hours = Number(match[1]);
+                const minutes = Number(match[2]);
+                if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+                return (hours * 60) + minutes;
+            }
+
+            function getScheduleTimeRange(scheduleEntry) {
+                const start = parseScheduleTimeMinutes(scheduleEntry?.time_from || scheduleEntry?.time || '');
+                const end = parseScheduleTimeMinutes(scheduleEntry?.time_to || '');
+                if (start === null || end === null || end <= start) return null;
+                return { start, end };
+            }
+
+            function doScheduleEntriesOverlap(a, b) {
+                if (!a || !b) return false;
+                if (getAutoDistributionSessionKey(a) === getAutoDistributionSessionKey(b)) return true;
+                const aRange = getScheduleTimeRange(a);
+                const bRange = getScheduleTimeRange(b);
+                if (!aRange || !bRange) return false;
+                return aRange.start < bRange.end && bRange.start < aRange.end;
+            }
+
+            function hasBlockingHalfdayAssignment(exKey, scheduleEntry, halfdayAssignments) {
+                return (halfdayAssignments || []).some(assignment =>
+                    assignment.exKey === exKey && doScheduleEntriesOverlap(assignment.scheduleEntry, scheduleEntry)
+                );
+            }
+
+            function hasAnyHalfdayAssignment(exKey, halfdayAssignments) {
+                return (halfdayAssignments || []).some(assignment => assignment.exKey === exKey);
+            }
+
+            function hasBlockingDayAssignment(exKey, currentHalfdayKey, dayAssignments) {
+                return (dayAssignments || []).some(assignment =>
+                    assignment.exKey === exKey &&
+                    (assignment.halfdayKey !== currentHalfdayKey || assignment.role === 'duty')
+                );
+            }
+
+            function pushUniqueAssignment(assignments, next) {
+                if (!next || !next.exKey) return;
+                const exists = assignments.some(item =>
+                    item.exKey === next.exKey &&
+                    item.role === next.role &&
+                    item.halfdayKey === next.halfdayKey &&
+                    getAutoDistributionSessionKey(item.scheduleEntry || {}) === getAutoDistributionSessionKey(next.scheduleEntry || {})
+                );
+                if (!exists) assignments.push(next);
+            }
+
+            async function getAutoSoftViolations(item, scheduleEntry, options, roomKey, roomUseMap, alreadyUsedHalfday) {
+                const reasons = [];
+                if (options.respectMorningEvening) {
+                    const expectedGroup = await getExpectedGroupForSession(scheduleEntry);
+                    const group = meAssignments[item.key] || 0;
+                    if (expectedGroup !== 0 && group !== expectedGroup) reasons.push('خارج المجموعة المتناوبة المكلفة');
+                }
+                if (alreadyUsedHalfday) reasons.push('مكرر داخل نفس نصف اليوم');
+                if (options.avoidSameRoomRepeat && roomKey && roomUseMap[roomKey] && roomUseMap[roomKey].has(item.exKey)) {
+                    reasons.push('سبق له حراسة نفس القاعة');
+                }
+                if (options.avoidSubjectSpecialty && proctorMatchesDutySubject(item.proc, scheduleEntry.subject_name || '')) {
+                    reasons.push('تخصصه مادة الإجراء');
+                }
+                return reasons;
+            }
+
+            function computeSoftPenalty(softViolations) {
+                var penalty = 0;
+                for (var i = 0; i < softViolations.length; i++) {
+                    penalty += softViolations[i] === 'خارج المجموعة المتناوبة المكلفة' ? 3 : 1;
+                }
+                return penalty;
+            }
+
+            async function decorateAutoCandidate(item, scheduleEntry, options, roomKey, roomUseMap, loadState, alreadyUsedHalfday) {
+                const softViolations = await getAutoSoftViolations(item, scheduleEntry, options, roomKey, roomUseMap, alreadyUsedHalfday);
+                return Object.assign({}, item, {
+                    genderGroup: getProctorGenderGroup(item.proc),
+                    softViolations,
+                    softPenalty: computeSoftPenalty(softViolations),
+                    currentLoad: getTeacherPrimaryLoad(loadState, item.exKey),
+                    guardLoad: getTeacherGuardLoad(loadState, item.exKey),
+                    finalLoad: getTeacherFinalLoad(loadState, item.exKey),
+                    reserveLoad: getTeacherReserveLoad(loadState, item.exKey)
+                });
+            }
+
+            function hasAutoSoftViolation(candidate, reason) {
+                return (candidate.softViolations || []).includes(reason) ? 1 : 0;
+            }
+
+            function sortAutoCandidates(a, b, options) {
+                const loadDiff = a.currentLoad - b.currentLoad;
+                const guardDiff = (a.guardLoad || 0) - (b.guardLoad || 0);
+                const finalDiff = (a.finalLoad || 0) - (b.finalLoad || 0);
+                const softDiff = a.softPenalty - b.softPenalty;
+                const groupDiff = hasAutoSoftViolation(a, 'خارج المجموعة المتناوبة المكلفة') -
+                    hasAutoSoftViolation(b, 'خارج المجموعة المتناوبة المكلفة');
+                const policy = options.priorityPolicy || (options.balanceTotalTasks ? 'balance' : 'groups');
+                if (policy === 'balance') {
+                    return guardDiff || loadDiff || finalDiff || groupDiff || softDiff ||
+                        String(a.proc.teacher_name || '').localeCompare(String(b.proc.teacher_name || ''), 'ar');
+                }
+                if (policy === 'groups') {
+                    return guardDiff || loadDiff || softDiff || finalDiff ||
+                        String(a.proc.teacher_name || '').localeCompare(String(b.proc.teacher_name || ''), 'ar');
+                }
+                return guardDiff || loadDiff || groupDiff || softDiff || finalDiff ||
+                    String(a.proc.teacher_name || '').localeCompare(String(b.proc.teacher_name || ''), 'ar');
+            }
+
+            async function getEligibleProctors(scheduleEntry, loadState, usedInSession, halfdayAssignments, dayAssignments, options, roomKey, roomUseMap, halfdayLimits, allowHalfdayReuse, guardQuota, allowGuardOverflow) {
+                const halfdayKey = getAutoDistributionHalfdayKey(scheduleEntry);
+                const filtered = proctorsList.map((proc, idx) => ({ proc, idx, key: getProctorKey(proc, idx), exKey: getProctorExemptionKey(proc, idx) }))
+                    .filter(item => {
+                        if (usedInSession.has(item.exKey)) return false;
+                        if (hasBlockingDayAssignment(item.exKey, halfdayKey, dayAssignments)) return false;
+                        if (hasBlockingHalfdayAssignment(item.exKey, scheduleEntry, halfdayAssignments)) return false;
+                        if (!allowHalfdayReuse && hasAnyHalfdayAssignment(item.exKey, halfdayAssignments)) return false;
+                        if (guardQuota && !allowGuardOverflow && !hasTeacherHalfdayLoad(loadState, item.exKey, halfdayKey)) {
+                            const personalQuota = guardQuota.quotas && guardQuota.quotas[item.exKey];
+                            const cap = personalQuota ? personalQuota.guardCap : guardQuota.max;
+                            if (getTeacherGuardLoad(loadState, item.exKey) >= cap) return false;
+                        }
+                        if (guardQuota && allowGuardOverflow && !hasTeacherHalfdayLoad(loadState, item.exKey, halfdayKey)) {
+                            const personalQuota = guardQuota.quotas && guardQuota.quotas[item.exKey];
+                            if (personalQuota && getTeacherGuardLoad(loadState, item.exKey) >= personalQuota.guardCapHard) return false;
+                        }
+                        if (isAutoProctorAtHalfdayLimit(item, loadState, options, halfdayLimits)) return false;
+                        if (isProctorExemptForSchedule(item.proc, item.idx, scheduleEntry)) return false;
+                        if (isDutyTeacherForSchedule(item.proc, item.idx, scheduleEntry)) return false;
+                        if (isProctorReservedForSchedule(item.proc, item.idx, scheduleEntry)) return false;
+                        return true;
+                    });
+                const decorated = [];
+                for (const item of filtered) {
+                    decorated.push(await decorateAutoCandidate(item, scheduleEntry, options, roomKey, roomUseMap, loadState, allowHalfdayReuse && hasAnyHalfdayAssignment(item.exKey, halfdayAssignments) && hasTeacherHalfdayLoad(loadState, item.exKey, halfdayKey)));
+                }
+                return decorated.sort((a, b) => sortAutoCandidates(a, b, options));
+            }
+
+            async function getExpectedGroupShortageNote(scheduleEntry, loadState, usedInSession, halfdayAssignments, dayAssignments, options, halfdayLimits, requiredCount) {
+                if (!options.respectMorningEvening) return '';
+                const expectedGroup = await getExpectedGroupForSession(scheduleEntry);
+                if (expectedGroup !== 1 && expectedGroup !== 2) return '';
+                const halfdayKey = getAutoDistributionHalfdayKey(scheduleEntry);
+                const stats = { total: 0, available: 0, blocked: {} };
+                proctorsList
+                    .map((proc, idx) => ({ proc, idx, key: getProctorKey(proc, idx), exKey: getProctorExemptionKey(proc, idx) }))
+                    .forEach(item => {
+                        if ((meAssignments[item.key] || 0) !== expectedGroup) return;
+                        stats.total++;
+                        let reason = '';
+                        if (usedInSession.has(item.exKey)) reason = 'مستعمل في نفس الحصة';
+                        else if (hasBlockingDayAssignment(item.exKey, halfdayKey, dayAssignments)) reason = 'مكلف في نفس اليوم';
+                        else if (hasBlockingHalfdayAssignment(item.exKey, scheduleEntry, halfdayAssignments)) reason = 'مستعمل في حصة متزامنة';
+                        else if (hasAnyHalfdayAssignment(item.exKey, halfdayAssignments)) reason = 'مستعمل في نفس نصف اليوم';
+                        else if (isAutoProctorAtHalfdayLimit(item, loadState, options, halfdayLimits)) reason = 'بلغ سقف أنصاف الأيام';
+                        else if (isProctorExemptForSchedule(item.proc, item.idx, scheduleEntry)) reason = 'معفى';
+                        else if (isDutyTeacherForSchedule(item.proc, item.idx, scheduleEntry)) reason = 'مداوم لنفس المادة';
+                        else if (isProctorReservedForSchedule(item.proc, item.idx, scheduleEntry)) reason = 'احتياط';
+                        if (reason) stats.blocked[reason] = (stats.blocked[reason] || 0) + 1;
+                        else stats.available++;
+                    });
+                if (stats.available >= requiredCount) return '';
+                const blockedText = Object.entries(stats.blocked)
+                    .map(([reason, count]) => reason + ' ' + count)
+                    .join('، ');
+                return 'سبب الخروج عن المجموعة: المتاح من ' + getGroupLabel(expectedGroup) + ' ' +
+                    stats.available + '/' + requiredCount +
+                    (blockedText ? ' بعد استبعاد: ' + blockedText : '');
+            }
+
+            function getBalancedOppositeGenderIndex(pool, picked, options) {
+                if (!options.preferMixedGenderPair || picked.length !== 1 || !picked[0].genderGroup) return -1;
+                const oppositeGender = picked[0].genderGroup === 'M' ? 'F' : 'M';
+                if ((options.priorityPolicy || '') === 'gender') return pool.findIndex(candidate => candidate.genderGroup === oppositeGender);
+                if (!options.balanceTotalTasks) return pool.findIndex(candidate => candidate.genderGroup === oppositeGender);
+                if (!pool.length) return -1;
+                var minLoad = pool[0].currentLoad;
+                for (var i = 1; i < pool.length; i++) { if (pool[i].currentLoad < minLoad) minLoad = pool[i].currentLoad; }
+                var bestSoft = pool[0].softPenalty;
+                return pool.findIndex(candidate =>
+                    candidate.genderGroup === oppositeGender &&
+                    candidate.currentLoad <= minLoad + 1 &&
+                    candidate.softPenalty <= bestSoft + 1
+                );
+            }
+
+            function takeProctors(pool, count, loadState, usedInSession, halfdayAssignments, dayAssignments, options, halfdayKey, scheduleEntry) {
+                const picked = [];
+                while (picked.length < count && pool.length) {
+                    let itemIndex = 0;
+                    if (count >= 2) {
+                        const oppositeIdx = getBalancedOppositeGenderIndex(pool, picked, options);
+                        if (oppositeIdx >= 0) itemIndex = oppositeIdx;
+                    }
+                    const item = pool.splice(itemIndex, 1)[0];
+                    picked.push(item);
+                    usedInSession.add(item.exKey);
+                    const assignment = { exKey: item.exKey, scheduleEntry, role: 'guard', halfdayKey };
+                    pushUniqueAssignment(halfdayAssignments, assignment);
+                    pushUniqueAssignment(dayAssignments, assignment);
+                    addTeacherHalfdayLoad(loadState, item.exKey, 'guard', halfdayKey, item.proc.teacher_name || '');
+                }
+                return picked;
+            }
+
+            function getAutoAssignmentNotes(assigned, missing, options) {
+                const notes = [];
+                if (missing) notes.push('خصاص ' + missing + ' مراقب');
+                const softReasons = Array.from(new Set(
+                    assigned.flatMap(item => item.softViolations || [])
+                ));
+                if (softReasons.length) notes.push('تعذر احترام: ' + softReasons.join('، '));
+                if (options.preferMixedGenderPair && assigned.length >= 2) {
+                    const genders = assigned.slice(0, 2).map(item => item.genderGroup).filter(Boolean);
+                    if (genders.length === 2 && genders[0] === genders[1]) notes.push('تعذر توفير زوج ذكر/أنثى');
+                }
+                if (assigned.length > 2) {
+                    notes.push('حراس إضافيون: ' + assigned.slice(2).map(item => item.proc.teacher_name || '').filter(Boolean).join('، '));
+                }
+                return notes.filter(Boolean).join('، ');
+            }
+
+            async function getEligibleSessionReserveProctors(sessionEntries, loadState, usedInSession, halfdayAssignments, dayAssignments, options, halfdayLimits, allowHalfdayReuse) {
+                const baseEntry = sessionEntries[0] || {};
+                const expectedGroup = await getExpectedGroupForSession(baseEntry);
+                const sessionSubjects = Array.from(new Set(sessionEntries.map(entry => entry.subject_name || '').filter(Boolean)));
+                const halfdayKey = getAutoDistributionHalfdayKey(baseEntry);
+                return proctorsList.map((proc, idx) => ({ proc, idx, key: getProctorKey(proc, idx), exKey: getProctorExemptionKey(proc, idx) }))
+                    .filter(item => {
+                        if (usedInSession.has(item.exKey)) return false;
+                        if (hasBlockingDayAssignment(item.exKey, halfdayKey, dayAssignments)) return false;
+                        if (sessionEntries.some(entry => hasBlockingHalfdayAssignment(item.exKey, entry, halfdayAssignments))) return false;
+                        if (!allowHalfdayReuse && hasAnyHalfdayAssignment(item.exKey, halfdayAssignments)) return false;
+                        if (isAutoProctorAtHalfdayLimit(item, loadState, options, halfdayLimits)) return false;
+                        if (sessionEntries.some(entry => isProctorExemptForSchedule(item.proc, item.idx, entry))) return false;
+                        if (sessionEntries.some(entry => isDutyTeacherForSchedule(item.proc, item.idx, entry))) return false;
+                        return true;
+                    })
+                    .map(item => {
+                        const softViolations = [];
+                        if (allowHalfdayReuse && hasAnyHalfdayAssignment(item.exKey, halfdayAssignments) && hasTeacherHalfdayLoad(loadState, item.exKey, halfdayKey)) softViolations.push('مكرر داخل نفس نصف اليوم');
+                        if (options.respectMorningEvening) {
+                            const group = meAssignments[item.key] || 0;
+                            if (group !== expectedGroup) softViolations.push('احتياطي خارج المجموعة المتناوبة المكلفة');
+                        }
+                        return Object.assign({}, item, {
+                            softViolations,
+                            softPenalty: computeSoftPenalty(softViolations),
+                            specialtyReservePriority: sessionSubjects.some(subject => proctorMatchesDutySubject(item.proc, subject)) ? 1 : 0,
+                            currentLoad: getTeacherPrimaryLoad(loadState, item.exKey),
+                            finalLoad: getTeacherFinalLoad(loadState, item.exKey),
+                            guardLoad: getTeacherGuardLoad(loadState, item.exKey),
+                            reserveLoad: getTeacherReserveLoad(loadState, item.exKey)
+                        });
+                    })
+                    .sort((a, b) => {
+                        const finalDiff = (a.finalLoad || 0) - (b.finalLoad || 0);
+                        const loadDiff = a.currentLoad - b.currentLoad;
+                        const reserveDiff = (a.reserveLoad || 0) - (b.reserveLoad || 0);
+                        const groupDiff = hasAutoSoftViolation(a, 'احتياطي خارج المجموعة المتناوبة المكلفة') -
+                            hasAutoSoftViolation(b, 'احتياطي خارج المجموعة المتناوبة المكلفة');
+                        const guardDiff = (a.guardLoad || 0) - (b.guardLoad || 0);
+                        const softDiff = a.softPenalty - b.softPenalty;
+                        const specialtyDiff = b.specialtyReservePriority - a.specialtyReservePriority;
+                        const policy = options.priorityPolicy || (options.balanceTotalTasks ? 'balance' : 'groups');
+                        if (policy === 'balance') {
+                            return finalDiff || loadDiff || reserveDiff || groupDiff || guardDiff || specialtyDiff || softDiff ||
+                                String(a.proc.teacher_name || '').localeCompare(String(b.proc.teacher_name || ''), 'ar');
+                        }
+                        return finalDiff || loadDiff || groupDiff || specialtyDiff || softDiff || reserveDiff || guardDiff ||
+                            String(a.proc.teacher_name || '').localeCompare(String(b.proc.teacher_name || ''), 'ar');
+                    });
+            }
+
+            function takeSessionReserves(pool, count, loadState, usedInSession, halfdayAssignments, dayAssignments, halfdayKey, scheduleEntry) {
+                const picked = [];
+                while (picked.length < count && pool.length) {
+                    const item = pool.shift();
+                    picked.push(item);
+                    usedInSession.add(item.exKey);
+                    const assignment = { exKey: item.exKey, scheduleEntry, role: 'reserve', halfdayKey };
+                    pushUniqueAssignment(halfdayAssignments, assignment);
+                    pushUniqueAssignment(dayAssignments, assignment);
+                    addTeacherHalfdayLoad(loadState, item.exKey, 'reserve', halfdayKey, item.proc.teacher_name || '');
+                }
+                return picked;
+            }
+
+            function getSessionReserveTargetCount(pool, baseCount, options, loadState) {
+                if (!options.useSurplusAsReserve || !pool.length) return baseCount;
+                let target = Math.max(baseCount, 0);
+                const currentMaxFinal = getLoadRange(loadState, 'final').max;
+                const maxExtraForBalancing = Math.max(baseCount, 0);
+                for (let i = baseCount; i < pool.length && target < baseCount + maxExtraForBalancing; i++) {
+                    const candidate = pool[i];
+                    if (hasAutoSoftViolation(candidate, 'احتياطي خارج المجموعة المتناوبة المكلفة')) break;
+                    if ((candidate.finalLoad || 0) >= currentMaxFinal) break;
+                    target++;
+                }
+                return target;
+            }
+
+            async function buildGuardQuota(scheduleEntries, rules) {
+                let totalGuardTasks = 0;
+                for (const entry of (scheduleEntries || [])) {
+                    totalGuardTasks += (await getRoomRowsForLevel(entry.level_name)).length * rules.proctorsPerRoom;
+                }
+                const teacherCount = Math.max(proctorsList.length, 1);
+                return {
+                    total: totalGuardTasks,
+                    min: Math.floor(totalGuardTasks / teacherCount),
+                    max: Math.ceil(totalGuardTasks / teacherCount)
+                };
+            }
+
+            function countDistinctSessions(scheduleEntries) {
+                const set = new Set();
+                (scheduleEntries || []).forEach(entry => {
+                    set.add(getAutoDistributionSessionKey(entry));
+                });
+                return set.size;
+            }
+
+            /**
+             * يحسب حصّة حراسة شخصية لكلّ أستاذ تأخذ بعين الاعتبار عبء المداومة
+             * المسجّل مسبقاً وميزانية الاحتياط المتوقّعة، بحيث يكون الهدف النّهائي
+             * (مداومة + حراسة + احتياط) متقارباً بين الأساتذة.
+             *
+             * @param {Array} scheduleEntries - الجدولة الكاملة
+             * @param {{proctorsPerRoom:number, reservesPerSession:number}} rules
+             * @param {Object} loadState - حالة العبء الحالية (يجب أن تتضمّن المداومة)
+             * @returns {Object} يحتوي quotas[exKey] = {guardCap, guardCapHard, ...}
+             *                   ويبقى متوافقاً مع الشّكل القديم عبر الحقول total/min/max
+             */
+            async function buildPerTeacherQuota(scheduleEntries, rules, loadState) {
+                let totalGuardTasks = 0;
+                // Per-session max guardNeed for accurate reserve totals (matches per-session
+                // policy used by readiness/auto-distribution).
+                const sessionGuardNeedMax = new Map();
+                for (const entry of (scheduleEntries || [])) {
+                    const guardNeedEntry = (await getRoomRowsForLevel(entry.level_name)).length * rules.proctorsPerRoom;
+                    totalGuardTasks += guardNeedEntry;
+                    const sKey = getAutoDistributionSessionKey(entry);
+                    sessionGuardNeedMax.set(sKey, Math.max(sessionGuardNeedMax.get(sKey) || 0, guardNeedEntry));
+                }
+                const teacherCount = Math.max(proctorsList.length, 1);
+                let totalDuty = 0;
+                proctorsList.forEach((proc, idx) => {
+                    const exKey = getProctorExemptionKey(proc, idx);
+                    totalDuty += getTeacherLoadDetails(loadState, exKey).duty;
+                });
+                const sessionsCount = countDistinctSessions(scheduleEntries);
+                let totalReserve = 0;
+                sessionGuardNeedMax.forEach(guardNeed => { totalReserve += computeReservesForSession(guardNeed, rules); });
+                const totalFinal = totalGuardTasks + totalDuty + totalReserve;
+                const fairFinalCeil = Math.ceil(totalFinal / teacherCount);
+                const fairFinalFloor = Math.floor(totalFinal / teacherCount);
+                const reserveBudgetPerTeacher = Math.ceil(totalReserve / teacherCount);
+
+                const quotas = {};
+                proctorsList.forEach((proc, idx) => {
+                    const exKey = getProctorExemptionKey(proc, idx);
+                    const dutyI = getTeacherLoadDetails(loadState, exKey).duty;
+                    // الحصّة الشّخصية الافتراضية للحراسة:
+                    //   الهدف النّهائي - المداومة - ميزانية الاحتياط المتوقّعة
+                    const guardCap = Math.max(0, fairFinalCeil - dutyI - reserveBudgetPerTeacher);
+                    // السّقف الأعلى المسموح به عند overflow (يستهلك ميزانية الاحتياط)
+                    const guardCapHard = Math.max(0, fairFinalCeil - dutyI);
+                    quotas[exKey] = {
+                        duty: dutyI,
+                        guardCap,
+                        guardCapHard,
+                        reserveBudget: reserveBudgetPerTeacher,
+                        targetFinal: fairFinalCeil
+                    };
+                });
+
+                return {
+                    quotas,
+                    totalGuard: totalGuardTasks,
+                    totalDuty,
+                    totalReserve,
+                    totalFinal,
+                    fairFinalCeil,
+                    fairFinalFloor,
+                    // الحقول القديمة للتّوافق الخلفي مع أيّ مستهلك آخر
+                    total: totalGuardTasks,
+                    min: Math.floor(totalGuardTasks / teacherCount),
+                    max: Math.ceil(totalGuardTasks / teacherCount)
+                };
+            }
+
+            /**
+             * يحسب معامل Gini لقيم العبء.
+             * 0 = توزيع متساوٍ تماماً، 1 = تركّز كلّي على فرد واحد.
+             */
+            function computeGiniCoefficient(values) {
+                const arr = (values || []).filter(v => Number.isFinite(v) && v >= 0);
+                const n = arr.length;
+                if (n === 0) return 0;
+                const sum = arr.reduce((s, v) => s + v, 0);
+                if (sum === 0) return 0;
+                const sorted = arr.slice().sort((a, b) => a - b);
+                let weighted = 0;
+                for (let i = 0; i < n; i++) {
+                    weighted += (i + 1) * sorted[i];
+                }
+                return (2 * weighted) / (n * sum) - (n + 1) / n;
+            }
+
+            /**
+             * مولّد عشوائي مُبَذَّر (Mulberry32) لإعادة الإنتاج.
+             * إذا كانت seed = null أو undefined، يُستعمل Math.random.
+             */
+            function buildSeededRandom(seed) {
+                if (seed === null || seed === undefined || seed === '') return Math.random;
+                let t = (Number(seed) >>> 0) || 1;
+                return function () {
+                    t = (t + 0x6D2B79F5) >>> 0;
+                    let r = t;
+                    r = Math.imul(r ^ (r >>> 15), r | 1);
+                    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+                    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+                };
+            }
+
+            /**
+             * تقرير عدالة موسّع. قابل للاستدعاء من console:
+             *   getFairnessReport() لاستعمال loadState المحفوظ.
+             */
+            function getFairnessReport(loadState) {
+                const state = loadState || (autoDistributionResult && autoDistributionResult.length
+                    ? buildAutoLoadStateFromRows(autoDistributionResult, true)
+                    : null);
+                if (!state) return { error: 'لا توجد نتيجة توزيع' };
+                const finals = proctorsList.map((proc, idx) => getTeacherFinalLoad(state, getProctorExemptionKey(proc, idx)));
+                const guards = proctorsList.map((proc, idx) => getTeacherGuardLoad(state, getProctorExemptionKey(proc, idx)));
+                const reserves = proctorsList.map((proc, idx) => {
+                    const exKey = getProctorExemptionKey(proc, idx);
+                    const entry = state[exKey];
+                    return entry && entry.reserveHalfdays ? entry.reserveHalfdays.size : 0;
+                });
+                const finalRange = getLoadRange(state, 'final');
+                const guardRange = getLoadRange(state, 'guard');
+                return {
+                    teachersCount: proctorsList.length,
+                    finalRange,
+                    guardRange,
+                    finalGini: computeGiniCoefficient(finals),
+                    guardGini: computeGiniCoefficient(guards),
+                    reserveGini: computeGiniCoefficient(reserves),
+                    finalDiff: finalRange.diff,
+                    guardDiff: guardRange.diff
+                };
+            }
+
+            // إتاحة التّقرير للوصول من console للتّشخيص اليدوي
+            if (typeof window !== 'undefined') {
+                window.getFairnessReport = getFairnessReport;
+            }
+
+            function buildAutoDistributionSummary(loadState) {
+                const guardRange = getLoadRange(loadState, 'guard');
+                const primaryRange = getLoadRange(loadState, 'primary');
+                const finalRange = getLoadRange(loadState, 'final');
+                const perTeacher = proctorsList.map((proc, idx) => {
+                    const exKey = getProctorExemptionKey(proc, idx);
+                    const details = getTeacherLoadDetails(loadState, exKey);
+                    return {
+                        key: exKey,
+                        teacherName: proc.teacher_name || ensureTeacherLoadEntry(loadState, exKey).teacherName || '',
+                        duty: details.duty,
+                        guard: details.guard,
+                        reserve: details.reserve,
+                        primary: details.primary,
+                        final: details.final
+                    };
+                }).sort((a, b) => {
+                    return a.final - b.final ||
+                        a.primary - b.primary ||
+                        String(a.teacherName || '').localeCompare(String(b.teacherName || ''), 'ar');
+                });
+                return { guardRange, primaryRange, finalRange, perTeacher };
+            }
+
+            function renderAutoDistributionSummary() {
+                const box = document.getElementById('auto-balance-summary');
+                if (!box) return;
+                if (!autoDistributionSummary || !autoDistributionSummary.perTeacher || !autoDistributionSummary.perTeacher.length) {
+                    box.className = 'dist-period-hint';
+                    box.innerHTML = '<i class="fas fa-balance-scale"></i> سيتم عرض ملخص التوازن بعد تنفيذ التوزيع.';
+                    return;
+                }
+                const guardRange = autoDistributionSummary.guardRange || { diff: 0, min: 0, max: 0 };
+                const primaryRange = autoDistributionSummary.primaryRange || { diff: 0, min: 0, max: 0 };
+                const finalRange = autoDistributionSummary.finalRange || { diff: 0, min: 0, max: 0 };
+                const lowest = autoDistributionSummary.perTeacher[0];
+                const highest = autoDistributionSummary.perTeacher[autoDistributionSummary.perTeacher.length - 1];
+                const guardOk = guardRange.diff <= 1;
+                const primaryOk = primaryRange.diff <= 1;
+                const finalOk = finalRange.diff <= 1;
+                box.className = 'dist-period-hint ' + (guardOk && finalOk ? 'auto-me-feasibility-note--ok' : 'auto-me-feasibility-note--warn');
+                box.innerHTML =
+                    '<i class="fas fa-balance-scale"></i> ' +
+                    '<strong>الحراسة:</strong> ' + guardRange.min + ' - ' + guardRange.max + ' (فرق ' + guardRange.diff + ') ' +
+                    (guardOk ? 'مقبولة' : 'تحتاج إصلاح') +
+                    ' <strong style="margin-right:8px">الأولي:</strong> ' + primaryRange.min + ' - ' + primaryRange.max + ' (فرق ' + primaryRange.diff + ') ' +
+                    (primaryOk ? 'مقبول' : 'يحتاج تسوية') +
+                    ' <strong style="margin-right:8px">النهائي:</strong> ' + finalRange.min + ' - ' + finalRange.max + ' (فرق ' + finalRange.diff + ') ' +
+                    (finalOk ? 'مقبول' : 'بقي تفاوت') +
+                    (lowest && highest ? ' <span style="display:inline-flex;gap:10px;flex-wrap:wrap;margin-right:8px"><strong>الأقل: ' + escapeHtml(lowest.teacherName || '—') + ' = ' + lowest.final + '</strong><strong>الأعلى: ' + escapeHtml(highest.teacherName || '—') + ' = ' + highest.final + '</strong></span>' : '') +
+                    (function () {
+                        const finals = (autoDistributionSummary.perTeacher || []).map(t => t.final || 0);
+                        const gini = computeGiniCoefficient(finals);
+                        const giniLabel = gini.toFixed(3);
+                        const giniOk = gini <= 0.10;
+                        return ' <strong style="margin-right:8px">Gini:</strong> ' + giniLabel + ' ' +
+                            (giniOk ? '(عدالة جيّدة)' : '(تفاوت ملحوظ)');
+                    })();
+            }
+
+            function rebuildAutoDistributionSummaryFromRows(rows) {
+                const hasMetadata = (rows || []).some(row =>
+                    (row && row.halfday_key && ((row.proctor_keys && row.proctor_keys.length) || (row.reserve_keys && row.reserve_keys.length) || (row.duty_teacher_keys && row.duty_teacher_keys.length)))
+                );
+                if (!hasMetadata) {
+                    autoDistributionSummary = null;
+                    return;
+                }
+                const loadState = createTeacherLoadState();
+                (rows || []).forEach(row => {
+                    const halfdayKey = row.halfday_key || '';
+                    (row.duty_teacher_keys || []).forEach(key => addTeacherHalfdayLoad(loadState, key, 'duty', halfdayKey));
+                    (row.proctor_keys || []).forEach(key => addTeacherHalfdayLoad(loadState, key, 'guard', halfdayKey));
+                });
+                const reserveSeen = new Set();
+                (rows || []).forEach(row => {
+                    const halfdayKey = row.halfday_key || '';
+                    (row.reserve_keys || []).forEach(key => {
+                        const uniqueKey = halfdayKey + '|' + key;
+                        if (reserveSeen.has(uniqueKey)) return;
+                        reserveSeen.add(uniqueKey);
+                        addTeacherHalfdayLoad(loadState, key, 'reserve', halfdayKey);
+                    });
+                });
+                autoDistributionSummary = buildAutoDistributionSummary(loadState);
+            }
+
+            function buildDutyAssignmentsForHalfday(sessionsMap, halfdayKey) {
+                const assignments = [];
+                sessionsMap.forEach(sessionEntries => {
+                    sessionEntries.forEach(scheduleEntry => {
+                        getDutyTeacherKeysForSchedule(scheduleEntry).forEach(exKey => {
+                            pushUniqueAssignment(assignments, { exKey, scheduleEntry, role: 'duty', halfdayKey });
+                        });
+                    });
+                });
+                return assignments;
+            }
+
+            function buildAutoAssignmentMapsFromRows(rows) {
+                const dayAssignmentsByKey = new Map();
+                const halfdayAssignmentsByKey = new Map();
+                (rows || []).forEach(row => {
+                    const halfdayKey = row.halfday_key || '';
+                    const dayKey = halfdayKey.split('|')[0] || '';
+                    if (!halfdayAssignmentsByKey.has(halfdayKey)) halfdayAssignmentsByKey.set(halfdayKey, []);
+                    if (!dayAssignmentsByKey.has(dayKey)) dayAssignmentsByKey.set(dayKey, []);
+                    const halfdayAssignments = halfdayAssignmentsByKey.get(halfdayKey);
+                    const dayAssignments = dayAssignmentsByKey.get(dayKey);
+                    (row.duty_teacher_keys || []).forEach(exKey => {
+                        const assignment = { exKey, scheduleEntry: row.schedule_entry || row, role: 'duty', halfdayKey };
+                        pushUniqueAssignment(halfdayAssignments, assignment);
+                        pushUniqueAssignment(dayAssignments, assignment);
+                    });
+                    (row.proctor_keys || []).forEach(exKey => {
+                        const assignment = { exKey, scheduleEntry: row.schedule_entry || row, role: 'guard', halfdayKey };
+                        pushUniqueAssignment(halfdayAssignments, assignment);
+                        pushUniqueAssignment(dayAssignments, assignment);
+                    });
+                    (row.reserve_keys || []).forEach(exKey => {
+                        const assignment = { exKey, scheduleEntry: row.schedule_entry || row, role: 'reserve', halfdayKey };
+                        pushUniqueAssignment(halfdayAssignments, assignment);
+                        pushUniqueAssignment(dayAssignments, assignment);
+                    });
+                });
+                return { dayAssignmentsByKey, halfdayAssignmentsByKey };
+            }
+
+            function buildAutoLoadStateFromRows(rows, includeReserves) {
+                const loadState = createTeacherLoadState();
+                (rows || []).forEach(row => {
+                    const halfdayKey = row.halfday_key || '';
+                    (row.duty_teacher_keys || []).forEach(key => addTeacherHalfdayLoad(loadState, key, 'duty', halfdayKey));
+                    (row.proctor_keys || []).forEach(key => addTeacherHalfdayLoad(loadState, key, 'guard', halfdayKey));
+                    if (includeReserves) {
+                        (row.reserve_keys || []).forEach(key => addTeacherHalfdayLoad(loadState, key, 'reserve', halfdayKey));
+                    }
+                });
+                return loadState;
+            }
+
+            function getSessionUsedFromRows(rows, sessionKey, ignoredRow, ignoredSlotIndex) {
+                const used = new Set();
+                (rows || []).forEach(row => {
+                    if ((row.session_key || '') !== sessionKey) return;
+                    (row.proctor_keys || []).forEach((exKey, idx) => {
+                        if (row === ignoredRow && idx === ignoredSlotIndex) return;
+                        if (exKey) used.add(exKey);
+                    });
+                    (row.reserve_keys || []).forEach(exKey => { if (exKey) used.add(exKey); });
+                });
+                return used;
+            }
+
+            function canAssignGuardToRow(row, slotIndex, candidate, rows, options, halfdayLimits) {
+                if (!row || !candidate) return false;
+                const scheduleEntry = row.schedule_entry || row;
+                const halfdayKey = row.halfday_key || getAutoDistributionHalfdayKey(scheduleEntry);
+                const dayKey = halfdayKey.split('|')[0] || '';
+                const maps = buildAutoAssignmentMapsFromRows(rows);
+                const halfdayAssignments = maps.halfdayAssignmentsByKey.get(halfdayKey) || [];
+                const dayAssignments = maps.dayAssignmentsByKey.get(dayKey) || [];
+                const usedInSession = getSessionUsedFromRows(rows, row.session_key || getAutoDistributionSessionKey(scheduleEntry), row, slotIndex);
+                const loadState = buildAutoLoadStateFromRows(rows, false);
+                if (usedInSession.has(candidate.exKey)) return false;
+                if (hasBlockingDayAssignment(candidate.exKey, halfdayKey, dayAssignments)) return false;
+                if (hasBlockingHalfdayAssignment(candidate.exKey, scheduleEntry, halfdayAssignments)) return false;
+                if (hasAnyHalfdayAssignment(candidate.exKey, halfdayAssignments)) return false;
+                if (isAutoProctorAtHalfdayLimit(candidate, loadState, options, halfdayLimits)) return false;
+                if (isProctorExemptForSchedule(candidate.proc, candidate.idx, scheduleEntry)) return false;
+                if (isDutyTeacherForSchedule(candidate.proc, candidate.idx, scheduleEntry)) return false;
+                return true;
+            }
+
+            function rebalanceGuardAssignments(rows, options, halfdayLimits) {
+                let loadState = buildAutoLoadStateFromRows(rows, false);
+                let range = getLoadRange(loadState, 'guard');
+                const notes = [];
+                let iterations = 0;
+                while (range.diff > 1 && iterations < 200) {
+                    iterations++;
+                    const perTeacher = proctorsList.map((proc, idx) => {
+                        const exKey = getProctorExemptionKey(proc, idx);
+                        return {
+                            exKey,
+                            proc,
+                            idx,
+                            key: getProctorKey(proc, idx),
+                            name: proc.teacher_name || '',
+                            guard: getTeacherGuardLoad(loadState, exKey)
+                        };
+                    });
+                    const highs = perTeacher.filter(item => item.guard === range.max).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+                    const lows = perTeacher.filter(item => item.guard === range.min).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+                    let moved = false;
+                    for (const high of highs) {
+                        for (const row of rows) {
+                            const slotIndex = (row.proctor_keys || []).indexOf(high.exKey);
+                            if (slotIndex < 0) continue;
+                            for (const low of lows) {
+                                if (!canAssignGuardToRow(row, slotIndex, low, rows, options, halfdayLimits)) continue;
+                                const oldName = (row.proctors || [])[slotIndex] || high.name;
+                                row.proctor_keys[slotIndex] = low.exKey;
+                                row.proctors[slotIndex] = low.name;
+                                row.proctor_groups[slotIndex] = getGroupLabel(meAssignments[low.key] || 0);
+                                row.notes = [row.notes, 'تسوية الحراسة: ' + oldName + ' ← ' + low.name].filter(Boolean).join('، ');
+                                notes.push(oldName + ' ← ' + low.name);
+                                moved = true;
+                                break;
+                            }
+                            if (moved) break;
+                        }
+                        if (moved) break;
+                    }
+                    if (!moved) break;
+                    loadState = buildAutoLoadStateFromRows(rows, false);
+                    range = getLoadRange(loadState, 'guard');
+                }
+                return {
+                    loadState,
+                    range,
+                    movedCount: notes.length,
+                    unresolved: range.diff > 1
+                };
+            }
+
+            /**
+             * يفحص ما إذا كان بالإمكان وضع المرشّح candidate كاحتياط في الصّفّ row
+             * مكان الاحتياطي الحالي في slotIndex، دون كسر القيود الإلزامية.
+             */
+            function canAssignReserveToRow(row, slotIndex, candidate, rows, options, halfdayLimits) {
+                if (!row || !candidate || !candidate.exKey) return false;
+                if (slotIndex < 0) return false;
+                const reserveKeys = row.reserve_keys || [];
+                if (slotIndex >= reserveKeys.length) return false;
+                const oldExKey = reserveKeys[slotIndex];
+                if (!oldExKey || oldExKey === candidate.exKey) return false;
+
+                const scheduleEntry = row.schedule_entry || row;
+                const sessionKey = row.session_key || getAutoDistributionSessionKey(scheduleEntry);
+                const halfdayKey = row.halfday_key || getAutoDistributionHalfdayKey(scheduleEntry);
+                const dayKey = halfdayKey.split('|')[0] || '';
+                const sessionEntries = (rows || [])
+                    .filter(r => (r.session_key || '') === sessionKey)
+                    .map(r => r.schedule_entry || r);
+                const maps = buildAutoAssignmentMapsFromRows(rows);
+                const halfdayAssignments = maps.halfdayAssignmentsByKey.get(halfdayKey) || [];
+                const dayAssignments = maps.dayAssignmentsByKey.get(dayKey) || [];
+                const usedInSession = getSessionUsedFromRows(rows, sessionKey);
+                const loadState = buildAutoLoadStateFromRows(rows, true);
+
+                if (usedInSession.has(candidate.exKey)) return false;
+                if (hasBlockingDayAssignment(candidate.exKey, halfdayKey, dayAssignments)) return false;
+                if (sessionEntries.some(e => hasBlockingHalfdayAssignment(candidate.exKey, e, halfdayAssignments))) return false;
+                if (hasAnyHalfdayAssignment(candidate.exKey, halfdayAssignments)) return false;
+                if (isAutoProctorAtHalfdayLimit(candidate, loadState, options, halfdayLimits)) return false;
+                if (sessionEntries.some(e => isProctorExemptForSchedule(candidate.proc, candidate.idx, e))) return false;
+                if (sessionEntries.some(e => isDutyTeacherForSchedule(candidate.proc, candidate.idx, e))) return false;
+                return true;
+            }
+
+            /**
+             * يطبّق التّبديل في خانة الاحتياط داخل صفّ معيّن.
+             * ملاحظة: صفوف الحصّة الواحدة تتشارك مرجع `reserve_keys` و `reserves`،
+             * لذا تعديل الفهرس slotIndex ينعكس تلقائياً على باقي صفوف نفس الحصّة.
+             */
+            function applyReserveSwap(row, slotIndex, newCandidate) {
+                if (!row || !newCandidate) return null;
+                const oldExKey = (row.reserve_keys || [])[slotIndex] || '';
+                const oldName = (row.reserves || [])[slotIndex] || '';
+                row.reserve_keys[slotIndex] = newCandidate.exKey;
+                if (Array.isArray(row.reserves)) {
+                    row.reserves[slotIndex] = newCandidate.proc.teacher_name || '';
+                }
+                return { oldExKey, oldName };
+            }
+
+            /**
+             * إعادة توازن النّهائي (final) عبر استبدال احتياطات أساتذة عالي الحمل
+             * بأساتذة منخفضي الحمل. تُستدعى بعد إسناد الاحتياط لتسوية ما تعذّر
+             * إصلاحه عبر إعادة توازن الحراسة وحدها.
+             */
+            function rebalanceReserveAssignments(rows, options, halfdayLimits) {
+                let loadState = buildAutoLoadStateFromRows(rows, true);
+                let range = getLoadRange(loadState, 'final');
+                const moves = [];
+                let iterations = 0;
+                const MAX_ITER = 200;
+
+                while (range.diff > 1 && iterations < MAX_ITER) {
+                    iterations++;
+                    const perTeacher = proctorsList.map((proc, idx) => {
+                        const exKey = getProctorExemptionKey(proc, idx);
+                        return {
+                            exKey,
+                            proc,
+                            idx,
+                            key: getProctorKey(proc, idx),
+                            name: proc.teacher_name || '',
+                            final: getTeacherFinalLoad(loadState, exKey)
+                        };
+                    });
+                    const highs = perTeacher.filter(t => t.final === range.max)
+                        .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+                    const lows = perTeacher.filter(t => t.final === range.min)
+                        .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+
+                    let moved = false;
+                    swapLoop:
+                    for (const high of highs) {
+                        const sessionsTried = new Set();
+                        for (const row of rows) {
+                            const sessionKey = row.session_key || '';
+                            if (sessionsTried.has(sessionKey)) continue;
+                            const slotIndex = (row.reserve_keys || []).indexOf(high.exKey);
+                            if (slotIndex < 0) continue;
+                            sessionsTried.add(sessionKey);
+                            for (const low of lows) {
+                                if (!canAssignReserveToRow(row, slotIndex, low, rows, options, halfdayLimits)) continue;
+                                const swap = applyReserveSwap(row, slotIndex, low);
+                                const oldName = swap?.oldName || high.name;
+                                row.notes = [row.notes, 'تسوية الاحتياط: ' + oldName + ' ← ' + low.name]
+                                    .filter(Boolean).join('، ');
+                                moves.push(oldName + ' ← ' + low.name);
+                                moved = true;
+                                break swapLoop;
+                            }
+                        }
+                    }
+
+                    if (!moved) break;
+                    loadState = buildAutoLoadStateFromRows(rows, true);
+                    range = getLoadRange(loadState, 'final');
+                }
+
+                return {
+                    loadState,
+                    range,
+                    movedCount: moves.length,
+                    unresolved: range.diff > 1,
+                    iterations
+                };
+            }
+
+            /**
+             * يبني مرشّح حراسة من بيانات أستاذ في proctorsList بفهرس idx معيّن.
+             */
+            function buildGuardCandidate(idx) {
+                const proc = proctorsList[idx];
+                if (!proc) return null;
+                return {
+                    proc,
+                    idx,
+                    key: getProctorKey(proc, idx),
+                    exKey: getProctorExemptionKey(proc, idx),
+                    name: proc.teacher_name || ''
+                };
+            }
+
+            /**
+             * يبحث عن صفّ يحوي high كحارس بحيث يمكن استبداله بـ low مباشرة.
+             * @returns {{row, slotIndex}|null}
+             */
+            function tryGuardSwap(rows, high, low, options, halfdayLimits) {
+                for (const row of rows) {
+                    const slotIndex = (row.proctor_keys || []).indexOf(high.exKey);
+                    if (slotIndex < 0) continue;
+                    if (canAssignGuardToRow(row, slotIndex, low, rows, options, halfdayLimits)) {
+                        return { row, slotIndex };
+                    }
+                }
+                return null;
+            }
+
+            /**
+             * يطبّق تبديل خانة حراسة في صفّ معيّن.
+             */
+            function applyGuardSwap(row, slotIndex, newCandidate) {
+                if (!row || !newCandidate) return null;
+                const oldName = (row.proctors || [])[slotIndex] || '';
+                row.proctor_keys[slotIndex] = newCandidate.exKey;
+                if (Array.isArray(row.proctors)) {
+                    row.proctors[slotIndex] = newCandidate.proc.teacher_name || newCandidate.name || '';
+                }
+                if (Array.isArray(row.proctor_groups)) {
+                    row.proctor_groups[slotIndex] = getGroupLabel(meAssignments[newCandidate.key] || 0);
+                }
+                return { oldName };
+            }
+
+            /**
+             * يبحث عن سلسلة تبديل ثلاثية: high → R1 → B → R2 → low
+             * بحيث ينخفض final لـ high بمقدار 1 ويرتفع لـ low بمقدار 1، وB ثابت.
+             * يستعمل المحاكاة المؤقّتة للتّحقّق من صلاحية الخطوة الثّانية.
+             */
+            function tryThreeWayGuardSwap(rows, high, low, options, halfdayLimits) {
+                for (let bIdx = 0; bIdx < proctorsList.length; bIdx++) {
+                    const intermediate = buildGuardCandidate(bIdx);
+                    if (!intermediate) continue;
+                    if (intermediate.exKey === high.exKey || intermediate.exKey === low.exKey) continue;
+
+                    for (const r1 of rows) {
+                        const slot1 = (r1.proctor_keys || []).indexOf(high.exKey);
+                        if (slot1 < 0) continue;
+                        if (!canAssignGuardToRow(r1, slot1, intermediate, rows, options, halfdayLimits)) continue;
+
+                        // محاكاة مؤقّتة: إحلال intermediate مكان high في R1
+                        const savedR1 = r1.proctor_keys[slot1];
+                        r1.proctor_keys[slot1] = intermediate.exKey;
+                        let found = null;
+                        try {
+                            for (const r2 of rows) {
+                                if (r2 === r1) continue;
+                                const slot2 = (r2.proctor_keys || []).indexOf(intermediate.exKey);
+                                if (slot2 < 0) continue;
+                                // تأكّد أنّ الخانة الموجودة هي الخانة الأصلية لـ B وليست الخانة المُحاكاة
+                                if (r2 === r1 && slot2 === slot1) continue;
+                                if (canAssignGuardToRow(r2, slot2, low, rows, options, halfdayLimits)) {
+                                    found = { r1, slot1, r2, slot2, intermediate };
+                                    break;
+                                }
+                            }
+                        } finally {
+                            // تراجع عن المحاكاة في كلّ الأحوال
+                            r1.proctor_keys[slot1] = savedR1;
+                        }
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+
+            /**
+             * يطبّق التّبديل الثّلاثي: r1.slot1 ← intermediate، r2.slot2 ← low.
+             */
+            function applyThreeWayGuardSwap(swap, low) {
+                const old1Name = (swap.r1.proctors || [])[swap.slot1] || '';
+                const old2Name = (swap.r2.proctors || [])[swap.slot2] || '';
+                applyGuardSwap(swap.r1, swap.slot1, swap.intermediate);
+                applyGuardSwap(swap.r2, swap.slot2, low);
+                return { old1Name, old2Name };
+            }
+
+            /**
+             * إعادة توازن نهائية متعدّدة الأدوار. تُستدعى عند بقاء finalDiff > 1
+             * بعد إعادة توازن الحراسة وإعادة توازن الاحتياط. تستعمل تبديلاً
+             * ثنائياً للحراسة بين عالي وأدنى final، ثمّ تبديلاً ثلاثياً عند الحاجة.
+             */
+            function rebalanceAllRoles(rows, options, halfdayLimits) {
+                let loadState = buildAutoLoadStateFromRows(rows, true);
+                let range = getLoadRange(loadState, 'final');
+                const moves = [];
+                let iterations = 0;
+                const MAX_ITER = 500;
+
+                while (range.diff > 1 && iterations < MAX_ITER) {
+                    iterations++;
+                    const stats = proctorsList.map((proc, idx) => {
+                        const candidate = buildGuardCandidate(idx);
+                        return Object.assign({}, candidate, {
+                            final: getTeacherFinalLoad(loadState, candidate.exKey)
+                        });
+                    });
+                    const highs = stats.filter(t => t.final === range.max)
+                        .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+                    const lows = stats.filter(t => t.final === range.min)
+                        .sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+
+                    let moved = false;
+
+                    // محاولة 1: تبديل ثنائي guard↔guard بين عالي/منخفض final
+                    twoWayLoop:
+                    for (const high of highs) {
+                        for (const low of lows) {
+                            const swap = tryGuardSwap(rows, high, low, options, halfdayLimits);
+                            if (swap) {
+                                const apply = applyGuardSwap(swap.row, swap.slotIndex, low);
+                                const oldName = apply?.oldName || high.name;
+                                swap.row.notes = [swap.row.notes, 'تسوية نهائية: ' + oldName + ' ← ' + low.name]
+                                    .filter(Boolean).join('، ');
+                                moves.push(oldName + ' ← ' + low.name);
+                                moved = true;
+                                break twoWayLoop;
+                            }
+                        }
+                    }
+
+                    // محاولة 2: تبديل ثلاثي عند فشل الثّنائي
+                    if (!moved && options.enableThreeWaySwap !== false) {
+                        threeWayLoop:
+                        for (const high of highs) {
+                            for (const low of lows) {
+                                const swap = tryThreeWayGuardSwap(rows, high, low, options, halfdayLimits);
+                                if (swap) {
+                                    const apply = applyThreeWayGuardSwap(swap, low);
+                                    const trail = (apply?.old1Name || high.name) + ' → ' + (swap.intermediate.name || '') + ' → ' + low.name;
+                                    swap.r2.notes = [swap.r2.notes, 'تبديل ثلاثي: ' + trail]
+                                        .filter(Boolean).join('، ');
+                                    moves.push(trail);
+                                    moved = true;
+                                    break threeWayLoop;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!moved) break;
+                    loadState = buildAutoLoadStateFromRows(rows, true);
+                    range = getLoadRange(loadState, 'final');
+                }
+
+                return {
+                    loadState,
+                    range,
+                    movedCount: moves.length,
+                    unresolved: range.diff > 1,
+                    iterations
+                };
+            }
+
+            async function runAutoDistribution() {
+                // Per Req 8.8: hide diagnostics panel on next v1 run
+                hideDiagnosticsPanel();
+                exemptionsData = (await window.api.examConfig.get(year, 'examExemptionsData')) || {};
+                dutyData = (await window.api.examConfig.get(year, 'examDutyTeachersData')) || {};
+                const rules = await getDistributionRules();
+                const options = await getAutoDistributionOptions();
+                const scheduleEntries = (await getScheduleEntries()).filter(s => s && (s.date_day || s.time_from || s.subject_name));
+                if (!scheduleEntries.length) { showToast('لا توجد جدولة محفوظة', 'warning'); return; }
+
+                let loadState = buildInitialAutoLoadState(scheduleEntries, options);
+                const guardQuota = options.balanceTotalTasks ? await buildPerTeacherQuota(scheduleEntries, rules, loadState) : null;
+                const rng = buildSeededRandom(options.randomSeed);
+                const roomUseMap = {};
+                const halfdayLimits = await getAutoDistributionGroupHalfdayLimits();
+                const result = [];
+                const reserveContexts = [];
+                const sortedSchedule = scheduleEntries.slice().sort((a, b) => {
+                    return getScheduleSortKey(a).localeCompare(getScheduleSortKey(b), 'ar');
+                });
+                const schedulesByHalfday = new Map();
+                const dayAssignmentsByKey = new Map();
+                sortedSchedule.forEach(scheduleEntry => {
+                    const halfdayKey = getAutoDistributionHalfdayKey(scheduleEntry);
+                    const sessionKey = getAutoDistributionSessionKey(scheduleEntry);
+                    if (!schedulesByHalfday.has(halfdayKey)) schedulesByHalfday.set(halfdayKey, new Map());
+                    const sessionsMap = schedulesByHalfday.get(halfdayKey);
+                    if (!sessionsMap.has(sessionKey)) sessionsMap.set(sessionKey, []);
+                    sessionsMap.get(sessionKey).push(scheduleEntry);
+                });
+
+                for (const [halfdayKey, sessionsMap] of schedulesByHalfday) {
+                    const dayKey = halfdayKey.split('|')[0] || '';
+                    if (!dayAssignmentsByKey.has(dayKey)) dayAssignmentsByKey.set(dayKey, []);
+                    const dayAssignments = dayAssignmentsByKey.get(dayKey);
+                    const halfdayAssignments = buildDutyAssignmentsForHalfday(sessionsMap, halfdayKey);
+                    halfdayAssignments.forEach(assignment => pushUniqueAssignment(dayAssignments, assignment));
+                    for (const [sessionKey, sessionEntries] of sessionsMap) {
+                        const sessionLabel = getScheduleSessionLabel(sessionEntries[0] || {});
+                        const sessionUsed = new Set();
+                        const sessionRows = [];
+                        for (const scheduleEntry of sessionEntries) {
+                            const rooms = (await getRoomRowsForLevel(scheduleEntry.level_name)).slice();
+                            for (var ri = rooms.length - 1; ri > 0; ri--) {
+                                var rj = Math.floor(rng() * (ri + 1));
+                                var tmp = rooms[ri];
+                                rooms[ri] = rooms[rj];
+                                rooms[rj] = tmp;
+                            }
+                            const dutyTeacherNames = getDutyTeacherNamesForSchedule(scheduleEntry);
+                            const dutyTeacherKeys = getDutyTeacherKeysForSchedule(scheduleEntry);
+                            for (const room of rooms) {
+                                const roomKey = getRoomConstraintKey(room);
+                                const buildPool = async (allowHalfdayReuse, allowGuardOverflow) => {
+                                    const candidates = await getEligibleProctors(scheduleEntry, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, roomKey, roomUseMap, halfdayLimits, allowHalfdayReuse, guardQuota, allowGuardOverflow);
+                                    const inGroup = options.respectMorningEvening
+                                        ? candidates.filter(item => !hasAutoSoftViolation(item, 'خارج المجموعة المتناوبة المكلفة'))
+                                        : candidates;
+                                    return {
+                                        candidates,
+                                        inGroup,
+                                        pool: inGroup.length >= rules.proctorsPerRoom ? inGroup : candidates
+                                    };
+                                };
+                                const strict = options.strictHardConstraints === true;
+                                let selectedPool = await buildPool(false, false);
+                                if (!strict && selectedPool.pool.length < rules.proctorsPerRoom) selectedPool = await buildPool(false, true);
+                                if (selectedPool.pool.length < rules.proctorsPerRoom) selectedPool = await buildPool(true, false);
+                                if (!strict && selectedPool.pool.length < rules.proctorsPerRoom) selectedPool = await buildPool(true, true);
+                                const pool = selectedPool.pool;
+                                const groupShortageNote = selectedPool.inGroup.length >= rules.proctorsPerRoom
+                                    ? ''
+                                    : await getExpectedGroupShortageNote(scheduleEntry, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, halfdayLimits, rules.proctorsPerRoom);
+                                const assigned = takeProctors(pool, rules.proctorsPerRoom, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, halfdayKey, scheduleEntry);
+                                const missing = Math.max(rules.proctorsPerRoom - assigned.length, 0);
+                                const groupNumber = await getExpectedGroupForSession(scheduleEntry);
+                                if (roomKey) {
+                                    if (!roomUseMap[roomKey]) roomUseMap[roomKey] = new Set();
+                                    assigned.forEach(item => roomUseMap[roomKey].add(item.exKey));
+                                }
+                                sessionRows.push({
+                                    session_key: sessionKey,
+                                    session_label: sessionLabel,
+                                    halfday_key: halfdayKey,
+                                    group_number: groupNumber,
+                                    group_label: getGroupLabel(groupNumber),
+                                    day: scheduleEntry.day || '',
+                                    period: scheduleEntry.period || '',
+                                    session: scheduleEntry.session || '',
+                                    schedule_entry: scheduleEntry,
+                                    level_name: scheduleEntry.level_name || '',
+                                    subject_name: scheduleEntry.subject_name || '',
+                                    duty_teachers: dutyTeacherNames,
+                                    duty_teacher_keys: dutyTeacherKeys,
+                                    room_name: room.roomName || ('قاعة ' + (room.room_num || '')),
+                                    room_number: room.room_num || '',
+                                    room_key: roomKey,
+                                    room_place: [room.roomName || '', room.wing || ''].filter(Boolean).join(' - '),
+                                    proctors: assigned.map(item => item.proc.teacher_name || ''),
+                                    proctor_keys: assigned.map(item => item.exKey),
+                                    proctor_groups: assigned.map(item => getGroupLabel(meAssignments[item.key] || 0)),
+                                    reserves: [],
+                                    reserve_keys: [],
+                                    notes: [getAutoAssignmentNotes(assigned, missing, options), groupShortageNote].filter(Boolean).join('، ')
+                                });
+                            }
+                        }
+                        sessionRows.forEach(row => result.push(row));
+                        reserveContexts.push({ sessionEntries, sessionKey, halfdayKey, dayKey, sessionRows });
+                    }
+                }
+
+                const guardRepair = rebalanceGuardAssignments(result, options, halfdayLimits);
+                loadState = guardRepair.loadState;
+                let assignmentMaps = buildAutoAssignmentMapsFromRows(result);
+                for (const context of reserveContexts) {
+                    const halfdayAssignments = assignmentMaps.halfdayAssignmentsByKey.get(context.halfdayKey) || [];
+                    const dayAssignments = assignmentMaps.dayAssignmentsByKey.get(context.dayKey) || [];
+                    const sessionUsed = getSessionUsedFromRows(result, context.sessionKey);
+                    // Compute the session's required reserves count using the configured mode
+                    // (fixed count or percent of session guard need).
+                    let sessionGuardNeed = 0;
+                    for (const e of context.sessionEntries) {
+                        const rc = (await getRoomRowsForLevel(e.level_name)).length;
+                        sessionGuardNeed = Math.max(sessionGuardNeed, rc * rules.proctorsPerRoom);
+                    }
+                    const sessionReservesNeeded = computeReservesForSession(sessionGuardNeed, rules);
+                    const strictReservePool = await getEligibleSessionReserveProctors(context.sessionEntries, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, halfdayLimits, false);
+                    const reservePool = strictReservePool.length >= sessionReservesNeeded
+                        ? strictReservePool
+                        : await getEligibleSessionReserveProctors(context.sessionEntries, loadState, sessionUsed, halfdayAssignments, dayAssignments, options, halfdayLimits, true);
+                    const reserveTargetCount = getSessionReserveTargetCount(reservePool, sessionReservesNeeded, options, loadState);
+                    const reserves = takeSessionReserves(reservePool, reserveTargetCount, loadState, sessionUsed, halfdayAssignments, dayAssignments, context.halfdayKey, context.sessionEntries[0] || {});
+                    let reserveNames = reserves.map(item => item.proc.teacher_name || '').filter(Boolean);
+                    let reserveKeys = reserves.map(item => item.exKey);
+                    // إدراج الاحتياط اليدوي (حالة "احتياط") إلزاميًا في لائحة الاحتياط
+                    const forcedReserveKeys = [];
+                    context.sessionEntries.forEach(e => getReservedTeacherKeysForSchedule(e).forEach(k => { if (!forcedReserveKeys.includes(k)) forcedReserveKeys.push(k); }));
+                    forcedReserveKeys.forEach(k => {
+                        if (reserveKeys.includes(k)) return;
+                        const proc = proctorsList.find((pp, ii) => getProctorExemptionKey(pp, ii) === k);
+                        reserveKeys.push(k);
+                        reserveNames.push((proc && proc.teacher_name) || '');
+                    });
+                    reserveNames = reserveNames.filter(Boolean);
+                    const missingReserves = Math.max(reserveTargetCount - reserveNames.length, 0);
+                    const extraReserves = Math.max(reserveNames.length - sessionReservesNeeded, 0);
+                    const reserveSoftReasons = Array.from(new Set(reserves.flatMap(item => item.softViolations || [])));
+                    context.sessionRows.forEach((row, rowIdx) => {
+                        row.reserves = reserveNames;
+                        row.reserve_keys = reserveKeys;
+                        var reserveNotes = [];
+                        if (rowIdx === 0) {
+                            if (missingReserves) reserveNotes.push('خصاص ' + missingReserves + ' احتياطي للحصة');
+                            if (extraReserves) reserveNotes.push('احتياط إضافي للتسوية: ' + extraReserves);
+                            if (reserveSoftReasons.length) reserveNotes.push('احتياط: تعذر احترام ' + reserveSoftReasons.join('، '));
+                            if (guardRepair.unresolved) reserveNotes.push('تعذر إنهاء فرق الحراسة بسبب الشروط الصلبة');
+                        }
+                        row.notes = [row.notes].concat(reserveNotes).filter(Boolean).join('، ');
+                    });
+                    assignmentMaps = buildAutoAssignmentMapsFromRows(result);
+                }
+
+                let reserveRepair = { movedCount: 0, unresolved: false };
+                if (options.enableReserveRebalance !== false) {
+                    reserveRepair = rebalanceReserveAssignments(result, options, halfdayLimits);
+                    loadState = reserveRepair.loadState || buildAutoLoadStateFromRows(result, true);
+                }
+
+                // محاولة نهائية: تبديل متعدّد الأدوار (ثنائي guard↔guard ثمّ ثلاثي)
+                let finalRepair = { movedCount: 0, unresolved: false };
+                const currentRange = getLoadRange(loadState, 'final');
+                if (currentRange.diff > 1) {
+                    finalRepair = rebalanceAllRoles(result, options, halfdayLimits);
+                    loadState = finalRepair.loadState || loadState;
+                }
+
+                if ((reserveRepair.unresolved && finalRepair.movedCount === 0) || finalRepair.unresolved) {
+                    if (result[0]) {
+                        result[0].notes = [result[0].notes, 'تعذّر إنهاء توازن العبء النّهائي بسبب القيود الصّلبة']
+                            .filter(Boolean).join('، ');
+                    }
+                }
+
+                autoDistributionResult = result;
+                autoDistributionSummary = buildAutoDistributionSummary(loadState);
+                renderAutoDistributionResult();
+                await updateDistStatuses();
+                const guardNote = guardRepair.movedCount ? ' مع ' + guardRepair.movedCount + ' تسوية للحراسة' : '';
+                const reserveNote = reserveRepair.movedCount ? ' و ' + reserveRepair.movedCount + ' تسوية للاحتياط' : '';
+                const finalNote = finalRepair.movedCount ? ' و ' + finalRepair.movedCount + ' تسوية نهائية' : '';
+                showToast('تم تنفيذ التوزيع على ' + result.length + ' مهمة قاعة' + guardNote + reserveNote + finalNote, 'success');
+            }
+
+            function formatScheduleDate(scheduleEntry) {
+                if (!scheduleEntry.date_day) return '';
+                const day = Number(scheduleEntry.date_day);
+                const month = Number(scheduleEntry.date_month);
+                return [
+                    Number.isFinite(day) && day > 0 ? String(day) : scheduleEntry.date_day,
+                    Number.isFinite(month) && month > 0 ? String(month) : scheduleEntry.date_month,
+                    scheduleEntry.date_year
+                ].filter(Boolean).join('/');
+            }
+
+	            function renderAutoDistributionResult() {
+	                const tbody = document.getElementById('auto-distribution-tbody');
+	                if (!tbody) return;
+	                if (autoDistributionResult.length && (!autoDistributionSummary || !autoDistributionSummary.perTeacher || !autoDistributionSummary.perTeacher.length)) {
+	                    rebuildAutoDistributionSummaryFromRows(autoDistributionResult);
+	                }
+	                renderAutoDistributionSummary();
+	                renderAutoDistributionFilters();
+	                const visibleRows = getFilteredAutoDistributionRows();
+	                if (!autoDistributionResult.length) {
+	                    tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-info-circle" style="margin-left:6px"></i>لم يتم تنفيذ التوزيع بعد</td></tr>';
+	                } else if (!visibleRows.length) {
+	                    tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-filter" style="margin-left:6px"></i>لا توجد نتائج لهذه الفلترة</td></tr>';
+	                } else {
+	                    tbody.innerHTML = visibleRows.map(row => '<tr>' +
+	                        '<td>' + escapeHtml(row.subject_name) + '</td>' +
+	                        '<td>' + escapeHtml(row.session_label) + '</td>' +
+	                        '<td>' + escapeHtml((row.duty_teachers || []).join('، ') || '—') + '</td>' +
+	                        '<td>' + escapeHtml((row.proctors || [])[0] || '—') + '</td>' +
+	                        '<td>' + escapeHtml((row.proctors || [])[1] || '—') + '</td>' +
+	                        '<td>' + escapeHtml(formatAutoProctorGroups(row)) + '</td>' +
+	                        '<td>' + escapeHtml(row.room_number || row.room_name || '—') + '</td>' +
+	                        '<td>' + escapeHtml(row.room_place || row.room_name || '—') + '</td>' +
+		                        '<td>' + escapeHtml(row.notes || '—') + '</td>' +
+		                        '</tr>').join('');
+	                }
+	                renderAutoReserveTable(visibleRows);
+	                renderAutoDutyTable();
+	                const sessions = new Set(autoDistributionResult.map(r => r.session_label)).size;
+                const reservesBySession = new Map();
+                autoDistributionResult.forEach(row => {
+                    if (!reservesBySession.has(row.session_label)) reservesBySession.set(row.session_label, row.reserves || []);
+                });
+                const reserves = Array.from(reservesBySession.values()).reduce((sum, names) => sum + names.length, 0);
+                document.getElementById('auto-session-count').textContent = sessions;
+	                document.getElementById('auto-room-task-count').textContent = autoDistributionResult.length;
+
+	                // Detailed breakdown per section (شعبة). Each level in the
+	                // distribution has its own rooms and subjects. The chip shows
+	                // the total row count (= rooms dispatched) and total guard
+	                // assignments (= rows × guards-per-row). The tooltip shows
+	                // per-level detail: rooms × subjects × guards = assignments.
+	                //
+	                // NOTE: "rooms" here = distinct room_key per level in the
+	                // actual distribution result (not the global unique count).
+	                // "subjects" = distinct subject_name per level in the result.
+	                const taskBreakdownEl = document.getElementById('auto-room-task-breakdown');
+	                if (taskBreakdownEl) {
+	                    if (!autoDistributionResult.length) {
+	                        taskBreakdownEl.textContent = '';
+	                        taskBreakdownEl.removeAttribute('title');
+	                    } else {
+	                        const byLevel = new Map();
+	                        autoDistributionResult.forEach(row => {
+	                            const lvl = row.level_name || '—';
+	                            const bucket = byLevel.get(lvl) || {
+	                                rooms: new Set(),
+	                                subjects: new Set(),
+	                                guardSlots: 0,
+	                                rowCount: 0
+	                            };
+	                            const roomId = row.room_key || row.room_number || row.room_name || '';
+	                            if (roomId) bucket.rooms.add(roomId);
+	                            if (row.subject_name) bucket.subjects.add(row.subject_name);
+	                            bucket.guardSlots += Array.isArray(row.proctors) ? row.proctors.length : 0;
+	                            bucket.rowCount++;
+	                            byLevel.set(lvl, bucket);
+	                        });
+
+	                        let totalGuards = 0;
+	                        const perLevelLines = [];
+	                        byLevel.forEach((b, lvl) => {
+	                            const rooms = b.rooms.size;
+	                            const subjects = b.subjects.size;
+	                            const guardsPerRow = b.rowCount > 0 ? Math.round(b.guardSlots / b.rowCount) : 0;
+	                            totalGuards += b.guardSlots;
+	                            perLevelLines.push(
+	                                '• ' + lvl + ' — ' + rooms + ' قاعة × ' + subjects + ' مادة × ' +
+	                                guardsPerRow + ' حارس = ' + b.guardSlots + ' تكليف'
+	                            );
+	                        });
+
+	                        const guardsPerRoom = autoDistributionResult.length > 0
+	                            ? Math.round(totalGuards / autoDistributionResult.length)
+	                            : 0;
+	                        taskBreakdownEl.textContent = ' (' + autoDistributionResult.length +
+	                            ' مهمة × ' + guardsPerRoom + ' حارس/قاعة = ' + totalGuards + ' تكليف)';
+	                        taskBreakdownEl.title = 'التفصيل حسب الشعبة:\n' + perLevelLines.join('\n') +
+	                            '\n\nالمجموع: ' + totalGuards + ' تكليف';
+	                    }
+	                }
+
+	                document.getElementById('auto-reserve-count').textContent = reserves;
+	            }
+
+		            function getFilteredAutoDistributionRows() {
+		                const selectedHalfday = document.getElementById('auto-halfday-filter')?.value || '';
+		                const selectedSession = document.getElementById('auto-session-filter')?.value || '';
+		                const selectedSubject = document.getElementById('auto-subject-filter')?.value || '';
+		                return autoDistributionResult.filter(row => {
+		                    if (selectedHalfday && (row.halfday_key || '') !== selectedHalfday) return false;
+		                    if (selectedSession && (row.session_key || row.session_label) !== selectedSession) return false;
+		                    if (selectedSubject && row.subject_name !== selectedSubject) return false;
+		                    return true;
+		                });
+		            }
+
+	            function formatAutoProctorGroups(row) {
+	                const groups = row.proctor_groups || [];
+	                if (!groups.length) return row.group_label || '—';
+	                return groups.map((group, idx) => (idx + 1) + ': ' + group).join('، ');
+	            }
+
+		            function renderAutoDistributionFilters() {
+		                const halfdayFilter = document.getElementById('auto-halfday-filter');
+		                const sessionFilter = document.getElementById('auto-session-filter');
+		                const subjectFilter = document.getElementById('auto-subject-filter');
+		                if (!halfdayFilter || !sessionFilter || !subjectFilter) return;
+		                const currentHalfday = halfdayFilter.value;
+		                const currentSession = sessionFilter.value;
+		                const currentSubject = subjectFilter.value;
+		                const halfdayOptions = [];
+		                const seenHalfdays = new Set();
+		                autoDistributionResult.forEach(row => {
+		                    const value = row.halfday_key || '';
+		                    if (!value || seenHalfdays.has(value)) return;
+		                    seenHalfdays.add(value);
+		                    halfdayOptions.push({ value, label: getAutoDistributionHalfdayFilterLabel(row) });
+		                });
+		                const validHalfday = currentHalfday && halfdayOptions.some(halfday => halfday.value === currentHalfday)
+		                    ? currentHalfday
+		                    : '';
+		                const rowsByHalfday = validHalfday
+		                    ? autoDistributionResult.filter(row => (row.halfday_key || '') === validHalfday)
+		                    : autoDistributionResult;
+		                const sessionOptions = [];
+		                const seenSessions = new Set();
+		                rowsByHalfday.forEach(row => {
+		                    const value = row.session_key || row.session_label || '';
+		                    if (!value || seenSessions.has(value)) return;
+		                    seenSessions.add(value);
+		                    sessionOptions.push({ value, label: row.session_label || value });
+		                });
+		                const validSession = currentSession && sessionOptions.some(session => session.value === currentSession)
+		                    ? currentSession
+		                    : '';
+		                const subjectSourceRows = validSession
+		                    ? rowsByHalfday.filter(row => (row.session_key || row.session_label) === validSession)
+		                    : rowsByHalfday;
+		                const subjects = Array.from(new Set(subjectSourceRows.map(row => row.subject_name).filter(Boolean)));
+		                halfdayFilter.innerHTML = '<option value="">كل أنصاف الأيام</option>' + halfdayOptions.map(halfday =>
+		                    '<option value="' + escapeHtml(halfday.value) + '">' + escapeHtml(halfday.label) + '</option>'
+		                ).join('');
+		                sessionFilter.innerHTML = '<option value="">كل الحصص</option>' + sessionOptions.map(session =>
+		                    '<option value="' + escapeHtml(session.value) + '">' + escapeHtml(session.label) + '</option>'
+		                ).join('');
+		                subjectFilter.innerHTML = '<option value="">كل المواد</option>' + subjects.map(subject =>
+		                    '<option value="' + escapeHtml(subject) + '">' + escapeHtml(subject) + '</option>'
+		                ).join('');
+		                halfdayFilter.value = validHalfday;
+		                sessionFilter.value = validSession;
+		                if (currentSubject && subjects.includes(currentSubject)) subjectFilter.value = currentSubject;
+		                else subjectFilter.value = '';
+		            }
+
+		            function getAutoDistributionHalfdayFilterLabel(row) {
+		                const parts = String(row.halfday_key || '').split('|');
+		                const rawDate = parts[0] || '';
+		                const period = parts[1] || row.period || '';
+		                const dateText = rawDate ? rawDate.split('-').reverse().join('/') : '';
+		                return [row.day || '', period, dateText].filter(Boolean).join(' / ') || row.halfday_key || 'نصف يوم';
+		            }
+
+	            function getAutoReserveRows(rows) {
+	                const grouped = new Map();
+	                rows.forEach(row => {
+	                    const key = row.session_key || row.session_label || '';
+	                    if (!grouped.has(key)) {
+	                        grouped.set(key, {
+	                            session_label: row.session_label || '',
+	                            subjects: new Set(),
+	                            reserves: new Set()
+	                        });
+	                    }
+	                    const group = grouped.get(key);
+	                    if (row.subject_name) group.subjects.add(row.subject_name);
+	                    (row.reserves || []).forEach(name => {
+	                        if (name) group.reserves.add(name);
+	                    });
+	                });
+	                return Array.from(grouped.values()).map(group => ({
+	                    session_label: group.session_label,
+	                    subject_name: Array.from(group.subjects).join('، '),
+	                    reserves: Array.from(group.reserves)
+	                }));
+	            }
+
+	            function renderAutoReserveTable(rows) {
+	                const tbody = document.getElementById('auto-reserves-tbody');
+	                if (!tbody) return;
+	                const reserveRows = getAutoReserveRows(rows || []);
+	                if (!autoDistributionResult.length) {
+	                    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--color-text-muted)">لم يتم تنفيذ التوزيع بعد</td></tr>';
+	                    return;
+	                }
+	                if (!reserveRows.length) {
+	                    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--color-text-muted)">لا توجد لائحة احتياط لهذه الفلترة</td></tr>';
+	                    return;
+	                }
+	                tbody.innerHTML = reserveRows.map(row => '<tr>' +
+	                    '<td>' + escapeHtml(row.session_label || '—') + '</td>' +
+	                    '<td>' + escapeHtml(row.subject_name || '—') + '</td>' +
+	                    '<td><span class="assign-type-badge assign-type-reserve">احتياط</span></td>' +
+	                    '<td>' + escapeHtml((row.reserves || []).join('، ') || '—') + '</td>' +
+	                    '</tr>').join('');
+	            }
+
+	            /**
+	             * Builds duty rows (المداومة) from `dutyData`, independent from
+	             * the distribution result. Duty assignments are stored per
+	             * `sessionKey|subject` with a bucket of proctor keys; names are
+	             * resolved against `proctorsList`. Returns one row per duty session.
+	             */
+	            function getAutoDutyRows() {
+	                if (!dutyData || typeof dutyData !== 'object') return [];
+	                // Map any proctor key shape (cin | som | idx_N | __idx_N) to a display name.
+	                const keyToName = {};
+	                (proctorsList || []).forEach((p, i) => {
+	                    const name = p.teacher_full_name || p.teacher_name || ('#' + i);
+	                    if (p.cin) keyToName[String(p.cin).trim()] = name;
+	                    if (p.som) keyToName[String(p.som).trim()] = name;
+	                    keyToName['idx_' + i] = name;
+	                    keyToName['__idx_' + i] = name;
+	                });
+	                const rows = [];
+	                Object.keys(dutyData).forEach(dutyKey => {
+	                    const bucket = dutyData[dutyKey];
+	                    if (!bucket || typeof bucket !== 'object') return;
+	                    const names = Object.keys(bucket)
+	                        .filter(k => bucket[k])
+	                        .map(k => keyToName[String(k).trim()] || String(k));
+	                    if (!names.length) return;
+	                    // dutyKey shapes: "date|day|period|session|subject" (canonical)
+	                    // or legacy "day|period|session|subject".
+	                    const parts = dutyKey.split('|');
+	                    const subject = parts.length ? parts[parts.length - 1] : '';
+	                    const sessionParts = parts.slice(0, -1);
+	                    rows.push({
+	                        session_label: sessionParts.join(' / ') || dutyKey,
+	                        subject_name: subject || '—',
+	                        duty: names,
+	                        _sortKey: dutyKey
+	                    });
+	                });
+	                return rows.sort((a, b) => String(a._sortKey).localeCompare(String(b._sortKey), 'ar'));
+	            }
+
+	            function renderAutoDutyTable() {
+	                const tbody = document.getElementById('auto-duty-tbody');
+	                if (!tbody) return;
+	                const dutyRows = getAutoDutyRows();
+	                if (!dutyRows.length) {
+	                    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--color-text-muted)">لا توجد مداومة مسجّلة</td></tr>';
+	                    return;
+	                }
+	                tbody.innerHTML = dutyRows.map(row => '<tr>' +
+	                    '<td>' + escapeHtml(row.session_label || '—') + '</td>' +
+	                    '<td>' + escapeHtml(row.subject_name || '—') + '</td>' +
+	                    '<td><span class="assign-type-badge assign-type-duty">مداومة</span></td>' +
+	                    '<td>' + escapeHtml((row.duty || []).join('، ') || '—') + '</td>' +
+	                    '</tr>').join('');
+	            }
+
+	            function getAutoDistributionFilterLabel() {
+	                const session = document.getElementById('auto-session-filter')?.value || 'كل الحصص';
+	                const subject = document.getElementById('auto-subject-filter')?.value || 'كل المواد';
+	                return session + ' | ' + subject;
+	            }
+
+	            function buildAutoDistributionPrintHtml(rows, reserveRows) {
+	                const dateStr = new Intl.DateTimeFormat('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+	                const proctorRows = rows.map((row, idx) => '<tr>' +
+	                    '<td>' + (idx + 1) + '</td>' +
+	                    '<td>' + escapeHtml(row.subject_name || '—') + '</td>' +
+	                    '<td>' + escapeHtml(row.session_label || '—') + '</td>' +
+	                    '<td>' + escapeHtml((row.duty_teachers || []).join('، ') || '—') + '</td>' +
+	                    '<td>' + escapeHtml((row.proctors || [])[0] || '—') + '</td>' +
+	                    '<td>' + escapeHtml((row.proctors || [])[1] || '—') + '</td>' +
+	                    '<td>' + escapeHtml(formatAutoProctorGroups(row)) + '</td>' +
+	                    '<td>' + escapeHtml(row.room_number || row.room_name || '—') + '</td>' +
+	                    '<td>' + escapeHtml(row.room_place || row.room_name || '—') + '</td>' +
+	                    '<td>' + escapeHtml(row.notes || '—') + '</td>' +
+	                    '</tr>').join('');
+	                const reserveTableRows = reserveRows.map((row, idx) => '<tr>' +
+	                    '<td>' + (idx + 1) + '</td>' +
+	                    '<td>' + escapeHtml(row.session_label || '—') + '</td>' +
+	                    '<td>' + escapeHtml(row.subject_name || '—') + '</td>' +
+	                    '<td>احتياط</td>' +
+	                    '<td>' + escapeHtml((row.reserves || []).join('، ') || '—') + '</td>' +
+	                    '</tr>').join('');
+	                const dutyRows = getAutoDutyRows();
+	                const dutyTableRows = dutyRows.map((row, idx) => '<tr>' +
+	                    '<td>' + (idx + 1) + '</td>' +
+	                    '<td>' + escapeHtml(row.session_label || '—') + '</td>' +
+	                    '<td>' + escapeHtml(row.subject_name || '—') + '</td>' +
+	                    '<td>مداومة</td>' +
+	                    '<td>' + escapeHtml((row.duty || []).join('، ') || '—') + '</td>' +
+	                    '</tr>').join('');
+
+	                return '<div class="gs-sheet-wrapper"><div class="gs-sheet auto-distribution-print-sheet">' +
+	                    '<div class="gs-sheet-title">لائحة توزيع المراقبة</div>' +
+	                    '<div class="gs-sheet-subtitle">' + escapeHtml(getAutoDistributionFilterLabel()) + '</div>' +
+	                    '<div class="gs-sheet-meta"><span>عدد المهام: ' + rows.length + '</span><span>تاريخ المعاينة: ' + escapeHtml(dateStr) + '</span></div>' +
+	                    '<h3 style="margin:12px 0 8px;font-size:15px;color:var(--color-primary)">لائحة المراقبين</h3>' +
+	                    '<table><thead><tr><th>#</th><th>المادة</th><th>الحراسة</th><th>المداوم</th><th>الحارس الأول</th><th>الحارس الثاني</th><th>المجموعة</th><th>رقم القاعة</th><th>مكان القاعة</th><th>ملاحظات</th></tr></thead><tbody>' +
+	                    (proctorRows || '<tr><td colspan="10" style="text-align:center">لا توجد معطيات</td></tr>') +
+	                    '</tbody></table>' +
+	                    '<h3 style="margin:18px 0 8px;font-size:15px;color:var(--color-primary)">لائحة الاحتياط</h3>' +
+	                    '<table><thead><tr><th>#</th><th>الحصة</th><th>المادة</th><th>النوع</th><th>الاحتياط</th></tr></thead><tbody>' +
+	                    (reserveTableRows || '<tr><td colspan="5" style="text-align:center">لا توجد لائحة احتياط</td></tr>') +
+	                    '</tbody></table>' +
+	                    '<h3 style="margin:18px 0 8px;font-size:15px;color:var(--color-primary)">لائحة المداومة</h3>' +
+	                    '<table><thead><tr><th>#</th><th>الحصة</th><th>المادة</th><th>النوع</th><th>المداوم</th></tr></thead><tbody>' +
+	                    (dutyTableRows || '<tr><td colspan="5" style="text-align:center">لا توجد مداومة مسجّلة</td></tr>') +
+	                    '</tbody></table>' +
+	                    '</div></div>';
+	            }
+
+	            function previewAutoDistributionPrint() {
+	                if (!autoDistributionResult.length) { showToast('لا توجد نتيجة للطباعة', 'warning'); return; }
+	                if (!window.PrintSystem || typeof window.PrintSystem.preview !== 'function') { showToast('نظام معاينة الطباعة غير متاح', 'error'); return; }
+	                const rows = getFilteredAutoDistributionRows();
+	                if (!rows.length) { showToast('لا توجد بيانات مطابقة للفلاتر', 'warning'); return; }
+	                const reserveRows = getAutoReserveRows(rows);
+	                const root = document.createElement('div');
+	                root.id = 'auto-distribution-print-root';
+	                root.innerHTML = buildAutoDistributionPrintHtml(rows, reserveRows);
+	                document.body.appendChild(root);
+	                try {
+	                    window.PrintSystem.preview({
+	                        contentSelector: '#auto-distribution-print-root',
+	                        title: 'لائحة توزيع المراقبة',
+	                        pageSize: 'A4',
+	                        landscape: true,
+	                        noHeader: false,
+	                        defaultFileName: 'توزيع_المراقبة'
+	                    });
+	                } finally {
+	                    root.remove();
+	                }
+	            }
+
+            async function saveAutoDistributionResult() {
+                if (!autoDistributionResult.length) { showToast('لا توجد نتيجة لحفظها', 'warning'); return; }
+                var version = getSelectedAlgorithmVersion();
+                if (version === 'v2') {
+                    // Save in v2 format: preserve existing diagnostics if available
+                    var existingRaw = await window.api.examConfig.get(year, 'examAutoDistributionData');
+                    var existingDiagnostics = null;
+                    if (existingRaw) {
+                        if (existingRaw && existingRaw.algorithmVersion === 'v2' && existingRaw.diagnostics) {
+                            existingDiagnostics = existingRaw.diagnostics;
+                        }
+                    }
+                    var dataToSave = {
+                        rows: autoDistributionResult,
+                        algorithmVersion: 'v2',
+                        diagnostics: existingDiagnostics
+                    };
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionData', data: dataToSave });
+                } else {
+                    // Save in v1 format: plain array
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examAutoDistributionData', data: autoDistributionResult });
+                }
+                await updateDistStatuses();
+                showToast('تم حفظ نتيجة التوزيع', 'success');
+            }
+
+            async function deleteAutoDistributionResult() {
+                const hasCurrent = autoDistributionResult.length > 0;
+                var savedRaw = await window.api.examConfig.get(year, 'examAutoDistributionData');
+                var hasSaved = false;
+                if (savedRaw) {
+                    if (Array.isArray(savedRaw)) hasSaved = savedRaw.length > 0;
+                    else if (savedRaw && (savedRaw.algorithmVersion === 'v2' || savedRaw.algorithmVersion === 'v3')) hasSaved = Array.isArray(savedRaw.rows) && savedRaw.rows.length > 0;
+                }
+                if (!hasCurrent && !hasSaved) { showToast('لا يوجد توزيع لحذفه', 'warning'); return; }
+                const r = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف التوزيع',
+                    message: 'سيتم حذف نتيجة التوزيع الحالية والمحفوظة. هل تريد المتابعة؟',
+                    confirmText: 'حذف التوزيع'
+                });
+	                if (!r.confirmed) return;
+	                const delRes = await window.api.examConfig.delete({ school_year: year, config_key: 'examAutoDistributionData' });
+	                if (delRes && delRes.success === false) {
+	                    showToast('تعذّر حذف التوزيع: ' + (delRes.error || 'خطأ غير معروف'), 'error');
+	                    return;
+	                }
+	                // Also clear any stale localStorage copy so it isn't re-migrated on next page load
+	                try { localStorage.removeItem('examAutoDistributionData'); } catch {}
+	                autoDistributionResult = [];
+	                autoDistributionSummary = null;
+	                renderAutoDistributionResult();
+	                await updateDistStatuses();
+	                showToast('تم حذف التوزيع', 'success');
+            }
+
+            /* ═══ Tabs ═══ */
+            function initDashboard() {
+                document.querySelectorAll('.epm-tab[data-tab]').forEach(tab => {
+                    tab.addEventListener('click', () => showPanel(tab.dataset.tab));
+                });
+                document.getElementById('epm-close').addEventListener('click', () => {
+                    window.location.href = 'exams-schedule.html';
+                });
+            }
+
+            async function showPanel(tabName) {
+                document.querySelectorAll('.epm-tab[data-tab]').forEach(t => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
+                document.querySelectorAll('.epm-panel').forEach(p => p.classList.remove('active'));
+                const tab = document.querySelector('.epm-tab[data-tab="' + tabName + '"]');
+                if (tab) { tab.classList.add('active'); tab.setAttribute('aria-selected', 'true'); }
+                const panel = document.getElementById('panel-' + tabName);
+                if (panel) panel.classList.add('active');
+                if (tabName === 'attendance') await loadSummaryTab();
+                if (tabName === 'proctors') await updateDistStatuses();
+            }
+
+            function showDashboard() {
+                updateDashboardCounts();
+            }
+
+            function updateDashboardCounts() {
+                document.getElementById('epm-proctors-count').textContent = proctorsList.length;
+                document.getElementById('epm-candidates-assigned').textContent = candidatesList.filter(c => c.room).length;
+                document.getElementById('epm-candidates-total').textContent = candidatesList.length;
+            }
+
+            /* ═══ Schedule Panel ═══ */
+            async function initSchedulePanel() {
+                scheduleList = (await window.api.examConfig.get(year, 'examScheduleData')) || {};
+                const sel = document.getElementById('sched-level-select');
+                sel.innerHTML = '<option value="">-- اختر مستوى / شعبة --</option>' +
+                    addedLevels.map((l, i) => '<option value="' + i + '">' + escapeHtml(l.name) + '</option>').join('');
+
+                const config = await window.api.examConfig.get(year, 'examCenterConfig');
+                const arabicMonths = { '1': 'يناير', '2': 'فبراير', '3': 'مارس', '4': 'أبريل', '5': 'ماي', '6': 'يونيو', '7': 'يوليوز', '8': 'غشت', '9': 'شتنبر', '10': 'أكتوبر', '11': 'نونبر', '12': 'دجنبر' };
+                if (config) {
+                    const examTypeLabel = config.session_type || '';
+                    const monthLabel = arabicMonths[config.exam_month] || '';
+                    document.getElementById('sched-banner-strip').innerHTML =
+                        '<span class="epm-sched-banner-title"><i class="fas fa-bookmark"></i> ' + escapeHtml(config.exam_name || '') + '</span>' +
+                        '<span class="epm-sched-banner-sep">|</span>' +
+                        '<span>' + escapeHtml(examTypeLabel) + '</span>' +
+                        '<span class="epm-sched-banner-sep">|</span>' +
+                        '<span>دورة ' + escapeHtml(monthLabel) + ' ' + escapeHtml(config.exam_year || '') + '</span>';
+                }
+
+                sel.addEventListener('change', () => {
+                    const idx = sel.value;
+                    document.getElementById('btn-copy-schedule').disabled = (idx === '');
+                    if (idx === '') {
+                        document.getElementById('schedule-tbody').textContent = '';
+                        const emptyRow = document.createElement('tr');
+                        const emptyTd = document.createElement('td');
+                        emptyTd.colSpan = 12;
+                        emptyTd.className = 'epm-sched-empty';
+                        emptyTd.textContent = 'اختر مستوى لعرض مواد الامتحان';
+                        emptyRow.appendChild(emptyTd);
+                        document.getElementById('schedule-tbody').appendChild(emptyRow);
+                        document.getElementById('sched-config-label').textContent = '';
+                        return;
+                    }
+                    renderScheduleForLevel(Number(idx));
+                });
+
+                initCopySchedule();
+                document.getElementById('btn-save-schedule').addEventListener('click', saveScheduleData);
+                document.getElementById('btn-reset-schedule').addEventListener('click', resetScheduleData);
+                document.getElementById('schedule-tbody').addEventListener('change', (e) => {
+                    if (e.target && e.target.matches('.epm-sched-order')) sortScheduleTableByOrder();
+                });
+
+                if (!addedLevels.length) {
+                    document.getElementById('schedule-tbody').innerHTML = '<tr><td colspan="12" class="epm-sched-empty"><i class="fas fa-exclamation-triangle"></i> لم يتم إضافة أي مستوى بعد — يرجى الذهاب إلى صفحة مسك البيانات أولاً</td></tr>';
+                } else {
+                    document.getElementById('schedule-tbody').innerHTML = '<tr><td colspan="12" class="epm-sched-empty"><i class="fas fa-hand-pointer"></i> اختر مستوى لعرض مواد الامتحان</td></tr>';
+                }
+            }
+
+            function initCopySchedule() {
+                const btn = document.getElementById('btn-copy-schedule');
+                const dropdown = document.getElementById('copy-schedule-dropdown');
+                const listEl = document.getElementById('copy-schedule-list');
+
+                btn.addEventListener('click', () => {
+                    const sel = document.getElementById('sched-level-select');
+                    if (sel.value === '') return;
+                    const currentLevelName = addedLevels[Number(sel.value)]?.name;
+
+                    const scheduledLevels = addedLevels.filter(l => {
+                        if (l.name === currentLevelName) return false;
+                        const arr = scheduleList[l.name];
+                        return Array.isArray(arr) && arr.some(s => s.date_day || s.time_from || s.time);
+                    });
+
+                    listEl.textContent = '';
+                    if (!scheduledLevels.length) {
+                        const emptyDiv = document.createElement('div');
+                        emptyDiv.style.cssText = 'padding:12px 14px;font-size:13px;color:var(--color-text-muted);text-align:center';
+                        emptyDiv.textContent = 'لا توجد جدولة محفوظة لأي مستوى آخر';
+                        listEl.appendChild(emptyDiv);
+                    } else {
+                        scheduledLevels.forEach(srcLevel => {
+                            const itemBtn = document.createElement('button');
+                            itemBtn.type = 'button';
+                            itemBtn.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;padding:8px 14px;border:none;background:none;cursor:pointer;font-size:14px;text-align:right;color:var(--color-text)';
+                            itemBtn.addEventListener('mouseenter', () => { itemBtn.style.background = 'var(--color-bg-hover,#f0f4ff)'; });
+                            itemBtn.addEventListener('mouseleave', () => { itemBtn.style.background = 'none'; });
+
+                            const icon = document.createElement('i');
+                            icon.className = 'fas fa-layer-group';
+                            icon.style.color = 'var(--color-primary)';
+                            itemBtn.appendChild(icon);
+
+                            const nameSpan = document.createElement('span');
+                            nameSpan.textContent = srcLevel.name;
+                            itemBtn.appendChild(nameSpan);
+
+                            const countSpan = document.createElement('span');
+                            const savedCount = (scheduleList[srcLevel.name] || []).filter(s => s.date_day || s.time_from).length;
+                            countSpan.textContent = '(' + savedCount + ' مادة مجدولة)';
+                            countSpan.style.cssText = 'font-size:12px;color:var(--color-text-muted);margin-right:auto';
+                            itemBtn.appendChild(countSpan);
+
+                            itemBtn.addEventListener('click', () => {
+                                dropdown.style.display = 'none';
+                                applyCopiedSchedule(srcLevel.name, currentLevelName);
+                            });
+                            listEl.appendChild(itemBtn);
+                        });
+                    }
+
+                    dropdown.style.display = dropdown.style.display === 'none' ? '' : 'none';
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#btn-copy-schedule') && !e.target.closest('#copy-schedule-dropdown')) {
+                        dropdown.style.display = 'none';
+                    }
+                });
+            }
+
+            async function applyCopiedSchedule(srcLevelName, destLevelName) {
+                const sel = document.getElementById('sched-level-select');
+                const destIdx = Number(sel.value);
+                const destLevel = addedLevels[destIdx];
+                if (!destLevel) return;
+
+                const srcData = scheduleList[srcLevelName];
+                if (!Array.isArray(srcData) || !srcData.length) {
+                    showToast('لا توجد بيانات جدولة للنسخ', 'warning');
+                    return;
+                }
+
+                const destSubjects = destLevel.subjects || [];
+                if (!destSubjects.length) {
+                    showToast('لا توجد مواد في المستوى الحالي', 'warning');
+                    return;
+                }
+
+                const hasExisting = (scheduleList[destLevelName] || []).some(s => s.date_day || s.time_from || s.time);
+                if (hasExisting) {
+                    const r = await showConfirm({
+                        type: 'warning',
+                        title: 'نسخ الجدولة',
+                        message: 'المستوى "' + destLevelName + '" يحتوي على جدولة موجودة.',
+                        detail: 'سيتم استبدال القيم (اليوم، الفترة، الحصة، التاريخ، الوقت) بقيم "' + srcLevelName + '" للمواد المتطابقة.',
+                        confirmText: 'نسخ واستبدال',
+                    });
+                    if (!r.confirmed) return;
+                }
+
+                const srcBySubject = new Map();
+                srcData.forEach(item => {
+                    if (item && item.subject_name) srcBySubject.set(item.subject_name, item);
+                });
+
+                const newSchedule = destSubjects.map((sub, i) => {
+                    const src = srcBySubject.get(sub.name);
+                    const existing = (scheduleList[destLevelName] || [])[i] || {};
+                    if (src) {
+                        return {
+                            subject_name: sub.name,
+                            original_index: String(i),
+                            order: src.order || String(i + 1),
+                            day: src.day || '',
+                            period: src.period || '',
+                            session: src.session || '',
+                            date_day: src.date_day || '',
+                            date_month: src.date_month || '',
+                            date_year: src.date_year || '',
+                            time_from: src.time_from || src.time || '',
+                            time_to: src.time_to || '',
+                            duration: sub.duration || src.duration || '',
+                        };
+                    }
+                    return existing.subject_name ? existing : { subject_name: sub.name, original_index: String(i) };
+                });
+
+                scheduleList[destLevelName] = newSchedule;
+                renderScheduleForLevel(destIdx);
+
+                const matched = destSubjects.filter(s => srcBySubject.has(s.name)).length;
+                showToast('تم نسخ الجدولة من "' + srcLevelName + '" — ' + matched + ' مادة متطابقة من أصل ' + destSubjects.length, 'success');
+            }
+
+            async function renderScheduleForLevel(levelIdx) {
+                const level = addedLevels[levelIdx];
+                if (!level) return;
+                const subjects = level.subjects || [];
+                const levelKey = level.name;
+                const saved = (scheduleList[levelKey] || []);
+                document.getElementById('sched-config-label').innerHTML = '<i class="fas fa-book-open"></i> ' + escapeHtml(level.name) + ' — <strong>' + subjects.length + '</strong> مادة';
+
+                const tbody = document.getElementById('schedule-tbody');
+                if (!subjects.length) {
+                    tbody.innerHTML = '<tr><td colspan="12" class="epm-sched-empty"><i class="fas fa-info-circle"></i> لا توجد مواد لهذا المستوى</td></tr>';
+                    return;
+                }
+
+                const config = await window.api.examConfig.get(year, 'examCenterConfig');
+                const defaultYear = (config && config.exam_year) ? config.exam_year : new Date().getFullYear();
+                const defaultMonth = (config && config.exam_month) ? config.exam_month : String(new Date().getMonth() + 1);
+                const frMonths = { '1':'Janvier','2':'Février','3':'Mars','4':'Avril','5':'Mai','6':'Juin','7':'Juillet','8':'Août','9':'Septembre','10':'Octobre','11':'Novembre','12':'Décembre' };
+
+                const savedBySubject = new Map();
+                saved.forEach((item, idx) => {
+                    if (item && item.subject_name) savedBySubject.set(item.subject_name, item);
+                    else if (subjects[idx]) savedBySubject.set(subjects[idx].name, item || {});
+                });
+
+                const scheduleRows = subjects.map((sub, i) => {
+                    const sv = savedBySubject.get(sub.name) || saved[i] || {};
+                    const rawOrder = sv.order || String(i + 1);
+                    const numericOrder = Number(rawOrder);
+                    return {
+                        sub,
+                        originalIndex: i,
+                        saved: sv,
+                        order: Number.isFinite(numericOrder) && numericOrder > 0 ? numericOrder : i + 1,
+                    };
+                }).sort((a, b) => a.order - b.order || a.originalIndex - b.originalIndex);
+
+                tbody.innerHTML = scheduleRows.map((row) => {
+                    const sub = row.sub;
+                    const i = row.originalIndex;
+                    const sv = row.saved || {};
+                    const dayVal = sv.day || 'الأول';
+                    const periodVal = sv.period || 'صباحا';
+                    const sessionVal = sv.session || 'الحصة الأولى';
+                    const dateDayVal = sv.date_day || '';
+                    const dateMonthVal = sv.date_month || defaultMonth;
+                    const dateYearVal = sv.date_year || String(defaultYear);
+                    const timeFromVal = sv.time_from || sv.time || '';
+                    const timeToVal = sv.time_to || '';
+                    const durVal = sub.duration || sv.duration || '';
+                    const orderVal = sv.order || String(row.order);
+                    const typeCls = sub.type === 'وطني' ? 'epm-sched-type-national' : 'epm-sched-type-regional';
+                    const orderCls = sub.type === 'وطني' ? 'epm-sched-order-cell--national' : 'epm-sched-order-cell--regional';
+
+                    const monthOpts = Object.entries(frMonths).map(([v, l]) =>
+                        '<option value="' + v + '"' + (dateMonthVal === v ? ' selected' : '') + '>' + l + '</option>'
+                    ).join('');
+
+                    return '<tr data-idx="' + i + '" data-subject-name="' + escapeHtml(sub.name) + '">' +
+                        '<td class="epm-sched-subject">' + escapeHtml(sub.name) + '</td>' +
+                        '<td><span class="epm-sched-type ' + typeCls + '">' + escapeHtml(sub.type || '') + '</span></td>' +
+                        '<td class="epm-sched-order-cell ' + orderCls + '"><input type="number" class="epm-sched-input epm-sched-order" value="' + escapeHtml(orderVal) + '" data-field="order" min="1"></td>' +
+                        '<td><select class="epm-sched-input epm-sched-select-sm" data-field="day">' +
+                            '<option value="الأول"' + (dayVal === 'الأول' ? ' selected' : '') + '>الأول</option>' +
+                            '<option value="الثاني"' + (dayVal === 'الثاني' ? ' selected' : '') + '>الثاني</option>' +
+                            '<option value="الثالث"' + (dayVal === 'الثالث' ? ' selected' : '') + '>الثالث</option>' +
+                            '<option value="الرابع"' + (dayVal === 'الرابع' ? ' selected' : '') + '>الرابع</option>' +
+                            '<option value="الخامس"' + (dayVal === 'الخامس' ? ' selected' : '') + '>الخامس</option>' +
+                            '<option value="السادس"' + (dayVal === 'السادس' ? ' selected' : '') + '>السادس</option>' +
+                        '</select></td>' +
+                        '<td><select class="epm-sched-input epm-sched-select-sm" data-field="period">' +
+                            '<option value="صباحا"' + (periodVal === 'صباحا' ? ' selected' : '') + '>صباحا</option>' +
+                            '<option value="زوالا"' + (periodVal === 'زوالا' ? ' selected' : '') + '>زوالا</option>' +
+                        '</select></td>' +
+                        '<td><select class="epm-sched-input epm-sched-select-sm" data-field="session">' +
+                            '<option value="الحصة الأولى"' + (sessionVal === 'الحصة الأولى' ? ' selected' : '') + '>الحصة الأولى</option>' +
+                            '<option value="الحصة الثانية"' + (sessionVal === 'الحصة الثانية' ? ' selected' : '') + '>الحصة الثانية</option>' +
+                            '<option value="الحصة الثالثة"' + (sessionVal === 'الحصة الثالثة' ? ' selected' : '') + '>الحصة الثالثة</option>' +
+                        '</select></td>' +
+                        '<td class="epm-sched-date-day"><input type="number" class="epm-sched-input" value="' + escapeHtml(dateDayVal) + '" data-field="date_day" min="1" max="31" placeholder="—" style="max-width:50px;font-weight:600"></td>' +
+                        '<td class="epm-sched-date-month"><select class="epm-sched-input epm-sched-month-select" data-field="date_month">' + monthOpts + '</select></td>' +
+                        '<td class="epm-sched-date-year"><span class="epm-sched-year-display">' + escapeHtml(dateYearVal) + '</span><input type="hidden" data-field="date_year" value="' + escapeHtml(dateYearVal) + '"></td>' +
+                        '<td><input type="time" class="epm-sched-input epm-sched-time epm-sched-time-from" value="' + escapeHtml(timeFromVal) + '" data-field="time_from"></td>' +
+                        '<td><input type="time" class="epm-sched-input epm-sched-time epm-sched-time-to" value="' + escapeHtml(timeToVal) + '" data-field="time_to"></td>' +
+                        '<td><input type="text" class="epm-sched-input epm-sched-dur" value="' + escapeHtml(durVal) + '" data-field="duration" placeholder="2H"></td>' +
+                        '</tr>';
+                }).join('');
+            }
+
+            function sortScheduleTableByOrder() {
+                const tbody = document.getElementById('schedule-tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr[data-idx]'));
+                rows.sort((a, b) => {
+                    const aOrder = Number(a.querySelector('[data-field="order"]')?.value || a.dataset.idx);
+                    const bOrder = Number(b.querySelector('[data-field="order"]')?.value || b.dataset.idx);
+                    const safeA = Number.isFinite(aOrder) && aOrder > 0 ? aOrder : Number(a.dataset.idx) + 1;
+                    const safeB = Number.isFinite(bOrder) && bOrder > 0 ? bOrder : Number(b.dataset.idx) + 1;
+                    return safeA - safeB || Number(a.dataset.idx) - Number(b.dataset.idx);
+                });
+                rows.forEach(row => tbody.appendChild(row));
+            }
+
+            function collectScheduleFromTable() {
+                const rows = document.querySelectorAll('#schedule-tbody tr[data-idx]');
+                const data = [];
+                rows.forEach(row => {
+                    const obj = {};
+                    row.querySelectorAll('[data-field]').forEach(inp => {
+                        obj[inp.dataset.field] = inp.value;
+                    });
+                    obj.subject_name = row.dataset.subjectName || '';
+                    obj.original_index = row.dataset.idx || '';
+                    data.push(obj);
+                });
+                return data;
+            }
+
+            async function saveScheduleData() {
+                const sel = document.getElementById('sched-level-select');
+                const idx = sel.value;
+                if (idx === '') { showToast('يرجى اختيار مستوى أولاً', 'warning'); return; }
+                const level = addedLevels[Number(idx)];
+                if (!level) return;
+                sortScheduleTableByOrder();
+                const data = collectScheduleFromTable();
+                scheduleList[level.name] = data;
+                await window.api.examConfig.save({ school_year: year, config_key: 'examScheduleData', data: scheduleList });
+                await renderExemptionsDutyMatrix();
+                showToast('تم حفظ جدولة "' + level.name + '" بنجاح', 'success');
+                updateScheduleDashboardStatus();
+                await updateDistStatuses();
+            }
+
+            async function resetScheduleData() {
+                const sel = document.getElementById('sched-level-select');
+                const idx = sel.value;
+                if (idx === '') { showToast('يرجى اختيار مستوى أولاً', 'warning'); return; }
+                const level = addedLevels[Number(idx)];
+                const r = await showConfirm({ type: 'warning', title: 'إعادة تهيئة', message: 'إعادة تهيئة جدولة "' + level.name + '"؟', detail: 'ستتم إزالة التواريخ والأوقات المدخلة لهذا المستوى.', confirmText: 'إعادة تهيئة' });
+                if (!r.confirmed) return;
+                delete scheduleList[level.name];
+                await window.api.examConfig.save({ school_year: year, config_key: 'examScheduleData', data: scheduleList });
+                renderScheduleForLevel(Number(idx));
+                await renderExemptionsDutyMatrix();
+                showToast('تمت إعادة تهيئة الجدولة', 'success');
+                updateScheduleDashboardStatus();
+                await updateDistStatuses();
+            }
+
+            function updateScheduleDashboardStatus() {
+                const totalLevels = addedLevels.length;
+                const scheduledLevels = Object.keys(scheduleList).filter(k => {
+                    const arr = scheduleList[k];
+                    return Array.isArray(arr) && arr.some(s => s.date_day || s.date || s.time_from || s.time);
+                }).length;
+                const el = document.getElementById('epm-schedule-status');
+                if (totalLevels === 0) {
+                    el.innerHTML = '<span style="color:var(--color-text-muted);font-size:14px">لا مستويات</span>';
+                } else if (scheduledLevels >= totalLevels) {
+                    el.innerHTML = '<i class="fas fa-check-circle" style="color:#2ecc71;font-size:28px"></i>';
+                } else {
+                    el.innerHTML = '<span style="font-size:18px;font-weight:700;color:var(--color-primary)">' + scheduledLevels + ' / ' + totalLevels + '</span>';
+                }
+            }
+
+            /* ═══ Proctors ═══ */
+            async function loadProctors() {
+                try {
+                    const rows = await window.api.examProctors.getAll(year);
+                    proctorsList = (rows || []).map(r => ({
+                        id: r.id, teacher_name: r.teacher_name || r.teacher_full_name || '',
+                        teacher_name_fr: r.teacher_name_fr || '', specialty: r.specialty || '',
+                        cin: r.cin || '', som: r.som || '', gender: r.gender || '', room: r.room || '', _saved: true
+                    }));
+                } catch { proctorsList = []; }
+                procCurrentPage = 1;
+                renderProctorsTable();
+                await renderExemptionsDutyMatrix();
+                await updateDistStatuses();
+                initProctorsPanel();
+            }
+
+            function initProctorsPanel() {
+                document.getElementById('btn-import-proctors').addEventListener('click', () => {
+                    procDropzoneVisible = !procDropzoneVisible;
+                    document.getElementById('proc-dropzone').style.display = procDropzoneVisible ? '' : 'none';
+                });
+                document.getElementById('btn-add-proctor').addEventListener('click', addProctorManual);
+                document.getElementById('btn-clear-proctors').addEventListener('click', clearAllProctors);
+                document.getElementById('btn-save-proctors').addEventListener('click', saveProctorsToDb);
+                document.getElementById('proc-search').addEventListener('input', (e) => { procSearchTerm = e.target.value.trim().toLowerCase(); procCurrentPage = 1; renderProctorsTable(); });
+                document.getElementById('proc-prev').addEventListener('click', () => { if (procCurrentPage > 1) { procCurrentPage--; renderProctorsTable(); } });
+                document.getElementById('proc-next').addEventListener('click', () => {
+                    if (procCurrentPage < Math.max(1, Math.ceil(getFilteredProctors().length / PAGE_SIZE))) { procCurrentPage++; renderProctorsTable(); }
+                });
+                initProcDropZone();
+                initProcImportModal();
+            }
+
+            function getFilteredProctors() {
+                if (!procSearchTerm) return proctorsList;
+                return proctorsList.filter(s => (s.teacher_name||'').toLowerCase().includes(procSearchTerm) || (s.teacher_name_fr||'').toLowerCase().includes(procSearchTerm) || (s.cin||'').toLowerCase().includes(procSearchTerm));
+            }
+
+            function renderProctorsTable() {
+                const filtered = getFilteredProctors();
+                const total = filtered.length;
+                const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+                procCurrentPage = Math.min(procCurrentPage, totalPages);
+                const start = (procCurrentPage - 1) * PAGE_SIZE;
+                const slice = filtered.slice(start, start + PAGE_SIZE);
+                const tbody = document.getElementById('proctors-tbody');
+                if (!slice.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-info-circle" style="margin-left:6px"></i>لا يوجد مراقبون</td></tr>';
+                } else {
+                    tbody.innerHTML = slice.map((s, i) => {
+                        const realIdx = proctorsList.indexOf(s);
+                        const gb = (s.gender==='M'||s.gender==='ذكر') ? '<span class="sup-gender-badge sup-gender-m"><i class="fas fa-mars"></i> M</span>' :
+                                   (s.gender==='F'||s.gender==='أنثى') ? '<span class="sup-gender-badge sup-gender-f"><i class="fas fa-venus"></i> F</span>' : '<span class="sup-gender-badge">—</span>';
+                        return '<tr' + (s._saved ? '' : ' class="sup-row-unsaved"') + '><td>' + (start+i+1) + '</td><td class="sup-name-cell">' + escapeHtml(s.teacher_name) +
+                            '</td><td>' + escapeHtml(s.teacher_name_fr) + '</td><td>' + escapeHtml(s.specialty) +
+                            '</td><td class="sup-cin-cell">' + escapeHtml(s.cin) + '</td><td>' + escapeHtml(s.som) +
+                            '</td><td>' + gb + '</td><td>' + escapeHtml(s.room) +
+                            '</td><td class="no-print"><button class="sup-del-btn" onclick="editProctor(' + realIdx + ')" title="تعديل"><i class="fas fa-edit"></i></button> ' +
+                            '<button class="sup-del-btn" onclick="deleteProctor(' + realIdx + ')" title="حذف"><i class="fas fa-times"></i></button></td></tr>';
+                    }).join('');
+                }
+                document.getElementById('proc-page-info').textContent = procCurrentPage + ' / ' + totalPages;
+                document.getElementById('proc-page-total').textContent = '(' + total + ' مراقب)';
+                document.getElementById('proc-prev').disabled = procCurrentPage <= 1;
+                document.getElementById('proc-next').disabled = procCurrentPage >= totalPages;
+                document.getElementById('proc-pagination').style.display = total > 0 ? '' : 'none';
+                updateProctorStats();
+            }
+
+            function updateProctorStats() {
+                document.getElementById('proc-total-count').textContent = proctorsList.length;
+                document.getElementById('proc-male-count').textContent = proctorsList.filter(s => s.gender==='M'||s.gender==='ذكر').length;
+                document.getElementById('proc-female-count').textContent = proctorsList.filter(s => s.gender==='F'||s.gender==='أنثى').length;
+            }
+
+            async function addProctorManual() {
+                const r1 = await showConfirm({ type:'info', title:'إضافة مراقب', message:'الاسم الكامل بالعربية', requireInput:true, inputPlaceholder:'أدخل اسم المراقب', confirmText:'التالي' });
+                if (!r1.confirmed || !r1.inputValue.trim()) return;
+                const r2 = await showConfirm({ type:'info', title:'رقم CIN', message:'رقم البطاقة الوطنية', requireInput:true, inputPlaceholder:'CIN', confirmText:'التالي' });
+                if (!r2.confirmed) return;
+                const r3 = await showConfirm({ type:'info', title:'الجنس', message:'M (ذكر) أو F (أنثى)', requireInput:true, inputValue:'M', confirmText:'إضافة' });
+                if (!r3.confirmed) return;
+                proctorsList.push({ teacher_name:r1.inputValue.trim(), teacher_name_fr:'', specialty:'', cin:(r2.inputValue||'').trim(), som:'', gender:(r3.inputValue||'M').trim().toUpperCase(), room:'', _saved:false });
+                procCurrentPage = Math.ceil(proctorsList.length / PAGE_SIZE);
+                renderProctorsTable();
+                await updateDistStatuses();
+                showToast('تمت إضافة المراقب — اضغط "حفظ" لتثبيت البيانات', 'info');
+            }
+
+            async function editProctor(idx) {
+                if (idx < 0 || idx >= proctorsList.length) return;
+                const s = proctorsList[idx];
+                const r1 = await showConfirm({ type:'info', title:'تعديل مراقب', message:'الاسم بالعربية', requireInput:true, inputValue:s.teacher_name, confirmText:'التالي' });
+                if (!r1.confirmed) return;
+                const r2 = await showConfirm({ type:'info', title:'CIN', message:'رقم CIN', requireInput:true, inputValue:s.cin, confirmText:'التالي' });
+                if (!r2.confirmed) return;
+                const r3 = await showConfirm({ type:'info', title:'الجنس', message:'M أو F', requireInput:true, inputValue:s.gender||'M', confirmText:'حفظ' });
+                if (!r3.confirmed) return;
+                s.teacher_name = r1.inputValue.trim(); s.cin = (r2.inputValue||'').trim(); s.gender = (r3.inputValue||'M').trim().toUpperCase(); s._saved = false;
+                renderProctorsTable();
+                await updateDistStatuses();
+                showToast('تم التعديل — اضغط "حفظ" لتثبيت البيانات', 'info');
+            }
+
+            async function deleteProctor(idx) {
+                if (idx < 0 || idx >= proctorsList.length) return;
+                const s = proctorsList[idx];
+                const r = await showConfirm({ type:'danger', title:'حذف مراقب', message:'حذف "' + s.teacher_name + '"؟', detail:'لا يمكن التراجع.', confirmText:'حذف' });
+                if (!r.confirmed) return;
+                if (s.id) {
+                    const h = showToast.loading('جاري الحذف...'); try { await window.api.examProctors.delete(s.id); h.success('تم الحذف'); } catch(e) { h.error('فشل: '+e.message); return; }
+                }
+                proctorsList.splice(idx, 1); renderProctorsTable(); await updateDistStatuses();
+            }
+
+            async function clearAllProctors() {
+                if (!proctorsList.length) { showToast('لا يوجد مراقبون', 'warning'); return; }
+                const r = await showConfirm({ type:'danger', title:'حذف الكل', message:'حذف ' + proctorsList.length + ' مراقب؟', confirmText:'حذف الكل' });
+                if (!r.confirmed) return;
+                const h = showToast.loading('جاري الحذف...');
+                try { await window.api.examProctors.deleteAll(year); proctorsList=[]; procCurrentPage=1; renderProctorsTable(); await updateDistStatuses(); h.success('تم الحذف'); } catch(e) { h.error('فشل: '+e.message); }
+            }
+
+            async function saveProctorsToDb() {
+                const unsaved = proctorsList.filter(s => !s._saved);
+                if (!unsaved.length) { showToast('لا توجد بيانات جديدة', 'info'); return; }
+                const h = showToast.loading('جاري الحفظ...');
+                try {
+                    const res = await window.api.examProctors.bulkImport({ school_year:year, rows:unsaved.map(s=>({ teacher_name:s.teacher_name, teacher_name_fr:s.teacher_name_fr, cin:s.cin, som:s.som, gender:s.gender, specialty:s.specialty, workplace:s.workplace, room:s.room })) });
+                    if (res && res.success) { h.success('تم حفظ ' + res.inserted + ' مراقب'); await loadProctors(); updateDashboardCounts(); }
+                    else { h.error('فشل: ' + (res?.error||'')); }
+                } catch(e) { h.error('فشل: '+e.message); }
+            }
+
+            /* ═══ Proctor Excel Import ═══ */
+            function initProcDropZone() {
+                const dz = document.getElementById('proc-dropzone'), fi = document.getElementById('proc-file-input');
+                ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dz.classList.add('sup-dropzone-active'); }));
+                ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dz.classList.remove('sup-dropzone-active'); }));
+                dz.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleProcExcel(e.dataTransfer.files[0]); });
+                fi.addEventListener('change', () => { if (fi.files.length) handleProcExcel(fi.files[0]); fi.value=''; });
+            }
+
+            async function loadXLSX() {
+                if (window.XLSX) return window.XLSX;
+                return new Promise((resolve,reject) => { const s=document.createElement('script'); s.src='vendor/xlsx.full.min.js'; s.onload=()=>resolve(window.XLSX); s.onerror=()=>reject(new Error('فشل تحميل XLSX')); document.head.appendChild(s); });
+            }
+
+            async function handleProcExcel(file) {
+                if (!file.name.match(/\.xlsx?$/i)) { showToast('يرجى اختيار ملف Excel', 'warning'); return; }
+                const h = showToast.loading('جاري القراءة...');
+                try {
+                    const X = await loadXLSX(), buf = await file.arrayBuffer(), wb = X.read(new Uint8Array(buf),{type:'array'});
+                    const raw = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1,raw:true});
+                    if (raw.length < 2) { h.error('الملف فارغ'); return; }
+                    h.success('تم قراءة ' + (raw.length-1) + ' صف');
+                    showProcImportModal(raw, file.name);
+                } catch(e) { h.error('فشل: '+e.message); }
+            }
+
+            const PROC_FIELDS = { teacher_name:'الاسم بالعربية', teacher_name_fr:'الاسم بالفرنسية', specialty:'التخصص', cin:'CIN', som:'SOM', gender:'الجنس', room:'القاعة' };
+            const PROC_HINTS = { teacher_name:['الاسم','اسم','المراقب','الكامل','بالعربية'], teacher_name_fr:['فرنسي','nom','français','الفرنسية'], specialty:['تخصص','مادة','spécialité'], cin:['cin','بطاقة','هوية'], som:['som','رقم','matricule','ppr'], gender:['جنس','genre','sexe'], room:['قاعة','salle','room'] };
+
+            function autoMap(headers, hints) {
+                const m = {}, used = new Set();
+                for (const [f, hs] of Object.entries(hints)) for (let i=0;i<headers.length;i++) { if (used.has(i)) continue; if (hs.some(h=>String(headers[i]||'').toLowerCase().includes(h.toLowerCase()))) { m[f]=i; used.add(i); break; } }
+                return m;
+            }
+
+            function showProcImportModal(raw, fn) {
+                const hdrs = raw[0].map(h=>String(h||'').trim()), rows = raw.slice(1).filter(r=>r.some(c=>c!=null&&String(c).trim()));
+                const mp = autoMap(hdrs, PROC_HINTS);
+                document.getElementById('proc-modal-summary').innerHTML = '<div class="sup-summary-chips"><span class="sup-summary-chip"><i class="fas fa-file-excel"></i> '+escapeHtml(fn)+'</span><span class="sup-summary-chip"><i class="fas fa-list-ol"></i> '+rows.length+' صف</span></div>';
+                document.getElementById('proc-mapping-grid').innerHTML = Object.entries(PROC_FIELDS).map(([f,l]) => '<div class="sup-mapping-item"><label>'+l+'</label><select data-field="'+f+'"><option value="">— تجاهل —</option>'+hdrs.map((h,i)=>'<option value="'+i+'"'+(mp[f]===i?' selected':'')+'>'+escapeHtml(h)+'</option>').join('')+'</select></div>').join('');
+                document.getElementById('proc-preview-thead').innerHTML = '<tr>'+hdrs.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr>';
+                document.getElementById('proc-preview-tbody').innerHTML = rows.slice(0,5).map(r=>'<tr>'+hdrs.map((_,i)=>'<td>'+escapeHtml(r[i]??'')+'</td>').join('')+'</tr>').join('');
+                procPendingImportRows = rows;
+                document.getElementById('proc-import-modal').style.display = '';
+            }
+
+            function initProcImportModal() {
+                document.getElementById('proc-modal-close').addEventListener('click', closeProcModal);
+                document.getElementById('proc-modal-cancel').addEventListener('click', closeProcModal);
+                document.getElementById('proc-modal-confirm').addEventListener('click', confirmProcImport);
+                document.getElementById('proc-import-modal').addEventListener('click', e => { if (e.target.id==='proc-import-modal') closeProcModal(); });
+            }
+            function closeProcModal() { document.getElementById('proc-import-modal').style.display='none'; procPendingImportRows=[]; }
+
+            async function confirmProcImport() {
+                const mp = {}; document.querySelectorAll('#proc-mapping-grid select').forEach(s => { if (s.value!=='') mp[s.dataset.field]=Number(s.value); });
+                if (mp.teacher_name === undefined) { showToast('يرجى تحديد عمود الاسم', 'warning'); return; }
+                const nr = procPendingImportRows.map(r => { const o={_saved:false}; for (const [f,c] of Object.entries(mp)) o[f]=String(r[c]??'').trim(); return o; }).filter(r=>r.teacher_name);
+                if (!nr.length) { showToast('لا توجد صفوف صالحة', 'warning'); return; }
+                const cr = await showConfirm({ type:'info', title:'تأكيد', message:'إضافة '+nr.length+' مراقب', confirmText:'تأكيد' });
+                if (!cr.confirmed) return;
+                proctorsList.push(...nr); closeProcModal(); procDropzoneVisible=false; document.getElementById('proc-dropzone').style.display='none';
+                procCurrentPage=1; renderProctorsTable();
+                await updateDistStatuses();
+                showToast('تمت إضافة '+nr.length+' مراقب — اضغط "حفظ"', 'success');
+            }
+
+            /* ═══ Candidates (localStorage) ═══ */
+            async function loadCandidatesFromStorage() {
+                candidatesList = (await window.api.examConfig.get(year, 'examCandidatesData')) || [];
+                candCurrentPage = 1;
+                renderCandidatesTable();
+                document.getElementById('btn-import-candidates').addEventListener('click', () => {
+                    candDropzoneVisible = !candDropzoneVisible;
+                    document.getElementById('cand-dropzone').style.display = candDropzoneVisible ? '' : 'none';
+                });
+                document.getElementById('btn-add-candidate').addEventListener('click', addCandidateManual);
+                document.getElementById('btn-clear-candidates').addEventListener('click', clearAllCandidates);
+                document.getElementById('btn-save-candidates').addEventListener('click', async () => {
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examCandidatesData', data: candidatesList });
+                    updateDashboardCounts(); showToast('تم حفظ بيانات المترشحين', 'success');
+                });
+                document.getElementById('cand-search').addEventListener('input', e => { candSearchTerm=e.target.value.trim().toLowerCase(); candCurrentPage=1; renderCandidatesTable(); });
+                document.getElementById('cand-prev').addEventListener('click', () => { if (candCurrentPage>1) { candCurrentPage--; renderCandidatesTable(); } });
+                document.getElementById('cand-next').addEventListener('click', () => {
+                    if (candCurrentPage < Math.max(1, Math.ceil(getFilteredCandidates().length / PAGE_SIZE))) { candCurrentPage++; renderCandidatesTable(); }
+                });
+                initCandDropZone();
+            }
+
+            function getFilteredCandidates() {
+                if (!candSearchTerm) return candidatesList;
+                return candidatesList.filter(c => (c.name||'').toLowerCase().includes(candSearchTerm) || (c.exam_number||'').toLowerCase().includes(candSearchTerm));
+            }
+
+            function renderCandidatesTable() {
+                const filtered = getFilteredCandidates(), total = filtered.length;
+                const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+                candCurrentPage = Math.min(candCurrentPage, totalPages);
+                const start = (candCurrentPage-1)*PAGE_SIZE, slice = filtered.slice(start, start+PAGE_SIZE);
+                const tbody = document.getElementById('candidates-tbody');
+                if (!slice.length) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-info-circle" style="margin-left:6px"></i>لا يوجد مترشحون</td></tr>';
+                } else {
+                    tbody.innerHTML = slice.map((c,i) => {
+                        const ri = candidatesList.indexOf(c);
+                        const gb = (c.gender==='M'||c.gender==='ذكر') ? '<span class="sup-gender-badge sup-gender-m"><i class="fas fa-mars"></i></span>' :
+                                   (c.gender==='F'||c.gender==='أنثى') ? '<span class="sup-gender-badge sup-gender-f"><i class="fas fa-venus"></i></span>' : '<span class="sup-gender-badge">—</span>';
+                        const tb = c.type==='رسمي' ? '<span style="color:var(--color-primary);font-weight:600">رسمي</span>' :
+                                   c.type==='حر' ? '<span style="color:var(--color-warning-solid);font-weight:600">حر</span>' : escapeHtml(c.type||'—');
+                        return '<tr><td>'+(start+i+1)+'</td><td class="sup-name-cell">'+escapeHtml(c.name)+'</td><td>'+escapeHtml(c.level)+
+                            '</td><td class="sup-cin-cell">'+escapeHtml(c.exam_number)+'</td><td>'+escapeHtml(c.room||'—')+
+                            '</td><td>'+gb+'</td><td>'+tb+
+                            '</td><td class="no-print"><button class="sup-del-btn" onclick="editCandidate('+ri+')" title="تعديل"><i class="fas fa-edit"></i></button> '+
+                            '<button class="sup-del-btn" onclick="deleteCandidate('+ri+')" title="حذف"><i class="fas fa-times"></i></button></td></tr>';
+                    }).join('');
+                }
+                document.getElementById('cand-page-info').textContent = candCurrentPage+' / '+totalPages;
+                document.getElementById('cand-page-total').textContent = '('+total+' مترشح)';
+                document.getElementById('cand-prev').disabled = candCurrentPage<=1;
+                document.getElementById('cand-next').disabled = candCurrentPage>=totalPages;
+                document.getElementById('cand-pagination').style.display = total>0?'':'none';
+                updateCandidateStats();
+            }
+
+            function updateCandidateStats() {
+                const t=candidatesList.length, a=candidatesList.filter(c=>c.room).length;
+                document.getElementById('cand-total-count').textContent=t;
+                document.getElementById('cand-assigned-count').textContent=a;
+                document.getElementById('cand-unassigned-count').textContent=t-a;
+            }
+
+            async function addCandidateManual() {
+                const r1 = await showConfirm({ type:'info', title:'إضافة مترشح', message:'الاسم الكامل', requireInput:true, inputPlaceholder:'اسم المترشح', confirmText:'التالي' });
+                if (!r1.confirmed || !r1.inputValue.trim()) return;
+                const r2 = await showConfirm({ type:'info', title:'المستوى', message:'المستوى / الشعبة', requireInput:true, inputPlaceholder:'2BAC SVT', confirmText:'التالي' });
+                if (!r2.confirmed) return;
+                const r3 = await showConfirm({ type:'info', title:'رقم الامتحان', message:'رقم الامتحان', requireInput:true, confirmText:'التالي' });
+                if (!r3.confirmed) return;
+                const r4 = await showConfirm({ type:'info', title:'النوع', message:'رسمي أو حر', requireInput:true, inputValue:'رسمي', confirmText:'إضافة' });
+                if (!r4.confirmed) return;
+                candidatesList.push({ name:r1.inputValue.trim(), level:(r2.inputValue||'').trim(), exam_number:(r3.inputValue||'').trim(), room:'', gender:'', type:(r4.inputValue||'رسمي').trim() });
+                candCurrentPage = Math.ceil(candidatesList.length/PAGE_SIZE);
+                await window.api.examConfig.save({ school_year: year, config_key: 'examCandidatesData', data: candidatesList });
+                renderCandidatesTable(); updateDashboardCounts();
+                showToast('تمت إضافة المترشح', 'success');
+            }
+
+            async function editCandidate(idx) {
+                if (idx<0||idx>=candidatesList.length) return;
+                const c = candidatesList[idx];
+                const r1 = await showConfirm({ type:'info', title:'تعديل', message:'الاسم', requireInput:true, inputValue:c.name, confirmText:'التالي' });
+                if (!r1.confirmed) return;
+                const r2 = await showConfirm({ type:'info', title:'القاعة', message:'القاعة', requireInput:true, inputValue:c.room||'', confirmText:'حفظ' });
+                if (!r2.confirmed) return;
+                c.name=r1.inputValue.trim(); c.room=(r2.inputValue||'').trim();
+                await window.api.examConfig.save({ school_year: year, config_key: 'examCandidatesData', data: candidatesList });
+                renderCandidatesTable(); updateDashboardCounts();
+                showToast('تم التعديل', 'success');
+            }
+
+            async function deleteCandidate(idx) {
+                if (idx<0||idx>=candidatesList.length) return;
+                const r = await showConfirm({ type:'danger', title:'حذف', message:'حذف "'+candidatesList[idx].name+'"؟', confirmText:'حذف' });
+                if (!r.confirmed) return;
+                candidatesList.splice(idx,1);
+                await window.api.examConfig.save({ school_year: year, config_key: 'examCandidatesData', data: candidatesList });
+                renderCandidatesTable(); updateDashboardCounts();
+            }
+
+            async function clearAllCandidates() {
+                if (!candidatesList.length) { showToast('لا يوجد مترشحون', 'warning'); return; }
+                const r = await showConfirm({ type:'danger', title:'حذف الكل', message:'حذف '+candidatesList.length+' مترشح؟', confirmText:'حذف الكل' });
+                if (!r.confirmed) return;
+                candidatesList=[]; await window.api.examConfig.delete({ school_year: year, config_key: 'examCandidatesData' });
+                candCurrentPage=1; renderCandidatesTable(); updateDashboardCounts();
+                showToast('تم حذف الجميع', 'success');
+            }
+
+            /* ═══ Candidates Excel ═══ */
+            function initCandDropZone() {
+                const dz=document.getElementById('cand-dropzone'), fi=document.getElementById('cand-file-input');
+                ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();dz.classList.add('sup-dropzone-active');}));
+                ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();dz.classList.remove('sup-dropzone-active');}));
+                dz.addEventListener('drop',e=>{if(e.dataTransfer.files.length) handleCandExcel(e.dataTransfer.files[0]);});
+                fi.addEventListener('change',()=>{if(fi.files.length) handleCandExcel(fi.files[0]); fi.value='';});
+            }
+
+            async function handleCandExcel(file) {
+                if (!file.name.match(/\.xlsx?$/i)) { showToast('يرجى اختيار ملف Excel', 'warning'); return; }
+                const h = showToast.loading('جاري القراءة...');
+                try {
+                    const X=await loadXLSX(), buf=await file.arrayBuffer(), wb=X.read(new Uint8Array(buf),{type:'array'});
+                    const raw=X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true});
+                    if (raw.length<2) { h.error('الملف فارغ'); return; }
+                    const hdrs=raw[0].map(v=>String(v||'').trim()), rows=raw.slice(1).filter(r=>r.some(c=>c!=null&&String(c).trim()));
+                    const hints={name:['الاسم','اسم','المترشح','nom'],level:['مستوى','شعبة','niveau'],exam_number:['رقم','امتحان','numéro'],room:['قاعة','salle'],gender:['جنس','sexe'],type:['نوع','type']};
+                    const mp=autoMap(hdrs,hints);
+                    const nr=rows.map(r=>{const o={};for(const[f,c]of Object.entries(mp))o[f]=String(r[c]??'').trim();return o;}).filter(r=>r.name);
+                    if (!nr.length) { h.error('لا توجد صفوف صالحة'); return; }
+                    h.success('تم قراءة '+nr.length+' مترشح');
+                    const cr=await showConfirm({type:'info',title:'تأكيد',message:'إضافة '+nr.length+' مترشح',confirmText:'تأكيد'});
+                    if (!cr.confirmed) return;
+                    candidatesList.push(...nr); candDropzoneVisible=false; document.getElementById('cand-dropzone').style.display='none';
+                    await window.api.examConfig.save({ school_year: year, config_key: 'examCandidatesData', data: candidatesList });
+                    candCurrentPage=1; renderCandidatesTable(); updateDashboardCounts();
+                    showToast('تمت إضافة '+nr.length+' مترشح', 'success');
+                } catch(e) { h.error('فشل: '+e.message); }
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Tab 2 — Paired Print Per Session (لوائح زوجية)
+               ═══════════════════════════════════════════════════════════════ */
+            function buildAutoDistributionPairedPrintHtml(rows) {
+                // Group rows by halfday → session
+                const halfdayMap = new Map();
+                rows.forEach(row => {
+                    const hKey = row.halfday_key || '';
+                    if (!halfdayMap.has(hKey)) halfdayMap.set(hKey, { label: getAutoDistributionHalfdayFilterLabel(row), sessions: new Map() });
+                    const sKey = row.session_key || row.session_label || '';
+                    const session = halfdayMap.get(hKey).sessions.get(sKey) || { label: row.session_label || sKey, rows: [] };
+                    session.rows.push(row);
+                    halfdayMap.get(hKey).sessions.set(sKey, session);
+                });
+                let html = '<div class="gs-sheet-wrapper">';
+                halfdayMap.forEach(halfday => {
+                    halfday.sessions.forEach(session => {
+                        const proctorsRows = session.rows.map((r, i) => '<tr>' +
+                            '<td style="border:1px solid #888;padding:5px;text-align:center">' + (i + 1) + '</td>' +
+                            '<td style="border:1px solid #888;padding:5px;font-weight:700">' + escapeHtml(r.subject_name || '—') + '</td>' +
+                            '<td style="border:1px solid #888;padding:5px;text-align:center">' + escapeHtml(r.room_number || r.room_name || '—') + '</td>' +
+                            '<td style="border:1px solid #888;padding:5px">' + escapeHtml((r.proctors || []).join(' / ') || '—') + '</td>' +
+                            '<td style="border:1px solid #888;padding:5px;text-align:center;width:80px">&nbsp;</td>' +
+                            '</tr>').join('');
+
+                        const reserveSet = new Set();
+                        const dutySet = new Map();
+                        session.rows.forEach(r => {
+                            (r.reserves || []).forEach(n => reserveSet.add(n));
+                            (r.duty_teachers || []).forEach(n => {
+                                if (!dutySet.has(n)) dutySet.set(n, []);
+                                if (r.subject_name) dutySet.get(n).push(r.subject_name);
+                            });
+                        });
+                        const reserveList = Array.from(reserveSet);
+                        const dutyList = Array.from(dutySet.entries());
+
+                        html += '<div class="gs-sheet" style="page-break-after:always">' +
+                            '<div class="gs-sheet-title">لائحة المكلفين بالمراقبة</div>' +
+                            '<div style="text-align:center;margin-bottom:8px;font-size:14px;color:#444">' +
+                                '<strong>' + escapeHtml(halfday.label) + '</strong> &nbsp;|&nbsp; الحصة: <strong>' + escapeHtml(session.label) + '</strong>' +
+                            '</div>' +
+                            // Block 1: Proctors per room
+                            '<h3 style="margin:14px 0 6px;color:var(--color-text);border-bottom:2px solid var(--color-primary);padding-bottom:4px"><i class="fas fa-user-shield"></i> أساتذة الحراسة حسب القاعة</h3>' +
+                            '<table style="width:100%;border-collapse:collapse;margin-bottom:8px"><thead><tr style="background:#34495e;color:#fff">' +
+                                '<th style="border:1px solid #888;padding:6px;width:40px">#</th>' +
+                                '<th style="border:1px solid #888;padding:6px">المادة</th>' +
+                                '<th style="border:1px solid #888;padding:6px;width:90px">القاعة</th>' +
+                                '<th style="border:1px solid #888;padding:6px">الحراس</th>' +
+                                '<th style="border:1px solid #888;padding:6px;width:80px">التوقيع</th>' +
+                            '</tr></thead><tbody>' + (proctorsRows || '<tr><td colspan="5" style="border:1px solid #888;padding:10px;text-align:center">لا يوجد</td></tr>') + '</tbody></table>' +
+                            // Two columns: reserves + duty
+                            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px">' +
+                                '<div>' +
+                                    '<h3 style="margin:0 0 6px;color:var(--color-text);border-bottom:2px solid var(--color-warning, #f39c12);padding-bottom:4px"><i class="fas fa-user-clock"></i> الاحتياط</h3>' +
+                                    '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#7f8c8d;color:#fff">' +
+                                    '<th style="border:1px solid #888;padding:6px;width:40px">#</th>' +
+                                    '<th style="border:1px solid #888;padding:6px">الأستاذ(ة)</th>' +
+                                    '<th style="border:1px solid #888;padding:6px;width:80px">التوقيع</th>' +
+                                    '</tr></thead><tbody>' +
+                                    (reserveList.length
+                                        ? reserveList.map((n, i) => '<tr><td style="border:1px solid #888;padding:5px;text-align:center">' + (i + 1) + '</td><td style="border:1px solid #888;padding:5px">' + escapeHtml(n) + '</td><td style="border:1px solid #888;padding:5px">&nbsp;</td></tr>').join('')
+                                        : '<tr><td colspan="3" style="border:1px solid #888;padding:8px;text-align:center;font-style:italic">لا يوجد</td></tr>') +
+                                    '</tbody></table>' +
+                                '</div>' +
+                                '<div>' +
+                                    '<h3 style="margin:0 0 6px;color:var(--color-text);border-bottom:2px solid var(--color-accent, #8e44ad);padding-bottom:4px"><i class="fas fa-book-reader"></i> المداومة</h3>' +
+                                    '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#7f8c8d;color:#fff">' +
+                                    '<th style="border:1px solid #888;padding:6px;width:40px">#</th>' +
+                                    '<th style="border:1px solid #888;padding:6px">الأستاذ(ة)</th>' +
+                                    '<th style="border:1px solid #888;padding:6px">المادة</th>' +
+                                    '<th style="border:1px solid #888;padding:6px;width:80px">التوقيع</th>' +
+                                    '</tr></thead><tbody>' +
+                                    (dutyList.length
+                                        ? dutyList.map(([n, subs], i) => '<tr><td style="border:1px solid #888;padding:5px;text-align:center">' + (i + 1) + '</td><td style="border:1px solid #888;padding:5px">' + escapeHtml(n) + '</td><td style="border:1px solid #888;padding:5px">' + escapeHtml(Array.from(new Set(subs)).join('، ') || '—') + '</td><td style="border:1px solid #888;padding:5px">&nbsp;</td></tr>').join('')
+                                        : '<tr><td colspan="4" style="border:1px solid #888;padding:8px;text-align:center;font-style:italic">لا يوجد</td></tr>') +
+                                    '</tbody></table>' +
+                                '</div>' +
+                            '</div>' +
+                            '<div style="margin-top:30px;display:flex;justify-content:space-between"><div>المراقب العام:</div><div>المدير(ة):</div></div>' +
+                        '</div>';
+                    });
+                });
+                html += '</div>';
+                return html;
+            }
+
+            function previewAutoDistributionPairedPrint() {
+                if (!autoDistributionResult.length) { showToast('لا توجد نتيجة للطباعة', 'warning'); return; }
+                if (!window.PrintSystem || typeof window.PrintSystem.preview !== 'function') {
+                    showToast('نظام الطباعة غير متاح', 'error'); return;
+                }
+                const rows = getFilteredAutoDistributionRows();
+                if (!rows.length) { showToast('لا توجد بيانات مطابقة للفلاتر', 'warning'); return; }
+                const root = document.createElement('div');
+                root.id = 'auto-distribution-paired-print-root';
+                root.style.cssText = 'position:absolute;left:-99999px;top:0';
+                root.innerHTML = '<div id="auto-distribution-paired-print-content">' + buildAutoDistributionPairedPrintHtml(rows) + '</div>';
+                document.body.appendChild(root);
+                try {
+                    window.PrintSystem.preview({
+                        contentSelector: '#auto-distribution-paired-print-content',
+                        title: 'لوائح زوجية حسب الحصة',
+                        pageSize: 'A4',
+                        landscape: false,
+                        noHeader: false,
+                        defaultFileName: 'لوائح_زوجية_حسب_الحصة'
+                    });
+                } finally {
+                    setTimeout(() => root.remove(), 500);
+                }
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Tab 1 — Schedule Print Filters & Preview
+               ═══════════════════════════════════════════════════════════════ */
+            async function initSchedulePrintFilters() {
+                ['sched-halfday-filter', 'sched-session-filter', 'sched-subject-filter'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.addEventListener('change', async () => {
+                        if (id === 'sched-halfday-filter' || id === 'sched-session-filter') {
+                            await populateScheduleFilters();
+                        }
+                    });
+                });
+                const printBtn = document.getElementById('btn-print-schedule');
+                if (printBtn) printBtn.addEventListener('click', previewSchedulePrint);
+                // Refresh filter options whenever schedule is saved/changed
+                document.addEventListener('click', (ev) => {
+                    if (ev.target.closest && ev.target.closest('#btn-save-schedule')) {
+                        setTimeout(() => { populateScheduleFilters(); }, 50);
+                    }
+                });
+                await populateScheduleFilters();
+            }
+
+            async function getAllScheduleEntriesForPrint() {
+                const data = (await window.api.examConfig.get(year, 'examScheduleData')) || {};
+                return Object.entries(data).flatMap(([levelName, arr]) =>
+                    Array.isArray(arr) ? arr.filter(s => s && (s.date_day || s.time_from || s.subject_name))
+                        .map(s => Object.assign({ level_name: levelName }, s)) : []);
+            }
+
+            async function populateScheduleFilters() {
+                const halfdayFilter = document.getElementById('sched-halfday-filter');
+                const sessionFilter = document.getElementById('sched-session-filter');
+                const subjectFilter = document.getElementById('sched-subject-filter');
+                if (!halfdayFilter || !sessionFilter || !subjectFilter) return;
+                const entries = await getAllScheduleEntriesForPrint();
+                const curHalf = halfdayFilter.value;
+                const curSession = sessionFilter.value;
+                const curSubject = subjectFilter.value;
+
+                const halfdayMap = new Map();
+                entries.forEach(e => {
+                    const key = getAutoDistributionHalfdayKey(e);
+                    if (!key || halfdayMap.has(key)) return;
+                    halfdayMap.set(key, getAutoDistributionHalfdayLabel(e) || key);
+                });
+                const validHalf = curHalf && halfdayMap.has(curHalf) ? curHalf : '';
+                const filteredByHalf = validHalf ? entries.filter(e => getAutoDistributionHalfdayKey(e) === validHalf) : entries;
+
+                const sessionMap = new Map();
+                filteredByHalf.forEach(e => {
+                    const key = getAutoDistributionSessionKey(e);
+                    if (!key || sessionMap.has(key)) return;
+                    sessionMap.set(key, e.session || key);
+                });
+                const validSession = curSession && sessionMap.has(curSession) ? curSession : '';
+                const filteredBySession = validSession ? filteredByHalf.filter(e => getAutoDistributionSessionKey(e) === validSession) : filteredByHalf;
+
+                const subjects = Array.from(new Set(filteredBySession.map(e => e.subject_name).filter(Boolean)));
+                const validSubject = curSubject && subjects.includes(curSubject) ? curSubject : '';
+
+                halfdayFilter.innerHTML = '<option value="">كل أنصاف الأيام</option>' + Array.from(halfdayMap.entries())
+                    .map(([k, lbl]) => '<option value="' + escapeHtml(k) + '">' + escapeHtml(lbl) + '</option>').join('');
+                sessionFilter.innerHTML = '<option value="">كل الحصص</option>' + Array.from(sessionMap.entries())
+                    .map(([k, lbl]) => '<option value="' + escapeHtml(k) + '">' + escapeHtml(lbl) + '</option>').join('');
+                subjectFilter.innerHTML = '<option value="">كل المواد</option>' + subjects
+                    .map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join('');
+
+                halfdayFilter.value = validHalf;
+                sessionFilter.value = validSession;
+                subjectFilter.value = validSubject;
+            }
+
+            async function getFilteredScheduleEntries() {
+                const half = document.getElementById('sched-halfday-filter')?.value || '';
+                const session = document.getElementById('sched-session-filter')?.value || '';
+                const subject = document.getElementById('sched-subject-filter')?.value || '';
+                return (await getAllScheduleEntriesForPrint()).filter(e => {
+                    if (half && getAutoDistributionHalfdayKey(e) !== half) return false;
+                    if (session && getAutoDistributionSessionKey(e) !== session) return false;
+                    if (subject && (e.subject_name || '') !== subject) return false;
+                    return true;
+                }).sort((a, b) => {
+                    const ka = (getAutoDistributionHalfdayKey(a) || '') + '|' + (a.session || '') + '|' + (a.level_name || '');
+                    const kb = (getAutoDistributionHalfdayKey(b) || '') + '|' + (b.session || '') + '|' + (b.level_name || '');
+                    return ka.localeCompare(kb, 'ar');
+                });
+            }
+
+            async function buildSchedulePrintHtml(entries) {
+                const config = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                const arabicMonths = { '1': 'يناير', '2': 'فبراير', '3': 'مارس', '4': 'أبريل', '5': 'ماي', '6': 'يونيو', '7': 'يوليوز', '8': 'غشت', '9': 'شتنبر', '10': 'أكتوبر', '11': 'نونبر', '12': 'دجنبر' };
+                const sessionLabel = (config.exam_name || '') + ' — دورة ' + (arabicMonths[config.exam_month] || '') + ' ' + (config.exam_year || '');
+                // Group by halfday
+                const grouped = new Map();
+                entries.forEach(e => {
+                    const key = getAutoDistributionHalfdayKey(e);
+                    if (!grouped.has(key)) grouped.set(key, { label: getAutoDistributionHalfdayLabel(e), rows: [] });
+                    grouped.get(key).rows.push(e);
+                });
+                let body = '';
+                grouped.forEach((group) => {
+                    body += '<h3 style="margin:18px 0 6px;color:var(--color-text);border-bottom:2px solid var(--color-primary);padding-bottom:4px">' + escapeHtml(group.label) + '</h3>';
+                    body += '<table style="width:100%;border-collapse:collapse;margin-bottom:8px"><thead><tr style="background:#34495e;color:#fff">' +
+                        '<th style="border:1px solid #999;padding:6px">المستوى</th>' +
+                        '<th style="border:1px solid #999;padding:6px">المادة</th>' +
+                        '<th style="border:1px solid #999;padding:6px">الحصة</th>' +
+                        '<th style="border:1px solid #999;padding:6px">التاريخ</th>' +
+                        '<th style="border:1px solid #999;padding:6px">من</th>' +
+                        '<th style="border:1px solid #999;padding:6px">إلى</th>' +
+                        '<th style="border:1px solid #999;padding:6px">المدة</th></tr></thead><tbody>';
+                    group.rows.forEach(r => {
+                        body += '<tr>' +
+                            '<td style="border:1px solid #999;padding:5px">' + escapeHtml(r.level_name || '') + '</td>' +
+                            '<td style="border:1px solid #999;padding:5px;font-weight:700">' + escapeHtml(r.subject_name || '') + '</td>' +
+                            '<td style="border:1px solid #999;padding:5px">' + escapeHtml(r.session || '') + '</td>' +
+                            '<td style="border:1px solid #999;padding:5px">' + escapeHtml(formatScheduleDate(r) || '') + '</td>' +
+                            '<td style="border:1px solid #999;padding:5px">' + escapeHtml(r.time_from || '') + '</td>' +
+                            '<td style="border:1px solid #999;padding:5px">' + escapeHtml(r.time_to || '') + '</td>' +
+                            '<td style="border:1px solid #999;padding:5px">' + escapeHtml(r.duration || '') + '</td></tr>';
+                    });
+                    body += '</tbody></table>';
+                });
+                return '<div class="gs-sheet-wrapper"><div class="gs-sheet">' +
+                    '<div class="gs-sheet-title">جدولة الامتحان</div>' +
+                    '<div style="text-align:center;margin-bottom:14px;color:#555">' + escapeHtml(sessionLabel) + '</div>' +
+                    (body || '<p style="text-align:center">لا توجد بيانات</p>') +
+                    '</div></div>';
+            }
+
+            async function previewSchedulePrint() {
+                const entries = await getFilteredScheduleEntries();
+                if (!entries.length) { showToast('لا توجد جدولة محفوظة مطابقة للفلاتر', 'warning'); return; }
+                if (!window.PrintSystem || typeof window.PrintSystem.preview !== 'function') {
+                    showToast('نظام معاينة الطباعة غير متاح', 'error'); return;
+                }
+                let root = document.getElementById('schedule-print-root');
+                if (!root) {
+                    root = document.createElement('div');
+                    root.id = 'schedule-print-root';
+                    root.style.cssText = 'position:absolute;left:-99999px;top:0';
+                    document.body.appendChild(root);
+                }
+                root.innerHTML = '<div id="schedule-print-content">' + await buildSchedulePrintHtml(entries) + '</div>';
+                try {
+                    window.PrintSystem.preview({
+                        contentSelector: '#schedule-print-content',
+                        title: 'جدولة الامتحان',
+                        pageSize: 'A4',
+                        landscape: true,
+                        noHeader: false,
+                        defaultFileName: 'جدولة_الامتحان'
+                    });
+                } catch(e) { showToast('خطأ: ' + e.message, 'error'); }
+            }
+
+            /* ═══ Exam Data Summary (ملخص معطيات الامتحان) ═══ */
+
+            function buildSubjectTypeMap() {
+                const map = new Map();
+                for (const level of addedLevels) {
+                    if (!level.subjects) continue;
+                    for (const subj of level.subjects) {
+                        map.set((level.name || '').trim() + '||' + (subj.name || '').trim(), subj.type || '');
+                    }
+                }
+                return map;
+            }
+
+            function getSummaryRoomCountForLevel(levelName) {
+                const level = addedLevels.find(l => l.name === levelName);
+                return level ? (Number(level.rooms) || 0) : 0;
+            }
+
+            async function getSummaryCandidateCountForLevel(levelName) {
+                const roomsData = (await window.api.examConfig.get(year, 'examCenterRoomsData')) || {};
+                let total = 0;
+                for (const [key, value] of Object.entries(roomsData)) {
+                    if (!key.startsWith(levelName + '__')) continue;
+                    total += parseInt(value.count) || 0;
+                }
+                return total;
+            }
+
+            async function buildSummaryData() {
+                const typeMap = buildSubjectTypeMap();
+                const entries = (await getScheduleEntries())
+                    .filter(s => s && (s.date_day || s.time_from || s.subject_name))
+                    .sort((a, b) => getScheduleSortKey(a).localeCompare(getScheduleSortKey(b), 'ar'));
+
+                const results = [];
+                for (const entry of entries) {
+                    const typeKey = (entry.level_name || '').trim() + '||' + (entry.subject_name || '').trim();
+                    results.push(Object.assign({}, entry, {
+                        exam_type: typeMap.get(typeKey) || '',
+                        room_count: getSummaryRoomCountForLevel(entry.level_name),
+                        candidate_count: await getSummaryCandidateCountForLevel(entry.level_name)
+                    }));
+                }
+                return results;
+            }
+
+            function groupByDayPeriodSession(entries) {
+                const days = new Map();
+                for (const entry of entries) {
+                    const dayKey = getAutoDistributionDayKey(entry);
+                    const dayLabel = entry.day || '';
+                    const dateStr = formatScheduleDate(entry);
+                    const period = entry.period || 'صباحا';
+                    const session = entry.session || 'الحصة الأولى';
+
+                    if (!days.has(dayKey)) {
+                        days.set(dayKey, { dayLabel, dateStr, periods: new Map() });
+                    }
+                    const dayObj = days.get(dayKey);
+                    if (!dayObj.periods.has(period)) {
+                        dayObj.periods.set(period, { sessions: new Map() });
+                    }
+                    const periodObj = dayObj.periods.get(period);
+                    if (!periodObj.sessions.has(session)) {
+                        periodObj.sessions.set(session, []);
+                    }
+                    periodObj.sessions.get(session).push(entry);
+                }
+                return days;
+            }
+
+            function getAllSessionNames(groupedData) {
+                const sessionSet = new Set();
+                for (const [, dayObj] of groupedData) {
+                    for (const [, periodObj] of dayObj.periods) {
+                        for (const sessionName of periodObj.sessions.keys()) {
+                            sessionSet.add(sessionName);
+                        }
+                    }
+                }
+                const order = ['الحصة الأولى', 'الحصة الثانية', 'الحصة الثالثة'];
+                return Array.from(sessionSet).sort((a, b) => {
+                    const ia = order.indexOf(a), ib = order.indexOf(b);
+                    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+                });
+            }
+
+            function renderSummarySessionCell(entries) {
+                if (!entries || !entries.length) return '<td class="summary-cell-empty">—</td>';
+                const bySubject = new Map();
+                for (const e of entries) {
+                    const key = e.subject_name || '';
+                    if (!bySubject.has(key)) bySubject.set(key, []);
+                    bySubject.get(key).push(e);
+                }
+                let html = '<td class="summary-session-cell">';
+                for (const [subjectName, subEntries] of bySubject) {
+                    const timeFrom = subEntries[0].time_from || '';
+                    const timeTo = subEntries[0].time_to || '';
+                    const duration = subEntries[0].duration || '';
+                    const timeStr = timeFrom && timeTo ? timeFrom + ' ← ' + timeTo : '';
+
+                    html += '<div class="summary-subject-block">';
+                    html += '<div class="summary-subject-name"><i class="fas fa-book"></i> ' + escapeHtml(subjectName) + '</div>';
+                    if (timeStr) {
+                        html += '<div class="summary-time"><i class="fas fa-clock"></i> '
+                            + escapeHtml(timeStr) + (duration ? ' (' + escapeHtml(duration) + ')' : '') + '</div>';
+                    }
+                    html += '<div class="summary-levels">';
+                    for (const e of subEntries) {
+                        html += '<div class="summary-level-row">'
+                            + '<span class="summary-level-name">' + escapeHtml(e.level_name) + '</span>'
+                            + '<span class="summary-rooms"><i class="fas fa-door-open"></i> ' + e.room_count + '</span>'
+                            + '<span class="summary-candidates"><i class="fas fa-users"></i> ' + e.candidate_count + '</span>'
+                            + '</div>';
+                    }
+                    html += '</div></div>';
+                }
+                html += '</td>';
+                return html;
+            }
+
+            function renderSummaryTable(theadEl, tbodyEl, groupedData) {
+                const sessionNames = getAllSessionNames(groupedData);
+                theadEl.innerHTML = '<tr>' +
+                    '<th style="width:130px">اليوم</th>' +
+                    '<th style="width:90px">نصف اليوم</th>' +
+                    sessionNames.map(s => '<th>' + escapeHtml(s) + '</th>').join('') +
+                    '</tr>';
+
+                if (!groupedData.size) { tbodyEl.innerHTML = ''; return; }
+                let html = '';
+                for (const [, dayObj] of groupedData) {
+                    const periodCount = dayObj.periods.size;
+                    let isFirstPeriod = true;
+                    for (const [periodName, periodObj] of dayObj.periods) {
+                        html += '<tr>';
+                        if (isFirstPeriod) {
+                            html += '<td rowspan="' + periodCount + '" class="summary-day-cell">'
+                                + '<strong>' + escapeHtml(dayObj.dayLabel) + '</strong>'
+                                + (dayObj.dateStr ? '<br><span class="summary-date">' + escapeHtml(dayObj.dateStr) + '</span>' : '')
+                                + '</td>';
+                            isFirstPeriod = false;
+                        }
+                        html += '<td class="summary-period-cell">' + escapeHtml(periodName) + '</td>';
+                        for (const sessionName of sessionNames) {
+                            const entries = periodObj.sessions.get(sessionName) || [];
+                            html += renderSummarySessionCell(entries.length ? entries : null);
+                        }
+                        html += '</tr>';
+                    }
+                }
+                tbodyEl.innerHTML = html;
+            }
+
+            async function loadSummaryTab() {
+                const enriched = await buildSummaryData();
+                const regional = enriched.filter(e => e.exam_type === 'جهوي');
+                const national = enriched.filter(e => e.exam_type === 'وطني');
+
+                const hasAnyData = enriched.length > 0;
+                document.getElementById('summary-empty-state').style.display = hasAnyData ? 'none' : '';
+                document.getElementById('summary-actions').style.display = hasAnyData ? '' : 'none';
+
+                const regionalGrouped = groupByDayPeriodSession(regional);
+                const nationalGrouped = groupByDayPeriodSession(national);
+
+                const hasRegional = regionalGrouped.size > 0;
+                document.getElementById('summary-regional-card').style.display = hasRegional ? '' : 'none';
+                document.getElementById('summary-regional-empty').style.display = hasRegional ? 'none' : '';
+                document.getElementById('summary-regional-table-wrap').style.display = hasRegional ? '' : 'none';
+                if (hasRegional) {
+                    renderSummaryTable(
+                        document.getElementById('summary-regional-thead'),
+                        document.getElementById('summary-regional-tbody'),
+                        regionalGrouped
+                    );
+                }
+
+                const hasNational = nationalGrouped.size > 0;
+                document.getElementById('summary-national-card').style.display = hasNational ? '' : 'none';
+                document.getElementById('summary-national-empty').style.display = hasNational ? 'none' : '';
+                document.getElementById('summary-national-table-wrap').style.display = hasNational ? '' : 'none';
+                if (hasNational) {
+                    renderSummaryTable(
+                        document.getElementById('summary-national-thead'),
+                        document.getElementById('summary-national-tbody'),
+                        nationalGrouped
+                    );
+                }
+            }
+
+            async function printSummaryTables() {
+                const handle = showToast.loading('جاري تحضير الطباعة...');
+                try {
+                    await PrintSystem.preview({
+                        contentSelector: '#summary-content',
+                        title: 'ملخص معطيات الامتحان',
+                        landscape: true
+                    });
+                    handle.success('تمت المعاينة');
+                } catch (e) {
+                    handle.error('خطأ في الطباعة');
+                }
+            }
+
+            function initSummaryPanel() {
+                document.getElementById('btn-print-summary').addEventListener('click', printSummaryTables);
+            }
+
+
+        

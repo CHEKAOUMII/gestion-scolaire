@@ -14,6 +14,7 @@
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/shared/role-session-guard.js"></script>
         <script src="js/pages/settings-users-guard.js"></script>
     </head>
 
@@ -204,25 +205,16 @@
                     <div class="su-card__header">
                         <h3 class="su-card__title">
                             <i class="fas fa-id-card su-card__icon"></i>
-                            طلب تعديل هوية المؤسسة
+                            طلب تعديل اسم المؤسسة
                         </h3>
                     </div>
                     <p class="su-help-text">
-                        يمكنك طلب تصحيح رمز المؤسسة أو اسمها. سيصل الطلب إلى مدير التطبيق المركزي للمراجعة. لا يتم أي تغيير قبل الموافقة.
+                        يمكنك طلب تصحيح اسم المؤسسة. سيصل الطلب إلى مدير التطبيق المركزي للمراجعة. لا يتم أي تغيير قبل الموافقة.
+                        لتعديل رمز ماسار، اذهب إلى صفحة معلومات المؤسسة — لا حاجة لموافقة مركزية.
                     </p>
 
                     <div id="identity-change-form-wrap">
                         <div class="su-form">
-                            <div class="su-form__row">
-                                <div class="su-field">
-                                    <label for="ic-current-code" class="su-field__label">الرمز الحالي</label>
-                                    <input id="ic-current-code" class="su-field__input" disabled dir="ltr" />
-                                </div>
-                                <div class="su-field">
-                                    <label for="ic-new-code" class="su-field__label">الرمز الجديد (اختياري)</label>
-                                    <input id="ic-new-code" class="su-field__input" placeholder="مثال: E123456" dir="ltr" />
-                                </div>
-                            </div>
                             <div class="su-form__row">
                                 <div class="su-field">
                                     <label for="ic-current-name" class="su-field__label">الاسم الحالي</label>

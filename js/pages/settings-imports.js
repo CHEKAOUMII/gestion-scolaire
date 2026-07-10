@@ -264,12 +264,7 @@ function makeTafwijTeacherKey(rawName) {
     return `tafwij:${cleaned}`;
 }
 
-function getBaseClassName(className) {
-    if (!className) return '';
-    return String(className)
-        .replace(/:[Gg]\d+$/g, '')
-        .trim();
-}
+// CH10: getBaseClassName via js/shared/fet-import.js
 
 function normalizeStoredTeacherEntry(entry) {
     if (typeof entry === 'string') {
@@ -2698,21 +2693,8 @@ async function importFetXml(file) {
                     throw new Error('ملف XML غير صالح');
                 }
 
-                // Day mappings (same as timetable.html)
-                const dayMappings = {
-                    lundi_m: { day: 'الاثنين', period: 'morning', index: 0 },
-                    lundi_s: { day: 'الاثنين', period: 'afternoon', index: 0 },
-                    Mardi_m: { day: 'الثلاثاء', period: 'morning', index: 1 },
-                    Mardi_s: { day: 'الثلاثاء', period: 'afternoon', index: 1 },
-                    Mercredi_m: { day: 'الأربعاء', period: 'morning', index: 2 },
-                    Mercredi_s: { day: 'الأربعاء', period: 'afternoon', index: 2 },
-                    Jeudi_m: { day: 'الخميس', period: 'morning', index: 3 },
-                    Jeudi_s: { day: 'الخميس', period: 'afternoon', index: 3 },
-                    Vendredi_m: { day: 'الجمعة', period: 'morning', index: 4 },
-                    Vendredi_s: { day: 'الجمعة', period: 'afternoon', index: 4 },
-                    Samedi_m: { day: 'السبت', period: 'morning', index: 5 },
-                    Samedi_s: { day: 'السبت', period: 'afternoon', index: 5 }
-                };
+                // CH10: day mappings from js/shared/fet-import.js
+                const dayMappings = typeof FET_DAY_MAPPINGS !== 'undefined' ? FET_DAY_MAPPINGS : {};
 
                 const fetEntries = [];
                 const allSubjects = new Set();
@@ -2768,11 +2750,10 @@ async function importFetXml(file) {
                         const arabicDay = mapping.day;
                         const periodType = mapping.period;
 
-                        if (!timetable[arabicDay]) {
-                            timetable[arabicDay] = {
-                                morning: {},
-                                afternoon: {}
-                            };
+                        if (typeof ensureFetDaySkeleton === 'function') {
+                            ensureFetDaySkeleton(timetable, arabicDay);
+                        } else if (!timetable[arabicDay]) {
+                            timetable[arabicDay] = { morning: {}, afternoon: {} };
                         }
 
                         const hours = day.querySelectorAll('Hour');

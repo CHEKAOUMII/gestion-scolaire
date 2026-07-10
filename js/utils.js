@@ -92,7 +92,12 @@
 // ===== App Auth Guard =====
 const AUTH_SESSION_KEY = 'gsl_auth_session_v1';
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
-const ADMIN_ONLY_PAGES = new Set(['settings-users.html', 'settings-license.html', 'app-admin.html']);
+const ADMIN_ONLY_PAGES = new Set([
+    'settings-users.html',
+    'settings-license.html',
+    'app-admin.html',
+    'settings-defaults.html'
+]);
 const PRINCIPAL_MANAGED_ADMIN_PAGES = new Set(['settings-users.html']);
 const GUEST_ALLOWED_PAGES = new Set(['index.html', 'students-list.html', 'settings-imports.html', 'login.html']);
 const GUEST_ALLOWED_LINKS = new Set(['students-list.html', 'settings-imports.html']);
@@ -137,6 +142,7 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'settings-school.html', title: 'معلومات المؤسسة', group: 'الإعدادات', completed: true },
     { page: 'settings-imports.html', title: 'استيراد البيانات', group: 'الإعدادات', completed: true },
     { page: 'settings-users.html', title: 'المستخدمون', group: 'الإعدادات', completed: true },
+    { page: 'settings-defaults.html', title: 'إعدادات التطبيق', group: 'الإعدادات', completed: true },
     { page: 'app-admin.html', title: 'إدارة التطبيق', group: 'الإعدادات', completed: true },
     { page: 'settings-license.html', title: 'الترخيص والأجهزة', group: 'الإعدادات', completed: true },
     { page: 'settings-logs.html', title: 'سجل النشاطات', group: 'الإعدادات', completed: true },
@@ -2028,13 +2034,22 @@ function formatDate(date, format = 'short') {
 
 // ===== Number Formatting =====
 /**
- * تنسيق الأرقام بالفواصل
- * @param {number} num - الرقم
- * @returns {string} - الرقم المنسق
+ * تنسيق الأرقام
+ * @param {number|string|null|undefined} num - الرقم
+ * @param {'locale'|'fixed'} [style='locale'] - نمط العرض
+ *   - locale (default): toLocaleString('ar-MA') — grouping + locale digits (rest of app)
+ *   - fixed: Western digits; integers as String(n), else toFixed(1) — analytics KPIs (CH5)
+ * @returns {string}
+ *
+ * KD9: do not silent-merge analytics fixed display into locale (mixed digit systems).
  */
-function formatNumber(num) {
+function formatNumber(num, style) {
+    if (style === 'fixed') {
+        const n = Number(num) || 0;
+        return n % 1 === 0 ? String(n) : n.toFixed(1);
+    }
     if (num === null || num === undefined || isNaN(num)) return '0';
-    return num.toLocaleString('ar-MA');
+    return Number(num).toLocaleString('ar-MA');
 }
 
 /**

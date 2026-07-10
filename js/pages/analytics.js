@@ -1,10 +1,9 @@
 const year = getSchoolYear();
-const CHART_JS_CDN = 'vendor/chart.min.js';
+// CH6: Chart loader via window.ensureChartJsLoaded (js/shared/chart-theme.js)
 let detailChart = null;
 let barChart = null;
 let donutChart = null;
 let zeroSectionsChart = null;
-let chartLoaderPromise = null;
 let analyzeInProgress = false;
 let allSections = [];
 let allGradesCache = [];
@@ -64,33 +63,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('تعذر تحميل صفحة التحليل', 'error');
     }
 });
-
-function ensureChartJsLoaded() {
-    if (window.Chart) return Promise.resolve(window.Chart);
-    if (chartLoaderPromise) return chartLoaderPromise;
-
-    chartLoaderPromise = new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[data-dynamic-src="${CHART_JS_CDN}"]`);
-        if (existing) {
-            existing.addEventListener('load', () => resolve(window.Chart), { once: true });
-            existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), {
-                once: true
-            });
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = CHART_JS_CDN;
-        script.async = true;
-        script.defer = true;
-        script.dataset.dynamicSrc = CHART_JS_CDN;
-        script.onload = () => resolve(window.Chart);
-        script.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
-        document.head.appendChild(script);
-    });
-
-    return chartLoaderPromise;
-}
 
 function destroyAnalysisCharts() {
     if (detailChart) detailChart.destroy();

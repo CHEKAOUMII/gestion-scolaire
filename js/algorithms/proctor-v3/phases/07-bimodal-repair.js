@@ -67,6 +67,9 @@
 'use strict';
 
 var path = require('path');
+var _canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
+var canonicalProctorKey = _canonicalKeyModule.canonicalProctorKey;
+
 
 var hardConstraints = require(path.join(__dirname, '..', 'constraints', 'hard-constraints.js'));
 var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'));
@@ -80,6 +83,8 @@ var recordGuardOccupancy = hardConstraints.recordGuardOccupancy;
 var clearGuardOccupancy = hardConstraints.clearGuardOccupancy;
 
 var primaryLoad = loadStateUtils.primaryLoad;
+var decrementGuardLoad = loadStateUtils.decrementGuardLoad;
+var incrementGuardLoad = loadStateUtils.incrementGuardLoad;
 
 // Default time budget for Phase 7 (per design.md §4 Phase 7 — 5 seconds).
 var DEFAULT_TIME_BUDGET_MS = 5000;
@@ -88,12 +93,6 @@ var DEFAULT_TIME_BUDGET_MS = 5000;
 // time budget is generous but the swap search keeps thrashing. Each
 // iteration costs at most O(rows × slots × |donors| × |recipients|).
 var MAX_ITERATIONS = 5000;
-
-// AM/PM period tokens — kept in sync with utils/load-state.js. Duplicated
-// here so this module remains self-contained (load-state.js exposes them
-// only via _internals for testing).
-var AM_PERIODS = ['صباحا', 'AM', 'morning'];
-var PM_PERIODS = ['مساء', 'PM', 'afternoon'];
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -131,9 +130,8 @@ function periodFromHalfdayKey(halfdayKey) {
 }
 
 function canonicalKeyOf(proctor, idx) {
-    var cin = proctor && proctor.cin != null ? String(proctor.cin).trim() : '';
-    if (cin) return cin;
-    return '__idx_' + idx;
+    // SSOT: js/algorithms/proctor-v3/canonical-key.js
+    return canonicalProctorKey(proctor, idx);
 }
 
 /**
@@ -150,47 +148,6 @@ function buildProctorIndex(proctorsList) {
         byKey[k] = { proctor: p, idx: i };
     }
     return byKey;
-}
-
-/**
- * Mirror of Phase 5's load mutators. Decrement guardCount and the matching
- * AM/PM bucket. Floors at 0 defensively.
- */
-function decrementGuardLoad(loadState, key, period) {
-    if (!isPlainObject(loadState) || !isPlainObject(loadState.proctors)) return;
-    var entry = loadState.proctors[key];
-    if (!entry) return;
-    if (entry.guardCount > 0) entry.guardCount -= 1;
-    if (typeof period === 'string') {
-        if (AM_PERIODS.indexOf(period) !== -1) {
-            if (entry.amCount > 0) entry.amCount -= 1;
-        } else if (PM_PERIODS.indexOf(period) !== -1) {
-            if (entry.pmCount > 0) entry.pmCount -= 1;
-        }
-    }
-}
-
-function incrementGuardLoad(loadState, key, period) {
-    if (!isPlainObject(loadState) || !isPlainObject(loadState.proctors)) return;
-    var entry = loadState.proctors[key];
-    if (!entry) {
-        entry = {
-            guardCount: 0,
-            dutyCount: 0,
-            reserveCount: 0,
-            amCount: 0,
-            pmCount: 0
-        };
-        loadState.proctors[key] = entry;
-    }
-    entry.guardCount += 1;
-    if (typeof period === 'string') {
-        if (AM_PERIODS.indexOf(period) !== -1) {
-            entry.amCount += 1;
-        } else if (PM_PERIODS.indexOf(period) !== -1) {
-            entry.pmCount += 1;
-        }
-    }
 }
 
 function donorStillInSession(rows, donorKey, sessionKey, excludeRowIndex, excludeSlotIndex) {

@@ -15,10 +15,17 @@ const {
     addGuardLoad,
     addDutyLoad,
     addReserveLoad,
+    removeGuardLoad,
+    decrementGuardLoad,
+    incrementGuardLoad,
     primaryLoad,
     finalLoad,
     amCount,
     pmCount,
+    isAmPeriod,
+    isPmPeriod,
+    AM_PERIODS,
+    PM_PERIODS,
 } = require(path.join(
     __dirname,
     '..',
@@ -339,6 +346,58 @@ test('add* functions reject malformed loadState', () => {
     assert.throws(() => addGuardLoad(null, 'A1', 'h', 'd', 's', 'صباحا'), TypeError);
     assert.throws(() => addDutyLoad({}, 'A1', 'h'), TypeError);
     assert.throws(() => addReserveLoad({ proctors: null }, 'A1', 'h', 'd'), TypeError);
+});
+
+// ---------------------------------------------------------------------------
+// removeGuardLoad / incrementGuardLoad / period SSOT (repair-phase API)
+// ---------------------------------------------------------------------------
+
+test('removeGuardLoad decrements guard and AM/PM; floors at 0', () => {
+    const ls = createLoadState(['A1']);
+    addGuardLoad(ls, 'A1', 'h1', 'd1', 's1', 'صباحا');
+    addGuardLoad(ls, 'A1', 'h2', 'd1', 's2', 'زوالا');
+    assert.strictEqual(ls.proctors.A1.guardCount, 2);
+    assert.strictEqual(amCount(ls, 'A1'), 1);
+    assert.strictEqual(pmCount(ls, 'A1'), 1);
+
+    removeGuardLoad(ls, 'A1', 'صباحا');
+    assert.strictEqual(ls.proctors.A1.guardCount, 1);
+    assert.strictEqual(amCount(ls, 'A1'), 0);
+    assert.strictEqual(pmCount(ls, 'A1'), 1);
+
+    removeGuardLoad(ls, 'A1', 'زوالا');
+    assert.strictEqual(ls.proctors.A1.guardCount, 0);
+    assert.strictEqual(pmCount(ls, 'A1'), 0);
+
+    // floor
+    removeGuardLoad(ls, 'A1', 'صباحا');
+    assert.strictEqual(ls.proctors.A1.guardCount, 0);
+    assert.strictEqual(amCount(ls, 'A1'), 0);
+});
+
+test('decrementGuardLoad is alias of removeGuardLoad', () => {
+    const ls = createLoadState(['A1']);
+    incrementGuardLoad(ls, 'A1', 'مساء');
+    assert.strictEqual(ls.proctors.A1.guardCount, 1);
+    assert.strictEqual(pmCount(ls, 'A1'), 1);
+    decrementGuardLoad(ls, 'A1', 'مساء');
+    assert.strictEqual(ls.proctors.A1.guardCount, 0);
+    assert.strictEqual(pmCount(ls, 'A1'), 0);
+});
+
+test('incrementGuardLoad buckets زوالا as PM (SSOT includes زوالا)', () => {
+    const ls = createLoadState(['A1']);
+    incrementGuardLoad(ls, 'A1', 'زوالا');
+    assert.strictEqual(pmCount(ls, 'A1'), 1);
+    assert.strictEqual(amCount(ls, 'A1'), 0);
+});
+
+test('public AM_PERIODS / PM_PERIODS and isAm/isPm helpers', () => {
+    assert.ok(AM_PERIODS.includes('صباحا'));
+    assert.ok(PM_PERIODS.includes('زوالا'));
+    assert.ok(isAmPeriod('morning'));
+    assert.ok(isPmPeriod('زوالا'));
+    assert.ok(!isAmPeriod('زوالا'));
 });
 
 // ---------------------------------------------------------------------------

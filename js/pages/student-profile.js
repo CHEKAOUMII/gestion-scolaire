@@ -16,29 +16,17 @@ const _riskState = {
     unjustifiedHours: 0
 };
 
-// ─── Gender helpers (shared with students-list.js) ───
-function isMale(gender) {
-    const g = String(gender || '')
-        .trim()
-        .toLowerCase();
-    return g === 'm' || g === 'male' || g === 'ذكر';
-}
-function isFemale(gender) {
-    const g = String(gender || '')
-        .trim()
-        .toLowerCase();
-    return g === 'f' || g === 'female' || g === 'أنثى';
-}
-function getGenderLabel(gender) {
-    if (isMale(gender)) return 'ذكر';
-    if (isFemale(gender)) return 'أنثى';
-    return '-';
-}
-function getGenderIcon(gender) {
-    if (isMale(gender)) return 'fa-mars';
-    if (isFemale(gender)) return 'fa-venus';
-    return 'fa-genderless';
-}
+// BM Tab_Score results cached per axis (parallels _riskState).
+// Each slot holds the last { score, level, subScores } result from bm-scoring.js,
+// or null when the scorer has not been run yet / module not loaded.
+const _bmScoreState = {
+    economic: null,
+    social:   null,
+    health:   null,
+    followup: null
+};
+
+// CH8: isMale / isFemale / getGenderLabel / getGenderIcon via js/shared/gender.js
 
 // ─── Avatar helpers ───
 const avatarColors = [
@@ -89,6 +77,18 @@ function gradeHex(val) {
 
 // normalizeSubjectName() — provided by js/utils.js
 
+// ─── Grade dedup helper (shared by renderMiniStats + renderGradesTab) ───
+// Collapses grade records to one per (subject, semester) pair so both the
+// quick-stats card and the grades tab dedup identically and can never drift.
+function dedupeGrades(grades) {
+    const dedup = {};
+    (grades || []).forEach((g) => {
+        const key = `${String(g.subject || '').trim()}||${g.semester || ''}`;
+        dedup[key] = g;
+    });
+    return Object.values(dedup);
+}
+
 // ─── URL Params ───
 function getStudentCodeFromUrl() {
     const params = new URLSearchParams(window.location.search);
@@ -102,15 +102,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Tab switching
     initTabs();
 
-    // Back button
-    document.getElementById('sp-back-btn')?.addEventListener('click', () => {
-        window.location.href = 'students-list.html';
-    });
-
-    // Print button
-    document.getElementById('sp-print-btn')?.addEventListener('click', () => {
-        PrintSystem.preview({ title: 'ملف التلميذ', pageSize: 'A4' });
-    });
+    // Header actions (back + print preview). The shared setupUnifiedHeader()
+    // in utils.js rebuilds the .header and discards our original buttons, so we
+    // (re)attach the actions into the generated .page-title-row instead.
+    setupHeaderActions();
 
     if (!code) {
         showNoStudentState();
@@ -121,6 +116,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     initSaveButtons();
     initDirtyTracking();
     initUnsavedWarning();
+    injectScoreWidgets();
+    initBmScoring();
 
     await loadStudentProfile(code);
 });
@@ -207,18 +204,29 @@ async function loadStudentProfile(code) {
         // Render personal info
         renderPersonalInfo(student);
 
-        // Load grades, absences in parallel
-        const [allGrades, allAbsences] = await Promise.all([
-            window.api.grades.getAll(SCHOOL_YEAR).catch(() => []),
-            window.api.absences.getAll(SCHOOL_YEAR).catch(() => [])
+        // Load grades, absences in parallel — scoped server-side to this
+        // student (H1/R6). Results already come back filtered by student_code,
+        // so the redundant client-side `=== code` passes are dropped; only the
+        // numeric grade normalization/filter is kept.
+        const [rawGrades, rawAbsences] = await Promise.all([
+            window.api.grades.getByStudentCode(code, SCHOOL_YEAR).catch(() => []),
+            window.api.absences.getByStudentCode(code, SCHOOL_YEAR).catch(() => [])
         ]);
 
-        const studentGrades = (allGrades || [])
-            .filter((g) => String(g.student_code || g.student_id || '').trim() === code.trim())
-            .map((g) => ({ ...g, grade: Number(g.grade) }))
-            .filter((g) => Number.isFinite(g.grade));
+        // Classify the RAW value as entered/not-entered BEFORE numeric coercion
+        // (Bug 1). `Number(null)`/`Number('')`/`Number('  ')` all evaluate to a
+        // finite `0`, so coercing first would smuggle not-entered placeholders
+        // in as phantom zeros. Filtering on `isGradeEntered(g.grade)` first keeps
+        // only real marks — genuine `0`/`'0'` included — and discards not-entered
+        // slots, so `studentGrades` (and every downstream KPI/average/risk input)
+        // never contains a phantom zero.
+        const studentGrades = (rawGrades || [])
+            .filter((g) => (typeof isGradeEntered === 'function'
+                ? isGradeEntered(g && g.grade)
+                : Number.isFinite(Number(g && g.grade))))
+            .map((g) => ({ ...g, grade: Number(g.grade) }));
 
-        const studentAbsences = (allAbsences || []).filter((a) => String(a.student_code || '').trim() === code.trim());
+        const studentAbsences = rawAbsences || [];
 
         // Render grades tab
         renderGradesTab(student, studentGrades);
@@ -317,13 +325,8 @@ function renderMiniStats(grades, absences, student) {
 
     // Subject count for the quick-stats card (unchanged behavior): count the
     // distinct base subjects across the student's grade records.
-    const dedup = {};
-    grades.forEach((g) => {
-        const key = `${String(g.subject || '').trim()}||${g.semester || ''}`;
-        dedup[key] = g;
-    });
     const subjectSet = new Set();
-    Object.values(dedup).forEach((g) => {
+    dedupeGrades(grades).forEach((g) => {
         const subj =
             (typeof ccBaseSubject === 'function'
                 ? ccBaseSubject(normalizeSubjectName(g.subject))
@@ -389,13 +392,9 @@ function renderGradesTab(student, rawGrades) {
     const container = document.getElementById('sp-grades-content');
     if (!container) return;
 
-    // Deduplicate
-    const dedup = {};
-    rawGrades.forEach((g) => {
-        const key = `${String(g.subject || '').trim()}||${g.semester || ''}`;
-        dedup[key] = g;
-    });
-    const studentGrades = Object.values(dedup);
+    // Deduplicate via the shared helper (keeps this tab in sync with the
+    // quick-stats card — same (subject, semester) collapse).
+    const studentGrades = dedupeGrades(rawGrades);
 
     if (!studentGrades.length) {
         container.innerHTML = `
@@ -450,8 +449,10 @@ function renderGradesTab(student, rawGrades) {
             ? computeStudentAverages(rawGrades, branch)
             : { term1: null, term2: null, general: null };
 
-    const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
-    const minGrade = Math.min(...studentGrades.map((g) => g.grade));
+    // reduce-based max/min avoids the call-stack overflow risk of
+    // Math.max(...arr) / Math.min(...arr) on large grade arrays (L3).
+    const maxGrade = studentGrades.reduce((m, g) => (g.grade > m ? g.grade : m), -Infinity);
+    const minGrade = studentGrades.reduce((m, g) => (g.grade < m ? g.grade : m), Infinity);
 
     // Build an average KPI cell, applying grade color only when formatAverage
     // returns a non-null color (placeholders are rendered without color).
@@ -758,10 +759,9 @@ function bmSetBadges(containerId, values, colorMap) {
         const val = el.dataset.value;
         if (values.includes(val)) {
             const color = colorMap?.[val] || el.className.replace(/bm-badge\s*bm-badge-off/, '').trim();
-            // Extract color from onclick attribute
-            const onclickStr = el.getAttribute('onclick') || '';
-            const colorMatch = onclickStr.match(/bmTog\(this,'(\w+)'/);
-            const badgeColor = colorMatch ? colorMatch[1] : 'blue';
+            // Color comes from the declarative data-color attribute (H2/R9),
+            // matching the badge's onclick color, with a 'blue' fallback.
+            const badgeColor = el.dataset.color || 'blue';
             el.className = 'bm-badge bm-badge-' + badgeColor;
             el.setAttribute('aria-checked', 'true');
         } else {
@@ -1028,6 +1028,7 @@ async function loadAllProfileTabs(studentCode, studentId) {
 
         // Auto-update risk from profile data
         bmAutoRiskFromTabs();
+        updateAllScoreWidgets();
     } catch (err) {
         console.error('Load profile tabs error:', err);
     }
@@ -1068,9 +1069,9 @@ function bmAutoRiskFromTabs() {
 function activateRiskBadge(dataValue) {
     const badge = document.querySelector(`#tab-risk .bm-badge[data-value="${dataValue}"]`);
     if (badge && badge.classList.contains('bm-badge-off')) {
-        const onclickStr = badge.getAttribute('onclick') || '';
-        const colorMatch = onclickStr.match(/bmTog\(this,'(\w+)'/);
-        const color = colorMatch ? colorMatch[1] : 'amber';
+        // Color comes from the declarative data-color attribute (H2/R9), with
+        // an 'amber' fallback (the prior default for risk badges).
+        const color = badge.dataset.color || 'amber';
         badge.className = 'bm-badge bm-badge-' + color;
         badge.setAttribute('aria-checked', 'true');
     }
@@ -1085,6 +1086,41 @@ function activateRiskBadge(dataValue) {
 
 const _RISK_LEVEL_SOLID = ['var(--color-success-solid)', 'var(--color-warning-solid)', 'var(--color-danger-solid)'];
 const _RISK_LEVEL_TEXT = ['var(--color-success-text)', 'var(--color-warning-text)', 'var(--color-danger-text)'];
+
+// ── Risk snapshot persistence (H3/R7) ──
+// Persists the computed dropout-risk score/level into student_risk_snapshot
+// (keyed by student_code + school_year). Debounced so rapid edits collapse
+// into a single write, deduped so identical values are not re-sent, and fails
+// silently (console.error) so a write error never blocks the UI.
+let _riskSnapshotTimer = null;
+let _lastRiskSnapshot = null;
+
+function persistRiskSnapshot(score, level) {
+    if (!_currentStudentCode) return;
+    if (score == null) return;
+    if (!window.api?.studentProfile?.saveRiskSnapshot) return;
+
+    const snapshotKey = `${score}|${level}`;
+    if (snapshotKey === _lastRiskSnapshot) return; // unchanged → skip the write
+
+    clearTimeout(_riskSnapshotTimer);
+    _riskSnapshotTimer = setTimeout(() => {
+        _lastRiskSnapshot = snapshotKey;
+        window.api.studentProfile
+            .saveRiskSnapshot({
+                student_id: _currentStudentId,
+                student_code: _currentStudentCode,
+                risk_score: score,
+                risk_level: level,
+                school_year: SCHOOL_YEAR
+            })
+            .catch((err) => {
+                // Allow a later edit with the same values to retry the write.
+                _lastRiskSnapshot = null;
+                console.error('Save risk snapshot error:', err);
+            });
+    }, 800);
+}
 
 function collectRiskInputs() {
     const eco = typeof collectEconomicData === 'function' ? collectEconomicData() : {};
@@ -1119,6 +1155,14 @@ function collectRiskInputs() {
             treatment: health.treatment,
             psychSupport: health.psych_support,
             psychReferral: health.psych_referral
+        },
+        // NEW: BM Tab_Scores attached for the axis-summary card (Req 6.3).
+        // Not consumed by computeStudentRisk() — backward compatible.
+        bmScores: {
+            economic: _bmScoreState.economic?.score ?? null,
+            social:   _bmScoreState.social?.score   ?? null,
+            health:   _bmScoreState.health?.score   ?? null,
+            followup: _bmScoreState.followup?.score ?? null
         }
     };
 }
@@ -1128,6 +1172,10 @@ function renderStudentRiskTab() {
 
     const result = window.computeStudentRisk(collectRiskInputs());
     const { layer1, layer2, final } = result;
+
+    // Persist the computed dropout-risk snapshot (H3/R7). Debounced + guarded
+    // internally so it never fires on every keystroke and never blocks the UI.
+    persistRiskSnapshot(final.score, final.label);
 
     const bar = document.getElementById('bm-risk-bar');
     const lbl = document.getElementById('bm-risk-main-lbl');
@@ -1164,25 +1212,293 @@ function renderStudentRiskTab() {
             : '';
     }
 
-    // Recommendation. When Layer 1 (worst-wins) escalates above the composite
-    // level, surface that the classification is driven by a single criterion.
+    // Recommendation. The worst-wins axis attribution is no longer inlined here;
+    // it is promoted to a prominent on-gauge badge (see below) so the gauge and
+    // its label never read as a self-contradiction.
     if (rec) {
         rec.style.borderInlineEndColor = solid;
-        let text = result.recommendation;
+        rec.textContent = result.recommendation;
+    }
+
+    // ── Bug 2 display-only fix — color by final level, separate composite/axis
+    // facts, triggering-axis badge, preliminary marker. The pure engine
+    // (js/student-risk.js) is untouched: the gauge is colored strictly by
+    // `final.level` (see `solid` above) while `layer2.composite` and the highest
+    // axis are surfaced as SEPARATE, non-contradictory facts. A worst-wins
+    // escalation therefore never looks like an error.
+    const LEVEL_LABEL = (window.GS2 && window.GS2.StudentRisk && window.GS2.StudentRisk.LEVEL_LABEL)
+        || ['عادي', 'خطر', 'حرج'];
+
+    // Composite index + highest axis as distinct, labeled facts.
+    const facts = document.getElementById('bm-risk-facts');
+    if (facts) {
+        facts.innerHTML =
+            `<span class="bm-risk-fact">المؤشر المركّب = ${layer2.composite}%</span>` +
+            `<span class="bm-risk-fact">أعلى محور = ${escapeHtml(LEVEL_LABEL[layer1.level] || '—')}</span>`;
+    }
+
+    // Triggering-axis badge — shown only when a single axis (worst-wins) escalates
+    // the file above the composite zone.
+    const badge = document.getElementById('bm-risk-badge');
+    if (badge) {
         if (layer1.level > layer2.level) {
-            const worst = layer1.criteria
+            const triggering = layer1.criteria
                 .filter((c) => c.level === layer1.level)
                 .map((c) => c.label)
                 .join('، ');
-            text = `صُنّف «${final.label}» بناءً على معيار فردي حرج (${worst}) رغم أن المؤشر المركّب = ${layer2.composite}%. ${text}`;
+            badge.style.display = '';
+            badge.style.background = solid;
+            badge.style.color = _RISK_LEVEL_TEXT[final.level] || 'var(--color-text)';
+            badge.textContent = `صُنّف «${final.label}» بسبب محور: ${triggering}`;
+        } else {
+            badge.style.display = 'none';
+            badge.textContent = '';
         }
-        rec.textContent = text;
     }
+
+    // Preliminary marker — the index is computed on available data only while the
+    // year is in progress (a term with no entered marks).
+    const prelim = document.getElementById('bm-risk-prelim');
+    if (prelim) {
+        if (_riskState && _riskState.dataIncomplete) {
+            prelim.style.display = '';
+            prelim.textContent = 'أولي / قيد الإنجاز';
+        } else {
+            prelim.style.display = 'none';
+            prelim.textContent = '';
+        }
+    }
+
+    // ── Axis Summary Card (Req 6.3) ───────────────────────────────────────
+    // Inject the card container once; re-render its rows on every call.
+    // Shows economic, social, health only — followup excluded (social worker).
+    const AXIS_LABELS = {
+        economic: 'الجانب الاقتصادي',
+        social:   'الجانب الاجتماعي',
+        health:   'الجانب الصحي والنفسي'
+    };
+    const BM_LEVEL_COLOR = {
+        'منخفض': 'var(--color-success-solid)',
+        'متوسط': 'var(--color-warning-solid)',
+        'مرتفع': 'var(--color-danger-solid)'
+    };
+
+    const riskTab = document.getElementById('tab-risk');
+    if (riskTab && !document.getElementById('bm-axis-summary-card')) {
+        riskTab.insertAdjacentHTML('beforeend',
+            '<div id="bm-axis-summary-card" class="bm-axis-summary-card" style="display:none">' +
+                '<h4 class="sp-section-title"><i class="fas fa-chart-bar"></i> ملخص مؤشرات المحاور</h4>' +
+                '<div id="bm-axis-summary-rows"></div>' +
+            '</div>'
+        );
+    }
+
+    const summaryCard = document.getElementById('bm-axis-summary-card');
+    if (summaryCard) {
+        const inputs = collectRiskInputs();
+        const bm = inputs.bmScores || {};
+        const keys = ['economic', 'social', 'health'];
+        const allNonNull = keys.every(k => bm[k] !== null && bm[k] !== undefined);
+
+        summaryCard.style.display = allNonNull ? 'block' : 'none';
+
+        if (allNonNull) {
+            const rowsEl = document.getElementById('bm-axis-summary-rows');
+            if (rowsEl) {
+                const levelLabel = (score) => {
+                    if (score < 40) return 'منخفض';
+                    if (score < 70) return 'متوسط';
+                    return 'مرتفع';
+                };
+                rowsEl.innerHTML = keys.map(k => {
+                    const score = Math.round(bm[k]);
+                    const level = levelLabel(score);
+                    const color = BM_LEVEL_COLOR[level] || 'var(--color-accent)';
+                    return `<div class="bm-progress-row">` +
+                        `<span class="bm-progress-lbl">${AXIS_LABELS[k]}</span>` +
+                        `<div class="bm-progress-bg">` +
+                            `<div class="bm-progress-fill" style="width:${score}%;background:${color}"></div>` +
+                        `</div>` +
+                        `<span style="font-size:11px;min-width:64px;text-align:start;color:${color}">${level} — %${score}</span>` +
+                    `</div>`;
+                }).join('');
+            }
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 }
 
 // Expose for the inline bmUpdateRisk() wrapper and event handlers.
 if (typeof window !== 'undefined') {
     window.renderStudentRiskTab = renderStudentRiskTab;
+}
+
+// ── Score_Widget Injection ──
+
+/**
+ * Injects a Score_Widget at the top of each BM tab panel (economic, social, health only).
+ * The followup tab is excluded — it belongs to the social worker.
+ * Called once at DOMContentLoaded, before initBmScoring().
+ */
+function injectScoreWidgets() {
+    const TAB_LABELS = {
+        economic: 'مؤشر الجانب الاقتصادي',
+        social:   'مؤشر الجانب الاجتماعي',
+        health:   'مؤشر الجانب الصحي والنفسي'
+    };
+
+    Object.entries(TAB_LABELS).forEach(([key, label]) => {
+        const panel = document.getElementById('tab-' + key);
+        if (!panel) return;
+
+        // Widget layout mirrors the existing risk indicator style:
+        // • Title row: dot + label name (top)
+        // • Bar row: level+percentage on the left, full-width bar (RTL)
+        const html = `<div id="bm-score-widget-${key}" class="bm-score-widget" role="status" aria-live="polite" aria-label="${label}: غير محسوب" style="margin-bottom:12px">
+  <div class="bm-sec-title" style="margin-bottom:4px">
+    <span class="bm-dot" id="bm-score-dot-${key}" style="background:var(--color-border)"></span>
+    ${label}
+  </div>
+  <div class="bm-risk-wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span id="bm-score-val-${key}" style="font-size:13px;font-weight:500;color:var(--color-text-muted)">—</span>
+      <span id="bm-score-badge-${key}" style="font-size:12px;color:var(--color-text-muted)"></span>
+    </div>
+    <div class="bm-risk-bar-bg">
+      <div id="bm-score-bar-${key}" class="bm-risk-bar-fill" style="width:0%;background:var(--color-border);transition:width 0.3s ease,background 0.3s ease"></div>
+    </div>
+  </div>
+</div>`;
+
+        panel.insertAdjacentHTML('afterbegin', html);
+    });
+}
+
+// ── Score_Widget Renderer ──
+
+/**
+ * Updates the Score_Widget for a given axis key with a TabScoreResult.
+ * Only handles economic, social, health — followup has no widget.
+ * @param {'economic'|'social'|'health'} key
+ * @param {{ score: number|null, level: string|null, subScores: object }|null} result
+ */
+function updateScoreWidget(key, result) {
+    // Followup tab has no widget — skip silently
+    if (key === 'followup') return;
+
+    const AXIS_NAMES = {
+        economic: 'الجانب الاقتصادي',
+        social:   'الجانب الاجتماعي',
+        health:   'الجانب الصحي والنفسي'
+    };
+
+    const COLOR_MAP = {
+        'منخفض': 'var(--color-success-solid)',
+        'متوسط': 'var(--color-warning-solid)',
+        'مرتفع': 'var(--color-danger-solid)'
+    };
+
+    const container = document.getElementById('bm-score-widget-' + key);
+    const valEl     = document.getElementById('bm-score-val-' + key);
+    const barEl     = document.getElementById('bm-score-bar-' + key);
+    const badgeEl   = document.getElementById('bm-score-badge-' + key);
+    const dotEl     = document.getElementById('bm-score-dot-' + key);
+
+    // Guard: return silently if any element is missing
+    if (!container || !valEl || !barEl || !badgeEl) return;
+
+    const axisName = AXIS_NAMES[key] || key;
+    const score = result && result.score != null ? result.score : null;
+
+    if (score === null) {
+        // Null / not-computed state
+        valEl.textContent      = '—';
+        valEl.style.color      = 'var(--color-text-muted)';
+        barEl.style.width      = '0%';
+        barEl.style.background = 'var(--color-border)';
+        badgeEl.textContent    = '';
+        if (dotEl) dotEl.style.background = 'var(--color-border)';
+        container.setAttribute('aria-label', 'مؤشر ' + axisName + ': غير محسوب');
+    } else {
+        // Non-null state
+        const clamped = Math.min(100, Math.max(0, score));
+        const level   = result.level || '';
+        const color   = COLOR_MAP[level] || 'var(--color-accent)';
+
+        // Left side: "مرتفع — %47" style (mirrors the risk indicator)
+        valEl.textContent      = level + ' — %' + clamped;
+        valEl.style.color      = color;
+        barEl.style.width      = clamped + '%';
+        barEl.style.background = color;
+        badgeEl.textContent    = '';  // no separate badge — info is in valEl
+        if (dotEl) dotEl.style.background = color;
+        container.setAttribute('aria-label',
+            'مؤشر ' + axisName + ': ' + clamped + ' من 100 — ' + level);
+    }
+}
+
+// ── BM Scoring Wiring ──
+
+/**
+ * Wires live event listeners on each BM tab to trigger score recomputation.
+ * Uses a 500 ms debounce per tab; score display updates after an additional 200 ms.
+ * Called once at DOMContentLoaded, after injectScoreWidgets().
+ * Requirements: 1.3, 2.3, 3.3, 4.3, 7.4
+ */
+function initBmScoring() {
+    if (!window.GS2?.BmScoring) return;  // graceful degradation
+
+    const { computeEconomicScore, computeSocialScore, computeHealthScore, computeFollowupScore } = window.GS2.BmScoring;
+
+    const tabMapping = {
+        'tab-economic': { key: 'economic', scorer: computeEconomicScore, collector: collectEconomicData },
+        'tab-social':   { key: 'social',   scorer: computeSocialScore,   collector: collectSocialData   },
+        'tab-health':   { key: 'health',   scorer: computeHealthScore,   collector: collectHealthData   }
+        // followup tab excluded — belongs to the social worker, no widget
+    };
+
+    const timers = {};  // debounce timer handles, one per tab key
+
+    Object.entries(tabMapping).forEach(([tabId, { key, scorer, collector }]) => {
+        const tabEl = document.getElementById(tabId);
+        if (!tabEl) return;
+
+        const handler = () => {
+            clearTimeout(timers[key]);
+            timers[key] = setTimeout(() => {
+                const result = scorer(collector());
+                _bmScoreState[key] = result;
+                // Display update after additional 200ms
+                setTimeout(() => updateScoreWidget(key, result), 200);
+                renderStudentRiskTab();
+            }, 500);
+        };
+
+        tabEl.addEventListener('change', handler);
+        tabEl.addEventListener('input', handler);
+        tabEl.addEventListener('click', (e) => {
+            if (e.target.closest('.bm-badge') || e.target.closest('.bm-scale-btn')) {
+                handler();
+            }
+        });
+    });
+}
+
+/**
+ * Recomputes scores for all four BM axes and updates their Score_Widgets.
+ * Called after loading tab data from the database via loadAllProfileTabs().
+ * Requirement: 7.5
+ */
+function updateAllScoreWidgets() {
+    if (!window.GS2?.BmScoring) return;
+    const { computeEconomicScore, computeSocialScore, computeHealthScore, computeFollowupScore } = window.GS2.BmScoring;
+    _bmScoreState.economic = computeEconomicScore(collectEconomicData());
+    _bmScoreState.social   = computeSocialScore(collectSocialData());
+    _bmScoreState.health   = computeHealthScore(collectHealthData());
+    _bmScoreState.followup = computeFollowupScore(collectFollowupData()); // still computed for risk engine, no widget
+    ['economic', 'social', 'health'].forEach(key => {
+        updateScoreWidget(key, _bmScoreState[key]);
+    });
 }
 
 // ── Dirty Tracking ──
@@ -1288,3 +1604,579 @@ function initSaveButtons() {
     `;
     document.head.appendChild(style);
 })();
+
+// ═══════════════════════════════════════════════════════════════
+// ── Header Actions (back + print preview) ──
+// The shared unified header (utils.js → setupUnifiedHeader) rebuilds .header
+// on load and removes the page's own buttons, then moves the title into a
+// generated .page-title-row. We attach our actions there so they survive and
+// stay visible next to the page title. Falls back to the static header buttons
+// if the unified header is not present.
+// ═══════════════════════════════════════════════════════════════
+function setupHeaderActions() {
+    const openPreview = () => {
+        buildStudentPrintSheet();
+        PrintSystem.preview({
+            contentSelector: '#sp-export-sheet',
+            title: 'ملف التلميذ',
+            pageSize: 'A4'
+        });
+    };
+    // Blank "بطاقة التتبع": prints only the four follow-up form tabs
+    // (economic/social/health/follow-up) as an empty, hand-fillable form so a
+    // counselor can complete it on paper and digitize it later.
+    const openBlankCard = () => {
+        buildBlankTrackingSheet();
+        PrintSystem.preview({
+            contentSelector: '#sp-blank-sheet',
+            title: 'بطاقة التتبع',
+            pageSize: 'A4'
+        });
+    };
+    const goBack = () => {
+        window.location.href = 'students-list.html';
+    };
+
+    // Fallback: wire the original header buttons if they still exist.
+    document.getElementById('sp-print-btn')?.addEventListener('click', openPreview);
+    document.getElementById('sp-blank-card-btn')?.addEventListener('click', openBlankCard);
+    document.getElementById('sp-back-btn')?.addEventListener('click', goBack);
+
+    const attach = () => {
+        if (document.getElementById('sp-print-btn-row')) return true; // already added
+        const titleRow =
+            document.querySelector('.main-content > .page-title-row') ||
+            document.querySelector('.page-title-row');
+        if (!titleRow) return false; // unified header not ready yet → retry
+
+        // Lay the title and actions on opposite ends of the row.
+        titleRow.style.display = 'flex';
+        titleRow.style.alignItems = 'center';
+        titleRow.style.justifyContent = 'space-between';
+        titleRow.style.gap = '10px';
+        titleRow.style.flexWrap = 'wrap';
+
+        const actions = document.createElement('div');
+        actions.className = 'sp-header-actions';
+        actions.innerHTML =
+            '<button class="btn btn-secondary" id="sp-back-btn-row" title="العودة للائحة التلاميذ"><i class="fas fa-arrow-right"></i> العودة</button>' +
+            '<button class="btn btn-secondary" id="sp-blank-card-btn-row" title="طباعة بطاقة تتبع فارغة لتعبئتها يدوياً"><i class="fas fa-clipboard-list"></i> بطاقة تتبع فارغة</button>' +
+            '<button class="btn btn-primary" id="sp-print-btn-row" title="معاينة وطباعة ملف التلميذ"><i class="fas fa-print"></i> معاينة الطباعة</button>';
+        titleRow.appendChild(actions);
+
+        document.getElementById('sp-print-btn-row')?.addEventListener('click', openPreview);
+        document.getElementById('sp-blank-card-btn-row')?.addEventListener('click', openBlankCard);
+        document.getElementById('sp-back-btn-row')?.addEventListener('click', goBack);
+        return true;
+    };
+
+    // The unified header normally runs first, but retry briefly in case it
+    // hasn't rebuilt the header yet.
+    if (!attach()) {
+        let tries = 0;
+        const timer = setInterval(() => {
+            if (attach() || ++tries > 20) clearInterval(timer);
+        }, 50);
+    }
+}
+
+
+// Builds a single, vertically-stacked document of every tab so the shared
+// PrintSystem can preview/print it. Display tabs (grades/absence/risk) are
+// cloned as-is; the form tabs (economic/social/health/followup) are flattened
+// into clean label→value summaries (no raw radios/checkboxes/textareas).
+// ═══════════════════════════════════════════════════════════════
+
+// One-time stylesheet for the print sheet (available in both the preview modal
+// and the print root since they live in the same document).
+(function injectPrintSheetStyles() {
+    if (document.getElementById('sp-print-sheet-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'sp-print-sheet-styles';
+    style.textContent = `
+        .sp-export-sheet { color:#1f2937 !important; font-size:12px !important; line-height:1.5 !important; }
+        .sp-export-sheet, .sp-export-sheet * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; box-sizing:border-box; }
+        .sp-export-sheet, .sp-export-sheet * { max-width:100% !important; }
+        /* Identity block: stacked and centered under the "ملف التلميذ" title. */
+        .sp-pr-head { display:flex !important; flex-direction:column; align-items:center; text-align:center; gap:9px; margin-bottom:18px; padding-bottom:14px; border-bottom:2px solid #2563eb; break-inside:avoid; page-break-inside:avoid; }
+        .sp-pr-avatar { width:54px !important; height:54px !important; min-width:54px; border-radius:50%; background:#2563eb; color:#fff; display:flex !important; align-items:center; justify-content:center; font-size:22px; font-weight:700; flex-shrink:0; }
+        .sp-pr-name { font-size:18px; font-weight:800; color:#111827; }
+        .sp-pr-meta { display:flex !important; flex-wrap:wrap; justify-content:center; gap:14px; font-size:12px; color:#6b7280; margin-top:4px; }
+        .sp-pr-meta i { color:#2563eb; margin-inline-end:4px; }
+        /* Let sections flow across pages so the first page isn't left half-empty;
+           inner cards/rows keep their own break-inside guards. */
+        .sp-pr-sec { margin-bottom:16px !important; }
+        .sp-pr-sec-h { display:flex !important; align-items:center; gap:8px; font-size:14px; font-weight:700; color:#1f2937; border-bottom:2px solid var(--sp-accent,#2563eb); padding-bottom:6px; margin:0 0 10px !important; break-after:avoid; page-break-after:avoid; }
+        .sp-pr-sec-h i { color:var(--sp-accent,#2563eb); }
+        /* Accent subsection header: small caps label with a leading accent rule. */
+        .sp-pr-sub { display:flex !important; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--sp-accent,#374151); margin:14px 0 9px !important; padding-inline-start:9px; border-inline-start:3px solid var(--sp-accent,#cbd5e1); break-after:avoid; page-break-after:avoid; }
+        /* Legacy two-column rows — still used by the risk section. */
+        .sp-pr-grid { display:grid !important; grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important; gap:2px 24px !important; }
+        .sp-pr-row { display:flex !important; justify-content:space-between; gap:10px; padding:4px 0; border-bottom:1px dotted #e5e7eb; break-inside:avoid; page-break-inside:avoid; min-width:0 !important; }
+        .sp-pr-row-block { flex-direction:column !important; align-items:stretch; grid-column:1 / -1 !important; }
+        .sp-pr-lbl { color:#6b7280; min-width:0; overflow-wrap:anywhere; }
+        .sp-pr-val { color:#111827; font-weight:600; text-align:left; min-width:0; overflow-wrap:anywhere; }
+        /* Info-tile grid — matches the on-screen quick-stat / KPI card language. */
+        .sp-pr-tiles { display:grid !important; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) !important; gap:8px !important; margin-bottom:4px; }
+        .sp-pr-tile { background:#f9fafb !important; border:1px solid #e5e7eb; border-radius:8px; padding:8px 11px; break-inside:avoid; page-break-inside:avoid; min-width:0; }
+        .sp-pr-tile-lbl { font-size:10.5px; color:#6b7280; margin-bottom:4px; overflow-wrap:anywhere; line-height:1.3; }
+        .sp-pr-tile-val { font-size:13px; font-weight:700; color:#111827; overflow-wrap:anywhere; line-height:1.35; }
+        .sp-pr-tile-val.is-danger { color:#dc2626; }
+        .sp-pr-tile-val.is-warn { color:#d97706; }
+        .sp-pr-tile-val.is-ok { color:#16a34a; }
+        /* Full-width blocks for chip groups and free-text notes inside the tile grid. */
+        .sp-pr-block { grid-column:1 / -1; }
+        .sp-pr-block-lbl { font-size:11px; font-weight:600; color:#6b7280; margin-bottom:6px; }
+        .sp-pr-chips { display:flex !important; flex-wrap:wrap; gap:6px; margin-top:2px; }
+        .sp-pr-chip { background:color-mix(in srgb, var(--sp-accent,#2563eb) 10%, #fff) !important; color:var(--sp-accent,#1d4ed8) !important; border:1px solid color-mix(in srgb, var(--sp-accent,#2563eb) 28%, #fff); border-radius:999px; padding:3px 11px; font-size:11px; font-weight:600; }
+        .sp-pr-note { background:#f9fafb !important; border:1px solid #e5e7eb; border-inline-start:3px solid var(--sp-accent,#cbd5e1); border-radius:6px; padding:8px 10px; margin-top:2px; white-space:pre-wrap; color:#111827; line-height:1.5; }
+        .sp-pr-empty { color:#9ca3af; font-style:italic; padding:6px 0; }
+        /* Keep cloned tab cards intact across page breaks */
+        .sp-export-sheet .sp-kpi, .sp-export-sheet .sp-subject-block, .sp-export-sheet .sp-absence-record,
+        .sp-export-sheet .sp-chart-row, .sp-export-sheet .bm-progress-row, .sp-export-sheet tr { break-inside:avoid; page-break-inside:avoid; }
+        .sp-export-sheet table { width:100% !important; }
+        /* PDF/print only: the shared sheet is a fixed 210mm with overflow:hidden,
+           which is wider than the printable area and clips the (RTL) left edge.
+           Make it fit the page width so nothing is cut. */
+        body.ux-printing-active #ux-print-root .ux-pp-sheet {
+            width:100% !important;
+            min-height:0 !important;
+            padding:6mm !important;
+            overflow:visible !important;
+        }
+    `;
+    document.head.appendChild(style);
+})();
+
+// Escape helper (falls back if the shared one is unavailable).
+function _spEsc(s) {
+    if (typeof escapeHtml === 'function') return escapeHtml(String(s == null ? '' : s));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+    );
+}
+
+// Map a (human-readable) value to a severity tone, mirroring the app's risk
+// color language so a counselor scanning the print can spot concerns at a
+// glance. Conservative: unknown values stay neutral (no class).
+function _spValueTone(text) {
+    const t = String(text || '');
+    const danger = ['ضعيفة', 'ضعيف', 'متوترة', 'سيء جدًا', 'سيء', 'سيئة', 'فقر مدقع', 'هشة', 'هش', 'غير لائقة', 'مطلقون', 'أرملة', 'أرمل', 'غائب', 'بدون تعليم', 'بدون دخل', 'غير كافية', 'غير كافٍ', 'منخفض جدًا', 'معدومة'];
+    const warn = ['متوسطة', 'متوسط', 'عادية', 'عادي', 'أحياناً', 'مكتظة', 'غير منتظم', 'متقطع', 'ابتدائي'];
+    const ok = ['جيدة', 'جيد', 'ممتاز', 'ميسور', 'كافٍ', 'كافية', 'عالٍ', 'عالية', 'مكتملة', 'ملائمة', 'مرتفع'];
+    if (danger.some((w) => t.includes(w))) return 'is-danger';
+    if (warn.some((w) => t.includes(w))) return 'is-warn';
+    if (ok.some((w) => t.includes(w))) return 'is-ok';
+    return '';
+}
+
+// Render a flat list of { label, type, html?, chips? } rows as a tile grid that
+// matches the on-screen quick-stat card language. Inline values become tiles;
+// chip groups and notes span the full width.
+function _spRenderRows(rows) {
+    if (!rows.length) return '<div class="sp-pr-empty">لا توجد بيانات مسجلة</div>';
+    return (
+        '<div class="sp-pr-tiles">' +
+        rows
+            .map((r) => {
+                if (r.type === 'chips') {
+                    const chips = r.chips.map((c) => `<span class="sp-pr-chip">${c}</span>`).join('');
+                    return `<div class="sp-pr-block">${r.label ? `<div class="sp-pr-block-lbl">${_spEsc(r.label)}</div>` : ''}<div class="sp-pr-chips">${chips}</div></div>`;
+                }
+                if (r.type === 'note') {
+                    return `<div class="sp-pr-block"><div class="sp-pr-block-lbl">${_spEsc(r.label)}</div><div class="sp-pr-note">${r.html}</div></div>`;
+                }
+                const tone = _spValueTone(r.html);
+                return `<div class="sp-pr-tile"><div class="sp-pr-tile-lbl">${_spEsc(r.label)}</div><div class="sp-pr-tile-val${tone ? ' ' + tone : ''}">${r.html}</div></div>`;
+            })
+            .join('') +
+        '</div>'
+    );
+}
+
+// Resolve the human-readable text of a radio/checkbox option. Reads the text
+// that follows the input (handles `<label><input> نص</label>` and bare
+// `<input> نص`), falling back to a wrapping/associated label, then the value.
+function _spOptionLabel(input) {
+    let txt = '';
+    let n = input.nextSibling;
+    while (n && !(n.nodeType === 1 && (n.tagName === 'INPUT' || n.tagName === 'LABEL'))) {
+        txt += n.textContent || '';
+        n = n.nextSibling;
+    }
+    txt = txt.replace(/\s+/g, ' ').trim();
+    if (txt) return txt;
+
+    const lbl = input.closest('label');
+    if (lbl) {
+        const lt = lbl.textContent.replace(/\s+/g, ' ').trim();
+        if (lt) return lt;
+    }
+    if (input.id) {
+        const f = document.querySelector('label[for="' + input.id + '"]');
+        if (f) {
+            const ft = f.textContent.replace(/\s+/g, ' ').trim();
+            if (ft) return ft;
+        }
+    }
+    return input.value;
+}
+
+// Extract a readable value from the control element associated with a label.
+function _spControlValue(ctrl) {
+    if (!ctrl) return null;
+    const tag = ctrl.tagName;
+
+    if (tag === 'TEXTAREA') {
+        const v = (ctrl.value || '').trim();
+        return v ? { type: 'note', html: _spEsc(v) } : null;
+    }
+    if (tag === 'INPUT') {
+        const v = (ctrl.value || '').trim();
+        return v ? { type: 'inline', html: _spEsc(v) } : null;
+    }
+
+    // Radio group → selected option's label text
+    const radio = ctrl.querySelector && ctrl.querySelector('input[type="radio"]:checked');
+    if (radio) {
+        return { type: 'inline', html: _spEsc(_spOptionLabel(radio)) };
+    }
+
+    // Checkbox group → list of checked labels
+    const checks = ctrl.querySelectorAll ? ctrl.querySelectorAll('input[type="checkbox"]:checked') : [];
+    if (checks.length) {
+        return {
+            type: 'chips',
+            chips: Array.from(checks).map((c) => _spEsc(_spOptionLabel(c)))
+        };
+    }
+
+    // Badge group → active badges
+    const badges = ctrl.querySelectorAll ? ctrl.querySelectorAll('.bm-badge:not(.bm-badge-off)') : [];
+    if (badges.length) {
+        return { type: 'chips', chips: Array.from(badges).map((b) => _spEsc(b.textContent.trim())) };
+    }
+
+    // Scale row → selected number + its descriptive label
+    if (ctrl.classList && ctrl.classList.contains('bm-scale-row')) {
+        const sel = ctrl.querySelector('.bm-sel-scale');
+        if (!sel) return null;
+        const lblSpan = ctrl.querySelector('span[id$="-lbl"]');
+        const extra = lblSpan ? lblSpan.textContent.replace('←', '').trim() : '';
+        return { type: 'inline', html: _spEsc(sel.textContent.trim() + (extra ? ' / ' + extra : '')) };
+    }
+
+    // Nested single input/textarea fallback (text/number/date only — never
+    // radios/checkboxes, otherwise an unselected group would wrongly surface
+    // its first option's value).
+    const inner = ctrl.querySelector && ctrl.querySelector('input:not([type="radio"]):not([type="checkbox"]), textarea');
+    if (inner) {
+        const v = (inner.value || '').trim();
+        return v ? { type: 'inline', html: _spEsc(v) } : null;
+    }
+    return null;
+}
+
+// Does an element directly hold badges (and no field labels)? Used to capture
+// badge groups that follow a section title without their own .bm-sub-lbl.
+function _spIsBadgeContainer(el) {
+    return !!(el && el.querySelector && el.querySelector('.bm-badge') && !el.querySelector('.bm-sub-lbl'));
+}
+
+// Flatten a form tab panel into readable section/row HTML.
+function _spSummarizePanel(panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return '<div class="sp-pr-empty">لا توجد بيانات مسجلة</div>';
+
+    const nodes = panel.querySelectorAll('.bm-sec-title, .bm-sub-lbl, .bm-mc-lbl');
+    const sections = [];
+    let cur = null;
+    const ensure = () => {
+        if (!cur) {
+            cur = { title: '', rows: [] };
+            sections.push(cur);
+        }
+        return cur;
+    };
+
+    nodes.forEach((node) => {
+        if (node.closest('.bm-score-widget') || node.closest('.bm-save-bar')) return;
+
+        if (node.classList.contains('bm-sec-title')) {
+            cur = { title: node.textContent.trim(), rows: [] };
+            sections.push(cur);
+            // A badge group may directly follow the section title (no label).
+            const sib = node.nextElementSibling;
+            if (_spIsBadgeContainer(sib)) {
+                const v = _spControlValue(sib);
+                if (v) cur.rows.push({ label: '', ...v });
+            }
+            return;
+        }
+
+        // Field label → pair with its control (next sibling).
+        const v = _spControlValue(node.nextElementSibling);
+        if (v) ensure().rows.push({ label: node.textContent.trim(), ...v });
+    });
+
+    const withRows = sections.filter((s) => s.rows.length);
+    if (!withRows.length) return '<div class="sp-pr-empty">لا توجد بيانات مسجلة</div>';
+
+    return withRows
+        .map((s) => (s.title ? `<div class="sp-pr-sub">${_spEsc(s.title)}</div>` : '') + _spRenderRows(s.rows))
+        .join('');
+}
+
+// Clone rendered display content, stripping ids and interactive controls.
+function _spCloneDisplay(srcEl) {
+    if (!srcEl) return '';
+    const tmp = srcEl.cloneNode(true);
+    tmp.querySelectorAll('button, .bm-save-bar, .bm-score-widget, script, .fa-spinner').forEach((e) => e.remove());
+    tmp.querySelectorAll('[id]').forEach((e) => e.removeAttribute('id'));
+    return tmp.innerHTML.trim();
+}
+
+// Build a titled section wrapper.
+function _spSection(icon, title, accent, innerHTML) {
+    return (
+        `<section class="sp-pr-sec" style="--sp-accent:${accent}">` +
+        `<h3 class="sp-pr-sec-h"><i class="fas ${icon}"></i> ${_spEsc(title)}</h3>` +
+        (innerHTML || '<div class="sp-pr-empty">لا توجد بيانات</div>') +
+        `</section>`
+    );
+}
+
+// Build the risk section from the live, computed risk DOM.
+function _spRiskSection() {
+    const lbl = document.getElementById('bm-risk-main-lbl')?.textContent.trim() || '—';
+    const bar = document.getElementById('bm-risk-bar');
+    const width = bar?.style.width || '0%';
+    const color = bar?.style.background || '#9ca3af';
+    const breakdown = document.getElementById('bm-axis-breakdown')?.innerHTML || '';
+    const summaryCard = document.getElementById('bm-axis-summary-card');
+    const summary =
+        summaryCard && summaryCard.style.display !== 'none'
+            ? document.getElementById('bm-axis-summary-rows')?.innerHTML || ''
+            : '';
+    const rec = document.getElementById('bm-recommendation')?.textContent.trim() || '';
+    const signs = Array.from(document.querySelectorAll('#tab-risk .bm-badge:not(.bm-badge-off)')).map((b) =>
+        _spEsc(b.textContent.trim())
+    );
+
+    let html = '';
+    html += `<div class="sp-pr-row"><span class="sp-pr-lbl">المستوى الإجمالي</span><span class="sp-pr-val">${_spEsc(lbl)}</span></div>`;
+    html += `<div style="background:#eef2f7;border:1px solid #d1d5db;border-radius:6px;height:14px;overflow:hidden;margin:8px 0 12px;"><div style="height:100%;width:${width};background:${color};"></div></div>`;
+    if (breakdown) html += `<div class="sp-pr-sub">تفصيل المحاور</div>${breakdown}`;
+    if (summary) html += `<div class="sp-pr-sub">ملخص مؤشرات المحاور</div>${summary}`;
+    if (signs.length) {
+        html += `<div class="sp-pr-sub">علامات الخطر النشطة</div><div class="sp-pr-chips">${signs.map((s) => `<span class="sp-pr-chip">${s}</span>`).join('')}</div>`;
+    }
+    if (rec) html += `<div class="sp-pr-sub">التوصية</div><div class="sp-pr-note">${_spEsc(rec)}</div>`;
+    return html;
+}
+
+// Assemble the full stacked sheet into a hidden wrapper.
+function buildStudentPrintSheet() {
+    // Identity header
+    const name = document.getElementById('sp-student-name')?.textContent.trim() || 'التلميذ';
+    const avatarEl = document.querySelector('#sp-profile-header .sp-avatar');
+    const initial = avatarEl ? avatarEl.textContent.trim() : (name[0] || '?');
+    const avatarColor = avatarEl ? getComputedStyle(avatarEl).backgroundColor || '#2563eb' : '#2563eb';
+    const metaHtml = document.querySelector('#sp-profile-header .sp-meta')?.innerHTML || '';
+
+    // Personal info + quick stats are intentionally omitted here: the identity
+    // header above already carries name/code/class/birth date/gender, and the
+    // averages + absence figures are shown in full inside the النتائج الدراسية
+    // and الغياب والمواظبة sections — so a dedicated stats block would duplicate.
+
+    let html = '';
+    html +=
+        `<div class="sp-pr-head">` +
+        `<div class="sp-pr-avatar" style="background:${avatarColor}">${_spEsc(initial)}</div>` +
+        `<div><div class="sp-pr-name">${_spEsc(name)}</div><div class="sp-pr-meta">${metaHtml}</div></div>` +
+        `</div>`;
+
+    html += _spSection('fa-star', 'النتائج الدراسية', '#d97706', _spCloneDisplay(document.getElementById('sp-grades-content')));
+    html += _spSection('fa-user-clock', 'الغياب والمواظبة', '#0891b2', _spCloneDisplay(document.getElementById('sp-absence-content')));
+    html += _spSection('fa-hand-holding-usd', 'الجانب الاقتصادي', '#854f0b', _spSummarizePanel('tab-economic'));
+    html += _spSection('fa-users', 'الجانب الاجتماعي', '#0f6e56', _spSummarizePanel('tab-social'));
+    html += _spSection('fa-heartbeat', 'الجانب الصحي والنفسي', '#3c3489', _spSummarizePanel('tab-health'));
+    html += _spSection('fa-tasks', 'المتابعة والتدخل', '#185fa5', _spSummarizePanel('tab-followup'));
+    html += _spSection('fa-exclamation-triangle', 'مؤشر الخطر', '#a32d2d', _spRiskSection());
+
+    // Hidden wrapper keeps the source off-screen; the inner sheet has no
+    // display:none so its clone renders inside the PrintSystem preview.
+    let wrap = document.getElementById('sp-export-wrap');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'sp-export-wrap';
+        wrap.style.display = 'none';
+        document.body.appendChild(wrap);
+    }
+    wrap.innerHTML = `<div id="sp-export-sheet" class="sp-export-sheet">${html}</div>`;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// ── Blank "بطاقة التتبع" (hand-fillable follow-up card) ──
+// Prints ONLY the four follow-up form tabs (economic / social / health /
+// follow-up) as an EMPTY paper form: radios become open circles, checkboxes
+// and badges become open squares, 1–5 scales become numbered circles, text
+// fields become blank rules and textareas become ruled writing boxes. This
+// lets a counselor print the card and fill it by hand, then digitize it later.
+// It deliberately ignores any data already entered on screen.
+// ═══════════════════════════════════════════════════════════════
+
+(function injectBlankSheetStyles() {
+    if (document.getElementById('sp-blank-sheet-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'sp-blank-sheet-styles';
+    style.textContent = `
+        /* Neutralize the live form's colored badge/scale states inside the blank card. */
+        .sp-blank-sheet .bm-badge { all: unset; }
+        .sp-blank-sheet .bm-rg { display:flex !important; flex-wrap:wrap; gap:8px 18px; }
+        .sp-blank-sheet .bm-ri { display:inline-flex !important; align-items:center; gap:5px; font-size:12px; color:#1f2937; }
+        .sp-blank-sheet .bm-check-group { display:flex !important; flex-direction:column; gap:6px; }
+        .sp-blank-sheet .bm-check-item { display:inline-flex !important; align-items:center; gap:6px; font-size:12px; color:#1f2937; }
+        /* Open markers for hand-checking. */
+        .sp-bk-radio, .sp-bk-check {
+            display:inline-block; width:14px; height:14px; min-width:14px;
+            border:1.4px solid #374151; vertical-align:middle; background:#fff !important;
+        }
+        .sp-bk-radio { border-radius:50%; }
+        .sp-bk-check { border-radius:3px; }
+        /* Blank outlined chips (badge groups) with a leading open box. */
+        .sp-bk-badge {
+            display:inline-flex !important; align-items:center; gap:6px;
+            border:1.2px solid #9ca3af; border-radius:999px; padding:3px 11px;
+            font-size:11.5px; color:#1f2937; background:#fff !important;
+        }
+        /* 1–5 scale → numbered open circles. */
+        .sp-bk-scale {
+            display:inline-flex !important; align-items:center; justify-content:center;
+            width:26px; height:26px; border:1.4px solid #374151; border-radius:50%;
+            font-size:12px; font-weight:600; color:#374151; background:#fff !important;
+        }
+        /* Blank inline field (text / number / date / tel). */
+        .sp-bk-input {
+            display:inline-block; min-width:130px; height:18px;
+            border-bottom:1px solid #6b7280; vertical-align:middle;
+        }
+        .sp-bk-input.sp-bk-input-sm { min-width:70px; }
+        /* Blank ruled writing box (textarea). */
+        .sp-bk-textarea {
+            height:76px; border:1px solid #d1d5db; border-radius:6px; margin-top:2px;
+            background-image:repeating-linear-gradient(#fff, #fff 23px, #e5e7eb 23px, #e5e7eb 24px) !important;
+        }
+        /* Compact the mini-cards so number boxes become blank rules. */
+        .sp-blank-sheet .bm-mc { background:#f9fafb !important; border:1px solid #e5e7eb; border-radius:8px; padding:8px 11px; }
+        .sp-blank-sheet .bm-mc-lbl { font-size:10.5px; color:#6b7280; margin-bottom:6px; }
+        .sp-blank-sheet .bm-field-row { display:flex !important; flex-direction:column; gap:5px; }
+        /* Hint banner at the top of the blank card. */
+        .sp-bk-hint {
+            display:flex; align-items:center; gap:8px; font-size:11.5px; color:#6b7280;
+            background:#f9fafb !important; border:1px dashed #d1d5db; border-radius:6px;
+            padding:7px 10px; margin-bottom:16px;
+        }
+        .sp-bk-hint i { color:#2563eb; }
+    `;
+    document.head.appendChild(style);
+})();
+
+// Transform one live form panel into an empty, hand-fillable clone (HTML string).
+function _spBlankifyPanel(panelId) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return '<div class="sp-pr-empty">لا توجد بيانات</div>';
+
+    const clone = panel.cloneNode(true);
+
+    // Drop interactive chrome that has no place on a paper form.
+    clone.querySelectorAll('.bm-save-bar, .bm-score-widget, script, .fa-spinner').forEach((e) => e.remove());
+
+    // Radios → open circles, checkboxes → open squares.
+    clone.querySelectorAll('input[type="radio"]').forEach((inp) => {
+        const m = document.createElement('span');
+        m.className = 'sp-bk-radio';
+        inp.replaceWith(m);
+    });
+    clone.querySelectorAll('input[type="checkbox"]').forEach((inp) => {
+        const m = document.createElement('span');
+        m.className = 'sp-bk-check';
+        inp.replaceWith(m);
+    });
+
+    // Badge buttons → blank outlined chips with a leading open box.
+    clone.querySelectorAll('.bm-badge').forEach((b) => {
+        const txt = b.textContent.trim();
+        const chip = document.createElement('span');
+        chip.className = 'sp-bk-badge';
+        chip.innerHTML = '<span class="sp-bk-check"></span>' + _spEsc(txt);
+        b.replaceWith(chip);
+    });
+
+    // 1–5 scale rows → numbered open circles (drop the live descriptive label).
+    clone.querySelectorAll('.bm-scale-row').forEach((row) => {
+        row.querySelectorAll('span').forEach((s) => s.remove());
+        row.querySelectorAll('.bm-scale-btn').forEach((btn) => {
+            const c = document.createElement('span');
+            c.className = 'sp-bk-scale';
+            c.textContent = btn.textContent.trim();
+            btn.replaceWith(c);
+        });
+    });
+
+    // Remaining text/number/date/tel inputs → blank inline rules.
+    clone.querySelectorAll('input').forEach((inp) => {
+        const line = document.createElement('span');
+        line.className = 'sp-bk-input';
+        if (inp.type === 'number' || inp.type === 'date') line.classList.add('sp-bk-input-sm');
+        inp.replaceWith(line);
+    });
+
+    // Textareas → ruled writing boxes.
+    clone.querySelectorAll('textarea').forEach((ta) => {
+        const box = document.createElement('div');
+        box.className = 'sp-bk-textarea';
+        ta.replaceWith(box);
+    });
+
+    // Strip ids so the off-screen clone can never collide with the live page.
+    clone.querySelectorAll('[id]').forEach((e) => e.removeAttribute('id'));
+
+    return clone.innerHTML;
+}
+
+// Assemble the blank tracking card (identity header + the four form sections).
+function buildBlankTrackingSheet() {
+    const name = document.getElementById('sp-student-name')?.textContent.trim() || 'التلميذ';
+    const avatarEl = document.querySelector('#sp-profile-header .sp-avatar');
+    const initial = avatarEl ? avatarEl.textContent.trim() : (name[0] || '?');
+    const avatarColor = avatarEl ? getComputedStyle(avatarEl).backgroundColor || '#2563eb' : '#2563eb';
+    const metaHtml = document.querySelector('#sp-profile-header .sp-meta')?.innerHTML || '';
+
+    let html = '';
+    html +=
+        `<div class="sp-pr-head">` +
+        `<div class="sp-pr-avatar" style="background:${avatarColor}">${_spEsc(initial)}</div>` +
+        `<div><div class="sp-pr-name">${_spEsc(name)}</div><div class="sp-pr-meta">${metaHtml}</div></div>` +
+        `</div>`;
+
+    html +=
+        `<div class="sp-bk-hint"><i class="fas fa-info-circle"></i>` +
+        `بطاقة فارغة للتعبئة اليدوية — تُملأ الخانات بخط اليد ثم تُدخل البيانات لاحقاً.` +
+        `</div>`;
+
+    html += _spSection('fa-hand-holding-usd', 'الجانب الاقتصادي', '#854f0b', _spBlankifyPanel('tab-economic'));
+    html += _spSection('fa-users', 'الجانب الاجتماعي', '#0f6e56', _spBlankifyPanel('tab-social'));
+    html += _spSection('fa-heartbeat', 'الجانب الصحي والنفسي', '#3c3489', _spBlankifyPanel('tab-health'));
+    html += _spSection('fa-tasks', 'المتابعة والتدخل', '#185fa5', _spBlankifyPanel('tab-followup'));
+
+    let wrap = document.getElementById('sp-blank-wrap');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'sp-blank-wrap';
+        wrap.style.display = 'none';
+        document.body.appendChild(wrap);
+    }
+    wrap.innerHTML = `<div id="sp-blank-sheet" class="sp-export-sheet sp-blank-sheet">${html}</div>`;
+}

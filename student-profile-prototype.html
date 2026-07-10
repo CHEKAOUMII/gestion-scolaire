@@ -17,6 +17,7 @@
     <script src="js/student-risk.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
     <script src="js/print-system.js" defer></script>
+    <script src="js/shared/gender.js" defer></script>
     <!-- bm- styles moved to css/tailwind-input.css -->
     </head>
 
@@ -38,8 +39,11 @@
                     <button class="btn btn-secondary" id="sp-back-btn" title="العودة للائحة التلاميذ">
                         <i class="fas fa-arrow-right"></i> العودة
                     </button>
-                    <button class="btn btn-primary" id="sp-print-btn" title="طباعة ملف التلميذ">
-                        <i class="fas fa-print"></i> طباعة
+                    <button class="btn btn-secondary" id="sp-blank-card-btn" title="طباعة بطاقة تتبع فارغة لتعبئتها يدوياً">
+                        <i class="fas fa-clipboard-list"></i> بطاقة تتبع فارغة
+                    </button>
+                    <button class="btn btn-primary" id="sp-print-btn" title="معاينة وطباعة ملف التلميذ">
+                        <i class="fas fa-print"></i> معاينة الطباعة
                     </button>
                 </div>
                 <button class="theme-toggle" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة">
@@ -297,14 +301,14 @@
                             <div class="bm-mb8">
                                 <div class="bm-sub-lbl">مخاطر اجتماعية مرصودة</div>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap" id="bm-social-risks">
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="vagrancy" onclick="bmTog(this,'red')">تشرد / تسكع</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bad_company" onclick="bmTog(this,'red')">رفقاء سوء</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="child_labor" onclick="bmTog(this,'amber')">عمل خارجي للتلميذ</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="domestic_violence" onclick="bmTog(this,'amber')">عنف داخل الأسرة</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="neglect" onclick="bmTog(this,'amber')">إهمال أسري</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="harassment" onclick="bmTog(this,'purple')">تحرش / تنمر</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bereavement" onclick="bmTog(this,'purple')">وفاة في الأسرة</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="recent_move" onclick="bmTog(this,'blue')">انتقال حديث</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="vagrancy" data-color="red" onclick="bmTog(this,'red')">تشرد / تسكع</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bad_company" data-color="red" onclick="bmTog(this,'red')">رفقاء سوء</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="child_labor" data-color="amber" onclick="bmTog(this,'amber')">عمل خارجي للتلميذ</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="domestic_violence" data-color="amber" onclick="bmTog(this,'amber')">عنف داخل الأسرة</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="neglect" data-color="amber" onclick="bmTog(this,'amber')">إهمال أسري</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="harassment" data-color="purple" onclick="bmTog(this,'purple')">تحرش / تنمر</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bereavement" data-color="purple" onclick="bmTog(this,'purple')">وفاة في الأسرة</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="recent_move" data-color="blue" onclick="bmTog(this,'blue')">انتقال حديث</button>
                                 </div>
                             </div>
                             <label class="bm-sub-lbl" for="bm-social-notes">ملاحظات اجتماعية</label>
@@ -338,13 +342,13 @@
                             <div class="bm-mb8">
                                 <div class="bm-sub-lbl">اضطرابات التعلم المشخصة</div>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap" id="bm-learning-disorders">
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="dyslexia" onclick="bmTog(this,'amber')">عسر القراءة (Dyslexie)</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="dysgraphia" onclick="bmTog(this,'amber')">عسر الكتابة</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="adhd" onclick="bmTog(this,'amber')">TDAH (فرط النشاط)</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_vision" onclick="bmTog(this,'amber')">ضعف البصر</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_hearing" onclick="bmTog(this,'amber')">ضعف السمع</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="speech" onclick="bmTog(this,'amber')">اضطراب الكلام</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="motor" onclick="bmTog(this,'amber')">إعاقة حركية</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="dyslexia" data-color="amber" onclick="bmTog(this,'amber')">عسر القراءة (Dyslexie)</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="dysgraphia" data-color="amber" onclick="bmTog(this,'amber')">عسر الكتابة</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="adhd" data-color="amber" onclick="bmTog(this,'amber')">TDAH (فرط النشاط)</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_vision" data-color="amber" onclick="bmTog(this,'amber')">ضعف البصر</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_hearing" data-color="amber" onclick="bmTog(this,'amber')">ضعف السمع</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="speech" data-color="amber" onclick="bmTog(this,'amber')">اضطراب الكلام</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="motor" data-color="amber" onclick="bmTog(this,'amber')">إعاقة حركية</button>
                                 </div>
                             </div>
                             <div class="bm-g2 bm-mb8">
@@ -368,10 +372,10 @@
                             <div class="bm-mb8">
                                 <div class="bm-sub-lbl">استهلاك مواد ضارة (حسب الملاحظة أو التقرير)</div>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap" id="bm-substances">
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="smoking" onclick="bmTog(this,'red')">تدخين</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="drugs" onclick="bmTog(this,'red')">مخدرات</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="alcohol" onclick="bmTog(this,'red')">كحول</button>
-                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="digital_addiction" onclick="bmTog(this,'red')">إدمان رقمي مفرط</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="smoking" data-color="red" onclick="bmTog(this,'red')">تدخين</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="drugs" data-color="red" onclick="bmTog(this,'red')">مخدرات</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="alcohol" data-color="red" onclick="bmTog(this,'red')">كحول</button>
+                                    <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="digital_addiction" data-color="red" onclick="bmTog(this,'red')">إدمان رقمي مفرط</button>
                                 </div>
                             </div>
                             <div class="bm-g2 bm-mb8">
@@ -422,18 +426,18 @@
                             </div>
                             <div class="bm-sec-title bm-mt8"><span class="bm-dot bm-dot-purple"></span> الأعراض النفسية الملاحظة</div>
                             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="bm-psych-symptoms">
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="anxiety" onclick="bmTog(this,'purple')">قلق واضح</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="depression" onclick="bmTog(this,'purple')">اكتئاب / حزن دائم</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="aggression" onclick="bmTog(this,'purple')">عدوانية</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="withdrawal" onclick="bmTog(this,'purple')">انسحاب اجتماعي</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="crying" onclick="bmTog(this,'purple')">بكاء متكرر</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="negative_thoughts" onclick="bmTog(this,'purple')">أفكار سلبية</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="self_harm" onclick="bmTog(this,'red')">إيذاء الذات</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="anger" onclick="bmTog(this,'purple')">نوبات غضب</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="concentration" onclick="bmTog(this,'amber')">صعوبات تركيز</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="distraction" onclick="bmTog(this,'amber')">شرود ذهني</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="exam_stress" onclick="bmTog(this,'amber')">ضغط الامتحانات</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="lost_future" onclick="bmTog(this,'blue')">توهان في المستقبل</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="anxiety" data-color="purple" onclick="bmTog(this,'purple')">قلق واضح</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="depression" data-color="purple" onclick="bmTog(this,'purple')">اكتئاب / حزن دائم</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="aggression" data-color="purple" onclick="bmTog(this,'purple')">عدوانية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="withdrawal" data-color="purple" onclick="bmTog(this,'purple')">انسحاب اجتماعي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="crying" data-color="purple" onclick="bmTog(this,'purple')">بكاء متكرر</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="negative_thoughts" data-color="purple" onclick="bmTog(this,'purple')">أفكار سلبية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="self_harm" data-color="red" onclick="bmTog(this,'red')">إيذاء الذات</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="anger" data-color="purple" onclick="bmTog(this,'purple')">نوبات غضب</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="concentration" data-color="amber" onclick="bmTog(this,'amber')">صعوبات تركيز</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="distraction" data-color="amber" onclick="bmTog(this,'amber')">شرود ذهني</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="exam_stress" data-color="amber" onclick="bmTog(this,'amber')">ضغط الامتحانات</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="lost_future" data-color="blue" onclick="bmTog(this,'blue')">توهان في المستقبل</button>
                             </div>
                             <div class="bm-g2 bm-mb8">
                                 <div>
@@ -474,15 +478,15 @@
                             </div>
                             <div class="bm-sec-title bm-mt8"><span class="bm-dot bm-dot-blue"></span> الإجراءات المتخذة</div>
                             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="bm-actions-taken">
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="student_interview" onclick="bmTog(this,'blue')">مقابلة التلميذ</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="family_notice" onclick="bmTog(this,'blue')">إخبار الأسرة</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="counselor_ref" onclick="bmTog(this,'blue')">إحالة للمرشد التربوي</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="academic_support" onclick="bmTog(this,'blue')">دعم دراسي</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="class_council" onclick="bmTog(this,'blue')">اجتماع مجلس القسم</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="social_worker" onclick="bmTog(this,'teal')">إحالة للمساعد الاجتماعي</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="economic_aid" onclick="bmTog(this,'teal')">طلب دعم اقتصادي</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="psych_ref" onclick="bmTog(this,'purple')">إحالة لأخصائي نفسي</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="formal_warning" onclick="bmTog(this,'red')">إنذار رسمي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="student_interview" data-color="blue" onclick="bmTog(this,'blue')">مقابلة التلميذ</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="family_notice" data-color="blue" onclick="bmTog(this,'blue')">إخبار الأسرة</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="counselor_ref" data-color="blue" onclick="bmTog(this,'blue')">إحالة للمرشد التربوي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="academic_support" data-color="blue" onclick="bmTog(this,'blue')">دعم دراسي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="class_council" data-color="blue" onclick="bmTog(this,'blue')">اجتماع مجلس القسم</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="social_worker" data-color="teal" onclick="bmTog(this,'teal')">إحالة للمساعد الاجتماعي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="economic_aid" data-color="teal" onclick="bmTog(this,'teal')">طلب دعم اقتصادي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="psych_ref" data-color="purple" onclick="bmTog(this,'purple')">إحالة لأخصائي نفسي</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="formal_warning" data-color="red" onclick="bmTog(this,'red')">إنذار رسمي</button>
                             </div>
                             <div class="bm-mb8">
                                 <label class="bm-sub-lbl" for="bm-interview-notes">ملاحظات المقابلة</label>
@@ -512,7 +516,19 @@
                                 </div>
                                 <div class="bm-risk-bar-bg"><div id="bm-risk-bar" class="bm-risk-bar-fill" style="width:0%;background:var(--color-accent)"></div></div>
                                 <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--color-text-light)">
-                                    <span>0 — عادي</span><span>31 — خطر</span><span>61 — حرج</span><span>100</span>
+                                    <span>0 — عادي (المؤشر المركّب)</span><span>31 — خطر</span><span>61 — حرج</span><span>100</span>
+                                </div>
+                                <!-- Bug 2 fix: composite index + highest axis shown as separate, non-contradictory facts -->
+                                <div id="bm-risk-facts" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--color-text-muted)">
+                                    <!-- Populated by renderStudentRiskTab() -->
+                                </div>
+                                <!-- Bug 2 fix: prominent triggering-axis badge (worst-wins attribution) -->
+                                <div id="bm-risk-badge" style="display:none;margin-top:8px;padding:6px 10px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;background:var(--color-accent)">
+                                    <!-- Populated by renderStudentRiskTab() -->
+                                </div>
+                                <!-- Bug 2 fix: preliminary marker while the year is in progress (incomplete data) -->
+                                <div id="bm-risk-prelim" style="display:none;margin-top:6px;font-size:11px;color:var(--color-text-light)">
+                                    <!-- Populated by renderStudentRiskTab() -->
                                 </div>
                             </div>
                             <div class="bm-sub-lbl" style="margin-bottom:6px">تفصيل المحاور (الوزن في المؤشر المركّب)</div>
@@ -521,14 +537,14 @@
                             </div>
                             <div class="bm-sub-lbl" style="margin-bottom:6px">علامات الخطر النشطة</div>
                             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="excessive_absence" onclick="bmTog(this,'red');bmUpdateRisk()">غياب مفرط</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_grades" onclick="bmTog(this,'red');bmUpdateRisk()">نقط ضعيفة جداً</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="economic_fragile" onclick="bmTog(this,'amber');bmUpdateRisk()">وضع اقتصادي هش</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="family_issues" onclick="bmTog(this,'amber');bmUpdateRisk()">مشاكل أسرية</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="psych_symptoms" onclick="bmTog(this,'purple');bmUpdateRisk()">أعراض نفسية</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="health_issues" onclick="bmTog(this,'teal');bmUpdateRisk()">مشاكل صحية</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="declining" onclick="bmTog(this,'red');bmUpdateRisk()">تراجع مستمر</button>
-                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bullying" onclick="bmTog(this,'pink');bmUpdateRisk()">تنمر أو عنف</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="excessive_absence" data-color="red" onclick="bmTog(this,'red');bmUpdateRisk()">غياب مفرط</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="low_grades" data-color="red" onclick="bmTog(this,'red');bmUpdateRisk()">نقط ضعيفة جداً</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="economic_fragile" data-color="amber" onclick="bmTog(this,'amber');bmUpdateRisk()">وضع اقتصادي هش</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="family_issues" data-color="amber" onclick="bmTog(this,'amber');bmUpdateRisk()">مشاكل أسرية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="psych_symptoms" data-color="purple" onclick="bmTog(this,'purple');bmUpdateRisk()">أعراض نفسية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="health_issues" data-color="teal" onclick="bmTog(this,'teal');bmUpdateRisk()">مشاكل صحية</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="declining" data-color="red" onclick="bmTog(this,'red');bmUpdateRisk()">تراجع مستمر</button>
+                                <button type="button" class="bm-badge bm-badge-off" role="checkbox" aria-checked="false" data-value="bullying" data-color="pink" onclick="bmTog(this,'pink');bmUpdateRisk()">تنمر أو عنف</button>
                             </div>
                             <div class="bm-sub-lbl" style="margin-bottom:6px">التوصية الفورية</div>
                             <div id="bm-recommendation" style="background:var(--color-surface-alt, var(--color-secondary));border-radius:var(--radius-md);padding:0.75rem;font-size:13px;color:var(--color-text-muted);border-inline-end:3px solid var(--color-accent)">
@@ -543,7 +559,8 @@
         </div>
     </main>
 
-    <script src="js/data/ma-education-labels.js"></script>
+    <script src="js/data/ma-education-labels.js" defer></script>
+    <script src="js/bm-scoring.js" defer></script>
     <script src="js/pages/student-profile.js" defer></script>
     <script>
         /* ── Bataqa Mutabaat JS (prefixed bm) ── */

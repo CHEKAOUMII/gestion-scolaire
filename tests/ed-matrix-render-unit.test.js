@@ -2,8 +2,8 @@
 
 // Feature: exemptions-duty-matrix-grid, Task 11.5: empty-state messages, identity order, unrecognized marker
 //
-// UNIT tests (no fast-check) for the inline renderMatrixGrid() in
-// exams-proctors.html. Covers:
+// UNIT tests (no fast-check) for renderMatrixGrid() in
+// js/pages/exams-proctors.js. Covers:
 //   1. No rows                -> data-ed-empty="no-proctors" + "add proctors first" msg, no table
 //   2. Rows but no sessions   -> data-ed-empty="no-sessions"
 //   3. Both empty (precedence)-> only "no-proctors", never "no-sessions"   (Req 1.7)
@@ -12,10 +12,10 @@
 //
 // _Requirements: 1.5, 1.6, 1.7, 2.1, 3.4_
 //
-// Strategy (standalone Node, no jsdom): read exams-proctors.html, extract the
-// const block + edMatrixCellStatus + renderMatrixGrid via string slicing +
-// brace matching, evaluate it in a Node `vm` context with a verbatim copy of
-// escHtml and window.EdMatrixLogic = require('../js/exams/ed-matrix-logic.js').
+// Strategy (standalone Node, no jsdom): read js/pages/exams-proctors.js, extract
+// the const block + edMatrixCellStatus + renderMatrixGrid via string slicing +
+// brace matching, evaluate it in a Node `vm` context with the canonical
+// escapeHtml from js/utils.js and window.EdMatrixLogic = require(...).
 // renderMatrixGrid is called with an explicit targetContainer { innerHTML: '' }
 // and we inspect the produced HTML string.
 //
@@ -29,17 +29,20 @@ const vm = require('vm');
 const EdMatrixLogic = require('../js/exams/ed-matrix-logic.js');
 
 // ---------------------------------------------------------------------------
-// Extract renderMatrixGrid (+ its const/helper deps) from exams-proctors.html.
+// Extract renderMatrixGrid (+ its const/helper deps) from exams-proctors page JS.
 // ---------------------------------------------------------------------------
 
-const HTML_PATH = path.join(__dirname, '..', 'exams-proctors.html');
-const html = fs.readFileSync(HTML_PATH, 'utf8');
+const PAGE_PATH = path.join(__dirname, '..', 'js', 'pages', 'exams-proctors.js');
+const pageSource = fs.readFileSync(PAGE_PATH, 'utf8');
 
-// Verbatim copy of the inline escHtml definition (exams-proctors.html ~line 1195).
-function escHtml(t) {
-    if (t === null || t === undefined) return '';
-    return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// CH1: load canonical escapeHtml from js/utils.js (not a local copy).
+function loadCanonicalEscapeHtml() {
+    const utilsSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'utils.js'), 'utf8');
+    const m = utilsSrc.match(/function escapeHtml\(text\) \{[\s\S]*?\n\}/);
+    assert.ok(m, 'escapeHtml must exist in js/utils.js');
+    return new Function(m[0] + '\nreturn escapeHtml;')();
 }
+const escapeHtml = loadCanonicalEscapeHtml();
 
 // Find the matching close brace for the `{` that starts at openBraceIndex.
 function matchBrace(source, openBraceIndex) {
@@ -70,16 +73,16 @@ function extractRenderBlock(source) {
     return source.slice(startIdx, closeBrace + 1);
 }
 
-const renderBlock = extractRenderBlock(html);
+const renderBlock = extractRenderBlock(pageSource);
 
-// Sandbox: provide escHtml, a window with the real logic module, and a document
-// stub (only used by renderMatrixGrid when no targetContainer is passed — we
-// always pass one, but stub it so the `||` fallback never throws).
+// Sandbox: provide escapeHtml (CH1 SSOT), a window with the real logic module,
+// and a document stub (only used by renderMatrixGrid when no targetContainer is
+// passed — we always pass one, but stub it so the `||` fallback never throws).
 // Share the host `Map` so the model's cells (created by the Node-realm
 // ed-matrix-logic.js) satisfy `instanceof Map` inside the vm — in the browser
 // renderer everything runs in a single realm, so this mirrors production.
 const sandbox = {
-    escHtml: escHtml,
+    escapeHtml: escapeHtml,
     Map: Map,
     window: { EdMatrixLogic: EdMatrixLogic },
     document: { getElementById: function () { return null; } },

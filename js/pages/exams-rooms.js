@@ -1,0 +1,1456 @@
+            // CH1: HTML escaping via window.escapeHtml (js/utils.js)
+            const state = {
+                rows: [],
+                filtered: []
+            };
+
+            let SCHOOL_YEAR = '';
+
+            // Pre-load identity at page load — getIdentity works reliably here
+            let _identityPromise = null;
+
+            document.addEventListener('DOMContentLoaded', () => {
+                // Kick off identity fetch immediately and store result directly
+                _identityPromise = window.api.reports.getIdentity()
+                    .then(raw => {
+                        if (raw && Object.keys(raw).length > 0) {
+                            invState.schoolIdentity = normalizeIdentitySync(raw);
+                        }
+                        return raw;
+                    })
+                    .catch(() => null);
+
+                SCHOOL_YEAR = (typeof getSchoolYear === 'function') ? getSchoolYear() : (localStorage.getItem('currentSchoolYear') || '');
+                document.getElementById('btn-refresh-summary').addEventListener('click', renderSummary);
+                document.getElementById('btn-print-summary').addEventListener('click', previewSummaryPrint);
+                document.getElementById('btn-back-proctors').addEventListener('click', () => {
+                    window.location.href = 'exams-proctors.html';
+                });
+                ['teacher-filter', 'task-filter', 'summary-search'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', renderSummaryTable);
+                    document.getElementById(id).addEventListener('change', renderSummaryTable);
+                });
+                initTabs();
+                if (window.ExamSections) {
+                    window.ExamSections.init({
+                        order: ['production'],
+                        tabSelector: '.erm-tab[data-tab]',
+                        tablistSelector: '.erm-tabs',
+                        ensureAria: true,
+                        map: {
+                            summary: 'production',
+                            invitations: 'production',
+                            attendance: 'production'
+                        }
+                    });
+                }
+                initInvitationsPanel();
+                initAttendancePanel();
+                renderSummary();
+            });
+
+            function initTabs() {
+                document.querySelectorAll('.erm-tab[data-tab]').forEach(tab => {
+                    tab.addEventListener('click', () => showTab(tab.dataset.tab));
+                });
+            }
+
+            function showTab(name) {
+                document.querySelectorAll('.erm-tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+                document.querySelectorAll('.erm-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+                if (name === 'invitations') renderInvitations().catch(e => console.error('[showTab] renderInvitations FAILED:', e));
+                else if (name === 'attendance') renderAttendanceFilters();
+            }
+
+async function getScheduleEntries() {
+                const data = (await window.api.examConfig.get(SCHOOL_YEAR, 'examScheduleData')) || {};
+                return Object.entries(data).flatMap(([levelName, arr]) => {
+                    if (!Array.isArray(arr)) return [];
+                    return arr.map(item => Object.assign({ level_name: levelName }, item || {}));
+                });
+            }
+
+            function getScheduleDateKey(entry) {
+                const year = entry.date_year || '';
+                const month = entry.date_month ? String(entry.date_month).padStart(2, '0') : '';
+                const day = entry.date_day ? String(entry.date_day).padStart(2, '0') : '';
+                return [year, month, day].filter(Boolean).join('-');
+            }
+
+            function getSessionKey(entry) {
+                return [getScheduleDateKey(entry), entry.period || 'صباحا', entry.session || 'الحصة الأولى'].join('|');
+            }
+
+            function getDurationHours(entry) {
+                const explicit = parseDurationHours(entry.duration);
+                if (explicit > 0) return explicit;
+                return diffTimeHours(entry.time_from, entry.time_to);
+            }
+
+            function parseDurationHours(value) {
+                const text = String(value || '').trim().toLowerCase();
+                if (!text) return 0;
+                const hourMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(h|س|ساعة|ساعات)?/);
+                if (!hourMatch) return 0;
+                return Number(hourMatch[1].replace(',', '.')) || 0;
+            }
+
+            function diffTimeHours(from, to) {
+                if (!from || !to || !String(from).includes(':') || !String(to).includes(':')) return 0;
+                const [fh, fm] = String(from).split(':').map(Number);
+                const [th, tm] = String(to).split(':').map(Number);
+                if (![fh, fm, th, tm].every(Number.isFinite)) return 0;
+                const start = fh * 60 + fm;
+                const end = th * 60 + tm;
+                return end > start ? (end - start) / 60 : 0;
+            }
+
+            async function buildDurationMap() {
+                const map = new Map();
+                (await getScheduleEntries()).forEach(entry => {
+                    const key = [getSessionKey(entry), entry.subject_name || ''].join('|');
+                    const hours = getDurationHours(entry);
+                    if (!map.has(key) || hours > 0) map.set(key, hours);
+                });
+                return map;
+            }
+
+            function createTeacherRow(name, key) {
+                return {
+                    key: key || name,
+                    name,
+                    guard: [],
+                    reserve: [],
+                    duty: [],
+                    guardCount: 0,
+                    reserveCount: 0,
+                    dutyCount: 0,
+                    guardHours: 0,
+                    totalTasks: 0
+                };
+            }
+
+            function getTeacher(map, name) {
+                const clean = String(name || '').trim();
+                if (!clean) return null;
+                if (!map.has(clean)) map.set(clean, createTeacherRow(clean));
+                return map.get(clean);
+            }
+
+            async function getAllProctorNames() {
+                try {
+                    const rows = await window.api.examProctors.getAll(getSchoolYear());
+                    return (rows || [])
+                        .map(row => row.teacher_full_name || row.teacher_name || '')
+                        .map(name => String(name || '').trim())
+                        .filter(Boolean);
+                } catch {
+                    return [];
+                }
+            }
+
+            async function buildSummaryRows() {
+                const distribution = (function(raw) {
+                    if (!raw) return [];
+                    if (Array.isArray(raw)) return raw;
+                    // V2 and V3 share the same envelope shape ({ rows, algorithmVersion, diagnostics })
+                    // and the same Result_Row field set, so both unwrap identically here.
+                    if (raw && (raw.algorithmVersion === 'v2' || raw.algorithmVersion === 'v3') && Array.isArray(raw.rows)) return raw.rows;
+                    return [];
+                })(await window.api.examConfig.get(SCHOOL_YEAR, 'examAutoDistributionData'));
+                const durationMap = await buildDurationMap();
+                const teacherMap = new Map();
+                const reserveSeen = new Set();
+                const dutySeen = new Set();
+
+                // H5 fix — load full proctor rows once and aggregate by proctor_keys
+                // (stable cin || '__idx_N'), not by teacher_name. Two empty-cin proctors
+                // sharing a display name no longer collapse into one bucket.
+                // See .kiro/specs/proctor-distribution-db-memory-mismatch/design.md.
+                let proctorsList = [];
+                try {
+                    proctorsList = (await window.api.examProctors.getAll(getSchoolYear())) || [];
+                } catch {
+                    proctorsList = [];
+                }
+                const proctorMap = (window.GS2 && window.GS2.buildProctorDisplayMap)
+                    ? window.GS2.buildProctorDisplayMap(proctorsList)
+                    : new Map();
+                const nameToKey = new Map();
+                proctorsList.forEach((proc, idx) => {
+                    const key = proc && proc.cin ? proc.cin : ('__idx_' + idx);
+                    const displayName = String((proc && (proc.teacher_full_name || proc.teacher_name)) || '').trim();
+                    if (displayName && !nameToKey.has(displayName)) nameToKey.set(displayName, key);
+                });
+
+                // Pre-populate teacherMap with every proctor (keyed by stable key) so
+                // teachers with zero tasks still appear in the summary list.
+                proctorsList.forEach((proc, idx) => {
+                    const key = proc && proc.cin ? proc.cin : ('__idx_' + idx);
+                    const displayName = proctorMap.get(key)
+                        || String((proc && (proc.teacher_full_name || proc.teacher_name)) || '').trim()
+                        || key;
+                    if (!teacherMap.has(key)) teacherMap.set(key, createTeacherRow(displayName, key));
+                });
+
+                let legacyWarned = false;
+                function bucketForKey(key, fallbackName) {
+                    const k = String(key || '').trim();
+                    if (!k) return null;
+                    if (!teacherMap.has(k)) {
+                        const displayName = proctorMap.get(k) || String(fallbackName || '').trim() || k;
+                        teacherMap.set(k, createTeacherRow(displayName, k));
+                    }
+                    return teacherMap.get(k);
+                }
+                function bucketForLegacyName(name) {
+                    const clean = String(name || '').trim();
+                    if (!clean) return null;
+                    if (!legacyWarned) {
+                        console.warn('[buildSummaryRows] legacy row without proctor_keys, falling back to name aggregation');
+                        legacyWarned = true;
+                    }
+                    // Resolve the display name back to a stable key when possible so
+                    // legacy rows merge into the prefilled bucket; otherwise fabricate
+                    // a name-scoped key. Edge Case 2 / 10: pre-existing buggy DB rows
+                    // keep their pre-fix display semantics — no regression, no rewrite.
+                    const key = nameToKey.get(clean) || ('legacy_name|' + clean);
+                    return bucketForKey(key, clean);
+                }
+
+                distribution.forEach(row => {
+                    const sessionKey = row.session_key || row.session_label || '';
+                    const subject = row.subject_name || '';
+                    const duration = durationMap.get([sessionKey, subject].join('|')) || 0;
+
+                    const guardKeys = Array.isArray(row.proctor_keys) ? row.proctor_keys : null;
+                    if (guardKeys && guardKeys.length) {
+                        guardKeys.forEach((key, slotIdx) => {
+                            const fallbackName = (row.proctors && row.proctors[slotIdx]) || '';
+                            const teacher = bucketForKey(key, fallbackName);
+                            if (!teacher) return;
+                            teacher.guardCount += 1;
+                            teacher.guardHours += duration;
+                            teacher.guard.push([row.session_label, subject, row.room_number || row.room_name].filter(Boolean).join(' - '));
+                        });
+                    } else {
+                        (row.proctors || []).forEach(name => {
+                            const teacher = bucketForLegacyName(name);
+                            if (!teacher) return;
+                            teacher.guardCount += 1;
+                            teacher.guardHours += duration;
+                            teacher.guard.push([row.session_label, subject, row.room_number || row.room_name].filter(Boolean).join(' - '));
+                        });
+                    }
+
+                    const reserveKeysArr = Array.isArray(row.reserve_keys) ? row.reserve_keys : null;
+                    if (reserveKeysArr && reserveKeysArr.length) {
+                        reserveKeysArr.forEach((key, slotIdx) => {
+                            const dedupKey = [sessionKey, key].join('|');
+                            if (reserveSeen.has(dedupKey)) return;
+                            reserveSeen.add(dedupKey);
+                            const fallbackName = (row.reserves && row.reserves[slotIdx]) || '';
+                            const teacher = bucketForKey(key, fallbackName);
+                            if (!teacher) return;
+                            teacher.reserveCount += 1;
+                            teacher.reserve.push(row.session_label || subject || 'احتياط');
+                        });
+                    } else {
+                        (row.reserves || []).forEach(name => {
+                            const dedupKey = [sessionKey, name].join('|');
+                            if (reserveSeen.has(dedupKey)) return;
+                            reserveSeen.add(dedupKey);
+                            const teacher = bucketForLegacyName(name);
+                            if (!teacher) return;
+                            teacher.reserveCount += 1;
+                            teacher.reserve.push(row.session_label || subject || 'احتياط');
+                        });
+                    }
+
+                    const dutyKeysArr = Array.isArray(row.duty_teacher_keys) ? row.duty_teacher_keys : null;
+                    if (dutyKeysArr && dutyKeysArr.length) {
+                        dutyKeysArr.forEach((key, slotIdx) => {
+                            const dedupKey = [sessionKey, subject, key].join('|');
+                            if (dutySeen.has(dedupKey)) return;
+                            dutySeen.add(dedupKey);
+                            const fallbackName = (row.duty_teachers && row.duty_teachers[slotIdx]) || '';
+                            const teacher = bucketForKey(key, fallbackName);
+                            if (!teacher) return;
+                            teacher.dutyCount += 1;
+                            teacher.duty.push([row.session_label, subject].filter(Boolean).join(' - '));
+                        });
+                    } else {
+                        (row.duty_teachers || []).forEach(name => {
+                            const dedupKey = [sessionKey, subject, name].join('|');
+                            if (dutySeen.has(dedupKey)) return;
+                            dutySeen.add(dedupKey);
+                            const teacher = bucketForLegacyName(name);
+                            if (!teacher) return;
+                            teacher.dutyCount += 1;
+                            teacher.duty.push([row.session_label, subject].filter(Boolean).join(' - '));
+                        });
+                    }
+                });
+
+                return Array.from(teacherMap.values())
+                    .map(row => Object.assign(row, {
+                        guardHours: Math.round(row.guardHours * 100) / 100,
+                        totalTasks: row.guardCount + row.reserveCount + row.dutyCount
+                    }))
+                    .sort((a, b) => b.totalTasks - a.totalTasks || a.name.localeCompare(b.name, 'ar'));
+            }
+
+            async function renderSummary() {
+                state.rows = await buildSummaryRows();
+                renderTeacherFilter();
+                renderStats();
+                renderSummaryTable();
+                const badge = document.getElementById('erm-summary-count');
+                if (badge) badge.textContent = state.rows.length;
+            }
+
+            function renderTeacherFilter() {
+                const filter = document.getElementById('teacher-filter');
+                const previous = filter.value;
+                filter.innerHTML = '<option value="">كل الأساتذة</option>' + state.rows
+                    .map(row => '<option value="' + escapeHtml(row.name) + '">' + escapeHtml(row.name) + '</option>')
+                    .join('');
+                if (previous && state.rows.some(row => row.name === previous)) filter.value = previous;
+            }
+
+            function renderStats() {
+                const totals = state.rows.reduce((acc, row) => {
+                    acc.teachers += 1;
+                    acc.guard += row.guardCount;
+                    acc.reserve += row.reserveCount;
+                    acc.duty += row.dutyCount;
+                    acc.hours += row.guardHours;
+                    return acc;
+                }, { teachers: 0, guard: 0, reserve: 0, duty: 0, hours: 0 });
+                document.getElementById('summary-stats').innerHTML = [
+                    ['الأساتذة المكلفون', totals.teachers],
+                    ['حصص الحراسة', totals.guard],
+                    ['حصص الاحتياط', totals.reserve],
+                    ['حصص المداومة', totals.duty],
+                    ['ساعات الحراسة', formatHours(totals.hours)]
+                ].map(([label, value]) => '<div class="summary-stat"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value) + '</strong></div>').join('');
+            }
+
+            function rowMatchesTask(row, task) {
+                if (!task) return true;
+                if (task === 'guard') return row.guardCount > 0;
+                if (task === 'reserve') return row.reserveCount > 0;
+                if (task === 'duty') return row.dutyCount > 0;
+                return true;
+            }
+
+            function rowMatchesSearch(row, term) {
+                if (!term) return true;
+                const haystack = [row.name, row.guard.join(' '), row.reserve.join(' '), row.duty.join(' ')].join(' ').toLowerCase();
+                return haystack.includes(term);
+            }
+
+            function renderSummaryTable() {
+                const teacher = document.getElementById('teacher-filter').value || '';
+                const task = document.getElementById('task-filter').value || '';
+                const term = (document.getElementById('summary-search').value || '').trim().toLowerCase();
+                state.filtered = state.rows.filter(row => {
+                    if (teacher && row.name !== teacher) return false;
+                    if (!rowMatchesTask(row, task)) return false;
+                    return rowMatchesSearch(row, term);
+                });
+
+                const tbody = document.getElementById('summary-tbody');
+                if (!state.rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="summary-empty"><i class="fas fa-info-circle"></i> لا توجد نتيجة توزيع محفوظة. نفذ التوزيع واحفظ النتيجة أولا.</td></tr>';
+                    return;
+                }
+                if (!state.filtered.length) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="summary-empty"><i class="fas fa-filter"></i> لا توجد نتائج مطابقة للفلاتر.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = state.filtered.map((row, idx) => '<tr>' +
+                    '<td>' + (idx + 1) + '</td>' +
+                    '<td class="sup-name-cell">' + escapeHtml(row.name) + '</td>' +
+                    '<td>' + renderDetails(row.guard) + '</td>' +
+                    '<td>' + renderDetails(row.reserve) + '</td>' +
+                    '<td>' + renderDetails(row.duty) + '</td>' +
+                    '<td><strong>' + row.guardCount + '</strong></td>' +
+                    '<td><strong>' + escapeHtml(formatHours(row.guardHours)) + '</strong></td>' +
+                    '<td><strong>' + row.totalTasks + '</strong></td>' +
+                    '</tr>').join('');
+            }
+
+            function renderDetails(items) {
+                if (!items.length) return '—';
+                return '<ul class="summary-detail-list">' + items.map(item => '<li>' + escapeHtml(item) + '</li>').join('') + '</ul>';
+            }
+
+            function formatHours(value) {
+                const num = Number(value) || 0;
+                if (!num) return '0';
+                return (Number.isInteger(num) ? String(num) : num.toFixed(2).replace(/\.?0+$/, '')) + ' س';
+            }
+
+            function buildPrintHtml(rows) {
+                const body = rows.map((row, idx) => '<tr>' +
+                    '<td>' + (idx + 1) + '</td>' +
+                    '<td>' + escapeHtml(row.name) + '</td>' +
+                    '<td>' + row.guardCount + '</td>' +
+                    '<td>' + row.reserveCount + '</td>' +
+                    '<td>' + row.dutyCount + '</td>' +
+                    '<td>' + escapeHtml(formatHours(row.guardHours)) + '</td>' +
+                    '<td>' + row.totalTasks + '</td>' +
+                    '</tr>').join('');
+                return '<div class="gs-sheet-wrapper"><div class="gs-sheet">' +
+                    '<div class="gs-sheet-title">ملخص تكليفات الأساتذة</div>' +
+                    '<table><thead><tr><th>#</th><th>الأستاذ</th><th>الحراسة</th><th>الاحتياط</th><th>المداومة</th><th>ساعات الحراسة</th><th>المجموع</th></tr></thead><tbody>' +
+                    (body || '<tr><td colspan="7" style="text-align:center">لا توجد معطيات</td></tr>') +
+                    '</tbody></table></div></div>';
+            }
+
+            async function previewSummaryPrint() {
+                const rows = state.filtered.length ? state.filtered : state.rows;
+                if (!rows.length) { showToast('لا توجد معطيات للطباعة', 'warning'); return; }
+                if (!window.PrintSystem || typeof window.PrintSystem.preview !== 'function') {
+                    showToast('نظام معاينة الطباعة غير متاح', 'error');
+                    return;
+                }
+                const root = document.createElement('div');
+                root.className = 'summary-print-root';
+                root.innerHTML = '<div id="summary-print-content">' + buildPrintHtml(rows) + '</div>';
+                document.body.appendChild(root);
+                try {
+                    await window.PrintSystem.preview({
+                        contentSelector: '#summary-print-content',
+                        title: 'ملخص تكليفات الأساتذة',
+                        pageSize: 'A4',
+                        landscape: true,
+                        noHeader: false,
+                        defaultFileName: 'ملخص_تكليفات_الأساتذة'
+                    });
+                } finally {
+                    root.remove();
+                }
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Shared helpers
+               ═══════════════════════════════════════════════════════════════ */
+            async function getAutoDistributionFromStorage() {
+                var raw = await window.api.examConfig.get(SCHOOL_YEAR, 'examAutoDistributionData');
+                if (!raw) return [];
+                if (Array.isArray(raw)) return raw;
+                // V2 and V3 share the same envelope shape ({ rows, algorithmVersion, diagnostics });
+                // both unwrap identically because V3 Result_Rows are V2-shape compatible.
+                if (raw && (raw.algorithmVersion === 'v2' || raw.algorithmVersion === 'v3') && Array.isArray(raw.rows)) return raw.rows;
+                return [];
+            }
+
+            const ARABIC_MONTHS = { '1': 'يناير', '2': 'فبراير', '3': 'مارس', '4': 'أبريل', '5': 'ماي', '6': 'يونيو', '7': 'يوليوز', '8': 'غشت', '9': 'شتنبر', '10': 'أكتوبر', '11': 'نونبر', '12': 'دجنبر' };
+
+            function formatDateFromHalfdayKey(halfdayKey) {
+                if (!halfdayKey) return '';
+                const datePart = String(halfdayKey).split('|')[0] || '';
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return '';
+                const [y, m, d] = datePart.split('-');
+                return Number(d) + ' ' + (ARABIC_MONTHS[String(Number(m))] || '') + ' ' + y;
+            }
+
+            function getHalfdayPeriodFromKey(halfdayKey) {
+                const parts = String(halfdayKey || '').split('|');
+                return parts[1] || '';
+            }
+
+            function getHalfdayLabelFromKey(halfdayKey) {
+                const date = formatDateFromHalfdayKey(halfdayKey);
+                const period = getHalfdayPeriodFromKey(halfdayKey);
+                return [date, period].filter(Boolean).join(' / ');
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Tab — Invitations (الاستدعاءات)
+               ═══════════════════════════════════════════════════════════════ */
+            const invState = { rows: [], proctorMeta: new Map(), filteredRows: [], schoolIdentity: {} };
+
+            const INV_PREFS_KEY = 'examInvitationsPrefs';
+
+            function loadInvPrefs() {
+                try { return JSON.parse(localStorage.getItem(INV_PREFS_KEY) || '{}') || {}; } catch { return {}; }
+            }
+            function saveInvPrefs(patch) {
+                const cur = loadInvPrefs();
+                localStorage.setItem(INV_PREFS_KEY, JSON.stringify(Object.assign(cur, patch || {})));
+            }
+
+            const DEFAULT_INV_SCHOOL_IDENTITY = {
+                country: 'المملكة المغربية',
+                ministry: 'وزارة التربية الوطنية والتعليم الأولي والرياضة',
+                academy: '',
+                directorate: '',
+                school_name: '',
+                school_code: '',
+                city: '',
+                commune: '',
+                school_year: '',
+                director_name: '',
+                director_title: 'مدير(ة) المؤسسة',
+                logo_base64: '',
+                signature_base64: ''
+            };
+
+            async function readLegacySchoolInfoFallback() {
+                const fallback = {};
+                try {
+                    const raw = await window.api?.settings?.get?.('school_info');
+                    const info = raw ? JSON.parse(raw) : {};
+                    fallback.school_name = info.name || '';
+                    fallback.school_code = info.code || '';
+                    fallback.city = info.city || '';
+                } catch (_) {}
+
+                try {
+                    fallback.school_year = await window.api?.settings?.get?.('currentSchoolYear') || '';
+                } catch (_) {}
+
+                return fallback;
+            }
+
+            function cleanIdentityText(value) {
+                return String(value || '').replace(/\s+/g, ' ').trim();
+            }
+
+            function normalizeAcademyForInvitation(value) {
+                const text = cleanIdentityText(value);
+                if (!text) return '';
+                if (/الأكاديمية|اكاديمية/.test(text)) return text;
+                return 'الأكاديمية الجهوية للتربية والتكوين لجهة ' + text;
+            }
+
+            function normalizeDirectorateForInvitation(value) {
+                let text = cleanIdentityText(value)
+                    .replace(/الاقليميو/g, 'الإقليمية')
+                    .replace(/الاقليمية/g, 'الإقليمية');
+                if (!text) return '';
+                if (!/المديرية/.test(text)) return 'المديرية الإقليمية ب' + text;
+                text = text.replace(/^المديرية\s+الإقليمية\s+ل?/, 'المديرية الإقليمية ');
+                text = text.replace(/^المديرية\s+الإقليمية\s+(?!ب)/, 'المديرية الإقليمية ب');
+                return text;
+            }
+
+            function hasUsableInvitationIdentity(identity) {
+                const id = identity || {};
+                return !!(
+                    cleanIdentityText(id.school_name) ||
+                    cleanIdentityText(id.academy) ||
+                    cleanIdentityText(id.directorate) ||
+                    cleanIdentityText(id.logo_base64)
+                );
+            }
+
+            async function normalizeInvitationIdentity(identity) {
+                const legacy = await readLegacySchoolInfoFallback();
+                const merged = Object.assign({}, DEFAULT_INV_SCHOOL_IDENTITY, identity || {});
+
+                if (!String(merged.school_name || '').trim()) merged.school_name = legacy.school_name || '';
+                if (!String(merged.school_code || '').trim()) merged.school_code = legacy.school_code || '';
+                if (!String(merged.city || '').trim()) merged.city = legacy.city || '';
+                if (!String(merged.school_year || '').trim()) merged.school_year = legacy.school_year || SCHOOL_YEAR || '';
+                merged.country = cleanIdentityText(merged.country);
+                merged.ministry = cleanIdentityText(merged.ministry);
+                merged.academy = normalizeAcademyForInvitation(merged.academy);
+                merged.directorate = normalizeDirectorateForInvitation(merged.directorate);
+                merged.school_name = cleanIdentityText(merged.school_name);
+                merged.school_code = cleanIdentityText(merged.school_code);
+                merged.city = cleanIdentityText(merged.city);
+                merged.commune = cleanIdentityText(merged.commune);
+                merged.school_year = cleanIdentityText(merged.school_year);
+                merged.director_name = cleanIdentityText(merged.director_name);
+                merged.director_title = cleanIdentityText(merged.director_title);
+
+                return merged;
+            }
+
+            function initInvitationsPanel() {
+                document.getElementById('btn-refresh-invitations').addEventListener('click', renderInvitations);
+                document.getElementById('btn-print-all-invitations').addEventListener('click', printDisplayedInvitations);
+                document.getElementById('btn-print-by-specialty').addEventListener('click', printInvitationsBySpecialty);
+                document.getElementById('inv-specialty-filter').addEventListener('change', () => { saveInvPrefs({ specialty: document.getElementById('inv-specialty-filter').value }); renderInvitationLetters(); });
+                document.getElementById('inv-include-duty').addEventListener('change', () => { saveInvPrefs({ includeDuty: document.getElementById('inv-include-duty').checked }); renderInvitations(); });
+                document.getElementById('inv-include-reserve').addEventListener('change', () => { saveInvPrefs({ includeReserve: document.getElementById('inv-include-reserve').checked }); renderInvitations(); });
+                const searchInput = document.getElementById('inv-search');
+                searchInput.addEventListener('input', () => { saveInvPrefs({ search: searchInput.value }); renderInvitationLetters(); });
+                ['inv-ref-num','inv-ref-num2','inv-ref-date'].forEach(id => {
+                    const el = document.getElementById(id);
+                    el.addEventListener('input', () => {
+                        saveInvPrefs({ refNum: document.getElementById('inv-ref-num').value, refNum2: document.getElementById('inv-ref-num2').value, refDate: document.getElementById('inv-ref-date').value });
+                        renderInvitationLetters();
+                    });
+                });
+
+                // Restore prefs
+                const prefs = loadInvPrefs();
+                if (typeof prefs.includeDuty === 'boolean') document.getElementById('inv-include-duty').checked = prefs.includeDuty;
+                if (typeof prefs.includeReserve === 'boolean') document.getElementById('inv-include-reserve').checked = prefs.includeReserve;
+                if (prefs.search) searchInput.value = prefs.search;
+                if (prefs.refNum) document.getElementById('inv-ref-num').value = prefs.refNum;
+                if (prefs.refNum2) document.getElementById('inv-ref-num2').value = prefs.refNum2;
+                if (prefs.refDate) document.getElementById('inv-ref-date').value = prefs.refDate;
+                else document.getElementById('inv-ref-date').value = new Date().toISOString().slice(0, 10);
+            }
+
+            function normalizeIdentitySync(raw) {
+                const merged = Object.assign({}, DEFAULT_INV_SCHOOL_IDENTITY, raw || {});
+                merged.country = cleanIdentityText(merged.country);
+                merged.ministry = cleanIdentityText(merged.ministry);
+                merged.academy = normalizeAcademyForInvitation(merged.academy);
+                merged.directorate = normalizeDirectorateForInvitation(merged.directorate);
+                merged.school_name = cleanIdentityText(merged.school_name);
+                merged.school_code = cleanIdentityText(merged.school_code);
+                merged.city = cleanIdentityText(merged.city);
+                merged.commune = cleanIdentityText(merged.commune);
+                merged.school_year = cleanIdentityText(merged.school_year) || SCHOOL_YEAR || '';
+                merged.director_name = cleanIdentityText(merged.director_name);
+                merged.director_title = cleanIdentityText(merged.director_title);
+                return merged;
+            }
+
+            async function loadSchoolIdentity() {
+                if (invState.schoolIdentity && Object.keys(invState.schoolIdentity).length > 0) {
+                    return invState.schoolIdentity;
+                }
+                try {
+                    await _identityPromise;
+                } catch (_) {}
+                if (!invState.schoolIdentity || Object.keys(invState.schoolIdentity).length === 0) {
+                    invState.schoolIdentity = Object.assign({}, DEFAULT_INV_SCHOOL_IDENTITY);
+                }
+                return invState.schoolIdentity;
+            }
+
+            async function loadSchoolIdentityDiagnosticsFallback() {
+                if (!window.api?.reports?.getIdentityDiagnostics) return;
+                try {
+                    const diag = await window.api.reports.getIdentityDiagnostics();
+                    console.warn('[exams-rooms invitations] identity diagnostics:', {
+                        dbPath: diag?.dbPath,
+                        tableExists: diag?.tableExists,
+                        rowCount: diag?.rowCount,
+                        school_name: diag?.identity?.school_name,
+                        academy: diag?.identity?.academy,
+                        directorate: diag?.identity?.directorate,
+                        commune: diag?.identity?.commune,
+                        school_year: diag?.identity?.school_year,
+                        hasLogo: diag?.hasLogo,
+                        logoLength: diag?.logoLength
+                    });
+                    const diagnosticIdentity = await normalizeInvitationIdentity(diag?.identity || {});
+                    if (hasUsableInvitationIdentity(diagnosticIdentity)) {
+                        invState.schoolIdentity = Object.assign({}, invState.schoolIdentity || {}, diagnosticIdentity);
+                    }
+                } catch (diagError) {
+                    console.warn('[exams-rooms invitations] identity diagnostics failed:', diagError);
+                }
+            }
+
+            async function loadProctorMeta() {
+                try {
+                    const rows = await window.api.examProctors.getAll(SCHOOL_YEAR);
+                    invState.proctorMeta = new Map();
+                    (rows || []).forEach(r => {
+                        const name = (r.teacher_full_name || r.teacher_name || '').trim();
+                        if (!name || invState.proctorMeta.has(name)) return;
+                        invState.proctorMeta.set(name, {
+                            som: r.som || '',
+                            cin: r.cin || '',
+                            teacher_name_fr: r.teacher_name_fr || '',
+                            gender: r.gender || '',
+                            specialty: r.specialty || '',
+                            workplace: r.workplace || ''
+                        });
+                    });
+                } catch { invState.proctorMeta = new Map(); }
+            }
+
+            async function buildInvitationData() {
+                const distribution = await getAutoDistributionFromStorage();
+                const teacherMap = new Map();
+                const includeReserve = document.getElementById('inv-include-reserve')?.checked !== false;
+                const includeDuty = document.getElementById('inv-include-duty')?.checked !== false;
+                function getOrCreate(name) {
+                    const clean = String(name || '').trim();
+                    if (!clean) return null;
+                    if (!teacherMap.has(clean)) teacherMap.set(clean, { name: clean, guard: [], reserve: [], duty: [] });
+                    return teacherMap.get(clean);
+                }
+                distribution.forEach(row => {
+                    const halfdayKey = row.halfday_key || '';
+                    const datePart = String(halfdayKey).split('|')[0] || (row.session_date || '');
+                    const ctx = {
+                        session_label: row.session_label || '',
+                        session_date: row.session_date || formatDateFromHalfdayKey(halfdayKey),
+                        date_iso: /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : '',
+                        period: row.period || getHalfdayPeriodFromKey(halfdayKey) || 'صباحا',
+                        session: row.session || '',
+                        subject: row.subject_name || '',
+                        room: row.room_number || row.room_name || '',
+                        time_from: row.time_from || '',
+                        time_to: row.time_to || '',
+                        session_key: row.session_key || row.session_label || '',
+                        halfday_key: halfdayKey
+                    };
+                    (row.proctors || []).forEach(name => {
+                        const t = getOrCreate(name); if (t) t.guard.push(ctx);
+                    });
+                    if (includeReserve) (row.reserves || []).forEach(name => {
+                        const t = getOrCreate(name);
+                        if (t && !t.reserve.some(c => c.session_key === ctx.session_key && c.subject === ctx.subject)) t.reserve.push(ctx);
+                    });
+                    if (includeDuty) (row.duty_teachers || []).forEach(name => {
+                        const t = getOrCreate(name);
+                        if (t && !t.duty.some(c => c.session_key === ctx.session_key && c.subject === ctx.subject)) t.duty.push(ctx);
+                    });
+                });
+                return Array.from(teacherMap.values())
+                    .map(t => Object.assign(t, { total: t.guard.length + t.reserve.length + t.duty.length }))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+            }
+
+            async function renderInvitations() {
+                // Force fresh identity each time so users see latest settings updates
+                await loadSchoolIdentity();
+                await loadProctorMeta();
+                invState.rows = await buildInvitationData();
+                const specialties = new Set();
+                invState.rows.forEach(r => {
+                    const meta = invState.proctorMeta.get(r.name);
+                    if (meta?.specialty) specialties.add(meta.specialty);
+                });
+                const sel = document.getElementById('inv-specialty-filter');
+                const prev = sel.value || loadInvPrefs().specialty || '';
+                sel.innerHTML = '<option value="">-- كل التخصصات --</option>' +
+                    Array.from(specialties).sort((a, b) => a.localeCompare(b, 'ar'))
+                        .map(s => '<option value="' + escapeHtml(s) + '">' + escapeHtml(s) + '</option>').join('');
+                if (prev && specialties.has(prev)) sel.value = prev;
+
+                const countEl = document.getElementById('erm-invitations-count');
+                if (countEl) countEl.textContent = invState.rows.length;
+                await renderInvitationLetters();
+            }
+
+            function applyInvitationFilters() {
+                const specialty = document.getElementById('inv-specialty-filter').value;
+                const term = (document.getElementById('inv-search').value || '').trim().toLowerCase();
+                return invState.rows.filter(r => {
+                    if (specialty && (invState.proctorMeta.get(r.name)?.specialty || '') !== specialty) return false;
+                    if (term) {
+                        const meta = invState.proctorMeta.get(r.name) || {};
+                        const hay = [r.name, meta.som, meta.cin, meta.specialty, meta.workplace].filter(Boolean).join(' ').toLowerCase();
+                        if (!hay.includes(term)) return false;
+                    }
+                    return true;
+                });
+            }
+
+            async function renderInvitationLetters() {
+                const container = document.getElementById('invitations-letters-container');
+                const specialty = document.getElementById('inv-specialty-filter').value;
+                // Always ensure identity is loaded before rendering letters
+                await loadSchoolIdentity();
+                invState.filteredRows = applyInvitationFilters();
+
+                const stats = [
+                    ['الأساتذة المعنيون', invState.filteredRows.length],
+                    ['مجموع التكليفات', invState.filteredRows.reduce((acc, r) => acc + r.total, 0)],
+                    ['مجموع الحراسة', invState.filteredRows.reduce((acc, r) => acc + r.guard.length, 0)],
+                    ['الاحتياط', invState.filteredRows.reduce((acc, r) => acc + r.reserve.length, 0)],
+                    ['المداومة', invState.filteredRows.reduce((acc, r) => acc + r.duty.length, 0)]
+                ];
+                if (specialty) stats.unshift(['التخصص', specialty]);
+                document.getElementById('invitations-stats').innerHTML = stats
+                    .map(([label, value]) => '<div class="summary-stat"><span>' + escapeHtml(label) + '</span><strong>' + escapeHtml(value) + '</strong></div>').join('');
+
+                if (!invState.rows.length) {
+                    container.innerHTML = '<div class="summary-empty"><i class="fas fa-info-circle"></i> لا توجد نتيجة توزيع محفوظة. نفّذ التوزيع واحفظه أولاً من صفحة توزيع المراقبين.</div>';
+                    return;
+                }
+                if (!invState.filteredRows.length) {
+                    container.innerHTML = '<div class="summary-empty"><i class="fas fa-filter"></i> لا توجد نتائج مطابقة. عدّل الفلاتر أو البحث.</div>';
+                    return;
+                }
+
+                container.innerHTML = '<div class="inv-grid">' + invState.filteredRows.map(t => {
+                    const meta = invState.proctorMeta.get(t.name) || {};
+                    return '<div class="inv-card">' +
+                        '<div class="inv-card-head">' +
+                            '<div class="inv-card-title"><i class="fas fa-user-tie"></i> ' + escapeHtml(t.name) + '</div>' +
+                            '<div class="inv-card-meta">' +
+                                (meta.som ? '<span>رقم التأطير: <strong>' + escapeHtml(meta.som) + '</strong></span>' : '') +
+                                (meta.specialty ? '<span>التخصص: <strong>' + escapeHtml(meta.specialty) + '</strong></span>' : '') +
+                                '<span>الحراسة: <strong>' + t.guard.length + '</strong></span>' +
+                                '<span>الاحتياط: <strong>' + t.reserve.length + '</strong></span>' +
+                                '<span>المداومة: <strong>' + t.duty.length + '</strong></span>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="inv-card-body">' + buildInvitationLetterHtml(t) + '</div>' +
+                    '</div>';
+                }).join('') + '</div>';
+            }
+
+            const ARABIC_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+            function arabicDayFromIso(iso) {
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return '';
+                const [y, m, d] = iso.split('-').map(Number);
+                const dt = new Date(Date.UTC(y, m - 1, d));
+                return ARABIC_DAYS[dt.getUTCDay()] || '';
+            }
+
+            function formatTimeArabic(hhmm) {
+                if (!hhmm || !hhmm.includes(':')) return '';
+                const [h, m] = hhmm.split(':').map(Number);
+                if (!Number.isFinite(h)) return '';
+                if (!m) return 'س ' + h;
+                if (m === 30) return 'س ' + h + ' و30د';
+                return 'س ' + h + ' و' + m + 'د';
+            }
+
+            function formatTimeRangeArabic(from, to) {
+                const f = formatTimeArabic(from);
+                const t = formatTimeArabic(to);
+                if (!f || !t) return '';
+                return 'من ' + f + ' الى ' + t;
+            }
+
+            function buildScheduleByDay(teacher) {
+                // Combine guard + reserve + duty assignments, group by date_iso
+                const items = [
+                    ...teacher.guard.map(c => Object.assign({}, c, { role: 'الحراسة' })),
+                    ...teacher.reserve.map(c => Object.assign({}, c, { role: 'الاحتياط' })),
+                    ...teacher.duty.map(c => Object.assign({}, c, { role: 'المداومة' }))
+                ];
+                // Build map: date_iso -> { morning: [items], evening: [items] }
+                const byDay = new Map();
+                items.forEach(it => {
+                    const d = it.date_iso || '';
+                    if (!d) return;
+                    if (!byDay.has(d)) byDay.set(d, { morning: [], evening: [] });
+                    const bucket = (it.period === 'مساء') ? 'evening' : 'morning';
+                    if (!byDay.get(d)[bucket].some(x => x.time_from === it.time_from && x.time_to === it.time_to && x.role === it.role && x.subject === it.subject)) {
+                        byDay.get(d)[bucket].push(it);
+                    }
+                });
+                // Sort each bucket by time_from
+                byDay.forEach(v => {
+                    v.morning.sort((a, b) => String(a.time_from).localeCompare(String(b.time_from)));
+                    v.evening.sort((a, b) => String(a.time_from).localeCompare(String(b.time_from)));
+                });
+                // Sort dates ascending
+                return Array.from(byDay.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([date, slots]) => ({ date, ...slots }));
+            }
+
+            function formatScheduleSlot(item) {
+                // Prefer a clean time range like "من س 8 الى س 10". Fallback to the
+                // session name alone (e.g. "الحصة الأولى") because the upstream
+                // session_label is built as `[day, period, session, date].join(' / ')`
+                // (see exams-proctors.html:2517 getScheduleSessionLabel) — not human
+                // friendly inside a cell.
+                const range = formatTimeRangeArabic(item.time_from, item.time_to);
+                if (range) return range;
+                if (item.session) return item.session;
+                return '';
+            }
+
+            function buildScheduleTableRows(scheduleDays) {
+                if (!scheduleDays.length) {
+                    return '<tr><td colspan="4" style="font-style:italic;padding:14px">لا توجد تكليفات لهذا الأستاذ</td></tr>';
+                }
+                let html = '';
+                scheduleDays.forEach(({ date, morning, evening }) => {
+                    const rowCount = Math.max(morning.length, evening.length, 1);
+                    const dayName = arabicDayFromIso(date);
+                    const dateDisplay = date ? date.replace(/-/g, '/') : '';
+                    for (let i = 0; i < rowCount; i++) {
+                        html += '<tr>';
+                        if (i === 0) {
+                            html += '<td class="day-name" rowspan="' + rowCount + '">' + escapeHtml(dayName) + '</td>';
+                            html += '<td class="day-date" rowspan="' + rowCount + '">' + escapeHtml(dateDisplay) + '</td>';
+                        }
+                        const m = morning[i];
+                        const e = evening[i];
+                        if (m) {
+                            const txt = formatScheduleSlot(m);
+                            html += '<td>' + (txt ? escapeHtml(txt) : '<span style="color:#666">حضور</span>') + '</td>';
+                        } else {
+                            html += '<td class="empty">/</td>';
+                        }
+                        if (e) {
+                            const txt = formatScheduleSlot(e);
+                            html += '<td>' + (txt ? escapeHtml(txt) : '<span style="color:#666">حضور</span>') + '</td>';
+                        } else {
+                            html += '<td class="empty">/</td>';
+                        }
+                        html += '</tr>';
+                    }
+                });
+                return html;
+            }
+
+            function getInvRefValues() {
+                const num = (document.getElementById('inv-ref-num')?.value || '').trim();
+                const num2 = (document.getElementById('inv-ref-num2')?.value || '').trim();
+                const dateIso = (document.getElementById('inv-ref-date')?.value || '').trim();
+                let dateDisplay = '';
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+                    const [y, m, d] = dateIso.split('-');
+                    dateDisplay = Number(d) + '/' + Number(m) + '/' + y;
+                } else {
+                    const t = new Date();
+                    dateDisplay = t.getDate() + '/' + (t.getMonth() + 1) + '/' + t.getFullYear();
+                }
+                return { num, num2, dateDisplay };
+            }
+
+            function buildSharedLetterheadHtml() {
+                const id = invState.schoolIdentity || {};
+                if (!hasUsableInvitationIdentity(id)) {
+                    return '<div class="inv-letterhead" style="border-color:#c0392b;color:#c0392b;text-align:center;font-weight:800;padding:8px;">' +
+                        'تعذر تحميل معلومات المؤسسة من قاعدة البيانات. افتح صفحة معلومات المؤسسة واحفظها ثم اضغط تحيين.' +
+                    '</div>';
+                }
+                const logo = id.logo_base64
+                    ? '<img class="lh-logo" src="data:image/png;base64,' + escapeHtml(id.logo_base64) + '" alt="logo">'
+                    : '<div style="width:48px;height:48px;border:1px dashed #3b6ac5;border-radius:50%;margin:0 auto"></div>';
+                const country = id.country || 'المملكة المغربية';
+                const ministry = id.ministry || 'وزارة التربية الوطنية والتعليم الأولي والرياضة';
+                const academy = id.academy || '';
+                const directorate = id.directorate || '';
+                const school = id.school_name || 'المؤسسة التعليمية';
+                const schoolCode = id.school_code || '';
+                const commune = id.commune || '';
+                const schoolYear = id.school_year || '';
+                return '<div class="inv-letterhead"><table><tr>' +
+                    '<td class="lh-col-r">' +
+                        '<div class="lh-country">' + escapeHtml(country) + '</div>' +
+                        '<div class="lh-line">' + escapeHtml(ministry) + '</div>' +
+                        (academy ? '<div class="lh-line">' + escapeHtml(academy) + '</div>' : '') +
+                        (directorate ? '<div class="lh-line">' + escapeHtml(directorate) + '</div>' : '') +
+                    '</td>' +
+                    '<td class="lh-col-c">' + logo + '</td>' +
+                    '<td class="lh-col-l">' +
+                        '<div class="lh-school">' + escapeHtml(school) + '</div>' +
+                        (schoolCode ? '<div class="lh-line">رمز المؤسسة: ' + escapeHtml(schoolCode) + '</div>' : '') +
+                        (commune ? '<div class="lh-line">الجماعة: ' + escapeHtml(commune) + '</div>' : '') +
+                        (schoolYear ? '<div class="lh-line">السنة الدراسية: ' + escapeHtml(schoolYear) + '</div>' : '') +
+                    '</td>' +
+                '</tr></table></div>';
+            }
+
+            async function buildInvitationLetterHtml(teacher) {
+                const config = (await window.api.examConfig.get(SCHOOL_YEAR, 'examCenterConfig')) || {};
+                const id = invState.schoolIdentity;
+                const meta = invState.proctorMeta.get(teacher.name) || {};
+                const examName = config.exam_name || 'البكالوريا';
+                const examYear = config.exam_year || new Date().getFullYear();
+                const sessionType = config.session_type || 'العادية';
+
+                const schoolName = id.school_name || 'المؤسسة التعليمية';
+                const directorName = id.director_name || '';
+                const directorTitle = id.director_title || 'المدير(ة)';
+                const headInspector = 'المدير الإقليمي';
+                const cityHeader = id.city || '';
+                const signatureBase64 = id.signature_base64 || '';
+
+                const ref = getInvRefValues();
+
+                const scheduleDays = buildScheduleByDay(teacher);
+                const scheduleRows = buildScheduleTableRows(scheduleDays);
+
+                return '<div class="inv-letter">' +
+
+                    // Standard application letterhead (logo + ministry + school)
+                    buildSharedLetterheadHtml() +
+
+                    // Reference / date strip (الرقم + التاريخ)
+                    '<div class="inv-letter-refstrip">' +
+                        '<div class="ref-block">' +
+                            '<div><u>الرقم</u>: ' + escapeHtml(ref.num || '—') + (ref.num2 ? ' / ' + escapeHtml(ref.num2) : '') + '</div>' +
+                            (ref.num2 ? '<div class="big-num">' + escapeHtml(ref.num2) + '</div>' : '') +
+                            '<div>' + (cityHeader ? escapeHtml(cityHeader) + ' ' : '') + 'في: ' + escapeHtml(ref.dateDisplay) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+
+                    // المدير الإقليمي / إلى — centered above recipient
+                    '<div class="inv-letter-from-center">' +
+                        '<div class="from-line">' + escapeHtml(headInspector) + '</div>' +
+                        '<div class="ila-line">إلى</div>' +
+                    '</div>' +
+
+                    '<div class="inv-letter-recipient">' +
+                        '<div class="row"><span class="lbl">السيد(ة):</span><span class="val">' + escapeHtml(teacher.name) + '</span>' +
+                            (meta.som ? '<span class="val-id">' + escapeHtml(meta.som) + '</span>' : '') +
+                        '</div>' +
+                        '<div class="row"><span class="lbl">رقم التأطير:</span><span class="val">' + escapeHtml(meta.som || '') + '</span></div>' +
+                        '<div class="row"><span class="lbl">على يد السيد(ة) ' + escapeHtml(directorTitle) + ':</span>' +
+                            '<span class="val">' + escapeHtml(schoolName) + '</span></div>' +
+                    '</div>' +
+
+                    '<div class="inv-letter-subject"><u>الموضوع:</u> لدورة ' + escapeHtml(sessionType) + '.</div>' +
+
+                    '<div class="inv-letter-ref">' +
+                        '<u>المرجع:</u>' +
+                        '<div>— المقرر الوزاري رقم 013-24 بتاريخ 28 ماي 2024 في شأن دفتر مساطر امتحانات ' + escapeHtml(examName) + ' دورة ' + escapeHtml(String(examYear)) + '.</div>' +
+                        '<div>— المذكرة الوزارية رقم 25*005 بتاريخ 13 يناير 2025.</div>' +
+                    '</div>' +
+
+                    '<div class="inv-letter-greeting">سلام تام بوجود مولانا الإمام دام له النصر والتأييد،</div>' +
+
+                    '<div class="inv-letter-body">' +
+                        '<p>وبعد، فاستنادا إلى مقتضيات المقرر الوزاري المشار إليه بالمرجع أعلاه، يشرفني إخباركم أنه وقع عليكم الاختيار للقيام بمهمة المراقبة في امتحانات نيل شهادة ' +
+                            escapeHtml(examName) + ' في دورتها ' + escapeHtml(sessionType) + ' ' + escapeHtml(String(examYear)) + '.</p>' +
+                        '<p class="inv-letter-center-line"><strong>بمركــــز الامتحان:</strong> <span class="center-name">' + escapeHtml(schoolName) + '</span>.</p>' +
+                        '<p>وذلك وفق الجدولة التالية:</p>' +
+
+                        '<table class="inv-letter-schedule">' +
+                            '<thead><tr>' +
+                                '<th>اليوم</th>' +
+                                '<th>التاريخ</th>' +
+                                '<th>الفترة الصباحية</th>' +
+                                '<th>الفترة المسائية</th>' +
+                            '</tr></thead>' +
+                            '<tbody>' + scheduleRows + '</tbody>' +
+                        '</table>' +
+
+                        '<p>وبناء عليه، أطلب منكم الحضور إلى المركز المذكور أعلاه في اليوم والتوقيت المشار إليهما بساعة قبل إجراء كل اختبار مع الرجاء القيام بالمهمة التي أنيطت بكم وفق التدابير والإجراءات الواردة في المقرر الوزاري سالف الذكر، وكذا في دليل المكلف بالإجراء.</p>' +
+                        '<p>وتقبلوا أزكى التحيات والسلام.</p>' +
+                    '</div>' +
+
+                    // Director signature only (teacher signature removed per spec)
+                    '<div class="inv-letter-signs">' +
+                        '<div class="box">' +
+                            '<div class="lbl">' + escapeHtml(directorTitle) + '</div>' +
+                            (directorName ? '<div class="val">' + escapeHtml(directorName) + '</div>' : '') +
+                            (signatureBase64
+                                ? '<img class="sig-img" src="data:image/png;base64,' + escapeHtml(signatureBase64) + '" alt="توقيع المدير(ة)" />'
+                                : '<div style="height:60px"></div>'
+                            ) +
+                            '<div class="line"></div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }
+
+            async function printInvitationsBySpecialty() {
+                const specialty = document.getElementById('inv-specialty-filter').value;
+                if (!specialty) {
+                    showToast('اختر مادة التخصص أولاً من القائمة', 'warning');
+                    return;
+                }
+                if (!invState.filteredRows.length) {
+                    showToast('لا يوجد أساتذة بهذا التخصص', 'warning');
+                    return;
+                }
+                await _printInvitationsBatch(invState.filteredRows, 'استدعاءات_' + specialty.replace(/\s+/g, '_'), 'استدعاءات مادة ' + specialty);
+            }
+
+            async function _printInvitationsBatch(rows, fileName, title) {
+                if (!window.PrintSystem || typeof window.PrintSystem.preview !== 'function') {
+                    showToast('نظام الطباعة غير متاح', 'error'); return;
+                }
+                // Always refresh identity so the printed letterhead matches what the user
+                // last saved in settings-school.html (logo, ministry, school name, signature).
+                await loadSchoolIdentity();
+
+                // PrintSystem.preview() clones the source element AND keeps its inline
+                // style + classes (because _cleanClone is skipped when contentSelector is
+                // set). So we MUST give it an inner element with no hiding styles/classes,
+                // wrapped by an outer host that's hidden off-screen.
+                let host = document.getElementById('inv-print-host');
+                if (host) host.remove();
+                host = document.createElement('div');
+                host.id = 'inv-print-host';
+                host.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none;z-index:-1;';
+                // Stack letters vertically (one per page) — DO NOT use .gs-sheet-wrapper
+                // here because it has `display:flex` which arranges children in a row.
+                // Override `.gs-sheet` padding too; our `.inv-letter` has its own padding
+                // and we need every byte of vertical space to fit director signature on
+                // the same page.
+                const sheetStyle = 'page-break-after:always;width:min(210mm,100%);margin:0 auto 8px;display:block;padding:0;min-height:auto;box-shadow:none;';
+                const sheetsHtml = (await Promise.all(rows.map(async t =>
+                    '<div class="gs-sheet" style="' + sheetStyle + '">' +
+                        (await buildInvitationLetterHtml(t)) +
+                    '</div>'
+                ))).join('');
+                host.innerHTML = '<div id="inv-print-content" style="display:flex;flex-direction:column;align-items:center;width:100%;">' + sheetsHtml + '</div>';
+                document.body.appendChild(host);
+
+                try {
+                    await window.PrintSystem.preview({
+                        contentSelector: '#inv-print-content',
+                        title: title,
+                        pageSize: 'A4',
+                        landscape: false,
+                        noHeader: true,
+                        sheetPadding: '0',
+                        edgeToEdge: true,
+                        preferCSSPageSize: true,
+                        pageMargins: { top: '0', right: '0', bottom: '0', left: '0' },
+                        pdfMargins: { marginType: 'none', top: 0, bottom: 0, left: 0, right: 0 },
+                        defaultFileName: fileName
+                    });
+                } catch(e) {
+                    showToast('خطأ: ' + e.message, 'error');
+                } finally {
+                    // Detach after preview has cloned its content into the modal.
+                    setTimeout(() => { host?.remove(); }, 1500);
+                }
+            }
+
+            async function printDisplayedInvitations() {
+                if (!invState.filteredRows.length) { showToast('لا توجد استدعاءات للطباعة. عدّل الفلاتر أو نفّذ التوزيع.', 'warning'); return; }
+                await _printInvitationsBatch(invState.filteredRows, 'استدعاءات_الأساتذة', 'استدعاءات الأساتذة');
+            }
+
+            /* ═══════════════════════════════════════════════════════════════
+               Tab — Attendance Tracking (تتبع الحضور)
+               ═══════════════════════════════════════════════════════════════ */
+            const attState = { distribution: [], records: new Map(), currentSession: '' };
+
+            function initAttendancePanel() {
+                document.getElementById('att-halfday-filter').addEventListener('change', renderAttendanceFilters);
+                document.getElementById('att-session-filter').addEventListener('change', () => {
+                    attState.currentSession = document.getElementById('att-session-filter').value;
+                    renderAttendanceTable();
+                });
+                document.getElementById('att-role-filter').addEventListener('change', renderAttendanceTable);
+                document.getElementById('btn-att-mark-all-present').addEventListener('click', markAllPresentForCurrentSession);
+                document.getElementById('btn-print-attendance').addEventListener('click', previewAttendancePrint);
+            }
+
+            async function renderAttendanceFilters() {
+                attState.distribution = await getAutoDistributionFromStorage();
+                try {
+                    const list = await window.api.examAttendance.getAll(SCHOOL_YEAR);
+                    attState.records = new Map((list || []).map(r => [r.session_key + '|' + r.teacher_name, r]));
+                } catch(e) { attState.records = new Map(); }
+                document.getElementById('erm-attendance-count').textContent = attState.records.size;
+
+                const halfdayFilter = document.getElementById('att-halfday-filter');
+                const sessionFilter = document.getElementById('att-session-filter');
+                const halfdayMap = new Map();
+                attState.distribution.forEach(row => {
+                    const key = row.halfday_key || '';
+                    if (!key || halfdayMap.has(key)) return;
+                    halfdayMap.set(key, getHalfdayLabelFromKey(key));
+                });
+                const curHalf = halfdayFilter.value;
+                const validHalf = curHalf && halfdayMap.has(curHalf) ? curHalf : '';
+                halfdayFilter.innerHTML = '<option value="">كل أنصاف الأيام</option>' + Array.from(halfdayMap.entries())
+                    .map(([k, lbl]) => '<option value="' + escapeHtml(k) + '">' + escapeHtml(lbl) + '</option>').join('');
+                halfdayFilter.value = validHalf;
+
+                const filteredRows = validHalf
+                    ? attState.distribution.filter(r => (r.halfday_key || '') === validHalf)
+                    : attState.distribution;
+                const sessionMap = new Map();
+                filteredRows.forEach(r => {
+                    const key = r.session_key || r.session_label || '';
+                    if (!key || sessionMap.has(key)) return;
+                    sessionMap.set(key, r.session_label || key);
+                });
+                const curSession = sessionFilter.value;
+                const validSession = curSession && sessionMap.has(curSession) ? curSession : '';
+                sessionFilter.innerHTML = '<option value="">-- اختر حصة --</option>' + Array.from(sessionMap.entries())
+                    .map(([k, lbl]) => '<option value="' + escapeHtml(k) + '">' + escapeHtml(lbl) + '</option>').join('');
+                sessionFilter.value = validSession;
+                attState.currentSession = validSession;
+                renderAttendanceTable();
+            }
+
+            function getAttendanceRowsForSession() {
+                const sessionKey = attState.currentSession;
+                if (!sessionKey) return [];
+                const roleFilter = document.getElementById('att-role-filter')?.value || '';
+                const sessionRows = attState.distribution.filter(r => (r.session_key || r.session_label) === sessionKey);
+                if (!sessionRows.length) return [];
+                const result = [];
+                const seen = new Set();
+                function addEntry(name, role, room, subject) {
+                    const key = role + '|' + name;
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    if (roleFilter && role !== roleFilter) return;
+                    result.push({ name, role, room: room || '', subject: subject || '' });
+                }
+                sessionRows.forEach(row => {
+                    (row.proctors || []).forEach(n => addEntry(n, 'proctor', row.room_number || row.room_name || '', row.subject_name || ''));
+                    (row.reserves || []).forEach(n => addEntry(n, 'reserve', '', ''));
+                    (row.duty_teachers || []).forEach(n => addEntry(n, 'duty', '', ''));
+                });
+                return result.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+            }
+
+            function getAttGuardSubjects() {
+                const sessionRow = attState.distribution.find(r => (r.session_key || r.session_label) === attState.currentSession);
+                const halfdayKey = sessionRow?.halfday_key || '';
+                const subjects = new Set();
+                attState.distribution.forEach(r => {
+                    if (r.subject_name && (!halfdayKey || (r.halfday_key || '') === halfdayKey)) subjects.add(r.subject_name);
+                });
+                return Array.from(subjects).sort((a, b) => a.localeCompare(b, 'ar'));
+            }
+
+            function renderAttendanceTable() {
+                const tbody = document.getElementById('attendance-tbody');
+                const rows = getAttendanceRowsForSession();
+                const sessionRow = attState.distribution.find(r => (r.session_key || r.session_label) === attState.currentSession);
+                const sessionLabel = sessionRow ? (sessionRow.session_label || attState.currentSession) : '—';
+                const sessionDate = sessionRow ? formatDateFromHalfdayKey(sessionRow.halfday_key) : '—';
+
+                if (!attState.currentSession) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="summary-empty"><i class="fas fa-hand-pointer"></i> اختر حصة لعرض المكلفين</td></tr>';
+                    document.getElementById('attendance-stats').innerHTML = '';
+                    return;
+                }
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="summary-empty">لا يوجد مكلفون مطابقون</td></tr>';
+                    document.getElementById('attendance-stats').innerHTML = '';
+                    return;
+                }
+                const roleLabel = { proctor: 'الحراسة', reserve: 'الاحتياط', duty: 'المداومة' };
+                const allSubjects = getAttGuardSubjects();
+                let present = 0, absent = 0, late = 0, excused = 0;
+                tbody.innerHTML = rows.map((r, i) => {
+                    const recKey = attState.currentSession + '|' + r.name;
+                    const rec = attState.records.get(recKey);
+                    const status = rec?.status || '';
+                    const savedRole = rec?.role || r.role;
+                    const guardSubject = rec?.guard_subject || r.subject || '';
+                    if (status === 'present') present++;
+                    else if (status === 'absent') absent++;
+                    else if (status === 'late') late++;
+                    else if (status === 'excused') excused++;
+                    const eName = r.name.replace(/'/g, '&#39;');
+                    const radio = (val, label, color) => {
+                        const checked = status === val;
+                        const bg = checked ? color : 'transparent';
+                        const fg = checked ? 'var(--color-surface)' : color;
+                        return '<label class="erm-att-radio" style="border:1px solid ' + color + ';background:' + bg + ';color:' + fg + '">' +
+                            '<input type="radio" name="att-' + i + '" value="' + val + '"' + (checked ? ' checked' : '') + ' onchange="setAttendanceStatus(\'' + eName + '\', \'' + savedRole + '\', \'' + val + '\')">' +
+                            label + '</label>';
+                    };
+                    const roleSelect = '<select class="form-select" style="font-size:12px;padding:4px 6px;min-width:90px" onchange="changeAttRole(\'' + eName + '\', \'' + r.role + '\', this.value)">' +
+                        '<option value="proctor"' + (savedRole === 'proctor' ? ' selected' : '') + '>الحراسة</option>' +
+                        '<option value="reserve"' + (savedRole === 'reserve' ? ' selected' : '') + '>الاحتياط</option>' +
+                        '<option value="duty"' + (savedRole === 'duty' ? ' selected' : '') + '>المداومة</option>' +
+                        '</select>';
+                    const subjectOptions = '<option value="">—</option>' + allSubjects.map(s =>
+                        '<option value="' + escapeHtml(s) + '"' + (guardSubject === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>'
+                    ).join('');
+                    const subjectSelect = '<select class="form-select" style="font-size:12px;padding:4px 6px;min-width:100px" onchange="changeAttGuardSubject(\'' + eName + '\', \'' + savedRole + '\', this.value)">' + subjectOptions + '</select>';
+                    return '<tr>' +
+                        '<td>' + (i + 1) + '</td>' +
+                        '<td class="sup-name-cell">' + escapeHtml(r.name) + '</td>' +
+                        '<td>' + roleSelect + '</td>' +
+                        '<td>' + escapeHtml(r.room || '—') + '</td>' +
+                        '<td>' + subjectSelect + '</td>' +
+                        '<td>' +
+                            radio('present', 'حاضر', 'var(--color-success)') +
+                            radio('absent', 'غائب', 'var(--color-danger)') +
+                            radio('late', 'متأخر', 'var(--color-warning)') +
+                            radio('excused', 'بعذر', 'var(--color-info)') +
+                        '</td>' +
+                        '<td><input type="text" class="form-input" value="' + escapeHtml(rec?.notes || '') + '" placeholder="ملاحظة..." onchange="setAttendanceNote(\'' + eName + '\', \'' + savedRole + '\', this.value)" style="width:100%;font-size:12px"></td>' +
+                        '</tr>';
+                }).join('');
+                document.getElementById('attendance-stats').innerHTML = [
+                    ['الحصة', sessionLabel],
+                    ['التاريخ', sessionDate],
+                    ['حاضر', present],
+                    ['غائب', absent],
+                    ['متأخر', late],
+                    ['بعذر', excused]
+                ].map(([l, v]) => '<div class="summary-stat"><span>' + escapeHtml(l) + '</span><strong>' + escapeHtml(v) + '</strong></div>').join('');
+            }
+
+            function _attSessionMeta() {
+                const row = attState.distribution.find(r => (r.session_key || r.session_label) === attState.currentSession);
+                return {
+                    session_key: attState.currentSession,
+                    session_label: row?.session_label || attState.currentSession,
+                    session_date: row ? formatDateFromHalfdayKey(row.halfday_key) : ''
+                };
+            }
+
+            window.setAttendanceStatus = async function(name, role, status) {
+                const meta = _attSessionMeta();
+                const existing = attState.records.get(meta.session_key + '|' + name);
+                try {
+                    const res = await window.api.examAttendance.upsert({
+                        school_year: SCHOOL_YEAR, teacher_name: name, role, status,
+                        notes: existing?.notes || null,
+                        session_key: meta.session_key, session_label: meta.session_label, session_date: meta.session_date
+                    });
+                    if (res?.success) {
+                        attState.records.set(meta.session_key + '|' + name, Object.assign({}, existing || {}, {
+                            session_key: meta.session_key, teacher_name: name, role, status,
+                            session_label: meta.session_label, session_date: meta.session_date
+                        }));
+                        renderAttendanceTable();
+                    } else { showToast('فشل: ' + (res?.error || 'خطأ'), 'error'); }
+                } catch(e) { showToast('فشل: ' + e.message, 'error'); }
+            };
+
+            window.setAttendanceNote = async function(name, role, notes) {
+                const meta = _attSessionMeta();
+                const existing = attState.records.get(meta.session_key + '|' + name);
+                if (!existing?.status) {
+                    showToast('حدد حالة الحضور أولاً قبل إضافة ملاحظة', 'warning');
+                    return;
+                }
+                try {
+                    await window.api.examAttendance.upsert({
+                        school_year: SCHOOL_YEAR, teacher_name: name, role,
+                        status: existing.status, notes: notes || null,
+                        session_key: meta.session_key, session_label: meta.session_label, session_date: meta.session_date
+                    });
+                    attState.records.set(meta.session_key + '|' + name, Object.assign({}, existing, {
+                        notes, session_key: meta.session_key, teacher_name: name, role,
+                        session_label: meta.session_label, session_date: meta.session_date
+                    }));
+                } catch(e) { showToast('فشل: ' + e.message, 'error'); }
+            };
+
+            window.changeAttRole = async function(name, originalRole, newRole) {
+                if (newRole === originalRole) return;
+                const meta = _attSessionMeta();
+                const existing = attState.records.get(meta.session_key + '|' + name);
+                const roleLabel = { proctor: 'الحراسة', reserve: 'الاحتياط', duty: 'المداومة' };
+                const notes = 'تغيير المهمة من ' + (roleLabel[originalRole] || originalRole) + ' إلى ' + (roleLabel[newRole] || newRole);
+                try {
+                    const res = await window.api.examAttendance.upsert({
+                        school_year: SCHOOL_YEAR, teacher_name: name, role: newRole,
+                        status: existing?.status || 'present', notes: notes,
+                        session_key: meta.session_key, session_label: meta.session_label, session_date: meta.session_date
+                    });
+                    if (res?.success) {
+                        attState.records.set(meta.session_key + '|' + name, Object.assign({}, existing || {}, {
+                            session_key: meta.session_key, teacher_name: name, role: newRole,
+                            status: existing?.status || 'present', notes: notes,
+                            session_label: meta.session_label, session_date: meta.session_date
+                        }));
+                        showToast('تم تغيير المهمة إلى ' + (roleLabel[newRole] || newRole), 'success');
+                        renderAttendanceTable();
+                    } else { showToast('فشل: ' + (res?.error || 'خطأ'), 'error'); }
+                } catch(e) { showToast('فشل: ' + e.message, 'error'); }
+            };
+
+            window.changeAttGuardSubject = async function(name, role, newSubject) {
+                const meta = _attSessionMeta();
+                const existing = attState.records.get(meta.session_key + '|' + name);
+                const savedRole = existing?.role || role;
+                const oldSubject = existing?.guard_subject || '';
+                const notes = newSubject
+                    ? 'تغيير مادة الحراسة' + (oldSubject ? ' من ' + oldSubject : '') + ' إلى ' + newSubject
+                    : (existing?.notes || '');
+                try {
+                    const res = await window.api.examAttendance.upsert({
+                        school_year: SCHOOL_YEAR, teacher_name: name, role: savedRole,
+                        status: existing?.status || 'present', notes: notes,
+                        session_key: meta.session_key, session_label: meta.session_label, session_date: meta.session_date
+                    });
+                    if (res?.success) {
+                        attState.records.set(meta.session_key + '|' + name, Object.assign({}, existing || {}, {
+                            session_key: meta.session_key, teacher_name: name, role: savedRole,
+                            status: existing?.status || 'present', notes: notes, guard_subject: newSubject,
+                            session_label: meta.session_label, session_date: meta.session_date
+                        }));
+                        showToast('تم تغيير مادة الحراسة', 'success');
+                    } else { showToast('فشل: ' + (res?.error || 'خطأ'), 'error'); }
+                } catch(e) { showToast('فشل: ' + e.message, 'error'); }
+            };
+
+            async function markAllPresentForCurrentSession() {
+                if (!attState.currentSession) { showToast('اختر حصة أولاً', 'warning'); return; }
+                const rows = getAttendanceRowsForSession();
+                if (!rows.length) { showToast('لا يوجد مكلفون', 'warning'); return; }
+                const meta = _attSessionMeta();
+                const h = showToast.loading('جاري الحفظ...');
+                try {
+                    const records = rows.map(r => ({
+                        teacher_name: r.name, role: r.role, status: 'present',
+                        session_key: meta.session_key, session_label: meta.session_label, session_date: meta.session_date
+                    }));
+                    const res = await window.api.examAttendance.bulkUpsert({
+                        school_year: SCHOOL_YEAR, records
+                    });
+                    if (res?.success) {
+                        rows.forEach(r => {
+                            attState.records.set(meta.session_key + '|' + r.name, {
+                                session_key: meta.session_key, teacher_name: r.name, role: r.role, status: 'present',
+                                session_label: meta.session_label, session_date: meta.session_date
+                            });
+                        });
+                        h.success('تم تأشير الجميع كحاضرين');
+                    } else {
+                        h.error('فشل: ' + (res?.error || 'خطأ'));
+                    }
+                    renderAttendanceTable();
+                } catch(e) { h.error('فشل: ' + e.message); }
+            }
+
+            function previewAttendancePrint() {
+                if (!attState.currentSession) { showToast('اختر حصة أولاً', 'warning'); return; }
+                const rows = getAttendanceRowsForSession();
+                if (!rows.length) { showToast('لا يوجد مكلفون', 'warning'); return; }
+                if (!window.PrintSystem || typeof window.PrintSystem.preview !== 'function') {
+                    showToast('نظام الطباعة غير متاح', 'error'); return;
+                }
+                const meta = _attSessionMeta();
+                const roleLabel = { proctor: 'الحراسة', reserve: 'الاحتياط', duty: 'المداومة' };
+                const statusLabel = { present: 'حاضر', absent: 'غائب', late: 'متأخر', excused: 'بعذر' };
+                const body = rows.map((r, i) => {
+                    const rec = attState.records.get(meta.session_key + '|' + r.name);
+                    const savedRole = rec?.role || r.role;
+                    const guardSubject = rec?.guard_subject || r.subject || '';
+                    return '<tr>' +
+                        '<td style="border:1px solid #888;padding:6px;text-align:center">' + (i + 1) + '</td>' +
+                        '<td style="border:1px solid #888;padding:6px">' + escapeHtml(r.name) + '</td>' +
+                        '<td style="border:1px solid #888;padding:6px;text-align:center">' + (roleLabel[savedRole] || '—') + '</td>' +
+                        '<td style="border:1px solid #888;padding:6px;text-align:center">' + escapeHtml(r.room || '—') + '</td>' +
+                        '<td style="border:1px solid #888;padding:6px;text-align:center">' + escapeHtml(guardSubject || '—') + '</td>' +
+                        '<td style="border:1px solid #888;padding:6px;text-align:center;font-weight:700">' + (statusLabel[rec?.status] || '—') + '</td>' +
+                        '<td style="border:1px solid #888;padding:6px">' + escapeHtml(rec?.notes || '') + '</td>' +
+                        '<td style="border:1px solid #888;padding:6px;width:120px">&nbsp;</td>' +
+                        '</tr>';
+                }).join('');
+                const root = document.getElementById('attendance-print-root');
+                root.innerHTML = '<div id="attendance-print-content"><div class="gs-sheet-wrapper"><div class="gs-sheet">' +
+                    '<div class="gs-sheet-title">ورقة تتبع حضور الأساتذة المكلفين</div>' +
+                    '<div style="text-align:center;margin-bottom:8px">الحصة: <strong>' + escapeHtml(meta.session_label) + '</strong> &nbsp;|&nbsp; التاريخ: <strong>' + escapeHtml(meta.session_date) + '</strong></div>' +
+                    '<table style="width:100%;border-collapse:collapse;margin-top:10px"><thead><tr style="background:#34495e;color:#fff">' +
+                    '<th style="border:1px solid #888;padding:6px">#</th>' +
+                    '<th style="border:1px solid #888;padding:6px">الأستاذ(ة)</th>' +
+                    '<th style="border:1px solid #888;padding:6px">المهمة</th>' +
+                    '<th style="border:1px solid #888;padding:6px">القاعة</th>' +
+                    '<th style="border:1px solid #888;padding:6px">مادة الحراسة</th>' +
+                    '<th style="border:1px solid #888;padding:6px">الحالة</th>' +
+                    '<th style="border:1px solid #888;padding:6px">ملاحظات</th>' +
+                    '<th style="border:1px solid #888;padding:6px">التوقيع</th>' +
+                    '</tr></thead><tbody>' + body + '</tbody></table>' +
+                    '</div></div></div>';
+                try {
+                    window.PrintSystem.preview({
+                        contentSelector: '#attendance-print-content',
+                        title: 'تتبع الحضور — ' + meta.session_label,
+                        pageSize: 'A4',
+                        landscape: true,
+                        noHeader: false,
+                        defaultFileName: 'تتبع_الحضور_' + meta.session_label
+                    });
+                } catch(e) { showToast('خطأ: ' + e.message, 'error'); }
+            }
+        

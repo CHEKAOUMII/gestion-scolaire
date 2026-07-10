@@ -18,7 +18,10 @@
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
         <script src="js/print-system.js" defer></script>
-        <script src="js/data/ma-education-labels.js"></script>
+        <script src="js/shared/chart-theme.js" defer></script>
+        <script src="js/shared/csv.js" defer></script>
+        <script src="js/data/ma-education-labels.js" defer></script>
+        <script src="js/data/system-tag-types.js" defer></script>
         <script src="js/pages/tracking-teachers-performance.js" defer></script>
     </head>
 
@@ -35,13 +38,13 @@
             <header class="header">
                 <div class="header-left">
                     <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
-                    <h2 class="tp-header-title" id="tp-page-title"><i class="fas fa-chart-line"></i> تتبع أداء الأستاذ(ة)</h2>
+                    <h1 class="tp-header-title" id="tp-page-title"><i class="fas fa-chart-line" aria-hidden="true"></i> تتبع أداء الأستاذ(ة)</h1>
                 </div>
                 <div class="header-right">
                     <button class="btn btn-secondary" id="tp-export-btn" title="تصدير التقرير">
                         <i class="fas fa-file-export"></i> تصدير
                     </button>
-                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
+                    <button class="theme-toggle" id="theme-toggle" type="button" title="تبديل المظهر" aria-label="تبديل المظهر">
                         <i class="fas fa-moon"></i>
                     </button>
                 </div>
@@ -52,12 +55,15 @@
                 <div class="search-section">
                     <h3><i class="fas fa-filter"></i> فلترة التحليل</h3>
                     <form id="teacher-performance-form" class="search-form tp-filters-grid">
-                        <select id="tp-subject-filter">
+                        <label class="sr-only" for="tp-subject-filter">المادة</label>
+                        <select id="tp-subject-filter" aria-label="المادة">
                             <option value="">كل المواد</option>
                         </select>
-                        <select id="tp-teacher-filter">
+                        <label class="sr-only" for="tp-teacher-filter">الأستاذ(ة)</label>
+                        <select id="tp-teacher-filter" aria-label="الأستاذ(ة)">
                         </select>
-                        <select id="tp-semester-filter">
+                        <label class="sr-only" for="tp-semester-filter">الدورة</label>
+                        <select id="tp-semester-filter" aria-label="الدورة">
                             <option value="">كل الدورات</option>
                         </select>
                         <div class="tp-filters-actions">
@@ -90,9 +96,7 @@
                         <div class="tp-grid-three">
                             <div class="tp-panel">
                                 <h3><i class="fas fa-school"></i> الأداء حسب الأقسام</h3>
-                                <p id="tp-section-note" class="tp-panel-note sr-only">
-                                    لا توجد بيانات للرسم البياني بعد.
-                                </p>
+                                <p id="tp-section-note" class="tp-panel-note">-</p>
                                 <div class="tp-chart-wrap tp-chart-short">
                                     <canvas
                                         id="tp-section-chart"
@@ -103,9 +107,7 @@
                             </div>
                             <div class="tp-panel">
                                 <h3><i class="fas fa-chart-pie"></i> توزيع نقط الأستاذ</h3>
-                                <p id="tp-distribution-note" class="tp-panel-note sr-only">
-                                    لا توجد بيانات للرسم البياني بعد.
-                                </p>
+                                <p id="tp-distribution-note" class="tp-panel-note">-</p>
                                 <div class="tp-chart-wrap tp-chart-short">
                                     <canvas
                                         id="tp-distribution-chart"
@@ -115,11 +117,9 @@
                                 </div>
                             </div>
                             <div class="tp-panel">
-                                <h3><i class="fas fa-wave-square"></i> تطور الأداء بين الفروض</h3>
+                                <h3><i class="fas fa-arrows-up-down"></i> نسب التحسن والتقهقر</h3>
                                 <p id="tp-trend-note" class="tp-panel-note">-</p>
-                                <div class="tp-chart-wrap tp-chart-medium">
-                                    <canvas id="tp-trend-chart" role="img" aria-describedby="tp-trend-note"></canvas>
-                                </div>
+                                <div id="tp-trend-progress" class="report-progress-grid" role="img" aria-describedby="tp-trend-note"></div>
                             </div>
                         </div>
                     </div>
@@ -133,6 +133,15 @@
                         <div class="tp-cs-kpi-row" id="tp-cs-kpis"></div>
                         <!-- Detail Cards Row -->
                         <div class="tp-cs-cards-row" id="tp-cs-cards"></div>
+                    </div>
+                </details>
+
+                <!-- Inspection Visits & Activities (from daily report) -->
+                <details class="tp-block" open>
+                    <summary><i class="fas fa-clipboard-check"></i> الزيارات التفتيشية والأنشطة المُساهَم فيها</summary>
+                    <div class="tp-block-body">
+                        <div class="tp-cs-kpi-row" id="tp-act-kpis"></div>
+                        <div id="tp-act-body"></div>
                     </div>
                 </details>
 

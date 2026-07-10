@@ -148,6 +148,49 @@ function addGuardLoad(loadState, key, halfdayKey, dayKey, sessionKey, period) {
 }
 
 /**
+ * Decrement guardCount and matching AM/PM bucket. Floors at 0.
+ * Counterpart of addGuardLoad for repair/swap phases (coverage, bimodal).
+ * Does not touch guardSessions / guardHalfdays occupancy Sets — caller clears those.
+ *
+ * @param {Object} loadState
+ * @param {string} key
+ * @param {string} [period]
+ */
+function removeGuardLoad(loadState, key, period) {
+    const entry = getEntry(loadState, key);
+    if (!entry) return;
+    if (entry.guardCount > 0) entry.guardCount -= 1;
+    if (typeof period === 'string') {
+        if (AM_PERIODS.indexOf(period) !== -1) {
+            if (entry.amCount > 0) entry.amCount -= 1;
+        } else if (PM_PERIODS.indexOf(period) !== -1) {
+            if (entry.pmCount > 0) entry.pmCount -= 1;
+        }
+    }
+}
+
+/** Alias used by repair phases (05 / 07). */
+function decrementGuardLoad(loadState, key, period) {
+    removeGuardLoad(loadState, key, period);
+}
+
+/**
+ * 3-arg convenience for repair swaps (loadState, key, period only).
+ * Delegates to addGuardLoad with empty informational keys.
+ */
+function incrementGuardLoad(loadState, key, period) {
+    addGuardLoad(loadState, key, '', '', '', period);
+}
+
+function isAmPeriod(period) {
+    return typeof period === 'string' && AM_PERIODS.indexOf(period) !== -1;
+}
+
+function isPmPeriod(period) {
+    return typeof period === 'string' && PM_PERIODS.indexOf(period) !== -1;
+}
+
+/**
  * Increment duty count for `key` (slot-based).
  *
  * User-defined per-halfday duty entries map 1:1 with duty load — each call
@@ -251,10 +294,18 @@ module.exports = {
     addGuardLoad,
     addDutyLoad,
     addReserveLoad,
+    removeGuardLoad,
+    decrementGuardLoad,
+    incrementGuardLoad,
     primaryLoad,
     finalLoad,
     amCount,
     pmCount,
+    isAmPeriod,
+    isPmPeriod,
+    // Public SSOT for period bucketing (phases must not re-declare incomplete lists)
+    AM_PERIODS,
+    PM_PERIODS,
     // Exposed for testing / advanced consumers
     _internals: {
         AM_PERIODS,

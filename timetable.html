@@ -9,6 +9,7 @@
 
         <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/utils.js" defer></script>
+        <script src="js/shared/timetable-view.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
@@ -22,6 +23,10 @@
                 const contents = document.querySelectorAll('.tab-content');
                 const savedTab = localStorage.getItem('timetableActiveTab') || 'tab-teachers';
 
+                // Derived tabs (students/rooms) load from the *saved* DB snapshot via
+                // api.timetable.get — not from the teacher tab's live fetData.
+                // Unsaved teacher edits appear here only after saveAllChanges() (or
+                // when the tab is re-opened after a save).
                 function switchTab(tabId) {
                     tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
                     contents.forEach(c => c.style.display = c.id === tabId ? 'block' : 'none');
@@ -622,6 +627,8 @@
 
         <div class="toast" id="toast"></div>
         <script src="js/data/ma-education-labels.js" defer></script>
+        <script src="js/shared/fet-import.js" defer></script>
+        <script src="js/shared/timetable-move-logic.js" defer></script>
         <script src="js/pages/timetable.js" defer></script>
     </body>
 </html>
