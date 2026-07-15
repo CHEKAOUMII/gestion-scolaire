@@ -71,7 +71,8 @@ function listTestFiles(dir) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       // Skip known non-test subdirs.
-      if (['fixtures', '__snapshots__', 'integration'].includes(entry.name)) continue;
+      // e2e needs Playwright + a real Electron window; run via `npm run test:e2e`.
+      if (['fixtures', '__snapshots__', 'integration', 'e2e'].includes(entry.name)) continue;
       out.push(...listTestFiles(full));
     } else if (entry.isFile() && entry.name.endsWith('.test.js')) {
       out.push(full);
