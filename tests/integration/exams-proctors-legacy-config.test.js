@@ -14,8 +14,14 @@ function loadV2() {
   return sandbox.window.ProctorDistributionV2;
 }
 
-const html = fs.readFileSync(path.join(__dirname, '..', '..', 'exams-proctors.html'), 'utf8');
-assert.ok(/reservesPerSession/.test(html), 'buildV2Input should preserve legacy reservesPerSession fallback');
+const pageSource = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'js', 'pages', 'exams-proctors.js'),
+    'utf8'
+);
+assert.ok(
+    /reservesPerSession/.test(pageSource),
+    'buildV2Input should preserve legacy reservesPerSession fallback'
+);
 
 const input = fixtures.buildC3FixedInput();
 input.examDistributionRules.reservesPerSession = 3;

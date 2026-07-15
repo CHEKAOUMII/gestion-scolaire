@@ -50,8 +50,8 @@ function runTest(name, fn) {
   }
 }
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'exams-proctors.html'), 'utf8');
-const buildV2InputBody = extractFunctionBody(html, /async\s+function\s+buildV2Input\s*\(\s*\)\s*\{/);
+const pageSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'pages', 'exams-proctors.js'), 'utf8');
+const buildV2InputBody = extractFunctionBody(pageSource, /async\s+function\s+buildV2Input\s*\(\s*\)\s*\{/);
 
 console.log('[test] exams-proctors buildV2Input reservesConfig plumbing');
 

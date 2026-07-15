@@ -23,8 +23,8 @@ function extractFunctionBody(source, pattern) {
 }
 
 const fixture = buildC4Input();
-const html = fs.readFileSync(path.join(__dirname, '..', 'exams-proctors.html'), 'utf8');
-const body = extractFunctionBody(html, /async\s+function\s+buildV2Input\s*\(\s*\)\s*\{/);
+const pageSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'pages', 'exams-proctors.js'), 'utf8');
+const body = extractFunctionBody(pageSource, /async\s+function\s+buildV2Input\s*\(\s*\)\s*\{/);
 
 assert.ok(/max_reserves_mode/.test(body),
   'Fixed buildV2Input must read examCenterConfig.max_reserves_mode');

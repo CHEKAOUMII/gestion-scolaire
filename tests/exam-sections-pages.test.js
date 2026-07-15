@@ -32,8 +32,18 @@ function uniqueMatches(text, regex) {
 
 const examSectionsCss = read('css/exam-sections.css');
 
+const PAGE_JS_BY_HTML = {
+    'exams-proctors.html': 'js/pages/exams-proctors.js',
+    'exams-rooms.html': 'js/pages/exams-rooms.js',
+    'exams-schedule.html': 'js/pages/exams-schedule.js'
+};
+
 function assertPageShell(rel) {
     const html = read(rel);
+    const pageJsRel = PAGE_JS_BY_HTML[rel];
+    const pageJs = pageJsRel ? read(pageJsRel) : '';
+    // Markup shell checks on HTML; ExamSections.init lives in page JS after PRA.
+    const combined = html + '\n' + pageJs;
     assertContains(html, '<html lang="ar" dir="rtl"', `${rel} should remain Arabic RTL`);
     assertContains(
         html,
@@ -61,8 +71,8 @@ function assertPageShell(rel) {
         'prefers-reduced-motion: reduce',
         'section CSS should include reduced-motion handling'
     );
-    assertContains(html, 'window.ExamSections.init', `${rel} should initialize ExamSections`);
-    return html;
+    assertContains(combined, 'window.ExamSections.init', `${rel} should initialize ExamSections`);
+    return combined;
 }
 
 function assertTabsHavePanels(rel, tabRegex) {

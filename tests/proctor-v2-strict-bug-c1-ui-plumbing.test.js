@@ -24,8 +24,8 @@ function extractFunctionBody(source, pattern) {
 }
 
 async function runExtractedBuildV2Input(fixture) {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'exams-proctors.html'), 'utf8');
-  const body = extractFunctionBody(html, /async\s+function\s+buildV2Input\s*\(\s*\)\s*\{/);
+  const pageSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'pages', 'exams-proctors.js'), 'utf8');
+  const body = extractFunctionBody(pageSource, /async\s+function\s+buildV2Input\s*\(\s*\)\s*\{/);
   const sandbox = {
     console: {
       warn: function () {},

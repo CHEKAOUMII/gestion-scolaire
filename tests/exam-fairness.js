@@ -1,6 +1,6 @@
 /*
- * Unit tests for fairness utilities embedded in exams-proctors.html.
- * Approach: extract pure functions by name from the HTML source, evaluate
+ * Unit tests for fairness utilities in js/pages/exams-proctors.js.
+ * Approach: extract pure functions by name from the page source, evaluate
  * them in an isolated vm context, then exercise them.
  *
  * Run via: node tests/exam-fairness.js
@@ -9,8 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const HTML_PATH = path.join(__dirname, '..', 'exams-proctors.html');
-const source = fs.readFileSync(HTML_PATH, 'utf8');
+const PAGE_PATH = path.join(__dirname, '..', 'js', 'pages', 'exams-proctors.js');
+const source = fs.readFileSync(PAGE_PATH, 'utf8');
 
 // --- Helper: extract a top-level `function NAME(...) { ... }` block by brace matching.
 function extractFunction(name, src) {

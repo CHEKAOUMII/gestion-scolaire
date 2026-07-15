@@ -20,10 +20,19 @@ function extractFunctionBody(source, pattern) {
   return source.slice(bodyStart, i - 1);
 }
 
-const html = fs.readFileSync(path.join(__dirname, '..', '..', 'exams-proctors.html'), 'utf8');
-assert.ok(/async\s+function\s+runAutoDistribution\s*\(/.test(html), 'v1 runAutoDistribution should exist');
-assert.ok(/async\s+function\s+runAutoDistributionV2\s*\(/.test(html), 'v2 runAutoDistributionV2 should exist');
-const v1Body = extractFunctionBody(html, /async\s+function\s+runAutoDistribution\s*\(\s*\)\s*\{/);
+const pageSource = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'js', 'pages', 'exams-proctors.js'),
+    'utf8'
+);
+assert.ok(
+    /async\s+function\s+runAutoDistribution\s*\(/.test(pageSource),
+    'v1 runAutoDistribution should exist'
+);
+assert.ok(
+    /async\s+function\s+runAutoDistributionV2\s*\(/.test(pageSource),
+    'v2 runAutoDistributionV2 should exist'
+);
+const v1Body = extractFunctionBody(pageSource, /async\s+function\s+runAutoDistribution\s*\(\s*\)\s*\{/);
 assert.ok(!/buildV2Input\s*\(/.test(v1Body), 'v1 path must not call buildV2Input');
 assert.ok(!/ProctorDistributionV2\.run/.test(v1Body), 'v1 path must not call v2 algorithm');
 console.log('[pass] integration v1 toggle path remains isolated from v2 plumbing');
