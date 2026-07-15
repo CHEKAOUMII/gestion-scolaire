@@ -468,18 +468,97 @@
     // -----------------------------------------------------------------------
 
     /**
+     * Combined economic + social score for the merged UI tab (one indicator).
+     * Averages the two axis scores when both exist; uses whichever is present.
+     * Internal subScores keep economic/social separate for risk engine & breakdown.
+     *
+     * @param {object} ecoData   raw economic fields
+     * @param {object} socialData raw social fields
+     * @returns {{ score: number|null, level: string|null, subScores: object }}
+     */
+    function computeSocioeconomicScore(ecoData, socialData) {
+        var eco = computeEconomicScore(ecoData || {});
+        var soc = computeSocialScore(socialData || {});
+        var parts = [];
+        if (eco.score != null) parts.push(eco.score);
+        if (soc.score != null) parts.push(soc.score);
+        if (!parts.length) {
+            return {
+                score: null,
+                level: null,
+                subScores: { economic: eco.score, social: soc.score, economicDetail: eco.subScores, socialDetail: soc.subScores }
+            };
+        }
+        var avg = parts.reduce(function (a, b) { return a + b; }, 0) / parts.length;
+        var score = clamp100(avg);
+        return {
+            score: round2(score),
+            level: levelLabel(score),
+            subScores: {
+                economic: eco.score,
+                social: soc.score,
+                economicDetail: eco.subScores,
+                socialDetail: soc.subScores
+            }
+        };
+    }
+
+    /**
+     * Guidance alignment as a risk-style score (high = mismatch / bad).
+     * Uses alignment_score 0–100 (high alignment = good) → risk = 100 − alignment.
+     * Falls back to literary vs scientific avg gap when alignment is missing.
+     *
+     * @param {{ alignment_score?: number|string, lit_avg?: number|string,
+     *           sci_avg?: number|string, current_stream?: string }} data
+     * @returns {{ score: number|null, level: string|null, subScores: object }}
+     */
+    function computeGuidanceScore(data) {
+        data = data || {};
+        var align = Number(data.alignment_score);
+        if (isFinite(align) && align >= 0) {
+            var riskFromAlign = clamp100(100 - align);
+            return {
+                score: round2(riskFromAlign),
+                level: levelLabel(riskFromAlign),
+                subScores: { alignment: align, gap: riskFromAlign }
+            };
+        }
+
+        var lit = Number(data.lit_avg);
+        var sci = Number(data.sci_avg);
+        if (!isFinite(lit) || !isFinite(sci)) {
+            return { score: null, level: null, subScores: {} };
+        }
+
+        // Without stream: pure gap between blocks as mild risk signal (0–100)
+        var gap = Math.abs(sci - lit);
+        // 0 gap → 20 (neutral), large gap (≥6) → ~80
+        var gapRisk = clamp100(20 + gap * 10);
+        return {
+            score: round2(gapRisk),
+            level: levelLabel(gapRisk),
+            subScores: { lit_avg: lit, sci_avg: sci, gap: gap }
+        };
+    }
+
+    /**
      * Dispatch to the appropriate axis scorer.
      *
-     * @param {'economic'|'social'|'health'|'followup'} axis
+     * @param {'economic'|'social'|'health'|'followup'|'socioeconomic'|'guidance'} axis
      * @param {object} data  Raw field values for that axis.
+     *   For socioeconomic pass { economic: {...}, social: {...} }.
      * @returns {{ score: number|null, level: string|null, subScores: object }}
      */
     function computeBmScore(axis, data) {
+        data = data || {};
         switch (axis) {
             case 'economic': return computeEconomicScore(data);
             case 'social':   return computeSocialScore(data);
             case 'health':   return computeHealthScore(data);
             case 'followup': return computeFollowupScore(data);
+            case 'socioeconomic':
+                return computeSocioeconomicScore(data.economic || data, data.social || {});
+            case 'guidance': return computeGuidanceScore(data);
             default:
                 return { score: null, level: null, subScores: {} };
         }
@@ -490,11 +569,13 @@
     // -----------------------------------------------------------------------
 
     var api = {
-        computeEconomicScore:    computeEconomicScore,
-        computeSocialScore:      computeSocialScore,
-        computeHealthScore:      computeHealthScore,
-        computeFollowupScore:    computeFollowupScore,
-        computeBmScore:          computeBmScore,
+        computeEconomicScore:       computeEconomicScore,
+        computeSocialScore:         computeSocialScore,
+        computeHealthScore:         computeHealthScore,
+        computeFollowupScore:       computeFollowupScore,
+        computeSocioeconomicScore:  computeSocioeconomicScore,
+        computeGuidanceScore:       computeGuidanceScore,
+        computeBmScore:             computeBmScore,
         // Expose constants for test inspection and renderer use
         ECO_DIVISOR:             ECO_DIVISOR,
         SOC_DIVISOR:             SOC_DIVISOR,

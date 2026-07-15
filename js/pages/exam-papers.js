@@ -140,6 +140,10 @@
         return DEFAULT_FROUD_COUNT;
     }
 
+    // Intentional: this returns a level CODE (e.g. "1BACSE") for the exam-count SSOT
+    // (main/db/exam-count-defaults.js keys by code), NOT a level name. The user
+    // levelsMapping is section→Arabic-name, so it is not consulted here — the shared
+    // getLevelFromSection() code parser is the correct source for this code lookup.
     function inferLevelCodeFromSections(sections) {
         if (!Array.isArray(sections) || !sections.length) return '*';
         if (typeof getLevelFromSection !== 'function') return '*';

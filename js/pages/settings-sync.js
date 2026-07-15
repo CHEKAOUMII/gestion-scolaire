@@ -494,7 +494,7 @@ function deriveSyncState(status) {
     if (!status || !status.configured) return 'disabled';
     if (status.pushCycleActive || status.pullCycleActive || status.snapshotRunning) return 'syncing';
     if (!status.authenticated) return 'offline';
-    if (status.lastPushError || status.lastPullError) return 'error';
+    if (status.lastPushError || status.lastPullError || status.lastCaptureError) return 'error';
     return 'connected';
 }
 
@@ -534,7 +534,11 @@ async function refreshStatus() {
                 bannerClass: 'sync-status-banner--danger',
                 icon: 'fa-times-circle',
                 iconClass: 'text-xl',
-                label: status.lastPushError || status.lastPullError || 'خطأ في المزامنة',
+                label:
+                    status.lastCaptureError ||
+                    status.lastPushError ||
+                    status.lastPullError ||
+                    'خطأ في المزامنة',
                 connectionLabel: 'خطأ',
                 connectionIconClass: 'text-[var(--color-danger-text)]'
             },
@@ -607,6 +611,17 @@ async function refreshStatus() {
             pendingEl.className =
                 'text-lg font-bold ' +
                 (status.pendingCount > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-success-text)]');
+            if (status.lastCaptureError) {
+                let captureErr = pendingEl.parentElement.querySelector('.kpi-capture-error');
+                if (!captureErr) {
+                    captureErr = document.createElement('div');
+                    captureErr.className = 'kpi-capture-error mt-1 text-xs text-[var(--color-danger-text)]';
+                    pendingEl.parentElement.appendChild(captureErr);
+                }
+                captureErr.textContent = status.lastCaptureError;
+            } else {
+                pendingEl.parentElement.querySelector('.kpi-capture-error')?.remove();
+            }
         }
 
         // 5. Failed count
@@ -1322,7 +1337,9 @@ function renderRecentErrors(container, data, dbErrors) {
 
     const hasDbError = !!(
         dbErrors &&
-        (String(dbErrors.lastPushError || '').trim() || String(dbErrors.lastPullError || '').trim())
+        (String(dbErrors.lastPushError || '').trim() ||
+            String(dbErrors.lastPullError || '').trim() ||
+            String(dbErrors.lastCaptureError || '').trim())
     );
     const hasFileEntries = !!(data && data.available && Array.isArray(data.entries) && data.entries.length);
 
@@ -1363,6 +1380,13 @@ function renderRecentErrors(container, data, dbErrors) {
             line.className = 'mt-1';
             line.appendChild(createSyncIcon('fa-download', 'me-1'));
             appendText(line, ` السحب: ${dbErrors.lastPullError}`);
+            dbBox.appendChild(line);
+        }
+        if (dbErrors.lastCaptureError) {
+            const line = document.createElement('p');
+            line.className = 'mt-1';
+            line.appendChild(createSyncIcon('fa-database', 'me-1'));
+            appendText(line, ` التقاط المزامنة: ${dbErrors.lastCaptureError}`);
             dbBox.appendChild(line);
         }
         nodes.push(dbBox);
@@ -1478,7 +1502,11 @@ function initErrorLog() {
                     window.api.sync.getStatus().catch(() => null)
                 ]);
                 const dbErrors = status
-                    ? { lastPushError: status.lastPushError, lastPullError: status.lastPullError }
+                    ? {
+                          lastPushError: status.lastPushError,
+                          lastPullError: status.lastPullError,
+                          lastCaptureError: status.lastCaptureError
+                      }
                     : null;
                 renderRecentErrors(resultDiv, data, dbErrors);
                 resultDiv?.focus();

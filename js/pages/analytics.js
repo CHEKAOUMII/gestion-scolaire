@@ -137,13 +137,10 @@ function tooltipLabelWithPercent(context, total) {
     return `${label}: ${value} (${pct.toFixed(1)}%)`;
 }
 
-// Level normalization: delegates to FilterManager's cached levelsMapping
+// Level normalization: delegates to FilterManager, else shared resolveLevelName (utils.js)
 function _getLocalLevelName(section) {
     if (_filterManager) return _filterManager._getLocalLevelName(section);
-    const s = String(section || '').trim();
-    if (!s) return '';
-    if (sectionToLevel[s]) return sectionToLevel[s];
-    return getLevelNameFromSection(s);
+    return resolveLevelName(section, sectionToLevel);
 }
 
 function renderSelectOptions(select, options, placeholder, previousValue = '') {

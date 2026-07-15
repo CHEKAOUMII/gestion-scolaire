@@ -74,9 +74,37 @@ function validateSchoolYear(value) {
     return str;
 }
 
+const IPC_MAX_PAGE_SIZE = 500;
+const IPC_DEFAULT_PAGE_SIZE = 20;
+
+function normalizePagination(options = {}) {
+    const page = Math.max(1, Math.floor(Number(options.page) || 1));
+    const rawSize = Math.floor(Number(options.pageSize) || IPC_DEFAULT_PAGE_SIZE);
+    const pageSize = Math.min(IPC_MAX_PAGE_SIZE, Math.max(1, Number.isFinite(rawSize) ? rawSize : IPC_DEFAULT_PAGE_SIZE));
+    return {
+        page,
+        pageSize,
+        offset: (page - 1) * pageSize
+    };
+}
+
+function buildPaginatedResult(rows, total, page, pageSize) {
+    const safeTotal = Math.max(0, Number(total) || 0);
+    return {
+        rows: rows || [],
+        total: safeTotal,
+        page,
+        pageSize,
+        totalPages: safeTotal ? Math.ceil(safeTotal / pageSize) : 1
+    };
+}
+
 module.exports = {
     requireFields,
     validateRange,
     validateDate,
-    validateSchoolYear
+    validateSchoolYear,
+    normalizePagination,
+    buildPaginatedResult,
+    IPC_MAX_PAGE_SIZE
 };

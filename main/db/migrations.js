@@ -1763,6 +1763,75 @@ const MIGRATIONS = [
                 tx();
             }
         }
+    },
+    {
+        // Allow tab_key = 'guidance' for school orientation matching form
+        // on the student profile (التوجيه المدرسي).
+        // SQLite cannot ALTER CHECK constraints — rebuild the table when needed.
+        version: '2026-07-067-student-profile-guidance',
+        up: () => {
+            const db = getDb();
+            const hasTable = db
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='student_profile_data'")
+                .get();
+            const createSql = `
+                CREATE TABLE student_profile_data (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id    INTEGER NOT NULL,
+                    student_code  TEXT NOT NULL,
+                    tab_key       TEXT NOT NULL
+                                  CHECK(tab_key IN ('economic','social','health','followup','guidance')),
+                    data_json     TEXT NOT NULL DEFAULT '{}',
+                    school_year   TEXT NOT NULL,
+                    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_by    TEXT,
+                    UNIQUE(student_code, tab_key, school_year)
+                )
+            `;
+            if (!hasTable) {
+                db.exec(createSql);
+                db.exec(
+                    `CREATE INDEX IF NOT EXISTS idx_student_profile_student ON student_profile_data(student_code, school_year)`
+                );
+                return;
+            }
+
+            // Idempotent: skip rebuild if CHECK already allows guidance
+            const existingSql =
+                db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='student_profile_data'").get()
+                    ?.sql || '';
+            if (existingSql.includes("'guidance'")) {
+                return;
+            }
+
+            // Drop leftover temp from a previous interrupted rebuild
+            db.exec(`DROP TABLE IF EXISTS student_profile_data_v2`);
+            db.exec(`
+                CREATE TABLE student_profile_data_v2 (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_id    INTEGER NOT NULL,
+                    student_code  TEXT NOT NULL,
+                    tab_key       TEXT NOT NULL
+                                  CHECK(tab_key IN ('economic','social','health','followup','guidance')),
+                    data_json     TEXT NOT NULL DEFAULT '{}',
+                    school_year   TEXT NOT NULL,
+                    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_by    TEXT,
+                    UNIQUE(student_code, tab_key, school_year)
+                )
+            `);
+            db.exec(`
+                INSERT INTO student_profile_data_v2
+                    (id, student_id, student_code, tab_key, data_json, school_year, updated_at, updated_by)
+                SELECT id, student_id, student_code, tab_key, data_json, school_year, updated_at, updated_by
+                FROM student_profile_data
+            `);
+            db.exec(`DROP TABLE student_profile_data`);
+            db.exec(`ALTER TABLE student_profile_data_v2 RENAME TO student_profile_data`);
+            db.exec(
+                `CREATE INDEX IF NOT EXISTS idx_student_profile_student ON student_profile_data(student_code, school_year)`
+            );
+        }
     }
 ];
 

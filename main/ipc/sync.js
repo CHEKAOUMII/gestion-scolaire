@@ -136,6 +136,7 @@ function registerSyncIpc(ipcMain) {
             lastPullAt: config ? config.last_pull_at : null,
             lastPushError: config ? config.last_push_error : null,
             lastPullError: config ? config.last_pull_error : null,
+            lastCaptureError: config ? config.last_capture_error : null,
             pendingCount,
             failedCount,
             conflictCount,

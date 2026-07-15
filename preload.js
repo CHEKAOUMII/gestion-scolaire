@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
     // Students
     students: {
         getAll: (schoolYear) => ipcRenderer.invoke('students:getAll', schoolYear),
+        list: (schoolYear, options) => ipcRenderer.invoke('students:list', schoolYear, options),
         getCodesByYear: (schoolYear) => ipcRenderer.invoke('students:getCodesByYear', schoolYear),
         getByCode: (code, schoolYear) => ipcRenderer.invoke('students:getByCode', code, schoolYear),
         search: (name, className, code, schoolYear) =>
@@ -37,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
     // Grades
     grades: {
         getAll: (schoolYear) => ipcRenderer.invoke('grades:getAll', schoolYear),
+        list: (schoolYear, options) => ipcRenderer.invoke('grades:list', schoolYear, options),
         getByStudentCode: (studentCode, schoolYear) =>
             ipcRenderer.invoke('grades:getByStudentCode', studentCode, schoolYear),
         getZeroStudents: (filters) => ipcRenderer.invoke('grades:getZeroStudents', filters),

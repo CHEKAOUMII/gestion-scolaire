@@ -127,10 +127,7 @@ async function loadClassesAndLevels() {
 
 function _getLocalLevelName(section) {
     if (_filterManager) return _filterManager._getLocalLevelName(section);
-    const s = String(section || '').trim();
-    if (!s) return '';
-    if (sectionToLevel[s]) return sectionToLevel[s];
-    return getLevelNameFromSection(s);
+    return resolveLevelName(section, sectionToLevel);
 }
 
 // ─── Save / Restore Filters ───

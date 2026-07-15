@@ -634,7 +634,6 @@ async function getScheduleEntries() {
                 try {
                     const diag = await window.api.reports.getIdentityDiagnostics();
                     console.warn('[exams-rooms invitations] identity diagnostics:', {
-                        dbPath: diag?.dbPath,
                         tableExists: diag?.tableExists,
                         rowCount: diag?.rowCount,
                         school_name: diag?.identity?.school_name,

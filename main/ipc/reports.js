@@ -2,11 +2,14 @@ const { printDocument } = require('../reports/engine');
 const { getIdentity, updateIdentity } = require('../reports/identity');
 const { renderLetterhead } = require('../reports/letterhead');
 const { FORM_BUILDERS } = require('../reports/channels/adminForms');
-const { getDb, getDbPath } = require('../db/context');
+const { getDb } = require('../db/context');
+const { authErrorResponse } = require('./ipc-helpers');
+const { requireRole } = require('./auth');
+
+const IDENTITY_DIAG_ROLES = ['admin', 'developer', 'staff', 'principal'];
 
 function getIdentityDiagnostics() {
     const db = getDb();
-    const dbPath = getDbPath();
     const tableExists = !!db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'school_identity'")
         .get();
@@ -17,7 +20,6 @@ function getIdentityDiagnostics() {
     }
 
     return {
-        dbPath,
         tableExists,
         rowCount: rows.length,
         identity: {
@@ -26,9 +28,7 @@ function getIdentityDiagnostics() {
             directorate: identity.directorate || '',
             commune: identity.commune || '',
             city: identity.city || '',
-            school_year: identity.school_year || '',
-            logo_base64: identity.logo_base64 || '',
-            signature_base64: identity.signature_base64 || ''
+            school_year: identity.school_year || ''
         },
         hasLogo: !!identity.logo_base64,
         logoLength: String(identity.logo_base64 || '').length
@@ -46,8 +46,13 @@ function registerReportsIpc(ipcMain) {
         return getIdentity();
     });
 
-    ipcMain.handle('reports:getIdentityDiagnostics', () => {
-        return getIdentityDiagnostics();
+    ipcMain.handle('reports:getIdentityDiagnostics', async (event) => {
+        try {
+            requireRole(event, IDENTITY_DIAG_ROLES);
+            return getIdentityDiagnostics();
+        } catch (err) {
+            return authErrorResponse(err);
+        }
     });
 
     ipcMain.handle('reports:updateIdentity', (_event, updates) => {
