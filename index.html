@@ -1,9 +1,10 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
     <head>
+        <script src="js/theme-boot.js"></script>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="theme-color" content="#3b6ac5" />
+        <meta name="theme-color" content="#42516a" />
         <title>برنامج التدبير المدرسي | الثانوية التأهيلية ابن سينا</title>
         <meta name="description" content="نظام التدبير المدرسي المتكامل لإدارة شؤون التلاميذ" />
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
@@ -18,67 +19,47 @@
         <script src="js/shared/chart-theme.js" defer></script>
     </head>
 
-    <body>
+    <body class="dashboard-page">
         <aside class="sidebar" id="sidebar">
             <!-- Sidebar will be injected by sidebar.js -->
         </aside>
         <main class="main-content">
-            <header class="header">
+            <header class="header unified-header dashboard-topbar" data-unified-header="true">
                 <div class="header-left">
-                    <button class="menu-toggle" id="menu-toggle" aria-label="فتح/إغلاق القائمة">
-                        <i class="fas fa-bars" aria-hidden="true"></i>
-                    </button>
                     <div class="search-box" role="search">
-                        <input type="text" id="header-search" placeholder="ابحث عن صفحة..." aria-label="بحث" />
+                        <input
+                            type="search"
+                            id="header-search"
+                            placeholder="بحث سريع عن تلميذ، أستاذ، أو قسم..."
+                            aria-label="بحث سريع"
+                        />
                         <i class="fas fa-search" aria-hidden="true"></i>
                     </div>
+                    <button class="menu-toggle" id="menu-toggle" type="button" aria-label="فتح/إغلاق القائمة">
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
                 </div>
                 <div class="header-right">
-                    <button class="notification-btn" aria-label="الإشعارات">
-                        <i class="fas fa-bell" aria-hidden="true"></i>
-                        <span class="badge" id="notification-badge" style="display: none">0</span>
+                    <button
+                        class="topbar-icon-btn"
+                        id="theme-toggle"
+                        type="button"
+                        title="تبديل السمة"
+                        aria-label="تبديل الوضع الداكن"
+                    >
+                        <i class="fas fa-moon" aria-hidden="true"></i>
                     </button>
-                    <div class="user-info" id="user-info">
-                        <span id="user-email">المستخدم</span>
-                    </div>
-                    <details class="header-tools">
-                        <summary class="header-tools-summary" aria-label="أدوات إضافية">
-                            <span class="header-tools-summary-copy">
-                                <strong>أدوات سريعة</strong>
-                                <small>اختصارات، نسخ احتياطي، سمة</small>
-                            </span>
-                            <i class="fas fa-sliders-h" aria-hidden="true"></i>
-                        </summary>
-                        <div class="header-tools-panel">
-                            <button
-                                class="header-tools-btn"
-                                id="shortcuts-btn"
-                                title="اختصارات لوحة المفاتيح (?)"
-                                aria-label="اختصارات لوحة المفاتيح"
-                            >
-                                <span>الاختصارات</span>
-                                <i class="fas fa-keyboard" aria-hidden="true"></i>
-                            </button>
-                            <button
-                                class="header-tools-btn"
-                                id="backup-btn"
-                                title="إدارة النسخة الاحتياطية"
-                                aria-label="إدارة النسخة الاحتياطية"
-                            >
-                                <span>النسخة الاحتياطية</span>
-                                <i class="fas fa-database" aria-hidden="true"></i>
-                            </button>
-                            <button
-                                class="header-tools-btn"
-                                id="theme-toggle"
-                                title="تبديل السمة"
-                                aria-label="تبديل السمة"
-                            >
-                                <span>السمة</span>
-                                <i class="fas fa-moon" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </details>
+                    <button class="notification-btn topbar-icon-btn" type="button" aria-label="الإشعارات" title="الإشعارات">
+                        <i class="fas fa-bell" aria-hidden="true"></i>
+                        <span class="badge notification-badge" id="notification-badge" style="display: none">0</span>
+                    </button>
+                    <span class="topbar-divider" aria-hidden="true"></span>
+                    <label class="dashboard-year-control" for="school-year">
+                        <span>العام الدراسي</span>
+                        <select id="school-year" title="الموسم الدراسي" aria-label="الموسم الدراسي">
+                            <option value="new">+ إضافة موسم</option>
+                        </select>
+                    </label>
                 </div>
             </header>
 
@@ -107,27 +88,6 @@
                     <button class="dashboard-onboarding-dismiss" id="dashboard-onboarding-dismiss" type="button">
                         فهمت
                     </button>
-                </div>
-            </section>
-
-            <section class="dashboard-hero" aria-labelledby="dashboard-title">
-                <div class="dashboard-hero-main">
-                    <p class="dashboard-eyebrow">لوحة التحكم الرئيسية</p>
-                    <h2 class="dashboard-title" id="dashboard-title">متابعة سريعة لوضع المؤسسة</h2>
-                    <div class="dashboard-meta" aria-label="سياق البيانات الحالية">
-                        <div class="dashboard-meta-card">
-                            <span class="dashboard-meta-label">الموسم الدراسي</span>
-                            <strong id="dashboard-school-year">جار جلب بيانات الموسم الدراسي...</strong>
-                        </div>
-                        <div class="dashboard-meta-card">
-                            <span class="dashboard-meta-label">نطاق البيانات</span>
-                            <strong id="dashboard-data-scope">جار تحديد السجلات التي ستظهر في اللوحة...</strong>
-                        </div>
-                        <div class="dashboard-meta-card">
-                            <span class="dashboard-meta-label">آخر تحديث</span>
-                            <strong id="dashboard-last-refresh">لم يتم التحديث بعد</strong>
-                        </div>
-                    </div>
                 </div>
             </section>
 

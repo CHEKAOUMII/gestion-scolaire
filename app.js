@@ -339,16 +339,17 @@ async function saveLevelsMapping(extractedLevels) {
 
 // استرجاع الربط بين الأقسام والمستويات
 async function getLevelForSection(sectionName) {
+    let mapping = {};
     try {
         const mappingJson = await window.api.settings.get('levelsMapping');
-        if (mappingJson) {
-            const mapping = JSON.parse(mappingJson);
-            return mapping[sectionName] || null;
-        }
+        mapping = mappingJson ? JSON.parse(mappingJson) : {};
     } catch (error) {
         console.error('Error getting level for section:', error);
     }
-    return null;
+    // Align with the shared SSOT: user mapping first, then the parsing formula.
+    return typeof resolveLevelName === 'function'
+        ? resolveLevelName(sectionName, mapping)
+        : mapping[sectionName] || null;
 }
 
 // Default students data (backup)
@@ -361,14 +362,13 @@ function calculateStats() {
     const females = studentsData.filter((s) => s.gender === 'أنثى').length;
     const males = studentsData.filter((s) => s.gender === 'ذكر').length;
     const sections = [...new Set(studentsData.map((s) => s.section))];
-    // Calculate levels - extract level from section name (e.g., TCSF, 1BAC, 2BAC, etc.)
+    // Calculate distinct levels — use the shared SSOT formula (getLevelFromSection) so the
+    // dashboard count matches every other page instead of a crude prefix regex.
     const levels = [
         ...new Set(
-            sections.map((s) => {
-                // Try to extract level prefix from section name
-                const match = s ? s.match(/^([A-Z0-9]+)/i) : null;
-                return match ? match[1] : s;
-            })
+            sections
+                .map((s) => getLevelFromSection(s).code)
+                .filter((code) => code && code !== 'other')
         )
     ];
     const avgPerSection = sections.length > 0 ? Math.round(studentsData.length / sections.length) : 0;
@@ -415,9 +415,10 @@ function renderStatsCards(stats) {
     const femalesPct = stats.total > 0 ? ((stats.females / stats.total) * 100).toFixed(1) : 0;
     const malesPct = stats.total > 0 ? ((stats.males / stats.total) * 100).toFixed(1) : 0;
 
-    function statCard(icon, label, value, footer, delay) {
-        return `<div class="stat-card" style="animation-delay:${delay}s">
-            <i class="fas fa-${icon}"></i>
+    function statCard(icon, label, value, footer, delay, extraClass) {
+        const cls = extraClass ? `stat-card ${extraClass}` : 'stat-card';
+        return `<div class="${cls}" style="animation-delay:${delay}s">
+            <i class="fas fa-${icon}" aria-hidden="true"></i>
             <div class="stat-info">
                 <span class="stat-label">${label}</span>
                 <span class="stat-value">${value}</span>
@@ -428,7 +429,7 @@ function renderStatsCards(stats) {
 
     const html = `${dashboardSectionLabel('chart-pie', 'المؤشرات الأساسية')}
         <div class="stats-grid">
-        ${statCard('users', 'عدد التلاميذ', stats.total, `${stats.sections} أقسام`, 0.0)}
+        ${statCard('users', 'عدد التلاميذ', stats.total, `${stats.sections} أقسام`, 0.0, 'stat-card--hero')}
         ${statCard('female', 'عدد الإناث', stats.females, `${femalesPct}%`, 0.06)}
         ${statCard('male', 'عدد الذكور', stats.males, `${malesPct}%`, 0.12)}
         ${statCard('chalkboard', 'عدد الأقسام', stats.sections, escapeHtml(sectionsInfo), 0.18)}

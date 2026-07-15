@@ -2129,7 +2129,7 @@ function setupSidebar() {
  */
 function setupUnifiedHeader() {
     const currentPage = window.location.pathname.split('/').pop() || '';
-    if (currentPage === 'login.html') return;
+    if (currentPage === 'login.html' || currentPage === 'setup.html') return;
 
     const mainContent = document.querySelector('main.main-content');
     if (!mainContent) return;
@@ -2137,8 +2137,8 @@ function setupUnifiedHeader() {
     const header = mainContent.querySelector(':scope > .header');
     if (!header || header.dataset.unifiedHeader === 'true') return;
 
-    // Extract the page title before rebuilding the header
-    const existingTitle = header.querySelector('h1, h2, h3');
+    // Extract the page title before rebuilding the header (shown below topbar)
+    const existingTitle = header.querySelector('h1, h2, h3, .page-title');
     const titleText = existingTitle ? existingTitle.textContent.replace(/\s+/g, ' ').trim() : '';
     const titleIcon = existingTitle?.querySelector('i')?.className || '';
     const hasSidebar = !!document.getElementById('sidebar');
@@ -2154,55 +2154,71 @@ function setupUnifiedHeader() {
         yearOptions.push(`<option value="${yStr}"${yStr === activeYear ? ' selected' : ''}>${yStr}</option>`);
     }
 
-    const utilityButtons = [
+    const extraIconButtons = [
         hasShortcutsModal
-            ? `<button class="header-tools-btn" id="shortcuts-btn" title="اختصارات لوحة المفاتيح" aria-label="اختصارات لوحة المفاتيح"><span>الاختصارات</span><i class="fas fa-keyboard" aria-hidden="true"></i></button>`
+            ? `<button class="topbar-icon-btn" id="shortcuts-btn" type="button" title="اختصارات لوحة المفاتيح" aria-label="اختصارات لوحة المفاتيح"><i class="fas fa-keyboard" aria-hidden="true"></i></button>`
             : '',
         hasBackupModal
-            ? `<button class="header-tools-btn" id="backup-btn" title="إدارة النسخة الاحتياطية" aria-label="إدارة النسخة الاحتياطية"><span>النسخة الاحتياطية</span><i class="fas fa-database" aria-hidden="true"></i></button>`
-            : '',
-        `<button class="header-tools-btn" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة"><span>السمة</span><i class="fas fa-moon" aria-hidden="true"></i></button>`
+            ? `<button class="topbar-icon-btn" id="backup-btn" type="button" title="إدارة النسخة الاحتياطية" aria-label="إدارة النسخة الاحتياطية"><i class="fas fa-database" aria-hidden="true"></i></button>`
+            : ''
     ]
         .filter(Boolean)
         .join('');
 
-    header.classList.add('unified-header');
+    // Dashboard-style topbar (search · theme · notifications · school year) — all app pages
+    header.classList.add('unified-header', 'dashboard-topbar');
     header.innerHTML = `
         <div class="header-left">
-            <button class="menu-toggle" id="menu-toggle" title="${hasSidebar ? 'القائمة' : 'الصفحة الرئيسية'}">
-                <i class="fas fa-bars"></i>
-            </button>
             <div class="search-box" role="search">
-                <input type="text" placeholder="ابحث داخل الصفحة..." aria-label="بحث داخل الصفحة">
-                <i class="fas fa-search"></i>
+                <input
+                    type="search"
+                    id="header-search"
+                    placeholder="ابحث داخل الصفحة..."
+                    aria-label="بحث داخل الصفحة"
+                />
+                <i class="fas fa-search" aria-hidden="true"></i>
             </div>
+            <button
+                class="menu-toggle"
+                id="menu-toggle"
+                type="button"
+                title="${hasSidebar ? 'القائمة' : 'الصفحة الرئيسية'}"
+                aria-label="${hasSidebar ? 'فتح أو إغلاق القائمة الجانبية' : 'الصفحة الرئيسية'}"
+            >
+                <i class="fas fa-bars" aria-hidden="true"></i>
+            </button>
         </div>
         <div class="header-right">
-            <select id="school-year" title="الموسم الدراسي" aria-label="الموسم الدراسي">
-                ${yearOptions.join('')}
-            </select>
-            <button class="notification-btn" title="الإشعارات" aria-label="الإشعارات">
-                <i class="fas fa-bell"></i>
-                <span class="badge" style="display:none">0</span>
+            <button
+                class="topbar-icon-btn"
+                id="theme-toggle"
+                type="button"
+                title="تبديل السمة"
+                aria-label="تبديل الوضع الداكن"
+            >
+                <i class="fas fa-moon" aria-hidden="true"></i>
             </button>
-            <div class="user-info" id="user-info">
-                <span id="user-email">المستخدم</span>
-            </div>
-            <details class="header-tools">
-                <summary class="header-tools-summary" aria-label="أدوات الإدارة">
-                    <span class="header-tools-summary-copy">
-                        <strong>أدوات الإدارة</strong>
-                        <small>اختصارات، نسخ احتياطي، سمة</small>
-                    </span>
-                    <i class="fas fa-sliders-h" aria-hidden="true"></i>
-                </summary>
-                <div class="header-tools-panel">
-                    ${utilityButtons}
-                </div>
-            </details>
+            ${extraIconButtons}
+            <button class="notification-btn topbar-icon-btn" type="button" aria-label="الإشعارات" title="الإشعارات">
+                <i class="fas fa-bell" aria-hidden="true"></i>
+                <span class="badge notification-badge" id="notification-badge" style="display: none">0</span>
+            </button>
+            <span class="topbar-divider" aria-hidden="true"></span>
+            <label class="dashboard-year-control" for="school-year">
+                <span>العام الدراسي</span>
+                <select id="school-year" title="الموسم الدراسي" aria-label="الموسم الدراسي">
+                    ${yearOptions.join('')}
+                </select>
+            </label>
         </div>
     `;
     header.dataset.unifiedHeader = 'true';
+
+    // Re-apply theme icon after replacing #theme-toggle
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    if (typeof updateThemeIcon === 'function') {
+        updateThemeIcon(theme);
+    }
 
     // Wire school-year select change
     const yearSelect = header.querySelector('#school-year');
@@ -2230,8 +2246,8 @@ function setupUnifiedHeader() {
         const titleRow = document.createElement('div');
         titleRow.className = 'page-title-row';
         titleRow.innerHTML = `
-            <h2>
-                ${titleIcon ? `<i class="${escapeHtml(titleIcon)}"></i>` : ''}
+            <h2 class="page-title">
+                ${titleIcon ? `<i class="${escapeHtml(titleIcon)}" aria-hidden="true"></i>` : ''}
                 <span>${escapeHtml(titleText)}</span>
             </h2>
         `;
@@ -2372,6 +2388,21 @@ function getLevelFromSection(section) {
  */
 function getLevelNameFromSection(section) {
     return getLevelFromSection(section).name;
+}
+
+/**
+ * اسم المستوى من القسم — المصدر الموحّد (SSOT) لدمج خريطة المستخدم مع المعادلة.
+ * يحترم ربط المستخدم (levelsMapping من الإعدادات) أولاً، ثم يسقط إلى معادلة getLevelFromSection.
+ * على كل صفحة تحتاج «اسم المستوى من القسم» أن تستدعي هذه الدالة بدل تكرار المنطق.
+ * @param {string} section - رمز القسم
+ * @param {Object<string,string>} [mapping] - خريطة section→اسم المستوى (اختيارية)
+ * @returns {string} - اسم المستوى العربي
+ */
+function resolveLevelName(section, mapping) {
+    const s = String(section || '').trim();
+    if (!s) return '';
+    if (mapping && mapping[s]) return mapping[s];
+    return getLevelNameFromSection(s);
 }
 
 /**
@@ -2591,6 +2622,39 @@ function setSchoolYear(newYear) {
     saveToDb.finally(() => {
         window.location.reload();
     });
+}
+
+const IPC_LIST_PAGE_SIZE = 500;
+
+async function fetchPaginatedIpcRows(listFn, schoolYear, options = {}) {
+    if (typeof listFn !== 'function') return [];
+    const pageSize = IPC_LIST_PAGE_SIZE;
+    let page = 1;
+    const rows = [];
+    while (true) {
+        const res = await listFn(schoolYear, { ...options, page, pageSize });
+        if (!res || res.success === false) break;
+        const chunk = Array.isArray(res.rows) ? res.rows : [];
+        rows.push(...chunk);
+        const totalPages = Number(res.totalPages) || 1;
+        if (page >= totalPages || !chunk.length) break;
+        page += 1;
+    }
+    return rows;
+}
+
+async function fetchAllStudentsForYear(schoolYear) {
+    if (window.api?.students?.list) {
+        return fetchPaginatedIpcRows(window.api.students.list.bind(window.api.students), schoolYear);
+    }
+    return (await window.api.students.getAll(schoolYear)) || [];
+}
+
+async function fetchAllGradesForYear(schoolYear, options = {}) {
+    if (window.api?.grades?.list) {
+        return fetchPaginatedIpcRows(window.api.grades.list.bind(window.api.grades), schoolYear, options);
+    }
+    return (await window.api.grades.getAll(schoolYear)) || [];
 }
 
 async function initSchoolYear() {
@@ -2915,12 +2979,9 @@ class FilterManager {
         }
     }
 
-    /** Level name from section — uses settings mapping first, then getLevelNameFromSection */
+    /** Level name from section — delegates to shared resolveLevelName (mapping first, then formula) */
     _getLocalLevelName(section) {
-        const s = String(section || '').trim();
-        if (!s) return '';
-        if (this._levelsMapping[s]) return this._levelsMapping[s];
-        return getLevelNameFromSection(s);
+        return resolveLevelName(section, this._levelsMapping);
     }
 
     // ─── Populate Helpers ───
@@ -3081,6 +3142,8 @@ if (typeof module !== 'undefined' && module.exports) {
         populateTeachersBySubject,
         getSchoolYear,
         setSchoolYear,
+        fetchAllStudentsForYear,
+        fetchAllGradesForYear,
         getAppAccessState,
         setAppAccessState,
         getCurrentAppRole,

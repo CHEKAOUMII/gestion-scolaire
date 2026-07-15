@@ -119,7 +119,7 @@ function injectSidebar() {
         <div class="sidebar-auth-section" id="sidebar-auth-section">
             <div class="sidebar-auth-user" id="sidebar-auth-user" style="display:none;">
                 <div class="sidebar-auth-avatar shrink-0">
-                    <i class="fas fa-user-circle text-[28px] text-[var(--color-primary)]"></i>
+                    <i class="fas fa-user-circle text-[28px] text-[var(--color-sidebar-icon,#8b929e)]"></i>
                 </div>
                 <div class="sidebar-auth-info flex min-w-0 flex-col gap-0.5">
                     <span class="sidebar-auth-name" id="sidebar-auth-name">المستخدم</span>
@@ -172,7 +172,7 @@ function injectSidebar() {
                     ).trim();
                 if (loginBtn) {
                     loginBtn.innerHTML =
-                        '<i class="fas fa-sign-out-alt w-[18px] text-center text-sm text-[var(--color-primary)] transition-colors group-hover:text-white"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
+                        '<i class="fas fa-sign-out-alt w-[18px] text-center text-sm transition-colors"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
                     loginBtn.classList.remove('sidebar-auth-login');
                     loginBtn.classList.add('sidebar-auth-logout');
                 }
@@ -235,7 +235,7 @@ function injectSidebar() {
         setTimeout(_reapplyRoleUi, 500);
     }
 
-    // Mark current page as active
+    // Mark current page as active (+ parent group for scan hierarchy)
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     document.querySelectorAll('.sidebar-nav a').forEach((link) => {
         const href = link.getAttribute('href');
@@ -244,10 +244,13 @@ function injectSidebar() {
             // Also open parent menu if exists
             const parent = link.closest('.expandable');
             if (parent) {
-                parent.classList.add('open');
+                parent.classList.add('open', 'has-active');
                 const disclosure = parent.querySelector('.nav-disclosure');
                 const subMenu = parent.querySelector('.sub-menu');
-                if (disclosure) disclosure.setAttribute('aria-expanded', 'true');
+                if (disclosure) {
+                    disclosure.setAttribute('aria-expanded', 'true');
+                    disclosure.classList.add('active');
+                }
                 if (subMenu) {
                     subMenu.hidden = false;
                     subMenu.style.display = 'block';
@@ -259,11 +262,30 @@ function injectSidebar() {
     // Mark sidebar setup as complete so utils.js setupSidebar() skips re-binding
     sidebar.dataset.setupComplete = 'true';
 
-    // Setup expandable menu items
+    // Setup expandable menu items (accordion: one open group at a time)
     document.querySelectorAll('.expandable > .nav-link').forEach((link) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const parent = link.parentElement;
+            const willOpen = !parent.classList.contains('open');
+
+            // Close other groups to reduce long-list fatigue
+            if (willOpen) {
+                document.querySelectorAll('.sidebar-nav .expandable.open').forEach((other) => {
+                    if (other === parent) return;
+                    // Keep the route's active group open
+                    if (other.classList.contains('has-active')) return;
+                    other.classList.remove('open');
+                    const otherBtn = other.querySelector('.nav-disclosure');
+                    const otherMenu = other.querySelector('.sub-menu');
+                    if (otherBtn) otherBtn.setAttribute('aria-expanded', 'false');
+                    if (otherMenu) {
+                        otherMenu.hidden = true;
+                        otherMenu.style.display = 'none';
+                    }
+                });
+            }
+
             const isOpen = parent.classList.toggle('open');
             const subMenu = parent.querySelector('.sub-menu');
             link.setAttribute('aria-expanded', String(isOpen));

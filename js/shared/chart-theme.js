@@ -38,7 +38,8 @@
             return fallback || '';
         }
         try {
-            const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            const themeSource = document.body || document.documentElement;
+            const v = getComputedStyle(themeSource).getPropertyValue(name).trim();
             return v || fallback || '';
         } catch {
             return fallback || '';
@@ -51,13 +52,13 @@
      */
     function getChartThemeColors() {
         const dark = isDarkTheme();
-        const textColor = cssVar('--color-text-main', dark ? '#e2e8f0' : '#1e293b');
-        const mutedColor = cssVar('--color-text-muted', dark ? '#94a3b8' : '#64748b');
-        // Shared grid: matches dashboard dark; light uses soft slate line (acceptable cosmetic unify).
-        const gridColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-        const tooltipBg = dark ? '#1e293b' : '#ffffff';
-        const tooltipText = dark ? '#e2e8f0' : '#1e293b';
-        const legendText = dark ? '#cbd5e1' : '#475569';
+        const textColor = cssVar('--color-text-main', dark ? '#eeeae2' : '#30323a');
+        const mutedColor = cssVar('--color-text-muted', dark ? '#b7b5b0' : '#656872');
+        // Shared grid: soft lines for both product themes.
+        const gridColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(28,32,41,0.06)';
+        const tooltipBg = dark ? '#22262e' : '#fffefb';
+        const tooltipText = dark ? '#eeeae2' : '#30323a';
+        const legendText = dark ? '#c8cdd5' : '#656872';
 
         return {
             isDark: dark,
@@ -71,10 +72,10 @@
             textColor,
             mutedColor,
             gridColor,
-            primary: cssVar('--color-primary', '#3B6AC5'),
-            primaryLight: cssVar('--color-primary-light', '#5B84D6'),
-            primaryDark: cssVar('--color-primary-dark', '#2A4F96'),
-            accent: '#9B64AB'
+            primary: cssVar('--color-primary', dark ? '#9aaaca' : '#42516a'),
+            primaryLight: cssVar('--color-primary-light', dark ? '#8295b7' : '#70819d'),
+            primaryDark: cssVar('--color-primary-dark', dark ? '#c1cce2' : '#303d53'),
+            accent: cssVar('--color-chart-accent', dark ? '#d0aa72' : '#b2874d')
         };
     }
 
