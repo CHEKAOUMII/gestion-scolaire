@@ -41,31 +41,14 @@ let year;
                 'auto-distribute': 'التوزيع الآلي'
             };
 
-            const EXAM_LS_KEYS = [
-                'examCenterConfig', 'examCenterLevels', 'examCenterRoomsData',
-                'examCenterRoomsCount', 'examScheduleData', 'examAutoDistributionData',
-                'examPeriodsData', 'examDistributionRules', 'examExemptionsData',
-                'examDutyTeachersData', 'examReservesData', 'examMorningEveningData',
-                'examAutoDistributionOptions', 'examCandidatesData'
-            ];
+            // Migration: js/exams/exam-config-migration.js → window.ExamConfigMigration
             async function migrateExamLocalStorageToDb() {
-                for (const key of EXAM_LS_KEYS) {
-                    const raw = localStorage.getItem(key);
-                    if (raw === null) continue;
-                    const existing = await window.api.examConfig.get(year, key);
-                    if (existing !== null) {
-                        // Already migrated — remove stale localStorage copy to prevent re-migration after deletes
-                        localStorage.removeItem(key);
-                        continue;
-                    }
-                    let data;
-                    try { data = JSON.parse(raw); } catch { data = raw; }
-                    const res = await window.api.examConfig.save({ school_year: year, config_key: key, data });
-                    if (!res || res.success !== false) {
-                        // Migration succeeded — remove from localStorage so a future delete is final
-                        localStorage.removeItem(key);
-                    }
-                }
+                if (!window.ExamConfigMigration) return;
+                return window.ExamConfigMigration.migrateExamLocalStorageToDb({
+                    schoolYear: year,
+                    api: window.api,
+                    storage: localStorage
+                });
             }
 
             document.addEventListener('DOMContentLoaded', async () => {
@@ -73,6 +56,20 @@ let year;
                 await migrateExamLocalStorageToDb();
                 addedLevels = (await window.api.examConfig.get(year, 'examCenterLevels')) || [];
                 initDashboard();
+                if (window.ExamSections) {
+                    window.ExamSections.init({
+                        order: ['settings', 'production'],
+                        tabSelector: '.epm-tab[data-tab]',
+                        tablistSelector: '#epm-tabs',
+                        ensureAria: true,
+                        map: {
+                            scheduling: 'settings',
+                            proctors: 'settings',
+                            candidates: 'settings',
+                            attendance: 'production'
+                        }
+                    });
+                }
                 await initDistSettings();
                 await initPeriodsPanel();
                 await initExemptionsDutyMatrix();

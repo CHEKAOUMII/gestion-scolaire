@@ -85,12 +85,13 @@ All systemTags channels are registered in `CHANNEL_REGISTRY` for sync outbox cap
 ### Files Involved
 
 - **DB schema:** `main/db/migrations.js` (migrations `2026-04-045-system-tags`, `2026-04-046-system-tags-notes`)
-- **IPC handlers:** `main/ipc/staff.js` (section: System Tags CRUD)
+- **IPC handlers:** `main/ipc/system-tags.js`
 - **Preload:** `preload.js` (`systemTags` namespace)
 - **Sync capture:** `main/sync/capture.js` (4 channel entries)
 - **Tag types:** `js/data/system-tag-types.js` (centralized `ALL_TAG_TYPES`)
 - **Frontend:** `staff-daily-report.html` (note form, @mention autocomplete, tags table)
 - **Plan doc:** `docs/plans/2026-04-10-system-tags.md`
+- **Write-channel checklist:** `docs/plans/2026-07-15-add-write-channel-checklist.md`
 
 <!-- MANUAL ADDITIONS END -->
 

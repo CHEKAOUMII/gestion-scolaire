@@ -1,11 +1,27 @@
 // Sync capture layer - Phase 1
 
-const { getDb } = require('../db/context');
+const { getDb: defaultGetDb } = require('../db/context');
 const { collectCurrentFingerprint } = require('../licensing/deviceFingerprint');
 
 let _cachedDeviceHash = null;
 let _cachedDeviceName = null;
 let _pushDebounceTimer = null;
+
+/** Injectable DB accessor (default: main process singleton). Override in unit tests. */
+let _getDb = defaultGetDb;
+
+function getCaptureDb() {
+    return _getDb();
+}
+
+/**
+ * Override the database resolver used by capture helpers.
+ * Pass a function, or null/undefined to restore the default getDb().
+ * @param {(() => any) | null | undefined} fn
+ */
+function setCaptureGetDb(fn) {
+    _getDb = typeof fn === 'function' ? fn : defaultGetDb;
+}
 
 const SENSITIVE_FIELDS = ['password_hash', 'pin_hash'];
 const PUSH_DEBOUNCE_MS = 8000;
@@ -399,9 +415,28 @@ function scheduleDebouncedPush() {
  *
  * @param {string} channel - IPC channel name
  * @param {Function} originalHandler - the original ipcMain.handle callback
+ * @param {{ getDb?: () => any }} [options] - optional deps (injectable DB for tests)
  * @returns {Function} wrapped handler
  */
-function wrapWithSyncCapture(channel, originalHandler) {
+const CAPTURE_WARNING_MESSAGE = 'تعذر تسجيل التغيير للمزامنة السحابية';
+
+function attachCaptureWarning(result) {
+    if (result && typeof result === 'object' && !Array.isArray(result)) {
+        return {
+            ...result,
+            captureWarning: true,
+            captureError: CAPTURE_WARNING_MESSAGE
+        };
+    }
+    return {
+        success: true,
+        data: result,
+        captureWarning: true,
+        captureError: CAPTURE_WARNING_MESSAGE
+    };
+}
+
+function wrapWithSyncCapture(channel, originalHandler, options = {}) {
     const registryEntry = CHANNEL_REGISTRY[channel];
 
     // Skip channels not in registry or explicitly excluded
@@ -409,8 +444,10 @@ function wrapWithSyncCapture(channel, originalHandler) {
         return originalHandler;
     }
 
+    const resolveDb = typeof options.getDb === 'function' ? options.getDb : getCaptureDb;
+
     return async function wrappedHandler(event, ...args) {
-        const preCapturedRow = captureRowBeforeDelete(registryEntry, args);
+        const preCapturedRow = captureRowBeforeDelete(registryEntry, args, resolveDb);
 
         // Run the original handler first — if it throws, we do not capture
         const result = await originalHandler(event, ...args);
@@ -423,13 +460,13 @@ function wrapWithSyncCapture(channel, originalHandler) {
 
         // Capture in a try/catch — never disrupt the original result
         try {
-            const db = getDb();
+            const db = resolveDb();
             captureAfterWrite(db, channel, registryEntry, args, result, preCapturedRow);
             scheduleDebouncedPush();
         } catch (captureErr) {
             console.warn(`[sync:capture] Capture failed for channel '${channel}':`, captureErr.message);
             try {
-                const db = getDb();
+                const db = resolveDb();
                 db.prepare(
                     `
                     UPDATE sync_config
@@ -440,6 +477,7 @@ function wrapWithSyncCapture(channel, originalHandler) {
             } catch (dbErr) {
                 console.warn('[sync:capture] Failed to persist capture error:', dbErr.message);
             }
+            return attachCaptureWarning(result);
         }
 
         return result;
@@ -453,10 +491,10 @@ function captureLastInsertRowid(db, tableName, _entry, handlerArgs, handlerResul
     }
 }
 
-function captureRowBeforeDelete(registryEntry, handlerArgs) {
+function captureRowBeforeDelete(registryEntry, handlerArgs, resolveDb = getCaptureDb) {
     if (registryEntry.operation !== 'DEL' || registryEntry.idExtractor !== 'argId') return null;
     try {
-        const db = getDb();
+        const db = resolveDb();
         const tableName = registryEntry.tables[0];
         const id = extractIdFromArgs(handlerArgs);
         return id ? fetchRowById(db, tableName, id) : null;
@@ -502,7 +540,7 @@ function captureLiteral(db, _tableName, _entry, _handlerArgs, _handlerResult, sc
 }
 
 function captureCompositeKey(db, tableName, _entry, handlerArgs, _handlerResult, schoolYear) {
-    const compositeData = extractCompositeFromArgs(handlerArgs, tableName);
+    const compositeData = extractCompositeFromArgs(handlerArgs, tableName, db);
     if (compositeData?.id) {
         recordOutboxEntry(
             db,
@@ -579,9 +617,8 @@ function extractKeyFromArgs(handlerArgs) {
     return null;
 }
 
-function extractCompositeFromArgs(handlerArgs, tableName) {
+function extractCompositeFromArgs(handlerArgs, tableName, db = getCaptureDb()) {
     // Try to re-query the row using known composite key patterns
-    const db = getDb();
     for (const arg of handlerArgs) {
         if (!arg || typeof arg !== 'object') continue;
 
@@ -772,13 +809,13 @@ function startOutboxCleanup() {
     if (_cleanupTimer) return;
 
     try {
-        const db = getDb();
+        const db = getCaptureDb();
         runMaintenanceCleanup(db);
 
         const SIX_HOURS = 6 * 60 * 60 * 1000;
         _cleanupTimer = setInterval(() => {
             try {
-                const db = getDb();
+                const db = getCaptureDb();
                 runMaintenanceCleanup(db);
             } catch (err) {
                 console.warn('[sync:capture] Periodic outbox cleanup failed:', err.message);
@@ -804,10 +841,12 @@ module.exports = {
     CHANNEL_REGISTRY,
     SENSITIVE_FIELDS,
     ensureSyncIdMapping,
+    getCaptureDb,
     getDeviceHash,
     getDeviceName,
     recordOutboxEntries,
     recordOutboxEntry,
+    setCaptureGetDb,
     startOutboxCleanup,
     stopOutboxCleanup,
     stripSensitiveFields,

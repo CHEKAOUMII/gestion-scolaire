@@ -8,6 +8,34 @@ const { validateSchoolYear } = require('./validation');
 
 const _writeChannels = new Set();
 
+/**
+ * Channels registered with handleWriteSoftAuth({ allowNoSession: true }).
+ * Populated at registration time — prefer the call-site flag over editing this set.
+ */
+const SOFT_AUTH_NO_SESSION_CHANNELS = new Set();
+
+const AUTH_ERROR_CODES = new Set(['UNAUTHENTICATED', 'FORBIDDEN', 'SESSION_LOCKED']);
+
+function looksLikeInternalErrorMessage(message) {
+    const msg = String(message || '').trim();
+    if (!msg) return true;
+    if (/SQLITE|ENOENT|EACCES|EPERM|ECONNREFUSED|ENOTFOUND/i.test(msg)) return true;
+    if (/\.js:\d+|at\s+\S+\s+\(/i.test(msg)) return true;
+    if (/^(Error:|TypeError:|SyntaxError:)/i.test(msg)) return true;
+    return false;
+}
+
+function sanitizeIpcErrorMessage(err) {
+    if (AUTH_ERROR_CODES.has(err?.code)) {
+        return err?.message || 'غير مصرح';
+    }
+    const msg = String(err?.message || '').trim();
+    if (msg && /[\u0600-\u06FF]/.test(msg) && !looksLikeInternalErrorMessage(msg)) {
+        return msg;
+    }
+    return 'حدث خطأ داخلي';
+}
+
 function computeDefaultYear() {
     const now = new Date();
     const year = now.getFullYear();
@@ -33,13 +61,17 @@ function getDefaultYear() {
  * Single source of truth — replaces the 9 copy-pasted versions.
  */
 function authErrorResponse(err) {
-    const isAuthError =
-        err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN' || err?.code === 'SESSION_LOCKED';
+    const isAuthError = AUTH_ERROR_CODES.has(err?.code);
     return {
         success: false,
         code: isAuthError ? err.code : 'INTERNAL_ERROR',
-        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
+        error: sanitizeIpcErrorMessage(err)
     };
+}
+
+/** Alias for read handlers — same sanitization rules as writes. */
+function ipcErrorResponse(err) {
+    return authErrorResponse(err);
 }
 
 /**
@@ -84,7 +116,7 @@ function handleRead(ipcMain, channel, handler) {
             } catch (_) {
                 /* logging must never block the response */
             }
-            return { success: false, error: err.message };
+            return ipcErrorResponse(err);
         }
     });
 }
@@ -127,18 +159,23 @@ function handleWrite(ipcMain, channel, roles, handler) {
 /**
  * Register a WRITE handler with soft auth.
  * If a session exists → enforce role-based auth (like handleWrite).
- * If no session exists → allow the operation but log the unauthenticated write.
- *
- * This is used for bulk-import channels that run from the settings-imports page
- * which may be opened before login.
+ * If no session exists → deny, unless options.allowNoSession is true
+ * (setup / bulk-import channels that may run before login).
  *
  * @param {Electron.IpcMain} ipcMain
  * @param {string} channel       – e.g. 'students:addBulk'
  * @param {string[]} roles       – e.g. WRITE_ROLES from permissions.js
  * @param {(db: any, ...args: any[]) => any} handler
+ * @param {{ allowNoSession?: boolean }} [options]
  */
-function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
+function handleWriteSoftAuth(ipcMain, channel, roles, handler, options = {}) {
+    const allowNoSession = options?.allowNoSession === true;
     _writeChannels.add(channel);
+    if (allowNoSession) {
+        SOFT_AUTH_NO_SESSION_CHANNELS.add(channel);
+    } else {
+        SOFT_AUTH_NO_SESSION_CHANNELS.delete(channel);
+    }
 
     const innerHandler = async (event, ...args) => {
         try {
@@ -146,8 +183,11 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
             if (session) {
                 // Session exists — enforce role check
                 requireRole(event, roles);
+            } else if (!allowNoSession) {
+                const denied = new Error('الرجاء تسجيل الدخول أولاً');
+                denied.code = 'UNAUTHENTICATED';
+                throw denied;
             } else {
-                // No session — allow but log the unauthenticated write
                 try {
                     const db = getDb();
                     db.prepare(
@@ -157,7 +197,7 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
                         'UNAUTHENTICATED_WRITE',
                         'ipc_channel',
                         channel,
-                        `Unauthenticated write on channel "${channel}" — no active session`
+                        `Unauthenticated write on allowlisted channel "${channel}" — no active session`
                     );
                 } catch {
                     // Logging failure should not block the operation
@@ -185,6 +225,8 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
 
 module.exports = {
     authErrorResponse,
+    ipcErrorResponse,
+    SOFT_AUTH_NO_SESSION_CHANNELS,
     getDefaultYear,
     normalizeYear,
     requireSchoolYear,

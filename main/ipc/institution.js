@@ -504,7 +504,7 @@ function registerInstitutionIpc(ipcMain) {
         }
 
         return ok({ message: 'تم تحديث رمز المؤسسة. يمكنك الآن إعداد الربط بـ Firebase.', massarCode });
-    });
+    }, { allowNoSession: true });
 
     handleWriteSoftAuth(ipcMain, 'institution:setup-new', [], async (db, payload) => {
         if (isSetupAlreadyCompleted(db)) {
@@ -632,7 +632,7 @@ function registerInstitutionIpc(ipcMain) {
             console.error('[institution] setupNewInstitution error:', err);
             return fail('INTERNAL_ERROR', 'حدث خطأ أثناء إعداد المؤسسة: ' + err.message);
         }
-    });
+    }, { allowNoSession: true });
 
     handleWrite(ipcMain, 'institution:updateMassarCode', ['principal'], async (db, event, payload) => {
         const status = getInstitutionStatusRecord(db);

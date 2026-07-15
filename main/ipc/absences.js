@@ -123,7 +123,7 @@ function registerAbsencesIpc(ipcMain) {
         });
         upsertMany(absences);
         return { success: true, count: absences.length };
-    });
+    }, { allowNoSession: true });
 
     handleWrite(ipcMain, 'absences:delete', WRITE_ROLES, (db, _event, id) => {
         const absenceId = Number(id);

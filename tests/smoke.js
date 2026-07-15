@@ -164,7 +164,8 @@ function runLazyLoadSmoke() {
 }
 
 function runRestoreSafetySmoke() {
-    const source = read(path.join('main', 'ipc', 'system.js'));
+    // Backup/restore lives in system-backup.js (split from system.js).
+    const source = read(path.join('main', 'ipc', 'system-backup.js'));
 
     const expectedSnippets = ['quick_check', '.validate.tmp', '.restore.bak', 'expectedByteLength'];
     expectedSnippets.forEach((snippet) => {
@@ -443,12 +444,20 @@ function runAuthTests() {
     assert.strictEqual(forbiddenResp.code, 'FORBIDDEN', 'Should preserve FORBIDDEN code');
     assert.strictEqual(forbiddenResp.error, 'No permission', 'Should preserve error message');
 
-    // Unknown error code defaults to INTERNAL_ERROR
+    // Unknown English error code is sanitized (no internal leakage)
     const genericErr = new Error('Something broke');
     genericErr.code = 'SOME_RANDOM_CODE';
     const genericResp = authErrorResponse(genericErr);
     assert.strictEqual(genericResp.code, 'INTERNAL_ERROR', 'Unknown code should default to INTERNAL_ERROR');
-    assert.strictEqual(genericResp.error, 'Something broke', 'Should preserve error message');
+    assert.strictEqual(genericResp.error, 'حدث خطأ داخلي', 'English internal errors should be sanitized');
+
+    const sqliteErr = new Error('SQLITE_CONSTRAINT: UNIQUE constraint failed: grades.student_code');
+    const sqliteResp = authErrorResponse(sqliteErr);
+    assert.strictEqual(sqliteResp.error, 'حدث خطأ داخلي', 'SQLite errors should be sanitized');
+
+    const validationErr = new Error('الحقول المطلوبة ناقصة: student_code');
+    const validationResp = authErrorResponse(validationErr);
+    assert.strictEqual(validationResp.error, validationErr.message, 'Arabic validation errors should pass through');
 
     console.log('[smoke] Auth module behavioral tests OK');
 }
