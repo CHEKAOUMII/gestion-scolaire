@@ -2,12 +2,14 @@
 <html lang="ar" dir="rtl">
 
 <head>
+    <script src="js/theme-boot.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ورقة الغياب الأسبوعية | برنامج التدبير المدرسي</title>
     <link rel="stylesheet" href="vendor/fonts/google-fonts.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind-output.css">
+    <link rel="stylesheet" href="css/absence-weekly.css">
     <script src="js/utils.js" defer></script>
         <script src="js/shared/date-utils.js" defer></script>
     <script src="js/notifications.js" defer></script>
@@ -15,249 +17,6 @@
     <script src="js/sidebar.js" defer></script>
     <script src="js/ux-enhancements.js" defer></script>
     <script src="js/print-system.js"></script>
-    <style>
-        /* ====== نمط طباعة فاتح وعالي التباين ======
-           نص داكن على خلفية بيضاء، خطوط رفيعة، رؤوس فاتحة — مريح للقراءة والنسخ
-        */
-        .aw-sheet {
-            --aw-ink: #1c2733;        /* لون النص الداكن */
-            --aw-line: #9aa1ab;       /* حدود رفيعة */
-            --aw-line-strong: #5f6b7a;/* فواصل الأيام */
-            --aw-head: #eef2f7;       /* خلفية الرؤوس الفاتحة */
-            --aw-head-day: #dde5ef;   /* خلفية رأس اليوم */
-            --aw-zebra: #f5f7fa;      /* تظليل خفيف جداً للصفوف */
-            --aw-muted: #5b6675;      /* نص ثانوي */
-            font-family: "DejaVu Sans", "Segoe UI", Tahoma, sans-serif;
-            background: #ffffff;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1.5px solid var(--aw-line-strong);
-            box-shadow: none;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-        }
-
-        .aw-info-bar {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: calc(8px * var(--aw-scale, 1)) 22px;
-            margin-bottom: calc(14px * var(--aw-scale, 1));
-            padding: calc(8px * var(--aw-scale, 1)) 12px;
-            font-size: calc(0.9rem * var(--aw-scale, 1));
-            color: var(--aw-ink);
-            background: var(--aw-head);
-            border: 1px solid var(--aw-line);
-            border-radius: 6px;
-        }
-
-        .aw-info-bar span strong {
-            font-weight: 700;
-            color: var(--aw-ink);
-        }
-
-        table.aw-table {
-            width: 100%;
-            table-layout: fixed;
-            border-collapse: collapse;
-            font-size: calc(0.72rem * var(--aw-scale, 1));
-            color: var(--aw-ink);
-        }
-
-        table.aw-table th,
-        table.aw-table td {
-            border: 0.75px solid var(--aw-line);
-            text-align: center;
-            padding: 1px;
-            overflow: hidden;
-        }
-
-        table.aw-table thead th {
-            background: var(--aw-head);
-            color: var(--aw-ink);
-            font-weight: 700;
-        }
-
-        /* رأس عمود المادة عمودي لاستغلال المساحة */
-        th.aw-subject {
-            height: calc(104px * var(--aw-scale, 1));
-            padding: 2px 0;
-            vertical-align: bottom;
-            background: #f7f9fb;
-            color: var(--aw-ink);
-        }
-
-        th.aw-subject .aw-subject-name {
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            transform: rotate(180deg);
-            white-space: nowrap;
-            font-weight: 700;
-            font-size: calc(0.64rem * var(--aw-scale, 1));
-            line-height: 1;
-            margin: 0 auto;
-            max-height: calc(90px * var(--aw-scale, 1));
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        th.aw-subject .aw-hour {
-            display: block;
-            font-size: calc(0.55rem * var(--aw-scale, 1));
-            font-weight: 600;
-            color: var(--aw-muted);
-            margin-top: 2px;
-        }
-
-        th.aw-day {
-            background: var(--aw-head-day);
-            color: var(--aw-ink);
-            font-weight: 700;
-            font-size: 0.82rem;
-            white-space: nowrap;
-        }
-
-        td.aw-name {
-            text-align: right;
-            white-space: nowrap;
-            padding: 2px 6px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-size: calc(0.74rem * var(--aw-scale, 1));
-            color: var(--aw-ink);
-        }
-
-        td.aw-num,
-        td.aw-total {
-            font-weight: 600;
-            color: var(--aw-ink);
-        }
-
-        /* رأس عمود المجموع عمودي مثل أسماء المواد */
-        th.aw-total-head {
-            vertical-align: middle;
-            padding: 3px 0;
-        }
-
-        th.aw-total-head .aw-total-label {
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            transform: rotate(180deg);
-            white-space: nowrap;
-            font-weight: 700;
-            font-size: 0.68rem;
-            margin: 0 auto;
-        }
-
-        /* تظليل خفيف جداً للصفوف الزوجية لتحسين القراءة */
-        table.aw-table tbody tr:nth-child(even) td {
-            background: var(--aw-zebra);
-        }
-
-        table.aw-table td.aw-cell {
-            height: calc(20px * var(--aw-scale, 1));
-        }
-
-        /* فاصل بصري رفيع بين الأيام */
-        table.aw-table .aw-day-sep {
-            border-inline-start: 1.5px solid var(--aw-line-strong);
-        }
-
-        /* خيار الملاءمة داخل نافذة معاينة الطباعة */
-        .aw-fit-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #2b3a4f;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .aw-fit-toggle input {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            accent-color: #4a6fa5;
-        }
-
-        .aw-page-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 12px;
-            border-radius: 999px;
-            background: #d4e4f7;
-            border: 1px solid #4a6fa5;
-            color: #2b3a4f;
-            font-size: 0.85rem;
-            font-weight: 700;
-        }
-
-        /* ====== تجاوز قواعد الطباعة العامة (tailwind-output.css) ======
-           القواعد العامة body.ux-printing-active #ux-print-root th/td تفرض
-           رأساً كحلياً داكناً وحشواً كبيراً أثناء الطباعة/المعاينة عبر !important.
-           هذه التجاوزات تعيد نمط ورقة الغياب الفاتح داخل نطاقي المعاينة والطباعة.
-        */
-        .ux-pp-sheet .aw-table thead th,
-        body.ux-printing-active #ux-print-root .aw-table thead th {
-            background: var(--aw-head) !important;
-            color: var(--aw-ink) !important;
-            padding: 1px !important;
-            border: 0.75px solid var(--aw-line) !important;
-            font-weight: 700 !important;
-        }
-
-        .ux-pp-sheet .aw-table th.aw-day,
-        body.ux-printing-active #ux-print-root .aw-table th.aw-day {
-            background: var(--aw-head-day) !important;
-            color: var(--aw-ink) !important;
-        }
-
-        .ux-pp-sheet .aw-table th.aw-subject,
-        body.ux-printing-active #ux-print-root .aw-table th.aw-subject {
-            background: #f7f9fb !important;
-            color: var(--aw-ink) !important;
-            padding: 3px 0 !important;
-        }
-
-        .ux-pp-sheet .aw-table td,
-        body.ux-printing-active #ux-print-root .aw-table td {
-            padding: 1px !important;
-            color: var(--aw-ink) !important;
-            border: 0.75px solid var(--aw-line) !important;
-        }
-
-        .ux-pp-sheet .aw-table td.aw-name,
-        body.ux-printing-active #ux-print-root .aw-table td.aw-name {
-            text-align: right !important;
-            padding: 2px 6px !important;
-        }
-
-        .ux-pp-sheet .aw-table tbody tr:nth-child(even) td,
-        body.ux-printing-active #ux-print-root .aw-table tbody tr:nth-child(even) td {
-            background: var(--aw-zebra) !important;
-        }
-
-        /* فواصل الأيام الرفيعة تبقى فوق حدود الخلايا العامة */
-        .ux-pp-sheet .aw-table .aw-day-sep,
-        body.ux-printing-active #ux-print-root .aw-table .aw-day-sep {
-            border-inline-start: 1.5px solid var(--aw-line-strong) !important;
-        }
-
-        /* إصلاح اقتطاع الورقة من الجهة اليسرى عند التصدير:
-           ورقة .ux-pp-sheet عرضها 210mm ثابت بينما هوامش الطباعة تحجز ~8mm،
-           فتفيض وتُقتطع. جعلها تملأ المساحة القابلة للطباعة يمنع الاقتطاع. */
-        body.ux-printing-active #ux-print-root .ux-pp-sheet {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            overflow: visible !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-        }
-    </style>
 </head>
 
 <body>
@@ -267,7 +26,7 @@
 
     <main class="main-content">
         <header class="header">
-            <div class="header-left">
+    <div class="header-left">
                 <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
                 <h2 class="page-title"><i class="fas fa-calendar-week"></i> ورقة الغياب الأسبوعية</h2>
             </div>
