@@ -79,6 +79,8 @@
     function bindEvents() {
         document.getElementById('search-btn').addEventListener('click', loadData);
         document.getElementById('print-btn').addEventListener('click', () => PrintSystem.preview());
+        // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+        (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
 
         // Level change → FilterManager handles section cascading, just reload data
         levelSelect.addEventListener('change', () => {

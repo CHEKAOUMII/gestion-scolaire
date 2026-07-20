@@ -43,6 +43,8 @@ function decodeDocumentIdPart(value) {
     }
 }
 
+const { parseStudentDocumentId } = require('./collections');
+
 function buildChangeId(entry) {
     const updatedAt = normalizeUpdatedAt(entry.updatedAt);
     const version = Number(entry.version) || 1;
@@ -209,8 +211,19 @@ async function bootstrapFromCollections(db, schoolId, collectionMap, entityTypeR
                         delete cleanData[key];
                     }
 
-                    if (tableName === 'students' && !String(cleanData.code || '').trim()) {
-                        cleanData.code = decodeDocumentIdPart(docSnap.id);
+                    // D1: fill gaps from legacy (code) or canonical (school_year__code) doc ids.
+                    if (tableName === 'students') {
+                        const parsed = parseStudentDocumentId(docSnap.id);
+                        if (parsed) {
+                            if (!String(cleanData.code || '').trim() && parsed.code) {
+                                cleanData.code = parsed.code;
+                            }
+                            if (!String(cleanData.school_year || '').trim() && parsed.school_year) {
+                                cleanData.school_year = parsed.school_year;
+                            }
+                        } else if (!String(cleanData.code || '').trim()) {
+                            cleanData.code = decodeDocumentIdPart(docSnap.id);
+                        }
                     }
 
                     items.push({

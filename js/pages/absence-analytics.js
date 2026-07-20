@@ -183,6 +183,8 @@
                         pageSize: 'A4'
                     });
                 };
+                // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+                (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
 
                 // Re-render charts when theme changes so colors adapt
                 const observer = new MutationObserver((mutations) => {

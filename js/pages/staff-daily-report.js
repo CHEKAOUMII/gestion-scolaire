@@ -1184,6 +1184,8 @@
         document.getElementById('print-btn').addEventListener('click', () => {
             PrintSystem.preview({ title: 'التقرير اليومي', pageSize: 'A4' });
         });
+        // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+        (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
 
         document.getElementById('add-tag-btn').addEventListener('click', showTagNoteForm);
 

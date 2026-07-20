@@ -920,8 +920,16 @@ async function getScheduleEntries() {
                         'تعذر تحميل معلومات المؤسسة من قاعدة البيانات. افتح صفحة معلومات المؤسسة واحفظها ثم اضغط تحيين.' +
                     '</div>';
                 }
+                const logoPx =
+                    typeof resolveLogoMaxPx === 'function' ? resolveLogoMaxPx(id.logo_scale) : 80;
                 const logo = id.logo_base64
-                    ? '<img class="lh-logo" src="data:image/png;base64,' + escapeHtml(id.logo_base64) + '" alt="logo">'
+                    ? '<img class="lh-logo" src="data:image/png;base64,' +
+                      escapeHtml(id.logo_base64) +
+                      '" alt="logo" style="max-width:' +
+                      logoPx +
+                      'px;max-height:' +
+                      logoPx +
+                      'px">'
                     : '<div style="width:48px;height:48px;border:1px dashed #3b6ac5;border-radius:50%;margin:0 auto"></div>';
                 const country = id.country || 'المملكة المغربية';
                 const ministry = id.ministry || 'وزارة التربية الوطنية والتعليم الأولي والرياضة';
@@ -962,6 +970,20 @@ async function getScheduleEntries() {
                 const headInspector = 'المدير الإقليمي';
                 const cityHeader = id.city || '';
                 const signatureBase64 = id.signature_base64 || '';
+                const signatureW =
+                    typeof resolveLogoMaxPx === 'function'
+                        ? resolveLogoMaxPx(
+                              id.signature_scale,
+                              typeof SIGNATURE_BASE_WIDTH_PX !== 'undefined' ? SIGNATURE_BASE_WIDTH_PX : 100
+                          )
+                        : 100;
+                const signatureH =
+                    typeof resolveLogoMaxPx === 'function'
+                        ? resolveLogoMaxPx(
+                              id.signature_scale,
+                              typeof SIGNATURE_BASE_HEIGHT_PX !== 'undefined' ? SIGNATURE_BASE_HEIGHT_PX : 48
+                          )
+                        : 48;
 
                 const ref = getInvRefValues();
 
@@ -1033,7 +1055,13 @@ async function getScheduleEntries() {
                             '<div class="lbl">' + escapeHtml(directorTitle) + '</div>' +
                             (directorName ? '<div class="val">' + escapeHtml(directorName) + '</div>' : '') +
                             (signatureBase64
-                                ? '<img class="sig-img" src="data:image/png;base64,' + escapeHtml(signatureBase64) + '" alt="توقيع المدير(ة)" />'
+                                ? '<img class="sig-img" src="data:image/png;base64,' +
+                                  escapeHtml(signatureBase64) +
+                                  '" alt="توقيع المدير(ة)" style="max-width:' +
+                                  signatureW +
+                                  'px;max-height:' +
+                                  signatureH +
+                                  'px" />'
                                 : '<div style="height:60px"></div>'
                             ) +
                             '<div class="line"></div>' +

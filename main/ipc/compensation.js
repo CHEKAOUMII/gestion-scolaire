@@ -73,6 +73,7 @@ function registerCompensationIpc(ipcMain) {
         if (!Array.isArray(sessions) || sessions.length === 0) {
             return { success: true, inserted: 0 };
         }
+        const { capturePutsByIds, notifyCaptureCommitted } = require('../sync/capture');
         const stmt = db.prepare(`
             INSERT OR IGNORE INTO compensation_tracking
                 (absence_date, teacher_id, teacher_name, section, period_slot, period_time, subject, school_year, reason, notes)
@@ -80,6 +81,7 @@ function registerCompensationIpc(ipcMain) {
         `);
         const txn = db.transaction((items) => {
             let inserted = 0;
+            const newIds = [];
             for (const s of items) {
                 const resolved = resolveTeacherIdentity(db, {
                     teacher_id: s.teacher_id,
@@ -100,11 +102,18 @@ function registerCompensationIpc(ipcMain) {
                     s.reason || null,
                     s.notes || null
                 );
-                if (result.changes > 0) inserted++;
+                if (result.changes > 0) {
+                    inserted++;
+                    if (result.lastInsertRowid) newIds.push(result.lastInsertRowid);
+                }
+            }
+            if (newIds.length) {
+                capturePutsByIds(db, 'compensation_tracking', newIds);
             }
             return inserted;
         });
         const inserted = txn(sessions);
+        notifyCaptureCommitted();
         return { success: true, inserted };
     });
 

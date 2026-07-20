@@ -4,19 +4,27 @@ Follow this every time you add a **write** (mutating) IPC channel. Skipping a st
 
 ## Required steps
 
-1. **Handler** — Register with `handleWrite` or `handleWriteSoftAuth` from `main/ipc/ipc-helpers.js` (not raw `ipcMain.handle`, unless the operation is intentionally local-only such as print/backup).
-2. **Preload** — Expose `ipcRenderer.invoke('domain:action', …)` under `window.api` in `preload.js`.
-3. **Sync registry** — Add an entry in `CHANNEL_REGISTRY` (`main/sync/capture.js`), or set `{ exclude: true }` with a comment if the write must not sync.
-4. **Soft auth (optional)** — If the channel must work **before login** (setup / bulk import), pass:
+1. **Handler** — Register with `handleWrite` or `handleWriteSoftAuth` from `main/ipc/ipc-helpers.js` (not raw `ipcMain.handle`, unless the operation is intentionally local-only such as print/backup). **Domain SQL belongs in `main/repos/*` only** — IPC stays auth/validation/orchestration. Do not add new `db.prepare` for school data inside `main/ipc/*`.
+2. **Repository** — Put SQL + atomic bulk capture in `main/repos/[domain].js`. Import change-tracking only from `main/repos/capture-port.js` (not `../sync/capture` directly). Production default port delegates to real capture; unit tests may `setRepoCapturePort(createNoOpCapturePort())`.
+3. **Preload** — Expose `ipcRenderer.invoke('domain:action', …)` under `window.api` in `preload.js`.
+4. **Entity registry (if new table)** — Add/update the entity in `main/sync/entity-registry.js` (local keys, remote collection/idFields, authority writers, snapshot flag). `COLLECTION_MAP` / authority maps derive from this SSOT.
+5. **Channel registry** — Add an entry in `CHANNEL_REGISTRY` (`main/sync/capture.js`):
+   - Row-level wrapper capture: choose an `idExtractor`
+   - **Bulk / multi-row correctness:** use `captureMode: 'explicit'` + `exclude: true` and write exact outbox rows inside the same SQLite transaction via capture-port helpers `captureInputUpserts` / `captureResolvedRows` (see `main/repos/students.js`)
+   - Local-only: `{ exclude: true }` with a comment
+6. **Soft auth (optional)** — If the channel must work **before login** (setup / bulk import), pass:
    ```js
    handleWriteSoftAuth(ipcMain, 'domain:action', WRITE_ROLES, handler, { allowNoSession: true });
    ```
    Default soft-auth still requires a session when one is missing.
-5. **Register module** — Ensure the file’s `register*Ipc` is called from `main/ipc/registerAll.js`.
-6. **Verify** — Run:
+7. **Register module** — Ensure the file’s `register*Ipc` is called from `main/ipc/registerAll.js`.
+8. **Shared error contract (when domain has one)** — If the domain owns a shared error vocabulary (e.g. orientation: `js/shared/errors/orientation-error-contract.js`), IPC and renderer consumers MUST use it for stable codes / default Arabic messages / severity / retryability. Do **not** reintroduce parallel catalogs on pages or in IPC. Page-only codes live in a separate section of the same contract, not as ad-hoc maps. Keep the IPC response **flat** (`success`, `code`, `error`, optional `message`/`details`/`retryable`) and strip unsafe details at the boundary.
+9. **Verify** — Run:
    ```bash
    npm run test:smoke
    npm run lint
+   node tests/sync-entity-registry.test.js
+   node tests/sync-exact-bulk-capture.test.js
    ```
 
 ## Smoke guarantees
@@ -51,3 +59,12 @@ Follow this every time you add a **write** (mutating) IPC channel. Skipping a st
 | Student profile pure helpers | `js/student-profile/pure.js` |
 | Profile tab field allowlist | `js/data/student-profile-fields.js` (shared main + renderer) |
 | Capture DB injection | `setCaptureGetDb` / `wrapWithSyncCapture(ch, fn, { getDb })` in `main/sync/capture.js` |
+| Entity metadata SSOT | `main/sync/entity-registry.js` |
+| Exact bulk capture | `captureInputUpserts` + repos `students` / `grades` / `absences` |
+| Domain repositories (WP4) | Prefer `main/repos/*` for all SQL; keep IPC for auth/validation/orchestration only |
+| Typed bulk expansion | `main/sync/engine/expand-bulk.js` (D3 outcomes) |
+| Auth ↔ sync lifecycle | `main/sync/lifecycle.js` |
+| Legacy bulk quarantine | `main/sync/legacy-bulk-repair.js` |
+| Apply hooks | `main/sync/apply-hooks.js` |
+| D1 student remote IDs | Writers: `school_year` + `code`; pull dual-accepts legacy `code`; report: `npm run sync:student-id-report` |
+| Sync engine modules (WP3) | `main/sync/engine/*` + `main/sync/transport/firestore.js`; import via `main/sync/engine.js` only |

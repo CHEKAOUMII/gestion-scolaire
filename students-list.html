@@ -8,6 +8,9 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -32,6 +35,17 @@
                     <h2 class="page-title"><i class="fas fa-users" aria-hidden="true"></i> لوائح التلاميذ</h2>
                 </div>
                 <div class="header-right">
+                    <a
+                        class="btn btn-secondary"
+                        data-import-shortcut
+                        data-import-type="students"
+                        data-import-source="students-list"
+                        href="settings-imports.html?type=students&amp;source=students-list"
+                        title="استيراد التلاميذ — مراجعة قبل الحفظ"
+                        aria-label="فتح مركز الاستيراد للتلاميذ"
+                    >
+                        <i class="fas fa-file-import" aria-hidden="true"></i> استيراد
+                    </a>
                     <button class="theme-toggle" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة">
                         <i class="fas fa-moon" aria-hidden="true"></i>
                     </button>
@@ -203,6 +217,7 @@
         <p id="students-feedback" class="sr-only" aria-live="polite"></p>
 
         <script src="js/data/ma-education-labels.js" defer></script>
+        <script src="js/shared/orientation-topbar-print.js" defer></script>
         <script src="js/pages/students-list.js" defer></script>
     </body>
 </html>

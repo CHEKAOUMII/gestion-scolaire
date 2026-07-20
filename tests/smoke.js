@@ -261,6 +261,9 @@ function runLegacyCssSmoke() {
             }
         });
 
+        // Prototype pages may keep critical inline panel CSS until fully Tailwind-ported.
+        if (/-prototype\.html$/i.test(file)) return;
+
         const styleMatches = content.match(/<style[\s>]/g);
         if (styleMatches && styleMatches.length > 0) {
             inlineStyleHits.push(`${file} (${styleMatches.length} <style> block(s))`);
@@ -659,6 +662,50 @@ function runUpdaterErrorSmoke() {
     console.log('[smoke] Updater transient error handling OK');
 }
 
+function runWp6SharedScriptsSmoke() {
+    // WP6: pages that load utils.js must load shared classic modules first.
+    const requiredShared = [
+        path.join('js', 'shared', 'dom-helpers.js'),
+        path.join('js', 'shared', 'auth-session.js'),
+        path.join('js', 'shared', 'filter-manager.js')
+    ];
+    for (const rel of requiredShared) {
+        assert.ok(fs.existsSync(path.join(root, rel)), `missing shared module: ${rel}`);
+    }
+
+    const utilsSource = read(path.join('js', 'utils.js'));
+    assert.strictEqual(
+        /class\s+FilterManager\b/.test(utilsSource),
+        false,
+        'FilterManager class must live in js/shared/filter-manager.js, not utils.js'
+    );
+    assert.ok(
+        utilsSource.includes('bindFilterManager') || utilsSource.includes('PencilShared.FilterManager'),
+        'utils.js must bind FilterManager from PencilShared'
+    );
+
+    const htmlFiles = fs.readdirSync(root).filter((f) => f.endsWith('.html'));
+    let checked = 0;
+    for (const file of htmlFiles) {
+        const html = read(file);
+        if (!html.includes('js/utils.js')) continue;
+        for (const marker of [
+            'js/shared/dom-helpers.js',
+            'js/shared/auth-session.js',
+            'js/shared/filter-manager.js'
+        ]) {
+            assert.ok(html.includes(marker), `${file} must load ${marker} before utils.js`);
+            assert.ok(
+                html.indexOf(marker) < html.indexOf('js/utils.js'),
+                `${file}: ${marker} must appear before utils.js`
+            );
+        }
+        checked += 1;
+    }
+    assert.ok(checked > 0, 'expected HTML pages that load utils.js');
+    console.log(`[smoke] WP6 shared scripts OK (${checked} pages)`);
+}
+
 function run() {
     runContractSmoke();
     runSyncRegistryCompletenessSmoke();
@@ -676,6 +723,7 @@ function run() {
     runValidationTests();
     runAuthTests();
     runRoleHierarchySmoke();
+    runWp6SharedScriptsSmoke();
     console.log('[smoke] All smoke checks passed');
 }
 

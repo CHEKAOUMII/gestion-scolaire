@@ -22,6 +22,8 @@ function looksLikeInternalErrorMessage(message) {
     if (/SQLITE|ENOENT|EACCES|EPERM|ECONNREFUSED|ENOTFOUND/i.test(msg)) return true;
     if (/\.js:\d+|at\s+\S+\s+\(/i.test(msg)) return true;
     if (/^(Error:|TypeError:|SyntaxError:)/i.test(msg)) return true;
+    // Sync capture failures must not leak as user-facing product text
+    if (/\[sync:capture\]/i.test(msg)) return true;
     return false;
 }
 
@@ -233,5 +235,7 @@ module.exports = {
     handleRead,
     handleWrite,
     handleWriteSoftAuth,
-    writeChannels: _writeChannels
+    writeChannels: _writeChannels,
+    looksLikeInternalErrorMessage,
+    sanitizeIpcErrorMessage
 };

@@ -86,9 +86,16 @@ function registerSystemTagsIpc(ipcMain) {
             ? payload.note_group
             : require('crypto').randomUUID();
 
+        const {
+            captureDeletesFromRows,
+            captureResolvedRows,
+            notifyCaptureCommitted
+        } = require('../sync/capture');
         const deleteNoteGroupStmt = db.prepare('DELETE FROM system_tags WHERE note_group = ?');
         const deleteTagStmt = db.prepare('DELETE FROM system_tags WHERE id = ?');
         const deleteLegacyEventStmt = db.prepare('DELETE FROM school_events WHERE id = ?');
+        const selectById = db.prepare('SELECT * FROM system_tags WHERE id = ?');
+        const selectByGroup = db.prepare('SELECT * FROM system_tags WHERE note_group = ?');
         const stmt = db.prepare(
             `INSERT INTO system_tags
              (tag_date, entity_type, entity_id, entity_name, tag_key, tag_label, note_group, note_text, details, school_year)
@@ -97,9 +104,13 @@ function registerSystemTagsIpc(ipcMain) {
 
         const txn = db.transaction((items) => {
             if (replaceTagId) {
+                const old = selectById.get(replaceTagId);
+                if (old) captureDeletesFromRows(db, 'system_tags', [old]);
                 deleteTagStmt.run(replaceTagId);
             }
             if (replaceNoteGroup) {
+                const oldGroup = selectByGroup.all(replaceNoteGroup);
+                captureDeletesFromRows(db, 'system_tags', oldGroup);
                 deleteNoteGroupStmt.run(replaceNoteGroup);
             }
             if (items && items.length > 0) {
@@ -110,19 +121,29 @@ function registerSystemTagsIpc(ipcMain) {
                 // No mentions — save as a general entry
                 stmt.run(tag_date, 'general', null, tag_label, tag_key, tag_label, noteGroup, note_text, details || '', year);
             }
+            const created = selectByGroup.all(noteGroup);
+            captureResolvedRows(db, 'system_tags', created, 'PUT');
             if (replaceLegacyEventId) {
                 deleteLegacyEventStmt.run(replaceLegacyEventId);
             }
         });
 
         txn(mentions || []);
+        notifyCaptureCommitted();
         return { success: true, noteGroup };
     });
 
     handleWriteSoftAuth(ipcMain, 'systemTags:deleteByGroup', WRITE_ROLES, (db, noteGroup) => {
         if (!noteGroup) return { success: false, error: 'Invalid group' };
-        db.prepare('DELETE FROM system_tags WHERE note_group = ?').run(noteGroup);
-        return { success: true };
+        const { captureDeletesFromRows, notifyCaptureCommitted } = require('../sync/capture');
+        const run = db.transaction((group) => {
+            const rows = db.prepare('SELECT * FROM system_tags WHERE note_group = ?').all(group);
+            captureDeletesFromRows(db, 'system_tags', rows);
+            return db.prepare('DELETE FROM system_tags WHERE note_group = ?').run(group).changes;
+        });
+        const count = run(noteGroup);
+        notifyCaptureCommitted();
+        return { success: true, count };
     });
 }
 

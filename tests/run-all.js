@@ -114,6 +114,12 @@ function buildPlan() {
     plan.push({ group: 'top-level', file: f });
   }
 
+  // 4. Import center phase-one suite (smart-central-import-center).
+  const importCenterDir = path.join(TESTS_DIR, 'import-center');
+  for (const f of listTestFiles(importCenterDir)) {
+    plan.push({ group: 'import-center', file: f });
+  }
+
   return plan;
 }
 

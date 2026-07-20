@@ -1,4 +1,4 @@
-const { getIdentity, getAssetBase64 } = require('./identity');
+const { getIdentity, getAssetBase64, resolveLogoMaxPx } = require('./identity');
 const { esc } = require('./html-escape');
 
 /**
@@ -13,6 +13,7 @@ const { esc } = require('./html-escape');
 function renderLetterhead(overrides = {}) {
     const id = getIdentity();
     const logo = getAssetBase64('logo_base64');
+    const logoPx = resolveLogoMaxPx(id.logo_scale);
     const documentTitle = overrides.documentTitle || '';
     const documentRef = overrides.documentRef || '';
 
@@ -37,7 +38,7 @@ function renderLetterhead(overrides = {}) {
                 <td style="width: 10%; text-align: center; vertical-align: middle;">
                     ${
                         logo
-                            ? `<img src="data:image/png;base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+                            ? `<img src="data:image/png;base64,${logo}" style="max-width: ${logoPx}px; max-height: ${logoPx}px;" alt="logo">`
                             : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
                     }
                 </td>

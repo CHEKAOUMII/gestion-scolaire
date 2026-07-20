@@ -93,5 +93,23 @@ All systemTags channels are registered in `CHANNEL_REGISTRY` for sync outbox cap
 - **Plan doc:** `docs/plans/2026-04-10-system-tags.md`
 - **Write-channel checklist:** `docs/plans/2026-07-15-add-write-channel-checklist.md`
 
+## Main-process layering (027-layering-remediation)
+
+Standing rule for **new** school-data write features:
+
+1. **All domain SQL** lives in `main/repos/*` — not in `main/ipc/*`.
+2. **IPC handlers** only: role/session auth, field validation (`requireFields` / `requireSchoolYear`), call repo, map response.
+3. **Change-tracking** from repos goes through `main/repos/capture-port.js` (never `require('../sync/capture')` inside a repo). Default port is real capture; tests use `createNoOpCapturePort()` / `setRepoCapturePort`.
+4. **Bulk / multi-row writes** use `captureMode: 'explicit'` + `exclude: true` in `CHANNEL_REGISTRY` and write outbox rows **inside** the same SQLite transaction (see students/grades/absences repos).
+5. Follow the full write-channel checklist: `docs/plans/2026-07-15-add-write-channel-checklist.md`.
+
+Feature specs: `specs/027-layering-remediation/`.
+
+## Orientation error contract (028)
+
+- **SSOT**: `js/shared/errors/orientation-error-contract.js` (dual-export: shared + page-only sections).
+- IPC (`main/ipc/orientation.js`) and pages (`settings-imports`, `students-orientation`) must consume it — no parallel catalogs.
+- Spec/plan: `specs/028-orientation-error-contract/`.
+
 <!-- MANUAL ADDITIONS END -->
 

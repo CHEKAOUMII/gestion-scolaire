@@ -1,409 +1,269 @@
-/* ── Setup Page Styles ── */
-            body.setup-body {
-                font-family: var(--font-main);
-                background: var(--color-secondary);
-                background-image:
-                    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 106, 197, 0.12) 0%, transparent 60%),
-                    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(91, 132, 214, 0.08) 0%, transparent 50%);
-                background-attachment: fixed;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 24px;
-                margin: 0;
-                color: var(--color-text-main);
-            }
+/* ── Setup Page Styles ──────────────────────────────────────────────
+   Page-specific components for setup.html. The split layout, branding
+   panel, card shell, form groups, inputs and submit button reuse the
+   login.html design system classes from tailwind-output.css
+   (.login-split, .login-brand-panel, .login-card, .form-group,
+   .input-wrapper, .btn-login, .pin-prompt-hero, .login-footer).
+   ────────────────────────────────────────────────────────────────── */
 
-            /* ── Card Shell ── */
-            .setup-card {
-                background: var(--color-surface);
-                border-radius: var(--radius-lg);
-                box-shadow: var(--shadow-elevated);
-                padding: 40px 36px;
-                width: 100%;
-                max-width: 480px;
-                position: relative;
-                overflow: hidden;
-                animation: cardEnter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-            }
-            .setup-card::before {
-                content: '';
-                position: absolute;
-                top: 0; left: 0; right: 0;
-                height: 4px;
-                background: var(--gradient-primary);
-            }
+/* ── Steps ── */
+.setup-step {
+    width: 100%;
+}
 
-            /* ── Branding Header ── */
-            .setup-brand {
-                text-align: center;
-                margin-bottom: 32px;
-            }
-            .setup-brand-icon {
-                width: 72px; height: 72px;
-                border-radius: 20px;
-                background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                margin-bottom: 16px;
-                box-shadow: 0 8px 24px rgba(59, 106, 197, 0.3);
-                transform: rotate(-5deg);
-                transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            }
-            .setup-brand-icon:hover {
-                transform: rotate(0deg) scale(1.05);
-            }
-            .setup-brand-icon i {
-                font-size: 30px;
-                color: white;
-            }
-            .setup-brand h1 {
-                font-family: var(--font-display);
-                font-size: 1.6rem;
-                font-weight: 800;
-                color: var(--color-text-main);
-                margin: 0 0 6px;
-                letter-spacing: -0.3px;
-            }
-            .setup-brand p {
-                font-size: 0.9rem;
-                color: var(--color-text-muted);
-                margin: 0;
-            }
+.setup-step.animate-step {
+    animation: fadeSlide 0.35s ease-out both;
+}
 
-            /* ── Option Cards ── */
-            .setup-option {
-                display: flex;
-                align-items: center;
-                gap: 16px;
-                width: 100%;
-                padding: 20px;
-                border: 2px solid var(--color-accent);
-                border-radius: var(--radius-md);
-                background: var(--color-surface);
-                cursor: pointer;
-                transition: all 0.25s ease;
-                text-align: start;
-                font-family: inherit;
-                color: var(--color-text-main);
-            }
-            .setup-option:hover {
-                border-color: var(--color-primary);
-                background: rgba(59, 106, 197, 0.04);
-                box-shadow: 0 4px 16px rgba(59, 106, 197, 0.12);
-                transform: translateY(-2px);
-            }
-            .setup-option:active {
-                transform: translateY(0);
-            }
-            .setup-option-icon {
-                flex-shrink: 0;
-                width: 52px; height: 52px;
-                border-radius: 14px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 22px;
-            }
-            .setup-option-icon.green {
-                background: rgba(46, 204, 113, 0.12);
-                color: #16a34a;
-            }
-            .setup-option-icon.blue {
-                background: rgba(59, 106, 197, 0.1);
-                color: var(--color-primary);
-            }
-            .setup-option-text h2 {
-                font-size: 1.05rem;
-                font-weight: 700;
-                margin: 0 0 4px;
-            }
-            .setup-option-text p {
-                font-size: 0.82rem;
-                color: var(--color-text-muted);
-                margin: 0;
-                line-height: 1.5;
-            }
-            .setup-option-arrow {
-                margin-inline-start: auto;
-                color: var(--color-silver);
-                font-size: 14px;
-                transition: transform 0.2s ease, color 0.2s ease;
-            }
-            .setup-option:hover .setup-option-arrow {
-                color: var(--color-primary);
-                transform: translateX(-4px);
-            }
-            [dir="rtl"] .setup-option:hover .setup-option-arrow {
-                transform: translateX(4px);
-            }
+@keyframes fadeSlide {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 
-            /* ── Step Header ── */
-            .step-header {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                margin-bottom: 28px;
-            }
-            .step-header-icon {
-                width: 44px; height: 44px;
-                border-radius: 12px;
-                background: rgba(59, 106, 197, 0.1);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: var(--color-primary);
-                font-size: 18px;
-            }
-            .step-header h2 {
-                font-size: 1.2rem;
-                font-weight: 700;
-                margin: 0;
-            }
-            .step-header p {
-                font-size: 0.82rem;
-                color: var(--color-text-muted);
-                margin: 2px 0 0;
-            }
+/* ── Option Cards (mode select) ── */
+.options-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
 
-            /* ── Back Button ── */
-            .btn-back {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                padding: 6px 12px;
-                margin-bottom: 20px;
-                border-radius: var(--radius-sm);
-                font-size: 0.85rem;
-                font-weight: 600;
-                color: var(--color-text-muted);
-                cursor: pointer;
-                border: none;
-                background: transparent;
-                font-family: inherit;
-                transition: all 0.2s ease;
-            }
-            .btn-back:hover {
-                color: var(--color-primary);
-                background: rgba(59, 106, 197, 0.06);
-            }
+.setup-option {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 18px;
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    cursor: pointer;
+    transition:
+        border-color 0.2s ease,
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+    text-align: start;
+    font-family: inherit;
+    color: var(--color-text-main);
+}
 
-            /* ── Form Fields ── */
-            .setup-field {
-                margin-bottom: 20px;
-            }
-            .setup-field label {
-                display: block;
-                font-size: 0.85rem;
-                font-weight: 600;
-                margin-bottom: 6px;
-                color: var(--color-text-main);
-            }
-            .setup-field label .req {
-                color: var(--color-danger-bg);
-                margin-inline-start: 2px;
-            }
-            .setup-field label .optional {
-                font-weight: 400;
-                font-size: 0.75rem;
-                color: var(--color-text-muted);
-            }
-            .setup-input {
-                width: 100%;
-                padding: 12px 16px;
-                border: 1.5px solid var(--color-accent);
-                border-radius: var(--radius-sm);
-                background: var(--color-surface);
-                color: var(--color-text-main);
-                font-family: inherit;
-                font-size: 0.95rem;
-                transition: all 0.2s ease;
-                outline: none;
-            }
-            .setup-input::placeholder {
-                color: var(--color-text-light);
-            }
-            .setup-input:focus {
-                border-color: var(--color-primary);
-                box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.15);
-            }
-            .setup-input[dir="ltr"] {
-                text-align: left;
-                font-family: 'IBM Plex Sans Arabic', ui-monospace, monospace;
-                letter-spacing: 1px;
-            }
-            .field-error {
-                font-size: 0.78rem;
-                color: var(--color-danger-bg);
-                margin-top: 5px;
-                display: none;
-            }
-            .field-error.show, .field-error:not(.hidden) {
-                display: block;
-            }
-            .field-hint {
-                margin-top: 7px;
-                font-size: 0.78rem;
-                line-height: 1.55;
-                color: var(--color-text-muted);
-            }
+.setup-option:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-mist, rgba(59, 106, 197, 0.08));
+    box-shadow: 0 4px 16px rgba(59, 106, 197, 0.12);
+    transform: translateY(-2px);
+}
 
-            /* ── Section Divider ── */
-            .setup-divider {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                margin: 24px 0;
-                color: var(--color-text-light);
-                font-size: 0.78rem;
-                font-weight: 600;
-            }
-            .setup-divider::before,
-            .setup-divider::after {
-                content: '';
-                flex: 1;
-                height: 1px;
-                background: var(--color-accent);
-            }
+.setup-option:active {
+    transform: translateY(0);
+}
 
-            /* ── Submit Button ── */
-            .btn-setup-submit {
-                width: 100%;
-                padding: 14px 20px;
-                border-radius: var(--radius-sm);
-                background: var(--gradient-primary);
-                color: white;
-                font-family: inherit;
-                font-size: 1rem;
-                font-weight: 700;
-                border: none;
-                cursor: pointer;
-                transition: all 0.25s ease;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                margin-top: 8px;
-                box-shadow: 0 4px 14px rgba(59, 106, 197, 0.3);
-            }
-            .btn-setup-submit:hover {
-                box-shadow: 0 6px 20px rgba(59, 106, 197, 0.4);
-                transform: translateY(-1px);
-            }
-            .btn-setup-submit:active {
-                transform: translateY(0);
-            }
-            .btn-setup-submit:disabled {
-                opacity: 0.7;
-                cursor: not-allowed;
-                transform: none;
-            }
+.setup-option:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.18);
+}
 
-            /* ── OTP Inputs ── */
-            .otp-row {
-                display: flex;
-                justify-content: center;
-                gap: 10px;
-                direction: ltr;
-            }
-            .otp-digit {
-                width: 50px; height: 58px;
-                text-align: center;
-                font-size: 1.5rem;
-                font-weight: 700;
-                font-family: 'IBM Plex Sans Arabic', ui-monospace, monospace;
-                border: 2px solid var(--color-accent);
-                border-radius: var(--radius-sm);
-                background: var(--color-surface);
-                color: var(--color-text-main);
-                outline: none;
-                transition: all 0.2s ease;
-            }
-            .otp-digit:focus {
-                border-color: var(--color-primary);
-                box-shadow: 0 0 0 3px rgba(59, 106, 197, 0.15);
-            }
+.setup-option-icon {
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+}
 
-            /* ── Progress State ── */
-            .link-progress-bar {
-                text-align: center;
-                font-size: 0.85rem;
-                color: var(--color-text-muted);
-                padding: 12px 0;
-            }
-            .link-progress-bar i {
-                color: var(--color-primary);
-                margin-inline-end: 6px;
-            }
+.setup-option-icon.green {
+    background: rgba(46, 204, 113, 0.12);
+    color: #16a34a;
+}
 
-            /* ── Animations ── */
-            @keyframes cardEnter {
-                from {
-                    opacity: 0;
-                    transform: translateY(24px) scale(0.97);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0) scale(1);
-                }
-            }
-            @keyframes fadeSlide {
-                from {
-                    opacity: 0;
-                    transform: translateY(12px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-            .setup-card.animate-step {
-                animation: fadeSlide 0.35s ease-out both;
-            }
+.setup-option-icon.blue {
+    background: var(--color-primary-mist, rgba(59, 106, 197, 0.1));
+    color: var(--color-primary);
+}
 
-            /* ── Hidden helper ── */
-            .hidden { display: none !important; }
+.setup-option-text {
+    flex: 1;
+    min-width: 0;
+}
 
-            /* ── Footer ── */
-            .setup-footer {
-                text-align: center;
-                margin-top: 20px;
-                font-size: 0.78rem;
-                color: var(--color-text-light);
-            }
+.setup-option-text h2 {
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin: 0 0 4px;
+}
 
-            /* ── Decorative shapes ── */
-            .deco-shape {
-                position: fixed;
-                border-radius: 50%;
-                opacity: 0.04;
-                pointer-events: none;
-                z-index: 0;
-            }
-            .deco-shape.s1 {
-                width: 400px; height: 400px;
-                background: var(--color-primary);
-                top: -120px; right: -80px;
-            }
-            .deco-shape.s2 {
-                width: 300px; height: 300px;
-                background: var(--color-primary-light);
-                bottom: -100px; left: -60px;
-            }
-            .deco-shape.s3 {
-                width: 200px; height: 200px;
-                background: var(--color-primary);
-                top: 50%; left: 50%;
-                transform: translate(-50%, -50%);
-                opacity: 0.02;
-            }
+.setup-option-text p {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin: 0;
+    line-height: 1.5;
+}
 
-            /* ── Options gap ── */
-            .options-stack {
-                display: flex;
-                flex-direction: column;
-                gap: 14px;
-            }
+.setup-option-arrow {
+    margin-inline-start: auto;
+    color: var(--color-text-light, var(--color-text-muted));
+    font-size: 14px;
+    transition:
+        transform 0.2s ease,
+        color 0.2s ease;
+}
 
+.setup-option:hover .setup-option-arrow {
+    color: var(--color-primary);
+    transform: translateX(4px);
+}
+
+/* ── Step Header ── */
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.step-header-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--color-primary-mist, rgba(59, 106, 197, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.step-header h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--color-text-main);
+}
+
+.step-header p {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin: 2px 0 0;
+}
+
+/* ── In-card Back Button ── */
+.setup-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    margin-bottom: 18px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    transition:
+        color 0.2s ease,
+        background-color 0.2s ease;
+}
+
+.setup-back-btn:hover {
+    color: var(--color-primary);
+    background: var(--color-primary-mist, rgba(59, 106, 197, 0.08));
+}
+
+/* ── Form Field Extras ── */
+.setup-field {
+    margin-bottom: 16px;
+}
+
+.setup-field label .req {
+    color: var(--color-danger, #dc2626);
+    margin-inline-start: 2px;
+}
+
+.setup-field label .optional {
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.field-error {
+    font-size: 0.78rem;
+    color: var(--color-danger, #dc2626);
+    margin: 5px 0 0;
+    display: none;
+}
+
+.field-error.show,
+.field-error:not(.hidden) {
+    display: block;
+}
+
+/* ── Section Divider ── */
+.setup-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.setup-divider::before,
+.setup-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-accent);
+}
+
+/* ── Footer note (security line under options) ── */
+.setup-footer {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--color-accent);
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+/* ── Hidden helper (JS toggles .hidden on steps/errors) ── */
+.hidden {
+    display: none !important;
+}
+
+/* ── Dark theme ── */
+[data-theme='dark'] .setup-option {
+    background: var(--color-surface);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .setup-option:hover {
+    border-color: var(--color-primary);
+    background: rgba(59, 106, 197, 0.14);
+}
+
+[data-theme='dark'] .setup-option:focus-visible {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.14);
+}
+
+[data-theme='dark'] .setup-option-icon.green {
+    background: rgba(46, 204, 113, 0.16);
+    color: #4ade80;
+}
+
+[data-theme='dark'] .setup-option-icon.blue {
+    background: rgba(59, 106, 197, 0.18);
+}

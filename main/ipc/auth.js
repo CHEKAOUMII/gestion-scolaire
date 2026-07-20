@@ -10,11 +10,15 @@ const {
 } = require('../auth/firebase-auth-service');
 const { logAuthDebug } = require('../auth/debug');
 const { applySyncDefaults } = require('../sync/defaults');
+const { ATTEMPT_TTL_MS, buildFailedAttemptUpdate } = require('../auth/lockout-policy');
+const { SESSION_TTL_MS, isSessionExpired, computeExpiresAt } = require('../auth/session-policy');
+const usersRepo = require('../repos/users');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
 const { ALLOWED_ROLES: ALLOWED_ROLES_ARR, resolveRole: resolveRoleAlias } = require('../auth/permissions');
 const MAX_PIN_ATTEMPTS = 5;
+const APP_SESSION_SETTINGS_KEY = usersRepo.APP_SESSION_SETTINGS_KEY;
 
 // ── Developer credentials (env-var gated, never in production builds) ──
 const DEV_CREDENTIALS =
@@ -22,15 +26,10 @@ const DEV_CREDENTIALS =
         ? { email: 'dev@pencil.local', passwordHash: process.env.PENCIL_DEV_PASSWORD_HASH }
         : null;
 
-// ── Login throttling (persisted to SQLite) ──
-const MAX_ATTEMPTS_BEFORE_LOCK = 5;
-const LOCKOUT_SCHEDULE_MS = [5_000, 15_000, 30_000, 60_000, 120_000]; // escalating
-const ATTEMPT_TTL_MS = 30 * 60_000; // auto-clean entries after 30 min
-
 function getLoginAttemptRecord(email) {
     try {
         const db = getDb();
-        const row = db.prepare('SELECT * FROM login_attempts WHERE email = ?').get(normalizeEmail(email));
+        const row = usersRepo.getLoginAttempt(db, normalizeEmail(email));
         if (!row) return null;
         return { count: row.attempts, lockedUntil: row.locked_until, lastAttempt: row.updated_at };
     } catch {
@@ -42,21 +41,9 @@ function recordFailedLogin(email) {
     try {
         const db = getDb();
         const normalized = normalizeEmail(email);
-        const now = Date.now();
-        const existing = db.prepare('SELECT * FROM login_attempts WHERE email = ?').get(normalized);
-        const count = (existing?.attempts || 0) + 1;
-        let lockedUntil = existing?.locked_until || 0;
-
-        if (count >= MAX_ATTEMPTS_BEFORE_LOCK) {
-            const tier = Math.min(count - MAX_ATTEMPTS_BEFORE_LOCK, LOCKOUT_SCHEDULE_MS.length - 1);
-            lockedUntil = now + LOCKOUT_SCHEDULE_MS[tier];
-        }
-
-        db.prepare(
-            `INSERT INTO login_attempts(email, attempts, locked_until, updated_at)
-             VALUES(?, ?, ?, ?)
-             ON CONFLICT(email) DO UPDATE SET attempts = ?, locked_until = ?, updated_at = ?`
-        ).run(normalized, count, lockedUntil, now, count, lockedUntil, now);
+        const existing = usersRepo.getLoginAttempt(db, normalized);
+        const update = buildFailedAttemptUpdate(existing, Date.now());
+        usersRepo.upsertLoginAttempt(db, normalized, update);
     } catch (err) {
         console.warn('[auth] Failed to record login attempt:', err.message);
     }
@@ -65,7 +52,7 @@ function recordFailedLogin(email) {
 function clearLoginAttempts(email) {
     try {
         const db = getDb();
-        db.prepare('DELETE FROM login_attempts WHERE email = ?').run(normalizeEmail(email));
+        usersRepo.clearLoginAttempt(db, normalizeEmail(email));
     } catch (err) {
         console.warn('[auth] Failed to clear login attempts:', err.message);
     }
@@ -79,8 +66,7 @@ function cleanupStaleAttempts() {
     _lastCleanup = now;
     try {
         const db = getDb();
-        const cutoff = now - ATTEMPT_TTL_MS;
-        db.prepare('DELETE FROM login_attempts WHERE updated_at < ?').run(cutoff);
+        usersRepo.cleanupStaleLoginAttempts(db, now - ATTEMPT_TTL_MS);
     } catch (err) {
         console.warn('[auth] Failed to cleanup stale login attempts:', err.message);
     }
@@ -115,15 +101,108 @@ function bindSenderCleanup(sender) {
     if (!sender || CLEANUP_BOUND.has(sender.id)) return;
     CLEANUP_BOUND.add(sender.id);
     sender.once('destroyed', () => {
+        // Drop in-memory map only. Persisted session survives so a new window can restore it.
         SESSION_BY_SENDER.delete(sender.id);
         CLEANUP_BOUND.delete(sender.id);
     });
 }
 
+function persistAppSession(session) {
+    if (!session) return;
+    const userId = Number(session.userId || 0);
+    const role = String(session.role || '');
+    // Developer bypass uses userId 0; normal users need a positive id.
+    if (role !== 'developer' && (!Number.isFinite(userId) || userId <= 0)) return;
+    try {
+        const db = getDb();
+        const payload = JSON.stringify({
+            userId,
+            role: role || null,
+            email: session.email || null,
+            expiresAt: computeExpiresAt(Date.now())
+        });
+        usersRepo.writeAppSessionSettings(db, payload);
+    } catch (err) {
+        console.warn('[auth] Failed to persist app session:', err.message);
+    }
+}
+
+function clearPersistedAppSession() {
+    try {
+        const db = getDb();
+        usersRepo.clearAppSessionSettings(db);
+    } catch (err) {
+        console.warn('[auth] Failed to clear persisted app session:', err.message);
+    }
+}
+
+function readPersistedAppSession() {
+    try {
+        const db = getDb();
+        const raw = usersRepo.readAppSessionSettings(db);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return null;
+        if (isSessionExpired(data, Date.now())) {
+            clearPersistedAppSession();
+            return null;
+        }
+        return data;
+    } catch {
+        return null;
+    }
+}
+
+function tryRestorePersistedSession(event) {
+    const sender = event?.sender;
+    if (!sender) return null;
+
+    const persisted = readPersistedAppSession();
+    if (!persisted) return null;
+
+    if (String(persisted.role || '') === 'developer') {
+        const devSession = {
+            userId: 0,
+            name: 'Developer',
+            email: persisted.email || 'dev@pencil.local',
+            role: 'developer',
+            mustChangePassword: false,
+            authenticatedAt: new Date().toISOString(),
+            locked: false
+        };
+        SESSION_BY_SENDER.set(sender.id, devSession);
+        bindSenderCleanup(sender);
+        return devSession;
+    }
+
+    const userId = Number(persisted.userId || 0);
+    if (!Number.isFinite(userId) || userId <= 0) {
+        clearPersistedAppSession();
+        return null;
+    }
+
+    const user = findUserById(userId);
+    if (!user || Number(user.disabled || 0) === 1) {
+        clearPersistedAppSession();
+        return null;
+    }
+
+    const session = buildPublicSession(user, {});
+    if (!session) {
+        clearPersistedAppSession();
+        return null;
+    }
+    SESSION_BY_SENDER.set(sender.id, session);
+    bindSenderCleanup(sender);
+    return session;
+}
+
 function getSessionByEvent(event) {
     const senderId = event?.sender?.id;
     if (!senderId) return null;
-    return SESSION_BY_SENDER.get(senderId) || null;
+    const existing = SESSION_BY_SENDER.get(senderId);
+    if (existing) return existing;
+    return tryRestorePersistedSession(event);
 }
 
 function getActiveSessions() {
@@ -133,18 +212,26 @@ function getActiveSessions() {
 function setSessionForEvent(event, userRow, options = {}) {
     const sender = event?.sender;
     if (!sender) return null;
-    const existingSession = options.preserveLockedState ? getSessionByEvent(event) : null;
+    // Read map directly to avoid re-entering restore while rebuilding a session.
+    const existingSession = options.preserveLockedState ? SESSION_BY_SENDER.get(sender.id) || null : null;
     const session = buildPublicSession(userRow, existingSession || {});
     if (!session) return null;
     SESSION_BY_SENDER.set(sender.id, session);
     bindSenderCleanup(sender);
+    if (!options.skipPersist) {
+        persistAppSession(session);
+    }
     return session;
 }
 
-function clearSessionForEvent(event) {
+function clearSessionForEvent(event, options = {}) {
     const senderId = event?.sender?.id;
-    if (!senderId) return;
-    SESSION_BY_SENDER.delete(senderId);
+    if (senderId) {
+        SESSION_BY_SENDER.delete(senderId);
+    }
+    if (options.clearPersisted) {
+        clearPersistedAppSession();
+    }
 }
 
 function createAuthError(code, message) {
@@ -180,18 +267,7 @@ function requireRole(event, allowedRoles = []) {
 
 function findUserById(id) {
     const db = getDb();
-    return (
-        db
-            .prepare(
-                `
-                SELECT *
-                FROM users
-                WHERE id = ?
-                LIMIT 1
-            `
-            )
-            .get(Number(id)) || null
-    );
+    return usersRepo.getUserById(db, id);
 }
 
 function tryDevBypass(email, password, event) {
@@ -218,6 +294,7 @@ function tryDevBypass(email, password, event) {
     if (sender) {
         SESSION_BY_SENDER.set(sender.id, devSession);
         bindSenderCleanup(sender);
+        persistAppSession(devSession);
     }
     return { success: true, authenticated: true, user: devSession };
 }
@@ -275,36 +352,31 @@ function getLoginErrorMessage(code) {
 
 async function postLoginSetup(event, loginResult, email, password) {
     clearLoginAttempts(email);
+    // loginFirebaseFirst / local fallback return { mode, userRow } — not userProps.
     const session = setSessionForEvent(event, loginResult.userRow);
+    if (!session) {
+        logAuthDebug('ipc.login.session-build-failed', {
+            email,
+            mode: loginResult.mode || null,
+            hasUserRow: !!loginResult?.userRow,
+            localUserId: loginResult?.userRow?.id || null
+        });
+        return {
+            success: false,
+            code: 'SESSION_BUILD_FAILED',
+            error: 'تعذر إنشاء جلسة المستخدم بعد تسجيل الدخول'
+        };
+    }
     logAuthDebug('ipc.login.success-response', {
         email,
         authMode: loginResult.mode,
-        userId: session?.userId || null,
-        role: session?.role || null
+        userId: session.userId || null,
+        role: session.role || null
     });
 
-    // Mark the auth transition so any sync cycle still in flight from before this sign-in
-    // knows it spanned a login and treats its errors as a transient interruption.
-    try {
-        require('../sync/engine').bumpSyncAuthEpoch();
-    } catch (epochErr) {
-        console.warn('[auth] Failed to bump sync-auth epoch on login:', epochErr.message);
-    }
+    const lifecycle = require('../sync/lifecycle');
 
     if (loginResult.mode === 'online') {
-        // Clear any stale sync error left by a cycle that was interrupted by the previous
-        // sign-out. Without this, a transient "sync rejected — re-login" error recorded
-        // during the signed-out window keeps showing in the UI until the next fully-clean
-        // push completes (which can take minutes on a data-heavy device). Signing back in
-        // is a clean slate; a genuine error will simply be re-recorded by the next cycle.
-        try {
-            getDb()
-                .prepare('UPDATE sync_config SET last_push_error = NULL, last_pull_error = NULL WHERE id = 1')
-                .run();
-        } catch (clearErr) {
-            console.warn('[auth] Failed to clear stale sync errors on login:', clearErr.message);
-        }
-
         try {
             const { persistCredential, clearCredentials } = require('../sync/credentials');
             persistCredential(email, password);
@@ -314,30 +386,13 @@ async function postLoginSetup(event, loginResult, email, password) {
         }
 
         try {
-            const { recoverFirestoreClient } = require('../firebase/config');
-            await recoverFirestoreClient();
-        } catch (recoverErr) {
-            console.warn('[auth] Failed to refresh Firebase client after login:', recoverErr.message);
-        }
-
-        try {
-            const { restartSyncPushBackground, restartSyncPullBackground } = require('../sync/engine');
-            const { restartSnapshotBackground } = require('../sync/snapshot');
-            restartSyncPushBackground();
-            restartSyncPullBackground();
-            restartSnapshotBackground();
+            await lifecycle.onLoginOnline();
         } catch (syncErr) {
             console.warn('[auth] Failed to restart sync after login:', syncErr.message);
         }
     } else {
         try {
-            const { stopSyncPushBackground, stopSyncPullBackground } = require('../sync/engine');
-            const { stopSnapshotBackground } = require('../sync/snapshot');
-            const { clearCredentials } = require('../sync/credentials');
-            stopSyncPushBackground();
-            stopSyncPullBackground();
-            stopSnapshotBackground();
-            clearCredentials();
+            lifecycle.onLoginOffline();
         } catch (syncErr) {
             console.warn('[auth] Failed to stop cloud sync after offline login:', syncErr.message);
         }
@@ -423,7 +478,7 @@ function registerAuthIpc(ipcMain) {
 
             const user = findUserById(session.userId);
             if (!user || Number(user.disabled || 0) === 1) {
-                clearSessionForEvent(event);
+                clearSessionForEvent(event, { clearPersisted: true });
                 return { success: true, authenticated: false };
             }
 
@@ -440,37 +495,15 @@ function registerAuthIpc(ipcMain) {
 
     ipcMain.handle('auth:logout', async (event) => {
         try {
-            // Stop the background sync loops BEFORE tearing down the Firebase session.
-            // Otherwise a push/pull cycle can fire during the signed-out window and hit
-            // Firestore with request.auth == null → PERMISSION_DENIED.
+            // Lifecycle stops push/pull/snapshot (D5), bumps epoch, clears credentials.
             try {
-                const { stopSyncPushBackground, stopSyncPullBackground, bumpSyncAuthEpoch } =
-                    require('../sync/engine');
-                // Mark the auth transition first so any push/pull cycle already in flight
-                // (which these stop() calls cannot abort) recognizes that its session was
-                // torn down and treats the resulting PERMISSION_DENIED as transient.
-                bumpSyncAuthEpoch();
-                stopSyncPushBackground();
-                stopSyncPullBackground();
+                await require('../sync/lifecycle').onLogout({
+                    signOutFirebase: () => logoutFirebaseUser()
+                });
             } catch (syncErr) {
-                console.warn('[auth] Failed to stop sync on logout:', syncErr.message);
+                console.warn('[auth] Failed to run sync lifecycle on logout:', syncErr.message);
             }
-            try {
-                await logoutFirebaseUser();
-            } catch (err) {
-                console.warn('[auth] Firebase logout failed:', err.message);
-            }
-            try {
-                // clearStoredCredential() nulls the DB copy; clearCredentials() purges the
-                // in-memory cached session so a stale, still-valid-looking session object is
-                // never handed to a sync cycle after signOut().
-                const { clearStoredCredential, clearCredentials } = require('../sync/credentials');
-                clearCredentials();
-                clearStoredCredential();
-            } catch (credErr) {
-                console.warn('[auth] Failed to clear stored credential:', credErr.message);
-            }
-            clearSessionForEvent(event);
+            clearSessionForEvent(event, { clearPersisted: true });
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };

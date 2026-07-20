@@ -114,6 +114,26 @@ function registerSyncIpc(ipcMain) {
             .prepare("SELECT COUNT(*) as count FROM sync_conflicts WHERE status = 'unresolved'")
             .get().count;
 
+        // Pilot metrics (legacy bulk rollout) — lightweight counts only.
+        let bulkPendingCount = 0;
+        let legacyQuarantineFailed = 0;
+        try {
+            bulkPendingCount = db
+                .prepare(
+                    `SELECT COUNT(*) as count FROM sync_outbox
+                     WHERE status = 'pending' AND row_data LIKE '%"_bulk"%'`
+                )
+                .get().count;
+            legacyQuarantineFailed = db
+                .prepare(
+                    `SELECT COUNT(*) as count FROM sync_outbox
+                     WHERE status = 'failed' AND last_error LIKE 'legacy_bulk_quarantine:%'`
+                )
+                .get().count;
+        } catch {
+            /* older DBs without outbox shape */
+        }
+
         const syncDefaults = applySyncDefaults(config || {});
         const configured = !!(
             resolveSyncSchoolId(config || {}) &&
@@ -140,6 +160,9 @@ function registerSyncIpc(ipcMain) {
             pendingCount,
             failedCount,
             conflictCount,
+            bulkPendingCount,
+            legacyQuarantineFailed,
+            pilotClean: bulkPendingCount === 0,
             pullCursor: config ? config.pull_cursor : null,
             authenticated: isAuthenticated(),
             snapshotRunning: isSnapshotRunning(),
@@ -147,6 +170,23 @@ function registerSyncIpc(ipcMain) {
             lastSnapshotError: config ? config.last_snapshot_error || null : null,
             snapshotIntervalMinutes: config ? Number(config.snapshot_interval_minutes) || 30 : 30
         };
+    });
+
+    // Pilot: report-only outbox health (admin)
+    handleAdminRead(ipcMain, 'sync:getOutboxHealth', (db) => {
+        const { getOutboxHealthReport } = require('../sync/legacy-bulk-repair');
+        return { success: true, health: getOutboxHealthReport(db) };
+    });
+
+    // Pilot: classify pending legacy bulk summaries (report-only)
+    handleAdminRead(ipcMain, 'sync:classifyLegacyBulk', (db, options = {}) => {
+        const { classifyLegacyBulkOutbox } = require('../sync/legacy-bulk-repair');
+        const classification = classifyLegacyBulkOutbox(db, {
+            applyQuarantine: false,
+            includeDetails: options?.includeDetails !== false,
+            detailLimit: options?.detailLimit
+        });
+        return { success: true, classification };
     });
 
     // ── Write channels (admin-only) ──
@@ -201,6 +241,22 @@ function registerSyncIpc(ipcMain) {
         restartSnapshotBackground();
 
         return { success: true };
+    });
+
+    // Pilot: mark non-expandable legacy _bulk rows as failed (admin write, local-only).
+    handleWrite(ipcMain, 'sync:quarantineLegacyBulk', ['admin'], (db) => {
+        const { runPilotReport } = require('../sync/legacy-bulk-repair');
+        const report = runPilotReport(db, {
+            applyQuarantine: true,
+            includeDetails: true,
+            detailLimit: 100
+        });
+        return {
+            success: true,
+            health: report.health,
+            classification: report.classification,
+            quarantinedNow: report.classification.quarantinedNow
+        };
     });
 
     handleWrite(ipcMain, 'sync:triggerNow', ['admin'], async (db, _event) => {

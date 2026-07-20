@@ -146,7 +146,23 @@ async function handleCertificateSubmit(event) {
     currentStudent = student;
     currentType = type;
     renderPreview(student, type, year);
+    mountCertificatePrintAction();
     showToast('تم توليد الشهادة', 'success');
+}
+
+// Generated-only page: there is no static print button. Once a certificate is
+// generated, expose the primary preview action in the sticky unified header by
+// letting the shared helper CREATE the control (onPrint), then reuse it on every
+// later generation (idempotent: same #print-btn is found; onPrint bound once).
+function mountCertificatePrintAction() {
+    const api =
+        typeof window !== 'undefined' ? window.StickyTopbarPrint || window.OrientationTopbarPrint : null;
+    if (!api || typeof api.mount !== 'function') return;
+    api.mount(document, {
+        onPrint: () => dispatchCertificate('preview'),
+        boundFlag: 'reportsCertPrintBound',
+        label: 'معاينة الطباعة'
+    });
 }
 
 function handlePreviewAction(event) {

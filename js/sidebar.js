@@ -27,6 +27,7 @@ function injectSidebar() {
                         <li><a href="students-list.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
                         <li><a href="students-movement.html"><i class="fas fa-exchange-alt"></i> حركية التلاميذ</a></li>
                         <li><a href="students-status.html"><i class="fas fa-user-slash"></i> الوضعية الدراسية</a></li>
+                        <li><a href="students-orientation.html"><i class="fas fa-compass"></i> التوجيه المدرسي</a></li>
                     </ul>
                 </li>
 

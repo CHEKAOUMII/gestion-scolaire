@@ -1,11 +1,11 @@
 // Sync snapshot checker - Phase 5: periodic re-snapshot to detect drift
 
 const { getDb } = require('../db/context');
-const { ENTITY_TYPE_REGISTRY } = require('./authority');
 const { ensureSyncIdMapping, stripSensitiveFields, recordOutboxEntry, SENSITIVE_FIELDS } = require('./capture');
 const { isPullCycleRunning } = require('./engine');
 const { computeRowChecksum } = require('./merge');
 const { resolveSyncSchoolId } = require('./credentials');
+const { getSnapshotTables, resolveLocalId } = require('./entity-registry');
 
 let _snapshotTimer = null;
 let _snapshotRunning = false;
@@ -45,7 +45,7 @@ function snapshotTable(db, tableName) {
     const currentRowSyncIds = new Set();
 
     for (const row of rows) {
-        const localId = row.id ?? row.code ?? row.key;
+        const localId = resolveLocalId(tableName, row);
         if (localId == null) continue;
 
         const rowSyncId = ensureSyncIdMapping(db, tableName, localId);
@@ -109,7 +109,7 @@ async function runSnapshotCycle() {
             return buildSnapshotResult({ skipped: true, reason: 'disabled' });
         }
 
-        for (const tableName of Object.keys(ENTITY_TYPE_REGISTRY)) {
+        for (const tableName of getSnapshotTables()) {
             try {
                 tablesChecked++;
                 const result = snapshotTable(db, tableName);

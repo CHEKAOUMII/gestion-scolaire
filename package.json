@@ -24,7 +24,9 @@
         "test:fairness": "node tests/exam-fairness.js",
         "debug:sync-download": "electron scripts/debug-sync-download.js",
         "license:key": "node scripts/generate-license-key.js",
-        "owner:server": "node server/index.js"
+        "owner:server": "node server/index.js",
+        "sync:pilot-report": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/sync-legacy-bulk-pilot.js",
+        "sync:student-id-report": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/sync-student-id-migration-report.js"
     },
     "author": "",
     "license": "MIT",

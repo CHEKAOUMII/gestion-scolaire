@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function setupPrint() {
+    // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+    (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'btn-print' });
     document.getElementById('btn-print')?.addEventListener('click', async () => {
         const list = filtered && filtered.length ? filtered : teachers;
         if (!list.length) {

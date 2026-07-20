@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const analyzeBtn = document.getElementById('analyze-btn');
         if (analyzeBtn) analyzeBtn.addEventListener('click', analyze);
 
+        // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+        (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
+
         const levelSelect = document.getElementById('level-select');
         const classSelect = document.getElementById('class-select');
         const typeSelect = document.getElementById('analysis-type');

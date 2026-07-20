@@ -126,8 +126,10 @@ function registerSupportSessionsIpc(ipcMain) {
 
         let imported = 0;
         let skipped = 0;
+        const { capturePutsByIds, notifyCaptureCommitted } = require('../sync/capture');
 
         const transaction = db.transaction(() => {
+            const newIds = [];
             for (const session of payload.support_sessions) {
                 if (
                     !session.subject ||
@@ -163,7 +165,7 @@ function registerSupportSessionsIpc(ipcMain) {
                     continue;
                 }
 
-                insert.run(
+                const result = insert.run(
                     resolvedTeacherId,
                     session.teacher_name || null,
                     session.subject,
@@ -176,11 +178,16 @@ function registerSupportSessionsIpc(ipcMain) {
                     session.attendance_status,
                     schoolYear
                 );
+                if (result.lastInsertRowid) newIds.push(result.lastInsertRowid);
                 imported++;
+            }
+            if (newIds.length) {
+                capturePutsByIds(db, 'support_sessions', newIds, schoolYear);
             }
         });
 
         transaction();
+        notifyCaptureCommitted();
         return { imported, skipped };
     });
 }

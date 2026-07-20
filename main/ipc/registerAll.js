@@ -12,6 +12,7 @@ const { registerDailyReportIpc } = require('./daily-report');
 const { registerCompensationIpc } = require('./compensation');
 const { registerSupportSessionsIpc } = require('./support-sessions');
 const { registerSystemTagsIpc } = require('./system-tags');
+const { registerOrientationIpc } = require('./orientation');
 const { registerStaffAttendanceIpc } = require('./staffAttendance');
 const { registerExamsIpc } = require('./exams');
 const { registerSystemIpc } = require('./system');
@@ -48,6 +49,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerCompensationIpc(ipcMain);
     registerSupportSessionsIpc(ipcMain);
     registerSystemTagsIpc(ipcMain);
+    registerOrientationIpc(ipcMain);
     registerStaffAttendanceIpc(ipcMain);
     registerExamsIpc(ipcMain);
     registerSystemIpc(ipcMain);

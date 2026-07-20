@@ -40,6 +40,14 @@ const PAGE_PERMISSIONS = {
     'students-register':             ['principal','supervisor','external-guardian','admin-assistant'],
     'students-movement':             ['principal','supervisor','external-guardian','admin-assistant'],
     'students-status':               ['principal','supervisor','external-guardian','admin-assistant'],
+    'students-orientation':          [
+        'principal',
+        'supervisor',
+        'external-guardian',
+        'admin-assistant',
+        'educational-specialist',
+        'viewer'
+    ],
     'student-profile-prototype':     [...ALL_STAFF],
     'student-support':               ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','viewer'],
     'absence-students':              [...ALL_STAFF],

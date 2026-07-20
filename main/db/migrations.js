@@ -1832,6 +1832,49 @@ const MIGRATIONS = [
                 `CREATE INDEX IF NOT EXISTS idx_student_profile_student ON student_profile_data(student_code, school_year)`
             );
         }
+    },
+    {
+        // School orientation / guidance choices (التوجيه المدرسي).
+        // One row per student per school year: origin stream + ranked choices + assignment.
+        version: '2026-07-068-student-orientation',
+        up: () => {
+            const db = getDb();
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS student_orientation (
+                    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                    student_code      TEXT NOT NULL,
+                    full_name         TEXT,
+                    gender            TEXT,
+                    section           TEXT,
+                    level             TEXT,
+                    origin_stream     TEXT NOT NULL,
+                    choice_1          TEXT,
+                    choice_2          TEXT,
+                    choice_3          TEXT,
+                    assigned_stream   TEXT,
+                    decision_status   TEXT,
+                    average           REAL,
+                    rank_num          INTEGER,
+                    notes             TEXT,
+                    school_year       TEXT NOT NULL,
+                    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(student_code, school_year)
+                );
+            `);
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_student_orientation_year
+                ON student_orientation(school_year);
+            `);
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_student_orientation_origin
+                ON student_orientation(school_year, origin_stream);
+            `);
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_student_orientation_section
+                ON student_orientation(school_year, section);
+            `);
+        }
     }
 ];
 

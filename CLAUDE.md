@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -40,7 +40,8 @@ All renderer→main communication goes through `window.api`, which is the sole I
 ### Key Layers
 
 - **`main/db/`** — `better-sqlite3` database: `context.js` (singleton `getDb()`), `schema.js` (DDL + indexes), `migrations.js` (19 versioned migrations), `init.js` (bootstrap: opens DB, sets WAL + FK pragmas, calls `createTables()` then `runMigrations()`)
-- **`main/ipc/`** — One module per domain (13 modules: `auth`, `students`, `absences`, `schoolOps`, `staff`, `exams`, `system`, `licensing`, `ownerTelemetry`, `updater`, `pageVisibility`, `notifications`, `reports`). All registered via `registerAll.js`
+- **`main/repos/`** — Domain data access (SQL + atomic bulk capture via `capture-port.js`). **New domain SQL goes here, not in IPC.** See Agents.md “Main-process layering”.
+- **`main/ipc/`** — One module per domain (auth, students, absences, schoolOps, staff, exams, system, licensing, ownerTelemetry, updater, pageVisibility, notifications, reports, …). All registered via `registerAll.js`. Thin: auth + validation + repo calls only for migrated domains.
 - **`main/ipc/ipc-helpers.js`** — Three wrappers that replace raw `ipcMain.handle()`: `handleRead` (no auth, injects db), `handleWrite` (role-based auth, injects db), `handleWriteNoAuth` (skips auth for pre-login ops like bulk import). Also exports `normalizeYear()` for school-year fallback
 - **`main/auth/`** — Password hashing with `crypto.scryptSync` (format: `scrypt$<salt>$<hash>`), timing-safe comparison via `timingSafeEqual`. Sessions are in-memory `Map<senderId, session>` — not persisted to DB
 - **`main/licensing/`** — Offline key generation/verification (`offlineKey.js`), hardware device fingerprinting (`deviceFingerprint.js`), plan-tier service (`service.js`), background owner sync (`ownerSync.js`)

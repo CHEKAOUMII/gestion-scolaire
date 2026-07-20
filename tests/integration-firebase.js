@@ -104,8 +104,16 @@ async function clearCollection(collectionPath) {
 async function testCollections() {
     console.log('\n[collections]');
 
-    await test('student document id uses code', () => {
-        assert.strictEqual(buildDocumentId('students', { code: 'S12345' }), 'S12345');
+    await test('student document id is year-scoped (D1)', () => {
+        assert.strictEqual(
+            buildDocumentId('students', { code: 'S12345', school_year: '2025/2026' }),
+            '2025%2F2026__S12345'
+        );
+        assert.strictEqual(
+            buildDocumentId('students', { code: 'S12345' }),
+            null,
+            'school_year is required for canonical student document ids'
+        );
     });
 
     await test('grade document id uses canonical composite key', () => {

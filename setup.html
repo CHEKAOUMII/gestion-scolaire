@@ -14,168 +14,213 @@
         <link rel="stylesheet" href="css/setup.css" />
     </head>
 
-    <body class="setup-body">
-        <!-- Decorative background shapes -->
-        <div class="deco-shape s1"></div>
-        <div class="deco-shape s2"></div>
-        <div class="deco-shape s3"></div>
-
-        <div id="toast-container" class="toast-container"></div>
-
-        <div id="setup-container" style="width: 100%; max-width: 480px; position: relative; z-index: 1">
-            <!-- ╔══════════════════════════════════════════╗ -->
-            <!-- ║  STEP 1: Choose Mode                     ║ -->
-            <!-- ╚══════════════════════════════════════════╝ -->
-            <div id="step-mode-select" class="setup-card">
-                <div class="setup-brand">
-                    <div class="setup-brand-icon">
+    <body>
+        <div class="login-split">
+            <!-- Right: Branding Panel -->
+            <div class="login-brand-panel">
+                <div class="brand-shape s1"></div>
+                <div class="brand-shape s2"></div>
+                <div class="brand-shape s3"></div>
+                <div class="brand-content">
+                    <div class="brand-logo">
                         <i class="fas fa-school"></i>
                     </div>
-                    <h1>إعداد المؤسسة</h1>
-                    <p>اختر طريقة الإعداد للبدء</p>
-                </div>
-
-                <div class="options-stack">
-                    <button id="btn-mode-new" type="button" class="setup-option">
-                        <div class="setup-option-icon green">
-                            <i class="fas fa-plus-circle"></i>
+                    <h1>برنامج التدبير المدرسي</h1>
+                    <p>إعداد المؤسسة على هذا الجهاز — أنشئ مؤسسة جديدة أو سجّل دخولك للمتابعة</p>
+                    <div class="brand-features">
+                        <div class="brand-feature">
+                            <i class="fas fa-bolt"></i>
+                            <span>إعداد سريع في دقائق معدودة</span>
                         </div>
-                        <div class="setup-option-text">
-                            <h2>مؤسسة جديدة</h2>
-                            <p>أول جهاز في المؤسسة — إنشاء حساب جديد</p>
+                        <div class="brand-feature">
+                            <i class="fas fa-link"></i>
+                            <span>ربط عدة أجهزة بنفس المؤسسة</span>
                         </div>
-                        <i class="fas fa-chevron-left setup-option-arrow"></i>
-                    </button>
-
-                    <button id="btn-mode-login" type="button" class="setup-option">
-                        <div class="setup-option-icon blue">
-                            <i class="fas fa-sign-in-alt"></i>
+                        <div class="brand-feature">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>بيانات محلية آمنة ومحمية</span>
                         </div>
-                        <div class="setup-option-text">
-                            <h2>تسجيل الدخول</h2>
-                            <p>مؤسسة تم إعدادها مسبقاً — سجّل دخولك للمتابعة</p>
-                        </div>
-                        <i class="fas fa-chevron-left setup-option-arrow"></i>
-                    </button>
-                </div>
-
-                <div class="setup-footer">
-                    <i class="fas fa-lock" style="margin-inline-end: 4px"></i>
-                    بياناتك محمية ومخزنة محلياً على هذا الجهاز
+                    </div>
                 </div>
             </div>
 
-            <!-- ╔══════════════════════════════════════════╗ -->
-            <!-- ║  STEP 2a: New Institution                ║ -->
-            <!-- ╚══════════════════════════════════════════╝ -->
-            <div id="step-new-institution" class="setup-card hidden">
-                <button id="btn-back-from-new" type="button" class="btn-back">
-                    <i class="fas fa-arrow-right"></i>
-                    <span>رجوع</span>
-                </button>
+            <!-- Left: Form Panel -->
+            <div class="login-form-panel">
+                <div class="login-container" id="setup-container">
+                    <div class="login-card">
+                        <!-- ╔══════════════════════════════════════════╗ -->
+                        <!-- ║  STEP 1: Choose Mode                     ║ -->
+                        <!-- ╚══════════════════════════════════════════╝ -->
+                        <div id="step-mode-select" class="setup-step">
+                            <div class="pin-prompt-hero">
+                                <div class="pin-prompt-icon">
+                                    <i class="fas fa-school"></i>
+                                </div>
+                                <h3 class="pin-prompt-title">إعداد المؤسسة</h3>
+                                <p class="pin-prompt-copy">اختر طريقة الإعداد للبدء</p>
+                            </div>
 
-                <div class="step-header">
-                    <div class="step-header-icon">
-                        <i class="fas fa-plus-circle"></i>
-                    </div>
-                    <div>
-                        <h2>إعداد مؤسسة جديدة</h2>
-                        <p>أدخل معلومات المؤسسة وحساب المدير</p>
+                            <div class="options-stack">
+                                <button id="btn-mode-new" type="button" class="setup-option">
+                                    <div class="setup-option-icon green">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </div>
+                                    <div class="setup-option-text">
+                                        <h2>مؤسسة جديدة</h2>
+                                        <p>أول جهاز في المؤسسة — إنشاء حساب جديد</p>
+                                    </div>
+                                    <i class="fas fa-chevron-left setup-option-arrow"></i>
+                                </button>
+
+                                <button id="btn-mode-login" type="button" class="setup-option">
+                                    <div class="setup-option-icon blue">
+                                        <i class="fas fa-sign-in-alt"></i>
+                                    </div>
+                                    <div class="setup-option-text">
+                                        <h2>تسجيل الدخول</h2>
+                                        <p>مؤسسة تم إعدادها مسبقاً — سجّل دخولك للمتابعة</p>
+                                    </div>
+                                    <i class="fas fa-chevron-left setup-option-arrow"></i>
+                                </button>
+                            </div>
+
+                            <div class="setup-footer">
+                                <i class="fas fa-lock" style="margin-inline-end: 4px"></i>
+                                بياناتك محمية ومخزنة محلياً على هذا الجهاز
+                            </div>
+                        </div>
+
+                        <!-- ╔══════════════════════════════════════════╗ -->
+                        <!-- ║  STEP 2a: New Institution                ║ -->
+                        <!-- ╚══════════════════════════════════════════╝ -->
+                        <div id="step-new-institution" class="setup-step hidden">
+                            <button id="btn-back-from-new" type="button" class="setup-back-btn">
+                                <i class="fas fa-arrow-right"></i>
+                                <span>رجوع</span>
+                            </button>
+
+                            <div class="step-header">
+                                <div class="step-header-icon">
+                                    <i class="fas fa-plus-circle"></i>
+                                </div>
+                                <div>
+                                    <h2>إعداد مؤسسة جديدة</h2>
+                                    <p>أدخل معلومات المؤسسة وحساب المدير</p>
+                                </div>
+                            </div>
+
+                            <form id="form-new-institution" novalidate>
+                                <div class="form-group setup-field">
+                                    <label for="new-massar-code">رمز ماسار <span class="optional">(اختياري)</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-barcode"></i>
+                                        <input
+                                            type="text"
+                                            id="new-massar-code"
+                                            autocomplete="off"
+                                            placeholder="مثال: 12345A أو 12345AB"
+                                            dir="ltr"
+                                            maxlength="20"
+                                        />
+                                    </div>
+                                    <p id="new-massar-error" class="field-error hidden"></p>
+                                </div>
+
+                                <div class="form-group setup-field">
+                                    <label for="new-institution-name">اسم المؤسسة <span class="req">*</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-school"></i>
+                                        <input
+                                            type="text"
+                                            id="new-institution-name"
+                                            required
+                                            placeholder="مثال: ثانوية الفارابي التأهيلية"
+                                        />
+                                    </div>
+                                    <p id="new-institution-name-error" class="field-error hidden"></p>
+                                </div>
+
+                                <div class="setup-divider">
+                                    <span>حساب المدير</span>
+                                </div>
+
+                                <div class="form-group setup-field">
+                                    <label for="new-admin-name">اسم المدير <span class="req">*</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-user"></i>
+                                        <input
+                                            type="text"
+                                            id="new-admin-name"
+                                            required
+                                            autocomplete="name"
+                                            placeholder="الاسم الكامل"
+                                        />
+                                    </div>
+                                    <p id="new-admin-name-error" class="field-error hidden"></p>
+                                </div>
+
+                                <div class="form-group setup-field">
+                                    <label for="new-admin-email">البريد الإلكتروني <span class="req">*</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-envelope"></i>
+                                        <input
+                                            type="email"
+                                            id="new-admin-email"
+                                            required
+                                            autocomplete="email"
+                                            placeholder="example@email.com"
+                                            dir="ltr"
+                                        />
+                                    </div>
+                                    <p id="new-email-error" class="field-error hidden"></p>
+                                </div>
+
+                                <div class="form-group setup-field">
+                                    <label for="new-admin-password">كلمة المرور <span class="req">*</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock"></i>
+                                        <input
+                                            type="password"
+                                            id="new-admin-password"
+                                            required
+                                            autocomplete="new-password"
+                                            placeholder="6 أحرف على الأقل"
+                                        />
+                                    </div>
+                                    <p id="new-password-error" class="field-error hidden"></p>
+                                </div>
+
+                                <div class="form-group setup-field">
+                                    <label for="new-admin-confirm">تأكيد كلمة المرور <span class="req">*</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-lock"></i>
+                                        <input
+                                            type="password"
+                                            id="new-admin-confirm"
+                                            required
+                                            autocomplete="new-password"
+                                            placeholder="أعد إدخال كلمة المرور"
+                                        />
+                                    </div>
+                                    <p id="new-confirm-error" class="field-error hidden"></p>
+                                </div>
+
+                                <button type="submit" id="btn-submit-new" class="btn-login">
+                                    <div class="spinner"></div>
+                                    <span><i class="fas fa-check-circle"></i> إنشاء المؤسسة</span>
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="login-footer">
+                            <p>© 2026 جميع الحقوق محفوظة</p>
+                        </div>
                     </div>
                 </div>
-
-                <form id="form-new-institution" novalidate>
-                    <div class="setup-field">
-                        <label for="new-massar-code">رمز ماسار <span class="optional">(اختياري)</span></label>
-                        <input
-                            type="text"
-                            id="new-massar-code"
-                            class="setup-input"
-                            autocomplete="off"
-                            placeholder="مثال: 12345A أو 12345AB"
-                            dir="ltr"
-                            maxlength="20"
-                        />
-                        <p id="new-massar-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="new-institution-name">اسم المؤسسة <span class="req">*</span></label>
-                        <input
-                            type="text"
-                            id="new-institution-name"
-                            class="setup-input"
-                            required
-                            placeholder="مثال: ثانوية الفارابي التأهيلية"
-                        />
-                        <p id="new-institution-name-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-divider">
-                        <span>حساب المدير</span>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="new-admin-name">اسم المدير <span class="req">*</span></label>
-                        <input
-                            type="text"
-                            id="new-admin-name"
-                            class="setup-input"
-                            required
-                            autocomplete="name"
-                            placeholder="الاسم الكامل"
-                        />
-                        <p id="new-admin-name-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="new-admin-email">البريد الإلكتروني <span class="req">*</span></label>
-                        <input
-                            type="email"
-                            id="new-admin-email"
-                            class="setup-input"
-                            required
-                            autocomplete="email"
-                            placeholder="example@email.com"
-                            dir="ltr"
-                        />
-                        <p id="new-email-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="new-admin-password">كلمة المرور <span class="req">*</span></label>
-                        <input
-                            type="password"
-                            id="new-admin-password"
-                            class="setup-input"
-                            required
-                            autocomplete="new-password"
-                            placeholder="6 أحرف على الأقل"
-                        />
-                        <p id="new-password-error" class="field-error hidden"></p>
-                    </div>
-
-                    <div class="setup-field">
-                        <label for="new-admin-confirm">تأكيد كلمة المرور <span class="req">*</span></label>
-                        <input
-                            type="password"
-                            id="new-admin-confirm"
-                            class="setup-input"
-                            required
-                            autocomplete="new-password"
-                            placeholder="أعد إدخال كلمة المرور"
-                        />
-                        <p id="new-confirm-error" class="field-error hidden"></p>
-                    </div>
-
-                    <button type="submit" id="btn-submit-new" class="btn-setup-submit">
-                        <i class="fas fa-check-circle"></i>
-                        <span>إنشاء المؤسسة</span>
-                    </button>
-                </form>
             </div>
-
         </div>
+
+        <div id="toast-container" class="toast-container"></div>
 
         <script src="js/pages/setup.js" defer></script>
     </body>

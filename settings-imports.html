@@ -10,6 +10,10 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
+        <script src="js/shared/errors/orientation-error-contract.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -74,6 +78,14 @@
             id="agent-xml-file-input"
             class="file-input-hidden"
             accept=".xml,text/xml,application/xml"
+            tabindex="-1"
+        />
+        <input
+            type="file"
+            id="orientation-file-input"
+            class="file-input-hidden"
+            accept=".xlsx,.xls,.csv,.json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,application/json"
+            multiple
             tabindex="-1"
         />
 
@@ -149,11 +161,238 @@
                 </h2>
             </div>
 
-            <div class="grades-container">
-                <!-- Data Stats Section -->
-                <div class="students-results data-stats-section">
-                    <h3>
-                        <i class="fas fa-database"></i> البيانات المخزنة
+            <div class="grades-container import-center-page" id="import-center-page">
+                <!-- 1. Readiness header -->
+                <section class="students-results ic-region ic-region-readiness" id="ic-readiness-region" aria-labelledby="ic-readiness-title">
+                    <h3 id="ic-readiness-title">
+                        <i class="fas fa-link" aria-hidden="true"></i> حالة ربط البيانات
+                        <span class="me-1.5 text-[13px] font-normal opacity-70" id="status-panel-year-label"></span>
+                    </h3>
+                    <div class="import-status-panel" id="import-status-panel">
+                        <div class="import-status-row status-pending" data-source="students">
+                            <span class="import-status-icon"><i class="fas fa-clock" aria-hidden="true"></i></span>
+                            <span class="import-status-label">التلاميذ</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="agent_xml">
+                            <span class="import-status-icon"><i class="fas fa-clock" aria-hidden="true"></i></span>
+                            <span class="import-status-label">ملف الوزارة</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="fet">
+                            <span class="import-status-icon"><i class="fas fa-clock" aria-hidden="true"></i></span>
+                            <span class="import-status-label">FET (جدول)</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="grades">
+                            <span class="import-status-icon"><i class="fas fa-clock" aria-hidden="true"></i></span>
+                            <span class="import-status-label">النقط</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row status-pending" data-source="absences">
+                            <span class="import-status-icon"><i class="fas fa-clock" aria-hidden="true"></i></span>
+                            <span class="import-status-label">الغياب</span>
+                            <span class="import-status-detail">لم يُستورد بعد</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row" data-source="status">
+                            <span class="import-status-icon"><i class="fas fa-minus-circle" aria-hidden="true"></i></span>
+                            <span class="import-status-label">الوضعيات</span>
+                            <span class="import-status-detail">اختياري</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                        <div class="import-status-row" data-source="orientation">
+                            <span class="import-status-icon"><i class="fas fa-minus-circle" aria-hidden="true"></i></span>
+                            <span class="import-status-label">التوجيه</span>
+                            <span class="import-status-detail">اختياري</span>
+                            <span class="import-status-action"></span>
+                        </div>
+                    </div>
+                    <p class="mt-2 text-[0.8rem] text-[var(--color-text-muted)]">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        الترتيب الموصى به: التلاميذ ← ملف الوزارة ← FET ← النقط ← الغياب
+                    </p>
+                    <div id="ic-context-hint" class="ic-context-hint hidden" role="status" aria-live="polite"></div>
+                </section>
+
+                <!-- 2. Manual import (primary) -->
+                <section class="students-results ic-region ic-region-manual" id="ic-manual-region" aria-labelledby="ic-manual-title">
+                    <h3 id="ic-manual-title">
+                        <i class="fas fa-file-import" aria-hidden="true"></i> استيراد البيانات — اختر نوع الملف
+                    </h3>
+                    <div class="ic-manual-body">
+                        <p id="imports-picker-help" class="sr-only">
+                            اختر نوع الاستيراد ثم حدد ملفاً أو أكثر من نافذة النظام. سيُعلن التطبيق اسم الملف المختار قبل
+                            بدء الاستيراد.
+                        </p>
+                        <p id="imports-selection-status" class="sr-only" aria-live="polite"></p>
+                        <div class="imports-grid">
+                            <button class="imports-action-card" data-action="students" type="button">
+                                <i class="fas fa-user-graduate" aria-hidden="true"></i>
+                                <span>استيراد لائحة التلاميذ</span>
+                                <small class="import-format-hint">.xlsx .xls .csv</small>
+                            </button>
+                            <button class="imports-action-card" data-action="grades" type="button">
+                                <i class="fas fa-star" aria-hidden="true"></i>
+                                <span>استيراد النقط</span>
+                                <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
+                            </button>
+                            <button class="imports-action-card" data-action="absences" type="button">
+                                <i class="fas fa-user-clock" aria-hidden="true"></i>
+                                <span>استيراد الغياب</span>
+                                <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
+                            </button>
+                            <button class="imports-action-card" data-action="fet" type="button">
+                                <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                                <span>استيراد FET (XML)</span>
+                                <small class="import-format-hint">.xml – ملف _teachers.xml</small>
+                            </button>
+                            <button class="imports-action-card" data-action="student-status" type="button">
+                                <i class="fas fa-user-slash" aria-hidden="true"></i>
+                                <span>استيراد الوضعيات الدراسية</span>
+                                <small class="import-format-hint">.xlsx .xls .csv</small>
+                            </button>
+                            <button class="imports-action-card" data-action="orientation" type="button">
+                                <i class="fas fa-route" aria-hidden="true"></i>
+                                <span>استيراد التوجيه المدرسي</span>
+                                <small class="import-format-hint">.xlsx .xls .csv .json</small>
+                            </button>
+                            <button class="imports-action-card" data-action="agent-xml" type="button">
+                                <i class="fas fa-university" aria-hidden="true"></i>
+                                <span>استيراد ملف الوزارة</span>
+                                <small class="import-format-hint">.xml – ملف بيانات الأساتذة</small>
+                            </button>
+                        </div>
+                        <div
+                            id="tafwij-warning-banner"
+                            class="validation-message warning mt-4 hidden rounded-xl px-4 py-3.5"
+                        ></div>
+                        <div
+                            id="tafwij-matching-panel"
+                            class="students-results mt-[18px] hidden border border-[var(--color-warning-border)] bg-[var(--color-warning-surface)] p-[18px]"
+                        >
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h4 class="mb-1.5 mt-0 font-bold text-[var(--color-text-main)]">
+                                        <i class="fas fa-link" aria-hidden="true"></i> مطابقة أسماء أساتذة tafwij
+                                    </h4>
+                                    <p class="m-0 text-[var(--color-text-muted)]" id="tafwij-matching-summary">-</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2.5">
+                                    <button class="btn btn-primary" id="tafwij-save-mappings-btn" type="button">
+                                        <i class="fas fa-save" aria-hidden="true"></i> حفظ المطابقات
+                                    </button>
+                                    <button class="btn btn-secondary" id="tafwij-skip-mappings-btn" type="button">
+                                        <i class="fas fa-forward" aria-hidden="true"></i> تخطي مؤقت
+                                    </button>
+                                    <button class="imports-danger-btn" id="tafwij-cancel-mappings-btn" type="button">
+                                        <i class="fas fa-times" aria-hidden="true"></i> إغلاق
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive mt-3.5 max-h-[420px] overflow-auto">
+                                <table class="students-table">
+                                    <thead>
+                                        <tr>
+                                            <th>الاسم في tafwij</th>
+                                            <th>الحالة</th>
+                                            <th>الاقتراح / الاختيار</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tafwij-matching-tbody">
+                                        <tr>
+                                            <td colspan="3" class="loading-cell">لا توجد أسماء تحتاج مراجعة</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div
+                            id="departed-students-panel"
+                            class="students-results mt-[18px] hidden border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] p-[18px]"
+                        >
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h4 class="mb-1.5 mt-0 font-bold text-[var(--color-text-main)]">
+                                        <i class="fas fa-user-minus" aria-hidden="true"></i> تلاميذ غائبون عن اللائحة المستوردة
+                                    </h4>
+                                    <p class="m-0 text-[var(--color-text-muted)]" id="departed-summary">-</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2.5">
+                                    <select id="departed-bulk-status" class="min-w-0">
+                                        <option value="">-- إجراء جماعي --</option>
+                                        <option value="dropout">منقطع</option>
+                                        <option value="expelled">مفصول</option>
+                                        <option value="not_enrolled">غير ملتحق</option>
+                                    </select>
+                                    <button class="btn btn-primary" id="departed-apply-bulk" type="button">
+                                        <i class="fas fa-check-double" aria-hidden="true"></i> تطبيق على المحددين
+                                    </button>
+                                    <button class="btn btn-secondary" id="departed-skip-btn" type="button">
+                                        <i class="fas fa-forward" aria-hidden="true"></i> تخطي
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive mt-3.5 max-h-[420px] overflow-auto">
+                                <table class="students-table">
+                                    <thead>
+                                        <tr>
+                                            <th><input type="checkbox" id="departed-select-all" /></th>
+                                            <th>#</th>
+                                            <th>رمز مسار</th>
+                                            <th>الاسم الكامل</th>
+                                            <th>القسم</th>
+                                            <th>الإجراء</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="departed-tbody">
+                                        <tr>
+                                            <td colspan="6" class="loading-cell">لا توجد بيانات</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3.5 flex justify-end gap-2.5">
+                                <button class="btn btn-primary" id="departed-confirm-btn" type="button">
+                                    <i class="fas fa-save" aria-hidden="true"></i> حفظ التغييرات
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. Progress / report -->
+                <section class="students-results ic-region ic-region-progress" id="ic-progress-region" aria-labelledby="ic-progress-title">
+                    <h3 id="ic-progress-title">
+                        <i class="fas fa-tasks" aria-hidden="true"></i> التقدم والتقرير
+                    </h3>
+                    <div class="import-progress-card" id="import-progress-card" aria-live="polite" aria-atomic="true">
+                        <div class="import-progress-head">
+                            <span id="import-progress-title"><i class="fas fa-upload" aria-hidden="true"></i> جاري الاستيراد...</span>
+                            <span id="import-progress-percent">0%</span>
+                        </div>
+                        <div
+                            class="import-progress-track"
+                            role="progressbar"
+                            aria-label="تقدم الاستيراد"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            aria-valuenow="0"
+                        >
+                            <div class="import-progress-fill" id="import-progress-fill"></div>
+                        </div>
+                        <p id="import-progress-message">في انتظار بدء عملية استيراد...</p>
+                    </div>
+                </section>
+
+                <!-- 4. Data management / delete -->
+                <section class="students-results data-stats-section ic-region ic-region-data" id="ic-data-region" aria-labelledby="ic-data-title">
+                    <h3 id="ic-data-title">
+                        <i class="fas fa-database" aria-hidden="true"></i> إدارة البيانات والحذف
                         <span class="me-1.5 text-[13px] font-normal opacity-70" id="stats-year-label"></span>
                     </h3>
                     <div class="data-stats-grid">
@@ -243,6 +482,23 @@
                             </button>
                         </div>
                         <div class="stat-card-col">
+                            <div class="stat-card" id="stat-card-orientation">
+                                <div class="stat-card-icon"><i class="fas fa-route"></i></div>
+                                <div class="stat-card-value" id="stat-orientation-count">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </div>
+                                <div class="stat-card-label">توجيه مدرسي</div>
+                            </div>
+                            <button
+                                class="imports-danger-btn stat-card-delete"
+                                id="btn-clear-orientation"
+                                type="button"
+                                title="حذف جميع سجلات التوجيه لهذه السنة"
+                            >
+                                <i class="fas fa-trash-alt"></i> حذف
+                            </button>
+                        </div>
+                        <div class="stat-card-col">
                             <div class="stat-card" id="stat-card-teachers">
                                 <div class="stat-card-icon"><i class="fas fa-university"></i></div>
                                 <div class="stat-card-value" id="stat-teachers-count">
@@ -260,254 +516,14 @@
                             </button>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- Import Status Panel -->
-                <div class="students-results" id="import-status-panel-section">
-                    <h3>
-                        <i class="fas fa-link"></i> حالة ربط البيانات
-                        <span class="me-1.5 text-[13px] font-normal opacity-70" id="status-panel-year-label"></span>
-                    </h3>
-                    <div class="import-status-panel" id="import-status-panel">
-                        <div class="import-status-row status-pending" data-source="students">
-                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
-                            <span class="import-status-label">التلاميذ</span>
-                            <span class="import-status-detail">لم يُستورد بعد</span>
-                            <span class="import-status-action"></span>
-                        </div>
-                        <div class="import-status-row status-pending" data-source="agent_xml">
-                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
-                            <span class="import-status-label">ملف الوزارة</span>
-                            <span class="import-status-detail">لم يُستورد بعد</span>
-                            <span class="import-status-action"></span>
-                        </div>
-                        <div class="import-status-row status-pending" data-source="fet">
-                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
-                            <span class="import-status-label">FET (جدول)</span>
-                            <span class="import-status-detail">لم يُستورد بعد</span>
-                            <span class="import-status-action"></span>
-                        </div>
-                        <div class="import-status-row status-pending" data-source="grades">
-                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
-                            <span class="import-status-label">النقط</span>
-                            <span class="import-status-detail">لم يُستورد بعد</span>
-                            <span class="import-status-action"></span>
-                        </div>
-                        <div class="import-status-row status-pending" data-source="absences">
-                            <span class="import-status-icon"><i class="fas fa-clock"></i></span>
-                            <span class="import-status-label">الغياب</span>
-                            <span class="import-status-detail">لم يُستورد بعد</span>
-                            <span class="import-status-action"></span>
-                        </div>
-                        <div class="import-status-row" data-source="status">
-                            <span class="import-status-icon"><i class="fas fa-minus-circle"></i></span>
-                            <span class="import-status-label">الوضعيات</span>
-                            <span class="import-status-detail">اختياري</span>
-                            <span class="import-status-action"></span>
-                        </div>
-                    </div>
-                    <p class="mt-2 text-[0.8rem] text-[var(--color-text-muted)]">
-                        <i class="fas fa-info-circle"></i>
-                        الترتيب الموصى به: التلاميذ ← ملف الوزارة ← FET ← النقط ← الغياب
-                    </p>
-                </div>
-
-                <!-- Import Center -->
-                <div class="students-results">
-                    <h3><i class="fas fa-cloud-upload-alt"></i> مركز الاستيراد</h3>
-                    <div class="imports-grid">
-                        <button class="imports-action-card" data-action="students" type="button">
-                            <i class="fas fa-user-graduate"></i>
-                            <span>استيراد لائحة التلاميذ</span>
-                            <small class="import-format-hint">.xlsx .xls .csv</small>
-                        </button>
-                        <button class="imports-action-card" data-action="grades" type="button">
-                            <i class="fas fa-star"></i>
-                            <span>استيراد النقط</span>
-                            <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
-                        </button>
-                        <button class="imports-action-card" data-action="absences" type="button">
-                            <i class="fas fa-user-clock"></i>
-                            <span>استيراد الغياب</span>
-                            <small class="import-format-hint">.xlsx .xls .csv – تحديد متعدد</small>
-                        </button>
-                        <button class="imports-action-card" data-action="fet" type="button">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>استيراد FET (XML)</span>
-                            <small class="import-format-hint">.xml – ملف _teachers.xml</small>
-                        </button>
-                        <button class="imports-action-card" data-action="student-status" type="button">
-                            <i class="fas fa-user-slash"></i>
-                            <span>استيراد الوضعيات الدراسية</span>
-                            <small class="import-format-hint">.xlsx .xls .csv</small>
-                        </button>
-                        <button class="imports-action-card" data-action="agent-xml" type="button">
-                            <i class="fas fa-university"></i>
-                            <span>استيراد ملف الوزارة</span>
-                            <small class="import-format-hint">.xml – ملف بيانات الأساتذة</small>
-                        </button>
-                    </div>
-                    <p id="imports-picker-help" class="sr-only">
-                        اختر نوع الاستيراد ثم حدد ملفاً أو أكثر من نافذة النظام. سيُعلن التطبيق اسم الملف المختار قبل
-                        بدء الاستيراد.
-                    </p>
-                    <p id="imports-selection-status" class="sr-only" aria-live="polite"></p>
-
-                    <!-- Drag & Drop Zone -->
-                    <div class="drop-zone" id="drop-zone" role="region" aria-label="منطقة سحب وإفلات الملفات">
-                        <div class="drop-zone-content">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <p>اسحب الملفات وأفلتها هنا</p>
-                            <small>أو اختر نوع الاستيراد من الأزرار أعلاه</small>
-                        </div>
-                    </div>
-
-                    <p class="import-hint">
-                        <i class="fas fa-info-circle"></i> اختر نوع البيانات المراد استيرادها من ملفات Excel أو CSV أو
-                        XML حسب نوع الاستيراد
-                    </p>
-                    <div class="import-progress-card" id="import-progress-card" aria-live="polite" aria-atomic="true">
-                        <div class="import-progress-head">
-                            <span id="import-progress-title"><i class="fas fa-upload"></i> جاري الاستيراد...</span>
-                            <span id="import-progress-percent">0%</span>
-                        </div>
-                        <div
-                            class="import-progress-track"
-                            role="progressbar"
-                            aria-label="تقدم الاستيراد"
-                            aria-valuemin="0"
-                            aria-valuemax="100"
-                            aria-valuenow="0"
-                        >
-                            <div class="import-progress-fill" id="import-progress-fill"></div>
-                        </div>
-                        <p id="import-progress-message">جاري تجهيز الملف...</p>
-                    </div>
-
-                    <div
-                        id="tafwij-warning-banner"
-                        class="validation-message warning mt-4 hidden rounded-xl px-4 py-3.5"
-                    ></div>
-
-                    <div
-                        id="tafwij-matching-panel"
-                        class="students-results mt-[18px] hidden border border-[var(--color-warning-border)] bg-[var(--color-warning-surface)] p-[18px]"
-                    >
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                                <h4 class="mb-1.5 mt-0 font-bold text-[var(--color-text-main)]">
-                                    <i class="fas fa-link"></i> مطابقة أسماء أساتذة tafwij
-                                </h4>
-                                <p class="m-0 text-[var(--color-text-muted)]" id="tafwij-matching-summary">-</p>
-                            </div>
-                            <div class="flex flex-wrap gap-2.5">
-                                <button class="btn btn-primary" id="tafwij-save-mappings-btn" type="button">
-                                    <i class="fas fa-save"></i> حفظ المطابقات
-                                </button>
-                                <button class="btn btn-secondary" id="tafwij-skip-mappings-btn" type="button">
-                                    <i class="fas fa-forward"></i> تخطي مؤقت
-                                </button>
-                                <button class="imports-danger-btn" id="tafwij-cancel-mappings-btn" type="button">
-                                    <i class="fas fa-times"></i> إغلاق
-                                </button>
-                            </div>
-                        </div>
-                        <div class="table-responsive mt-3.5 max-h-[420px] overflow-auto">
-                            <table class="students-table">
-                                <thead>
-                                    <tr>
-                                        <th>الاسم في tafwij</th>
-                                        <th>الحالة</th>
-                                        <th>الاقتراح / الاختيار</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tafwij-matching-tbody">
-                                    <tr>
-                                        <td colspan="3" class="loading-cell">لا توجد أسماء تحتاج مراجعة</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div
-                        id="departed-students-panel"
-                        class="students-results mt-[18px] hidden border border-[var(--color-danger-border)] bg-[var(--color-danger-surface)] p-[18px]"
-                    >
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                                <h4 class="mb-1.5 mt-0 font-bold text-[var(--color-text-main)]">
-                                    <i class="fas fa-user-minus"></i> تلاميذ غائبون عن اللائحة المستوردة
-                                </h4>
-                                <p class="m-0 text-[var(--color-text-muted)]" id="departed-summary">-</p>
-                            </div>
-                            <div class="flex flex-wrap gap-2.5">
-                                <select id="departed-bulk-status" class="min-w-0">
-                                    <option value="">-- إجراء جماعي --</option>
-                                    <option value="dropout">منقطع</option>
-                                    <option value="expelled">مفصول</option>
-                                    <option value="not_enrolled">غير ملتحق</option>
-                                </select>
-                                <button class="btn btn-primary" id="departed-apply-bulk" type="button">
-                                    <i class="fas fa-check-double"></i> تطبيق على المحددين
-                                </button>
-                                <button class="btn btn-secondary" id="departed-skip-btn" type="button">
-                                    <i class="fas fa-forward"></i> تخطي
-                                </button>
-                            </div>
-                        </div>
-                        <div class="table-responsive mt-3.5 max-h-[420px] overflow-auto">
-                            <table class="students-table">
-                                <thead>
-                                    <tr>
-                                        <th><input type="checkbox" id="departed-select-all" /></th>
-                                        <th>#</th>
-                                        <th>رمز مسار</th>
-                                        <th>الاسم الكامل</th>
-                                        <th>القسم</th>
-                                        <th>الإجراء</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="departed-tbody">
-                                    <tr>
-                                        <td colspan="6" class="loading-cell">لا توجد بيانات</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-3.5 flex justify-end gap-2.5">
-                            <button class="btn btn-primary" id="departed-confirm-btn" type="button">
-                                <i class="fas fa-save"></i> حفظ التغييرات
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="students-results">
-                    <h3><i class="fas fa-shield-alt"></i> النسخ الاحتياطي</h3>
-                    <div class="p-8 text-center">
-                        <p class="mb-6 text-[0.95rem] text-[var(--color-text-muted)]">
-                            تصدير البيانات الحالية – استعادة نسخة احتياطية في حالة فقدان البيانات
-                        </p>
-                        <div class="flex flex-wrap justify-center gap-4">
-                            <button class="btn btn-primary gap-2.5" id="create-backup-btn" type="button">
-                                <i class="fas fa-download"></i> إنشاء نسخة احتياطية
-                            </button>
-                            <button class="btn btn-secondary gap-2.5" id="restore-backup-btn" type="button">
-                                <i class="fas fa-upload"></i> استعادة نسخة سابقة
-                            </button>
-                        </div>
-                        <input type="file" id="backup-file-input" class="hidden" accept=".json" />
-                    </div>
-                </div>
-
-                <!-- Recent Imports -->
-                <div class="students-results">
-                    <h3><i class="fas fa-history"></i> عمليات الاستيراد الأخيرة</h3>
+                <!-- 5. System log summary -->
+                <section class="students-results ic-region ic-region-log" id="ic-log-region" aria-labelledby="ic-log-title">
+                    <h3 id="ic-log-title"><i class="fas fa-history" aria-hidden="true"></i> عمليات الاستيراد الأخيرة</h3>
                     <div class="table-responsive">
                         <table class="students-table">
-                            <caption class="sr-only">
-                                سجل آخر عمليات استيراد البيانات
-                            </caption>
+                            <caption class="sr-only">سجل آخر عمليات استيراد البيانات</caption>
                             <thead>
                                 <tr>
                                     <th>#</th>
@@ -519,14 +535,43 @@
                             <tbody id="import-logs-tbody">
                                 <tr>
                                     <td colspan="4" class="loading-cell">
-                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                                         جاري التحميل...
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
-                </div>
+                    <div class="ic-pagination" id="import-logs-pagination" hidden>
+                        <button type="button" class="btn btn-secondary ic-page-btn" id="import-logs-prev" aria-label="الصفحة السابقة">
+                            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                        </button>
+                        <span class="ic-page-counter" id="import-logs-counter" aria-live="polite">1 / 1</span>
+                        <button type="button" class="btn btn-secondary ic-page-btn" id="import-logs-next" aria-label="الصفحة التالية">
+                            <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                        </button>
+                        <span class="ic-page-total" id="import-logs-total"></span>
+                    </div>
+                </section>
+
+                <!-- 6. Backup and restore (separate boundary) -->
+                <section class="students-results ic-region ic-region-backup" id="ic-backup-region" aria-labelledby="ic-backup-title">
+                    <h3 id="ic-backup-title"><i class="fas fa-shield-alt" aria-hidden="true"></i> النسخ الاحتياطي والاستعادة</h3>
+                    <div class="p-8 text-center">
+                        <p class="mb-6 text-[0.95rem] text-[var(--color-text-muted)]">
+                            تصدير البيانات الحالية – استعادة نسخة احتياطية في حالة فقدان البيانات. هذا المسار منفصل عن تغذية بيانات الاستيراد.
+                        </p>
+                        <div class="flex flex-wrap justify-center gap-4">
+                            <button class="btn btn-primary gap-2.5" id="create-backup-btn" type="button" aria-label="إنشاء نسخة احتياطية">
+                                <i class="fas fa-download" aria-hidden="true"></i> إنشاء نسخة احتياطية
+                            </button>
+                            <button class="btn btn-secondary gap-2.5" id="restore-backup-btn" type="button" aria-label="استعادة نسخة سابقة">
+                                <i class="fas fa-upload" aria-hidden="true"></i> استعادة نسخة سابقة
+                            </button>
+                        </div>
+                        <input type="file" id="backup-file-input" class="hidden" accept=".json" />
+                    </div>
+                </section>
             </div>
         </main>
 
@@ -654,6 +699,7 @@
         <script src="js/data-source-registry.js" defer></script>
         <script src="js/cross-source-validator.js" defer></script>
         <script src="js/shared/fet-import.js" defer></script>
+        <script src="vendor/xlsx.full.min.js" defer></script>
         <script src="js/pages/settings-imports.js" defer></script>
     </body>
 </html>

@@ -60,6 +60,8 @@
     function bindEvents() {
         els.searchBtn?.addEventListener('click', applyFilters);
         els.printBtn?.addEventListener('click', () => PrintSystem.preview());
+        // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+        (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
         els.resetBtn?.addEventListener('click', resetPendingAssignments);
         els.saveBtn?.addEventListener('click', saveChanges);
 

@@ -8,6 +8,9 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -65,6 +68,7 @@
                         <button
                             class="btn btn-secondary"
                             type="button"
+                            id="print-btn"
                             onclick="PrintSystem.preview({ title: 'تحليل النتائج', pageSize: 'A4' })"
                             style="margin-right: 6px"
                         >
@@ -152,6 +156,7 @@
         </main>
 
         <script src="js/data/ma-education-labels.js" defer></script>
+        <script src="js/shared/orientation-topbar-print.js" defer></script>
         <script src="js/pages/analytics.js" defer></script>
     </body>
 </html>

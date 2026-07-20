@@ -1,4 +1,6 @@
 const MAX_ASSET_BYTES = 200 * 1024;
+const DEFAULT_ASSET_SCALE =
+    typeof LOGO_SCALE_DEFAULT !== 'undefined' ? LOGO_SCALE_DEFAULT : 100;
 
 const FIELDS = {
     country: 'id-country',
@@ -22,7 +24,10 @@ const ASSET_DEFINITIONS = [
         sectionIcon: 'fa-image',
         placeholderIcon: 'fa-camera',
         helpText: 'PNG أو JPG — حد أقصى 200 كيلوبايت',
-        wide: false
+        wide: false,
+        scaleable: true,
+        scaleKey: 'logo_scale',
+        scaleLabel: 'حجم الشعار في الوثائق'
     },
     {
         type: 'seal',
@@ -30,7 +35,10 @@ const ASSET_DEFINITIONS = [
         sectionIcon: 'fa-stamp',
         placeholderIcon: 'fa-stamp',
         helpText: 'PNG أو JPG — حد أقصى 200 كيلوبايت',
-        wide: false
+        wide: false,
+        scaleable: true,
+        scaleKey: 'seal_scale',
+        scaleLabel: 'حجم الختم في الوثائق'
     },
     {
         type: 'signature',
@@ -38,12 +46,36 @@ const ASSET_DEFINITIONS = [
         sectionIcon: 'fa-signature',
         placeholderIcon: 'fa-pen-nib',
         helpText: 'PNG أو JPG — حد أقصى 200 كيلوبايت — يُفضّل صورة بخلفية شفافة',
-        wide: true
+        wide: true,
+        scaleable: true,
+        scaleKey: 'signature_scale',
+        scaleLabel: 'حجم التوقيع في الوثائق'
     }
 ];
 
-const assets = Object.fromEntries(ASSET_DEFINITIONS.map((def) => [def.type, { base64: '', mime: 'image/png' }]));
+const assets = Object.fromEntries(
+    ASSET_DEFINITIONS.map((def) => [
+        def.type,
+        { base64: '', mime: 'image/png', scale: DEFAULT_ASSET_SCALE }
+    ])
+);
 const assetContainers = new Map();
+
+/** Same clamp used by logo / seal / signature (clampLogoScale). */
+function normalizeAssetScale(value) {
+    if (typeof clampLogoScale === 'function') return clampLogoScale(value);
+    const n = Number(value);
+    if (!Number.isFinite(n)) return DEFAULT_ASSET_SCALE;
+    return Math.min(250, Math.max(30, Math.round(n)));
+}
+
+/** Same sizing function as letterhead/footer: resolveLogoMaxPx(scale, basePx?). */
+function assetMaxPx(scale, basePx) {
+    if (typeof resolveLogoMaxPx === 'function') return resolveLogoMaxPx(scale, basePx);
+    const base = Number(basePx);
+    const resolvedBase = Number.isFinite(base) && base > 0 ? base : 80;
+    return Math.round((resolvedBase * normalizeAssetScale(scale)) / 100);
+}
 
 function inferMimeFromBase64(base64) {
     if (!base64) return 'image/png';
@@ -68,6 +100,25 @@ function setAssetTriggerLabel(type, hasAsset) {
     trigger.setAttribute('title', text);
 }
 
+function setScaleControlVisible(type, visible) {
+    const container = assetContainers.get(type);
+    if (!container) return;
+    const scaleControl = container.querySelector('.asset-scale-control');
+    if (!scaleControl) return;
+    const def = getAssetDefinition(type);
+    scaleControl.hidden = !(def?.scaleable && visible);
+}
+
+function setScaleControlValue(type, scale) {
+    const container = assetContainers.get(type);
+    if (!container) return;
+    const slider = container.querySelector('.asset-scale-slider');
+    const valueLabel = container.querySelector('.asset-scale-value');
+    const normalized = normalizeAssetScale(scale);
+    if (slider) slider.value = String(normalized);
+    if (valueLabel) valueLabel.textContent = `${normalized}%`;
+}
+
 function showAssetPreview(type, base64, mime) {
     const container = assetContainers.get(type);
     if (!container) return;
@@ -81,6 +132,7 @@ function showAssetPreview(type, base64, mime) {
     placeholder.hidden = true;
     removeBtn.hidden = false;
     setAssetTriggerLabel(type, true);
+    setScaleControlVisible(type, true);
 }
 
 function resetAssetPreview(type) {
@@ -95,6 +147,7 @@ function resetAssetPreview(type) {
     placeholder.hidden = false;
     removeBtn.hidden = true;
     setAssetTriggerLabel(type, false);
+    setScaleControlVisible(type, false);
 }
 
 function readAssetFile(file, onLoad) {
@@ -166,6 +219,15 @@ function renderAssetUploaders() {
         const removeLabel = node.querySelector('.asset-remove-label');
         if (removeLabel) removeLabel.textContent = `حذف ${def.label}`;
 
+        if (def.scaleable) {
+            const scaleText = node.querySelector('.asset-scale-text');
+            if (scaleText) scaleText.textContent = def.scaleLabel || 'حجم الصورة في الوثائق';
+            const scaleSlider = node.querySelector('.asset-scale-slider');
+            if (scaleSlider) {
+                scaleSlider.setAttribute('aria-label', def.scaleLabel || `نسبة حجم ${def.label}`);
+            }
+        }
+
         assetContainers.set(def.type, node);
         row.appendChild(node);
 
@@ -179,6 +241,8 @@ function wireAssetUploader(type, container) {
     const preview = container.querySelector('.asset-preview');
     const uploadBtn = container.querySelector('.asset-upload-btn');
     const removeBtn = container.querySelector('.asset-remove-btn');
+    const scaleSlider = container.querySelector('.asset-scale-slider');
+    const def = getAssetDefinition(type);
 
     const openPicker = () => fileInput?.click();
     uploadBtn?.addEventListener('click', openPicker);
@@ -187,16 +251,36 @@ function wireAssetUploader(type, container) {
     fileInput?.addEventListener('change', (event) => {
         const file = event.target.files?.[0];
         readAssetFile(file, (base64, mime) => {
-            assets[type] = { base64, mime };
+            const prevScale = assets[type]?.scale ?? DEFAULT_ASSET_SCALE;
+            assets[type] = { base64, mime, scale: prevScale };
             showAssetPreview(type, base64, mime);
         });
         if (event.target) event.target.value = '';
     });
 
     removeBtn?.addEventListener('click', () => {
-        assets[type] = { base64: '', mime: 'image/png' };
+        assets[type] = {
+            base64: '',
+            mime: 'image/png',
+            scale: assets[type]?.scale ?? DEFAULT_ASSET_SCALE
+        };
         resetAssetPreview(type);
     });
+
+    if (def?.scaleable && scaleSlider) {
+        scaleSlider.addEventListener('input', () => {
+            const scale = normalizeAssetScale(scaleSlider.value);
+            assets[type].scale = scale;
+            setScaleControlValue(type, scale);
+            // Live-refresh letterhead preview if it is already open
+            const previewSection = document.getElementById('preview-section');
+            if (previewSection && !previewSection.hidden) {
+                renderLetterheadPreview();
+            }
+        });
+        setScaleControlValue(type, assets[type].scale);
+        setScaleControlVisible(type, false);
+    }
 }
 
 async function loadIdentity() {
@@ -211,10 +295,17 @@ async function loadIdentity() {
 
         for (const def of ASSET_DEFINITIONS) {
             const stored = identity[`${def.type}_base64`];
+            const scale = def.scaleable
+                ? normalizeAssetScale(identity[def.scaleKey] ?? DEFAULT_ASSET_SCALE)
+                : DEFAULT_ASSET_SCALE;
+            assets[def.type] = {
+                base64: stored || '',
+                mime: stored ? inferMimeFromBase64(stored) : 'image/png',
+                scale
+            };
+            if (def.scaleable) setScaleControlValue(def.type, scale);
             if (stored) {
-                const mime = inferMimeFromBase64(stored);
-                assets[def.type] = { base64: stored, mime };
-                showAssetPreview(def.type, stored, mime);
+                showAssetPreview(def.type, stored, assets[def.type].mime);
             }
         }
     } catch (err) {
@@ -229,9 +320,14 @@ async function saveIdentity() {
         updates[key] = element ? element.value.trim() : '';
     }
 
-    updates.logo_base64 = assets.logo.base64;
-    updates.seal_base64 = assets.seal.base64;
-    updates.signature_base64 = assets.signature.base64;
+    for (const def of ASSET_DEFINITIONS) {
+        updates[`${def.type}_base64`] = assets[def.type].base64;
+        if (def.scaleable && def.scaleKey) {
+            updates[def.scaleKey] = String(
+                normalizeAssetScale(assets[def.type].scale ?? DEFAULT_ASSET_SCALE)
+            );
+        }
+    }
 
     try {
         await window.api.reports.updateIdentity(updates);
@@ -267,7 +363,8 @@ function renderLetterheadPreview() {
     const schoolCode = getValue('id-school-code');
     const commune = getValue('id-commune');
     const schoolYear = getValue('id-school-year');
-    const { base64: logo, mime: logoMime } = assets.logo;
+    const { base64: logo, mime: logoMime, scale: logoScale } = assets.logo;
+    const logoPx = assetMaxPx(logoScale);
 
     const html = `
         <div class="doc-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px;">
@@ -282,7 +379,7 @@ function renderLetterheadPreview() {
                     <td style="width: 10%; text-align: center; vertical-align: middle;">
                         ${
                             logo
-                                ? `<img src="data:${logoMime};base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+                                ? `<img src="data:${logoMime};base64,${logo}" style="max-width: ${logoPx}px; max-height: ${logoPx}px;" alt="logo">`
                                 : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
                         }
                     </td>

@@ -48,18 +48,39 @@ const PUSH_DEBOUNCE_MS = 8000;
  *   preCapture:  boolean   - true if IDs must be collected BEFORE handler runs
  *   bulk:        boolean   - true if handler processes multiple rows
  *   exclude:     boolean   - true to skip capture (read-only channels using handleWrite)
+ *   captureMode: 'wrapper' | 'explicit' — explicit = handler/repo writes outbox atomically
  */
 const CHANNEL_REGISTRY = {
     // === absences.js ===
     'absences:save': { tables: ['absences'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
-    'absences:saveBulk': { tables: ['absences'], operation: 'UPSERT', idExtractor: 'inputArray', bulk: true },
+    'absences:saveBulk': {
+        tables: ['absences'],
+        operation: 'UPSERT',
+        idExtractor: 'inputArray',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true,
+        localKeyFields: ['school_year', 'student_code', 'month', 'absence_type']
+    },
     'absences:delete': { tables: ['absences'], operation: 'DEL', idExtractor: 'argId' },
     'absences:deleteByYear': {
         tables: ['absences'],
         operation: 'DEL',
         idExtractor: 'preQuery',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
+    },
+    // Atomic import apply: delete year + bulk upsert in one repo transaction
+    'absences:replaceByYear': {
+        tables: ['absences'],
+        operation: 'MIXED',
+        idExtractor: 'inputArray',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true,
+        localKeyFields: ['school_year', 'student_code', 'month', 'absence_type']
     },
     'correspondence:save': { tables: ['correspondence'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
     'correspondence:markPrinted': { tables: ['correspondence'], operation: 'PUT', idExtractor: 'argId' },
@@ -73,7 +94,9 @@ const CHANNEL_REGISTRY = {
         operation: 'MIXED',
         idExtractor: 'preQuery+bulk',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'examProctors:delete': { tables: ['exam_proctors'], operation: 'DEL', idExtractor: 'argId' },
     'examProctors:bulkImport': {
@@ -81,14 +104,18 @@ const CHANNEL_REGISTRY = {
         operation: 'MIXED',
         idExtractor: 'preQuery+bulk',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'examProctors:deleteAll': {
         tables: ['exam_proctors'],
         operation: 'MIXED',
         idExtractor: 'preQuery+bulk',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'examRooms:save': { tables: ['exam_rooms'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'examRooms:delete': { tables: ['exam_rooms'], operation: 'DEL', idExtractor: 'argId' },
@@ -101,7 +128,9 @@ const CHANNEL_REGISTRY = {
         operation: 'MIXED',
         idExtractor: 'preQuery+bulk',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'examAttendance:upsert': { tables: ['exam_attendance'], operation: 'UPSERT', idExtractor: 'argIdOrLastInsert' },
     'examAttendance:bulkUpsert': {
@@ -109,7 +138,9 @@ const CHANNEL_REGISTRY = {
         operation: 'UPSERT',
         idExtractor: 'preQuery+bulk',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'examAttendance:delete': { tables: ['exam_attendance'], operation: 'DEL', idExtractor: 'argId' },
     'examAttendance:deleteAll': {
@@ -117,7 +148,9 @@ const CHANNEL_REGISTRY = {
         operation: 'MIXED',
         idExtractor: 'preQuery+bulk',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
 
     // === schoolOps.js ===
@@ -126,7 +159,10 @@ const CHANNEL_REGISTRY = {
         tables: ['student_files'],
         operation: 'UPSERT',
         idExtractor: 'inputArray',
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true,
+        localKeyFields: ['student_id', 'doc_key', 'school_year']
     },
     'studentFiles:setDocumentStatus': {
         tables: ['student_files'],
@@ -171,19 +207,25 @@ const CHANNEL_REGISTRY = {
         operation: 'MIXED',
         idExtractor: 'preQuery',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'teachers:saveTafwijAliases': {
         tables: ['teacher_aliases'],
         operation: 'PUT',
         idExtractor: 'inputArray',
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'teachers:importBulk': {
         tables: ['teachers', 'teacher_aliases'],
         operation: 'UPSERT',
         idExtractor: 'inputArray',
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'teachers:saveNameAlias': { tables: ['name_aliases'], operation: 'UPSERT', idExtractor: 'argIdOrLastInsert' },
     'teachers:deleteNameAlias': { tables: ['name_aliases'], operation: 'DEL', idExtractor: 'argId' },
@@ -192,20 +234,31 @@ const CHANNEL_REGISTRY = {
     'schoolEvents:save': { tables: ['school_events'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
     'schoolEvents:delete': { tables: ['school_events'], operation: 'DEL', idExtractor: 'argId' },
     'systemTags:save': { tables: ['system_tags'], operation: 'PUT', idExtractor: 'argIdOrLastInsert' },
-    'systemTags:saveNote': { tables: ['system_tags'], operation: 'PUT', idExtractor: 'inputArray', bulk: true },
+    'systemTags:saveNote': {
+        tables: ['system_tags'],
+        operation: 'PUT',
+        idExtractor: 'inputArray',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
+    },
     'systemTags:delete': { tables: ['system_tags'], operation: 'DEL', idExtractor: 'argId' },
     'systemTags:deleteByGroup': {
         tables: ['system_tags'],
         operation: 'DEL',
         idExtractor: 'preQuery',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'compensation:saveBatch': {
         tables: ['compensation_tracking'],
         operation: 'PUT',
         idExtractor: 'inputArray',
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'compensation:toggleCompensated': { tables: ['compensation_tracking'], operation: 'PUT', idExtractor: 'argId' },
     'supportSessions:add': { tables: ['support_sessions'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
@@ -214,12 +267,50 @@ const CHANNEL_REGISTRY = {
         tables: ['support_sessions'],
         operation: 'UPSERT',
         idExtractor: 'inputArray',
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
+
+    // === orientation.js ===
+    // Exact bulk: each inserted/updated student_orientation row is written to the
+    // sync outbox individually via captureInputUpserts inside the same SQLite
+    // transaction (main/repos/orientation.js bulkUpsert — not the IPC summary).
+    // Record key for sync: school_year + student_code (localKeyFields).
+    // Operations distinguished as PUT (insert or non-destructive update). Unchanged
+    // rows are not captured. If capture throws mid-transaction, the whole batch
+    // rolls back (mapped to SYNC_ERROR / IMPORT_ROLLBACK at the IPC layer).
+    // Normal import must never call orientation:clearYear.
+    'orientation:bulkUpsert': {
+        tables: ['student_orientation'],
+        operation: 'UPSERT',
+        idExtractor: 'inputArray',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true,
+        localKeyFields: ['school_year', 'student_code']
+    },
+    // Explicit year-wide delete only (settings UI). Outside automatic capture so a
+    // bulk clear is never mistaken for per-row DELs; re-import re-syncs via bulkUpsert.
+    'orientation:clearYear': {
+        tables: ['student_orientation'],
+        operation: 'DEL',
+        exclude: true
+    },
+    // Individual row delete — single DEL outbox entry by id.
+    'orientation:delete': { tables: ['student_orientation'], operation: 'DEL', idExtractor: 'argId' },
 
     // === students.js ===
     'students:add': { tables: ['students'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
-    'students:addBulk': { tables: ['students'], operation: 'UPSERT', idExtractor: 'inputArray', bulk: true },
+    'students:addBulk': {
+        tables: ['students'],
+        operation: 'UPSERT',
+        idExtractor: 'inputArray',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true,
+        localKeyFields: ['school_year', 'code']
+    },
     'students:update': { tables: ['students'], operation: 'PUT', idExtractor: 'argId' },
     'students:delete': { tables: ['students'], operation: 'DEL', idExtractor: 'argId' },
     'students:deleteByYear': {
@@ -227,9 +318,19 @@ const CHANNEL_REGISTRY = {
         operation: 'DEL',
         idExtractor: 'preQuery',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
-    'students:updateStatusBulk': { tables: ['students'], operation: 'PUT', idExtractor: 'inputArray', bulk: true },
+    'students:updateStatusBulk': {
+        tables: ['students'],
+        operation: 'PUT',
+        idExtractor: 'inputArray',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true,
+        localKeyFields: ['id']
+    },
     'studentProfile:saveTab': { tables: ['student_profile_data'], operation: 'UPSERT', idExtractor: 'compositeKey' },
     'studentProfile:saveRiskSnapshot': {
         tables: ['student_risk_snapshot'],
@@ -239,21 +340,40 @@ const CHANNEL_REGISTRY = {
     'settings:set': { tables: ['settings'], operation: 'PUT', idExtractor: 'argKey' },
     'settings:setSchoolYear': { tables: ['settings'], operation: 'PUT', idExtractor: 'literal' },
     'grades:save': { tables: ['grades'], operation: 'PUT', idExtractor: 'compositeKey' },
-    'grades:saveBulk': { tables: ['grades'], operation: 'PUT', idExtractor: 'inputArray', bulk: true },
-    'grades:reassignTeacherBulk': { tables: ['grades'], operation: 'PUT', idExtractor: 'queryMatch', bulk: true },
+    'grades:saveBulk': {
+        tables: ['grades'],
+        operation: 'PUT',
+        idExtractor: 'inputArray',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true,
+        localKeyFields: ['school_year', 'student_code', 'subject', 'semester']
+    },
+    'grades:reassignTeacherBulk': {
+        tables: ['grades'],
+        operation: 'PUT',
+        idExtractor: 'queryMatch',
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
+    },
     'grades:deleteByYear': {
         tables: ['grades'],
         operation: 'DEL',
         idExtractor: 'preQuery',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
     'grades:deleteBySemester': {
         tables: ['grades'],
         operation: 'DEL',
         idExtractor: 'preQuery',
         preCapture: true,
-        bulk: true
+        bulk: true,
+        captureMode: 'explicit',
+        exclude: true
     },
 
     // === staffAttendance.js ===
@@ -291,6 +411,7 @@ const CHANNEL_REGISTRY = {
     'sync:triggerNow': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:resolveConflict': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:testConnection': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'sync:quarantineLegacyBulk': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
 
     // === timetable-data.js ===
     'timetableData:save': { tables: ['timetable_data'], operation: 'UPSERT', idExtractor: 'argKey', exclude: true },
@@ -387,6 +508,135 @@ function recordOutboxEntries(db, entries) {
     txn();
 }
 
+/**
+ * Resolve rows by declared local key fields and write one outbox PUT per row.
+ * Intended to run inside the same SQLite transaction as the mutation (WP1 D2).
+ *
+ * @param {object} db
+ * @param {{ tableName: string, keyFields: string[], items: object[], operation?: string }} opts
+ * @returns {object[]} resolved rows
+ */
+function captureInputUpserts(db, opts) {
+    const tableName = opts.tableName;
+    const keyFields = opts.keyFields;
+    const items = opts.items || [];
+    const operation = opts.operation || 'PUT';
+
+    if (!tableName || !Array.isArray(keyFields) || !keyFields.length) {
+        throw new Error('[sync:capture] captureInputUpserts requires tableName and keyFields');
+    }
+
+    if (!items.length) {
+        return [];
+    }
+
+    const where = keyFields.map((f) => `"${f}" = ?`).join(' AND ');
+    const select = db.prepare(`SELECT * FROM "${tableName}" WHERE ${where}`);
+    const resolved = [];
+
+    for (const item of items) {
+        const params = keyFields.map((f) => {
+            if (item[f] === undefined || item[f] === null || String(item[f]).trim() === '') {
+                throw new Error(
+                    `[sync:capture] Missing key field '${f}' for ${tableName} after mutation`
+                );
+            }
+            return item[f];
+        });
+        const row = select.get(...params);
+        if (!row) {
+            throw new Error(
+                `[sync:capture] Row not found after mutation in ${tableName} ` +
+                    `(${keyFields.map((f, i) => `${f}=${params[i]}`).join(', ')})`
+            );
+        }
+        if (row.id == null) {
+            throw new Error(`[sync:capture] Resolved ${tableName} row has no id`);
+        }
+        recordOutboxEntry(db, tableName, row.id, operation, row, row.school_year || item.school_year || null);
+        resolved.push(row);
+    }
+
+    return resolved;
+}
+
+/**
+ * Write outbox entries for already-resolved rows (must include numeric `id`).
+ * Safe inside an open transaction; does not open a nested one.
+ */
+function captureResolvedRows(db, tableName, rows, operation = 'PUT') {
+    for (const row of rows) {
+        if (!row || row.id == null) {
+            throw new Error(`[sync:capture] captureResolvedRows requires row.id for ${tableName}`);
+        }
+        recordOutboxEntry(db, tableName, row.id, operation, row, row.school_year || null);
+    }
+}
+
+/**
+ * Capture PUT outbox rows for a list of local IDs (re-read from DB).
+ * Skips missing IDs; throws if any id is invalid.
+ */
+function capturePutsByIds(db, tableName, ids, schoolYear = null) {
+    if (!ids || !ids.length) return [];
+    const select = db.prepare(`SELECT * FROM "${tableName}" WHERE id = ?`);
+    const resolved = [];
+    for (const rawId of ids) {
+        const id = Number(rawId);
+        if (!Number.isFinite(id) || id <= 0) {
+            throw new Error(`[sync:capture] Invalid id for ${tableName}: ${rawId}`);
+        }
+        const row = select.get(id);
+        if (!row) {
+            throw new Error(`[sync:capture] Row id=${id} missing in ${tableName} after mutation`);
+        }
+        recordOutboxEntry(db, tableName, row.id, 'PUT', row, schoolYear || row.school_year || null);
+        resolved.push(row);
+    }
+    return resolved;
+}
+
+/**
+ * Capture DEL entries from pre-selected full rows (must run before DELETE).
+ */
+function captureDeletesFromRows(db, tableName, rows) {
+    if (!rows || !rows.length) return 0;
+    for (const row of rows) {
+        if (!row || row.id == null) {
+            throw new Error(`[sync:capture] captureDeletesFromRows requires row.id for ${tableName}`);
+        }
+        recordOutboxEntry(db, tableName, row.id, 'DEL', row, row.school_year || null);
+    }
+    return rows.length;
+}
+
+/**
+ * Select all rows for a school year (helper for year-scoped bulk deletes).
+ */
+function selectRowsBySchoolYear(db, tableName, schoolYear) {
+    return db.prepare(`SELECT * FROM "${tableName}" WHERE school_year = ?`).all(schoolYear);
+}
+
+/**
+ * Delete all rows for a school year and capture exact DEL outbox entries.
+ * Must be called inside or as a transaction.
+ * @returns {number} deleted count
+ */
+function deleteBySchoolYearWithCapture(db, tableName, schoolYear) {
+    const rows = selectRowsBySchoolYear(db, tableName, schoolYear);
+    if (rows.length) {
+        captureDeletesFromRows(db, tableName, rows);
+    }
+    return db.prepare(`DELETE FROM "${tableName}" WHERE school_year = ?`).run(schoolYear).changes;
+}
+
+/**
+ * Notify push scheduler after an explicit-capture transaction commits.
+ */
+function notifyCaptureCommitted() {
+    scheduleDebouncedPush();
+}
+
 function scheduleDebouncedPush() {
     if (_pushDebounceTimer) {
         clearTimeout(_pushDebounceTimer);
@@ -439,8 +689,8 @@ function attachCaptureWarning(result) {
 function wrapWithSyncCapture(channel, originalHandler, options = {}) {
     const registryEntry = CHANNEL_REGISTRY[channel];
 
-    // Skip channels not in registry or explicitly excluded
-    if (!registryEntry || registryEntry.exclude) {
+    // Skip channels not in registry, excluded, or using explicit atomic capture (WP1).
+    if (!registryEntry || registryEntry.exclude || registryEntry.captureMode === 'explicit') {
         return originalHandler;
     }
 
@@ -846,6 +1096,13 @@ module.exports = {
     getDeviceName,
     recordOutboxEntries,
     recordOutboxEntry,
+    captureInputUpserts,
+    captureResolvedRows,
+    capturePutsByIds,
+    captureDeletesFromRows,
+    selectRowsBySchoolYear,
+    deleteBySchoolYearWithCapture,
+    notifyCaptureCommitted,
     setCaptureGetDb,
     startOutboxCleanup,
     stopOutboxCleanup,

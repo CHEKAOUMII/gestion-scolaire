@@ -76,6 +76,7 @@ const PAGE_LABELS = {
     'students-files.html': { title: 'ترتيب الملفات', group: 'التلاميذ' },
     'students-movement.html': { title: 'حركية التلاميذ', group: 'التلاميذ' },
     'students-status.html': { title: 'الوضعية الدراسية', group: 'التلاميذ' },
+    'students-orientation.html': { title: 'التوجيه المدرسي', group: 'التلاميذ' },
     'student-profile-prototype.html': { title: 'ملف التلميذ', group: 'التلاميذ' },
     'teachers-list.html': { title: 'قائمة الأساتذة', group: 'تدبير الموظفين' },
     'inspectors.html': { title: 'المفتشون', group: 'تدبير الموظفين' },

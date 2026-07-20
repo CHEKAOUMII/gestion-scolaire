@@ -16,8 +16,9 @@ let year;
             let scheduleList = [];
             let addedLevels = [];
 
+            // periodsList is a page-level cache refreshed from examConfig (status/readiness).
+            // CRUD UI lives in ExamProctorsPeriodsPanel (js/pages/exams-proctors/periods-panel.js).
             let periodsList = [];
-            let periodEditIdx = -1;
             let exemptionsData = {};
             let dutyData = {};
             let reservesData = {};
@@ -28,18 +29,20 @@ let year;
             let autoDistributionResult = [];
             let autoDistributionSummary = null;
 
-            const DISTRIBUTION_STEP_LABELS = {
-                'proctors-data': 'لائحة المراقبين',
-                participants: 'المشاركون الإضافيون',
-                'exemptions-duty': 'الإعفاءات والمداومة',
-                periods: 'تحديد فترات الامتحان',
-                'morning-evening': 'توزيع المجموعتين المتناوبتين',
-                'proctors-per-room': 'عدد المراقبين في كل قاعة',
-                'reserves-per-session': 'عدد الاحتياطي في كل حصة',
-                reserves: 'لائحة الاحتياطيين',
-                'manual-adjust': 'التعديل اليدوي',
-                'auto-distribute': 'التوزيع الآلي'
-            };
+            // WP7: labels live in js/pages/exams-proctors/step-labels.js (loaded before this file when present).
+            const DISTRIBUTION_STEP_LABELS =
+                (window.ExamProctorsStepLabels && window.ExamProctorsStepLabels.DISTRIBUTION_STEP_LABELS) || {
+                    'proctors-data': 'لائحة المراقبين',
+                    participants: 'المشاركون الإضافيون',
+                    'exemptions-duty': 'الإعفاءات والمداومة',
+                    periods: 'تحديد فترات الامتحان',
+                    'morning-evening': 'توزيع المجموعتين المتناوبتين',
+                    'proctors-per-room': 'عدد المراقبين في كل قاعة',
+                    'reserves-per-session': 'عدد الاحتياطي في كل حصة',
+                    reserves: 'لائحة الاحتياطيين',
+                    'manual-adjust': 'التعديل اليدوي',
+                    'auto-distribute': 'التوزيع الآلي'
+                };
 
             // Migration: js/exams/exam-config-migration.js → window.ExamConfigMigration
             async function migrateExamLocalStorageToDb() {
@@ -71,7 +74,7 @@ let year;
                     });
                 }
                 await initDistSettings();
-                await initPeriodsPanel();
+                await initPeriodsPanelFromModule();
                 await initExemptionsDutyMatrix();
                 await initDistributionRulesPanel();
                 await loadBannerFromConfig();
@@ -542,163 +545,35 @@ let year;
                 showToast('تم حفظ قاعدة التوزيع', 'success');
             }
 
-            /* ═══ Periods Panel ═══ */
-            async function initPeriodsPanel() {
-                periodsList = (await window.api.examConfig.get(year, 'examPeriodsData')) || [];
-                renderPeriodsTable();
-                resetPeriodForm();
+            /* ═══ Periods Panel (WP7 → js/pages/exams-proctors/periods-panel.js) ═══ */
+            async function initPeriodsPanelFromModule() {
+                const panel = window.ExamProctorsPeriodsPanel;
+                if (!panel || typeof panel.init !== 'function') {
+                    console.warn('[exams-proctors] ExamProctorsPeriodsPanel missing — load periods-panel.js before this file');
+                    return;
+                }
+                await panel.init({
+                    getSchoolYear: () => year,
+                    api: window.api,
+                    showToast,
+                    showConfirm,
+                    formatDateAr: typeof formatDateAr === 'function' ? formatDateAr : (v) => v,
+                    async onChanged(payload) {
+                        if (payload && Array.isArray(payload.periods)) {
+                            periodsList = payload.periods.slice();
+                        } else if (typeof panel.getPeriods === 'function') {
+                            periodsList = panel.getPeriods();
+                        }
+                        await renderPlanningReadiness();
+                        await updateDistStatuses();
+                    }
+                });
+                // Seed page cache after init
+                if (typeof panel.getPeriods === 'function') {
+                    periodsList = panel.getPeriods();
+                }
                 await renderPlanningReadiness();
                 await updateDistStatuses();
-
-                document.getElementById('btn-period-save').addEventListener('click', savePeriod);
-                document.getElementById('btn-period-add').addEventListener('click', () => {
-                    periodEditIdx = -1;
-                    resetPeriodForm();
-                });
-                document.getElementById('btn-period-cancel').addEventListener('click', () => {
-                    periodEditIdx = -1;
-                    resetPeriodForm();
-                });
-                document.getElementById('btn-periods-clear-all').addEventListener('click', clearAllPeriods);
-            }
-
-            function resetPeriodForm() {
-                document.getElementById('period-name').value = '';
-                document.getElementById('period-date-from').value = '';
-                document.getElementById('period-date-to').value = '';
-                document.getElementById('period-num').value = periodEditIdx >= 0 ? periodEditIdx + 1 : periodsList.length + 1;
-                periodEditIdx = -1;
-                document.getElementById('btn-period-edit-mode').style.display = 'none';
-                document.getElementById('btn-period-save').style.display = '';
-            }
-
-            async function savePeriod() {
-                const name = document.getElementById('period-name').value.trim();
-                const dateFrom = document.getElementById('period-date-from').value;
-                const dateTo = document.getElementById('period-date-to').value;
-
-                if (!name) { showToast('يرجى إدخال اسم الفترة', 'warning'); return; }
-                if (!dateFrom || !dateTo) { showToast('يرجى تحديد تاريخ البداية والنهاية', 'warning'); return; }
-                if (dateFrom > dateTo) { showToast('تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 'warning'); return; }
-
-                const entry = { name, date_from: dateFrom, date_to: dateTo };
-
-                if (periodEditIdx >= 0) {
-                    periodsList[periodEditIdx] = entry;
-                    showToast('تم تعديل الفترة بنجاح', 'success');
-                } else {
-                    periodsList.push(entry);
-                    showToast('تمت إضافة الفترة بنجاح', 'success');
-                }
-
-                await window.api.examConfig.save({ school_year: year, config_key: 'examPeriodsData', data: periodsList });
-                periodEditIdx = -1;
-                resetPeriodForm();
-                renderPeriodsTable();
-                await updateDistStatuses();
-            }
-
-            function renderPeriodsTable() {
-                const tbody = document.getElementById('periods-tbody');
-                tbody.textContent = '';
-
-                if (!periodsList.length) {
-                    const tr = document.createElement('tr');
-                    const td = document.createElement('td');
-                    td.colSpan = 5;
-                    td.style.cssText = 'padding:30px;text-align:center;color:var(--color-text-muted)';
-                    const icon = document.createElement('i');
-                    icon.className = 'fas fa-info-circle';
-                    icon.style.marginLeft = '6px';
-                    td.appendChild(icon);
-                    td.appendChild(document.createTextNode('لم يتم تحديد أي فترة بعد'));
-                    tr.appendChild(td);
-                    tbody.appendChild(tr);
-                } else {
-                    periodsList.forEach((p, i) => {
-                        const tr = document.createElement('tr');
-
-                        const tdNum = document.createElement('td');
-                        tdNum.textContent = i + 1;
-                        tr.appendChild(tdNum);
-
-                        const tdName = document.createElement('td');
-                        tdName.style.fontWeight = '600';
-                        tdName.textContent = p.name;
-                        tr.appendChild(tdName);
-
-                        const tdFrom = document.createElement('td');
-                        tdFrom.textContent = formatDateAr(p.date_from);
-                        tr.appendChild(tdFrom);
-
-                        const tdTo = document.createElement('td');
-                        tdTo.textContent = formatDateAr(p.date_to);
-                        tr.appendChild(tdTo);
-
-                        const tdActions = document.createElement('td');
-                        tdActions.className = 'no-print';
-
-                        const editBtn = document.createElement('button');
-                        editBtn.className = 'sup-del-btn';
-                        editBtn.title = 'تعديل';
-                        editBtn.addEventListener('click', () => editPeriod(i));
-                        const editIcon = document.createElement('i');
-                        editIcon.className = 'fas fa-edit';
-                        editBtn.appendChild(editIcon);
-
-                        const delBtn = document.createElement('button');
-                        delBtn.className = 'sup-del-btn';
-                        delBtn.title = 'حذف';
-                        delBtn.addEventListener('click', () => deletePeriod(i));
-                        const delIcon = document.createElement('i');
-                        delIcon.className = 'fas fa-times';
-                        delBtn.appendChild(delIcon);
-
-                        tdActions.appendChild(editBtn);
-                        tdActions.appendChild(document.createTextNode(' '));
-                        tdActions.appendChild(delBtn);
-                        tr.appendChild(tdActions);
-
-                        tbody.appendChild(tr);
-                    });
-                }
-                document.getElementById('period-count-badge').textContent = periodsList.length;
-            }
-
-            function editPeriod(idx) {
-                if (idx < 0 || idx >= periodsList.length) return;
-                const p = periodsList[idx];
-                periodEditIdx = idx;
-                document.getElementById('period-name').value = p.name;
-                document.getElementById('period-date-from').value = p.date_from;
-                document.getElementById('period-date-to').value = p.date_to;
-                document.getElementById('period-num').value = idx + 1;
-                document.getElementById('btn-period-edit-mode').style.display = '';
-                document.getElementById('btn-period-save').style.display = '';
-            }
-
-            async function deletePeriod(idx) {
-                if (idx < 0 || idx >= periodsList.length) return;
-                const r = await showConfirm({ type: 'danger', title: 'حذف فترة', message: 'حذف "' + periodsList[idx].name + '"؟', confirmText: 'حذف' });
-                if (!r.confirmed) return;
-                periodsList.splice(idx, 1);
-                await window.api.examConfig.save({ school_year: year, config_key: 'examPeriodsData', data: periodsList });
-                renderPeriodsTable();
-                resetPeriodForm();
-                await updateDistStatuses();
-                showToast('تم حذف الفترة', 'success');
-            }
-
-            async function clearAllPeriods() {
-                if (!periodsList.length) { showToast('لا توجد فترات', 'warning'); return; }
-                const r = await showConfirm({ type: 'danger', title: 'حذف الكل', message: 'حذف جميع الفترات (' + periodsList.length + ')؟', confirmText: 'حذف الكل' });
-                if (!r.confirmed) return;
-                periodsList = [];
-                await window.api.examConfig.delete({ school_year: year, config_key: 'examPeriodsData' });
-                renderPeriodsTable();
-                resetPeriodForm();
-                await updateDistStatuses();
-                showToast('تم حذف جميع الفترات', 'success');
             }
 
             // CH4: formatDateAr default style 'dmy' via js/shared/date-utils.js

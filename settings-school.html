@@ -8,6 +8,9 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -146,6 +149,25 @@
                                         <span class="asset-remove-label">حذف</span>
                                     </button>
                                     <span class="asset-help-text"></span>
+                                </div>
+                                <div class="asset-scale-control" hidden>
+                                    <label class="asset-scale-label">
+                                        <span class="asset-scale-text">حجم الصورة في الوثائق</span>
+                                        <span class="asset-scale-value" dir="ltr">100%</span>
+                                    </label>
+                                    <input
+                                        type="range"
+                                        class="asset-scale-slider"
+                                        min="30"
+                                        max="250"
+                                        step="5"
+                                        value="100"
+                                        aria-label="نسبة حجم الصورة"
+                                    />
+                                    <div class="asset-scale-hints" aria-hidden="true">
+                                        <span>صغير</span>
+                                        <span>كبير</span>
+                                    </div>
                                 </div>
                             </div>
                             <input type="file" class="asset-file-input" accept="image/png,image/jpeg" hidden />

@@ -9,6 +9,9 @@
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
 
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/shared/timetable-view.js" defer></script>
         <script src="js/notifications.js" defer></script>
@@ -268,7 +271,15 @@
                     <i class="fas fa-calendar-alt"></i>
                     <h3>لا توجد بيانات جداول الحصص</h3>
                     <p>
-                        يرجى استيراد ملف FET أو XML من صفحة <a href="settings-imports.html">استيراد البيانات</a> أولاً
+                        يرجى استيراد ملف FET أو XML من صفحة
+                        <a
+                            data-import-shortcut
+                            data-import-type="fet"
+                            data-import-source="timetable"
+                            href="settings-imports.html?type=fet&amp;source=timetable"
+                            >استيراد البيانات (FET)</a
+                        >
+                        أولاً
                     </p>
                 </div>
                 </div>
@@ -630,6 +641,7 @@
         <script src="js/data/ma-education-labels.js" defer></script>
         <script src="js/shared/fet-import.js" defer></script>
         <script src="js/shared/timetable-move-logic.js" defer></script>
+        <script src="js/shared/orientation-topbar-print.js" defer></script>
         <script src="js/pages/timetable.js" defer></script>
     </body>
 </html>

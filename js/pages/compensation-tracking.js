@@ -317,6 +317,9 @@
                     }, 500);
                 });
 
+                // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+                (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
+
                 // Enter key on filters triggers full reload
                 document.querySelectorAll('.filter-group input, .filter-group select').forEach((el) => {
                     el.addEventListener('keydown', (e) => {

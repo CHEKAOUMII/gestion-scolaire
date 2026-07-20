@@ -9,6 +9,8 @@ module.exports = [
     'students-register.html',
     'students-files.html',
     'students-movement.html',
+    'students-status.html',
+    'students-orientation.html',
     'teachers-list.html',
     'inspectors.html',
     'teachers-schedule.html',

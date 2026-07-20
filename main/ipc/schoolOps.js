@@ -42,6 +42,8 @@ function registerSchoolOpsIpc(ipcMain) {
     });
 
     handleWrite(ipcMain, 'studentFiles:upsertBulk', WRITE_ROLES, (db, _event, items) => {
+        const { captureInputUpserts, notifyCaptureCommitted } = require('../sync/capture');
+        const list = Array.isArray(items) ? items : [];
         const upsert = db.prepare(`
                 INSERT INTO student_files(student_id, doc_key, is_present, school_year, updated_at)
                 VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -52,9 +54,16 @@ function registerSchoolOpsIpc(ipcMain) {
             for (const payload of rows) {
                 upsert.run(payload.student_id, payload.doc_key, payload.is_present ? 1 : 0, payload.school_year);
             }
+            captureInputUpserts(db, {
+                tableName: 'student_files',
+                keyFields: ['student_id', 'doc_key', 'school_year'],
+                items: rows,
+                operation: 'PUT'
+            });
         });
-        upsertMany(items);
-        return { success: true, count: items.length };
+        upsertMany(list);
+        notifyCaptureCommitted();
+        return { success: true, count: list.length };
     });
 
     handleWrite(ipcMain, 'studentFiles:setDocumentStatus', WRITE_ROLES, (db, _event, payload) => {

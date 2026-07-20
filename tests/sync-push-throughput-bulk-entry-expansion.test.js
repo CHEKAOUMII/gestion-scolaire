@@ -1,25 +1,13 @@
 'use strict';
 
-// Unit tests — sync-push-throughput-optimization
+// Unit tests — bulk-entry expansion (SOLID WP0/WP1 / plan D3)
 //
-// Spec: .kiro/specs/sync-push-throughput-optimization/
-// Task 6.7 — Bulk-entry expansion behavior:
-//   - `expandBulkEntry` invocation ordering before enqueue: the prepared-item
-//     buffer is flushed BEFORE a bulk entry is expanded/dispatched, so bulk
-//     entries are never interleaved into a concurrent group with preceding
-//     non-bulk items (Req 5.2).
-//   - Zero expanded documents -> mark the bulk entry sent, dispatch none (Req 5.4).
-//   - Expansion failure (parse failure / unknown table / unknown channel /
-//     read failure) -> dispatch none and surface the error; the entry is handled
-//     (skipped) rather than dispatched (Req 5.5).
-//
-// Exercises the REAL exported `expandBulkEntry` and `processOutboxRow` from
-// main/sync/engine.js. Only the SQLite execution layer is substituted with a
-// faithful recording stub (same philosophy as tests/fixtures/sync-outbox-db.js):
-// the engine functions under test are the genuine production functions. No
-// Firestore is touched — every assertion below keeps the expansion result empty,
-// so `flushExpandedEntries` (the only path that dispatches documents) is never
-// reached, and the `firestoreDb` argument is a guard that throws if used.
+// Desired semantics (replaces unsafe mark-sent-on-failure baseline):
+//   - expandBulkEntry returns typed { status, entries, error }
+//   - Malformed / unknown channel / unknown table / legacy summary → status 'error'
+//   - processOutboxRow never marks 'error' expansions as sent
+//   - Valid empty exact expansion → mark sent
+//   - Buffer still flushes before bulk expansion (ordering)
 
 const assert = require('assert');
 
@@ -27,25 +15,12 @@ const { expandBulkEntry, processOutboxRow } = require('../main/sync/engine');
 
 let checks = 0;
 
-console.log('[unit] sync-push-throughput bulk-entry expansion (Req 5.2, 5.4, 5.5)');
+console.log('[unit] sync bulk-entry expansion (typed outcomes D3)');
 
-// ---------------------------------------------------------------------------
-// Test doubles
-// ---------------------------------------------------------------------------
-
-// A recording SQLite stub. It records every prepared statement (normalized) into
-// `db.events` and returns faithful run/get/all shapes for exactly the closed set
-// of statements `expandBulkEntry`, `bumpRetryCount`, and `markEntrySent` execute.
-// Any unrecognized statement throws loudly so a future engine change surfaces here.
 function createRecordingDb(opts = {}) {
     const {
-        // Columns returned by PRAGMA table_info("<table>").
-        pragmaColumns = [{ name: 'id' }, { name: 'school_year' }],
-        // Rows returned by SELECT * FROM "<table>".
-        selectRows = [],
-        // When true, SELECT * FROM "<table>" throws (simulates a read failure).
+        byIdRows = {},
         throwOnRead = false,
-        // Backing values markEntrySent reads from sync_outbox.
         outboxRow = { row_sync_id: 'rs-1', row_data: '{"_bulk":true}' }
     } = opts;
 
@@ -57,8 +32,6 @@ function createRecordingDb(opts = {}) {
 
     const db = {
         events,
-        // Mirror better-sqlite3's db.transaction(fn): markEntrySent now wraps its writes
-        // in a transaction, so the stub must expose the same API (pass-through here).
         transaction(fn) {
             return (...args) => fn(...args);
         },
@@ -67,41 +40,47 @@ function createRecordingDb(opts = {}) {
             events.push({ type: 'sql', sql });
 
             if (sql.startsWith('PRAGMA table_info')) {
-                return { all: () => pragmaColumns };
+                return { all: () => [{ name: 'id' }, { name: 'school_year' }] };
+            }
+            if (/^SELECT \* FROM ".*" WHERE id = \?/.test(sql)) {
+                return {
+                    get: (id) => {
+                        if (throwOnRead) throw new Error('simulated read failure: no such table');
+                        return byIdRows[id] || null;
+                    }
+                };
             }
             if (/^SELECT \* FROM "/.test(sql)) {
                 return {
                     all: () => {
                         if (throwOnRead) throw new Error('simulated read failure: no such table');
-                        return selectRows;
-                    }
+                        return [];
+                    },
+                    get: () => null
                 };
             }
-            // bumpRetryCount
+            if (sql.startsWith('INSERT OR IGNORE INTO sync_id_map') || sql.startsWith('INSERT INTO sync_id_map')) {
+                return { run: () => ({ changes: 1 }) };
+            }
             if (sql.startsWith('UPDATE sync_outbox SET retries = retries + 1')) {
                 return { run: () => ({ changes: 1 }) };
             }
-            // markEntrySent: pre-read of row_sync_id / row_data
             if (sql.startsWith('SELECT row_sync_id, row_data FROM sync_outbox')) {
                 return { get: () => outboxRow };
             }
-            // markEntrySent: status -> 'sent'
             if (sql.startsWith("UPDATE sync_outbox SET status = 'sent'")) {
                 return { run: () => ({ changes: 1 }) };
             }
-            // markEntrySent: sync_id_map version bump
             if (sql.startsWith('UPDATE sync_id_map')) {
                 return { run: () => ({ changes: 1 }) };
             }
-            // markEntrySent: resolve related conflicts
             if (sql.startsWith('UPDATE sync_conflicts')) {
                 return { run: () => ({ changes: 1 }) };
             }
-            // markEntryFailed: retry read + write (should NOT be reached in these tests)
             if (sql.startsWith('SELECT retries FROM sync_outbox')) {
                 return { get: () => ({ retries: 0 }) };
             }
-            if (sql.startsWith('UPDATE sync_outbox SET retries = ?')) {
+            if (sql.startsWith('UPDATE sync_outbox SET retries = ?') || sql.startsWith('UPDATE sync_outbox SET')) {
                 return { run: () => ({ changes: 1 }) };
             }
             throw new Error('[recording db] Unhandled SQL statement: ' + sql);
@@ -110,8 +89,6 @@ function createRecordingDb(opts = {}) {
     return db;
 }
 
-// A `firestoreDb` that throws on ANY property access. If the engine ever tries to
-// dispatch a document down the no-document path, the test fails loudly.
 const NO_DISPATCH_FIRESTORE = new Proxy(
     {},
     {
@@ -140,11 +117,9 @@ function makeCtx(db, { batchBuffer = [], flushReturns = false } = {}) {
     };
     ctx.flushBuffer = async () => {
         ctx.flushCalls += 1;
-        // Record the flush event AND the buffer length at flush time so ordering
-        // assertions can prove the buffer was drained before expansion.
         db.events.push({ type: 'flush', bufferLenAtFlush: ctx.batchBuffer.length });
         ctx.batchBuffer = [];
-        return flushReturns; // truthy => abort
+        return flushReturns;
     };
     return ctx;
 }
@@ -163,7 +138,6 @@ function bulkRow(over = {}) {
     );
 }
 
-// Capture console.warn for "surface the error" assertions.
 function captureWarn(fn) {
     const original = console.warn;
     const messages = [];
@@ -178,183 +152,160 @@ function captureWarn(fn) {
     }
 }
 
-function firstExpansionSqlIndex(events) {
-    return events.findIndex(
-        (e) =>
-            e.type === 'sql' &&
-            (e.sql.startsWith('PRAGMA table_info') || /^SELECT \* FROM "/.test(e.sql))
-    );
-}
-
 // ===========================================================================
-// Req 5.2 — The prepared-item buffer is flushed BEFORE a bulk entry is
-// expanded/dispatched. Bulk entries are not interleaved into a concurrent group
-// with preceding non-bulk items.
+// Buffer flush still precedes bulk handling
 // ===========================================================================
 (async () => {
-    const db = createRecordingDb({ selectRows: [] }); // known table, zero rows -> expanded == []
-    // A non-bulk prepared item is already buffered (would dispatch as a group).
+    const db = createRecordingDb();
     const ctx = makeCtx(db, { batchBuffer: [{ entryId: 99, item: { documentId: 'd99' } }] });
 
+    // Legacy bulk without keys → error (no full-table read)
     const action = await processOutboxRow(db, NO_DISPATCH_FIRESTORE, bulkRow(), ctx);
 
-    // The buffer was flushed exactly once, draining the pending non-bulk item.
-    assert.strictEqual(ctx.flushCalls, 1, 'the prepared-item buffer must be flushed once before bulk expansion');
+    assert.strictEqual(ctx.flushCalls, 1, 'buffer must flush before bulk expansion');
     checks += 1;
 
     const flushIndex = db.events.findIndex((e) => e.type === 'flush');
-    const expansionIndex = firstExpansionSqlIndex(db.events);
-    assert.ok(flushIndex >= 0, 'a flush event must have been recorded');
-    assert.ok(expansionIndex >= 0, 'expandBulkEntry must have read the source table');
-    assert.ok(
-        flushIndex < expansionIndex,
-        `buffer flush (index ${flushIndex}) must precede bulk expansion (index ${expansionIndex})`
+    assert.ok(flushIndex >= 0, 'flush event recorded');
+    checks += 1;
+
+    const markedFailed = db.events.some(
+        (e) => e.type === 'sql' && (e.sql.includes("status = 'failed'") || e.sql.startsWith('SELECT retries FROM sync_outbox'))
     );
+    assert.ok(markedFailed || ctx.failedCount >= 1, 'legacy bulk without keys must fail, not skip as sent');
     checks += 1;
 
-    // The flushed buffer contained the preceding non-bulk item (it was not left
-    // to interleave with the bulk entry's documents).
-    const flushEvent = db.events[flushIndex];
-    assert.strictEqual(flushEvent.bufferLenAtFlush, 1, 'the preceding non-bulk item must be in the buffer at flush time');
-    assert.strictEqual(ctx.batchBuffer.length, 0, 'the buffer must be empty after the pre-expansion flush');
-    checks += 1;
-
-    assert.strictEqual(action, 'continue', 'processing a (zero-doc) bulk row should continue the cycle');
+    assert.strictEqual(action, 'continue');
     checks += 1;
 })()
-    // ===========================================================================
-    // Req 5.2 — When the pre-expansion flush signals an access-denied abort, the
-    // bulk entry is NOT expanded/dispatched at all (it breaks before expansion).
-    // ===========================================================================
     .then(async () => {
-        const db = createRecordingDb({ selectRows: [] });
+        const db = createRecordingDb();
         const ctx = makeCtx(db, {
             batchBuffer: [{ entryId: 5, item: { documentId: 'd5' } }],
-            flushReturns: true // flush reports abort
+            flushReturns: true
         });
 
         const action = await processOutboxRow(db, NO_DISPATCH_FIRESTORE, bulkRow(), ctx);
-
-        assert.strictEqual(action, 'break', 'an aborting pre-expansion flush must break before expanding the bulk entry');
-        assert.strictEqual(ctx.flushCalls, 1, 'the buffer flush must have been attempted');
-        assert.strictEqual(
-            firstExpansionSqlIndex(db.events),
-            -1,
-            'no bulk expansion may occur once the pre-expansion flush aborts'
-        );
+        assert.strictEqual(action, 'break', 'aborting pre-expansion flush must break');
+        assert.strictEqual(ctx.flushCalls, 1);
         checks += 1;
     })
     // ===========================================================================
-    // Req 5.4 — Zero expanded documents: mark the originating entry sent and
-    // dispatch nothing.
-    // ===========================================================================
-    .then(async () => {
-        const db = createRecordingDb({ selectRows: [] }); // known table, no rows
-        const ctx = makeCtx(db);
-
-        const action = await processOutboxRow(db, NO_DISPATCH_FIRESTORE, bulkRow(), ctx);
-
-        // markEntrySent ran (status -> 'sent') for the originating entry.
-        const markedSent = db.events.some((e) => e.type === 'sql' && e.sql.startsWith("UPDATE sync_outbox SET status = 'sent'"));
-        assert.ok(markedSent, 'a zero-document bulk entry must be marked sent');
-        checks += 1;
-
-        // No documents dispatched: the per-item counters are untouched because
-        // flushExpandedEntries was never entered.
-        assert.strictEqual(ctx.sentCount, 0, 'no per-document sent count when zero documents expand');
-        assert.strictEqual(ctx.failedCount, 0, 'no failures when zero documents expand');
-        assert.strictEqual(ctx.skippedCount, 0, 'no skips when zero documents expand');
-        checks += 1;
-
-        // markEntryFailed must NOT have run (no failure path for a clean zero-doc entry).
-        const markedFailed = db.events.some((e) => e.type === 'sql' && e.sql.startsWith('SELECT retries FROM sync_outbox'));
-        assert.ok(!markedFailed, 'a zero-document bulk entry must not be marked failed');
-        checks += 1;
-
-        assert.strictEqual(action, 'continue', 'a zero-document bulk entry continues the cycle');
-        checks += 1;
-    })
-    // ===========================================================================
-    // Req 5.5 — Expansion failures surface the error and dispatch no documents.
-    // `expandBulkEntry` swallows every failure mode into an empty result while
-    // logging a warning (the surfaced error), so nothing is ever dispatched.
+    // Typed expandBulkEntry outcomes
     // ===========================================================================
     .then(() => {
-        // (a) Malformed JSON row_data -> parse failure.
+        // (a) Malformed JSON → error
         {
             const db = createRecordingDb();
             const { result, messages } = captureWarn(() =>
                 expandBulkEntry(db, bulkRow({ row_data: '{ not valid json' }), 'device-hash')
             );
-            assert.deepStrictEqual(result, [], 'parse failure must expand to zero documents');
-            assert.ok(messages.length > 0, 'parse failure must surface a warning');
-            assert.strictEqual(firstExpansionSqlIndex(db.events), -1, 'parse failure must not read any source table');
+            assert.strictEqual(result.status, 'error', 'parse failure → error');
+            assert.deepStrictEqual(result.entries, []);
+            assert.ok(messages.length > 0);
             checks += 1;
         }
 
-        // (b) Unknown bulk channel.
+        // (b) Unknown channel → error
         {
             const db = createRecordingDb();
             const { result, messages } = captureWarn(() =>
-                expandBulkEntry(db, bulkRow({ row_data: JSON.stringify({ _bulk: true, channel: '__nonexistent_channel__' }) }), 'device-hash')
+                expandBulkEntry(
+                    db,
+                    bulkRow({
+                        row_data: JSON.stringify({ _bulk: true, channel: '__nonexistent_channel__' })
+                    }),
+                    'device-hash'
+                )
             );
-            assert.deepStrictEqual(result, [], 'unknown channel must expand to zero documents');
-            assert.ok(
-                messages.some((m) => m.includes('Unknown bulk channel')),
-                'unknown channel must surface a warning naming the channel'
-            );
-            assert.strictEqual(firstExpansionSqlIndex(db.events), -1, 'unknown channel must not read any source table');
+            assert.strictEqual(result.status, 'error', 'unknown channel → error');
+            assert.ok(messages.some((m) => m.includes('Unknown bulk channel')));
             checks += 1;
         }
 
-        // (c) Unknown table.
+        // (c) Unknown table → error
         {
             const db = createRecordingDb();
             const { result, messages } = captureWarn(() =>
                 expandBulkEntry(db, bulkRow({ table_name: '__unknown_table__' }), 'device-hash')
             );
-            assert.deepStrictEqual(result, [], 'unknown table must expand to zero documents');
-            assert.ok(
-                messages.some((m) => m.includes('unknown table')),
-                'unknown table must surface a warning'
-            );
-            assert.strictEqual(firstExpansionSqlIndex(db.events), -1, 'unknown table must not read any source table');
+            assert.strictEqual(result.status, 'error', 'unknown table → error');
+            assert.ok(messages.some((m) => m.includes('unknown table')));
             checks += 1;
         }
 
-        // (d) Source-table read failure.
+        // (d) Legacy summary without keys → error (never full-table expand)
         {
-            const db = createRecordingDb({ throwOnRead: true });
-            const { result, messages } = captureWarn(() =>
-                expandBulkEntry(db, bulkRow(), 'device-hash')
+            const db = createRecordingDb();
+            const { result, messages } = captureWarn(() => expandBulkEntry(db, bulkRow(), 'device-hash'));
+            assert.strictEqual(result.status, 'error', 'legacy bulk without keys → error');
+            assert.ok(messages.some((m) => m.includes('cannot be expanded safely') || m.includes('Legacy bulk')));
+            const didFullTable = db.events.some((e) => e.type === 'sql' && /^SELECT \* FROM "students"$/.test(e.sql));
+            assert.ok(!didFullTable, 'must not full-table SELECT for legacy bulk');
+            checks += 1;
+        }
+
+        // (e) Exact empty localIds → empty
+        {
+            const db = createRecordingDb();
+            const result = expandBulkEntry(
+                db,
+                bulkRow({
+                    row_data: JSON.stringify({ _bulk: true, channel: 'students:addBulk', localIds: [] })
+                }),
+                'device-hash'
             );
-            assert.deepStrictEqual(result, [], 'a read failure must expand to zero documents');
-            assert.ok(messages.length > 0, 'a read failure must surface a warning');
+            assert.strictEqual(result.status, 'empty');
+            assert.deepStrictEqual(result.entries, []);
+            checks += 1;
+        }
+
+        // (f) Exact localIds → expanded
+        {
+            const db = createRecordingDb({
+                byIdRows: {
+                    7: { id: 7, code: 'S1', school_year: '2025/2026', full_name: 'A' }
+                }
+            });
+            const result = expandBulkEntry(
+                db,
+                bulkRow({
+                    row_data: JSON.stringify({ _bulk: true, channel: 'students:addBulk', localIds: [7] })
+                }),
+                'device-hash'
+            );
+            assert.strictEqual(result.status, 'expanded');
+            assert.strictEqual(result.entries.length, 1);
+            assert.strictEqual(result.entries[0].table_name, 'students');
             checks += 1;
         }
     })
     // ===========================================================================
-    // Req 5.5 — Through `processOutboxRow`, an expansion failure for an authorized
-    // bulk row dispatches NO documents (firestoreDb is never touched) and the
-    // entry is handled without crashing. The current engine treats the failed
-    // expansion as a skip (markEntrySent) — see the note in the suite report.
+    // processOutboxRow: empty exact → mark sent; error → mark failed
     // ===========================================================================
     .then(async () => {
-        // students is authorized for 'admin' (canPush true), but the unknown
-        // channel makes expansion fail INSIDE the _bulk branch.
         const db = createRecordingDb();
         const ctx = makeCtx(db);
-
-        // processOutboxRow is async and the warning fires after an internal await,
-        // so capture console.warn across the full awaited execution.
+        const action = await processOutboxRow(
+            db,
+            NO_DISPATCH_FIRESTORE,
+            bulkRow({
+                row_data: JSON.stringify({ _bulk: true, channel: 'students:addBulk', localIds: [] })
+            }),
+            ctx
+        );
+        const markedSent = db.events.some((e) => e.type === 'sql' && e.sql.startsWith("UPDATE sync_outbox SET status = 'sent'"));
+        assert.ok(markedSent, 'exact empty expansion may mark sent');
+        assert.strictEqual(action, 'continue');
+        checks += 1;
+    })
+    .then(async () => {
+        const db = createRecordingDb();
+        const ctx = makeCtx(db);
         const originalWarn = console.warn;
-        const messages = [];
-        console.warn = (...args) => {
-            messages.push(args.map((a) => (a instanceof Error ? a.message : String(a))).join(' '));
-        };
-        let resolved;
+        console.warn = () => {};
         try {
-            resolved = await processOutboxRow(
+            await processOutboxRow(
                 db,
                 NO_DISPATCH_FIRESTORE,
                 bulkRow({ row_data: JSON.stringify({ _bulk: true, channel: '__nonexistent_channel__' }) }),
@@ -364,18 +315,10 @@ function firstExpansionSqlIndex(events) {
             console.warn = originalWarn;
         }
 
-        assert.ok(
-            messages.some((m) => m.includes('Unknown bulk channel')),
-            'expansion failure must surface a warning'
-        );
-        checks += 1;
-
-        // Dispatch none: no per-document counters moved and firestoreDb untouched.
-        assert.strictEqual(ctx.sentCount, 0, 'expansion failure dispatches no documents (sentCount)');
-        assert.strictEqual(ctx.failedCount, 0, 'expansion failure dispatches no documents (failedCount)');
-        checks += 1;
-
-        assert.strictEqual(resolved, 'continue', 'an expansion failure must let the cycle continue');
+        assert.strictEqual(ctx.sentCount, 0);
+        assert.ok(ctx.failedCount >= 1, 'expansion error must increment failedCount');
+        const markedSent = db.events.some((e) => e.type === 'sql' && e.sql.startsWith("UPDATE sync_outbox SET status = 'sent'"));
+        assert.ok(!markedSent, 'expansion error must NOT mark sent');
         checks += 1;
     })
     .then(() => {

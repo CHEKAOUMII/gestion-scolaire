@@ -89,6 +89,9 @@ contextBridge.exposeInMainWorld('api', {
         saveBulk: (absences) => ipcRenderer.invoke('absences:saveBulk', absences),
         delete: (id) => ipcRenderer.invoke('absences:delete', id),
         deleteByYear: (schoolYear) => ipcRenderer.invoke('absences:deleteByYear', schoolYear),
+        /** Atomic year wipe + bulk insert for import apply (Package 5). */
+        replaceByYear: (schoolYear, absences) =>
+            ipcRenderer.invoke('absences:replaceByYear', schoolYear, absences),
         getStats: (schoolYear) => ipcRenderer.invoke('absences:getStats', schoolYear),
         getSummaryByStudent: (schoolYear) => ipcRenderer.invoke('absences:getSummaryByStudent', schoolYear)
     },
@@ -186,6 +189,15 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('supportSessions:delete', id),
         export: (schoolYear) => ipcRenderer.invoke('supportSessions:export', schoolYear),
         import: (payload) => ipcRenderer.invoke('supportSessions:import', payload)
+    },
+
+    // School orientation / guidance (التوجيه المدرسي)
+    orientation: {
+        list: (filters) => ipcRenderer.invoke('orientation:list', filters),
+        stats: (schoolYear) => ipcRenderer.invoke('orientation:stats', schoolYear),
+        bulkUpsert: (payload) => ipcRenderer.invoke('orientation:bulkUpsert', payload),
+        clearYear: (schoolYear) => ipcRenderer.invoke('orientation:clearYear', schoolYear),
+        delete: (id) => ipcRenderer.invoke('orientation:delete', id)
     },
 
     // Exams
@@ -376,7 +388,11 @@ contextBridge.exposeInMainWorld('api', {
         getConflictLog: (options) => ipcRenderer.invoke('sync:getConflictLog', options),
         getConflictForensics: (options) => ipcRenderer.invoke('sync:getConflictForensics', options),
         resolveConflict: (payload) => ipcRenderer.invoke('sync:resolveConflict', payload),
-        testConnection: () => ipcRenderer.invoke('sync:testConnection')
+        testConnection: () => ipcRenderer.invoke('sync:testConnection'),
+        // Milestone A pilot — legacy bulk outbox
+        getOutboxHealth: () => ipcRenderer.invoke('sync:getOutboxHealth'),
+        classifyLegacyBulk: (options) => ipcRenderer.invoke('sync:classifyLegacyBulk', options),
+        quarantineLegacyBulk: () => ipcRenderer.invoke('sync:quarantineLegacyBulk')
     },
 
     institution: {

@@ -48,6 +48,16 @@
         return PERIODS.slice(startIdx, endIdx + 1);
     }
 
+    /**
+     * Predicate used by the dragover throttle to detect whether the hovered
+     * cell (encoded as "day|periodType|period") has actually changed between
+     * events. Returning false lets the renderer skip the per-event validate +
+     * repaint when the cursor is still over the same cell.
+     */
+    function hoverKeyChanged(prev, next) {
+        return prev !== next;
+    }
+
     function hasInternalGap(occupancy) {
         var firstIndex = occupancy.findIndex(Boolean);
         if (firstIndex === -1) return false;
@@ -253,6 +263,7 @@
         buildTimetableSlotKey: buildTimetableSlotKey,
         getConsecutivePeriods: getConsecutivePeriods,
         buildPeriodRange: buildPeriodRange,
+        hoverKeyChanged: hoverKeyChanged,
         hasInternalGap: hasInternalGap,
         buildOccupancyAfterMove: buildOccupancyAfterMove,
         causesGapAfterMove: causesGapAfterMove,

@@ -246,8 +246,10 @@ async function _buildLetterhead(title) {
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
+        const logoPx =
+            typeof resolveLogoMaxPx === 'function' ? resolveLogoMaxPx(id.logo_scale) : 80;
         const logo = id.logo_base64
-            ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width:300px;max-height:300px;" alt="logo">`
+            ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width:${logoPx}px;max-height:${logoPx}px;" alt="logo">`
             : '<div style="width:52px;height:52px;border:1px dashed var(--color-accent);border-radius:50%;margin:0 auto;"></div>';
         const printTitle = title || document.querySelector('.page-title h1')?.textContent || document.title || '';
         const reportDate =

@@ -77,7 +77,11 @@ function renderUnresolvedImportWarning() {
     );
 
     const link = document.createElement('a');
-    link.href = 'settings-imports.html';
+    // Contextual shortcut — hints only; never auto-executes import
+    link.href = 'settings-imports.html?type=fet&source=timetable';
+    link.setAttribute('data-import-shortcut', '');
+    link.setAttribute('data-import-type', 'fet');
+    link.setAttribute('data-import-source', 'timetable');
     link.textContent = 'استيراد البيانات';
 
     const tail = document.createTextNode(' لإكمال المطابقة.');
@@ -1625,6 +1629,40 @@ function renderChangeLogRows(tbody, rows) {
     tbody.replaceChildren(fragment);
 }
 
+// Shared inner-DOM builder for a single activity cell. Used by both
+// renderTeacherTimetable (full render) and applyMoveToDom (surgical update) so
+// the two never diverge.
+function buildActivityCellInner(activity) {
+    const color = activity?.students ? getColorFor('classes', activity.students) : null;
+    const subjectDisplay = activity?.subject ? activity.subject.replace(/_/g, ' ') : '';
+    const classDisplay = activity?.students ? activity.students.replace(/_/g, ' ') : '';
+
+    const classNameStyle = color
+        ? `style="color: ${color.text}; font-weight: 700; font-size: 0.78rem;"`
+        : '';
+    const roomStyle = color
+        ? `style="color: ${color.text}; font-weight: 600; font-size: 0.7rem; opacity: 0.7;"`
+        : '';
+    const subjectStyle = color
+        ? `style="font-size:0.82rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
+        : `style="font-size:0.82rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
+
+    return `<div class="activity-cell" style="border-right: none; background: none;">
+                                <div class="subject" ${subjectStyle}>${subjectDisplay}</div>
+                                ${classDisplay ? `<div class="class" ${classNameStyle}>${classDisplay}</div>` : ''}
+                                ${activity?.room ? `<div class="room" ${roomStyle}>${activity.room}</div>` : ''}
+                            </div>`;
+}
+
+function buildActivityCellStyle(activity) {
+    const color = activity?.students ? getColorFor('classes', activity.students) : null;
+    return color ? `background: ${color.bg};` : '';
+}
+
+function buildEmptyCellInner() {
+    return '<span class="empty-cell">—</span>';
+}
+
 function renderTeacherTimetable(teacherName, subjectFilter = '') {
     const wrapper = document.getElementById('timetable-wrapper');
     const table = document.getElementById('timetable');
@@ -1734,33 +1772,16 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
             const mergedClass = cell.colspan > 1 ? ' merged-cell' : '';
 
             if (cell.activity) {
-                const color = getColorFor('classes', cell.activity.students);
                 if (cell.activity.students) teacherClasses.add(cell.activity.students);
                 teacherSubjects.add(cell.activity.subject);
 
-                const cellStyle = color ? `style="background: ${color.bg};"` : '';
-                const classNameStyle = color
-                    ? `style="color: ${color.text}; font-weight: 700; font-size: 0.78rem;"`
-                    : '';
-                const roomStyle = color
-                    ? `style="color: ${color.text}; font-weight: 600; font-size: 0.7rem; opacity: 0.7;"`
-                    : '';
-                const subjectDisplay = cell.activity.subject ? cell.activity.subject.replace(/_/g, ' ') : '';
-                const classDisplay = cell.activity.students ? cell.activity.students.replace(/_/g, ' ') : '';
-
-                const subjectStyle = color
-                    ? `style="font-size:0.82rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
-                    : `style="font-size:0.82rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
+                const cellStyle = buildActivityCellStyle(cell.activity) ? `style="${buildActivityCellStyle(cell.activity)}"` : '';
 
                 bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs} ${cellStyle}>
-                            <div class="activity-cell" style="border-right: none; background: none;">
-                                <div class="subject" ${subjectStyle}>${subjectDisplay}</div>
-                                ${classDisplay ? `<div class="class" ${classNameStyle}>${classDisplay}</div>` : ''}
-                                ${cell.activity.room ? `<div class="room" ${roomStyle}>${cell.activity.room}</div>` : ''}
-                            </div>
+                            ${buildActivityCellInner(cell.activity)}
                         </td>`;
             } else {
-                bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs}><span class="empty-cell">—</span></td>`;
+                bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs}>${buildEmptyCellInner()}</td>`;
             }
         });
 
@@ -1964,7 +1985,7 @@ function exitEditMode() {
 
 // Event delegation for edit-mode cell interactions (avoids listener accumulation
 // when the tbody is re-rendered after every move/undo).
-let _editDelegationBound = false;
+// Guard is `tbody.dataset.editDelegation === '1'` set inside ensureEditEventDelegation.
 
 function getEditTargetCell(eventTarget) {
     const tbody = document.querySelector('#timetable tbody');
@@ -2039,7 +2060,6 @@ function ensureEditEventDelegation() {
     });
 
     tbody.dataset.editDelegation = '1';
-    _editDelegationBound = true;
 }
 
 function decorateCellsForEdit() {
@@ -2334,6 +2354,12 @@ function cancelMoveMode() {
 // DRAG & DROP HANDLERS — full implementation for merged cells
 // ============================================================
 let _dragSource = null; // { day, period, periodEnd, periodType, numPeriods }
+let _dragClassTimetable = null; // cached class timetable for the active drag session
+let _renderedHoverKey = null; // "day|periodType|period" actually validated/repainted last frame
+let _pendingDragOverTarget = null; // most recent cell the pointer is over (read inside the rAF)
+let _lastHoverValid = false; // cached validity for the last rendered hover key (sync dropEffect)
+let _dragOverFrame = 0; // rAF id for the coalesced dragover repaint
+let _highlightedDragCells = []; // cells currently carrying .drag-over / .drag-over-ext
 
 function handleDragStart(e) {
     if (!editMode.active) {
@@ -2359,14 +2385,27 @@ function handleDragStart(e) {
     const srcPeriods = buildPeriodRange(period, periodEnd);
     _dragSource = { day, period, periodEnd, periodType, numPeriods: srcPeriods.length, srcData };
 
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', JSON.stringify(_dragSource));
+    // Build the class timetable once for the whole drag session so validation
+    // never rebuilds it on every dragover. Cleared in handleDragEnd.
+    _dragClassTimetable = srcData.students ? buildClassTimetable(srcData.students) : null;
 
-    // Hack: Wait for browser to take the drag ghost IMAGE of the native DOM, THEN apply the dimming CSS!
-    setTimeout(() => {
-        cell.classList.add('drag-source');
-        if (srcPeriods.length > 1) cell.classList.add('drag-source-double');
-    }, 0);
+    e.dataTransfer.effectAllowed = 'move';
+    // NOTE: payload intentionally not set — _dragSource (module state) is the source of truth.
+    // Native DnD is single-drag; no cross-window transfer is needed.
+
+    // Use a cloned ghost as the drag image so the dim/striped "drag-source" CSS
+    // can be applied to the live cell immediately — the browser snapshots the
+    // clone before it ever picks up our class changes, so the dragged ghost is
+    // NOT dimmed, and the source cell dims with no flash.
+    const ghost = cell.cloneNode(true);
+    ghost.style.position = 'absolute';
+    ghost.style.top = '-9999px';
+    ghost.style.opacity = '0.85';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 10, 10);
+    requestAnimationFrame(() => ghost.remove());
+    cell.classList.add('drag-source');
+    if (srcPeriods.length > 1) cell.classList.add('drag-source-double');
 
     // Highlight available slots for this class so user sees valid destinations
     if (srcData.students) {
@@ -2381,17 +2420,30 @@ function handleDragStart(e) {
 }
 
 function handleDragEnd(e) {
+    if (_dragOverFrame) cancelAnimationFrame(_dragOverFrame);
+    _dragOverFrame = 0;
+    _renderedHoverKey = null;
+    _pendingDragOverTarget = null;
+    _lastHoverValid = false;
+    _highlightedDragCells = [];
     document.querySelectorAll('#timetable tbody td').forEach((c) => {
         c.classList.remove('drag-over', 'drag-over-ext', 'drag-source', 'drag-source-double');
     });
     clearSlotHighlighting();
     _dragSource = null;
+    _dragClassTimetable = null;
 }
 
 // (Drag helper functions implemented below with validation-aware approach.)
 
 function handleDrop(e) {
     e.preventDefault();
+    if (_dragOverFrame) cancelAnimationFrame(_dragOverFrame);
+    _dragOverFrame = 0;
+    _renderedHoverKey = null;
+    _pendingDragOverTarget = null;
+    _lastHoverValid = false;
+    _highlightedDragCells = [];
     document
         .querySelectorAll('#timetable tbody td')
         .forEach((c) => c.classList.remove('drag-over', 'drag-over-ext', 'drag-source', 'drag-source-double'));
@@ -2595,7 +2647,10 @@ function validateMoveTarget({
             {
                 getSlotData,
                 isRoomOccupied,
-                buildClassTimetable
+                buildClassTimetable: (className) =>
+                    _dragClassTimetable && _dragSource && _dragSource.srcData?.students === className
+                        ? _dragClassTimetable
+                        : buildClassTimetable(className)
             }
         );
     }
@@ -2676,6 +2731,170 @@ function clearSlotHighlighting() {
     });
 }
 
+// Surgical DOM swap on drop — updates only the cells touched by the move
+// instead of rebuilding the whole tbody. Returns true on success; returns
+// false when the move changes merge boundaries the surgical path cannot
+// express cleanly, in which case the caller falls back to renderTeacherTimetable.
+function applyMoveToDom(teacher, srcSlots, destSlots) {
+    if (!Array.isArray(srcSlots) || !srcSlots.length) return false;
+    if (!Array.isArray(destSlots) || !destSlots.length) return false;
+
+    // Both src and dest must each live within one (day, periodType) slice.
+    const srcDay = srcSlots[0].day;
+    const srcPt = srcSlots[0].periodType;
+    if (srcSlots.some((s) => s.day !== srcDay || s.periodType !== srcPt)) return false;
+
+    const destDay = destSlots[0].day;
+    const destPt = destSlots[0].periodType;
+    if (destSlots.some((s) => s.day !== destDay || s.periodType !== destPt)) return false;
+
+    // No overlap between src and dest slots (within the same slice).
+    if (srcDay === destDay && srcPt === destPt) {
+        const srcPerSet = new Set(srcSlots.map((s) => s.period));
+        for (const s of destSlots) if (srcPerSet.has(s.period)) return false;
+    }
+
+    // Activity that was moved into the destination (data already applied to fetData).
+    const sampleAct = getSlotData(teacher, destDay, destSlots[0].period, destPt);
+    if (!sampleAct || !sampleAct.subject) return false;
+
+    // Source TDs must cover exactly the moved periods (no merge with non-moved neighbors).
+    const srcPeriodSet = new Set(srcSlots.map((s) => s.period));
+    const srcTds = [];
+    for (const slot of srcSlots) {
+        const td = getRenderedCellForSlot(slot.day, slot.periodType, slot.period);
+        if (!td) return false;
+        if (!srcTds.includes(td)) srcTds.push(td);
+        const spanP = buildPeriodRange(td.dataset.period, td.dataset.periodEnd || td.dataset.period);
+        for (const p of spanP) if (!srcPeriodSet.has(p)) return false;
+    }
+
+    // Destination TDs must cover only the dest periods and currently be empty.
+    // NOTE: fetData is already mutated by the caller at this point (the moved
+    // activity is written into the dest slots), so emptiness is checked against
+    // the *rendered DOM*, which still reflects the pre-move state.
+    const destPeriodSet = new Set(destSlots.map((s) => s.period));
+    const destTds = [];
+    for (const slot of destSlots) {
+        const td = getRenderedCellForSlot(slot.day, slot.periodType, slot.period);
+        if (!td) return false;
+        if (!destTds.includes(td)) destTds.push(td);
+        const spanP = buildPeriodRange(td.dataset.period, td.dataset.periodEnd || td.dataset.period);
+        for (const p of spanP) {
+            if (!destPeriodSet.has(p)) return false;
+        }
+        // Occupied in the current DOM (renders an activity, not an empty cell)
+        // → the surgical path can't express this cleanly; fall back.
+        if (td.querySelector('.activity-cell')) return false;
+    }
+
+    // Adjacent neighbors outside destSlots must not form a new merge with the moved act.
+    const destFirstPerIdx = periods.indexOf(destSlots[0].period);
+    const destLastPerIdx = periods.indexOf(destSlots[destSlots.length - 1].period);
+    if (destFirstPerIdx > 0) {
+        const prevPer = periods[destFirstPerIdx - 1];
+        const prevAct = getSlotData(teacher, destDay, prevPer, destPt);
+        if (prevAct && prevAct.subject === sampleAct.subject && prevAct.students === sampleAct.students) return false;
+    }
+    if (destLastPerIdx < periods.length - 1) {
+        const nextPer = periods[destLastPerIdx + 1];
+        const nextAct = getSlotData(teacher, destDay, nextPer, destPt);
+        if (nextAct && nextAct.subject === sampleAct.subject && nextAct.students === sampleAct.students) return false;
+    }
+
+    // Preserve scroll position of the timetable container.
+    const scrollContainer = document.querySelector('.table-responsive');
+    const scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+    const scrollLeft = scrollContainer ? scrollContainer.scrollLeft : 0;
+
+    try {
+        // === Clear source ===
+        // Empty each source TD. A merged (double) source is split back into
+        // single empty cells so no stale colspan / data-period-end is left behind
+        // (source periods are always within one periodType, never crossing the
+        // morning/afternoon separator column).
+        for (const td of srcTds) {
+            const spanPeriods = buildPeriodRange(td.dataset.period, td.dataset.periodEnd || td.dataset.period);
+            const day = td.dataset.day;
+            const periodType = td.dataset.periodType;
+
+            td.innerHTML = buildEmptyCellInner();
+            td.removeAttribute('style');
+            td.removeAttribute('data-period-end');
+            td.dataset.duration = '1';
+            td.colSpan = 1;
+            td.classList.remove('merged-cell', 'drag-source', 'drag-source-double', 'drag-over', 'drag-over-ext');
+
+            // Reinsert the extra periods the merged cell used to cover as single empty cells.
+            let anchor = td;
+            for (let i = 1; i < spanPeriods.length; i++) {
+                const empty = document.createElement('td');
+                empty.dataset.day = day;
+                empty.dataset.period = spanPeriods[i];
+                empty.dataset.periodType = periodType;
+                empty.dataset.duration = '1';
+                empty.innerHTML = buildEmptyCellInner();
+                anchor.insertAdjacentElement('afterend', empty);
+                anchor = empty;
+            }
+        }
+
+        // === Fill destination ===
+        const bgStyle = buildActivityCellStyle(sampleAct);
+        if (destTds.length === 1) {
+            const td = destTds[0];
+            td.innerHTML = buildActivityCellInner(sampleAct);
+            td.removeAttribute('style');
+            if (bgStyle) td.setAttribute('style', bgStyle);
+            td.removeAttribute('data-period-end');
+            td.dataset.duration = '1';
+            td.classList.remove('merged-cell');
+            td.colSpan = 1;
+        } else {
+            // Pack the move into a single merged TD spanning all dest periods.
+            const td = destTds[0];
+            td.innerHTML = buildActivityCellInner(sampleAct);
+            td.removeAttribute('style');
+            if (bgStyle) td.setAttribute('style', bgStyle);
+            td.dataset.periodEnd = destSlots[destSlots.length - 1].period;
+            td.dataset.duration = String(destSlots.length);
+            td.classList.add('merged-cell');
+            td.colSpan = destSlots.length;
+            // Drop the now-absorbed TDs from the row.
+            for (let i = 1; i < destTds.length; i++) {
+                destTds[i].remove();
+            }
+        }
+    } catch (err) {
+        return false;
+    }
+
+    // Restore scroll
+    if (scrollContainer) {
+        scrollContainer.scrollTop = scrollTop;
+        scrollContainer.scrollLeft = scrollLeft;
+    }
+
+    // Refresh the teacher footer legend (set of classes is unchanged by a move,
+    // but the rendered structure changed; re-render to stay aligned).
+    const legendContainer = document.getElementById('teacher-legend-container');
+    if (legendContainer) {
+        const tt = fetData.timetables[teacher] || {};
+        const tClasses = new Set();
+        for (const day of Object.keys(tt)) {
+            for (const pt of ['morning', 'afternoon']) {
+                const bucket = tt[day]?.[pt] || {};
+                for (const p of Object.keys(bucket)) {
+                    if (bucket[p]?.students) tClasses.add(bucket[p].students);
+                }
+            }
+        }
+        renderTeacherFooterLegend(legendContainer, tClasses);
+    }
+
+    return true;
+}
+
 function performMoveToDestination(destDay, destPeriod, destPeriodType) {
     const mv = editMode.moveMode;
     if (!mv || !mv.sourceData) return;
@@ -2743,7 +2962,17 @@ function performMoveToDestination(destDay, destPeriod, destPeriodType) {
     });
 
     const subjectFilter = document.getElementById('subject-filter')?.value || '';
-    renderTeacherTimetable(teacher, subjectFilter);
+    // Surgical DOM update avoids the full tbody rebuild + flicker for the common
+    // case (single/double move that doesn't disturb adjacent merge boundaries).
+    // Anything tricky falls back to renderTeacherTimetable (T4.3).
+    const surgicalOk = applyMoveToDom(
+        teacher,
+        srcPeriods.map((p) => ({ day: mv.sourceDay, periodType: mv.sourcePeriodType, period: p })),
+        destPeriods.map((p) => ({ day: destDay, periodType: destPeriodType, period: p }))
+    );
+    if (!surgicalOk) {
+        renderTeacherTimetable(teacher, subjectFilter);
+    }
     if (editMode.active) {
         addCellClickHandlers();
         document.getElementById('timetable-wrapper').classList.add('edit-mode-active');
@@ -2787,27 +3016,62 @@ function handleDragOver(e) {
     e.preventDefault();
     if (!_dragSource) return;
 
-    const validation = validateMoveTarget({
-        teacher: editMode.currentTeacher,
-        className: _dragSource.srcData?.students || '',
-        room: _dragSource.srcData?.room || '',
-        sourceDay: _dragSource.day,
-        sourcePeriodType: _dragSource.periodType,
-        sourcePeriods: buildPeriodRange(_dragSource.period, _dragSource.periodEnd),
-        destDay: e.currentTarget.dataset.day,
-        destPeriod: e.currentTarget.dataset.period,
-        destPeriodType: e.currentTarget.dataset.periodType
+    // dropEffect must be set synchronously on the real event or the cursor lags.
+    // It reflects the last *rendered* validity (one-frame lag on cell change).
+    e.dataTransfer.dropEffect = _lastHoverValid ? 'move' : 'none';
+
+    const cell = e.currentTarget;
+    const key =
+        (cell.dataset.day || '') + '|' + (cell.dataset.periodType || '') + '|' + (cell.dataset.period || '');
+
+    // Always remember the most recent target so the coalesced frame validates
+    // the cell the pointer is *currently* over — not the one it entered first.
+    _pendingDragOverTarget = cell;
+
+    // Skip scheduling when the pointer is still over the last *rendered* cell.
+    const logic = getMoveLogic();
+    const changed = logic ? logic.hoverKeyChanged(_renderedHoverKey, key) : _renderedHoverKey !== key;
+    if (!changed) return;
+
+    // Coalesce the validate+repaint into one rAF so many dragover events per
+    // frame collapse into a single DOM update on the latest target.
+    if (_dragOverFrame) return;
+    _dragOverFrame = requestAnimationFrame(() => {
+        _dragOverFrame = 0;
+
+        const target = _pendingDragOverTarget;
+        if (!target || !_dragSource) return;
+        _renderedHoverKey =
+            (target.dataset.day || '') + '|' + (target.dataset.periodType || '') + '|' + (target.dataset.period || '');
+
+        const validation = validateMoveTarget({
+            teacher: editMode.currentTeacher,
+            className: _dragSource.srcData?.students || '',
+            room: _dragSource.srcData?.room || '',
+            sourceDay: _dragSource.day,
+            sourcePeriodType: _dragSource.periodType,
+            sourcePeriods: buildPeriodRange(_dragSource.period, _dragSource.periodEnd),
+            destDay: target.dataset.day,
+            destPeriod: target.dataset.period,
+            destPeriodType: target.dataset.periodType
+        });
+        _lastHoverValid = !!validation.valid;
+
+        // Diff-repaint: clear only the previously highlighted cells, then light
+        // up the new set. Avoids the full-document querySelector sweep each event.
+        if (_highlightedDragCells.length) {
+            for (const c of _highlightedDragCells) {
+                c.classList.remove('drag-over', 'drag-over-ext');
+            }
+        }
+        _highlightedDragCells = [];
+
+        if (!validation.valid) return;
+
+        const cells = _getDragOverCells(target);
+        cells.forEach((c, index) => c.classList.add(index === 0 ? 'drag-over' : 'drag-over-ext'));
+        _highlightedDragCells = cells;
     });
-
-    e.dataTransfer.dropEffect = validation.valid ? 'move' : 'none';
-    document
-        .querySelectorAll('#timetable tbody td.drag-over, #timetable tbody td.drag-over-ext')
-        .forEach((cell) => cell.classList.remove('drag-over', 'drag-over-ext'));
-
-    if (!validation.valid) return;
-
-    const cells = _getDragOverCells(e.currentTarget);
-    cells.forEach((cell, index) => cell.classList.add(index === 0 ? 'drag-over' : 'drag-over-ext'));
 }
 
 // Confirm slot edit — applies changes LIVE to fetData then re-renders
