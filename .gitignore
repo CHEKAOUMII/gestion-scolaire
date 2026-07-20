@@ -97,3 +97,7 @@ timetable_css_part.txt
 .codex
 mcps/
 terminals/
+
+# Stray scratch scripts
+tmp_check_sqlite.js
+python test_foundry.py
