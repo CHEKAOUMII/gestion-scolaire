@@ -15,7 +15,7 @@ css/tailwind-output.css
 .env.*
 !.env.example
 
-# IDE files
+# IDE / editor files
 .vscode/
 .idea/
 *.swp
@@ -24,86 +24,47 @@ css/tailwind-output.css
 # OS files
 .DS_Store
 Thumbs.db
+~$*                       # Office lock files (e.g. ~$File.xlsx)
 
-# Temporary files
+# Temporary / scratch files
 *.tmp
 *.temp
 .cache/
+*.backup
+*.bak
+untitled.txt
 
-# jscpd local reports (regenerate with npm run dup:report)
-.jscpd-report/
-
-# Sensitive / data files — never commit PII or database artifacts
+# Sensitive / data files — never commit PII, media, or database artifacts
 school_backup_*.json
 *.xlsx
 *.db
 *.db-journal
 *.db-wal
 *.pdf
+*.mp4
+*.fet
+tafwij_03_teachers.xml
 server/owner-telemetry.json
 firebase/service-account.json
 firebase/*adminsdk*.json
 
-# Project specific ignores
+# jscpd local reports (regenerate with npm run dup:report)
+.jscpd-report/
+
+# Project-specific data dirs
 "نتائج/"
 "**/نتائج/"
 
-# Cloud Sync and agent temp
+# Cloud sync and agent scratch dirs
 .tmp.drivedownload/
 .tmp.driveupload/
 .agents/
 .agent/
 .opencode/
 .claude/
+.auto-claude/
 testsprite_tests/
 .worktrees
-
-# Auto-generated entries
-# Dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Build outputs
-dist/
-build/
-*.log
-
-# Environment files
-.env
-.env.*
-!.env.example
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Temporary files
-*.tmp
-*.temp
-.cache/
-
-# Sensitive files (auto-detected)
-.env
-build
-debug.log
-dist
-node_modules
-rebuild_timetable.ps1
-rebuild_timetable.py
-testsprite_run.log
-timetable-redistribution.html
-
-
-# Auto Claude data directory
-.auto-claude/
 
 # Auto Claude generated files
 .auto-claude-security.json
