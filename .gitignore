@@ -72,3 +72,28 @@ testsprite_tests/
 .claude_settings.json
 .security-key
 logs/security/
+
+# Local debug / screenshot artifacts (not for version control)
+,
+__shot-*.png
+__vt-*.png
+Screenshot*.png
+debug.txt
+built-promt.txt
+Code effeciecy.txt
+analyser graph attendence.txt
+security check.txt
+menu map.txt
+last promt opus.ini
+opencode pan.txt
+timetable_css_part.txt
+2026-02-22-212710-local-command-caveatcaveat-the-messages-below-w.txt
+
+# Competing agent-tool config dirs (keep local, not shared)
+.kilo/
+.kiro/
+.qoder/
+.zcode/
+.codex
+mcps/
+terminals/
