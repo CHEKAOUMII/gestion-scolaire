@@ -459,7 +459,7 @@ function registerInstitutionIpc(ipcMain) {
         if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
             return fail(
                 'BOOTSTRAP_UNAUTHORIZED',
-                'نسخة التطبيق لا تحتوي على GESTION_BOOTSTRAP_SECRET. أعد بناء التطبيق بعد ضبط secret في GitHub Actions.'
+                'إعداد المؤسسة الجديدة وربط المؤسسة متوقفان مؤقتًا حتى يتم تفعيل رمز التفعيل.'
             );
         }
 
@@ -511,15 +511,15 @@ function registerInstitutionIpc(ipcMain) {
             return fail('ALREADY_CONFIGURED');
         }
 
-        const massarCode = normalizeMassarCode(payload?.massarCode);
-        const institutionName = String(payload?.institutionName || '').trim() || massarCode;
+        // MASSAR code is no longer collected at registration (Req: registration
+        // simplification). It is not sent to bootstrapInstitution; the Cloud Function stores
+        // massarCode: '' for newly-created institutions. Existing institutions that already
+        // have a massar_code keep it — see institution:updateMassarCode, which is unaffected.
+        const institutionName = String(payload?.institutionName || '').trim();
         const adminName = String(payload?.adminName || '').trim();
         const adminEmail = String(payload?.adminEmail || '').trim().toLowerCase();
         const adminPassword = String(payload?.adminPassword || '');
 
-        if (massarCode && (massarCode.length > MASSAR_CODE_MAX_LENGTH || !isValidMassarCode(massarCode))) {
-            return fail('INVALID_MASSAR');
-        }
         if (!institutionName) {
             return fail('INVALID_INSTITUTION_NAME', 'اسم المؤسسة مطلوب');
         }
@@ -544,12 +544,11 @@ function registerInstitutionIpc(ipcMain) {
         if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
             return fail(
                 'BOOTSTRAP_UNAUTHORIZED',
-                'نسخة التطبيق لا تحتوي على GESTION_BOOTSTRAP_SECRET. أعد بناء التطبيق بعد ضبط secret في GitHub Actions.'
+                'إعداد المؤسسة الجديدة وربط المؤسسة متوقفان مؤقتًا حتى يتم تفعيل رمز التفعيل.'
             );
         }
 
         const bootstrapResult = await postFirebaseFunction(functionsUrl, 'bootstrapInstitution', {
-            massarCode,
             institutionName,
             adminName,
             adminEmail,
@@ -564,7 +563,6 @@ function registerInstitutionIpc(ipcMain) {
         }
 
         const bootstrap = normalizeBootstrapResponse(bootstrapResult.data, {
-            massarCode,
             institutionName,
             adminName,
             adminEmail,
@@ -573,7 +571,6 @@ function registerInstitutionIpc(ipcMain) {
         if (!bootstrap.schoolId || bootstrap.schoolId.length < 1 || bootstrap.schoolId.length > 64) {
             return fail('INVALID_BOOTSTRAP_RESPONSE');
         }
-        const massarCodeDiffersFromSchoolId = !!massarCode && massarCode !== bootstrap.schoolId;
 
         const transaction = db.transaction(() => {
             db.prepare(
@@ -602,7 +599,7 @@ function registerInstitutionIpc(ipcMain) {
                         onboarding_completed_at = COALESCE(onboarding_completed_at, CURRENT_TIMESTAMP),
                         updated_at = CURRENT_TIMESTAMP
                 `
-            ).run(bootstrap.schoolId, massarCode || null, bootstrap.institutionName, deviceContext.deviceHash);
+            ).run(bootstrap.schoolId, null, bootstrap.institutionName, deviceContext.deviceHash);
 
             upsertSyncConfig(db, bootstrap.syncConfig);
             upsertFirebaseCachedUser(db, { ...bootstrap.user, role: 'principal' }, adminPassword, 'principal');
@@ -614,9 +611,8 @@ function registerInstitutionIpc(ipcMain) {
                 message: 'تم إعداد المؤسسة بنجاح',
                 setupCompleted: true,
                 schoolId: bootstrap.schoolId,
-                massarCode: massarCode || null,
-                massarCodeDiffersFromSchoolId,
-                institution: buildInstitutionSummary(massarCode || bootstrap.massarCode, bootstrap.institutionName),
+                massarCode: null,
+                institution: buildInstitutionSummary(bootstrap.massarCode, bootstrap.institutionName),
                 currentDevice: buildCurrentDeviceSummary(db, deviceContext),
                 autoLoginEmail: bootstrap.user.email || adminEmail,
                 loginPayload: {

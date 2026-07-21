@@ -118,6 +118,24 @@ function readInstitutionFallback(db) {
     }
 }
 
+/**
+ * Best-effort read of the registered principal's name, used as a director_name fallback
+ * (registration auto-populate — Part 4). Guarded like readInstitutionFallback/readLegacySchoolInfo
+ * since identity.js must not assume the users table shape/existence.
+ */
+function readPrincipalName(db) {
+    try {
+        const row = db
+            .prepare(
+                "SELECT name FROM users WHERE role = 'principal' AND COALESCE(disabled, 0) = 0 ORDER BY id LIMIT 1"
+            )
+            .get();
+        return String(row?.name || '').trim();
+    } catch {
+        return '';
+    }
+}
+
 function mergeLegacyFallbacks(db, identity) {
     const merged = { ...DEFAULT_IDENTITY, ...identity };
     const legacy = readLegacySchoolInfo(db);
@@ -135,6 +153,9 @@ function mergeLegacyFallbacks(db, identity) {
     }
     if (!String(merged.school_year || '').trim()) {
         merged.school_year = currentSchoolYear || '';
+    }
+    if (!String(merged.director_name || '').trim()) {
+        merged.director_name = readPrincipalName(db);
     }
 
     return merged;

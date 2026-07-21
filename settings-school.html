@@ -11,6 +11,7 @@
         <script src="js/shared/dom-helpers.js" defer></script>
         <script src="js/shared/auth-session.js" defer></script>
         <script src="js/shared/filter-manager.js" defer></script>
+        <script src="js/data/ma-regions.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -73,11 +74,15 @@
                             </div>
                             <div class="form-group">
                                 <label for="id-academy">الأكاديمية الجهوية</label>
-                                <input id="id-academy" name="academy" autocomplete="off" placeholder="الأكاديمية الجهوية للتربية والتكوين" />
+                                <select id="id-academy" name="academy">
+                                    <option value="" disabled selected>اختر الأكاديمية الجهوية</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label for="id-directorate">المديرية الإقليمية</label>
-                                <input id="id-directorate" name="directorate" autocomplete="off" placeholder="المديرية الإقليمية" />
+                                <select id="id-directorate" name="directorate" disabled>
+                                    <option value="" disabled selected>اختر الأكاديمية أولاً</option>
+                                </select>
                             </div>
                         </div>
                     </section>

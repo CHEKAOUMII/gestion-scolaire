@@ -499,8 +499,10 @@ async function reserveUniqueSchoolId() {
  * POST /bootstrapInstitution
  * Creates a school, its institution metadata, and the first admin Firebase user.
  * The School_Id is always generated server-side (Req 1.1-1.3) — any client-supplied
- * schoolId/gresaCode is ignored. The Massar_Code is optional descriptive information
- * (Req 5.5) stored alongside the School_Id, never used as the tenant key.
+ * schoolId/gresaCode is ignored. The Massar_Code is no longer collected at registration
+ * (registration simplification) — it is always stored as '' for newly-bootstrapped
+ * institutions. Existing institutions may still have a massarCode set via
+ * updateInstitutionMassarCode, which is unaffected by this endpoint.
  */
 exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTSTRAP_SECRET'] }, async (req, res) => {
     if (!requirePost(req, res)) return;
@@ -508,22 +510,16 @@ exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTST
     let reservedSchoolId = null;
     try {
         requireBootstrapAuthorization(req);
-        const { massarCode: rawMassarCode, institutionName, adminEmail, adminPassword, adminName } = req.body || {};
+        const { institutionName, adminEmail, adminPassword, adminName } = req.body || {};
 
         const email = normalizeEmail(adminEmail);
         const name = String(adminName || '').trim();
         const schoolName = String(institutionName || '').trim();
-        const massarCode = normalizeSchoolId(rawMassarCode || '');
+        const massarCode = '';
 
         // Required-field validation happens before any Firestore/Auth write (Req 1.6).
         if (!schoolName || !email || !adminPassword || !name) {
             const err = new Error('INVALID_REQUEST');
-            err.status = 400;
-            throw err;
-        }
-        // Massar_Code is optional; only its character set/length are validated when non-empty.
-        if (massarCode && (massarCode.length > MASSAR_CODE_MAX_LENGTH || !MASSAR_CODE_REGEX.test(massarCode))) {
-            const err = new Error('INVALID_MASSAR');
             err.status = 400;
             throw err;
         }

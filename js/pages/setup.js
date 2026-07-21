@@ -123,25 +123,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    function isValidMassarCode(code) {
-        return /^[A-Z0-9]+$/.test(
-            String(code || '')
-                .trim()
-                .toUpperCase()
-        );
-    }
-
-    function getNormalizedMassarCode(inputId) {
-        const input = document.getElementById(inputId);
-        const normalized = String(input?.value || '')
-            .trim()
-            .toUpperCase();
-        if (input) {
-            input.value = normalized;
-        }
-        return normalized;
-    }
-
     btnModeNew.addEventListener('click', () => showStep(stepNewInstitution));
     btnModeLogin.addEventListener('click', () => { window.location.href = 'login.html'; });
     btnBackFromNew.addEventListener('click', () => showStep(stepModeSelect));
@@ -152,7 +133,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('[SETUP] New institution form submitted');
         clearFieldErrors(formNew);
 
-        const massarCode = getNormalizedMassarCode('new-massar-code');
         const institutionName = document.getElementById('new-institution-name').value.trim();
         const adminName = document.getElementById('new-admin-name').value.trim();
         const adminEmail = (document.getElementById('new-admin-email')?.value || '').trim().toLowerCase();
@@ -161,13 +141,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let hasError = false;
 
-        // Massar code is optional (Req 5.1/5.2): only validate format/length when non-empty.
-        if (massarCode) {
-            if (massarCode.length > 20 || !isValidMassarCode(massarCode)) {
-                showFieldError('new-massar-error', 'رمز المؤسسة غير صالح - يجب أن يتكون من حروف إنجليزية كبيرة وأرقام فقط، بحد أقصى 20 حرفاً');
-                hasError = true;
-            }
-        }
         if (!institutionName) {
             showFieldError('new-institution-name-error', 'اسم المؤسسة مطلوب');
             hasError = true;
@@ -201,7 +174,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             console.log('[SETUP] Calling setupNewInstitution...');
             const result = await window.api.institution.setupNew({
-                massarCode,
                 institutionName,
                 adminName,
                 adminEmail,
@@ -211,12 +183,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (result?.success) {
                 showSetupToast(result.message || 'تم إعداد المؤسسة بنجاح', 'success');
-                if (result.massarCodeDiffersFromSchoolId) {
-                    showSetupToast(
-                        'تم إعداد المؤسسة بمعرّف فريد؛ يمكنك متابعة استخدام رمز ماسار كما أدخلته للعرض والبحث',
-                        'info'
-                    );
-                }
 
                 // Auto-login as admin
                 let loggedIn = false;

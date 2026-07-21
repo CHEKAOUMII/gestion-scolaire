@@ -283,15 +283,121 @@ function wireAssetUploader(type, container) {
     }
 }
 
+/**
+ * Fill the academy <select> with MA_ACADEMIES options. If a previously-stored value doesn't
+ * match any option (free-text institutions from before this dropdown existed — Part 3
+ * backward compatibility), a temporary option carrying that exact value is appended and
+ * selected so the stored data is never silently dropped.
+ * @param {string} selectedValue - stored academy value (may be '' or a non-matching string)
+ */
+function populateAcademyDropdown(selectedValue) {
+    const select = document.getElementById(FIELDS.academy);
+    if (!select || typeof MA_ACADEMIES === 'undefined') return;
+
+    select.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.textContent = 'اختر الأكاديمية الجهوية';
+    placeholder.selected = !selectedValue;
+    select.appendChild(placeholder);
+
+    let matched = false;
+    for (const academy of MA_ACADEMIES) {
+        const option = document.createElement('option');
+        option.value = academy;
+        option.textContent = academy;
+        if (selectedValue && academy === selectedValue) {
+            option.selected = true;
+            matched = true;
+        }
+        select.appendChild(option);
+    }
+
+    if (selectedValue && !matched) {
+        console.warn('settings-school: stored academy value has no matching dropdown option, keeping as-is:', selectedValue);
+        const fallbackOption = document.createElement('option');
+        fallbackOption.value = selectedValue;
+        fallbackOption.textContent = selectedValue;
+        fallbackOption.selected = true;
+        select.appendChild(fallbackOption);
+    }
+}
+
+/**
+ * Fill the directorate <select> with the MA_DIRECTORATES entries for the given academy
+ * (cascading behavior). Disabled with a placeholder when no academy is selected. Same
+ * non-matching-value fallback as populateAcademyDropdown for backward compatibility.
+ * @param {string} academyValue - currently selected academy (may be '')
+ * @param {string} selectedValue - stored directorate value (may be '' or non-matching)
+ */
+function populateDirectorateDropdown(academyValue, selectedValue) {
+    const select = document.getElementById(FIELDS.directorate);
+    if (!select) return;
+
+    if (!academyValue) {
+        select.innerHTML = '<option value="" disabled selected>اختر الأكاديمية أولاً</option>';
+        select.disabled = true;
+        return;
+    }
+
+    select.disabled = false;
+    const directorates = (typeof MA_DIRECTORATES !== 'undefined' && MA_DIRECTORATES[academyValue]) || [];
+
+    select.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.textContent = 'اختر المديرية الإقليمية';
+    placeholder.selected = !selectedValue;
+    select.appendChild(placeholder);
+
+    let matched = false;
+    for (const directorate of directorates) {
+        const option = document.createElement('option');
+        option.value = directorate;
+        option.textContent = directorate;
+        if (selectedValue && directorate === selectedValue) {
+            option.selected = true;
+            matched = true;
+        }
+        select.appendChild(option);
+    }
+
+    if (selectedValue && !matched) {
+        console.warn(
+            'settings-school: stored directorate value has no matching dropdown option for this academy, keeping as-is:',
+            selectedValue
+        );
+        const fallbackOption = document.createElement('option');
+        fallbackOption.value = selectedValue;
+        fallbackOption.textContent = selectedValue;
+        fallbackOption.selected = true;
+        select.appendChild(fallbackOption);
+    }
+}
+
+/** Wires the academy -> directorate cascade: changing academy resets directorate options. */
+function wireAcademyDirectorateCascade() {
+    const academySelect = document.getElementById(FIELDS.academy);
+    academySelect?.addEventListener('change', (event) => {
+        populateDirectorateDropdown(event.target.value, '');
+    });
+}
+
 async function loadIdentity() {
     try {
         const identity = await window.api.reports.getIdentity();
         for (const [key, domId] of Object.entries(FIELDS)) {
+            if (key === 'academy' || key === 'directorate') continue; // handled below
             const element = document.getElementById(domId);
             if (element && identity[key]) {
                 element.value = identity[key];
             }
         }
+
+        populateAcademyDropdown(identity.academy);
+        populateDirectorateDropdown(identity.academy, identity.directorate);
 
         for (const def of ASSET_DEFINITIONS) {
             const stored = identity[`${def.type}_base64`];
@@ -483,6 +589,7 @@ async function loadSyncInstitutionSection() {
 
 function initSettingsSchoolPage() {
     renderAssetUploaders();
+    wireAcademyDirectorateCascade();
 
     const form = document.getElementById('school-form');
     form?.addEventListener('submit', (event) => {
