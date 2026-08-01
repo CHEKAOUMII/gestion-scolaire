@@ -11,6 +11,7 @@ const SCHOOL_YEAR = getSchoolYear();
 // (economic/social/health) are read live via the existing tab collectors.
 const _riskState = {
     generalAverage: null,
+    incompleteMetadata: null,
     subjectAverages: [],
     justifiedHours: 0,
     unjustifiedHours: 0
@@ -129,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initBmScoring();
     initGuidanceLive();
 
+    await ensureSubjectCoefficientMappings();
     await loadStudentProfile(code);
 });
 
@@ -333,8 +335,8 @@ function renderMiniStats(grades, absences, student) {
     // computation so the quick-stats card and grades tab can never drift.
     const averages =
         typeof computeStudentAverages === 'function'
-            ? computeStudentAverages(grades, branch)
-            : { term1: null, term2: null, general: null };
+            ? computeStudentAverages(grades, branch, { schoolYear: SCHOOL_YEAR, streamCode: branch })
+            : { term1: null, term2: null, general: null, incomplete: false };
 
     // Subject count for the quick-stats card (unchanged behavior): count the
     // distinct base subjects across the student's grade records.
@@ -360,6 +362,7 @@ function renderMiniStats(grades, absences, student) {
 
     // Stash absence + general average for the dropout-risk engine (Axis A/B).
     _riskState.generalAverage = typeof averages.general === 'number' ? averages.general : null;
+    _riskState.incompleteMetadata = averages.incomplete ? averages.metadata : null;
     _riskState.justifiedHours = justifiedHours;
     _riskState.unjustifiedHours = unjustifiedHours;
 
@@ -459,8 +462,9 @@ function renderGradesTab(student, rawGrades) {
     // its own per-term dedup/partitioning internally.
     const averages =
         typeof computeStudentAverages === 'function'
-            ? computeStudentAverages(rawGrades, branch)
-            : { term1: null, term2: null, general: null };
+            ? computeStudentAverages(rawGrades, branch, { schoolYear: SCHOOL_YEAR, streamCode: branch })
+            : { term1: null, term2: null, general: null, incomplete: false };
+    _riskState.incompleteMetadata = averages.incomplete ? averages.metadata : null;
 
     // reduce-based max/min avoids the call-stack overflow risk of
     // Math.max(...arr) / Math.min(...arr) on large grade arrays (L3).
@@ -3212,6 +3216,10 @@ function initGuidanceLive() {
 // ═══════════════════════════════════════════════════════════════
 function setupHeaderActions() {
     const openPreview = () => {
+        if (_riskState.incompleteMetadata) {
+            showToast('لا يمكن تصدير ملف يتضمن نتائج غير مكتملة بسبب معاملات ناقصة', 'warning');
+            return;
+        }
         // Recompute guidance analysis so print captures current averages/grades
         if (typeof updateGuidanceAnalysis === 'function') {
             try {

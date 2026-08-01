@@ -53,6 +53,7 @@
             '.msg-confirm-overlay{position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0;visibility:hidden;transition:opacity .18s ease,visibility .18s ease;}',
             '.msg-confirm-overlay.active{opacity:1;visibility:visible;}',
             '.msg-confirm-card{width:min(480px,92vw);background:var(--color-surface,#fff);color:var(--color-text-main,#0f172a);border-radius:16px;box-shadow:0 20px 50px rgba(15,23,42,.25);overflow:hidden;transform:translateY(12px) scale(.96);transition:transform .18s ease;}',
+            '.msg-confirm-card.wide{width:min(720px,96vw);}',
             '.msg-confirm-overlay.active .msg-confirm-card{transform:translateY(0) scale(1);}',
             '.msg-confirm-header{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--color-accent,#e5e7eb);border-top:4px solid var(--color-primary,#3b6ac5);}',
             '.msg-confirm-header.info{border-top-color:var(--color-primary,#3b6ac5);}',
@@ -67,7 +68,7 @@
             '.msg-confirm-close:hover{background:rgba(148,163,184,.16);color:var(--color-text-main,#0f172a);}',
             '.msg-confirm-body{padding:20px;display:grid;gap:10px;}',
             '.msg-confirm-message{margin:0;font-size:14px;line-height:1.7;}',
-            '.msg-confirm-detail{margin:0;font-size:13px;line-height:1.6;color:var(--color-text-muted,#64748b);}',
+            '.msg-confirm-detail{margin:0;font-size:13px;line-height:1.6;color:var(--color-text-muted,#64748b);white-space:pre-line;max-height:min(52vh,420px);overflow:auto;}',
             '.msg-confirm-input{width:100%;padding:11px 14px;border:1px solid var(--color-accent,#cbd5e1);border-radius:10px;background:var(--color-surface,#fff);color:var(--color-text-main,#0f172a);font:inherit;}',
             '.msg-confirm-input:focus{outline:0;border-color:var(--color-primary,#3b6ac5);box-shadow:0 0 0 3px rgba(59,106,197,.18);}',
             '.msg-confirm-actions{display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid var(--color-accent,#e5e7eb);}',
@@ -115,7 +116,7 @@
             overlay.setAttribute('aria-hidden', 'true');
 
             var card = document.createElement('div');
-            card.className = 'msg-confirm-card';
+            card.className = 'msg-confirm-card' + (config.wide ? ' wide' : '');
 
             var header = document.createElement('div');
             header.className = 'msg-confirm-header ' + typeConfig.headerClass;

@@ -7,6 +7,9 @@ let fetData = {
     teacherMetaByKey: {},
     unresolvedTeacherKeys: []
 };
+let allCycleTimetables = {};
+let activeTimetableCycleCode = null;
+let crossCycleTimetablesLoaded = false;
 
 function normalizeImportedTeacherEntry(entry) {
     if (typeof entry === 'string') {
@@ -816,26 +819,132 @@ function toggleTeacherDiffMode() {
     }
 }
 
+function getSupportedTimetableCycles(response) {
+    if (!response?.success || !Array.isArray(response.cycles)) {
+        throw new Error('تعذر قراءة قائمة أسلاك استعمال الزمن');
+    }
+    return response.cycles.filter((cycle) => Number(cycle.is_active) && cycle.capability === 'supported');
+}
+
+function renderTimetableCycleSelector(cycles, selectedCycleCode) {
+    const select = document.getElementById('timetable-cycle-select');
+    const status = document.getElementById('timetable-cycle-status');
+    if (!select) return;
+
+    select.replaceChildren(...cycles.map((cycle) => new Option(cycle.label_ar, cycle.cycle_code)));
+    select.value = selectedCycleCode;
+    select.disabled = cycles.length < 2;
+    if (status) status.textContent = `السلك المحدد: ${cycles.find((cycle) => cycle.cycle_code === selectedCycleCode)?.label_ar || selectedCycleCode}`;
+    select.onchange = changeTimetableCycle;
+}
+
+function isTimetableCycleChangeAllowed(select, previousCycleCode) {
+    const guardEvent = new CustomEvent('app:beforeCycleChange', {
+        cancelable: true,
+        detail: { fromCycle: previousCycleCode, toCycle: select.value }
+    });
+    if (document.querySelector('[data-unsaved-changes="true"]') || !window.dispatchEvent(guardEvent)) {
+        select.value = previousCycleCode;
+        showToast('احفظ التعديلات الحالية قبل تبديل السلك', 'warning');
+        return false;
+    }
+    return true;
+}
+
+async function changeTimetableCycle(event) {
+    const select = event.currentTarget;
+    const previousCycleCode = activeTimetableCycleCode;
+    if (!isTimetableCycleChangeAllowed(select, previousCycleCode)) return;
+
+    try {
+        const response = await window.api.cycles.setActive(select.value, getSchoolYear());
+        if (response?.success) {
+            window.location.reload();
+            return;
+        }
+        select.value = previousCycleCode;
+        showToast(response?.error || 'تعذر تبديل السلك', 'error');
+    } catch (error) {
+        select.value = previousCycleCode;
+        console.error('[timetable-cycle] switch failed:', error);
+        showToast(error?.message || 'تعذر تبديل السلك', 'error');
+    }
+}
+
+async function resolveActiveTimetableCycle() {
+    const [cyclesResponse, activeResponse] = await Promise.all([
+        window.api?.cycles?.list?.(),
+        window.api?.cycles?.getActive?.()
+    ]);
+    const cycles = getSupportedTimetableCycles(cyclesResponse);
+    const selectedCycleCode = activeResponse?.context?.cycleCode || activeResponse?.cycle?.cycle_code;
+    const cycle = cycles.find((candidate) => candidate.cycle_code === selectedCycleCode);
+    if (!activeResponse?.success || !cycle) {
+        throw new Error('يرجى اختيار سلك مدعوم لاستعمال الزمن');
+    }
+    activeTimetableCycleCode = cycle.cycle_code;
+    renderTimetableCycleSelector(cycles, activeTimetableCycleCode);
+    return activeTimetableCycleCode;
+}
+
+async function readActiveTimetable(schoolYear) {
+    const readFn = window.api?.timetable?.get;
+    if (typeof readFn !== 'function') throw new Error('تطبيق استعمال الزمن غير متاح');
+    const response = await readFn(schoolYear);
+    if (response?.success === false) throw new Error(response.error || 'تعذر قراءة جدول السلك المحدد');
+    return response || null;
+}
+
+async function migrateLegacyTimetableData() {
+    const legacyKey = TimetableCycles.TIMETABLE_LEGACY_STORAGE_KEY;
+    if (activeTimetableCycleCode !== 'secondary_qualifiant' && localStorage.getItem(legacyKey) != null) {
+        throw new Error('اختر السلك التأهيلي لترحيل جدول الاستعمال القديم بأمان');
+    }
+    const schoolYear = getSchoolYear();
+    return TimetableCycles.migrateLegacyTimetableOnce({
+        storage: localStorage,
+        loadCurrent: () => readActiveTimetable(schoolYear),
+        saveCurrent: (data) => window.api?.timetable?.save?.({ school_year: schoolYear, data })
+    });
+}
+
+async function loadAllCycleTimetables(schoolYear = getSchoolYear()) {
+    const loaded = await TimetableCycles.loadAllCycleTimetables(async () => {
+        const readFn = window.api?.timetable?.get;
+        if (typeof readFn !== 'function') throw new Error('تطبيق استعمال الزمن غير متاح');
+        const response = await readFn({ schoolYear, allCycles: true });
+        if (response?.success === false) throw new Error(response.error || 'تعذر قراءة جداول كل الأسلاك');
+        if (!response || typeof response !== 'object' || Array.isArray(response)) {
+            throw new Error('استجابة جداول الأسلاك غير صالحة');
+        }
+        return response;
+    });
+    allCycleTimetables = loaded;
+    crossCycleTimetablesLoaded = true;
+    return allCycleTimetables;
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     setupSidebar();
-    // Auto-migrate from localStorage to SQLite (one-time)
     try {
-        const raw = localStorage.getItem('timetableData');
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            const schoolYear = getSchoolYear();
-            const existing = await window.api?.timetable?.get?.(schoolYear);
-            if (!existing) {
-                await window.api?.timetable?.save?.({ school_year: schoolYear, data: parsed });
-            }
-            localStorage.removeItem('timetableData');
-        }
+        await resolveActiveTimetableCycle();
+        await migrateLegacyTimetableData();
     } catch (e) {
-        console.error('[migration] timetable localStorage migration failed:', e);
+        console.error('[timetable-cycle] initialization failed:', e);
+        showToast(e?.message || 'تعذر تهيئة سلك استعمال الزمن', 'error');
+        return;
     }
-    loadSavedData();
+
+    try {
+        await loadSavedData();
+        await loadAllCycleTimetables();
+    } catch (e) {
+        crossCycleTimetablesLoaded = false;
+        console.error('[timetable-cycle] cross-cycle load failed:', e);
+        showToast('تعذر تحميل جداول كل الأسلاك؛ تم تعطيل التحقق من النقل.', 'error');
+    }
 });
 
 // Save data to database.
@@ -860,9 +969,12 @@ async function saveDataToStorage() {
             return { success: false, error: 'save-api-unavailable' };
         }
         const result = await saveFn({ school_year: schoolYear, data: dataToSave });
-        if (result && result.success === false) {
-            console.error('Timetable save rejected:', result.error);
-            return { success: false, error: result.error || 'rejected' };
+        if (!result || result.success !== true) {
+            console.error('Timetable save rejected:', result?.error);
+            return { success: false, error: result?.error || 'rejected' };
+        }
+        if (activeTimetableCycleCode) {
+            allCycleTimetables[activeTimetableCycleCode] = dataToSave;
         }
         console.log('Data saved to database');
         return { success: true };
@@ -876,7 +988,7 @@ async function saveDataToStorage() {
 async function loadSavedData() {
     try {
         const schoolYear = getSchoolYear();
-        const parsed = await window.api?.timetable?.get?.(schoolYear);
+        const parsed = await readActiveTimetable(schoolYear);
         if (parsed) {
             fetData.teachers = (parsed.teachers || []).map(normalizeImportedTeacherEntry);
             fetData.subjects = new Set(parsed.subjects || []);
@@ -914,6 +1026,7 @@ async function loadSavedData() {
         }
     } catch (e) {
         console.error('Error loading timetable data:', e);
+        throw e;
     }
 }
 
@@ -921,7 +1034,9 @@ async function loadSavedData() {
 async function clearSavedData() {
     try {
         const schoolYear = getSchoolYear();
-        await window.api?.timetable?.delete?.(schoolYear);
+        const result = await window.api?.timetable?.delete?.(schoolYear);
+        if (result?.success !== true) throw new Error(result?.error || 'تعذر مسح جدول السلك المحدد');
+        if (activeTimetableCycleCode) delete allCycleTimetables[activeTimetableCycleCode];
     } catch (e) {
         console.error('Error clearing timetable data:', e);
     }
@@ -1927,6 +2042,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('changelog-btn')?.addEventListener('click', openChangeLogModal);
     document.getElementById('toggle-diff-btn')?.addEventListener('click', toggleDiffMode);
     document.getElementById('export-xml-btn')?.addEventListener('click', exportTeachersXML);
+    initMoveConditionControl();
 });
 
 function toggleEditMode() {
@@ -2534,6 +2650,75 @@ function getMoveLogic() {
     return window.TimetableMoveLogic || window.GS2?.TimetableMoveLogic || null;
 }
 
+// === Move conditions (user-selectable) ==================================
+// Teacher availability, class availability and the "no gap in the class day"
+// rule are always enforced. Only the room-availability condition is optional,
+// because some schools reuse a room for two groups (labs, workshops, sport).
+// Device-local UI preference — deliberately NOT synced.
+const MOVE_CONDITION_STORAGE_KEY = 'timetableMoveConditionMode';
+
+function getMoveConditionMode() {
+    const modes = getMoveLogic()?.MOVE_CONDITIONS || { STRICT: 'strict', NO_ROOM: 'no-room' };
+    let stored = null;
+    try {
+        stored = localStorage.getItem(MOVE_CONDITION_STORAGE_KEY);
+    } catch (e) {
+        stored = null;
+    }
+    return stored === modes.NO_ROOM ? modes.NO_ROOM : modes.STRICT;
+}
+
+function setMoveConditionMode(mode) {
+    const modes = getMoveLogic()?.MOVE_CONDITIONS || { STRICT: 'strict', NO_ROOM: 'no-room' };
+    const next = mode === modes.NO_ROOM ? modes.NO_ROOM : modes.STRICT;
+    try {
+        localStorage.setItem(MOVE_CONDITION_STORAGE_KEY, next);
+    } catch (e) {
+        /* storage unavailable — keep in-memory default for this session */
+    }
+    return next;
+}
+
+function isRoomConditionEnabled() {
+    const logic = getMoveLogic();
+    const mode = getMoveConditionMode();
+    return logic ? logic.isRoomCheckEnabled(mode) : mode !== 'no-room';
+}
+
+function initMoveConditionControl() {
+    const select = document.getElementById('move-condition-mode');
+    if (!select) return;
+
+    select.value = getMoveConditionMode();
+    select.addEventListener('change', () => {
+        const mode = setMoveConditionMode(select.value);
+        select.value = mode;
+
+        // Any cached hover validity was computed under the previous conditions.
+        _lastHoverValid = false;
+        _renderedHoverKey = null;
+
+        // Repaint destination highlighting when a move is in progress.
+        const mv = editMode.moveMode;
+        if (editMode.active && mv?.active && mv.sourceData?.students) {
+            highlightAvailableSlots(mv.sourceData.students, {
+                sourceDay: mv.sourceDay,
+                sourcePeriod: mv.sourcePeriod,
+                sourcePeriodEnd: mv.sourcePeriodEnd,
+                sourcePeriodType: mv.sourcePeriodType,
+                room: mv.sourceData.room || ''
+            });
+        }
+
+        showToast(
+            isRoomConditionEnabled()
+                ? 'شروط النقل: الأستاذ + القسم + القاعة'
+                : 'شروط النقل: الأستاذ + القسم فقط (تجاهل تعارض القاعة)',
+            'info'
+        );
+    });
+}
+
 function buildTimetableSlotKey(day, periodType, period) {
     const logic = getMoveLogic();
     if (logic) return logic.buildTimetableSlotKey(day, periodType, period);
@@ -2630,6 +2815,10 @@ function validateMoveTarget({
     destPeriod,
     destPeriodType
 }) {
+    if (!crossCycleTimetablesLoaded) {
+        return { valid: false, message: 'لا يمكن النقل قبل تحميل جداول كل الأسلاك.' };
+    }
+
     const logic = getMoveLogic();
     if (logic) {
         return logic.validateMoveTarget(
@@ -2642,10 +2831,12 @@ function validateMoveTarget({
                 sourcePeriods,
                 destDay,
                 destPeriod,
-                destPeriodType
+                destPeriodType,
+                checkRoom: isRoomConditionEnabled()
             },
             {
                 getSlotData,
+                isTeacherOccupied: isTeacherOccupiedAcrossCycles,
                 isRoomOccupied,
                 buildClassTimetable: (className) =>
                     _dragClassTimetable && _dragSource && _dragSource.srcData?.students === className
@@ -3189,32 +3380,72 @@ function showValidationMessage(messages) {
     msgDiv.style.display = 'block';
 }
 
-// Check if a room is already occupied at a specific time slot
+function getCycleTimetableEntries() {
+    const entries = Object.entries(allCycleTimetables);
+    if (activeTimetableCycleCode) {
+        const activeIndex = entries.findIndex(([cycleCode]) => cycleCode === activeTimetableCycleCode);
+        const activeEntry = [activeTimetableCycleCode, { timetables: fetData.timetables }];
+        if (activeIndex === -1) entries.push(activeEntry);
+        else entries[activeIndex] = activeEntry;
+    }
+    return entries;
+}
+
+function getStoredTeacherMeta(timetableData, teacherKey) {
+    return normalizeImportedTeacherEntry(timetableData?.teacherMetaByKey?.[teacherKey] || teacherKey);
+}
+
+function isSameTimetableTeacher(teacherKey, candidateKey, timetableData) {
+    if (teacherKey === candidateKey) return true;
+    const sourceMeta = getTeacherMeta(teacherKey);
+    const candidateMeta = getStoredTeacherMeta(timetableData, candidateKey);
+    if (sourceMeta.teacherId && sourceMeta.teacherId === candidateMeta.teacherId) return true;
+    return Boolean(sourceMeta.displayName && sourceMeta.displayName === candidateMeta.displayName);
+}
+
+function isTeacherOccupiedAcrossCycles(teacher, day, period, periodType) {
+    const conflicts = getMoveLogic().detectConflicts({
+        scopeCycles: 'all',
+        policyCycle: activeTimetableCycleCode,
+        timetableEntries: getCycleTimetableEntries(),
+        teacher,
+        day,
+        period,
+        periodType,
+        teacherMatcher: (candidateTeacher, timetableData) =>
+            isSameTimetableTeacher(teacher, candidateTeacher, timetableData),
+        excludeTeacher: teacher
+    });
+    const conflict = conflicts.find((entry) => entry.type === 'teacher');
+    return conflict
+        ? { occupied: true, byTeacher: conflict.teacher, slot: conflict.slot, cycleCode: conflict.cycleCode }
+        : { occupied: false };
+}
+
+// Check if a room is already occupied at a specific time slot across supported cycles.
 function isRoomOccupied(room, day, period, periodType, excludeTeacher = null) {
     if (!room || room.trim() === '') return { occupied: false };
 
-    // Check all teachers' timetables
-    const teachers = Object.keys(fetData.timetables);
-
-    for (const teacher of teachers) {
-        // Skip the current teacher when editing
-        if (excludeTeacher && teacher === excludeTeacher) continue;
-
-        const teacherTimetable = fetData.timetables[teacher];
-        if (!teacherTimetable || !teacherTimetable[day]) continue;
-
-        const slot = teacherTimetable[day][periodType]?.[period];
-        if (slot && slot.room === room) {
-            return {
-                occupied: true,
-                byTeacher: teacher,
-                subject: slot.subject,
-                students: slot.students
-            };
-        }
-    }
-
-    return { occupied: false };
+    const conflicts = getMoveLogic().detectConflicts({
+        scopeCycles: 'all',
+        policyCycle: activeTimetableCycleCode,
+        timetableEntries: getCycleTimetableEntries(),
+        room,
+        day,
+        period,
+        periodType,
+        excludeTeacher
+    });
+    const conflict = conflicts.find((entry) => entry.type === 'room');
+    return conflict
+        ? {
+              occupied: true,
+              byTeacher: conflict.teacher,
+              subject: conflict.slot.subject,
+              students: conflict.slot.students,
+              cycleCode: conflict.cycleCode
+          }
+        : { occupied: false };
 }
 
 // Validation functions
@@ -3229,6 +3460,12 @@ function validateChange(day, period, subject, className, deleteSlot, room = null
             messages: [{ type: 'error', message: 'يرجى اختيار المادة والقسم' }]
         };
     }
+    if (!crossCycleTimetablesLoaded) {
+        return {
+            valid: false,
+            messages: [{ type: 'error', message: 'لا يمكن الحفظ قبل تحميل جداول كل الأسلاك' }]
+        };
+    }
 
     const messages = [];
 
@@ -3240,13 +3477,17 @@ function validateChange(day, period, subject, className, deleteSlot, room = null
         });
     }
 
-    // Rule 2: Room conflict check
+    // Rule 2: Room conflict check.
+    // Blocking (error) under strict conditions; informational (warning) when the
+    // user turned the room condition off, so the same choice governs the modal
+    // and drag-and-drop instead of the two disagreeing.
     if (room && periodType) {
         const roomCheck = isRoomOccupied(room, day, period, periodType, editMode.currentTeacher);
         if (roomCheck.occupied) {
+            const blocking = isRoomConditionEnabled();
             messages.push({
-                type: 'error',
-                message: `تعارض: القاعة ${room} مشغولة من طرف ${roomCheck.byTeacher} (${roomCheck.subject} - ${roomCheck.students})`
+                type: blocking ? 'error' : 'warning',
+                message: `${blocking ? 'تعارض' : 'تنبيه'}: القاعة ${room} مشغولة من طرف ${roomCheck.byTeacher} (${roomCheck.subject} - ${roomCheck.students})`
             });
         }
     }

@@ -62,6 +62,11 @@ function parseArgs(argv) {
 /**
  * Recursively list *.test.js files under `dir`, sorted for deterministic order.
  */
+function isPreFixExploration(file) {
+  const header = fs.readFileSync(file, 'utf8').slice(0, 1000);
+  return /@pre-fix exploratory|@phase-E investigation/.test(header);
+}
+
 function listTestFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   const out = [];
@@ -74,7 +79,7 @@ function listTestFiles(dir) {
       // e2e needs Playwright + a real Electron window; run via `npm run test:e2e`.
       if (['fixtures', '__snapshots__', 'integration', 'e2e'].includes(entry.name)) continue;
       out.push(...listTestFiles(full));
-    } else if (entry.isFile() && entry.name.endsWith('.test.js')) {
+    } else if (entry.isFile() && entry.name.endsWith('.test.js') && !isPreFixExploration(full)) {
       out.push(full);
     }
   }
@@ -107,7 +112,7 @@ function buildPlan() {
   // 3. Top-level *.test.js (V2 + display + PBT regressions).
   const topLevel = fs
     .readdirSync(TESTS_DIR, { withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.endsWith('.test.js'))
+    .filter((e) => e.isFile() && e.name.endsWith('.test.js') && !isPreFixExploration(path.join(TESTS_DIR, e.name)))
     .map((e) => path.join(TESTS_DIR, e.name))
     .sort();
   for (const f of topLevel) {
@@ -163,11 +168,11 @@ function main() {
 
   if (args.only) {
     const target = path.resolve(ROOT, args.only);
-    plan = plan.filter((p) => p.file === target);
-    if (plan.length === 0) {
+    if (!fs.existsSync(target)) {
       console.error(`[run-all] --only target not found: ${args.only}`);
       process.exit(2);
     }
+    plan = [{ group: 'manual', file: target }];
   } else if (args.filter) {
     const needle = args.filter.toLowerCase();
     plan = plan.filter((p) => p.file.toLowerCase().includes(needle));

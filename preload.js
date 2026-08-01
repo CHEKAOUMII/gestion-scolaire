@@ -62,6 +62,11 @@ contextBridge.exposeInMainWorld('api', {
         setVisibility: (payload) => ipcRenderer.invoke('pageVisibility:setVisibility', payload)
     },
 
+    subjectCoefficients: {
+        getAll: () => ipcRenderer.invoke('subjectCoefficients:getAll'),
+        override: (payload) => ipcRenderer.invoke('subjectCoefficients:override', payload)
+    },
+
     appDefaults: {
         listLevels: () => ipcRenderer.invoke('appDefaults:listLevels'),
         getExamCounts: (levelCode) => ipcRenderer.invoke('appDefaults:getExamCounts', levelCode),
@@ -70,7 +75,14 @@ contextBridge.exposeInMainWorld('api', {
             ipcRenderer.invoke('appDefaults:getExamCount', { levelCode, subject }),
         listPages: () => ipcRenderer.invoke('appDefaults:listPages'),
         getPageAccessMap: () => ipcRenderer.invoke('appDefaults:getPageAccessMap'),
-        savePageAccess: (payload) => ipcRenderer.invoke('appDefaults:savePageAccess', payload)
+        savePageAccess: (payload) => ipcRenderer.invoke('appDefaults:savePageAccess', payload),
+        // Live push: fires (no payload) whenever an admin saves the page-access matrix,
+        // so open pages can re-run their access guard without a manual reload.
+        onPageAccessChanged: (callback) => {
+            const handler = () => callback();
+            ipcRenderer.on('appDefaults:pageAccessChanged', handler);
+            return () => ipcRenderer.removeListener('appDefaults:pageAccessChanged', handler);
+        }
     },
 
     // Statistics
@@ -122,6 +134,12 @@ contextBridge.exposeInMainWorld('api', {
     // Teachers
     teachers: {
         getAll: (schoolYear) => ipcRenderer.invoke('teachers:getAll', schoolYear),
+        getScoped: (schoolYear, options) => ipcRenderer.invoke('teachers:getScoped', schoolYear, options),
+        getAssignments: (schoolYear, options) => ipcRenderer.invoke('teachers:getAssignments', schoolYear, options),
+        getReviewQueue: (schoolYear) => ipcRenderer.invoke('teachers:getReviewQueue', schoolYear),
+        reviewAssignment: (payload) => ipcRenderer.invoke('teachers:reviewAssignment', payload),
+        resolveAssignmentReview: (payload) => ipcRenderer.invoke('teachers:resolveAssignmentReview', payload),
+        setScope: (payload) => ipcRenderer.invoke('teachers:setScope', payload),
         getFromGrades: (schoolYear) => ipcRenderer.invoke('teachers:getFromGrades', schoolYear),
         add: (teacher) => ipcRenderer.invoke('teachers:add', teacher),
         update: (id, data) => ipcRenderer.invoke('teachers:update', id, data),
@@ -393,6 +411,25 @@ contextBridge.exposeInMainWorld('api', {
         getOutboxHealth: () => ipcRenderer.invoke('sync:getOutboxHealth'),
         classifyLegacyBulk: (options) => ipcRenderer.invoke('sync:classifyLegacyBulk', options),
         quarantineLegacyBulk: () => ipcRenderer.invoke('sync:quarantineLegacyBulk')
+    },
+
+    cycles: {
+        getCatalog: () => ipcRenderer.invoke('cycles:getCatalog'),
+        list: () => ipcRenderer.invoke('cycles:list'),
+        getActive: () => ipcRenderer.invoke('cycles:getActive'),
+        add: (cycleCode) => ipcRenderer.invoke('cycles:add', { cycleCode }),
+        setActive: (cycleCode, schoolYear) => ipcRenderer.invoke('cycles:setActive', { cycleCode, schoolYear }),
+        setEnabled: (cycleCode, isActive) => ipcRenderer.invoke('cycles:setEnabled', { cycleCode, isActive }),
+        onChanged: (callback) => {
+            const handler = (_event, context) => callback(context);
+            ipcRenderer.on('cycles:changed', handler);
+            return () => ipcRenderer.removeListener('cycles:changed', handler);
+        },
+        onConfigurationChanged: (callback) => {
+            const handler = () => callback();
+            ipcRenderer.on('cycles:configurationChanged', handler);
+            return () => ipcRenderer.removeListener('cycles:configurationChanged', handler);
+        }
     },
 
     institution: {

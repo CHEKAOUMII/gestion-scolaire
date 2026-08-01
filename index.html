@@ -10,6 +10,7 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <link rel="stylesheet" href="css/student-journey.css" />
         <script src="js/shared/dom-helpers.js" defer></script>
         <script src="js/shared/auth-session.js" defer></script>
         <script src="js/shared/filter-manager.js" defer></script>
@@ -94,124 +95,87 @@
                 </div>
             </section>
 
-            <!-- Stats Section with Skeleton -->
-            <section class="stats-section" id="stats-section">
-                <div class="dashboard-section-intro">
-                    <i class="fas fa-chart-pie" aria-hidden="true"></i>
-                    <h2>المؤشرات الأساسية</h2>
-                </div>
-                <p class="dashboard-loading-note" aria-live="polite">
-                    جار تحميل المؤشرات الأساسية. ستظهر البطاقات فور اكتمال القراءة.
-                </p>
-                <div class="stats-grid skeleton-grid">
-                    <div class="stat-card skeleton-card skeleton-stat-card">
-                        <div class="skeleton-pulse skeleton-stat-media"></div>
-                        <div class="skeleton-stat-copy">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card skeleton-card skeleton-stat-card">
-                        <div class="skeleton-pulse skeleton-stat-media"></div>
-                        <div class="skeleton-stat-copy">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card skeleton-card skeleton-stat-card">
-                        <div class="skeleton-pulse skeleton-stat-media"></div>
-                        <div class="skeleton-stat-copy">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card skeleton-card skeleton-stat-card">
-                        <div class="skeleton-pulse skeleton-stat-media"></div>
-                        <div class="skeleton-stat-copy">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card skeleton-card skeleton-stat-card">
-                        <div class="skeleton-pulse skeleton-stat-media"></div>
-                        <div class="skeleton-stat-copy">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card skeleton-card skeleton-stat-card">
-                        <div class="skeleton-pulse skeleton-stat-media"></div>
-                        <div class="skeleton-stat-copy">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-md"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-sm"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
             <section class="owner-sync-section hidden" id="owner-sync-section"></section>
 
-            <!-- Charts Section with Skeleton -->
-            <section class="charts-section" id="charts-section">
-                <div class="dashboard-section-intro">
-                    <i class="fas fa-chart-bar" aria-hidden="true"></i>
-                    <h2>الرسوم البيانية الأساسية</h2>
+            <!-- Student Journey (Stitch "Variant 3: Refined Retention Journey") -->
+            <section class="student-journey-section" id="student-journey-section" aria-live="polite">
+                <div class="sj-header">
+                    <h2 class="sj-title">مسار الطالب (Student Journey)</h2>
+                    <p class="sj-subtitle">تحليلات متقدمة لرحلة الطالب الأكاديمية ومؤشرات التفاعل</p>
                 </div>
-                <p class="dashboard-loading-note" aria-live="polite">
-                    جار إعداد الرسوم البيانية الأساسية. قد يستغرق ذلك لحظات حسب حجم البيانات.
+                <p class="sj-loading-note" id="sj-loading-note">
+                    جار تحميل بيانات مسار الطالب. ستظهر المؤشرات فور اكتمال القراءة.
                 </p>
-                <div class="charts-grid skeleton-grid">
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                    <div class="chart-card skeleton-card skeleton-chart-card">
-                        <div class="skeleton-chart-top">
-                            <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                            <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                        </div>
-                        <div class="skeleton-pulse skeleton-chart"></div>
-                    </div>
-                </div>
-            </section>
+                <div class="sj-bento" id="sj-bento" hidden>
+                    <!-- 1. Age distribution (funnel-style CSS bars) -->
+                    <article class="sj-card sj-card--age" id="sj-age-card">
+                        <header class="sj-card-top">
+                            <div class="sj-card-heading">
+                                <h3>إحصاء التلاميذ حسب السن</h3>
+                                <p class="sj-card-sub">توزيع الطلاب حسب الفئات العمرية</p>
+                            </div>
+                            <i class="fas fa-filter sj-icon" aria-hidden="true"></i>
+                        </header>
+                        <div class="sj-bar-chart" id="sj-age-bars"></div>
+                        <div class="sj-legend" id="sj-age-legend"></div>
+                    </article>
 
-            <!-- Teacher & Student Status Charts Section with Skeleton -->
-            <section class="charts-section" id="extra-charts-section">
-                <button type="button" class="extra-charts-toggle" aria-expanded="false" disabled>
-                    <i class="fas fa-layer-group" aria-hidden="true"></i>
-                    <span>تحاليل إضافية</span>
-                    <i class="fas fa-chevron-down extra-charts-caret" aria-hidden="true"></i>
-                </button>
-            </section>
+                    <!-- 2. Students per teacher by subject (CSS bars) -->
+                    <article class="sj-card sj-card--ratio" id="sj-ratio-card">
+                        <header class="sj-card-top">
+                            <div class="sj-card-heading">
+                                <h3>نسبة الطلاب لكل معلم حسب المادة</h3>
+                                <p class="sj-card-sub">توزيع الكثافة الطلابية حسب التخصصات</p>
+                            </div>
+                            <i class="fas fa-users sj-icon sj-icon--alt" aria-hidden="true"></i>
+                        </header>
+                        <div class="sj-bar-chart sj-bar-chart--ratio" id="sj-ratio-bars"></div>
+                        <div class="sj-legend" id="sj-ratio-legend"></div>
+                    </article>
 
-            <section class="movement-section" id="movement-section">
-                <div class="movement-skeleton skeleton-card" aria-hidden="true">
-                    <div class="skeleton-chart-top">
-                        <div class="skeleton-pulse skeleton-line skeleton-line-title"></div>
-                        <div class="skeleton-pulse skeleton-line skeleton-line-chip"></div>
-                    </div>
-                    <div class="stats-grid skeleton-grid">
-                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
-                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
-                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
-                        <div class="skeleton-pulse skeleton-line skeleton-line-block"></div>
+                    <!-- 3. At-Risk Cohorts -->
+                    <article class="sj-card sj-card--risk">
+                        <header class="sj-card-top sj-card-top--row">
+                            <h3 class="sj-risk-title">
+                                <i class="fas fa-triangle-exclamation sj-risk-icon" aria-hidden="true"></i>
+                                المجموعات المعرضة للخطر (At-Risk Cohorts)
+                            </h3>
+                        </header>
+                        <div class="sj-risk-grid" id="sj-risk-grid"></div>
+                    </article>
+
+                    <!-- 4. Milestone Timeline -->
+                    <article class="sj-card sj-card--timeline">
+                        <h3 class="sj-timeline-title">الجدول الزمني للرحلة (Milestone Timeline)</h3>
+                        <div class="sj-timeline" id="sj-timeline"></div>
+                    </article>
+
+                    <!-- 5. Summary stats -->
+                    <div class="sj-summary-col">
+                        <article class="sj-card sj-summary-card" id="sj-summary-total">
+                            <h4 class="sj-summary-label">إجمالي التلاميذ</h4>
+                            <div class="sj-summary-value-row">
+                                <span class="sj-summary-value" id="sj-summary-total-value">—</span>
+                                <span class="sj-summary-unit">طالب</span>
+                            </div>
+                            <p class="sj-summary-foot" id="sj-summary-total-foot">المسجلون في الموسم الحالي</p>
+                        </article>
+                        <article class="sj-card sj-summary-card" id="sj-summary-active">
+                            <h4 class="sj-summary-label">المتمدرسون</h4>
+                            <div class="sj-summary-value-row">
+                                <span class="sj-summary-value" id="sj-summary-active-value">—</span>
+                                <span class="sj-summary-unit">طالب</span>
+                            </div>
+                            <p class="sj-summary-foot" id="sj-summary-active-foot">المواظبون على الدراسة</p>
+                        </article>
+                        <article class="sj-card sj-summary-card sj-summary-card--accent" id="sj-summary-sections">
+                            <h4 class="sj-summary-label">عدد الأقسام</h4>
+                            <div class="sj-summary-value-row">
+                                <span class="sj-summary-value sj-summary-value--accent" id="sj-summary-sections-value">—</span>
+                                <span class="sj-summary-unit">قسم</span>
+                            </div>
+                            <p class="sj-summary-foot" id="sj-summary-sections-foot">موزعون على المستويات</p>
+                        </article>
                     </div>
                 </div>
             </section>

@@ -103,6 +103,7 @@ function bindSenderCleanup(sender) {
     sender.once('destroyed', () => {
         // Drop in-memory map only. Persisted session survives so a new window can restore it.
         SESSION_BY_SENDER.delete(sender.id);
+        require('../auth/active-cycle-context').clearContextForSender(sender.id);
         CLEANUP_BOUND.delete(sender.id);
     });
 }
@@ -504,6 +505,7 @@ function registerAuthIpc(ipcMain) {
                 console.warn('[auth] Failed to run sync lifecycle on logout:', syncErr.message);
             }
             clearSessionForEvent(event, { clearPersisted: true });
+            require('../auth/active-cycle-context').clearContextForSender(event?.sender?.id);
             return { success: true };
         } catch (err) {
             return { success: false, error: err.message };

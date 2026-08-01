@@ -1795,6 +1795,43 @@ function applyAppUi(authRole, accessState, session) {
     }, 120);
 }
 
+let _pageAccessLiveBound = false;
+let _pageAccessLiveRefreshing = false;
+
+// Live re-evaluation of page access when an admin saves the matrix in
+// settings-defaults.html (main broadcasts 'appDefaults:pageAccessChanged').
+// Re-fetches the current role's allowed pages, then either redirects off a
+// now-forbidden page or refreshes the sidebar/links in place — no manual reload.
+// admin/developer bypass inside enforcePageRoleOrRedirect, so the window that
+// performed the save is never disrupted.
+async function refreshPageAccessLive() {
+    const currentPage = _getCurrentPageName();
+    if (currentPage === 'login.html') return;
+    if (_pageAccessLiveRefreshing) return;
+    _pageAccessLiveRefreshing = true;
+    try {
+        const authRole = getCurrentAppRole();
+        const accessState = getAppAccessState();
+        await loadAllowedPagesState(authRole, true);
+        if (!enforcePageRoleOrRedirect(authRole, accessState)) return; // redirect already fired
+        applyNavigationRestrictions(authRole, accessState);
+        applyPageVisibilityToDocument(authRole);
+    } catch (_err) {
+        // A live refresh must never break the current page.
+    } finally {
+        _pageAccessLiveRefreshing = false;
+    }
+}
+
+function _bindPageAccessLiveListener() {
+    if (_pageAccessLiveBound) return;
+    if (!window.api?.appDefaults?.onPageAccessChanged) return;
+    window.api.appDefaults.onPageAccessChanged(() => {
+        void refreshPageAccessLive();
+    });
+    _pageAccessLiveBound = true;
+}
+
 (async function enforceProtectedPagesAuth() {
     const currentPage = _getCurrentPageName();
     if (currentPage === 'login.html') return;
@@ -1835,6 +1872,7 @@ function applyAppUi(authRole, accessState, session) {
     }
 
     applyAppUi(authRole, accessState, session);
+    _bindPageAccessLiveListener();
 
     const params = new URLSearchParams(window.location.search);
     if (params.has('loggedin')) {

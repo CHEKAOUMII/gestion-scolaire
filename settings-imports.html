@@ -18,6 +18,10 @@
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
         <script src="js/data/ma-education-labels.js" defer></script>
+        <script src="js/import-center/grades-import-parser.js" defer></script>
+        <script src="js/import-center/import-preflight-policy.js" defer></script>
+        <script src="js/import-center/import-context.js" defer></script>
+        <script src="js/import-center/import-result-contract.js" defer></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
     </head>
@@ -365,7 +369,13 @@
                     </div>
                 </section>
 
-                <!-- 3. Progress / report -->
+                <!-- 3. Context review / progress / report -->
+                <section class="students-results ic-region hidden" id="import-context-review-region" aria-labelledby="import-context-review-title" tabindex="-1">
+                    <h3 id="import-context-review-title"><i class="fas fa-clipboard-check" aria-hidden="true"></i> مراجعة قبل الاستيراد</h3>
+                    <div id="import-context-review-content" aria-live="polite"></div>
+                </section>
+
+                <!-- 4. Progress / report -->
                 <section class="students-results ic-region ic-region-progress" id="ic-progress-region" aria-labelledby="ic-progress-title">
                     <h3 id="ic-progress-title">
                         <i class="fas fa-tasks" aria-hidden="true"></i> التقدم والتقرير
@@ -387,9 +397,19 @@
                         </div>
                         <p id="import-progress-message">في انتظار بدء عملية استيراد...</p>
                     </div>
+                    <div id="import-failure-report" class="mt-4 hidden" role="status" aria-live="polite">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <strong>تقرير مراجعة الاست</strong>يراد</strong>
+                            <div class="flex gap-2">
+                                <button type="button" class="btn btn-secondary" id="copy-import-report-btn"><i class="fas fa-copy" aria-hidden="true"></i> نسخ التقرير</button>
+                                <button type="button" class="btn btn-secondary" id="download-import-report-btn"><i class="fas fa-download" aria-hidden="true"></i> تنزيل تقرير المراجعة</button>
+                            </div>
+                        </div>
+                        <div id="import-failure-report-content" class="mt-3"></div>
+                    </div>
                 </section>
 
-                <!-- 4. Data management / delete -->
+                <!-- 5. Data management / delete -->
                 <section class="students-results data-stats-section ic-region ic-region-data" id="ic-data-region" aria-labelledby="ic-data-title">
                     <h3 id="ic-data-title">
                         <i class="fas fa-database" aria-hidden="true"></i> إدارة البيانات والحذف
@@ -699,6 +719,7 @@
         <script src="js/data-source-registry.js" defer></script>
         <script src="js/cross-source-validator.js" defer></script>
         <script src="js/shared/fet-import.js" defer></script>
+        <script src="js/import-center/students-import-parser.js" defer></script>
         <script src="vendor/xlsx.full.min.js" defer></script>
         <script src="js/pages/settings-imports.js" defer></script>
     </body>

@@ -323,8 +323,8 @@ Product Requirements Document: Gestion Scolaire (برنامج التدبير ا�
 
   Feature: GitHub Releases
   What it does: electron-updater checks GitHub Releases (repo:
-    CHEKAOUMII/project6.2). Manual download trigger, auto-install on next quit.
-    Status events streamed to renderer UI. Requires GH_TOKEN.
+    CHEKAOUMII/gestion-scolaire-releases). Manual download trigger, auto-install on next quit.
+    Status events streamed to renderer UI. Releases are public; `RELEASES_GH_TOKEN` is used only by CI when publishing.
 
   ---
   4. Technical Constraints & Dependencies
@@ -362,10 +362,9 @@ Product Requirements Document: Gestion Scolaire (برنامج التدبير ا�
 
     or design system.
   ────────────────────────────────────────
-  Constraint: Private update repo
-  Detail: Auto-updater targets a private GitHub repo, requiring GH_TOKEN at
-  build
-    time.
+  Constraint: Public update repo
+  Detail: Auto-updater targets public GitHub Releases. `RELEASES_GH_TOKEN` is
+    kept in GitHub Actions only for publishing release assets.
 
   Key dependencies:
 

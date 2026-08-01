@@ -187,7 +187,8 @@ const CHANNEL_REGISTRY = {
             'staff_attendance',
             'exam_proctors',
             'compensation_tracking',
-            'teacher_absences'
+            'teacher_absences',
+            'teacher_teaching_assignments'
         ],
         operation: 'MIXED',
         idExtractor: 'preQuery',
@@ -202,7 +203,8 @@ const CHANNEL_REGISTRY = {
             'staff_attendance',
             'exam_proctors',
             'compensation_tracking',
-            'teacher_absences'
+            'teacher_absences',
+            'teacher_teaching_assignments'
         ],
         operation: 'MIXED',
         idExtractor: 'preQuery',
@@ -224,6 +226,30 @@ const CHANNEL_REGISTRY = {
         operation: 'UPSERT',
         idExtractor: 'inputArray',
         bulk: true,
+        captureMode: 'explicit',
+        exclude: true
+    },
+    'teachers:reviewAssignment': {
+        tables: ['teacher_teaching_assignments'],
+        operation: 'PUT',
+        idExtractor: 'argId',
+        captureMode: 'explicit',
+        exclude: true
+    },
+    'teachers:resolveAssignmentReview': {
+        // staffRepo.resolveUnresolvedGradeAssignment captures inside its own transaction:
+        // grades (capturePutsByIds), then the derived assignment + alias rows.
+        tables: ['grades', 'teacher_teaching_assignments', 'teacher_aliases'],
+        operation: 'PUT',
+        idExtractor: 'argId',
+        captureMode: 'explicit',
+        exclude: true
+    },
+    'teachers:setScope': {
+        // staffRepo.setTeacherScope captures the updated teacher row explicitly.
+        tables: ['teachers'],
+        operation: 'PUT',
+        idExtractor: 'argId',
         captureMode: 'explicit',
         exclude: true
     },
@@ -339,9 +365,30 @@ const CHANNEL_REGISTRY = {
     },
     'settings:set': { tables: ['settings'], operation: 'PUT', idExtractor: 'argKey' },
     'settings:setSchoolYear': { tables: ['settings'], operation: 'PUT', idExtractor: 'literal' },
+    'subjectCoefficients:override': {
+        tables: ['settings'],
+        operation: 'PUT',
+        idExtractor: 'literal',
+        exclude: true
+    },
+
+    // Membership changes capture atomically in the repository; active context stays session-local.
+    'cycles:add': {
+        tables: ['institution_cycles'],
+        operation: 'PUT',
+        captureMode: 'explicit',
+        exclude: true
+    },
+    'cycles:setActive': { tables: [], operation: 'PUT', exclude: true },
+    'cycles:setEnabled': {
+        tables: ['institution_cycles'],
+        operation: 'PUT',
+        captureMode: 'explicit',
+        exclude: true
+    },
     'grades:save': { tables: ['grades'], operation: 'PUT', idExtractor: 'compositeKey' },
     'grades:saveBulk': {
-        tables: ['grades'],
+        tables: ['grades', 'teacher_teaching_assignments'],
         operation: 'PUT',
         idExtractor: 'inputArray',
         bulk: true,

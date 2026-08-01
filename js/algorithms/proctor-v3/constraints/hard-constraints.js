@@ -20,6 +20,8 @@
 //   isOnDuty(proctor, idx, halfdayKey, dutyData)               → AC 3.3  (C-DUTY)
 //   isMEBlocked(proctor, idx, halfdayKey, meAssignments)       → AC 3.4  (C-ME)
 //   wouldDoubleBookSession(loadState, key, sessionKey)         → AC 3.5/3.6 (C-NO-DOUBLE)
+//   wouldConflictWithExternalResources(loadState, key, sessionKey, halfdayKey)
+//                                                              → cross-cycle teaching/duty guard
 //   wouldViolateSameDay(loadState, key, halfdayKey, allowSameDay) → AC 3.7/3.7a/3.8 (C-NO-SAME-DAY)
 //   wouldExceedClassUpper(loadState, key, classBounds, classByProctorKey)
 //                                                              → AC 3.10 + 5.1+5.4
@@ -291,6 +293,28 @@ function wouldDoubleBookSession(loadState, key, sessionKey) {
 }
 
 /**
+ * Reject a candidate when supplied cross-cycle teaching or duty occupancy
+ * already uses the target session or halfday. Guard/reserve occupancy from
+ * another cycle is handled by wouldDoubleBookSession because it is merged
+ * into the same occupancy sets.
+ */
+function wouldConflictWithExternalResources(loadState, key, sessionKey, halfdayKey) {
+    var entry = entryFor(loadState, key);
+    if (!entry) return false;
+    if (typeof sessionKey === 'string' && sessionKey.length > 0
+        && entry.teachingSessions instanceof Set
+        && entry.teachingSessions.has(sessionKey)) {
+        return true;
+    }
+    if (typeof halfdayKey === 'string' && halfdayKey.length > 0
+        && entry.externalDutyHalfdays instanceof Set
+        && entry.externalDutyHalfdays.has(halfdayKey)) {
+        return true;
+    }
+    return false;
+}
+
+/**
  * C-NO-SAME-DAY (AC 3.7 + 3.7a + 3.8): would assigning `key` to
  * `halfdayKey` cause the proctor to be active in two different halfdays of
  * the same day?
@@ -534,6 +558,7 @@ module.exports = {
     isOnDuty: isOnDuty,
     isMEBlocked: isMEBlocked,
     wouldDoubleBookSession: wouldDoubleBookSession,
+    wouldConflictWithExternalResources: wouldConflictWithExternalResources,
     wouldViolateSameDay: wouldViolateSameDay,
     wouldExceedClassUpper: wouldExceedClassUpper,
 

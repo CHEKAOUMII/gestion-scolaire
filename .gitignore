@@ -98,6 +98,10 @@ timetable_css_part.txt
 mcps/
 terminals/
 
+# opencode local config (contains MCP secrets like API keys)
+opencode.json
+opencode.jsonc
+
 # Stray scratch scripts
 tmp_check_sqlite.js
 python test_foundry.py

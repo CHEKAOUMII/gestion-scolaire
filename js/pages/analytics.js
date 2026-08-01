@@ -19,6 +19,7 @@ const gradeBands = [
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        await ensureSubjectCoefficientMappings();
         await loadFilters();
 
         const analyzeBtn = document.getElementById('analyze-btn');
@@ -429,9 +430,11 @@ function calculateStudentGeneralAverage(grades, studentId, section) {
     });
     const sectionName = section || (studentGrades[0] && studentGrades[0].section) || '';
     const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
-    return typeof computeWeightedGeneralAverage === 'function'
-        ? computeWeightedGeneralAverage(subjectAverages, branch)
-        : avg(subjectAverages.map((s) => s.avg));
+    const resolution = computeWeightedGeneralAverageResult(subjectAverages, branch, {
+        schoolYear: year,
+        streamCode: branch
+    });
+    return resolution.ok ? resolution.value : null;
 }
 
 function normalizeLoose(value) {
@@ -702,10 +705,12 @@ async function analyze() {
             });
             const sectionName = className || bySubject.values().next().value?.grades[0]?.section || '';
             const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
-            return typeof computeWeightedGeneralAverage === 'function'
-                ? computeWeightedGeneralAverage(studentSubjectAvgs, branch)
-                : avg(studentSubjectAvgs.map((s) => s.avg));
-        });
+            const resolution = computeWeightedGeneralAverageResult(studentSubjectAvgs, branch, {
+                schoolYear: year,
+                streamCode: branch
+            });
+            return resolution.ok ? resolution.value : null;
+        }).filter((value) => value != null);
         const generalAvg = avg(studentGeneralAverages);
 
         const distribution = gradeBands.map((band, i) => ({

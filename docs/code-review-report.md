@@ -9,25 +9,14 @@ Review scope: repo-level review across Electron shell, renderer/UI, backend IPC,
 
 - **Severity:** 🔴 Critical
 - **Location:** [`.env`](/D:/Pencil2/.env#L6), [`package.json`](/D:/Pencil2/package.json#L53), [`main/updater.js`](/D:/Pencil2/main/updater.js#L10)
-- **Issue:** A live `GH_TOKEN` is committed, the build explicitly packages `.env`, and the updater loads `.env` from the packaged app. That exposes repo-scoped credentials to anyone who can inspect the installer or app files.
-- **Fix:** Rotate the token immediately, stop shipping `.env`, and require runtime env injection.
+- **Status:** Superseded for GitHub Releases. The updater now uses a public feed and does not read or package `GH_TOKEN`; the token remains a CI-only publishing secret.
+- **Residual risk:** Other secrets may still be present in packaged `.env` configuration and require a separate audit.
+
+The old remediation example below is retained only as historical context; public releases no longer require runtime token injection.
 
 ```js
-// /D:/Pencil2/main/updater.js
+// Historical private-feed remediation; no longer used.
 const ghToken = process.env.GH_TOKEN;
-if (!ghToken) {
-  throw new Error('GH_TOKEN must be provided by the runtime environment');
-}
-```
-
-```json
-// /D:/Pencil2/package.json
-"files": [
-  "**/*",
-  "!*.env*",
-  "!postcss.config.js",
-  "!css/tailwind-input.css"
-]
 ```
 
 ### 2. Hardcoded Signing And Telemetry Secrets In Source

@@ -27,6 +27,9 @@
 
 'use strict';
 
+var crossCycleModule = require('../constraints/cross-cycle.js');
+var validateCrossCycleResources = crossCycleModule.validateCrossCycleResources;
+
 /**
  * @typedef {Object} ValidationError
  * @property {string} type    - Stable machine-readable error code (snake_case).
@@ -141,6 +144,14 @@ function validateInput(input) {
                 actualType: describeType(input.examDistributionRules)
             }
         });
+    }
+
+    // ---- Optional field: crossCycleResources -------------------------------
+    if ('crossCycleResources' in input) {
+        var crossCycleValidation = validateCrossCycleResources(input.crossCycleResources);
+        if (!crossCycleValidation.valid) {
+            errors = errors.concat(crossCycleValidation.errors);
+        }
     }
 
     // ---- Optional field: examCenterLevels ---------------------------------

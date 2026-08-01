@@ -4,13 +4,14 @@
     <script src="js/theme-boot.js"></script>
     <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="theme-color" content="#3b6ac5" />
+        <meta name="theme-color" content="#42516a" />
         <title>إعداد المؤسسة</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
+        <script src="js/data/ma-regions.js" defer></script>
         <link rel="stylesheet" href="css/setup.css" />
     </head>
 
@@ -110,6 +111,28 @@
                             </div>
 
                             <form id="form-new-institution" novalidate>
+                                <div class="form-group setup-field">
+                                    <label for="new-academy">الأكاديمية الجهوية <span class="optional">(اختياري)</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-map-marked-alt"></i>
+                                        <select id="new-academy">
+                                            <option value="" disabled selected>اختر الأكاديمية الجهوية</option>
+                                        </select>
+                                    </div>
+                                    <p id="new-academy-error" class="field-error hidden"></p>
+                                </div>
+
+                                <div class="form-group setup-field">
+                                    <label for="new-directorate">المديرية الإقليمية <span class="optional">(اختياري)</span></label>
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-building"></i>
+                                        <select id="new-directorate" disabled>
+                                            <option value="" disabled selected>اختر الأكاديمية أولاً</option>
+                                        </select>
+                                    </div>
+                                    <p id="new-directorate-error" class="field-error hidden"></p>
+                                </div>
+
                                 <div class="form-group setup-field">
                                     <label for="new-institution-name">اسم المؤسسة <span class="req">*</span></label>
                                     <div class="input-wrapper">

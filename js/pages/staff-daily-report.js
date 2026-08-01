@@ -85,6 +85,20 @@
      * Format a raw subject string (possibly comma-separated GROUP_CONCAT)
      * into a clean, normalized, deduplicated display.
      */
+    async function getReportRequest() {
+        try {
+            const active = await window.api?.cycles?.getActive?.();
+            const cycleCode = active?.context?.cycleCode || active?.cycle?.cycle_code || null;
+            return { schoolYear: year, cycleCode };
+        } catch {
+            return { schoolYear: year, cycleCode: null };
+        }
+    }
+
+    function formatLinkedCycle(record) {
+        return record?.linked_session_cycle_label || 'غير محدد — لم تُربط الحصة بسلك في جدول الحصص';
+    }
+
     function formatSubject(rawSubject) {
         if (!rawSubject) return '—';
         const subjects = rawSubject.split(',').map(s => {
@@ -271,6 +285,7 @@
                                 period_time: periodMap[h] || h,
                                 subject: lesson.subject || absence.subject || '',
                                 school_year: year,
+                                cycle_code: absence.cycle_resolution === 'linked' ? absence.linked_session_cycle_codes[0] : null,
                                 reason: absence.reason || '',
                                 notes: absence.notes || ''
                             });
@@ -297,7 +312,7 @@
 
         let data;
         try {
-            data = await window.api.dailyReport.getData(date, year);
+            data = await window.api.dailyReport.getData(date, await getReportRequest());
         } catch (err) {
             console.error('Error loading daily report:', err);
             showToast('خطأ في تحميل التقرير', 'error');
@@ -309,7 +324,12 @@
             return;
         }
 
-        const { absences, staffAbsences, staffTardiness, teacherSections: backendTeacherSections, sectionStudentCounts, allSections, affectedSections: backendAffected } = data;
+        const { absences, staffAbsences, staffTardiness, reportContext, teacherSections: backendTeacherSections, sectionStudentCounts, allSections, affectedSections: backendAffected } = data;
+        const reportContextLabel = reportContext?.label || 'السلك النشط';
+        const reportContextElement = document.getElementById('report-context');
+        const printReportContextElement = document.getElementById('print-report-context');
+        if (reportContextElement) reportContextElement.textContent = reportContextLabel;
+        if (printReportContextElement) printReportContextElement.textContent = reportContextLabel;
 
         // Cache sections for tag entity selector
         _allSectionsCache = allSections || [];
@@ -402,6 +422,7 @@
                         <td class="col-schedule">${scheduleHtml}</td>
                         <td class="col-reason reason-cell">${formatReasonCell(a.reason, a.notes)}</td>
                         <td class="col-sections">${sections}</td>
+                        <td class="col-cycle">${escapeHtml(formatLinkedCycle(a))}</td>
                     </tr>`);
             }
             absencesTbody.innerHTML = absenceRows.join('');
@@ -458,6 +479,7 @@
                         <td>${escapeHtml(t.arrival_time || '—')}</td>
                         <td>${t.late_duration ? t.late_duration + ' دقيقة' : '—'}</td>
                     <td>${formatReasonCell(t.reason, t.notes)}</td>
+                    <td>${escapeHtml(formatLinkedCycle(t))}</td>
                     </tr>`;
             }).join('');
         }
@@ -524,7 +546,7 @@
 
         // ── Auto-save lost sessions to compensation tracking ──
         const detailedSessions = await getDetailedSessionsForDay(uniqueAbsences, date);
-        if (detailedSessions.length > 0) {
+        if (detailedSessions.length > 0 && !reportContext?.administrative) {
             try {
                 await window.api.compensation.saveBatch(detailedSessions);
             } catch (e) {
@@ -536,7 +558,7 @@
         }
         // Fetch compensation status for stat card
         try {
-            const compRecords = await window.api.compensation.getByDate(date, year);
+            const compRecords = reportContext?.administrative ? [] : await window.api.compensation.getByDate(date, year);
             const compDone = compRecords.filter(r => r.compensated).length;
             const compTotal = compRecords.length;
             document.getElementById('stat-compensated').textContent =

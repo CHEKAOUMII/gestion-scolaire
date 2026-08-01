@@ -44,6 +44,7 @@ function getInitial(name) {
 
 // ─── DOM Ready ───
 document.addEventListener('DOMContentLoaded', async () => {
+    await ensureSubjectCoefficientMappings();
     await loadClassesAndLevels();
     restoreFilters();
     await searchStudents();
@@ -598,12 +599,11 @@ async function viewStudent(code) {
         });
         const branch =
             typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
-        const generalAvg =
-            typeof computeWeightedGeneralAverage === 'function'
-                ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
-                : subjectAvgsArr.length
-                  ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length
-                  : 0;
+        const averageResolution = computeWeightedGeneralAverageResult(subjectAvgsArr, branch, {
+            schoolYear: getCurrentYear(),
+            streamCode: branch
+        });
+        const generalAvg = averageResolution.ok ? averageResolution.value : null;
         const totalGrades = studentGrades.length;
         const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
         const minGrade = Math.min(...studentGrades.map((g) => g.grade));
@@ -612,7 +612,7 @@ async function viewStudent(code) {
         kpisContainer.innerHTML = `
             <div class="sl-detail-kpis">
                 <div class="sl-detail-kpi">
-                    <div class="kpi-val" style="--kpi-color:${gradeColor(generalAvg)}">${generalAvg.toFixed(2)}</div>
+                    <div class="kpi-val" style="--kpi-color:${generalAvg == null ? 'inherit' : gradeColor(generalAvg)}">${generalAvg == null ? '—' : generalAvg.toFixed(2)}</div>
                     <div class="kpi-lbl">المعدل العام</div>
                 </div>
                 <div class="sl-detail-kpi">

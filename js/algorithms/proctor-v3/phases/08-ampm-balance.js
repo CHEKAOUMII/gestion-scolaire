@@ -106,6 +106,8 @@ var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'
 var isExempt = hardConstraints.isExempt;
 var isOnDuty = hardConstraints.isOnDuty;
 var isMEBlocked = hardConstraints.isMEBlocked;
+var wouldDoubleBookSession = hardConstraints.wouldDoubleBookSession;
+var wouldConflictWithExternalResources = hardConstraints.wouldConflictWithExternalResources;
 var recordGuardOccupancy = hardConstraints.recordGuardOccupancy;
 var clearGuardOccupancy = hardConstraints.clearGuardOccupancy;
 
@@ -284,6 +286,14 @@ function canExchange(ctx, r1Idx, slot1, xKey, r2Idx, slot2, yKey) {
     if (isExempt(xMeta.proctor, xMeta.idx, r2.session_key, ctx.normalizedExemptions)) return false;
     if (isOnDuty(xMeta.proctor, xMeta.idx, r2.halfday_key, ctx.normalizedDuty)) return false;
     if (isMEBlocked(xMeta.proctor, xMeta.idx, r2.halfday_key, ctx.normalizedME)) return false;
+    if (wouldDoubleBookSession(ctx.loadState, xKey, r2.session_key)) return false;
+    if (wouldConflictWithExternalResources(
+        ctx.loadState, xKey, r2.session_key, r2.halfday_key
+    )) return false;
+    if (wouldDoubleBookSession(ctx.loadState, yKey, r1.session_key)) return false;
+    if (wouldConflictWithExternalResources(
+        ctx.loadState, yKey, r1.session_key, r1.halfday_key
+    )) return false;
 
     // C-NO-DOUBLE within session — only relevant when R1 and R2 share a
     // session_key. By construction R1 and R2 differ in PERIOD (one AM, one

@@ -25,6 +25,7 @@ const { registerPageVisibilityIpc } = require('./pageVisibility');
 const { registerNotificationsIpc } = require('./notifications');
 const { registerReportsIpc } = require('./reports');
 const { registerInstitutionIpc } = require('./institution');
+const { registerCyclesIpc } = require('./cycles');
 const { registerSyncIpc } = require('./sync');
 const { registerTimetableDataIpc } = require('./timetable-data');
 const { registerExamConfigDataIpc } = require('./exam-config-data');
@@ -32,6 +33,7 @@ const { registerInspectorsIpc } = require('./inspectors');
 const { registerAppAdminIpc } = require('./app-admin');
 const { registerDiagnosticsIpc } = require('./diagnostics');
 const { registerAppDefaultsIpc } = require('./appDefaults');
+const { registerSubjectCoefficientsIpc } = require('./subject-coefficients');
 const { startOutboxCleanup } = require('../sync/capture');
 
 function registerAllIpcHandlers(ipcMain) {
@@ -62,6 +64,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerNotificationsIpc(ipcMain);
     registerReportsIpc(ipcMain);
     registerInstitutionIpc(ipcMain);
+    registerCyclesIpc(ipcMain);
     registerSyncIpc(ipcMain);
     registerTimetableDataIpc(ipcMain);
     registerExamConfigDataIpc(ipcMain);
@@ -69,6 +72,7 @@ function registerAllIpcHandlers(ipcMain) {
     registerAppAdminIpc(ipcMain);
     registerDiagnosticsIpc(ipcMain);
     registerAppDefaultsIpc(ipcMain);
+    registerSubjectCoefficientsIpc(ipcMain);
     startOutboxCleanup();
 }
 

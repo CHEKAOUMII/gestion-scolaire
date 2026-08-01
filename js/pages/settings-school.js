@@ -587,6 +587,53 @@ async function loadSyncInstitutionSection() {
     }
 }
 
+function cycleRowHtml(catalogCycle, addedCycle, canManage) {
+    const enabled = Number(addedCycle?.is_active) === 1;
+    const readiness = catalogCycle.capability === 'supported' ? '' : ' · قيد الإعداد';
+    const status = `${addedCycle ? (enabled ? 'مفعل' : 'معطل') : 'غير مضاف'}${readiness}`;
+    // An unsupported cycle can be registered ahead of time, but no session can select it
+    // until its policies ship — say so instead of letting "مفعل" imply it is usable.
+    const hint = catalogCycle.capability === 'supported'
+        ? ''
+        : '<div class="text-xs opacity-70">قواعد هذا السلك قيد الإعداد، ولا يمكن العمل به بعد.</div>';
+    let action = '';
+    if (canManage && addedCycle) {
+        action = `<button type="button" class="btn btn-outline btn-sm cycle-toggle" data-cycle-code="${catalogCycle.cycle_code}" data-active="${enabled ? 1 : 0}">${enabled ? 'تعطيل' : 'تفعيل'}</button>`;
+    } else if (canManage) {
+        action = `<button type="button" class="btn btn-primary btn-sm cycle-add" data-cycle-code="${catalogCycle.cycle_code}">إضافة السلك</button>`;
+    }
+    return `<div class="flex items-center justify-between gap-3 rounded-lg border p-3"><div><strong>${catalogCycle.label_ar}</strong><div class="text-xs opacity-70" dir="ltr">${catalogCycle.cycle_code} · ${status}</div>${hint}</div>${action}</div>`;
+}
+
+async function loadCycleManagement() {
+    const host = document.getElementById('institution-cycles-list');
+    if (!host || !window.api?.cycles) return;
+    const [catalogResponse, addedResponse] = await Promise.all([window.api.cycles.getCatalog(), window.api.cycles.list()]);
+    if (!catalogResponse?.success || !addedResponse?.success) return;
+    const addedByCode = new Map(addedResponse.cycles.map((cycle) => [cycle.cycle_code, cycle]));
+    const role = typeof getCurrentAppRole === 'function' ? getCurrentAppRole() : null;
+    const canManage = ['developer', 'admin', 'principal'].includes(role);
+    const visibleCatalog = canManage
+        ? catalogResponse.cycles
+        : catalogResponse.cycles.filter((cycle) => addedByCode.has(cycle.cycle_code));
+    host.innerHTML = visibleCatalog
+        .map((cycle) => cycleRowHtml(cycle, addedByCode.get(cycle.cycle_code), canManage))
+        .join('');
+    host.querySelectorAll('.cycle-add').forEach((button) => button.addEventListener('click', () => changeCycle(button.dataset.cycleCode, { add: true })));
+    host.querySelectorAll('.cycle-toggle').forEach((button) => button.addEventListener('click', () => changeCycle(button.dataset.cycleCode, { isActive: !Number(button.dataset.active) })));
+}
+
+async function changeCycle(cycleCode, action) {
+    const response = action.add
+        ? await window.api.cycles.add(cycleCode)
+        : await window.api.cycles.setEnabled(cycleCode, action.isActive);
+    showToast(response?.success ? 'تم تحديث الأسلاك التعليمية' : response?.error || 'تعذر تحديث السلك', response?.success ? 'success' : 'error');
+    if (response?.success) {
+        loadCycleManagement();
+        if (typeof window.refreshCycleSwitcher === 'function') window.refreshCycleSwitcher();
+    }
+}
+
 function initSettingsSchoolPage() {
     renderAssetUploaders();
     wireAcademyDirectorateCascade();
@@ -601,6 +648,7 @@ function initSettingsSchoolPage() {
 
     loadIdentity();
     loadSyncInstitutionSection();
+    loadCycleManagement();
 }
 
 if (document.readyState === 'loading') {

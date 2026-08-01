@@ -1,5 +1,6 @@
 const { handleRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
+const { resolveTeacherIdentity } = require('../teachers/identity');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 
 function registerCompensationIpc(ipcMain) {
@@ -16,6 +17,7 @@ function registerCompensationIpc(ipcMain) {
             LEFT JOIN teachers t ON t.id = c.teacher_id
             LEFT JOIN staff_attendance sa
                 ON sa.attendance_date = c.absence_date
+                AND sa.school_year = c.school_year
                 AND (sa.teacher_id = c.teacher_id OR sa.teacher_name = c.teacher_name)
                 AND sa.type = 'absence'
             WHERE c.absence_date = ? AND c.school_year = ?
@@ -38,6 +40,7 @@ function registerCompensationIpc(ipcMain) {
             LEFT JOIN teachers t ON t.id = c.teacher_id
             LEFT JOIN staff_attendance sa
                 ON sa.attendance_date = c.absence_date
+                AND sa.school_year = c.school_year
                 AND (sa.teacher_id = c.teacher_id OR sa.teacher_name = c.teacher_name)
                 AND sa.type = 'absence'
             WHERE c.school_year = ?
@@ -60,6 +63,7 @@ function registerCompensationIpc(ipcMain) {
             LEFT JOIN teachers t ON t.id = c.teacher_id
             LEFT JOIN staff_attendance sa
                 ON sa.attendance_date = c.absence_date
+                AND sa.school_year = c.school_year
                 AND (sa.teacher_id = c.teacher_id OR sa.teacher_name = c.teacher_name)
                 AND sa.type = 'absence'
             WHERE c.compensated = 0 AND c.school_year = ?

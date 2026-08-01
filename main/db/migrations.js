@@ -1,7 +1,11 @@
 const { getDb } = require('./context');
 const {
     ensureColumn,
+    ensureTeacherSourceColumns,
+    ensureTeacherTeachingAssignmentsSchema,
     ensureInstitutionSchema,
+    ensureInstitutionCyclesSchema,
+    ensureCycleReferenceSchema,
     ensureLicensingSchema,
     ensureOwnerSyncSchema,
     ensurePageVisibilitySchema,
@@ -10,6 +14,177 @@ const {
 const { generateRandomPassword, hashPassword } = require('../auth/password');
 const { seedSyncDefaults } = require('../sync/defaults');
 const { normalizeTeacherName, seedTeacherAliases, resolveTeacherIdentity } = require('../teachers/identity');
+
+function tableExists(db, tableName) {
+    return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName);
+}
+
+function isBlankCycle(cycleCode) {
+    return cycleCode == null || String(cycleCode).trim() === '';
+}
+
+function recordUnmappableCycle(db, report) {
+    const details = JSON.stringify({ reason: report.reason, source: report.source });
+    const exists = db
+        .prepare(
+            `SELECT 1 FROM system_logs
+             WHERE action = 'CYCLE_BACKFILL_UNMAPPABLE'
+               AND entity_type = ? AND entity_id = ?`
+        )
+        .get(report.tableName, String(report.rowId));
+    if (!exists) {
+        db.prepare(
+            `INSERT INTO system_logs(action, entity_type, entity_id, details)
+             VALUES('CYCLE_BACKFILL_UNMAPPABLE', ?, ?, ?)`
+        ).run(report.tableName, String(report.rowId), details);
+    }
+}
+
+function populateSectionsFromStudents(db) {
+    if (!tableExists(db, 'students') || !tableExists(db, 'sections')) return;
+    const students = db
+        .prepare(
+            `SELECT id, section, level, cycle_code, school_year
+             FROM students
+             WHERE TRIM(COALESCE(section, '')) != ''
+               AND TRIM(COALESCE(cycle_code, '')) != ''
+               AND TRIM(COALESCE(school_year, '')) != ''`
+        )
+        .all();
+    const insertSection = db.prepare(
+        `INSERT OR IGNORE INTO sections(
+            section_code, raw_name, normalized_name, cycle_code, level_code, stream_code, school_year
+         ) VALUES(?, ?, ?, ?, ?, NULL, ?)`
+    );
+    for (const student of students) {
+        const sectionCode = String(student.section).trim();
+        insertSection.run(
+            sectionCode,
+            String(student.section),
+            sectionCode,
+            String(student.cycle_code).trim(),
+            isBlankCycle(student.level) ? null : String(student.level).trim(),
+            String(student.school_year).trim()
+        );
+    }
+}
+
+function resolveSectionCycle(db, sectionName, schoolYear) {
+    const normalizedName = String(sectionName || '').trim();
+    const normalizedYear = String(schoolYear || '').trim();
+    if (!normalizedName || !normalizedYear) return { cycleCode: null, reason: 'section_or_year_missing' };
+    const matches = db
+        .prepare(
+            `SELECT cycle_code FROM sections
+             WHERE school_year = ? AND (section_code = ? OR raw_name = ?)`
+        )
+        .all(normalizedYear, normalizedName, normalizedName);
+    const cycleCodes = [...new Set(matches.map((match) => String(match.cycle_code || '').trim()).filter(Boolean))];
+    if (cycleCodes.length === 1) return { cycleCode: cycleCodes[0], reason: null };
+    return {
+        cycleCode: null,
+        reason: cycleCodes.length > 1 ? 'ambiguous_section_cycle' : 'section_not_found'
+    };
+}
+
+function backfillSectionOwnedCycles(db, tableName) {
+    if (!tableExists(db, tableName)) return;
+    const rows = db
+        .prepare(`SELECT id, section, school_year FROM ${tableName} WHERE cycle_code IS NULL OR TRIM(cycle_code) = ''`)
+        .all();
+    const updateCycle = db.prepare(`UPDATE ${tableName} SET cycle_code = ? WHERE id = ?`);
+    for (const row of rows) {
+        const mapping = resolveSectionCycle(db, row.section, row.school_year);
+        if (mapping.cycleCode) updateCycle.run(mapping.cycleCode, row.id);
+        else recordUnmappableCycle(db, { tableName, rowId: row.id, reason: mapping.reason, source: 'sections' });
+    }
+}
+
+function resolveStudentCycle(db, studentRow) {
+    const candidates = [];
+    const studentId = Number(studentRow.student_id);
+    const schoolYear = String(studentRow.school_year || '').trim();
+    if (Number.isFinite(studentId) && studentId > 0) {
+        const student = db
+            .prepare(
+                `SELECT cycle_code FROM students
+                 WHERE id = ? AND (? = '' OR school_year = ?)`
+            )
+            .get(studentId, schoolYear, schoolYear);
+        if (student && !isBlankCycle(student.cycle_code)) candidates.push(String(student.cycle_code).trim());
+    }
+    const studentCode = String(studentRow.student_code || '').trim();
+    if (studentCode && schoolYear) {
+        const student = db
+            .prepare('SELECT cycle_code FROM students WHERE code = ? AND school_year = ?')
+            .get(studentCode, schoolYear);
+        if (student && !isBlankCycle(student.cycle_code)) candidates.push(String(student.cycle_code).trim());
+    }
+    const cycleCodes = [...new Set(candidates)];
+    if (cycleCodes.length === 1) return { cycleCode: cycleCodes[0], reason: null };
+    return {
+        cycleCode: null,
+        reason: cycleCodes.length > 1 ? 'conflicting_student_sources' : 'student_not_found_or_cycle_missing'
+    };
+}
+
+function backfillStudentOwnedCycles(db, tableName, sourceColumns) {
+    if (!tableExists(db, tableName)) return;
+    const rows = db
+        .prepare(`SELECT id, ${sourceColumns} FROM ${tableName} WHERE cycle_code IS NULL OR TRIM(cycle_code) = ''`)
+        .all();
+    const updateCycle = db.prepare(`UPDATE ${tableName} SET cycle_code = ? WHERE id = ?`);
+    for (const row of rows) {
+        const mapping = resolveStudentCycle(db, row);
+        if (mapping.cycleCode) updateCycle.run(mapping.cycleCode, row.id);
+        else recordUnmappableCycle(db, { tableName, rowId: row.id, reason: mapping.reason, source: 'students' });
+    }
+}
+
+function reportExamProctorMappings(db) {
+    if (!tableExists(db, 'exam_proctors') || !tableExists(db, 'exams')) return;
+    const proctors = db.prepare('SELECT id, exam_id FROM exam_proctors').all();
+    const issues = [];
+    for (const proctor of proctors) {
+        const examId = Number(proctor.exam_id);
+        const exam = Number.isFinite(examId) && examId > 0
+            ? db.prepare('SELECT id, cycle_code FROM exams WHERE id = ?').get(examId)
+            : null;
+        if (!exam) {
+            const reason = examId > 0 ? 'exam_not_found' : 'exam_id_missing';
+            issues.push({ id: proctor.id, examId: proctor.exam_id, reason });
+            recordUnmappableCycle(db, {
+                tableName: 'exam_proctors',
+                rowId: proctor.id,
+                reason,
+                source: 'exams'
+            });
+        } else if (isBlankCycle(exam.cycle_code)) {
+            issues.push({ id: proctor.id, examId: exam.id, reason: 'exam_cycle_unmappable' });
+            recordUnmappableCycle(db, {
+                tableName: 'exam_proctors',
+                rowId: proctor.id,
+                reason: 'exam_cycle_unmappable',
+                source: 'exams'
+            });
+        }
+    }
+    if (!issues.length) return;
+    const reportDetails = JSON.stringify({ count: issues.length, samples: issues.slice(0, 10) });
+    const reportExists = db
+        .prepare(
+            `SELECT 1 FROM system_logs
+             WHERE action = 'CYCLE_BACKFILL_EXAM_PROCTORS_REPORT'
+               AND entity_type = 'exam_proctors' AND entity_id IS NULL`
+        )
+        .get();
+    if (!reportExists) {
+        db.prepare(
+            `INSERT INTO system_logs(action, entity_type, entity_id, details)
+             VALUES('CYCLE_BACKFILL_EXAM_PROCTORS_REPORT', 'exam_proctors', NULL, ?)`
+        ).run(reportDetails);
+    }
+}
 
 const MIGRATIONS = [
     {
@@ -1443,6 +1618,7 @@ const MIGRATIONS = [
                         level TEXT,
                         section TEXT,
                         school_year TEXT,
+                        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
                         FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
@@ -1462,6 +1638,7 @@ const MIGRATIONS = [
                         days REAL DEFAULT 0,
                         reason TEXT,
                         school_year TEXT,
+                        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
                     )`
@@ -1873,6 +2050,267 @@ const MIGRATIONS = [
             db.exec(`
                 CREATE INDEX IF NOT EXISTS idx_student_orientation_section
                 ON student_orientation(school_year, section);
+            `);
+        }
+    },
+    {
+        version: '2026-07-069-students-level-school-name',
+        up: () => {
+            ensureColumn('students', 'level', 'TEXT');
+            ensureColumn('students', 'school_name', 'TEXT');
+        }
+    },
+    {
+        version: '2026-07-070-institution-cycles',
+        up: () => {
+            ensureInstitutionCyclesSchema();
+            const db = getDb();
+            db.prepare(
+                `INSERT OR IGNORE INTO institution_cycles
+                 (cycle_code, is_active, profile_version, sort_order)
+                 VALUES ('secondary_qualifiant', 1, 'qualifiant-2026-v1', 20)`
+            ).run();
+        }
+    },
+    {
+        // Students carry their education cycle (docs/plans/2026-07-30-cycle-scoping-students-slice.md, D1).
+        // Every existing row belongs to the qualifiant cycle — that is what the app has
+        // been managing all along — so the column defaults to it and is backfilled rather
+        // than left nullable, which keeps older builds able to read the table unchanged.
+        version: '2026-07-071-students-cycle-code',
+        up: () => {
+            ensureColumn('students', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
+            const db = getDb();
+            db.prepare(
+                `UPDATE students SET cycle_code = 'secondary_qualifiant'
+                 WHERE cycle_code IS NULL OR TRIM(cycle_code) = ''`
+            ).run();
+            // UNIQUE(code, school_year) is intentionally untouched: a student belongs to
+            // one cycle, so their identity does not gain a cycle component (D3).
+            db.exec(
+                `CREATE INDEX IF NOT EXISTS idx_students_year_cycle ON students(school_year, cycle_code);`
+            );
+        }
+    },
+    {
+        // Grades and absences inherit their cycle from the owning student. Their logical
+        // keys remain unchanged because student_code is institution-wide unique.
+        version: '2026-07-072-grades-absences-cycle-code',
+        up: () => {
+            ensureColumn('grades', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
+            ensureColumn('absences', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
+            const db = getDb();
+            for (const table of ['grades', 'absences']) {
+                const orphanPredicate = `NOT EXISTS (
+                    SELECT 1 FROM students s
+                    WHERE s.code = ${table}.student_code
+                      AND s.school_year = ${table}.school_year
+                )`;
+                const orphanCount = db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE ${orphanPredicate}`).get().count;
+                const unresolved = db
+                    .prepare(`SELECT student_code, school_year FROM ${table} WHERE ${orphanPredicate} LIMIT 10`)
+                    .all();
+                db.prepare(
+                    `UPDATE ${table}
+                     SET cycle_code = COALESCE((
+                         SELECT s.cycle_code FROM students s
+                         WHERE s.code = ${table}.student_code
+                           AND s.school_year = ${table}.school_year
+                     ), 'secondary_qualifiant')`
+                ).run();
+                if (unresolved.length) {
+                    db.prepare(
+                        `INSERT INTO system_logs(action, entity_type, entity_id, details)
+                         SELECT ?, ?, ?, ?
+                         WHERE NOT EXISTS (
+                             SELECT 1 FROM system_logs
+                             WHERE action = ? AND entity_type = ?
+                         )`
+                    ).run(
+                        'CYCLE_BACKFILL_ORPHANS',
+                        table,
+                        null,
+                        JSON.stringify({ count: orphanCount, samples: unresolved }),
+                        'CYCLE_BACKFILL_ORPHANS',
+                        table
+                    );
+                }
+            }
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_grades_year_cycle ON grades(school_year, cycle_code);
+                CREATE INDEX IF NOT EXISTS idx_absences_year_cycle ON absences(school_year, cycle_code);
+            `);
+        }
+    },
+    {
+        version: '2026-07-073-cross-cycle-teaching-assignments',
+        up: () => {
+            ensureTeacherSourceColumns();
+            ensureTeacherTeachingAssignmentsSchema();
+            const db = getDb();
+            db.prepare(
+                `UPDATE teachers SET scope_type = 'teaching_assignment'
+                 WHERE scope_type IS NULL OR TRIM(scope_type) = ''`
+            ).run();
+        }
+    },
+    {
+        // Keep grade-import evidence available for the assignment review queue. These
+        // fields are audit metadata; they do not change the grade logical key.
+        version: '2026-07-074-grade-teacher-resolution-audit',
+        up: () => {
+            ensureColumn('grades', 'teacher_resolution', "TEXT DEFAULT 'unresolved'");
+            ensureColumn('grades', 'source_file_name', 'TEXT');
+            const db = getDb();
+            db.prepare(
+                `UPDATE grades
+                 SET teacher_resolution = CASE
+                     WHEN teacher_id IS NOT NULL AND teacher_id > 0 THEN 'resolved'
+                     ELSE 'unresolved'
+                 END
+                 WHERE teacher_resolution IS NULL OR TRIM(teacher_resolution) = ''`
+            ).run();
+        }
+    },
+
+    {
+        // A timetable blob is cycle-keyed: saving one cycle must never overwrite the
+        // other cycle's timetable in the same school year.
+        version: '2026-07-075-timetable-cycle-key',
+        recordsVersionInternally: true,
+        up: () => {
+            const db = getDb();
+            const recordMigration = db.prepare('INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)');
+            const table = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'timetable_data'").get();
+            if (!table) {
+                db.exec(`
+                    CREATE TABLE timetable_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        school_year TEXT NOT NULL,
+                        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+                        data_json TEXT NOT NULL,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(school_year, cycle_code)
+                    );
+                    CREATE INDEX idx_timetable_data_year_cycle ON timetable_data(school_year, cycle_code);
+                `);
+                recordMigration.run('2026-07-075-timetable-cycle-key');
+                return;
+            }
+            const columns = db.prepare('PRAGMA table_info(timetable_data)').all().map((column) => column.name);
+            if (!columns.includes('cycle_code')) {
+                db.exec('PRAGMA foreign_keys=off;');
+                const transaction = db.transaction(() => {
+                    db.exec(`
+                        CREATE TABLE timetable_data__rb (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            school_year TEXT NOT NULL,
+                            cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+                            data_json TEXT NOT NULL,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(school_year, cycle_code)
+                        );
+                        INSERT INTO timetable_data__rb(id, school_year, data_json, updated_at)
+                        SELECT id, school_year, data_json, updated_at FROM timetable_data;
+                        DROP TABLE timetable_data;
+                        ALTER TABLE timetable_data__rb RENAME TO timetable_data;
+                        CREATE INDEX idx_timetable_data_year_cycle ON timetable_data(school_year, cycle_code);
+                    `);
+                    recordMigration.run('2026-07-075-timetable-cycle-key');
+                });
+                transaction();
+                db.exec('PRAGMA foreign_keys=on;');
+                return;
+            }
+            db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uidx_timetable_data_year_cycle ON timetable_data(school_year, cycle_code);');
+            recordMigration.run('2026-07-075-timetable-cycle-key');
+        }
+    },
+    {
+        // Support sessions are tied to the section they serve, so they carry the
+        // section's cycle while teacher identity remains institution-wide.
+        version: '2026-07-076-support-sessions-cycle-code',
+        up: () => {
+            const db = getDb();
+            const table = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'support_sessions'").get();
+            if (!table) return;
+            ensureColumn('support_sessions', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
+            const { inferEducationPlacement } = require('../../js/shared/education/cycles');
+            const rows = db.prepare('SELECT id, section FROM support_sessions').all();
+            const update = db.prepare('UPDATE support_sessions SET cycle_code = ? WHERE id = ?');
+            // Rows whose section name the catalog cannot classify fall back to the cycle
+            // this app has always managed. That fallback is a guess, so it is reported the
+            // same way migration 072 reports orphan grades — §13 forbids silent inference,
+            // not a recorded one an operator can review.
+            const unclassified = [];
+            for (const row of rows) {
+                const inferred = inferEducationPlacement({ section: row.section });
+                if (!inferred) unclassified.push({ id: row.id, section: row.section });
+                update.run(inferred || 'secondary_qualifiant', row.id);
+            }
+            if (unclassified.length) {
+                db.prepare(
+                    `INSERT INTO system_logs(action, entity_type, entity_id, details)
+                     VALUES(?, ?, ?, ?)`
+                ).run(
+                    'CYCLE_BACKFILL_ASSUMED',
+                    'support_sessions',
+                    null,
+                    JSON.stringify({ count: unclassified.length, samples: unclassified.slice(0, 10) })
+                );
+            }
+            db.exec(`
+                DROP INDEX IF EXISTS idx_support_sessions_unique;
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_support_sessions_unique
+                    ON support_sessions(teacher_id, session_date, time_from, section, school_year, cycle_code);
+                CREATE INDEX IF NOT EXISTS idx_support_sessions_year_cycle
+                    ON support_sessions(school_year, cycle_code);
+            `);
+        }
+    },
+    {
+        // Central cycle reference schema and the remaining cycle-carrying tables.
+        // Legacy rows stay NULL when their source cannot be resolved; the audit log is
+        // the operator-facing report instead of a guessed default cycle.
+        version: '2026-07-077-cycle-reference-schema',
+        up: () => {
+            const db = getDb();
+            ensureCycleReferenceSchema(db);
+            db.prepare(
+                `INSERT OR IGNORE INTO user_cycle_access(user_id, cycle_code)
+                 SELECT id, 'secondary_qualifiant'
+                 FROM users
+                 WHERE LOWER(COALESCE(role, '')) NOT IN ('developer', 'admin', 'principal')`
+            ).run();
+
+            const cycleTables = [
+                'exams',
+                'tests',
+                'student_profile_data',
+                'student_files',
+                'correspondence',
+                'student_movements'
+            ];
+            for (const tableName of cycleTables) {
+                if (tableExists(db, tableName)) ensureColumn(tableName, 'cycle_code', 'TEXT');
+            }
+
+            populateSectionsFromStudents(db);
+            backfillSectionOwnedCycles(db, 'exams');
+            backfillSectionOwnedCycles(db, 'tests');
+            backfillStudentOwnedCycles(db, 'student_profile_data', 'student_id, student_code, school_year');
+            backfillStudentOwnedCycles(db, 'correspondence', 'student_id, student_code, school_year');
+            backfillStudentOwnedCycles(db, 'student_files', 'student_id, school_year');
+            backfillStudentOwnedCycles(db, 'student_movements', 'student_id, school_year');
+            reportExamProctorMappings(db);
+
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_exams_year_cycle ON exams(school_year, cycle_code);
+                CREATE INDEX IF NOT EXISTS idx_tests_year_cycle ON tests(school_year, cycle_code);
+                CREATE INDEX IF NOT EXISTS idx_student_profile_year_cycle ON student_profile_data(school_year, cycle_code);
+                CREATE INDEX IF NOT EXISTS idx_student_files_year_cycle ON student_files(school_year, cycle_code);
+                CREATE INDEX IF NOT EXISTS idx_correspondence_year_cycle ON correspondence(school_year, cycle_code);
+                CREATE INDEX IF NOT EXISTS idx_student_movements_year_cycle ON student_movements(school_year, cycle_code);
             `);
         }
     }

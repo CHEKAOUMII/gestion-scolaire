@@ -15,6 +15,8 @@ function createTables() {
             birth_place TEXT,
             gender TEXT,
             section TEXT,
+            level TEXT,
+            school_name TEXT,
             school_year TEXT,
             status TEXT DEFAULT 'active',
             registration_type TEXT DEFAULT 'new',
@@ -36,6 +38,9 @@ function createTables() {
         level TEXT,
         section TEXT,
         school_year TEXT,
+        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+        teacher_resolution TEXT DEFAULT 'unresolved',
+        source_file_name TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -61,6 +66,7 @@ function createTables() {
         days REAL DEFAULT 0,
         reason TEXT,
         school_year TEXT,
+        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -76,6 +82,7 @@ function createTables() {
         letter_date DATE,
         total_hours INTEGER,
         school_year TEXT,
+        cycle_code TEXT,
         printed INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
@@ -89,6 +96,7 @@ function createTables() {
         doc_key TEXT NOT NULL,
         is_present INTEGER DEFAULT 0,
         school_year TEXT,
+        cycle_code TEXT,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(student_id, doc_key, school_year),
         FOREIGN KEY(student_id) REFERENCES students(id)
@@ -105,6 +113,7 @@ function createTables() {
         movement_date DATE NOT NULL,
         notes TEXT,
         school_year TEXT,
+        cycle_code TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -146,9 +155,17 @@ function createTables() {
         source TEXT DEFAULT 'manual',
         school_year TEXT,
         active INTEGER DEFAULT 1,
+        source_function_code TEXT,
+        source_assignment_mode TEXT,
+        source_cycle_code TEXT,
+        scope_type TEXT NOT NULL DEFAULT 'teaching_assignment',
+        source_updated_at TEXT,
+        source_activity_json TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     `);
+
+    ensureTeacherTeachingAssignmentsSchema(db);
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS teacher_aliases(
@@ -205,6 +222,7 @@ function createTables() {
         exam_date DATE,
         exam_time TEXT,
         school_year TEXT,
+        cycle_code TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     `);
@@ -245,9 +263,27 @@ function createTables() {
         status TEXT DEFAULT 'planned',
         test_date DATE,
         school_year TEXT,
+        cycle_code TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     `);
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS student_profile_data (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id    INTEGER NOT NULL,
+            student_code  TEXT NOT NULL,
+            tab_key       TEXT NOT NULL
+                          CHECK(tab_key IN ('economic','social','health','followup','guidance')),
+            data_json     TEXT NOT NULL DEFAULT '{}',
+            school_year   TEXT NOT NULL,
+            cycle_code    TEXT,
+            updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_by    TEXT,
+            UNIQUE(student_code, tab_key, school_year)
+        );
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_student_profile_student ON student_profile_data(student_code, school_year)`);
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS system_logs(
@@ -301,6 +337,7 @@ function createTables() {
     ensureSyncSchema(db);
     ensurePageVisibilitySchema(db);
     ensureInstitutionSchema(db);
+    ensureCycleReferenceSchema(db);
 
     // Initialize trial start date on first DB creation
     const { ensureTrialStartDate } = require('../licensing/trialService');
@@ -348,6 +385,12 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_lookup ON teacher_aliases(school_year, alias_normalized);
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_teacher ON teacher_aliases(teacher_id, school_year);
         CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
+        CREATE INDEX IF NOT EXISTS idx_exams_year_cycle ON exams(school_year, cycle_code);
+        CREATE INDEX IF NOT EXISTS idx_tests_year_cycle ON tests(school_year, cycle_code);
+        CREATE INDEX IF NOT EXISTS idx_student_profile_year_cycle ON student_profile_data(school_year, cycle_code);
+        CREATE INDEX IF NOT EXISTS idx_student_files_year_cycle ON student_files(school_year, cycle_code);
+        CREATE INDEX IF NOT EXISTS idx_correspondence_year_cycle ON correspondence(school_year, cycle_code);
+        CREATE INDEX IF NOT EXISTS idx_student_movements_year_cycle ON student_movements(school_year, cycle_code);
         CREATE INDEX IF NOT EXISTS idx_system_logs_entity   ON system_logs(entity_type, created_at);
         CREATE INDEX IF NOT EXISTS idx_system_logs_action   ON system_logs(action, created_at);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
@@ -388,6 +431,66 @@ function createTables() {
     } catch {
         /* column doesn't exist yet — migration will create it */
     }
+}
+
+function listTableColumns(db, tableName) {
+    if (typeof db.pragma === 'function') return db.pragma(`table_info(${tableName})`);
+    return db.prepare(`PRAGMA table_info(${tableName})`).all();
+}
+
+function ensureTeacherSourceColumns(existingDb) {
+    const db = existingDb || getDb();
+    const columns = [
+        ['source_function_code', 'TEXT'],
+        ['source_assignment_mode', 'TEXT'],
+        ['source_cycle_code', 'TEXT'],
+        ['scope_type', "TEXT NOT NULL DEFAULT 'teaching_assignment'"],
+        ['source_updated_at', 'TEXT'],
+        ['source_activity_json', 'TEXT']
+    ];
+    const existing = new Set(listTableColumns(db, 'teachers').map((column) => column.name));
+    for (const [name, definition] of columns) {
+        if (!existing.has(name)) db.exec(`ALTER TABLE teachers ADD COLUMN ${name} ${definition}`);
+    }
+    db.prepare(
+        `UPDATE teachers SET scope_type = 'teaching_assignment'
+         WHERE scope_type IS NULL OR TRIM(scope_type) = ''`
+    ).run();
+}
+
+function ensureTeacherTeachingAssignmentsSchema(existingDb) {
+    const db = existingDb || getDb();
+    ensureTeacherSourceColumns(db);
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS teacher_teaching_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+            school_year TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            level_code TEXT NOT NULL DEFAULT '',
+            section TEXT NOT NULL DEFAULT '',
+            subject_code TEXT NOT NULL DEFAULT '',
+            subject_label TEXT,
+            source TEXT NOT NULL,
+            source_file_name TEXT,
+            decision_source TEXT NOT NULL DEFAULT 'import_suggestion'
+                CHECK(decision_source IN ('import_suggestion','principal_decision','admin_decision','manual_assignment')),
+            decided_by_user_id INTEGER,
+            decided_at TEXT,
+            confidence TEXT NOT NULL DEFAULT 'review_required'
+                CHECK(confidence IN ('confirmed','review_required','rejected')),
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(teacher_id, school_year, cycle_code, level_code, section, subject_code)
+        );
+        CREATE INDEX IF NOT EXISTS idx_teacher_assignments_cycle_year
+            ON teacher_teaching_assignments(cycle_code, school_year);
+        CREATE INDEX IF NOT EXISTS idx_teacher_assignments_teacher_year
+            ON teacher_teaching_assignments(teacher_id, school_year);
+        CREATE INDEX IF NOT EXISTS idx_teacher_assignments_operational
+            ON teacher_teaching_assignments(cycle_code, school_year, confidence, is_active);
+    `);
 }
 
 function ensureLicensingSchema(existingDb) {
@@ -570,6 +673,25 @@ function ensureSyncSchema(existingDb) {
             last_pull_error TEXT,
             updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Inbound rows this device cannot apply correctly yet (multi-cycle plan §9.2).
+        -- A row missing a required column is held here with its full payload instead of
+        -- stalling the pull cursor for every other entity: the device keeps syncing, and
+        -- the held rows are retried automatically once its schema catches up.
+        CREATE TABLE IF NOT EXISTS sync_quarantine (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            row_sync_id      TEXT NOT NULL UNIQUE,
+            table_name       TEXT NOT NULL,
+            operation        TEXT NOT NULL,
+            contract_version INTEGER DEFAULT 1,
+            reason           TEXT NOT NULL,
+            item_json        TEXT NOT NULL,
+            retry_count      INTEGER NOT NULL DEFAULT 0,
+            quarantined_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_attempt_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sync_quarantine_table ON sync_quarantine(table_name);
     `);
 
     db.prepare(
@@ -751,6 +873,97 @@ function ensureSchoolIdentitySchema(existingDb) {
     `);
 }
 
+function ensureInstitutionCyclesSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS institution_cycles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_code TEXT NOT NULL UNIQUE,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            profile_version TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_institution_cycles_active
+            ON institution_cycles(is_active, sort_order);
+    `);
+}
+
+function ensureCycleReferenceSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS user_cycle_access (
+            user_id INTEGER NOT NULL,
+            cycle_code TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_id, cycle_code),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_cycle_access_cycle
+            ON user_cycle_access(cycle_code, user_id);
+
+        CREATE TABLE IF NOT EXISTS education_levels (
+            level_code TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            label_ar TEXT NOT NULL DEFAULT '',
+            label_fr TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            PRIMARY KEY(level_code, cycle_code)
+        );
+        CREATE INDEX IF NOT EXISTS idx_education_levels_cycle
+            ON education_levels(cycle_code, is_active, sort_order);
+
+        CREATE TABLE IF NOT EXISTS level_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_code TEXT NOT NULL,
+            raw_alias TEXT NOT NULL,
+            normalized_alias TEXT NOT NULL,
+            level_code TEXT NOT NULL,
+            source TEXT,
+            UNIQUE(cycle_code, normalized_alias)
+        );
+        CREATE INDEX IF NOT EXISTS idx_level_aliases_lookup
+            ON level_aliases(cycle_code, normalized_alias);
+
+        CREATE TABLE IF NOT EXISTS education_subjects (
+            subject_code TEXT PRIMARY KEY,
+            label_ar TEXT NOT NULL DEFAULT '',
+            label_fr TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1))
+        );
+
+        CREATE TABLE IF NOT EXISTS subject_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            raw_alias TEXT NOT NULL,
+            normalized_alias TEXT NOT NULL UNIQUE,
+            subject_code TEXT NOT NULL,
+            source TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_subject_aliases_lookup
+            ON subject_aliases(normalized_alias);
+
+        CREATE TABLE IF NOT EXISTS sections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            section_code TEXT NOT NULL,
+            raw_name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            level_code TEXT,
+            stream_code TEXT,
+            school_year TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            UNIQUE(section_code, cycle_code, school_year)
+        );
+        CREATE INDEX IF NOT EXISTS idx_sections_year_cycle
+            ON sections(school_year, cycle_code);
+        CREATE INDEX IF NOT EXISTS idx_sections_cycle_level
+            ON sections(cycle_code, level_code, school_year);
+    `);
+}
+
 function ensureColumn(table, column, definition) {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table) || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)) {
         throw new Error(`ensureColumn: invalid identifier — table="${table}", column="${column}"`);
@@ -766,7 +979,11 @@ function ensureColumn(table, column, definition) {
 module.exports = {
     createTables,
     ensureColumn,
+    ensureTeacherSourceColumns,
+    ensureTeacherTeachingAssignmentsSchema,
     ensureInstitutionSchema,
+    ensureInstitutionCyclesSchema,
+    ensureCycleReferenceSchema,
     ensureLicensingSchema,
     ensureNotificationsSchema,
     ensureOwnerSyncSchema,

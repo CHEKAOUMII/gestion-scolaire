@@ -60,6 +60,46 @@ async function performAutoLogin(email, password, source) {
     return false;
 }
 
+/**
+ * Fill the academy <select> from the shared MA_ACADEMIES list (js/data/ma-regions.js).
+ * Region is optional at registration, so the placeholder stays selectable-empty.
+ */
+function populateSetupAcademies() {
+    const academySelect = document.getElementById('new-academy');
+    if (!academySelect || typeof MA_ACADEMIES === 'undefined') return;
+    for (const academy of MA_ACADEMIES) {
+        const option = document.createElement('option');
+        option.value = academy;
+        option.textContent = academy;
+        academySelect.appendChild(option);
+    }
+}
+
+/**
+ * Cascade: fill the directorate <select> with the directorates for the chosen academy,
+ * or disable it with a placeholder when no academy is selected.
+ */
+function populateSetupDirectorates(academyValue) {
+    const directorateSelect = document.getElementById('new-directorate');
+    if (!directorateSelect) return;
+
+    if (!academyValue) {
+        directorateSelect.innerHTML = '<option value="" disabled selected>اختر الأكاديمية أولاً</option>';
+        directorateSelect.disabled = true;
+        return;
+    }
+
+    const list = (typeof MA_DIRECTORATES !== 'undefined' && MA_DIRECTORATES[academyValue]) || [];
+    directorateSelect.disabled = false;
+    directorateSelect.innerHTML = '<option value="" disabled selected>اختر المديرية الإقليمية</option>';
+    for (const directorate of list) {
+        const option = document.createElement('option');
+        option.value = directorate;
+        option.textContent = directorate;
+        directorateSelect.appendChild(option);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[SETUP] DOMContentLoaded fired');
 
@@ -127,6 +167,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnModeLogin.addEventListener('click', () => { window.location.href = 'login.html'; });
     btnBackFromNew.addEventListener('click', () => showStep(stepModeSelect));
 
+    // ── Region dropdowns (academy → directorate cascade) ──
+    populateSetupAcademies();
+    document
+        .getElementById('new-academy')
+        ?.addEventListener('change', (event) => populateSetupDirectorates(event.target.value));
+
     // ── New Institution Form ──
     formNew.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -138,6 +184,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const adminEmail = (document.getElementById('new-admin-email')?.value || '').trim().toLowerCase();
         const adminPassword = document.getElementById('new-admin-password').value;
         const adminConfirm = document.getElementById('new-admin-confirm').value;
+        const academy = (document.getElementById('new-academy')?.value || '').trim();
+        const directorate = (document.getElementById('new-directorate')?.value || '').trim();
 
         let hasError = false;
 
@@ -177,7 +225,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 institutionName,
                 adminName,
                 adminEmail,
-                adminPassword
+                adminPassword,
+                academy,
+                directorate
             });
             console.log('[SETUP] setupNewInstitution result:', JSON.stringify(result));
 

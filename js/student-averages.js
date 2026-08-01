@@ -125,8 +125,8 @@
         return resolveFn('normalizeSubjectName', ['./data/ma-education-labels.js', './utils.js']);
     }
     function getComputeSubjectAverage() { return resolveFn('computeSubjectAverage', ['./cc-rules.js', './cc-rules']); }
-    function getComputeWeightedGeneralAverage() {
-        return resolveFn('computeWeightedGeneralAverage', ['./cc-rules.js', './cc-rules']);
+    function getComputeWeightedGeneralAverageResult() {
+        return resolveFn('computeWeightedGeneralAverageResult', ['./cc-rules.js', './cc-rules']);
     }
     function getGradeHex() { return resolveFn('gradeHex', ['./cc-rules.js', './cc-rules']); }
 
@@ -149,65 +149,63 @@
      * @returns {number|null}  `round2` of the weighted average, or `null` when
      *          `termGrades` is empty or yields no usable subject averages.
      */
-    function computeTermAverage(termGrades, branch) {
-        if (!termGrades || !termGrades.length) return null;
-
-        // 0. Drop not-entered records (raw value inspected before coercion) so a
-        //    coerced placeholder `0` never reaches the grouping/averaging math.
-        //    A term whose records are all not-entered collapses to `null`
-        //    (mapped to "—"/"قيد الإنجاز" by `formatAverage`).
-        var enteredGrades = termGrades.filter(function (g) {
-            return isGradeEntered(g && g.grade);
-        });
-        if (!enteredGrades.length) return null;
-
+    function buildTermSubjectAverages(enteredGrades) {
         var ccBaseSubjectFn = getCcBaseSubject();
         var normalizeSubjectNameFn = getNormalizeSubjectName();
         var computeSubjectAverageFn = getComputeSubjectAverage();
-        var computeWeightedGeneralAverageFn = getComputeWeightedGeneralAverage();
-
-        // 1. Deduplicate by subject + semester (keep last occurrence), matching
-        //    the existing renderMiniStats / renderGradesTab behavior.
         var dedup = {};
         enteredGrades.forEach(function (g) {
             var key = String((g && g.subject) || '').trim() + '||' + ((g && g.semester) || '');
             dedup[key] = g;
         });
-        var dedupedGrades = Object.values(dedup);
 
-        // 2. Group deduped records by base subject.
         var bySubject = {};
-        dedupedGrades.forEach(function (g) {
+        Object.values(dedup).forEach(function (g) {
             var rawSubject = g && g.subject;
-            var normalized = (typeof normalizeSubjectNameFn === 'function')
-                ? normalizeSubjectNameFn(rawSubject)
-                : rawSubject;
-            var subj = ((typeof ccBaseSubjectFn === 'function')
-                ? ccBaseSubjectFn(normalized)
-                : normalized) || 'غير محدد';
-            if (!bySubject[subj]) bySubject[subj] = [];
-            bySubject[subj].push(g);
+            var normalized = typeof normalizeSubjectNameFn === 'function' ? normalizeSubjectNameFn(rawSubject) : rawSubject;
+            var subject = typeof ccBaseSubjectFn === 'function' ? ccBaseSubjectFn(normalized) : normalized;
+            var baseSubject = subject || 'غير محدد';
+            if (!bySubject[baseSubject]) bySubject[baseSubject] = [];
+            bySubject[baseSubject].push(g);
         });
 
-        // 3. Build per-subject averages.
-        var subjects = Object.keys(bySubject);
-        if (!subjects.length) return null;
-
-        var subjectAvgsArr = subjects.map(function (s) {
-            var avg = (typeof computeSubjectAverageFn === 'function')
-                ? computeSubjectAverageFn(s, bySubject[s])
-                : (bySubject[s].reduce(function (a, g) { return a + Number(g.grade); }, 0) / bySubject[s].length);
-            return { subject: s, avg: avg };
+        return Object.keys(bySubject).map(function (subject) {
+            var grades = bySubject[subject];
+            var average = typeof computeSubjectAverageFn === 'function'
+                ? computeSubjectAverageFn(subject, grades)
+                : grades.reduce(function (sum, grade) { return sum + Number(grade.grade); }, 0) / grades.length;
+            return { subject: subject, avg: average };
         });
+    }
 
-        if (!subjectAvgsArr.length) return null;
+    function computeTermAverageResult(termGrades, branch, context) {
+        if (!termGrades || !termGrades.length) return { ok: true, value: null, incomplete: false };
+        var enteredGrades = termGrades.filter(function (g) { return isGradeEntered(g && g.grade); });
+        if (!enteredGrades.length) return { ok: true, value: null, incomplete: false };
 
-        // 4. Combine into the weighted general average for this term.
-        var weighted = (typeof computeWeightedGeneralAverageFn === 'function')
-            ? computeWeightedGeneralAverageFn(subjectAvgsArr, branch)
-            : (subjectAvgsArr.reduce(function (a, s) { return a + s.avg; }, 0) / subjectAvgsArr.length);
+        var subjectAverages = buildTermSubjectAverages(enteredGrades);
+        if (!subjectAverages.length) return { ok: true, value: null, incomplete: false };
+        var resolveAverage = getComputeWeightedGeneralAverageResult();
+        if (typeof resolveAverage !== 'function') {
+            return { ok: false, value: null, incomplete: true, code: 'MISSING_AVERAGE_ENGINE' };
+        }
 
-        return round2(weighted);
+        var resolution = resolveAverage(subjectAverages, branch, context);
+        if (!resolution.ok) {
+            return {
+                ok: false,
+                value: null,
+                incomplete: true,
+                code: resolution.code,
+                missingCoefficients: resolution.missingCoefficients,
+                metadata: resolution.metadata
+            };
+        }
+        return { ok: true, value: round2(resolution.value), incomplete: false };
+    }
+
+    function computeTermAverage(termGrades, branch, context) {
+        return computeTermAverageResult(termGrades, branch, context).value;
     }
 
     // -----------------------------------------------------------------------
@@ -235,44 +233,43 @@
      * @param {string|null} branch  Branch code from `detectBranch` (may be null).
      * @returns {{term1: number|null, term2: number|null, general: number|null}}
      */
-    function computeStudentAverages(grades, branch) {
+    function computeStudentAverages(grades, branch, context) {
         var all = Array.isArray(grades) ? grades : [];
-
-        // 1. Partition strictly on Number(semester) === 1 / === 2.
         var term1Grades = [];
         var term2Grades = [];
         all.forEach(function (g) {
             var sem = Number(g && g.semester);
-            if (sem === 1) {
-                term1Grades.push(g);
-            } else if (sem === 2) {
-                term2Grades.push(g);
-            }
-            // Everything else (0, null, undefined, '', NaN, 3, "x", …) is excluded.
+            if (sem === 1) term1Grades.push(g);
+            else if (sem === 2) term2Grades.push(g);
         });
 
-        // 2. Compute each term average (null when no records for that term).
-        var term1 = computeTermAverage(term1Grades, branch);
-        var term2 = computeTermAverage(term2Grades, branch);
+        var term1Result = computeTermAverageResult(term1Grades, branch, context);
+        var term2Result = computeTermAverageResult(term2Grades, branch, context);
+        var term1 = term1Result.value;
+        var term2 = term2Result.value;
+        var general = null;
+        if (term1 != null && term2 != null) general = round2((term1 + term2) / 2);
+        else if (term1 != null) general = round2(term1);
+        else if (term2 != null) general = round2(term2);
+        if (general != null && (!isFinite(general) || general < 0 || general > 20)) general = null;
 
-        // 3. Derive the general average.
-        var general;
-        if (term1 != null && term2 != null) {
-            general = round2((term1 + term2) / 2);
-        } else if (term1 != null) {
-            general = round2(term1);
-        } else if (term2 != null) {
-            general = round2(term2);
-        } else {
-            general = null;
-        }
-
-        // 4. Range invariant: null out any general outside [0, 20].
-        if (general != null && (!isFinite(general) || general < 0 || general > 20)) {
-            general = null;
-        }
-
-        return { term1: term1, term2: term2, general: general };
+        var incompleteResults = [term1Result, term2Result].filter(function (result) { return result.incomplete; });
+        var missingCoefficients = incompleteResults.reduce(function (allMissing, result) {
+            return allMissing.concat(result.missingCoefficients || []);
+        }, []);
+        return {
+            term1: term1,
+            term2: term2,
+            general: general,
+            incomplete: incompleteResults.length > 0,
+            metadata: incompleteResults.length
+                ? Object.assign({}, incompleteResults[0].metadata || {}, {
+                      status: 'incomplete',
+                      officialExportBlocked: true,
+                      missingCoefficients: missingCoefficients
+                  })
+                : { status: 'complete', officialExportBlocked: false, missingCoefficients: [] }
+        };
     }
 
     // -----------------------------------------------------------------------
@@ -313,6 +310,7 @@
         round2: round2,
         isGradeEntered: isGradeEntered,
         computeTermAverage: computeTermAverage,
+        computeTermAverageResult: computeTermAverageResult,
         computeStudentAverages: computeStudentAverages,
         formatAverage: formatAverage
     };

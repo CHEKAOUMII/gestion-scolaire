@@ -73,6 +73,7 @@ var isExempt = hardConstraints.isExempt;
 var isOnDuty = hardConstraints.isOnDuty;
 var isMEBlocked = hardConstraints.isMEBlocked;
 var wouldDoubleBookSession = hardConstraints.wouldDoubleBookSession;
+var wouldConflictWithExternalResources = hardConstraints.wouldConflictWithExternalResources;
 var wouldViolateSameDay = hardConstraints.wouldViolateSameDay;
 var wouldExceedClassUpper = hardConstraints.wouldExceedClassUpper;
 var recordGuardOccupancy = hardConstraints.recordGuardOccupancy;
@@ -646,6 +647,9 @@ function placeGuards(state) {
                 // both, since this row's session occupancy is recorded as we
                 // fill its own slots).
                 if (wouldDoubleBookSession(loadState, cand, sessionKey)) continue;
+                if (wouldConflictWithExternalResources(
+                    loadState, cand, sessionKey, halfdayKey
+                )) continue;
                 // C-NO-SAME-DAY (guards + reserves, symmetric).
                 if (wouldViolateSameDay(loadState, cand, halfdayKey, allowSameDay)) continue;
                 // Per-class upper bound on Primary_Load.

@@ -807,6 +807,9 @@ function buildSyntheticNonSingletonInput() {
 
 const PROD_FIXTURE_PATH = path.join(ROOT, 'tests/fixtures/45454.json');
 const prodInput = JSON.parse(fs.readFileSync(PROD_FIXTURE_PATH, 'utf8'));
+// The fixture validates a repeatable post-fix distribution. Without this seed,
+// V2 deliberately uses Date.now() and the coverage-repair witness is flaky.
+prodInput.randomSeed = 42;
 
 (function guardProdFixture() {
   if (!Array.isArray(prodInput.proctorsList) ||

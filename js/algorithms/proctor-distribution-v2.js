@@ -2040,9 +2040,11 @@
         var dKeys = Object.keys(dutyObj);
         for (var d = 0; d < dKeys.length; d++) {
           if (dutyObj[dKeys[d]]) {
-            dutyTeacherKeys.push(dKeys[d]);
+            var canonicalDutyKey = toCanonicalKey(keyAdapter, dKeys[d]);
+            if (!canonicalDutyKey) continue;
+            dutyTeacherKeys.push(canonicalDutyKey);
             for (var tp = 0; tp < proctorMeta.length; tp++) {
-              if (proctorMeta[tp].key === dKeys[d]) {
+              if (proctorMeta[tp].key === canonicalDutyKey) {
                 dutyTeachers.push(proctorMeta[tp].name);
                 break;
               }
@@ -3017,10 +3019,16 @@
     return false;
   }
 
-  function isKeyUsedInHalfday(rows, halfdayKey, key, excludeRow, excludeSlot) {
+  function getRowSessionKey(row) {
+    if (row && row.session_key) return row.session_key;
+    var entry = (row && row.schedule_entry) || {};
+    return [(row && row.halfday_key) || '', entry.session || (row && row.session) || ''].join('|');
+  }
+
+  function isKeyUsedInSession(rows, sessionKey, key, excludeRow, excludeSlot) {
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
-      if (!row || row.halfday_key !== halfdayKey) continue;
+      if (!row || getRowSessionKey(row) !== sessionKey) continue;
       var keys = row.proctor_keys || [];
       for (var k = 0; k < keys.length; k++) {
         if (row === excludeRow && k === excludeSlot) continue;
@@ -3054,8 +3062,8 @@
     if (isProctorExemptForEntry(T_uncov.proc, T_uncov.idx, entry, input.exemptionsData || {})) return false;
     if (isOnDutyDuringHalfday(T_uncov.key, row.halfday_key, loadState)) return false;
     if (rowHasKeyOutsideSlot(row, slotIndex, T_uncov.key)) return false;
+    if (isKeyUsedInSession(rows, getRowSessionKey(row), T_uncov.key, row, slotIndex)) return false;
     var options = (input && input.options) || {};
-    if (!options.allowHalfdayReuse && isKeyUsedInHalfday(rows, row.halfday_key, T_uncov.key, row, slotIndex)) return false;
     var dayKey = (row.halfday_key || '').split('|')[0];
     if (!options.allowDayReuse && isKeyUsedInDay(rows, dayKey, T_uncov.key, row, slotIndex)) return false;
     return true;
@@ -3542,13 +3550,10 @@
    */
   function violatesHardConstraints(assignments, input) {
     var options = input.options || {};
-    var allowHalfdayReuse = !!(options.allowHalfdayReuse);
     var allowDayReuse = !!(options.allowDayReuse);
 
     // Build session -> proctor keys map
     var sessionProctors = {};
-    // Build halfday -> proctor keys map
-    var halfdayProctors = {};
     // Build day -> proctor keys map
     var dayProctors = {};
 
@@ -3568,12 +3573,9 @@
         if (sessionProctors[sessionKey][pKey]) return true;
         sessionProctors[sessionKey][pKey] = true;
 
-        // Check halfday reuse
-        if (!allowHalfdayReuse) {
-          if (!halfdayProctors[halfdayKey]) halfdayProctors[halfdayKey] = {};
-          if (halfdayProctors[halfdayKey][pKey]) return true;
-          halfdayProctors[halfdayKey][pKey] = true;
-        }
+        // Sessions within a half-day are sequential; phase 2 permits a
+        // proctor to cover more than one of them. The session map above still
+        // prevents duplicate assignment to concurrent rooms in one session.
 
         // Check day reuse
         if (!allowDayReuse) {

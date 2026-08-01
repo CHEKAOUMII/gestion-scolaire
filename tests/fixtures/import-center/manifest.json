@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0",
+  "sensitive": false,
+  "provenance": "synthetic de-identified fixtures for smart-central-import-center package 0",
+  "note": "All values are fictional. No real student or staff data.",
+  "calibration": {
+    "high": 0.85,
+    "medium": 0.6,
+    "ambiguityGap": 0.1
+  },
+  "types": {
+    "students": {
+      "valid": ["students/valid-01.csv", "students/valid-02.csv"],
+      "failure": ["students/incomplete-header.csv", "students/empty.csv", "students/year-mismatch.csv"]
+    },
+    "grades": {
+      "valid": ["grades/valid-01.csv", "grades/valid-02.csv"],
+      "failure": ["grades/incomplete-header.csv", "grades/empty.csv", "grades/year-mismatch.csv"]
+    },
+    "absences": {
+      "valid": ["absences/valid-01.csv", "absences/valid-02.csv"],
+      "failure": ["absences/incomplete-header.csv", "absences/empty.csv", "absences/year-mismatch.csv"]
+    },
+    "student_status": {
+      "valid": ["student_status/valid-01.csv", "student_status/valid-02.csv"],
+      "failure": ["student_status/incomplete-header.csv", "student_status/empty.csv"]
+    },
+    "fet": {
+      "valid": ["fet/valid-01.xml", "fet/valid-02.xml"],
+      "failure": ["fet/unknown-root.xml", "fet/empty.xml", "fet/missing-structure.xml"]
+    },
+    "agent_xml": {
+      "valid": ["agent_xml/valid-01.xml", "agent_xml/valid-02.xml"],
+      "failure": ["agent_xml/unknown-root.xml", "agent_xml/empty.xml", "agent_xml/missing-structure.xml"]
+    },
+    "generic_csv_xlsx": {
+      "valid": ["generic/data.csv", "generic/file1.csv"],
+      "failure": ["generic/empty.csv"]
+    }
+  }
+}

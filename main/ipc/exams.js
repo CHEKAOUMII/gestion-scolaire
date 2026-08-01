@@ -1,60 +1,62 @@
 'use strict';
 
-const { handleRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { handleRead, handleAuthedRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields, validateDate } = require('./validation');
 const examsRepo = require('../repos/exams');
+const { resolveCycleForRequest } = require('../auth/resolve-cycle');
 
 function registerExamsIpc(ipcMain) {
-    handleRead(ipcMain, 'exams:getAll', (db, schoolYear) => {
-        return examsRepo.listExams(db, normalizeYear(schoolYear));
+    handleAuthedRead(ipcMain, 'exams:getAll', ({ db, event }, schoolYear) => {
+        return examsRepo.listExams(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'exams:save', WRITE_ROLES, (db, _event, payload) => {
+    handleWrite(ipcMain, 'exams:save', WRITE_ROLES, (db, event, payload) => {
         requireFields(payload, ['title', 'school_year']);
         requireSchoolYear(payload.school_year);
         if (payload.exam_date) {
             validateDate('exam_date', payload.exam_date);
         }
-        return examsRepo.saveExam(db, payload);
+        return examsRepo.saveExam(db, payload, resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'exams:delete', WRITE_ROLES, (db, _event, id) => {
-        return examsRepo.deleteExam(db, id);
+    handleWrite(ipcMain, 'exams:delete', WRITE_ROLES, (db, event, id) => {
+        return examsRepo.deleteExam(db, id, resolveCycleForRequest(db, event));
     });
 
-    handleRead(ipcMain, 'examProctors:getAll', (db, schoolYear) => {
-        return examsRepo.listProctors(db, normalizeYear(schoolYear));
+    handleAuthedRead(ipcMain, 'examProctors:getAll', ({ db, event }, schoolYear) => {
+        return examsRepo.listProctors(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'examProctors:saveManual', WRITE_ROLES, (db, _event, payload) => {
+    handleWrite(ipcMain, 'examProctors:saveManual', WRITE_ROLES, (db, event, payload) => {
         const year = requireSchoolYear(payload.school_year);
         if (payload.date) {
             validateDate('date', payload.date);
         }
-        return examsRepo.saveProctorManual(db, payload, year);
+        return examsRepo.saveProctorManual(db, payload, year, resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'examProctors:generateRoundRobin', ['admin'], (db, _event, payload) => {
+    handleWrite(ipcMain, 'examProctors:generateRoundRobin', ['admin'], (db, event, payload) => {
         const year = requireSchoolYear(payload.school_year);
-        return examsRepo.generateProctorsRoundRobin(db, payload, year);
+        return examsRepo.generateProctorsRoundRobin(db, payload, year, resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'examProctors:bulkImport', WRITE_ROLES, (db, _event, payload) => {
+    handleWrite(ipcMain, 'examProctors:bulkImport', WRITE_ROLES, (db, event, payload) => {
         const year = requireSchoolYear(payload.school_year);
-        return examsRepo.bulkImportProctors(db, payload, year);
+        return examsRepo.bulkImportProctors(db, payload, year, resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'examProctors:deleteAll', ['admin'], (db, _event, schoolYear) => {
-        return examsRepo.deleteAllProctors(db, normalizeYear(schoolYear));
+    handleWrite(ipcMain, 'examProctors:deleteAll', ['admin'], (db, event, schoolYear) => {
+        const year = requireSchoolYear(schoolYear);
+        return examsRepo.deleteAllProctors(db, year, resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'examProctors:delete', WRITE_ROLES, (db, _event, id) => {
-        return examsRepo.deleteProctor(db, id);
+    handleWrite(ipcMain, 'examProctors:delete', WRITE_ROLES, (db, event, id) => {
+        return examsRepo.deleteProctor(db, id, resolveCycleForRequest(db, event));
     });
 
-    handleRead(ipcMain, 'examRooms:getAll', (db, schoolYear) => {
+    handleAuthedRead(ipcMain, 'examRooms:getAll', ({ db }, schoolYear) => {
         return examsRepo.listRooms(db, normalizeYear(schoolYear));
     });
 
@@ -67,17 +69,17 @@ function registerExamsIpc(ipcMain) {
         return examsRepo.deleteRoom(db, id);
     });
 
-    handleRead(ipcMain, 'tests:getAll', (db, schoolYear) => {
-        return examsRepo.listTests(db, normalizeYear(schoolYear));
+    handleAuthedRead(ipcMain, 'tests:getAll', ({ db, event }, schoolYear) => {
+        return examsRepo.listTests(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'tests:save', WRITE_ROLES, (db, _event, payload) => {
+    handleWrite(ipcMain, 'tests:save', WRITE_ROLES, (db, event, payload) => {
         const year = requireSchoolYear(payload.school_year);
-        return examsRepo.saveTest(db, payload, year);
+        return examsRepo.saveTest(db, payload, year, resolveCycleForRequest(db, event));
     });
 
-    handleWrite(ipcMain, 'tests:delete', WRITE_ROLES, (db, _event, id) => {
-        return examsRepo.deleteTest(db, id);
+    handleWrite(ipcMain, 'tests:delete', WRITE_ROLES, (db, event, id) => {
+        return examsRepo.deleteTest(db, id, resolveCycleForRequest(db, event));
     });
 
     handleRead(ipcMain, 'examInvitations:getAll', (db, schoolYear) => {

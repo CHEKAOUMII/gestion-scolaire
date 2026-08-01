@@ -3,6 +3,7 @@
 const os = require('os');
 const { app } = require('electron');
 const { handleRead, handleWrite, handleWriteSoftAuth } = require('./ipc-helpers');
+const { ensureSchoolIdentitySchema } = require('../db/schema');
 const { hashPassword } = require('../auth/password');
 const { collectCurrentFingerprint } = require('../licensing/deviceFingerprint');
 const { applySyncDefaults } = require('../sync/defaults');
@@ -519,6 +520,10 @@ function registerInstitutionIpc(ipcMain) {
         const adminName = String(payload?.adminName || '').trim();
         const adminEmail = String(payload?.adminEmail || '').trim().toLowerCase();
         const adminPassword = String(payload?.adminPassword || '');
+        // Region is collected at registration (optional) and seeded into school_identity so
+        // the letterhead / settings-school page reflect it without re-entry.
+        const academy = String(payload?.academy || '').trim();
+        const directorate = String(payload?.directorate || '').trim();
 
         if (!institutionName) {
             return fail('INVALID_INSTITUTION_NAME', 'اسم المؤسسة مطلوب');
@@ -603,6 +608,22 @@ function registerInstitutionIpc(ipcMain) {
 
             upsertSyncConfig(db, bootstrap.syncConfig);
             upsertFirebaseCachedUser(db, { ...bootstrap.user, role: 'principal' }, adminPassword, 'principal');
+
+            // Seed the region into school_identity when provided. Uses an upsert on the
+            // key/value schema (INSERT OR IGNORE default-seeding elsewhere would no-op once
+            // the keys exist, so it cannot fill them — see the plan's empty-seed note). Only
+            // non-empty values are written, so blanks never clobber later user edits.
+            if (academy || directorate) {
+                ensureSchoolIdentitySchema(db);
+                const upsertIdentity = db.prepare(
+                    `INSERT INTO school_identity (key, value, updated_at)
+                     VALUES (?, ?, ?)
+                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+                );
+                const identityTs = Date.now();
+                if (academy) upsertIdentity.run('academy', academy, identityTs);
+                if (directorate) upsertIdentity.run('directorate', directorate, identityTs);
+            }
         });
 
         try {

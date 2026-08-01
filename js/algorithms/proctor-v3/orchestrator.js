@@ -77,6 +77,7 @@ var finalize = phase10.finalize;
 
 var createLoadState = loadStateUtils.createLoadState;
 var addDutyLoad = loadStateUtils.addDutyLoad;
+var mergeExternalLoad = loadStateUtils.mergeExternalLoad;
 var createPRNG = prngUtils.createPRNG;
 var buildDiagnostics = diagnosticsModule.buildDiagnostics;
 
@@ -173,6 +174,25 @@ function seedLoadStateWithDuty(state) {
             for (var p = 0; p < procKeys.length; p += 1) {
                 addDutyLoad(ls, procKeys[p], hd);
             }
+        }
+    }
+
+    var crossCycle = state.normalizedCrossCycleResources;
+    if (isPlainObject(crossCycle) && crossCycle.scopeCycles === 'all') {
+        var externalLoads = isPlainObject(crossCycle.proctorLoads)
+            ? crossCycle.proctorLoads : {};
+        var externalKeys = Object.keys(externalLoads);
+        for (var e = 0; e < externalKeys.length; e += 1) {
+            var externalKey = externalKeys[e];
+            mergeExternalLoad(ls, externalKey, externalLoads[externalKey]);
+        }
+        var teachingByKey = isPlainObject(crossCycle.teachingSessions)
+            ? crossCycle.teachingSessions : {};
+        var teachingKeys = Object.keys(teachingByKey);
+        for (var t = 0; t < teachingKeys.length; t += 1) {
+            mergeExternalLoad(ls, teachingKeys[t], {
+                teachingSessions: teachingByKey[teachingKeys[t]]
+            });
         }
     }
     return ls;

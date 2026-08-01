@@ -3,10 +3,13 @@
 
 const { getDb } = require('../db/context');
 const { wrapWithSyncCapture } = require('../sync/capture');
-const { requireRole, getSessionByEvent } = require('./auth');
+const { requireAuth, requireRole, getSessionByEvent } = require('./auth');
 const { validateSchoolYear } = require('./validation');
 
 const _writeChannels = new Set();
+
+/** Channels registered with handleAuthedRead — session-aware reads (plan §5.4). */
+const _authedReadChannels = new Set();
 
 /**
  * Channels registered with handleWriteSoftAuth({ allowNoSession: true }).
@@ -124,6 +127,47 @@ function handleRead(ipcMain, channel, handler) {
 }
 
 /**
+ * Register a READ handler that requires a session and can see it.
+ *
+ * `handleRead` deliberately discards `event`, so its handlers cannot know who is
+ * asking or which education cycle that session is working in. Cycle-scoped reads
+ * (multi-cycle plan §5.4) need both, and passing a cycle from the renderer would be
+ * trusting renderer input — which §13 forbids. This helper resolves the session in
+ * main and injects it, so a read can never widen its own scope.
+ *
+ * Handler receives `({ db, event, session, cycleContext }, ...args)`. `cycleContext`
+ * is null while no cycle context exists for the sender (single-cycle installs).
+ *
+ * @param {Electron.IpcMain} ipcMain
+ * @param {string} channel  – e.g. 'students:getAll'
+ * @param {(ctx: {db: any, event: any, session: any, cycleContext: any}, ...args: any[]) => any} handler
+ */
+function handleAuthedRead(ipcMain, channel, handler) {
+    _authedReadChannels.add(channel);
+
+    ipcMain.handle(channel, async (event, ...args) => {
+        try {
+            const session = requireAuth(event);
+            const db = getDb();
+            const cycleContext = require('../auth/active-cycle-context').peekContext(event);
+            return await handler({ db, event, session, cycleContext }, ...args);
+        } catch (err) {
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
+            return ipcErrorResponse(err);
+        }
+    });
+}
+
+/**
  * Register a WRITE handler (requires role-based auth).
  * Wraps with: requireRole → getDb → handler → catch authErrorResponse.
  *
@@ -164,11 +208,18 @@ function handleWrite(ipcMain, channel, roles, handler) {
  * If no session exists → deny, unless options.allowNoSession is true
  * (setup / bulk-import channels that may run before login).
  *
+ * Handlers receive `(db, ...args)` by default. Pass `withContext: true` to receive
+ * `({ db, event, session }, ...args)` instead — needed by cycle-scoped writes, which must
+ * resolve their education cycle from the session rather than from the renderer payload
+ * (multi-cycle plan §13). `session` is null on an allowNoSession channel with no login.
+ * The two shapes are opt-in per channel so domains migrate one at a time; a handler that
+ * declares the wrong one fails immediately on the first `db` call rather than silently.
+ *
  * @param {Electron.IpcMain} ipcMain
  * @param {string} channel       – e.g. 'students:addBulk'
  * @param {string[]} roles       – e.g. WRITE_ROLES from permissions.js
  * @param {(db: any, ...args: any[]) => any} handler
- * @param {{ allowNoSession?: boolean }} [options]
+ * @param {{ allowNoSession?: boolean, withContext?: boolean }} [options]
  */
 function handleWriteSoftAuth(ipcMain, channel, roles, handler, options = {}) {
     const allowNoSession = options?.allowNoSession === true;
@@ -206,7 +257,9 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler, options = {}) {
                 }
             }
             const db = getDb();
-            return await handler(db, ...args);
+            return options?.withContext === true
+                ? await handler({ db, event, session: session || null }, ...args)
+                : await handler(db, ...args);
         } catch (err) {
             try {
                 require('../diagnostics/error-log').logAppError({
@@ -233,9 +286,11 @@ module.exports = {
     normalizeYear,
     requireSchoolYear,
     handleRead,
+    handleAuthedRead,
     handleWrite,
     handleWriteSoftAuth,
     writeChannels: _writeChannels,
+    authedReadChannels: _authedReadChannels,
     looksLikeInternalErrorMessage,
     sanitizeIpcErrorMessage
 };

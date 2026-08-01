@@ -505,7 +505,9 @@
         }
         const fetchPromise = (async () => {
             try {
-                const reportData = await window.api.dailyReport.getData(dateStr, year);
+                const active = await window.api?.cycles?.getActive?.();
+                const cycleCode = active?.context?.cycleCode || active?.cycle?.cycle_code || null;
+                const reportData = await window.api.dailyReport.getData(dateStr, { schoolYear: year, cycleCode });
                 return reportData?.teacherSections || {};
             } catch (e) {
                 console.warn('Could not load teacher sections for date:', dateStr, e);

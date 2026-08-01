@@ -75,6 +75,8 @@ var loadStateUtils = require(path.join(__dirname, '..', 'utils', 'load-state.js'
 var isExempt = hardConstraints.isExempt;
 var isOnDuty = hardConstraints.isOnDuty;
 var isMEBlocked = hardConstraints.isMEBlocked;
+var wouldDoubleBookSession = hardConstraints.wouldDoubleBookSession;
+var wouldConflictWithExternalResources = hardConstraints.wouldConflictWithExternalResources;
 var wouldViolateSameDay = hardConstraints.wouldViolateSameDay;
 var recordReserveOccupancy = hardConstraints.recordReserveOccupancy;
 
@@ -465,6 +467,10 @@ function buildCandidatePool(ctx, sessionMeta, chosenForSession) {
         if (isMEBlocked(proc, idx, sessionMeta.halfdayKey, ctx.normalizedME)) continue;
         if (isGuardInSession(key, sessionMeta, loadState)) continue;
         if (isReserveAlreadyInSession(key, chosenForSession)) continue;
+        if (wouldDoubleBookSession(loadState, key, sessionMeta.sessionKey)) continue;
+        if (wouldConflictWithExternalResources(
+            loadState, key, sessionMeta.sessionKey, sessionMeta.halfdayKey
+        )) continue;
         if (wouldViolateSameDay(loadState, key, sessionMeta.halfdayKey, ctx.allowSameDay)) continue;
 
         // AC 7.5 sort fields.

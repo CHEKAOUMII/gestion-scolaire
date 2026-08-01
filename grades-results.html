@@ -18,6 +18,7 @@
     <script src="js/notifications.js" defer></script>
     <script src="js/message-system.js" defer></script>
     <script src="js/sidebar.js" defer></script>
+    <script src="js/shared/errors/subject-coefficient-error-contract.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js" defer></script>
     <script src="js/print-system.js"></script>
@@ -216,6 +217,12 @@
                 }
 
                 const branch = typeof detectBranch === 'function' ? detectBranch(className) : null;
+                const coefficientContext = {
+                    cycleCode: 'secondary_qualifiant',
+                    streamCode: branch,
+                    schoolYear: schoolYear()
+                };
+                const missingCoefficients = [];
                 console.log('[بيان النتائج] className:', className, '→ branch:', branch);
                 if (branch && typeof CC_BRANCH_COEFFICIENTS !== 'undefined') {
                     console.log('[بيان النتائج] coefficient table keys:', Object.keys(CC_BRANCH_COEFFICIENTS[branch] || {}));
@@ -251,25 +258,31 @@
                         const avg = typeof computeSubjectAverage === 'function'
                             ? computeSubjectAverage(subj, grades)
                             : grades.reduce((s, g) => s + (Number(g.grade) || 0), 0) / grades.length;
-                        const coeff = typeof getSubjectCoefficient === 'function'
-                            ? getSubjectCoefficient(subj, branch)
-                            : 1;
+                        const coefficientResolution = typeof resolveSubjectCoefficient === 'function'
+                            ? resolveSubjectCoefficient(subj, branch, coefficientContext)
+                            : { ok: false, details: { subject: subj, streamCode: branch } };
+                        if (!coefficientResolution.ok) missingCoefficients.push(coefficientResolution.details);
+                        const coeff = coefficientResolution.ok ? coefficientResolution.coefficient : null;
                         console.log('[coeff]', subj, '→', coeff, '(branch:', branch, ')');
                         subjectData.push({
                             subject: subj,
                             avg: parseFloat(avg.toFixed(2)),
                             coeff,
-                            nxm: parseFloat((avg * coeff).toFixed(2))
+                            nxm: coeff == null ? null : parseFloat((avg * coeff).toFixed(2))
                         });
                     });
 
                     // General average
                     const subjectAvgs = subjectData.map(s => ({ subject: s.subject, avg: s.avg }));
-                    const generalAvg = typeof computeWeightedGeneralAverage === 'function'
-                        ? computeWeightedGeneralAverage(subjectAvgs, branch)
-                        : (subjectAvgs.length ? subjectAvgs.reduce((a, s) => a + s.avg, 0) / subjectAvgs.length : 0);
+                    const averageResolution = typeof computeWeightedGeneralAverageResult === 'function'
+                        ? computeWeightedGeneralAverageResult(subjectAvgs, branch, coefficientContext)
+                        : { ok: false, missingCoefficients };
+                    if (!averageResolution.ok) {
+                        (averageResolution.missingCoefficients || []).forEach((entry) => missingCoefficients.push(entry));
+                    }
+                    const generalAvg = averageResolution.ok ? averageResolution.value : null;
 
-                    const sumNxM = subjectData.reduce((s, d) => s + d.nxm, 0);
+                    const sumNxM = subjectData.reduce((sum, detail) => sum + (detail.nxm || 0), 0);
 
                     // Absences
                     const studentAbsences = allAbsences.filter(a =>
@@ -319,21 +332,104 @@
                     ? studentResults.reduce((s, r) => s + r.generalAvg, 0) / studentResults.length
                     : 0;
 
+                const uniqueMissingCoefficients = Array.from(
+                    new Map(
+                        missingCoefficients.map((entry) => [
+                            `${entry.streamCode || branch}:${entry.normalizedSubject || entry.subject}`,
+                            entry
+                        ])
+                    ).values()
+                );
                 generatedData = {
                     className,
                     semester,
                     branch,
                     studentResults,
                     classAvg: parseFloat(classAvg.toFixed(2)),
-                    totalStudents: classStudents.length
+                    totalStudents: classStudents.length,
+                    incomplete: uniqueMissingCoefficients.length > 0,
+                    missingCoefficients: uniqueMissingCoefficients,
+                    metadata: uniqueMissingCoefficients.length
+                        ? SubjectCoefficientErrorContract.createIncompleteResultMetadata(uniqueMissingCoefficients)
+                        : { status: 'complete', officialExportBlocked: false, missingCoefficients: [] }
                 };
 
                 renderResults();
             }
 
             // ─── Render ───
+            function renderIncompleteResult() {
+                const body = document.getElementById('gr-preview-body');
+                const printBtn = document.getElementById('print-btn');
+                const emptyState = document.getElementById('gr-empty-state');
+                const badge = document.getElementById('gr-count-badge');
+                if (emptyState) emptyState.style.display = 'none';
+                if (badge) badge.style.display = 'none';
+                if (printBtn) printBtn.disabled = true;
+
+                const panel = document.createElement('div');
+                panel.className = 'gr-empty-state';
+                const title = document.createElement('h4');
+                title.textContent = 'تعذر اعتماد بيان النتائج';
+                const message = document.createElement('p');
+                message.textContent = 'توجد معاملات ناقصة. لا يمكن معاينة أو تصدير وثيقة رسمية قبل استكمالها.';
+                const list = document.createElement('ul');
+                generatedData.missingCoefficients.forEach((entry) => {
+                    const item = document.createElement('li');
+                    item.textContent = `${entry.subject || 'مادة غير محددة'} — ${entry.streamLabel || entry.streamCode || 'مسلك غير محدد'}`;
+                    list.appendChild(item);
+                });
+                panel.append(title, message, list);
+
+                const role = typeof getCurrentAppRole === 'function' ? getCurrentAppRole() : null;
+                const canOverride = ['admin', 'developer'].includes(role);
+                if (canOverride && window.api?.subjectCoefficients?.override) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'btn btn-primary';
+                    button.textContent = 'اعتماد معامل استثنائي للمادة الأولى';
+                    button.addEventListener('click', overrideFirstMissingCoefficient);
+                    panel.appendChild(button);
+                }
+                body.replaceChildren(panel);
+            }
+
+            async function overrideFirstMissingCoefficient() {
+                const entry = generatedData?.missingCoefficients?.[0];
+                if (!entry) return;
+                const coefficient = Number(window.prompt(`أدخل معامل المادة «${entry.subject}» (بين 0 و20):`, '1'));
+                if (!Number.isFinite(coefficient) || coefficient <= 0 || coefficient > 20) {
+                    showToast('المعامل غير صالح', 'warning');
+                    return;
+                }
+                const reason = window.prompt('اذكر سبب الاعتماد الاستثنائي:', 'تصحيح إعدادات المادة');
+                if (!reason || !reason.trim()) {
+                    showToast('سبب الاعتماد مطلوب للتدقيق', 'warning');
+                    return;
+                }
+                const response = await window.api.subjectCoefficients.override({
+                    cycleCode: 'secondary_qualifiant',
+                    streamCode: entry.streamCode || generatedData.branch,
+                    subject: entry.subject,
+                    coefficient,
+                    reason,
+                    schoolYear: schoolYear()
+                });
+                if (!response?.success) {
+                    showToast(response?.error || 'تعذر اعتماد المعامل', 'error');
+                    return;
+                }
+                setSubjectCoefficientOverrides(response.mappings || []);
+                generatedData = null;
+                generateResults();
+            }
+
             function renderResults() {
                 if (!generatedData || !generatedData.studentResults.length) return;
+                if (!SubjectCoefficientErrorContract.isOfficialExportAllowed(generatedData)) {
+                    renderIncompleteResult();
+                    return;
+                }
 
                 const body = document.getElementById('gr-preview-body');
                 const badge = document.getElementById('gr-count-badge');
@@ -467,6 +563,10 @@
                 document.getElementById('print-btn').addEventListener('click', () => {
                     if (!generatedData || !generatedData.studentResults.length) {
                         if (typeof showToast === 'function') showToast('قم بتوليد البيان أولاً', 'warning');
+                        return;
+                    }
+                    if (!SubjectCoefficientErrorContract.isOfficialExportAllowed(generatedData)) {
+                        if (typeof showToast === 'function') showToast('لا يمكن تصدير بيان غير مكتمل', 'warning');
                         return;
                     }
                     PrintSystem.preview({

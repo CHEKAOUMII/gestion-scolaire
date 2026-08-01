@@ -54,6 +54,7 @@
                     <i class="fas fa-sync-alt"></i> تحميل التقرير
                 </button>
                 <span class="report-date-display" id="date-display"></span>
+                <span class="report-cycle-display" id="report-context" aria-live="polite"></span>
                 <button id="print-btn" type="button" class="btn-primary btn-print-preview">
                     <i class="fas fa-eye"></i> معاينة الطباعة
                 </button>
@@ -61,7 +62,7 @@
 
             <!-- Print-only title + date (hidden on screen, visible in print) -->
             <div class="print-report-header" id="print-report-header">
-                <h2>التقرير اليومي<br><span class="print-report-date" id="print-date-display" style="font-size: 14px; font-weight: 600; color: #555;"></span></h2>
+                <h2>التقرير اليومي<br><span class="print-report-date" id="print-date-display" style="font-size: 14px; font-weight: 600; color: #555;"></span><br><span id="print-report-context" style="font-size: 12px; font-weight: 600; color: #555;"></span></h2>
             </div>
 
             <!-- Stat Cards -->
@@ -129,11 +130,12 @@
                             <th class="col-schedule">التوقيت</th>
                             <th class="col-reason">السبب</th>
                             <th class="col-sections">الأقسام المتضررة</th>
+                            <th class="col-cycle">السلك المرتبط بالجلسة</th>
                         </tr>
                     </thead>
                     <tbody id="absences-tbody">
                         <tr class="empty-row">
-                            <td colspan="6">اختر تاريخاً لعرض التقرير</td>
+                            <td colspan="7">اختر تاريخاً لعرض التقرير</td>
                         </tr>
                     </tbody>
                 </table>
@@ -170,11 +172,12 @@
                             <th>وقت الوصول</th>
                             <th>مدة التأخر</th>
                             <th>السبب</th>
+                            <th>السلك المرتبط بالجلسة</th>
                         </tr>
                     </thead>
                     <tbody id="tardiness-tbody">
                         <tr class="empty-row">
-                            <td colspan="6">لا توجد تأخرات</td>
+                            <td colspan="7">لا توجد تأخرات</td>
                         </tr>
                     </tbody>
                 </table>

@@ -589,7 +589,7 @@ function destroyCharts(keys) {
 // state survives the innerHTML rebuilds triggered by the theme observer.
 let extraChartsExpanded = false;
 
-// Shared loader for the auxiliary data both chart groups need (teachers + student status).
+// Shared loader for dashboard analytics (teachers, grades, and student status).
 // Memoizes the in-flight promise so concurrent renders (charts + extra charts) and cheap
 // re-renders (theme toggle, age filter) reuse a single fetch. Pass force=true to refresh.
 let dashboardAuxPromise = null;
@@ -598,20 +598,26 @@ function loadDashboardAux(force = false) {
     if (!dashboardAuxPromise) {
         dashboardAuxPromise = (async () => {
             let teachers = [];
+            let grades = [];
+            let timetable = null;
             let statusSummary = { dropouts: 0, expelled: 0, notEnrolled: 0, totalStudents: 0 };
             try {
-                const [teacherResult, statusResult] = await Promise.all([
+                const [teacherResult, statusResult, gradeRows, timetableData] = await Promise.all([
                     window.api.teachers.getAll(currentSchoolYear),
-                    window.api.students.getByStatus({ schoolYear: currentSchoolYear })
+                    window.api.students.getByStatus({ schoolYear: currentSchoolYear }),
+                    window.api.grades.getAll(currentSchoolYear),
+                    window.api.timetable.get(currentSchoolYear).catch(() => null)
                 ]);
                 if (Array.isArray(teacherResult)) teachers = teacherResult;
+                if (Array.isArray(gradeRows)) grades = gradeRows;
+                if (timetableData && typeof timetableData === 'object') timetable = timetableData;
                 if (statusResult && statusResult.success && statusResult.summary) {
                     statusSummary = statusResult.summary;
                 }
             } catch (err) {
                 console.warn('Failed to load dashboard aux data:', err);
             }
-            return { teachers, statusSummary };
+            return { teachers, grades, timetable, statusSummary };
         })();
     }
     return dashboardAuxPromise;
@@ -1609,14 +1615,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize extra buttons (notifications, home, print, export)
     initExtraButtons();
 
-    // Re-render charts when theme changes so colors adapt
+    // Re-render the Student Journey middle content when theme changes so colors adapt.
     const themeObserver = new MutationObserver((mutations) => {
         for (const m of mutations) {
             if (m.attributeName === 'data-theme') {
-                const filterEl = document.getElementById('age-section-filter');
-                const currentFilter = filterEl ? filterEl.value : 'all';
-                renderCharts(currentFilter);
-                void renderExtraCharts();
+                if (document.getElementById('student-journey-section')) {
+                    void renderStudentJourney();
+                }
                 break;
             }
         }
@@ -1628,13 +1633,423 @@ function refreshDashboard() {
     dashboardLastRefreshAt = new Date();
     const stats = calculateStats();
     updateDashboardContext(stats);
-    renderStatsCards(stats);
-    // Refresh the cached teacher + status data once so both chart groups render from fresh data.
+    // Refresh the cached teacher + status data once so the journey renders from fresh data.
     loadDashboardAux(true);
-    renderCharts('all', stats);
-    void renderExtraCharts();
-    void renderMovement(stats);
+    void renderStudentJourney(stats);
     void renderOwnerSyncSection();
+}
+
+// === Student Journey (Stitch "Variant 3: Refined Retention Journey") ===
+// Renders the Bento-grid middle content from the selected school year's data.
+
+// مواد مستثناة من مخطط "نسبة الطلاب لكل معلم حسب المادة" (تُستبدل بمواد أخرى)
+const SJ_EXCLUDED_SUBJECT_NAMES = [
+    'الاقتصاد العام والإحصاء',
+    'القانون',
+    'المحاسبة والرياضيات المالية',
+    'معلوميات التدبير',
+    'المواكبة',
+    'الاقتصاد والتنظيم الإداري للمقاولات'
+];
+
+const SJ_DEFAULT_MILESTONES = [
+    {
+        kind: 'success',
+        title: 'بداية الموسم الدراسي',
+        date: 'سبتمبر ' + (new Date().getFullYear()),
+        text: 'انطلاق التسجيلات وتوزيع التلاميذ على الأقسام وفق رغباتهم ومساراتهم.'
+    },
+    {
+        kind: 'primary',
+        title: 'التقييم النصفي',
+        date: 'ديسمبر ' + (new Date().getFullYear()),
+        text: 'إنجاز الفروض النصفية وتقييم المستوى العام للتمدرس.'
+    },
+    {
+        kind: 'danger',
+        title: 'مراجعة التلاميذ المعرضين للخطر',
+        date: 'فبراير ' + (new Date().getFullYear() + 1),
+        text: 'تحديد التلاميذ الذين يحتاجون لتدخل أو متابعة ميدانية لضمان استمراريتهم الدراسية.'
+    }
+];
+
+function sjAgeBars() {
+    const ageStats = calculateAgeStats();
+    const entries = Object.entries(ageStats).sort((a, b) => Number(a[0]) - Number(b[0]));
+    if (entries.length === 0) return [];
+    const max = Math.max(...entries.map((e) => Math.max(e[1].males, e[1].females)), 1);
+    return entries.map(([age, agg]) => ({
+        label: age + ' سنة',
+        value: agg.total,
+        male: agg.males,
+        female: agg.females,
+        malePct: Math.round((agg.males / max) * 100),
+        femalePct: Math.round((agg.females / max) * 100)
+    }));
+}
+
+function sjNormalizeSubject(subject) {
+    const raw = String(subject || '').trim();
+    return typeof normalizeSubjectName === 'function' ? normalizeSubjectName(raw) : raw;
+}
+
+// تطبيع اسم الأستاذ لتوحيد الهوية بين المصادر (جدول الحصص/النقط/جدول الأساتذة)
+function sjNormalizeTeacherName(name) {
+    return String(name || '')
+        .replace(/[_\u00A0]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+// خريطة: اسم أستاذ مطبّع -> id، من جدول الأساتذة، لتوحيد الهوية عبر المصادر
+function sjTeacherNameToId(teachers) {
+    const map = new Map();
+    (teachers || []).forEach((teacher) => {
+        const norm = sjNormalizeTeacherName(teacher.full_name || teacher.name);
+        if (norm && teacher.id != null) map.set(norm, teacher.id);
+    });
+    return map;
+}
+
+// مفتاح هوية موحّد للأستاذ: نُفضّل الـ id، ثم حلّ الاسم إلى id، ثم الاسم المطبّع.
+// يمنع احتساب نفس الأستاذ مرّتين حين يظهر بالـ id في مصدر وبالاسم في آخر.
+function sjCanonicalTeacherKey(teacherId, teacherName, nameToId) {
+    const id = Number(teacherId);
+    if (Number.isFinite(id) && id > 0) return `id:${id}`;
+    const norm = sjNormalizeTeacherName(teacherName);
+    if (!norm) return '';
+    const resolved = nameToId.get(norm);
+    return resolved != null ? `id:${resolved}` : `name:${norm}`;
+}
+
+// الإسناد أستاذ↔مادة↔قسم: المصدر الأساسي جدول الحصص، ويُكمَّل بالنقط المستوردة
+// (لأن النقط قد تكون غير مكتملة لبعض المواد). الأقسام والأساتذة في مجموعات (Set)
+// فيتم دمج المصدرين دون تكرار.
+function sjSubjectAssignments(grades, timetable, nameToId) {
+    const assignments = {};
+    const ensure = (subject) => {
+        if (!assignments[subject]) assignments[subject] = { sections: new Set(), teachers: new Set() };
+        return assignments[subject];
+    };
+
+    // 1) جدول الحصص (الإسناد الرسمي)
+    const timetables = timetable && timetable.timetables;
+    const meta = (timetable && timetable.teacherMetaByKey) || {};
+    if (timetables && typeof timetables === 'object') {
+        Object.entries(timetables).forEach(([teacherKey, days]) => {
+            if (!days || typeof days !== 'object') return;
+            const info = meta[teacherKey] || {};
+            const fallbackName = teacherKey.replace(/^tafwij:/, '').replace(/_/g, ' ');
+            const tKey = sjCanonicalTeacherKey(
+                info.teacherId,
+                info.teacherName || info.displayName || fallbackName,
+                nameToId
+            );
+            Object.values(days).forEach((day) => {
+                if (!day || typeof day !== 'object') return;
+                Object.values(day).forEach((period) => {
+                    if (!period || typeof period !== 'object') return;
+                    Object.values(period).forEach((lesson) => {
+                        if (!lesson || typeof lesson !== 'object') return;
+                        const subject = sjNormalizeSubject(lesson.subject);
+                        // القسم في جدول الحصص مخزّن في حقل students (رمز القسم)
+                        const section = String(lesson.students || lesson.section || lesson.class || '').trim();
+                        if (!subject || !section) return;
+                        const a = ensure(subject);
+                        a.sections.add(section);
+                        if (tKey) a.teachers.add(tKey);
+                    });
+                });
+            });
+        });
+    }
+
+    // 2) النقط المستوردة (مصدر مكمّل قد يكشف أقساماً/أساتذة غير موجودين في الجدول)
+    (grades || []).forEach((grade) => {
+        const subject = sjNormalizeSubject(grade.subject);
+        const section = String(grade.section || '').trim();
+        if (!subject || !section) return;
+        const a = ensure(subject);
+        a.sections.add(section);
+        const tKey = sjCanonicalTeacherKey(grade.teacher_id, grade.teacher_name, nameToId);
+        if (tKey) a.teachers.add(tKey);
+    });
+
+    return assignments;
+}
+
+function sjSubjectRatioBars(teachers, grades, timetable) {
+    const nameToId = sjTeacherNameToId(teachers);
+    const assignments = sjSubjectAssignments(grades, timetable, nameToId);
+    // أسماء المواد المستثناة بعد التطبيع (لضمان المطابقة مهما اختلفت الصيغة الأصلية)
+    const excludedSubjects = new Set(SJ_EXCLUDED_SUBJECT_NAMES.map(sjNormalizeSubject));
+    // عدد التلاميذ لكل قسم موزّعاً حسب النوع (ذكور/إناث)
+    const sectionCounts = {};
+    studentsData.forEach((student) => {
+        const section = String(student.section || '').trim();
+        if (!section) return;
+        if (!sectionCounts[section]) sectionCounts[section] = { total: 0, males: 0, females: 0 };
+        sectionCounts[section].total++;
+        if (student.gender === 'أنثى') sectionCounts[section].females++;
+        else if (student.gender === 'ذكر') sectionCounts[section].males++;
+    });
+    const ranked = Object.entries(assignments)
+        .map(([subject, assignment]) => {
+            // مجموع تلاميذ الأقسام التي تُدرّس فيها المادة، موزّعاً حسب النوع
+            const tally = [...assignment.sections].reduce(
+                (sum, section) => {
+                    const counts = sectionCounts[section];
+                    if (counts) {
+                        sum.total += counts.total;
+                        sum.males += counts.males;
+                        sum.females += counts.females;
+                    }
+                    return sum;
+                },
+                { total: 0, males: 0, females: 0 }
+            );
+            // عدد الأساتذة الذين يدرّسون نفس المادة (من الإسناد الفعلي: جدول الحصص + النقط)
+            const teacherCount = assignment.teachers.size;
+            // القسمة على العدد الكلي للأساتذة في الحالتين: الأستاذ يدرّس الذكور والإناث معاً،
+            // فمجموع النسبتين = العدد الكلي للتلاميذ لكل أستاذ.
+            return {
+                subject,
+                students: tally.total,
+                maleStudents: tally.males,
+                femaleStudents: tally.females,
+                teacherCount,
+                ratio: teacherCount ? Math.round(tally.total / teacherCount) : 0,
+                maleRatio: teacherCount ? Math.round(tally.males / teacherCount) : 0,
+                femaleRatio: teacherCount ? Math.round(tally.females / teacherCount) : 0
+            };
+        })
+        .filter(
+            (entry) =>
+                entry.teacherCount > 0 && entry.students > 0 && !excludedSubjects.has(entry.subject)
+        )
+        // الترتيب حسب عدد التلاميذ تنازلياً
+        .sort((a, b) => b.students - a.students);
+    // صورة أشمل: نُظهر الأربعة الأكثر تلاميذاً والأربعة الأقل فقط
+    const selected = ranked.length <= 8 ? ranked : [...ranked.slice(0, 4), ...ranked.slice(-4)];
+    if (selected.length === 0) return [];
+    const maxRatio = Math.max(...selected.flatMap((entry) => [entry.maleRatio, entry.femaleRatio]), 1);
+    return selected.map((entry) => ({
+        label: entry.subject,
+        maleRatio: entry.maleRatio,
+        femaleRatio: entry.femaleRatio,
+        ratio: entry.ratio,
+        students: entry.students,
+        maleStudents: entry.maleStudents,
+        femaleStudents: entry.femaleStudents,
+        teacherCount: entry.teacherCount,
+        malePct: Math.round((entry.maleRatio / maxRatio) * 100),
+        femalePct: Math.round((entry.femaleRatio / maxRatio) * 100)
+    }));
+}
+
+async function sjRiskData(stats) {
+    let dropouts = 0,
+        notEnrolled = 0,
+        expelled = 0;
+    let departures = 0,
+        arrivals = 0;
+    try {
+        const [statusResult, movementStats] = await Promise.all([
+            window.api.students.getByStatus({ schoolYear: currentSchoolYear }),
+            window.api.studentMovements.getStats(currentSchoolYear)
+        ]);
+        if (statusResult && statusResult.success && statusResult.summary) {
+            dropouts = statusResult.summary.dropouts || 0;
+            notEnrolled = statusResult.summary.notEnrolled || 0;
+            expelled = statusResult.summary.expelled || 0;
+        }
+        if (movementStats) {
+            departures = movementStats.departure || 0;
+            arrivals = movementStats.arrival || 0;
+        }
+    } catch (err) {
+        console.warn('Student Journey: failed to load risk data:', err);
+    }
+    const active = Math.max(stats.total - dropouts - notEnrolled - expelled, 0);
+    const denom = stats.total || 1;
+    return [
+        {
+            level: 'critical',
+            pill: 'Critical',
+            value: dropouts,
+            label: 'المنقطعون عن الدراسة',
+            width: Math.min(Math.round((dropouts / denom) * 100), 100),
+            note: 'غياب متكرر أو توقف كامل عن التمدرس'
+        },
+        {
+            level: 'warning',
+            pill: 'Warning',
+            value: notEnrolled,
+            label: 'غير الملتحقين',
+            width: Math.min(Math.round((notEnrolled / denom) * 100), 100),
+            note: 'مسجلون لكنهم لم يباشروا الدراسة'
+        },
+        {
+            level: 'monitor',
+            pill: 'Monitor',
+            value: departures,
+            label: 'المغادرون',
+            width: Math.min(Math.round((departures / denom) * 100), 100),
+            note: 'انتقلوا إلى مؤسسة أخرى'
+        },
+        {
+            level: 'stable',
+            pill: 'Stable',
+            value: arrivals,
+            label: 'الوافدون الجدد',
+            width: Math.min(Math.round((arrivals / denom) * 100), 100),
+            note: 'استقرار في الالتحاق هذا الموسم'
+        }
+    ];
+}
+
+function sjRenderEmptyChart(chart, legend) {
+    chart.innerHTML = '<div class="sj-empty-state"><i class="fas fa-database" aria-hidden="true"></i><p>لا توجد بيانات لهذا الموسم</p></div>';
+    legend.innerHTML = '';
+}
+
+function sjRenderAge(bars) {
+    const chart = document.getElementById('sj-age-bars');
+    const legend = document.getElementById('sj-age-legend');
+    if (!bars.length) {
+        sjRenderEmptyChart(chart, legend);
+        return;
+    }
+
+    const max = Math.max(...bars.flatMap((b) => [b.male || 0, b.female || 0]), 1);
+    const html = bars.map((b) => `<div class="sj-bar-col">
+        <div class="sj-bar-pair" aria-label="${escapeHtml(b.label)}: ${b.male} ذكور، ${b.female} إناث">
+            <div class="sj-bar sj-bar--male" style="height:${Math.max(Math.round(((b.male || 0) / max) * 100), b.male ? 6 : 0)}%" title="ذكور: ${b.male}"></div>
+            <div class="sj-bar sj-bar--female" style="height:${Math.max(Math.round(((b.female || 0) / max) * 100), b.female ? 6 : 0)}%" title="إناث: ${b.female}"></div>
+        </div>
+        <span class="sj-bar-value">${b.male} / ${b.female}</span>
+        <span class="sj-bar-label">${escapeHtml(b.label)}</span>
+    </div>`).join('');
+    chart.innerHTML = html;
+    legend.innerHTML = `<div class="sj-legend-item"><span class="sj-legend-dot sj-legend-dot--male"></span> ذكور</div>
+        <div class="sj-legend-item"><span class="sj-legend-dot sj-legend-dot--female"></span> إناث</div>`;
+}
+
+function sjRenderRatio(bars) {
+    const chart = document.getElementById('sj-ratio-bars');
+    const legend = document.getElementById('sj-ratio-legend');
+    if (!bars.length) {
+        sjRenderEmptyChart(chart, legend);
+        return;
+    }
+
+    // العمود الأول: المجموع لكل أستاذ، العمود الثاني: الإناث لكل أستاذ.
+    // المجموع دائماً ≥ الإناث، فيكون هو المرجع لأقصى ارتفاع.
+    const max = Math.max(...bars.map((b) => b.ratio || 0), 1);
+    const html = bars.map((b) => {
+        const total = b.ratio || 0;
+        const female = b.femaleRatio || 0;
+        const teacherNote = b.teacherCount != null ? ` — ${b.teacherCount} أستاذ` : '';
+        return `<div class="sj-bar-col">
+        <div class="sj-bar-pair" aria-label="${escapeHtml(b.label)}: المجموع ${total} لكل أستاذ، إناث ${female} لكل أستاذ${teacherNote}">
+            <div class="sj-bar sj-bar--male" style="height:${Math.max(Math.round((total / max) * 100), total ? 6 : 0)}%" title="المجموع: ${total} لكل أستاذ"></div>
+            <div class="sj-bar sj-bar--female" style="height:${Math.max(Math.round((female / max) * 100), female ? 6 : 0)}%" title="إناث: ${female} لكل أستاذ"></div>
+        </div>
+        <span class="sj-bar-value">${total} / ${female}</span>
+        <span class="sj-bar-label">${escapeHtml(b.label)}</span>
+    </div>`;
+    }).join('');
+    chart.innerHTML = html;
+    legend.innerHTML = `<div class="sj-legend-item"><span class="sj-legend-dot sj-legend-dot--male"></span> المجموع لكل أستاذ</div>
+        <div class="sj-legend-item"><span class="sj-legend-dot sj-legend-dot--female"></span> الإناث لكل أستاذ</div>`;
+}
+
+function sjRenderRisk(risks) {
+    const html = risks
+        .map((r) => {
+            const cardCls = `sj-risk-card sj-risk-card--${r.level}`;
+            const pillCls = `sj-risk-pill sj-risk-pill--${r.level}`;
+            const valueCls = `sj-risk-value sj-risk-value--${r.level}`;
+            const fillCls = `sj-risk-bar-fill sj-risk-bar-fill--${
+                r.level === 'critical'
+                    ? 'critical'
+                    : r.level === 'warning'
+                      ? 'warning'
+                      : r.level === 'monitor'
+                        ? 'primary'
+                        : 'success'
+            }`;
+            return `<div class="${cardCls}">
+                <div class="sj-risk-top">
+                    <span class="${pillCls}">${r.pill}</span>
+                    <span class="${valueCls}">${r.value}</span>
+                </div>
+                <div class="sj-risk-label">${escapeHtml(r.label)}</div>
+                <div class="sj-risk-bar-track"><div class="${fillCls}" style="width:${r.width}%"></div></div>
+                <p class="sj-risk-note">${escapeHtml(r.note)}</p>
+            </div>`;
+        })
+        .join('');
+    document.getElementById('sj-risk-grid').innerHTML = html;
+}
+
+function sjRenderTimeline(items) {
+    const html = items
+        .map((m) => {
+            const dotCls = `sj-tl-dot sj-tl-dot--${m.kind}`;
+            const titleCls = `sj-tl-title sj-tl-title--${m.kind}`;
+            return `<div class="sj-tl-item">
+                <div class="${dotCls}"></div>
+                <div class="sj-tl-body">
+                    <div class="sj-tl-head">
+                        <h4 class="${titleCls}">${escapeHtml(m.title)}</h4>
+                        <span class="sj-tl-date">${escapeHtml(m.date)}</span>
+                    </div>
+                    <p class="sj-tl-text">${escapeHtml(m.text)}</p>
+                </div>
+            </div>`;
+        })
+        .join('');
+    document.getElementById('sj-timeline').innerHTML = html;
+}
+
+function sjRenderSummary(stats) {
+    const active = Math.max(stats.total - 0, 0);
+    document.getElementById('sj-summary-total-value').textContent = stats.total;
+    document.getElementById('sj-summary-active-value').textContent = active;
+    document.getElementById('sj-summary-sections-value').textContent = stats.sections;
+    document.getElementById('sj-summary-total-foot').textContent =
+        stats.total > 0
+            ? `موزعون على ${stats.sections} ${stats.sections === 1 ? 'قسم' : 'أقسام'}`
+            : 'المسجلون في الموسم الحالي';
+    document.getElementById('sj-summary-active-foot').textContent =
+        stats.total > 0 ? `معدل ${stats.avgPerSection} تلميذ/قسم` : 'المواظبون على الدراسة';
+    document.getElementById('sj-summary-sections-foot').textContent =
+        stats.levels > 0 ? `في ${stats.levels} ${stats.levels === 1 ? 'مستوى' : 'مستويات'}` : 'موزعون على المستويات';
+}
+
+async function renderStudentJourney(stats) {
+    if (!stats) stats = calculateStats();
+    const section = document.getElementById('student-journey-section');
+    if (!section) return;
+
+    const { teachers, grades, timetable } = await loadDashboardAux();
+    const ages = sjAgeBars();
+    const ratios = sjSubjectRatioBars(teachers, grades, timetable);
+    const risks = await sjRiskData(stats);
+    const summary = stats;
+
+    const bento = document.getElementById('sj-bento');
+    const note = document.getElementById('sj-loading-note');
+    if (note) note.style.display = 'none';
+    if (bento) bento.hidden = false;
+
+    sjRenderAge(ages);
+    sjRenderRatio(ratios);
+    sjRenderRisk(risks);
+    sjRenderTimeline(SJ_DEFAULT_MILESTONES);
+    sjRenderSummary(summary);
 }
 
 // ===== وظائف الأزرار =====
@@ -1642,12 +2057,10 @@ function refreshDashboard() {
 // زر الصفحة الرئيسية - إعادة تحميل لوحة التحكم
 function goToHome() {
     refreshDashboard();
-    // إظهار جميع الأقسام
-    document.getElementById('stats-section').style.display = 'block';
-    document.getElementById('charts-section').style.display = 'block';
-    document.getElementById('extra-charts-section').style.display = 'block';
-    document.getElementById('movement-section').style.display = 'block';
-    showToast('تم تحديث لوحة التحكم', 'success');
+    // Restore the Student Journey section visibility.
+    const sjSection = document.getElementById('student-journey-section');
+    if (sjSection) sjSection.style.display = 'block';
+    showToast('?? ????? ???? ??????', 'success');
 }
 
 // زر الإشعارات — delegates to the unified Notification Engine panel (js/notifications.js)

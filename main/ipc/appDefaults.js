@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const { handleRead, handleWrite } = require('./ipc-helpers');
 const {
     DEFAULT_EXAM_COUNTS,
@@ -19,6 +19,24 @@ const {
 } = require('../auth/permissions');
 
 const INSTITUTION_ROLES = ALLOWED_ROLES.filter((r) => r !== 'admin');
+
+// Reserved marker keeps an explicit deny-all override distinguishable from no override.
+const PAGE_ACCESS_OVERRIDE_MARKER = '__override__';
+
+// Push a "page access changed" signal to every open window so already-open pages
+// re-run their access guard live (redirect off a now-forbidden page, refresh the
+// sidebar) without waiting for a manual reload. Mirrors the notifications channel
+// broadcast pattern (main/notifications/channels/*). Best-effort: never throws.
+function broadcastPageAccessChanged() {
+    try {
+        for (const win of BrowserWindow.getAllWindows()) {
+            if (win.isDestroyed()) continue;
+            win.webContents.send('appDefaults:pageAccessChanged');
+        }
+    } catch {
+        // Broadcasting must never break the save response.
+    }
+}
 
 function normalizeLevelCode(value) {
     const raw = String(value || '').trim();
@@ -191,15 +209,6 @@ function loadDbRoleMap(db) {
     return { map, pagesWithRows };
 }
 
-function getEffectiveRolesForPage(db, pageKey) {
-    const key = normalizePageKey(pageKey);
-    const { map, pagesWithRows } = loadDbRoleMap(db);
-    if (pagesWithRows.has(key)) {
-        return map[key] || [];
-    }
-    return PAGE_PERMISSIONS[key] || [];
-}
-
 function registerAppDefaultsIpc(ipcMain) {
     handleRead(ipcMain, 'appDefaults:listLevels', (db) => {
         seedExamCountsIfEmpty(db);
@@ -289,18 +298,18 @@ function registerAppDefaultsIpc(ipcMain) {
             label: ROLE_LABELS[role] || role
         }));
 
+        const { map, pagesWithRows } = loadDbRoleMap(db);
         const result = pages.map((p) => {
-            const effectiveRoles = getEffectiveRolesForPage(db, p.pageKey);
+            const effectiveRoles = pagesWithRows.has(p.pageKey)
+                ? map[p.pageKey] || []
+                : PAGE_PERMISSIONS[p.pageKey] || [];
             return {
                 ...p,
                 roles: INSTITUTION_ROLES.map((role) => ({
                     role,
                     allowed: effectiveRoles.includes(role)
                 })),
-                hasDbOverride: (() => {
-                    const { pagesWithRows } = loadDbRoleMap(db);
-                    return pagesWithRows.has(p.pageKey);
-                })()
+                hasDbOverride: pagesWithRows.has(p.pageKey)
             };
         });
 
@@ -329,6 +338,10 @@ function registerAppDefaultsIpc(ipcMain) {
         }
 
         const deleteStmt = db.prepare('DELETE FROM page_role_access WHERE page_key = ?');
+        const markerStmt = db.prepare(`
+            INSERT INTO page_role_access(page_key, role, allowed, updated_at)
+            VALUES(?, ?, 0, CURRENT_TIMESTAMP)
+        `);
         const insertStmt = db.prepare(`
             INSERT INTO page_role_access(page_key, role, allowed, updated_at)
             VALUES(?, ?, 1, CURRENT_TIMESTAMP)
@@ -339,6 +352,7 @@ function registerAppDefaultsIpc(ipcMain) {
                 const pageKey = normalizePageKey(item?.pageKey ?? item?.page);
                 if (!pageKey) continue;
                 deleteStmt.run(pageKey);
+                markerStmt.run(pageKey, PAGE_ACCESS_OVERRIDE_MARKER);
                 const roles = Array.isArray(item?.roles) ? item.roles : [];
                 for (const role of roles) {
                     const r = String(role || '').trim().toLowerCase();
@@ -350,6 +364,7 @@ function registerAppDefaultsIpc(ipcMain) {
         tx();
 
         clearPageAccessCache();
+        broadcastPageAccessChanged();
         return { success: true, saved: pages.length };
     });
 }

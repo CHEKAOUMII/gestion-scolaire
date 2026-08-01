@@ -105,6 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tab3Loaded) renderTopPerformers();
         });
 
+        await ensureSubjectCoefficientMappings();
         await loadFilters();
 
         // Level/Class/Subject cascading is handled by FilterManager
@@ -301,6 +302,7 @@ async function loadResults() {
             studentAgg.bySubject.set(base, arr);
         });
 
+        const incompleteResults = [];
         const studentData = Array.from(studentsAgg.entries()).map(([id, studentAgg]) => {
             const firstRecord = studentAgg.firstRecord || {};
             const studentSubjectAvgs = Array.from(studentAgg.bySubject.entries(), ([base, grds]) => ({
@@ -311,27 +313,33 @@ async function loadResults() {
                 typeof detectBranch === 'function'
                     ? detectBranch(firstRecord.section || firstRecord.class_name || '')
                     : null;
-            const generalAvg =
-                typeof computeWeightedGeneralAverage === 'function'
-                    ? computeWeightedGeneralAverage(studentSubjectAvgs, branch)
-                    : avg(studentSubjectAvgs.map((s) => s.avg));
+            const averageResolution = computeWeightedGeneralAverageResult(studentSubjectAvgs, branch, {
+                schoolYear: year,
+                streamCode: branch
+            });
+            if (!averageResolution.ok) incompleteResults.push(averageResolution);
 
             return {
                 id,
                 name: studentLabel(firstRecord),
                 massar_code: firstRecord.student_code || firstRecord.massar_code || '-',
                 section: firstRecord.section || '-',
-                average: generalAvg
+                average: averageResolution.ok ? averageResolution.value : null,
+                incompleteResult: averageResolution.ok ? null : averageResolution
             };
         });
 
-        // Sort by average (descending)
-        studentData.sort((a, b) => b.average - a.average);
+        // Incomplete students stay out of numeric rankings and remain visible as a warning.
+        if (incompleteResults.length) {
+            showToast(`تعذر احتساب معدل ${incompleteResults.length} تلميذ بسبب معاملات ناقصة`, 'warning');
+        }
+        const completeStudentData = studentData.filter((student) => student.average != null);
+        completeStudentData.sort((a, b) => b.average - a.average);
 
         const remarkFilter = document.getElementById('remark-select').value;
         const displayData = remarkFilter
-            ? studentData.filter((s) => getGradeRemark(s.average) === remarkFilter)
-            : studentData;
+            ? completeStudentData.filter((s) => getGradeRemark(s.average) === remarkFilter)
+            : completeStudentData;
 
         if (!displayData.length) {
             clearResultsEmptyState('لا توجد بيانات مطابقة للفلاتر');
@@ -536,18 +544,17 @@ async function showStudentDetail(studentId) {
     const subjectAvgs = subjects.map((s) => ({ subject: s, avg: computeSubjectAverage(s, bySubject[s]) }));
     const branch =
         typeof detectBranch === 'function' ? detectBranch(first.section || first.class_name || '') : null;
-    const generalAvg =
-        typeof computeWeightedGeneralAverage === 'function'
-            ? computeWeightedGeneralAverage(subjectAvgs, branch)
-            : subjectAvgs.length
-              ? subjectAvgs.reduce((a, s) => a + s.avg, 0) / subjectAvgs.length
-              : 0;
+    const averageResolution = computeWeightedGeneralAverageResult(subjectAvgs, branch, {
+        schoolYear: year,
+        streamCode: branch
+    });
+    const generalAvg = averageResolution.ok ? averageResolution.value : null;
     const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
     const minGrade = Math.min(...studentGrades.map((g) => g.grade));
 
     document.getElementById('detail-kpis').innerHTML = `
     <div class="detail-kpi">
-        <div class="kpi-val" style="color:${gradeColor(generalAvg)}">${generalAvg.toFixed(2)}</div>
+        <div class="kpi-val" style="color:${generalAvg == null ? 'inherit' : gradeColor(generalAvg)}">${generalAvg == null ? '—' : generalAvg.toFixed(2)}</div>
         <div class="kpi-lbl">المعدل العام</div>
     </div>
     <div class="detail-kpi">
@@ -1097,12 +1104,11 @@ function getTopStudentsForSemester(semester) {
                 typeof detectBranch === 'function'
                     ? detectBranch(first.section || first.class_name || '')
                     : null;
-            const average =
-                typeof computeWeightedGeneralAverage === 'function'
-                    ? computeWeightedGeneralAverage(subjectAvgs, branch)
-                    : subjectAvgs.length
-                      ? subjectAvgs.reduce((sum, item) => sum + item.avg, 0) / subjectAvgs.length
-                      : 0;
+            const averageResolution = computeWeightedGeneralAverageResult(subjectAvgs, branch, {
+                schoolYear: year,
+                streamCode: branch
+            });
+            const average = averageResolution.ok ? averageResolution.value : null;
 
             return {
                 id,
@@ -1113,6 +1119,7 @@ function getTopStudentsForSemester(semester) {
                 average
             };
         })
+        .filter((student) => student.average != null)
         .sort((a, b) => b.average - a.average);
 
     topStudentsCache.set(cacheKey, students);
@@ -1223,7 +1230,7 @@ function buildTopCard(label, iconClass, topStudents) {
 
         const average = document.createElement('span');
         average.className = `rh-top-avg ${topGradeColor(student.average)}`;
-        average.textContent = student.average.toFixed(2);
+        average.textContent = student.average == null ? '—' : student.average.toFixed(2);
 
         row.append(rank, info, average);
         card.appendChild(row);

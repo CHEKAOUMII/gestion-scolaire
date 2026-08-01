@@ -18,13 +18,14 @@ function collectInvokeChannels(preloadSource) {
 
 function collectHandleChannels(ipcSources) {
     // Match both direct ipcMain.handle('channel') and helper patterns:
-    // handleRead(ipcMain, 'channel'), handleWrite(ipcMain, 'channel'),
-    // handleWriteSoftAuth(ipcMain, 'channel'), handleAdminRead(ipcMain, 'channel'),
-    // registerProtectedRead(ipcMain, 'channel')
+    // handleRead(ipcMain, 'channel'), handleAuthedRead(ipcMain, 'channel'),
+    // handleWrite(ipcMain, 'channel'), handleWriteSoftAuth(ipcMain, 'channel'),
+    // handleAdminRead(ipcMain, 'channel'), registerProtectedRead(ipcMain, 'channel')
     const directMatches = [...ipcSources.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((m) => m[1]);
     const helperMatches = [
         ...ipcSources.matchAll(
-            /(?:handleRead|handleWrite|handleWriteSoftAuth|handleAdminRead|registerProtectedRead)\(ipcMain,\s*'([^']+)'/g
+            // \s* spans newlines: registrations with several options are wrapped by Prettier.
+            /(?:handleRead|handleAuthedRead|handleWrite|handleWriteSoftAuth|handleAdminRead|registerProtectedRead)\(\s*ipcMain,\s*'([^']+)'/g
         )
     ].map((m) => m[1]);
     return unique([...directMatches, ...helperMatches]);
@@ -126,6 +127,120 @@ function runMigrationSmoke() {
     assert.strictEqual(new Set(versions).size, versions.length, 'Migration versions must be unique');
 
     console.log(`[smoke] Migrations versioned OK (${versions.length} steps)`);
+}
+
+/** SQL that reads or writes `table`, in either a repo or an inline IPC query. */
+function sqlTouchesTable(source, table) {
+    return new RegExp(`(?:FROM|JOIN|INTO|UPDATE)\\s+"?${table}"?\\b`, 'i').test(source);
+}
+
+/**
+ * Top-level `function name(...)` bodies in a source file, sliced to the next declaration.
+ * Good enough for repo modules, which are flat by convention.
+ */
+function topLevelFunctionBodies(source) {
+    const declarations = [...source.matchAll(/^function\s+(\w+)/gm)];
+    return declarations.map((match, index) => ({
+        name: match[1],
+        body: source.slice(match.index, index + 1 < declarations.length ? declarations[index + 1].index : source.length)
+    }));
+}
+
+/**
+ * A read that touches a cycle-scoped table must resolve the cycle from the session
+ * (multi-cycle plan §5.4). `handleRead` discards the event and structurally cannot,
+ * so it may never reach a cycle-scoped table — through a repository or inline SQL.
+ *
+ * Everything here is derived from the registry and from the source. There is no list of
+ * known-good channels and no hand-maintained table→repo map: an earlier version had one,
+ * and it silently ignored every scoped table missing from it, which is the exact failure
+ * this guard exists to prevent. A NEW read channel added tomorrow on any table in
+ * CYCLE_SCOPED_TABLES must fail here rather than ship an unscoped query.
+ */
+function runCycleScopedReadContractSmoke() {
+    const { CYCLE_SCOPED_TABLES } = require(path.join(root, 'main', 'sync', 'entity-registry'));
+    assert.ok(CYCLE_SCOPED_TABLES.includes('students'), 'students must be registered as cycle-scoped');
+
+    // Self-check: a regex that quietly matches nothing would turn this guard into a
+    // no-op that reports success. Prove the detector fires before trusting a clean run.
+    assert.ok(
+        sqlTouchesTable("db.prepare('SELECT * FROM students WHERE school_year = ?')", 'students'),
+        'sqlTouchesTable must detect an inline read of a scoped table'
+    );
+
+    // Repository functions whose SQL reaches a cycle-scoped table, by function name.
+    // Derived per function, not per module: staffRepo owns both institution-wide
+    // teachers and cycle-scoped teaching assignments, so module granularity is too coarse.
+    const reposDir = path.join(root, 'main', 'repos');
+    const scopedRepoFunctions = new Map(); // repo module name → Map(function → tables)
+    let scopedFunctionCount = 0;
+    for (const file of fs.readdirSync(reposDir).filter((name) => name.endsWith('.js'))) {
+        const source = read(path.join('main', 'repos', file));
+        const perModule = new Map();
+        for (const { name, body } of topLevelFunctionBodies(source)) {
+            const tables = CYCLE_SCOPED_TABLES.filter((table) => sqlTouchesTable(body, table));
+            if (tables.length) perModule.set(name, tables.join('/'));
+        }
+        if (perModule.size) {
+            scopedRepoFunctions.set(file.replace(/\.js$/, ''), perModule);
+            scopedFunctionCount += perModule.size;
+        }
+    }
+    assert.ok(scopedFunctionCount > 0, 'no cycle-scoped repository functions found — detector is broken');
+
+    // Reads exempt because they own no cycle-scoped data: the closed cycle catalog,
+    // which must stay readable pre-session on the cycle-selection screen.
+    const EXEMPT_CHANNELS = new Set(['cycles:getCatalog']);
+
+    const ipcDir = path.join(root, 'main', 'ipc');
+    const offenders = [];
+    for (const file of fs.readdirSync(ipcDir).filter((name) => name.endsWith('.js'))) {
+        const source = read(path.join('main', 'ipc', file));
+        // Local alias → repo module, so `staffRepo.listByYear` is not confused with
+        // `studentsRepo.listByYear`. Same function name, different tables.
+        const repoAliases = [...source.matchAll(/(?:const|let)\s+(\w+)\s*=\s*require\(['"][^'"]*\/repos\/([\w-]+)['"]\)/g)];
+        // Every registration, of any kind: a handleRead body ends at the next
+        // registration whatever its helper, not at the next handleRead — otherwise the
+        // slice swallows the handleAuthedRead handlers in between and reports them.
+        const registrations = [
+            ...source.matchAll(/(handleRead|handleAuthedRead|handleWrite|handleWriteSoftAuth)\(\s*ipcMain,\s*'([^']+)'/g)
+        ];
+        for (let i = 0; i < registrations.length; i += 1) {
+            const [, helper, channel] = registrations[i];
+            if (helper !== 'handleRead') continue;
+            if (EXEMPT_CHANNELS.has(channel)) continue;
+            const start = registrations[i].index;
+            const end = i + 1 < registrations.length ? registrations[i + 1].index : source.length;
+            const body = source.slice(start, end);
+
+            const reasons = [];
+            for (const [, alias, repoModule] of repoAliases) {
+                const perModule = scopedRepoFunctions.get(repoModule);
+                if (!perModule) continue;
+                for (const [fnName, tables] of perModule) {
+                    if (new RegExp(`\\b${alias}\\.${fnName}\\s*\\(`).test(body)) {
+                        reasons.push(`calls ${repoModule}.${fnName} → ${tables}`);
+                    }
+                }
+            }
+            // Inline SQL bypasses the repo layer entirely and was invisible to the
+            // previous repo-name-only check.
+            const inlineTables = CYCLE_SCOPED_TABLES.filter((table) => sqlTouchesTable(body, table));
+            if (inlineTables.length) reasons.push(`inline SQL on ${inlineTables.join('/')}`);
+
+            if (reasons.length) offenders.push(`${file} → ${channel}: ${reasons.join('; ')}`);
+        }
+    }
+
+    assert.strictEqual(
+        offenders.length,
+        0,
+        `Cycle-scoped reads must use handleAuthedRead:\n  ${offenders.join('\n  ')}`
+    );
+    console.log(
+        `[smoke] Cycle-scoped read contract OK (${CYCLE_SCOPED_TABLES.length} scoped tables, ` +
+            `${scopedFunctionCount} scoped repo functions)`
+    );
 }
 
 function runLazyLoadSmoke() {
@@ -468,6 +583,45 @@ function runAuthTests() {
 function runRoleHierarchySmoke() {
     const permissions = require(path.join(root, 'main', 'auth', 'permissions'));
     assert.strictEqual(
+        permissions.ALLOWED_ROLES.includes('__override__'),
+        false,
+        'deny-all override marker must not be an assignable role'
+    );
+    const appDefaultsSource = read(path.join('main', 'ipc', 'appDefaults.js'));
+    assert.ok(
+        appDefaultsSource.includes("const PAGE_ACCESS_OVERRIDE_MARKER = '__override__';"),
+        'page access saves must persist an explicit override marker'
+    );
+    assert.ok(
+        appDefaultsSource.includes('markerStmt.run(pageKey, PAGE_ACCESS_OVERRIDE_MARKER);'),
+        'page access saves must write the override marker before allowed roles'
+    );
+    assert.ok(
+        appDefaultsSource.includes('const { map, pagesWithRows } = loadDbRoleMap(db);'),
+        'listPages should load the DB role map once per request'
+    );
+
+    // Live propagation: saving the matrix must broadcast to open windows, the preload
+    // must expose the subscription, and the renderer must re-run its guard on the event.
+    assert.ok(
+        appDefaultsSource.includes("win.webContents.send('appDefaults:pageAccessChanged')") &&
+            appDefaultsSource.includes('broadcastPageAccessChanged();'),
+        'savePageAccess must broadcast appDefaults:pageAccessChanged to open windows'
+    );
+    const preloadSource = read('preload.js');
+    assert.ok(
+        preloadSource.includes('onPageAccessChanged') &&
+            preloadSource.includes("ipcRenderer.on('appDefaults:pageAccessChanged'"),
+        'preload must expose appDefaults.onPageAccessChanged subscription'
+    );
+    const utilsLiveSource = read(path.join('js', 'utils.js'));
+    assert.ok(
+        utilsLiveSource.includes('refreshPageAccessLive') &&
+            utilsLiveSource.includes('onPageAccessChanged'),
+        'utils.js must re-run the page-access guard live on the broadcast event'
+    );
+
+    assert.strictEqual(
         permissions.canAccessPage('principal', 'settings-users'),
         true,
         'principal should be able to open settings-users'
@@ -569,6 +723,19 @@ function runConsolidationSmoke() {
     assert.strictEqual(typeof validation.validateDate, 'function', 'validateDate not exported');
     assert.strictEqual(typeof validation.validateSchoolYear, 'function', 'validateSchoolYear not exported');
 
+    // 4. Session-aware read seam (multi-cycle plan §5.4). Cycle-scoped reads must resolve
+    //    the session in main; a read handler that takes a cycle from the renderer would be
+    //    trusting renderer input, which §13 forbids.
+    const helpers = require(path.join(root, 'main', 'ipc', 'ipc-helpers.js'));
+    assert.strictEqual(typeof helpers.handleAuthedRead, 'function', 'handleAuthedRead not exported');
+    const cycleContext = require(path.join(root, 'main', 'auth', 'active-cycle-context.js'));
+    assert.strictEqual(typeof cycleContext.peekContext, 'function', 'peekContext not exported');
+    assert.strictEqual(
+        cycleContext.peekContext({ sender: { id: 987654 } }),
+        null,
+        'peekContext must not create a context for an unknown sender'
+    );
+
     console.log('[smoke] Consolidation checks OK (no legacy channels, no handleWriteNoAuth, validation module)');
 }
 
@@ -636,7 +803,7 @@ function runUpdaterErrorSmoke() {
 
     const gatewayTimeoutError = {
         message:
-            '504 "method: GET url: https://github.com/CHEKAOUMII/project6.2/releases.atom Data: <html><body><h1>504 Gateway Time-out</h1></body></html>"'
+            '504 "method: GET url: https://github.com/CHEKAOUMII/gestion-scolaire-releases/releases.atom Data: <html><body><h1>504 Gateway Time-out</h1></body></html>"'
     };
     assert.strictEqual(
         isTransientUpdaterError(gatewayTimeoutError),
@@ -650,7 +817,7 @@ function runUpdaterErrorSmoke() {
     );
 
     const accessError = {
-        message: '404 method: GET url: https://github.com/CHEKAOUMII/project6.2/releases.atom',
+        message: '404 method: GET url: https://github.com/CHEKAOUMII/gestion-scolaire-releases/releases.atom',
         statusCode: 404
     };
     assert.strictEqual(
@@ -712,6 +879,7 @@ function run() {
     runModuleExportsSmoke();
     runPageScriptExtractionSmoke();
     runMigrationSmoke();
+    runCycleScopedReadContractSmoke();
     runLazyLoadSmoke();
     runRestoreSafetySmoke();
     runNoCdnSmoke();

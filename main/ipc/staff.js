@@ -1,15 +1,64 @@
 'use strict';
 
-const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { handleAuthedRead, handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields } = require('./validation');
 const staffRepo = require('../repos/staff');
+const { resolveCycleForRequest } = require('../auth/resolve-cycle');
 
 function registerStaffIpc(ipcMain) {
     handleRead(ipcMain, 'teachers:getAll', (db, schoolYear) => {
         return staffRepo.listByYear(db, normalizeYear(schoolYear));
     });
+
+    handleAuthedRead(ipcMain, 'teachers:getScoped', ({ db, event, session }, schoolYear, options = {}) => {
+        const cycleCode = resolveCycleForRequest(db, event);
+        const isManager = ['admin', 'principal', 'developer'].includes(String(session?.role || '').toLowerCase());
+        return staffRepo.listByYearAndCycle(db, normalizeYear(schoolYear), cycleCode, {
+            includeReview: isManager && options.includeReview === true
+        });
+    });
+
+    handleAuthedRead(ipcMain, 'teachers:getAssignments', ({ db, event, session }, schoolYear, options = {}) => {
+        const cycleCode = resolveCycleForRequest(db, event);
+        const isManager = ['admin', 'principal', 'developer'].includes(String(session?.role || '').toLowerCase());
+        return staffRepo.listTeachingAssignments(db, normalizeYear(schoolYear), cycleCode, {
+            confidence: isManager ? options.confidence : 'confirmed',
+            activeOnly: isManager ? options.activeOnly : true,
+            includeReview: isManager && options.includeReview === true
+        });
+    });
+
+    handleAuthedRead(ipcMain, 'teachers:getReviewQueue', ({ db, event, session }, schoolYear) => {
+        const role = String(session?.role || '').toLowerCase();
+        if (!['admin', 'principal', 'developer'].includes(role)) return [];
+        return staffRepo.listTeacherAssignmentReviewQueue(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event));
+    });
+
+    handleWriteSoftAuth(ipcMain, 'teachers:reviewAssignment', ['admin', 'principal', 'developer'], ({ db, session }, payload) => {
+        if (payload?.school_year) requireSchoolYear(payload.school_year);
+        return staffRepo.reviewTeachingAssignment(db, payload, {
+            role: session?.role,
+            userId: session?.userId
+        });
+    }, { withContext: true });
+
+    handleWriteSoftAuth(ipcMain, 'teachers:resolveAssignmentReview', ['admin', 'principal', 'developer'], ({ db, event, session }, payload) => {
+        if (payload?.school_year) requireSchoolYear(payload.school_year);
+        return staffRepo.resolveUnresolvedGradeAssignment(db, payload, {
+            role: session?.role,
+            userId: session?.userId,
+            cycleCode: resolveCycleForRequest(db, event)
+        });
+    }, { withContext: true });
+
+    handleWriteSoftAuth(ipcMain, 'teachers:setScope', ['admin', 'principal', 'developer'], ({ db, session }, payload) => {
+        return staffRepo.setTeacherScope(db, payload?.teacher_id, payload?.scope_type, {
+            role: session?.role,
+            userId: session?.userId
+        });
+    }, { withContext: true });
 
     handleWrite(ipcMain, 'teachers:add', WRITE_ROLES, (db, _event, teacher) => {
         requireFields(teacher, ['full_name', 'school_year']);

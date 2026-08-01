@@ -221,6 +221,40 @@ function addReserveLoad(loadState, key, halfdayKey, dayKey) {
     entry.reserveCount += 1;
 }
 
+function nonNegativeCount(value) {
+    return typeof value === 'number' && Number.isFinite(value) && value >= 0
+        ? Math.floor(value)
+        : 0;
+}
+
+function addSetValues(entry, field, values) {
+    if (!Array.isArray(values)) return;
+    if (!(entry[field] instanceof Set)) entry[field] = new Set();
+    values.forEach((value) => {
+        if (typeof value === 'string' && value.length > 0) entry[field].add(value);
+    });
+}
+
+/**
+ * Merge load and occupancy already held in another cycle. Counts are supplied
+ * by the caller; this helper does not derive workload or policy limits.
+ */
+function mergeExternalLoad(loadState, key, externalLoad) {
+    const entry = getOrCreateEntry(loadState, key);
+    const load = externalLoad && typeof externalLoad === 'object' ? externalLoad : {};
+    entry.guardCount += nonNegativeCount(load.guardCount);
+    entry.dutyCount += nonNegativeCount(load.dutyCount);
+    entry.reserveCount += nonNegativeCount(load.reserveCount);
+    entry.amCount += nonNegativeCount(load.amCount);
+    entry.pmCount += nonNegativeCount(load.pmCount);
+    addSetValues(entry, 'guardSessions', load.guardSessions);
+    addSetValues(entry, 'guardHalfdays', load.guardHalfdays);
+    addSetValues(entry, 'reserveSessions', load.reserveSessions);
+    addSetValues(entry, 'reserveHalfdays', load.reserveHalfdays);
+    addSetValues(entry, 'externalDutyHalfdays', load.dutyHalfdays);
+    addSetValues(entry, 'teachingSessions', load.teachingSessions);
+}
+
 /**
  * Internal accessor that returns the entry for `key` or null if absent.
  *
@@ -294,6 +328,7 @@ module.exports = {
     addGuardLoad,
     addDutyLoad,
     addReserveLoad,
+    mergeExternalLoad,
     removeGuardLoad,
     decrementGuardLoad,
     incrementGuardLoad,

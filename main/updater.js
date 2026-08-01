@@ -5,9 +5,7 @@
 
 const { autoUpdater } = require('electron-updater');
 const { app } = require('electron');
-const path = require('path');
 const { getUpdaterErrorMessage, isTransientUpdaterError } = require('./updater-errors');
-require('dotenv').config({ path: path.join(app.getAppPath(), '.env') });
 
 let _mainWindow = null;
 let _initialized = false;
@@ -64,20 +62,15 @@ function initAutoUpdater(mainWindow) {
     autoUpdater.autoInstallOnAppQuit = true; // Install update when user quits
     autoUpdater.allowPrerelease = false;
 
-    // Authenticate auto-updater for private GitHub repo
-    const ghToken = process.env.GH_TOKEN;
-    if (ghToken) {
-        autoUpdater.setFeedURL({
-            provider: 'github',
-            owner: 'CHEKAOUMII',
-            repo: 'project6.2',
-            token: ghToken, // Crucial: authenticates the request to releases.atom
-            private: true
-        });
-        console.log('[updater] GitHub provider configured with authentication token.');
-    } else {
-        console.warn('[updater] WARNING: No GH_TOKEN found. Auto-updates will fail with 404 for private repository.');
-    }
+    // Configure the public GitHub Releases feed. Authentication belongs only in CI
+    // when publishing releases, never in the installed application.
+    autoUpdater.setFeedURL({
+        provider: 'github',
+        owner: 'CHEKAOUMII',
+        repo: 'gestion-scolaire-releases',
+        private: false
+    });
+    console.log('[updater] Public GitHub Releases provider configured.');
 
     // Log updater events
     autoUpdater.logger = {

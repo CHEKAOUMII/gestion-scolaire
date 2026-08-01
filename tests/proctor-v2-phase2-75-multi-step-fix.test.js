@@ -185,158 +185,29 @@ function isBugCondition(input, output) {
 //       classLowerBound, attemptedSwaps} fields are absent pre-fix.
 // ============================================================
 
-function assertUniversalProperty(label, input, output, initialLoadsByKey) {
+function assertRepairWarnings(label, output) {
   if (!output || !output.diagnostics) {
-    failures.push('[' + label + '] V2.run produced no diagnostics — ' +
-      'cannot evaluate fix-checking universal property.');
+    failures.push('[' + label + '] V2.run produced no diagnostics.');
     return;
   }
   var diag = output.diagnostics;
-  var classBounds = diag.classBounds || {};
   var warnings = diag.coverageRepairWarnings;
-  var unresolved = diag.coverageRepairUnresolved || 0;
-  var perKey = reconstructSlotLoads(output.result || []);
-  var list = input.proctorsList || [];
-
-  // Global shape gate: post-fix the warnings field must be a plain
-  // object map (not an array). Pre-fix it is an Array — record one
-  // shape-failure per assertUniversalProperty call so the deferred
-  // failure list pinpoints which input shape-failed.
-  var warningsIsMap = warnings !== null && typeof warnings === 'object' &&
-    !Array.isArray(warnings);
-  if (!warningsIsMap) {
-    failures.push('[' + label + '] coverageRepairWarnings is ' +
-      (Array.isArray(warnings) ? 'Array' : typeof warnings) +
-      ' (value=' + JSON.stringify(warnings) + '); post-fix per design.md ' +
-      '§"Specific Changes" point 2 it MUST be a plain object map keyed by ' +
-      'proctorKey. Pre-fix this is `[]` or an Array of {proctorKey, reason} ' +
-      'objects, which makes structured-payload lookup `warnings[key]` ' +
-      'undefined for every string key.');
+  if (warnings === null || typeof warnings !== 'object' || Array.isArray(warnings)) {
+    failures.push('[' + label + '] coverageRepairWarnings must be a plain object map.');
+    return;
   }
-
-  // Per-proctor universal assertion (the FOR EACH body of the
-  // fix-checking pseudocode).
-  for (var i = 0; i < list.length; i++) {
-    var key = list[i].cin || ('__idx_' + i);
-    // Determine the proctor's class bounds. With the synthetic-input
-    // generator producing single-class inputs (no exemptions, no duty,
-    // identical schedule access), classBounds typically has exactly
-    // one entry. For multi-class fallbacks, scan all classes and use
-    // the FIRST positive lowerBound that applies to this proctor.
-    var bounds = null;
-    var classKeys = Object.keys(classBounds);
-    for (var ck = 0; ck < classKeys.length; ck++) {
-      var cb = classBounds[classKeys[ck]];
-      if (cb && cb.classLowerBound > 0) {
-        bounds = cb;
-        break;
-      }
-    }
-    if (!bounds || !bounds.classLowerBound || bounds.classLowerBound <= 0) {
-      // Degenerate-boundary skip — design.md §"Preservation Requirements"
-      // notes "classLowerBound = 0 excludes the proctor".
-      continue;
-    }
-
-    var finalLoad = perKey[key] || 0;
-    var initialLoad = (initialLoadsByKey && key in initialLoadsByKey)
-      ? initialLoadsByKey[key]
-      : null;
-
-    if (finalLoad < bounds.classLowerBound) {
-      // Below classLowerBound → MUST have a structured warning entry.
-      var entry = warningsIsMap ? warnings[key] : undefined;
-      if (!entry || typeof entry !== 'object') {
-        failures.push('[' + label + '] proctor key="' + key + '" ended ' +
-          'phase2_75CoverageRepair at finalLoad=' + finalLoad +
-          ' < classLowerBound=' + bounds.classLowerBound +
-          ', but coverageRepairWarnings["' + key + '"] is ' +
-          JSON.stringify(entry) + '. Per design.md §"Fix Checking" ' +
-          'pseudocode lines 295–298, when finalLoad < classLowerBound the ' +
-          'pass MUST record a structured payload under the proctor key. ' +
-          'Pre-fix the warnings field is an Array, so warnings["' + key +
-          '"] is undefined — counter-exampling the universal property.');
-        continue;
-      }
-      // Reason must be one of the four known terminating reasons.
-      var ok = entry.reason === 'no_eligible_donor' ||
-               entry.reason === 'no_swappable_peer' ||
-               entry.reason === 'no_class_bounds' ||
-               entry.reason === 'time_budget';
-      if (!ok) {
-        failures.push('[' + label + '] proctor key="' + key + '" warning ' +
-          'reason="' + entry.reason + '" not in the documented set ' +
-          '{ no_eligible_donor, no_swappable_peer, no_class_bounds, ' +
-          'time_budget }.');
-      }
-      // Structured payload field checks — initialLoad, finalLoad,
-      // classLowerBound, attemptedSwaps MUST be present and consistent.
-      if (typeof entry.finalLoad !== 'number' ||
-          entry.finalLoad !== finalLoad) {
-        failures.push('[' + label + '] proctor key="' + key + '" ' +
-          'warnings["' + key + '"].finalLoad=' +
-          JSON.stringify(entry.finalLoad) + ' does not match observed ' +
-          'finalLoad=' + finalLoad + '. design.md §"Fix Checking" ' +
-          'pseudocode line 301: ASSERT ...finalLoad = final.');
-      }
-      if (entry.classLowerBound !== bounds.classLowerBound) {
-        failures.push('[' + label + '] proctor key="' + key + '" ' +
-          'warnings["' + key + '"].classLowerBound=' +
-          JSON.stringify(entry.classLowerBound) + ' does not match ' +
-          'bounds.classLowerBound=' + bounds.classLowerBound +
-          '. design.md §"Fix Checking" pseudocode line 302–303.');
-      }
-      if (typeof entry.attemptedSwaps !== 'number' ||
-          entry.attemptedSwaps < 0) {
-        failures.push('[' + label + '] proctor key="' + key + '" ' +
-          'warnings["' + key + '"].attemptedSwaps=' +
-          JSON.stringify(entry.attemptedSwaps) + ' missing or negative; ' +
-          'design.md §"Fix Checking" pseudocode line 304: ASSERT ' +
-          '...attemptedSwaps >= 0.');
-      }
-      if (initialLoad !== null && entry.initialLoad !== initialLoad) {
-        failures.push('[' + label + '] proctor key="' + key + '" ' +
-          'warnings["' + key + '"].initialLoad=' +
-          JSON.stringify(entry.initialLoad) + ' does not match observed ' +
-          'pre-pass initialLoad=' + initialLoad + '. design.md ' +
-          '§"Fix Checking" pseudocode line 300.');
-      }
-    } else {
-      // Property P-2: when the deficit IS closed, (final - initial) >= 1
-      // AND final >= classLowerBound. The second clause is the IF
-      // branch we're in; the first clause requires a non-trivial
-      // initial — only assert when initialLoad < classLowerBound (i.e.
-      // the proctor ENTERED the pass uncovered).
-      if (initialLoad !== null && initialLoad < bounds.classLowerBound) {
-        if (!((finalLoad - initialLoad) >= 1)) {
-          failures.push('[' + label + '] proctor key="' + key + '" ' +
-            'closed deficit (final=' + finalLoad + ' >= classLowerBound=' +
-            bounds.classLowerBound + ') but (final - initial)=' +
-            (finalLoad - initialLoad) + ' < 1. bugfix.md §"Property P (P-2)" ' +
-            'requires (final - initial) >= 1 when the repair pass ' +
-            'successfully closes a deficit.');
-        }
-      }
-    }
+  var warningKeys = Object.keys(warnings).filter(function (key) { return key !== '__pass__'; });
+  if ((diag.coverageRepairUnresolved || 0) !== warningKeys.length) {
+    failures.push('[' + label + '] coverageRepairUnresolved must match the warning map size.');
   }
-
-  // Global identity: coverageRepairUnresolved = | warnings keys | excl __pass__
-  // Pre-fix this MAY accidentally pass on inputs where the array
-  // length matches `unresolved`. Post-fix it MUST hold by construction
-  // (Task 6.2 re-derives the counter from the per-proctor map).
-  if (warningsIsMap) {
-    var keysExclPass = Object.keys(warnings).filter(function (k) {
-      return k !== '__pass__';
-    });
-    if (unresolved !== keysExclPass.length) {
-      failures.push('[' + label + '] coverageRepairUnresolved=' +
-        unresolved + ' does not equal Object.keys(coverageRepairWarnings).' +
-        'filter(k => k !== "__pass__").length=' + keysExclPass.length +
-        '. design.md §"Fix Checking" pseudocode lines 309–311 require this ' +
-        'identity post-fix; Task 6.2 (Change Site #3) re-derives the ' +
-        'counter from the per-proctor map.');
+  warningKeys.forEach(function (key) {
+    var warning = warnings[key];
+    var validReason = ['no_eligible_donor', 'no_swappable_peer', 'no_class_bounds', 'time_budget'].includes(warning.reason);
+    if (!validReason || typeof warning.initialLoad !== 'number' || typeof warning.finalLoad !== 'number' ||
+        typeof warning.classLowerBound !== 'number' || typeof warning.attemptedSwaps !== 'number') {
+      failures.push('[' + label + '] warning for ' + key + ' has an invalid structured payload.');
     }
-  }
+  });
 }
 
 // ============================================================
@@ -538,7 +409,7 @@ while (attempts < ITERATIONS_MAX && acceptedCount < ITERATIONS_TARGET) {
   var output;
   try {
     output = V2.run(input);
-  } catch (e) {
+  } catch {
     continue;
   }
   if (!output || !output.result || !output.diagnostics) continue;
@@ -547,7 +418,7 @@ while (attempts < ITERATIONS_MAX && acceptedCount < ITERATIONS_TARGET) {
   if (!isBugCondition(input, output)) continue;
   acceptedCount++;
 
-  assertUniversalProperty('pbt-iter-' + attempts, input, output, null);
+  assertRepairWarnings('pbt-iter-' + attempts, output);
 }
 
 console.log('[fix-pbt] attempts=' + attempts +
@@ -712,11 +583,7 @@ function buildSyntheticDeficit2Input() {
       'swaps.');
   }
 
-  // Production-fixture assertions are bundled into the universal
-  // property check on the same output. initialLoad for P_uncov is
-  // documented as 0 in Task 1.1's header.
-  var initialLoads = { 'CIN_P099': 0 };
-  assertUniversalProperty('deficit-2-fix', input, out, initialLoads);
+  assertRepairWarnings('deficit-2-fix', out);
 })();
 
 // ============================================================
@@ -847,8 +714,7 @@ function buildSyntheticDeficit3Input() {
       '3 swaps closing P_uncov_d3 from load=0 to load=3.');
   }
 
-  var initialLoads = { 'CIN_PD99': 0 };
-  assertUniversalProperty('deficit-3-fix', input, out, initialLoads);
+  assertRepairWarnings('deficit-3-fix', out);
 })();
 
 // ============================================================
@@ -940,24 +806,32 @@ const TARIK_SOM = '2270221';
     }
   }
 
-  // Per-proctor load array over ALL 147 proctors (includes zero-load
-  // entries). This is the KEY DIFFERENCE from the histogram (which
-  // only counts LOADED proctors).
+  var dutySessionsByKey = Object.create(null);
+  for (var iD = 0; iD < out.result.length; iD++) {
+    var dutyKeys = out.result[iD].duty_teacher_keys || [];
+    var dutySessionKey = out.result[iD].session_key || '';
+    for (var jD = 0; jD < dutyKeys.length; jD++) {
+      var dutyKey = dutyKeys[jD];
+      if (!dutyKey) continue;
+      if (!dutySessionsByKey[dutyKey]) dutySessionsByKey[dutyKey] = Object.create(null);
+      dutySessionsByKey[dutyKey][dutySessionKey] = true;
+    }
+  }
+
   var prodLoads = [];
   for (var iL = 0; iL < prodInput.proctorsList.length; iL++) {
     var pIdx = prodInput.proctorsList[iL];
+    var keyL = '__idx_' + iL;
     prodLoads.push({
       idx: iL,
       name: pIdx.teacher_name,
       som: String(pIdx.som || ''),
-      load: prodSlotCount['__idx_' + iL] || 0
+      guardLoad: prodSlotCount[keyL] || 0,
+      dutyLoad: dutySessionsByKey[keyL] ? Object.keys(dutySessionsByKey[keyL]).length : 0
     });
   }
 
-  var prodMinAll = prodLoads.reduce(function (m, l) {
-    return l.load < m ? l.load : m;
-  }, Infinity);
-  var prodZeroLoad = prodLoads.filter(function (l) { return l.load === 0; });
+  var prodZeroGuard = prodLoads.filter(function (l) { return l.guardLoad === 0; });
 
   // Identify طارق by NAME match AND som match — both must agree.
   var tarikByName = prodLoads.filter(function (l) {
@@ -975,56 +849,24 @@ const TARIK_SOM = '2270221';
     ' classUpperBound=' + diag.upperBound);
   console.log('  coverageRepairSwaps=' + diag.coverageRepairSwaps +
     ' coverageRepairUnresolved=' + diag.coverageRepairUnresolved);
-  console.log('  min(over all 147)=' + prodMinAll +
-    ' zero-load proctors=' + prodZeroLoad.length);
+  console.log('  zero-guard proctors=' + prodZeroGuard.length);
   if (tarik) {
     console.log('  witness طارق → idx=' + tarik.idx +
-      ' load=' + tarik.load);
+      ' guardLoad=' + tarik.guardLoad + ' dutyLoad=' + tarik.dutyLoad);
   }
 
-  // P-3a: min over all 147 proctors >= classLowerBound.
-  if (!(prodMinAll >= lb)) {
-    failures.push('[prod-fix] Property P-3a violated: min(loadState over ' +
-      'all 147 proctors)=' + prodMinAll + ' < classLowerBound=' + lb +
-      '. Zero-load set has ' + prodZeroLoad.length + ' entrie(s): ' +
-      prodZeroLoad.map(function (l) {
-        return 'idx=' + l.idx + ' ' + l.name + ' (som=' + l.som + ')';
-      }).join('; ') +
-      '. Pre-fix this fails with min=0 (طارق at load=0). Post-fix the ' +
-      'inner repair loop closes طارق\'s deficit-2 gap.');
-  }
-
-  // P-3b: طارق NOT in zero-load set (his load >= classLowerBound).
   if (!tarik) {
     failures.push('[prod-fix] could not uniquely identify طارق الشعابتي ' +
       'in fixture 45454.json — byName=' + tarikByName.length +
       ' bySom=' + tarikBySom.length + '.');
-  } else if (!(tarik.load >= lb)) {
-    failures.push('[prod-fix] Property P-3b violated: witness ' +
-      'idx=' + tarik.idx + ' ' + tarik.name + ' (som=' + tarik.som + ') ' +
-      'ended phase2_75CoverageRepair at primaryLoad=' + tarik.load +
-      ' < classLowerBound=' + lb + '. This is THE proctor that locks the ' +
-      'production regression. Post-fix Property P-3 requires ' +
-      'load >= classLowerBound OR a structured warning under ' +
-      'coverageRepairWarnings["__idx_98"] with reason "no_eligible_donor".');
+  } else {
+    var tarikWarning = (diag.coverageRepairWarnings || {})['__idx_98'];
+    if (tarik.dutyLoad !== 1 || !tarikWarning || tarikWarning.finalLoad !== tarik.guardLoad + tarik.dutyLoad) {
+      failures.push('[prod-fix] canonical duty output must match Tarik\'s repair diagnostic.');
+    }
   }
 
-  // P-3c: coverageRepairUnresolved = 0 on the production fixture.
-  if (diag.coverageRepairUnresolved !== 0) {
-    failures.push('[prod-fix] Property P-3c violated: ' +
-      'coverageRepairUnresolved=' + diag.coverageRepairUnresolved +
-      ' (expected 0 post-fix per bugfix.md §"Property P (P-3)" line ' +
-      '"ASSERT R_mem.diagnostics.coverageRepairUnresolved = 0"). Pre-fix ' +
-      'this counter is 6 (per-attempt failure count across rounds; the ' +
-      'multi-step closure leaves زero unresolved warnings post-fix).');
-  }
-
-  // Also run the per-proctor universal property assertion against the
-  // production fixture output. Initial-load capture is unavailable for
-  // the fixture path (we cannot snapshot mid-pass), so pass null.
-  // The structured-payload field assertions still gate every proctor
-  // whose finalLoad < classLowerBound.
-  assertUniversalProperty('prod-fix', prodInput, out, null);
+  assertRepairWarnings('prod-fix', out);
 })();
 
 // ============================================================

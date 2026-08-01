@@ -55,13 +55,13 @@ const PAGE_PERMISSIONS = {
     'absence-analytics':             [...ALL_STAFF],
     'absence-correspondence':        ['principal','supervisor','external-guardian','internal-guardian','admin-assistant'],
     'grades-sheets':                 ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
-    'exam-papers':                   ['principal','external-guardian','internal-guardian'],
+    'exam-papers':                   [], // exam-center: admin + developer only (bypass)
     'grades-results':                ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
     'results-hub':                   ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
-    'exams-schedule':                ['principal','supervisor','external-guardian','admin-assistant','educational-specialist','teacher','viewer'],
-    'exams-rooms':                   ['principal','supervisor','external-guardian','admin-assistant','viewer'],
-    'exams-proctors':                ['principal','supervisor','external-guardian','admin-assistant','viewer'],
-    'exams-tests':                   ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
+    'exams-schedule':                [], // exam-center: admin + developer only (bypass)
+    'exams-rooms':                   [], // exam-center: admin + developer only (bypass)
+    'exams-proctors':                [], // exam-center: admin + developer only (bypass)
+    'exams-tests':                   [], // exam-center: admin + developer only (bypass)
     'teachers-list':                 ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','viewer'],
     'inspectors':                    ['principal','supervisor','external-guardian'],
     'teachers-schedule':             ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','viewer'],

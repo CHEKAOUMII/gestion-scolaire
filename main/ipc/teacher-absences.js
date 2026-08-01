@@ -1,10 +1,10 @@
-const { handleRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { handleAuthedRead, handleWrite, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { validateDate } = require('./validation');
 
 function registerTeacherAbsencesIpc(ipcMain) {
-    handleRead(ipcMain, 'teacherAbsences:getAll', (db, schoolYear) => {
+    handleAuthedRead(ipcMain, 'teacherAbsences:getAll', ({ db }, schoolYear) => {
         return db
             .prepare(
                 `

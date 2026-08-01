@@ -113,3 +113,6 @@ Feature specs: `specs/027-layering-remediation/`.
 
 <!-- MANUAL ADDITIONS END -->
 
+## App Defaults and Page Access
+
+Page-access permissions and exam-count defaults are device-local application settings stored in the local SQLite database. They are intentionally excluded from sync and must be configured independently on each deployed device.

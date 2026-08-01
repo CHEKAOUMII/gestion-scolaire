@@ -39,6 +39,8 @@ var path = require('path');
 var canonicalKeyModule = require(path.join(__dirname, '..', 'canonical-key.js'));
 var buildKeyAdapter = canonicalKeyModule.buildKeyAdapter;
 var toCanonical = canonicalKeyModule.toCanonical;
+var crossCycleModule = require(path.join(__dirname, '..', 'constraints', 'cross-cycle.js'));
+var normalizeCrossCycleResources = crossCycleModule.normalizeCrossCycleResources;
 
 /**
  * Translate the inner proctor-keyed object of a single outer entry.
@@ -158,6 +160,14 @@ function normalizeKeys(state) {
         'meAssignments',
         orphanCollector
     );
+    var normalizedCrossCycleResources = null;
+    if (Object.prototype.hasOwnProperty.call(input, 'crossCycleResources')) {
+        normalizedCrossCycleResources = normalizeCrossCycleResources(
+            input.crossCycleResources,
+            adapter,
+            orphanCollector
+        );
+    }
 
     var orphanInputKeys = dedupeOrphans(orphanCollector);
 
@@ -171,6 +181,7 @@ function normalizeKeys(state) {
     nextState.normalizedDutyData = normalizedDutyData;
     nextState.normalizedExemptionsData = normalizedExemptionsData;
     nextState.normalizedMEAssignments = normalizedMEAssignments;
+    nextState.normalizedCrossCycleResources = normalizedCrossCycleResources;
     nextState.orphanInputKeys = orphanInputKeys;
 
     return nextState;

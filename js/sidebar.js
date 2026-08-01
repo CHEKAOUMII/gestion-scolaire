@@ -15,6 +15,10 @@ function injectSidebar() {
                 <p id="sidebar-school-name">...</p>
             </div>
         </div>
+        <div id="sidebar-cycle-switcher" class="mx-[12px] mb-3 rounded-lg border border-white/10 bg-white/5 p-2" hidden>
+            <label for="sidebar-cycle-select" class="mb-1 block text-[11px] opacity-70">السلك النشط</label>
+            <select id="sidebar-cycle-select" class="w-full rounded-md border border-white/10 bg-transparent px-2 py-1.5 text-sm" aria-label="السلك التعليمي النشط"></select>
+        </div>
         <nav class="sidebar-nav flex-1 min-h-0 overflow-y-auto">
             <ul class="list-none">
                 <li class="my-[2px] mx-[10px]"><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a></li>
@@ -201,6 +205,10 @@ function injectSidebar() {
 
     // Load school name from database and update sidebar + page title
     loadSchoolIdentity();
+    loadCycleSwitcher();
+    if (window.api?.cycles?.onConfigurationChanged) {
+        window.api.cycles.onConfigurationChanged(loadCycleSwitcher);
+    }
 
     // Re-apply role-based navigation restrictions after sidebar injection.
     // This handles the timing gap: utils.js may run before sidebar.js,
@@ -464,6 +472,49 @@ async function loadSchoolIdentity() {
         console.warn('Could not load school identity for sidebar:', err);
     }
 }
+
+async function loadCycleSwitcher() {
+    const wrapper = document.getElementById('sidebar-cycle-switcher');
+    const select = document.getElementById('sidebar-cycle-select');
+    if (!wrapper || !select || !window.api?.cycles) return;
+    const [catalog, active] = await Promise.all([window.api.cycles.list(), window.api.cycles.getActive()]);
+    if (!catalog?.success || !active?.success) return;
+    select.replaceChildren();
+    // Only enabled cycles whose policies actually ship are selectable — an institution
+    // may register a cycle before its rules exist, and that row must not become workable.
+    catalog.cycles
+        .filter((cycle) => Number(cycle.is_active) && cycle.capability === 'supported')
+        .forEach((cycle) => {
+            const option = new Option(cycle.label_ar, cycle.cycle_code);
+            option.selected = cycle.cycle_code === active.context.cycleCode;
+            select.add(option);
+        });
+    wrapper.hidden = select.options.length < 2;
+    // Dirty-page contract: switching reloads the page, so a page with unsaved edits must
+    // either mark an element with data-unsaved-changes="true" or cancel (preventDefault)
+    // the cancelable 'app:beforeCycleChange' event to block the switch.
+    select.onchange = async () => {
+        const previousCycle = active.context.cycleCode;
+        const pendingChanges = document.querySelector('[data-unsaved-changes="true"]');
+        const guardEvent = new CustomEvent('app:beforeCycleChange', {
+            cancelable: true,
+            detail: { fromCycle: previousCycle, toCycle: select.value }
+        });
+        if (pendingChanges || !window.dispatchEvent(guardEvent)) {
+            select.value = previousCycle;
+            if (typeof showToast === 'function') showToast('احفظ التعديلات الحالية قبل تبديل السلك', 'warning');
+            return;
+        }
+        const response = await window.api.cycles.setActive(select.value, getSchoolYear());
+        if (response?.success) window.location.reload();
+        else {
+            select.value = previousCycle;
+            if (typeof showToast === 'function') showToast(response?.error || 'تعذر تبديل السلك', 'error');
+        }
+    };
+}
+
+window.refreshCycleSwitcher = loadCycleSwitcher;
 
 /** Refresh sidebar school name — callable from other pages (e.g. settings). */
 window.refreshSidebarSchoolName = loadSchoolIdentity;

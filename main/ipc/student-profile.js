@@ -1,9 +1,11 @@
-const { handleRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { handleAuthedRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { resolveCycleForRequest } = require('../auth/resolve-cycle');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields } = require('./validation');
 // Shared allowlist — js/data/student-profile-fields.js (also available on renderer as StudentProfileFields)
 const { PROFILE_TAB_ALLOWLIST, PROFILE_TAB_MAX_JSON } = require('../../js/data/student-profile-fields');
+const studentProfileRepo = require('../repos/student-profile');
 
 function isProfileScalar(value) {
     return (
@@ -58,16 +60,18 @@ function sanitizeProfileTabData(tabKey, rawData) {
 }
 
 function registerStudentProfileIpc(ipcMain) {
-    handleRead(ipcMain, 'studentProfile:getAllTabs', (db, studentCode, schoolYear) => {
+    handleAuthedRead(ipcMain, 'studentProfile:getAllTabs', ({ db, event }, studentCode, schoolYear) => {
         const code = String(studentCode || '').trim();
-        const year = normalizeYear(schoolYear);
         if (!code) return [];
-        return db
-            .prepare('SELECT * FROM student_profile_data WHERE student_code = ? AND school_year = ?')
-            .all(code, year);
+        return studentProfileRepo.listProfileTabs(
+            db,
+            code,
+            normalizeYear(schoolYear),
+            resolveCycleForRequest(db, event)
+        );
     });
 
-    handleWriteSoftAuth(ipcMain, 'studentProfile:saveTab', WRITE_ROLES, (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'studentProfile:saveTab', WRITE_ROLES, ({ db, event }, payload) => {
         requireFields(payload, ['student_code', 'tab_key', 'school_year']);
         requireSchoolYear(payload.school_year);
 
@@ -84,28 +88,18 @@ function registerStudentProfileIpc(ipcMain) {
         }
         const dataJson = sanitized.data;
 
-        db.prepare(`
-            INSERT INTO student_profile_data (student_id, student_code, tab_key, data_json, school_year, updated_at, updated_by)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-            ON CONFLICT(student_code, tab_key, school_year) DO UPDATE SET
-                data_json = excluded.data_json,
-                updated_at = CURRENT_TIMESTAMP,
-                updated_by = excluded.updated_by
-        `).run(
-            Number(payload.student_id) || 0,
-            studentCode,
-            tabKey,
+        return studentProfileRepo.saveProfileTab(
+            db,
+            { ...payload, student_code: studentCode, tab_key: tabKey },
             dataJson,
-            payload.school_year,
-            payload.updated_by || null
+            resolveCycleForRequest(db, event)
         );
-        return { success: true };
-    });
+    }, { withContext: true });
 
     // ── Persisted risk snapshot (H3/R7) ──
     // Upserts the computed dropout-risk score/level keyed by
     // (student_code, school_year). Mirrors the saveTab auth + validation shape.
-    handleWriteSoftAuth(ipcMain, 'studentProfile:saveRiskSnapshot', WRITE_ROLES, (db, payload) => {
+    handleWriteSoftAuth(ipcMain, 'studentProfile:saveRiskSnapshot', WRITE_ROLES, ({ db, event }, payload) => {
         requireFields(payload, ['student_code', 'school_year']);
         requireSchoolYear(payload.school_year);
 
@@ -114,45 +108,8 @@ function registerStudentProfileIpc(ipcMain) {
             return { success: false, error: 'Invalid student_code' };
         }
 
-        const rawScore = Number(payload.risk_score);
-        const riskScore = Number.isFinite(rawScore) ? Math.round(rawScore) : null;
-        const riskLevel = payload.risk_level != null ? String(payload.risk_level).slice(0, 50) : null;
-
-        // student_id now sits behind a FK (student_id → students(id), migration 065), so
-        // it must reference a real student or be NULL — never the legacy 0 sentinel.
-        // Prefer a valid provided id, else resolve from (student_code, school_year).
-        let riskStudentId = Number(payload.student_id);
-        if (!Number.isFinite(riskStudentId) || riskStudentId <= 0) {
-            riskStudentId = null;
-        } else if (!db.prepare('SELECT 1 FROM students WHERE id = ?').get(riskStudentId)) {
-            riskStudentId = null;
-        }
-        if (riskStudentId == null) {
-            const resolvedStudent = db
-                .prepare('SELECT id FROM students WHERE code = ? AND school_year = ?')
-                .get(studentCode, payload.school_year);
-            riskStudentId = resolvedStudent ? resolvedStudent.id : null;
-        }
-
-        db.prepare(`
-            INSERT INTO student_risk_snapshot (student_id, student_code, risk_score, risk_level, school_year, updated_at, updated_by)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-            ON CONFLICT(student_code, school_year) DO UPDATE SET
-                student_id = excluded.student_id,
-                risk_score = excluded.risk_score,
-                risk_level = excluded.risk_level,
-                updated_at = CURRENT_TIMESTAMP,
-                updated_by = excluded.updated_by
-        `).run(
-            riskStudentId,
-            studentCode,
-            riskScore,
-            riskLevel,
-            payload.school_year,
-            payload.updated_by || null
-        );
-        return { success: true };
-    });
+        return studentProfileRepo.saveRiskSnapshot(db, payload, resolveCycleForRequest(db, event));
+    }, { withContext: true });
 }
 
 module.exports = { registerStudentProfileIpc };

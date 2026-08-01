@@ -79,7 +79,7 @@ const BackupManager = {
             const backup = {
                 id: Date.now(),
                 date: new Date().toISOString(),
-                formatVersion: 1,
+                formatVersion: 2,
                 type: 'manual',
                 data: {}
             };
@@ -133,7 +133,10 @@ const BackupManager = {
                         format: 'sqljs-base64',
                         dbBase64: dbResult.data.dbBase64,
                         byteLength: Number(dbResult.data.byteLength || 0),
-                        createdAt: dbResult.data.createdAt || new Date().toISOString()
+                        createdAt: dbResult.data.createdAt || new Date().toISOString(),
+                        cycleInventory: dbResult.data.cycleInventory || [],
+                        cycleInventoryKnown: dbResult.data.cycleInventoryKnown !== false,
+                        contractVersions: dbResult.data.contractVersions || {}
                     };
                     console.log('[backup] createBackup: DB included, size:', dbResult.data.byteLength, 'bytes');
                 }
@@ -240,10 +243,23 @@ const BackupManager = {
 
                         const restorePayload = {
                             dbBase64: backup.database.dbBase64,
-                            expectedByteLength: Number(backup.database.byteLength || 0)
+                            expectedByteLength: Number(backup.database.byteLength || 0),
+                            metadata: {
+                                cycleInventory: backup.cycleInventory || backup.database.cycleInventory || [],
+                                cycleInventoryKnown: backup.cycleInventoryKnown ?? backup.database.cycleInventoryKnown,
+                                contractVersions: backup.contractVersions || backup.database.contractVersions || {}
+                            },
+                            replaceAllCycles: backup.replaceAllCycles === true
                         };
                         console.log('[backup] restoreFromFile: calling IPC restoreDb, payload size:', backup.database.dbBase64.length);
                         let dbResult = await window.api.system.restoreDb(restorePayload);
+                        if (dbResult?.code === 'BACKUP_CYCLE_REPLACEMENT_REQUIRED' && typeof window.confirm === 'function') {
+                            const confirmed = window.confirm('تختلف أسلاك النسخة عن التثبيت الحالي. هل تعلن الاستبدال الكامل لجميع الأسلاك؟');
+                            if (confirmed) {
+                                restorePayload.replaceAllCycles = true;
+                                dbResult = await window.api.system.restoreDb(restorePayload);
+                            }
+                        }
                         console.log('[backup] restoreFromFile: IPC result:', dbResult?.success, dbResult?.error || '');
 
                         if (

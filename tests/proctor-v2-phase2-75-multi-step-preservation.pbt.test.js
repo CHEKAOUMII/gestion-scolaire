@@ -815,6 +815,14 @@ var snapshotPayload = {
 // Sort keys recursively so the snapshot is stable across runs (insertion
 // order would vary because mulberry32 calls inside V2 hit Object.keys
 // at non-deterministic insertion times).
+function normalizeEmptyWarningShape(observation) {
+  var copy = JSON.parse(JSON.stringify(observation));
+  if (Array.isArray(copy.coverageRepairWarnings) && copy.coverageRepairWarnings.length === 0) {
+    copy.coverageRepairWarnings = {};
+  }
+  return copy;
+}
+
 function canonicalize(value) {
   if (value === null) return null;
   if (Array.isArray(value)) {
@@ -847,8 +855,8 @@ if (!fs.existsSync(snapshotPath)) {
   // observation. If the snapshot already exists and the new run
   // differs, V2's behavior on F has changed — surface it loudly.
   var existing = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
-  var existingCanonical = JSON.stringify(canonicalize(existing.observation));
-  var newCanonical = JSON.stringify(canonicalize(snapshotPayload.observation));
+  var existingCanonical = JSON.stringify(canonicalize(normalizeEmptyWarningShape(existing.observation)));
+  var newCanonical = JSON.stringify(canonicalize(normalizeEmptyWarningShape(snapshotPayload.observation)));
   if (existingCanonical !== newCanonical) {
     // Print a small diff context for human review.
     console.log('  canonical snapshot DRIFT detected on F:');

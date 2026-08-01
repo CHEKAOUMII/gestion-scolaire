@@ -1,11 +1,184 @@
-const { handleRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { handleAuthedRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+const { resolveCycleForRequest } = require('../auth/resolve-cycle');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields } = require('./validation');
+const { getCycleDefinition } = require('../../js/shared/education/cycles');
+
+const ADMINISTRATIVE_REPORT_ROLES = new Set(['admin', 'principal', 'developer']);
+const ALL_CYCLE_VALUES = new Set(['all', 'all_cycles', 'all-cycles']);
+
+function reportError(message, code) {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+}
+
+function parseReportRequest(schoolYearOrContext) {
+    if (schoolYearOrContext && typeof schoolYearOrContext === 'object') {
+        return {
+            schoolYear: schoolYearOrContext.schoolYear,
+            cycleCode: String(schoolYearOrContext.cycleCode || '').trim() || null
+        };
+    }
+    return { schoolYear: schoolYearOrContext, cycleCode: null };
+}
+
+function rejectAllCycleWrite(payload) {
+    const requested = String(payload?.scope || payload?.cycle_code || payload?.cycleCode || '').trim().toLowerCase();
+    if (ALL_CYCLE_VALUES.has(requested)) {
+        throw reportError('عمليات الكتابة تتطلب تحديد سلك واحد', 'ALL_CYCLES_WRITE_FORBIDDEN');
+    }
+}
+
+function getKnownCycleCodes(db, fallbackCycle) {
+    try {
+        const rows = db.prepare(
+            `SELECT cycle_code FROM institution_cycles WHERE cycle_code IS NOT NULL AND TRIM(cycle_code) <> '' ORDER BY sort_order, cycle_code`
+        ).all();
+        const codes = rows.map((row) => String(row.cycle_code).trim()).filter(Boolean);
+        if (codes.length) return [...new Set([...codes, fallbackCycle])];
+    } catch {
+        // Single-cycle installations may not have institution_cycles yet.
+    }
+    return [fallbackCycle];
+}
+
+function resolveReportScope(db, event, session, request) {
+    const activeCycle = resolveCycleForRequest(db, event);
+    const requestedCycle = request.cycleCode;
+    if (requestedCycle && ALL_CYCLE_VALUES.has(requestedCycle.toLowerCase())) {
+        if (!ADMINISTRATIVE_REPORT_ROLES.has(session?.role)) {
+            throw reportError('التقرير المجمع بين الأسلاك مخصص للإدارة فقط', 'ALL_CYCLES_REPORT_FORBIDDEN');
+        }
+        return {
+            cycleCode: 'all',
+            cycleCodes: getKnownCycleCodes(db, activeCycle),
+            label: 'تقرير إداري مجمع — جميع الأسلاك',
+            administrative: true
+        };
+    }
+
+    if (requestedCycle && requestedCycle !== activeCycle) {
+        throw reportError('السلك المطلوب لا يطابق السلك النشط للجلسة', 'REPORT_CYCLE_MISMATCH');
+    }
+    const definition = getCycleDefinition(activeCycle);
+    return {
+        cycleCode: activeCycle,
+        cycleCodes: [activeCycle],
+        label: definition?.labelAr || activeCycle,
+        administrative: false
+    };
+}
+
+function normalizeTimetableName(value) {
+    return String(value || '')
+        .replace(/_/g, ' ')
+        .replace(/[\u064B-\u065F\u0670]/g, '')
+        .replace(/\bال/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+}
+
+function timetableTeacherKeys(data, teacherId, teacherName) {
+    const entries = new Map();
+    Object.entries(data?.teacherMetaByKey || {}).forEach(([key, entry]) => entries.set(key, entry || {}));
+    (Array.isArray(data?.teachers) ? data.teachers : []).forEach((entry) => {
+        const key = String(entry?.key || entry?.name || '').trim();
+        if (key && !entries.has(key)) entries.set(key, entry);
+    });
+    Object.keys(data?.timetables || {}).forEach((key) => {
+        if (!entries.has(key)) entries.set(key, { teacherName: key });
+    });
+
+    const id = Number(teacherId) || null;
+    const name = String(teacherName || '').trim();
+    const normalized = normalizeTimetableName(name);
+    const fields = (key, entry) => [
+        entry?.teacherName,
+        entry?.displayName,
+        entry?.sourceDisplayName,
+        entry?.sourceName,
+        key.replace(/^tafwij:/, '').replace(/_/g, ' ')
+    ];
+    const byId = id ? [...entries].filter(([, entry]) => Number(entry?.teacherId) === id).map(([key]) => key) : [];
+    if (byId.length) return byId;
+    const exact = [...entries].filter(([key, entry]) => fields(key, entry).some((value) => String(value || '').trim() === name)).map(([key]) => key);
+    if (exact.length) return exact;
+    return [...entries]
+        .filter(([key, entry]) => fields(key, entry).some((value) => {
+            const candidate = normalizeTimetableName(value);
+            return candidate && normalized && (candidate === normalized || candidate.includes(normalized) || normalized.includes(candidate));
+        }))
+        .map(([key]) => key);
+}
+
+function hasScheduledSession(data, teacherId, teacherName, date, period) {
+    const dateValue = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(dateValue.getTime())) return false;
+    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const dayName = dayNames[dateValue.getDay()];
+    const keys = timetableTeacherKeys(data, teacherId, teacherName);
+    const periods = period === 'morning' || period === 'afternoon' ? [period] : ['morning', 'afternoon'];
+    return keys.some((key) => periods.some((periodName) => {
+        const hours = data?.timetables?.[key]?.[dayName]?.[periodName];
+        return hours && Object.values(hours).some((lesson) => lesson && typeof lesson === 'object' && (lesson.subject || lesson.students));
+    }));
+}
+
+function getLinkedSessionCycles(db, year, record, cycleCodes) {
+    const table = (() => {
+        try {
+            return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'timetable_data'").get();
+        } catch {
+            return null;
+        }
+    })();
+    if (!table) return [];
+
+    const rows = db.prepare('SELECT cycle_code, data_json FROM timetable_data WHERE school_year = ?').all(year);
+    const allowed = new Set(cycleCodes);
+    return rows
+        .filter((row) => allowed.has(String(row.cycle_code || '').trim()))
+        .filter((row) => {
+            try {
+                return hasScheduledSession(
+                    JSON.parse(row.data_json || '{}'),
+                    record.teacher_id,
+                    record.full_name || record.teacher_name,
+                    record.attendance_date || record.absence_date,
+                    record.absence_period || 'full_day'
+                );
+            } catch {
+                return false;
+            }
+        })
+        .map((row) => String(row.cycle_code).trim())
+        .filter(Boolean);
+}
+
+function annotateLinkedSession(record, db, year, cycleCodes) {
+    const linkedCodes = [...new Set(getLinkedSessionCycles(db, year, record, cycleCodes))];
+    const labels = linkedCodes.map((code) => getCycleDefinition(code)?.labelAr || code);
+    return {
+        ...record,
+        linked_session_cycle_codes: linkedCodes,
+        linked_session_cycle_labels: labels,
+        linked_session_cycle_label: labels.length === 1 ? labels[0] : labels.join('، '),
+        cycle_resolution: labels.length === 1 ? 'linked' : labels.length > 1 ? 'multiple' : 'unresolved'
+    };
+}
 
 function registerDailyReportIpc(ipcMain) {
-    handleRead(ipcMain, 'dailyReport:getData', (db, date, schoolYear) => {
-        const year = normalizeYear(schoolYear);
+    // Teachers, staff attendance and school events stay institution-wide; the grades and
+    // students lookups below are cycle-scoped and resolve the cycle from the session.
+    handleAuthedRead(ipcMain, 'dailyReport:getData', ({ db, event, session }, date, schoolYearOrContext) => {
+        const request = parseReportRequest(schoolYearOrContext);
+        const year = normalizeYear(request.schoolYear);
+        const reportScope = resolveReportScope(db, event, session, request);
+        const cyclePlaceholders = reportScope.cycleCodes.map(() => '?').join(', ');
+        const cycleParams = reportScope.cycleCodes;
 
         // 1. Teacher absences from teacher_absences table (legacy)
         const absences = db
@@ -45,12 +218,12 @@ function registerDailyReportIpc(ipcMain) {
                         `
                     SELECT teacher_id, teacher_name, subject
                     FROM grades
-                    WHERE school_year = ?
+                    WHERE school_year = ? AND cycle_code IN (${cyclePlaceholders})
                       AND subject IS NOT NULL AND TRIM(subject) <> ''
                       AND ((teacher_id IS NOT NULL AND teacher_id > 0) OR (teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''))
                 `
                     )
-                    .all(year);
+                    .all(year, ...cycleParams);
                 for (const row of gs) {
                     const key = row.teacher_id ? `id:${row.teacher_id}` : `name:${row.teacher_name}`;
                     const current = gradeSubjects.get(key);
@@ -71,21 +244,22 @@ function registerDailyReportIpc(ipcMain) {
         }
 
         // Separate into absences and tardiness
-        const staffAbsences = staffRecords.filter((r) => r.type === 'absence');
-        const staffTardiness = staffRecords.filter((r) => r.type === 'late');
+        const staffAbsences = staffRecords.filter((r) => r.type === 'absence').map((record) => annotateLinkedSession(record, db, year, reportScope.cycleCodes));
+        const staffTardiness = staffRecords.filter((r) => r.type === 'late').map((record) => annotateLinkedSession(record, db, year, reportScope.cycleCodes));
+        const linkedLegacyAbsences = absences.map((record) => annotateLinkedSession(record, db, year, reportScope.cycleCodes));
 
         // 2. Teacher → sections mapping (derived from grades)
         const teacherSectionRows = db
             .prepare(
                 `
-            SELECT teacher_id, teacher_name, section
+            SELECT teacher_id, teacher_name, section, cycle_code
             FROM grades
-            WHERE school_year = ?
+            WHERE school_year = ? AND cycle_code IN (${cyclePlaceholders})
               AND section IS NOT NULL AND TRIM(section) <> ''
               AND ((teacher_id IS NOT NULL AND teacher_id > 0) OR (teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''))
         `
             )
-            .all(year);
+            .all(year, ...cycleParams);
 
         const teacherSections = {};
         for (const row of teacherSectionRows) {
@@ -112,13 +286,13 @@ function registerDailyReportIpc(ipcMain) {
                 `
             SELECT section, COUNT(*) as count
             FROM students
-            WHERE school_year = ? AND status = 'active'
+            WHERE school_year = ? AND cycle_code IN (${cyclePlaceholders}) AND status = 'active'
               AND section IS NOT NULL AND TRIM(section) <> ''
-            GROUP BY section
-            ORDER BY section
+            GROUP BY cycle_code, section
+            ORDER BY cycle_code, section
         `
             )
-            .all(year);
+            .all(year, ...cycleParams);
 
         const sectionStudentCounts = {};
         for (const row of sectionRows) {
@@ -130,7 +304,7 @@ function registerDailyReportIpc(ipcMain) {
 
         // 5. Affected sections — combine legacy absences + new staff absences
         const affectedSections = {};
-        const allAbsenceRecords = [...absences, ...staffAbsences];
+        const allAbsenceRecords = [...linkedLegacyAbsences, ...staffAbsences];
         for (const absence of allAbsenceRecords) {
             const name = absence.full_name;
             const teacherKey = absence.teacher_id ? `id:${absence.teacher_id}` : `name:${name}`;
@@ -199,9 +373,15 @@ function registerDailyReportIpc(ipcMain) {
         }
 
         return {
-            absences,
+            absences: linkedLegacyAbsences,
             staffAbsences,
             staffTardiness,
+            reportContext: {
+                cycleCode: reportScope.cycleCode,
+                cycleCodes: reportScope.cycleCodes,
+                label: reportScope.label,
+                administrative: reportScope.administrative
+            },
             teacherSections,
             sectionStudentCounts,
             allSections,
@@ -214,6 +394,11 @@ function registerDailyReportIpc(ipcMain) {
     // ── School Events CRUD ──
 
     handleWriteSoftAuth(ipcMain, 'schoolEvents:save', WRITE_ROLES, (db, payload) => {
+        try {
+            rejectAllCycleWrite(payload);
+        } catch (error) {
+            return { success: false, code: error.code, error: error.message };
+        }
         const { id, event_date, event_type, details, event_time, school_year } = payload;
         requireFields(payload, ['event_date', 'event_type', 'school_year']);
         const year = requireSchoolYear(school_year);
@@ -241,10 +426,22 @@ function registerDailyReportIpc(ipcMain) {
     });
 
     handleWriteSoftAuth(ipcMain, 'schoolEvents:delete', WRITE_ROLES, (db, eventId) => {
-        if (!eventId) return { success: false, error: 'Invalid ID' };
-        db.prepare('DELETE FROM school_events WHERE id = ?').run(eventId);
+        try {
+            if (eventId && typeof eventId === 'object') rejectAllCycleWrite(eventId);
+        } catch (error) {
+            return { success: false, code: error.code, error: error.message };
+        }
+        if (!eventId || (typeof eventId === 'object' && !eventId.id)) return { success: false, error: 'Invalid ID' };
+        const resolvedEventId = typeof eventId === 'object' ? eventId.id : eventId;
+        db.prepare('DELETE FROM school_events WHERE id = ?').run(resolvedEventId);
         return { success: true };
     });
 }
 
-module.exports = { registerDailyReportIpc };
+module.exports = {
+    registerDailyReportIpc,
+    parseReportRequest,
+    resolveReportScope,
+    annotateLinkedSession,
+    rejectAllCycleWrite
+};

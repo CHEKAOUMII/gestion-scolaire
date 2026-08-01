@@ -1,5 +1,8 @@
 const getActiveSchoolYear = () => (typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026');
 let teachers = [];
+let assignments = [];
+let assignmentReviewQueue = [];
+let canManageAssignments = false;
 let filtered = [];
 const PAGE_SIZE = 20;
 let currentPage = 1;
@@ -9,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupForm();
     setupFilters();
     setupDetailPanel();
+    setupAssignmentReviewInteractions();
     setupTableInteractions();
     setupPrint();
 });
@@ -127,8 +131,20 @@ function setupPrint() {
 
 async function loadTeachers() {
     const year = getActiveSchoolYear();
-    const result = await window.api.teachers.getAll(year);
+    const role = typeof getCurrentAppRole === 'function' ? getCurrentAppRole() : '';
+    canManageAssignments = ['admin', 'principal', 'developer'].includes(String(role || '').toLowerCase());
+    const includeReview = canManageAssignments;
+    const scopedReader = window.api.teachers.getScoped;
+    const result = scopedReader ? await scopedReader(year, { includeReview }) : await window.api.teachers.getAll(year);
     teachers = Array.isArray(result) ? result : [];
+    assignments = [];
+    if (window.api.teachers.getAssignments) {
+        const assignmentResult = await window.api.teachers.getAssignments(year, { includeReview });
+        assignments = Array.isArray(assignmentResult) ? assignmentResult : [];
+    }
+    assignmentReviewQueue = canManageAssignments && window.api.teachers.getReviewQueue
+        ? ((await window.api.teachers.getReviewQueue(year)) || [])
+        : [];
     // Precompute the translated specialty label once per teacher to avoid
     // recomputing it on every filter keystroke / render.
     teachers.forEach((t) => {
@@ -138,6 +154,7 @@ async function loadTeachers() {
     populateDropdowns();
     applyFilters();
     updateStats();
+    renderAssignmentReviewQueue();
 }
 
 function isSurplusTeacher(t) {
@@ -353,6 +370,13 @@ function createTeacherRow(teacher, rowNumber) {
     const nameStrong = document.createElement('strong');
     nameStrong.textContent = teacher.full_name || '';
     nameCell.appendChild(nameStrong);
+    if (teacher.is_institution_wide || teacher.scope_type === 'institution_wide') {
+        const scopeBadge = document.createElement('span');
+        scopeBadge.className = 'badge badge-cadre';
+        scopeBadge.textContent = 'مشترك على مستوى المؤسسة';
+        nameCell.appendChild(document.createTextNode(' '));
+        nameCell.appendChild(scopeBadge);
+    }
 
     if (isFemale(teacher)) {
         const iconEl = document.createElement('i');
@@ -498,10 +522,169 @@ function teachersGotoPage(page) {
 }
 
 /* ─── Detail Panel ─── */
+function createReviewButton(label, action, index, extra = {}) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `btn ${action === 'reject' ? 'btn-secondary' : 'btn-success'}`;
+    button.textContent = label;
+    button.dataset.reviewAction = action;
+    button.dataset.reviewIndex = String(index);
+    if (extra.targetCycle) button.dataset.targetCycle = extra.targetCycle;
+    return button;
+}
+
+function renderAssignmentReviewQueue() {
+    const section = document.getElementById('assignment-review-section');
+    const list = document.getElementById('assignment-review-list');
+    const counter = document.getElementById('assignment-review-counter');
+    if (!section || !list || !canManageAssignments) {
+        if (section) section.hidden = true;
+        return;
+    }
+    section.hidden = assignmentReviewQueue.length === 0;
+    if (counter) counter.textContent = String(assignmentReviewQueue.length);
+    if (!assignmentReviewQueue.length) {
+        list.replaceChildren();
+        return;
+    }
+
+    list.replaceChildren(
+        ...assignmentReviewQueue.map((item, index) => {
+            const card = document.createElement('article');
+            card.className = 'detail-field full-width';
+            card.dataset.reviewIndex = String(index);
+
+            const heading = document.createElement('strong');
+            heading.textContent = item.queue_type === 'assignment'
+                ? `${item.teacher_name || 'أستاذ غير محدد'} — ${item.cycle_code || ''}`
+                : `مطابقة غير محسومة: ${item.teacher_name || 'اسم غير محدد'} — ${item.cycle_code || ''}`;
+            card.appendChild(heading);
+
+            const description = document.createElement('p');
+            description.className = 'field-value';
+            const parts = [item.level_code, item.section, item.subject_label || item.subject_code].filter(Boolean);
+            description.textContent = parts.join(' — ') || 'تفاصيل التعيين غير مكتملة';
+            card.appendChild(description);
+
+            const metadata = document.createElement('small');
+            metadata.className = 'text-[var(--text-muted)]';
+            const source = item.source_file_name ? `المصدر: ${item.source_file_name}` : `المصدر: ${item.source || 'غير محدد'}`;
+            const decision = item.decided_at
+                ? `القرار: ${item.decision_source || 'غير محدد'} — ${item.decided_at}`
+                : `الحالة: ${item.resolution === 'ambiguous' ? 'مطابقة غامضة' : 'تحتاج اختياراً'}`;
+            metadata.textContent = `${source} | ${decision}${item.grade_count ? ` | عدد سجلات النقط: ${item.grade_count}` : ''}`;
+            card.appendChild(metadata);
+
+            const actions = document.createElement('div');
+            actions.className = 'actions-row';
+            if (item.queue_type === 'assignment') {
+                actions.appendChild(createReviewButton('اعتماد', 'confirm', index));
+                actions.appendChild(createReviewButton('رفض', 'reject', index));
+                actions.appendChild(
+                    createReviewButton('نقل للسلك الآخر', 'confirm', index, {
+                        targetCycle: item.cycle_code === 'secondary_collegial' ? 'secondary_qualifiant' : 'secondary_collegial'
+                    })
+                );
+            } else {
+                const select = document.createElement('select');
+                select.className = 'gs-field-control assignment-review-teacher-select';
+                select.dataset.reviewIndex = String(index);
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'اختر الأستاذ الصحيح قبل الحفظ';
+                select.appendChild(placeholder);
+                (item.candidates || []).forEach((candidate) => {
+                    const option = document.createElement('option');
+                    option.value = String(candidate.id);
+                    option.textContent = `${candidate.full_name || ''}${candidate.ppr ? ` — ${candidate.ppr}` : ''}`;
+                    select.appendChild(option);
+                });
+                actions.appendChild(select);
+                actions.appendChild(createReviewButton('حسم المطابقة وإنشاء المرشح', 'resolve', index));
+            }
+            card.appendChild(actions);
+            return card;
+        })
+    );
+}
+
+function setupAssignmentReviewInteractions() {
+    const list = document.getElementById('assignment-review-list');
+    list?.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-review-action][data-review-index]');
+        if (!button) return;
+        const index = Number(button.dataset.reviewIndex);
+        const item = assignmentReviewQueue[index];
+        if (!item) return;
+        try {
+            let result;
+            if (button.dataset.reviewAction === 'resolve') {
+                const select = list.querySelector(`.assignment-review-teacher-select[data-review-index="${index}"]`);
+                const teacherId = Number(select?.value);
+                if (!teacherId) {
+                    showToast('اختر الأستاذ الصحيح أولاً', 'warning');
+                    return;
+                }
+                result = await window.api.teachers.resolveAssignmentReview({
+                    teacher_id: teacherId,
+                    teacher_name: item.teacher_name,
+                    school_year: item.school_year,
+                    cycle_code: item.cycle_code,
+                    level_code: item.level_code,
+                    section: item.section,
+                    subject_code: item.subject_code
+                });
+            } else {
+                result = await window.api.teachers.reviewAssignment({
+                    assignment_id: item.assignment_id,
+                    confidence: button.dataset.reviewAction === 'reject' ? 'rejected' : 'confirmed',
+                    target_cycle_code: button.dataset.targetCycle || item.cycle_code
+                });
+            }
+            if (!result || result.success === false) throw new Error(result?.error || 'تعذر حفظ قرار المراجعة');
+            showToast('تم حفظ قرار المراجعة وتسجيل مصدره', 'success');
+            await loadTeachers();
+        } catch (error) {
+            showToast(error?.message || 'تعذر حفظ قرار المراجعة', 'error');
+        }
+    });
+}
+
 function setupDetailPanel() {
     document.getElementById('close-detail').addEventListener('click', closeDetail);
     document.getElementById('detail-overlay').addEventListener('click', (e) => {
         if (e.target === e.currentTarget) closeDetail();
+    });
+    document.getElementById('detail-body')?.addEventListener('click', async (event) => {
+        const scopeButton = event.target.closest('[data-scope-action][data-teacher-id]');
+        if (scopeButton && window.api.teachers.setScope) {
+            const result = await window.api.teachers.setScope({
+                teacher_id: Number(scopeButton.dataset.teacherId),
+                scope_type: scopeButton.dataset.scopeAction
+            });
+            if (!result || result.success === false) {
+                showToast(result?.error || 'تعذر تحديث نطاق الموظف', 'error');
+                return;
+            }
+            showToast('تم تحديث نطاق الموظف', 'success');
+            await loadTeachers();
+            showDetail(Number(scopeButton.dataset.teacherId));
+            return;
+        }
+        const button = event.target.closest('[data-assignment-action][data-assignment-id]');
+        if (!button || !window.api.teachers.reviewAssignment) return;
+        const confidence = button.dataset.assignmentAction;
+        const assignmentId = Number(button.dataset.assignmentId);
+        const payload = { assignment_id: assignmentId, confidence };
+        if (button.dataset.targetCycle) payload.target_cycle_code = button.dataset.targetCycle;
+        const result = await window.api.teachers.reviewAssignment(payload);
+        if (!result || result.success === false) {
+            showToast(result?.error || 'تعذر تحديث التعيين', 'error');
+            return;
+        }
+        showToast(confidence === 'confirmed' ? 'تم اعتماد التعيين' : 'تم رفض التعيين', 'success');
+        await loadTeachers();
+        showDetail(Number(document.getElementById('detail-panel')?.dataset?.teacherId || 0));
     });
 }
 
@@ -521,6 +704,7 @@ function showDetail(id) {
 
     document.getElementById('detail-name').textContent = t.full_name || '-';
     document.getElementById('detail-name-fr').textContent = t.full_name_fr || '';
+    document.getElementById('detail-panel').dataset.teacherId = String(t.id);
 
     const f = (label, value) =>
         value
@@ -541,7 +725,48 @@ function showDetail(id) {
             : '';
 
     const body = document.getElementById('detail-body');
+    const role = typeof getCurrentAppRole === 'function' ? getCurrentAppRole() : '';
+    const canReviewAssignments = ['admin', 'principal', 'developer'].includes(String(role || '').toLowerCase());
+    const teacherAssignments = assignments.filter((assignment) => Number(assignment.teacher_id) === Number(t.id));
+    const assignmentSection = teacherAssignments.length
+        ? `<div class="detail-section">
+                <h4><i class="fas fa-chalkboard-teacher"></i> التعيينات حسب السلك</h4>
+                <div class="detail-grid">
+                    ${teacherAssignments.map((assignment) => `
+                        <div class="detail-field full-width">
+                            <span class="field-label">${escapeHtml(assignment.cycle_code)} — ${escapeHtml(assignment.level_code || assignment.section || 'مستوى غير محدد')}</span>
+                            <span class="field-value">
+                                ${escapeHtml(assignment.subject_label || assignment.subject_code || 'مادة غير محددة')}
+                                ${assignment.section ? ` — ${escapeHtml(assignment.section)}` : ''}
+                                <strong> (${assignment.confidence === 'confirmed' ? 'معتمد' : assignment.confidence === 'rejected' ? 'مرفوض' : 'قيد المراجعة'})</strong>
+                                <small> — المصدر: ${escapeHtml(assignment.decision_source || assignment.source || 'غير محدد')}${assignment.decided_at ? `، بتاريخ ${escapeHtml(assignment.decided_at)}` : ''}${assignment.source_file_name ? `، الملف ${escapeHtml(assignment.source_file_name)}` : ''}</small>
+                                ${canReviewAssignments && assignment.confidence === 'review_required' ? `
+                                    <button type="button" class="btn btn-success" data-assignment-action="confirmed" data-assignment-id="${assignment.id}">اعتماد</button>
+                                    <button type="button" class="btn btn-secondary" data-assignment-action="rejected" data-assignment-id="${assignment.id}">رفض</button>
+                                    <button type="button" class="btn btn-secondary" data-assignment-action="confirmed" data-assignment-id="${assignment.id}" data-target-cycle="${assignment.cycle_code === 'secondary_collegial' ? 'secondary_qualifiant' : 'secondary_collegial'}">نقل للسلك الآخر</button>` : ''}
+                            </span>
+                        </div>`).join('')}
+                </div>
+            </div>`
+        : '';
+    const scopeSection = canReviewAssignments
+        ? `<div class="detail-section">
+                <h4><i class="fas fa-building"></i> نطاق الظهور التشغيلي</h4>
+                <div class="detail-grid">
+                    <div class="detail-field full-width">
+                        <span class="field-label">الوضع الحالي</span>
+                        <span class="field-value">${t.scope_type === 'institution_wide' ? 'مشترك على مستوى المؤسسة' : 'يحتاج تعيين تدريس مؤكد لكل سلك'}</span>
+                        <div class="actions-row">
+                            <button type="button" class="btn btn-secondary" data-scope-action="institution_wide" data-teacher-id="${t.id}">تصنيف مشترك مؤسسياً</button>
+                            <button type="button" class="btn btn-secondary" data-scope-action="teaching_assignment" data-teacher-id="${t.id}">إرجاع إلى نطاق التعيينات</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`
+        : '';
     body.innerHTML = `
+                            ${assignmentSection}
+                            ${scopeSection}
                             <div class="detail-section">
                                 <h4><i class="fas fa-id-badge"></i> المعلومات الإدارية</h4>
                                 <div class="detail-grid">

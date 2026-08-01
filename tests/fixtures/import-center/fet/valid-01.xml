@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Teachers_Timetable>
+  <Teacher name="Demo_Teacher_A">
+    <Day name="lundi_m">
+      <Hour name="1">
+        <Subject name="Math"/>
+        <Students name="1BACSE-1"/>
+        <Room name="S01"/>
+      </Hour>
+    </Day>
+  </Teacher>
+</Teachers_Timetable>

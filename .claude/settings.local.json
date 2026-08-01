@@ -45,7 +45,13 @@
       "Bash(echo \"exit: $?\")",
       "Bash(cp js/pages/settings-imports.js /tmp/si-backup.js)",
       "Bash(sed -i '324,935d' js/pages/settings-imports.js)",
-      "Bash(py --version)"
+      "Bash(py --version)",
+      "Bash(grep -v \"^app.js:1[0-9][0-9][0-9]:.*//\")",
+      "Bash(npm test *)",
+      "Bash(grep -n \"^#\\\\{2,4\\\\} \" multi-school-cycle-management-plan.md)",
+      "Bash(python -)",
+      "Bash(sed -i \"s#'./main/#'D:/gestionScholaire3/main/#g\" /tmp/probe.js && node /tmp/probe.js 2>&1 | grep -v Experimental | grep -v trace-warnings)",
+      "Bash(awk 'NR>=2540 && NR<=2820' js/pages/settings-imports.js)"
     ]
   },
   "enabledPlugins": {}

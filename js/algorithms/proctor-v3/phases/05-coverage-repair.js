@@ -59,6 +59,7 @@ var isExempt = hardConstraints.isExempt;
 var isOnDuty = hardConstraints.isOnDuty;
 var isMEBlocked = hardConstraints.isMEBlocked;
 var wouldDoubleBookSession = hardConstraints.wouldDoubleBookSession;
+var wouldConflictWithExternalResources = hardConstraints.wouldConflictWithExternalResources;
 var wouldViolateSameDay = hardConstraints.wouldViolateSameDay;
 var recordGuardOccupancy = hardConstraints.recordGuardOccupancy;
 var clearGuardOccupancy = hardConstraints.clearGuardOccupancy;
@@ -249,6 +250,9 @@ function canSwap(ctx, rowIndex, slotIndex, donorKey, recipientKey) {
 
     // Recipient must not double-book the session (across rows).
     if (wouldDoubleBookSession(ctx.loadState, recipientKey, row.session_key)) return false;
+    if (wouldConflictWithExternalResources(
+        ctx.loadState, recipientKey, row.session_key, row.halfday_key
+    )) return false;
 
     // C-NO-SAME-DAY for recipient (skipped when allowSameDay === true).
     if (wouldViolateSameDay(ctx.loadState, recipientKey, row.halfday_key, ctx.allowSameDay)) return false;

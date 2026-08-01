@@ -482,6 +482,167 @@ test('validateMoveTarget is equivalent with a prebuilt class timetable (T2 cache
     assert.strictEqual(cachedC.message, freshC.message, 'case C message mismatch');
 });
 
+// --- user-selectable move conditions (room availability optional) ---
+
+function makeRoomClashTimetables() {
+    // T1 owns the moved lesson (class 1BAC-1, room R1).
+    // T2 already occupies room R1 on الثلاثاء morning H1 with a *different* class,
+    // so only the room condition can block the move — teacher and class are free.
+    return {
+        T1: {
+            الاثنين: { morning: { H1: { subject: 'رياضيات', students: '1BAC-1', room: 'R1' } }, afternoon: {} },
+            الثلاثاء: emptyDay(),
+            الأربعاء: emptyDay(),
+            الخميس: emptyDay(),
+            الجمعة: emptyDay(),
+            السبت: emptyDay()
+        },
+        T2: {
+            الاثنين: emptyDay(),
+            الثلاثاء: { morning: { H1: { subject: 'فيزياء', students: '2BAC-3', room: 'R1' } }, afternoon: {} },
+            الأربعاء: emptyDay(),
+            الخميس: emptyDay(),
+            الجمعة: emptyDay(),
+            السبت: emptyDay()
+        }
+    };
+}
+
+function roomClashInput(extra) {
+    return Object.assign(
+        {
+            teacher: 'T1',
+            className: '1BAC-1',
+            room: 'R1',
+            sourceDay: 'الاثنين',
+            sourcePeriodType: 'morning',
+            sourcePeriods: ['H1'],
+            destDay: 'الثلاثاء',
+            destPeriod: 'H1',
+            destPeriodType: 'morning'
+        },
+        extra || {}
+    );
+}
+
+test('isRoomCheckEnabled maps the two condition modes', () => {
+    assert.strictEqual(Move.isRoomCheckEnabled(Move.MOVE_CONDITIONS.STRICT), true);
+    assert.strictEqual(Move.isRoomCheckEnabled(Move.MOVE_CONDITIONS.NO_ROOM), false);
+    // Unknown / missing mode must fail safe to the strict conditions.
+    assert.strictEqual(Move.isRoomCheckEnabled(undefined), true);
+    assert.strictEqual(Move.isRoomCheckEnabled('anything-else'), true);
+});
+
+test('strict conditions reject a move into an occupied room', () => {
+    const deps = depsFrom(makeRoomClashTimetables());
+    const result = Move.validateMoveTarget(roomClashInput({ checkRoom: true }), deps);
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.message.includes('القاعة'), 'expected room message, got: ' + result.message);
+});
+
+test('omitting checkRoom keeps the strict room condition (back-compat)', () => {
+    const deps = depsFrom(makeRoomClashTimetables());
+    const result = Move.validateMoveTarget(roomClashInput(), deps);
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.message.includes('القاعة'), 'expected room message, got: ' + result.message);
+});
+
+test('checkRoom:false allows the same move (room condition dropped)', () => {
+    const deps = depsFrom(makeRoomClashTimetables());
+    const result = Move.validateMoveTarget(roomClashInput({ checkRoom: false }), deps);
+    assert.strictEqual(result.valid, true, result.message);
+    assert.deepStrictEqual(result.destPeriods, ['H1']);
+});
+
+test('checkRoom:false still enforces teacher availability', () => {
+    const timetables = makeRoomClashTimetables();
+    // Teacher T1 is now busy at the destination with another class.
+    timetables.T1.الثلاثاء.morning.H1 = { subject: 'دعم', students: '1BAC-9', room: 'R7' };
+    const result = Move.validateMoveTarget(roomClashInput({ checkRoom: false }), depsFrom(timetables));
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.message.includes('الأستاذ'), 'expected teacher message, got: ' + result.message);
+});
+
+test('checkRoom:false still enforces class availability', () => {
+    const timetables = makeRoomClashTimetables();
+    // Another teacher already has class 1BAC-1 at the destination slot.
+    timetables.T2.الثلاثاء.morning.H1 = { subject: 'فيزياء', students: '1BAC-1', room: 'R1' };
+    const result = Move.validateMoveTarget(roomClashInput({ checkRoom: false }), depsFrom(timetables));
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.message.includes('القسم'), 'expected class message, got: ' + result.message);
+});
+
+test('checkRoom:false still enforces the no-gap rule for the class day', () => {
+    const timetables = makeRoomClashTimetables();
+    // Class 1BAC-1 also has H4 on الثلاثاء morning; landing on H1 leaves H2-H3 empty.
+    timetables.T2.الثلاثاء.morning.H4 = { subject: 'فيزياء', students: '1BAC-1', room: 'R9' };
+    const result = Move.validateMoveTarget(roomClashInput({ checkRoom: false }), depsFrom(timetables));
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.message.includes('فراغ'), 'expected gap message, got: ' + result.message);
+});
+
+test('cross-cycle teacher occupancy remains blocking when room checks are disabled', () => {
+    const deps = Object.assign({}, depsFrom(makeRoomClashTimetables()), {
+        isTeacherOccupied: () => ({ occupied: true })
+    });
+    const result = Move.validateMoveTarget(roomClashInput({ checkRoom: false }), deps);
+    assert.strictEqual(result.valid, false);
+    assert.ok(result.message.includes('الأستاذ'), 'expected teacher message, got: ' + result.message);
+});
+
+test('detectConflicts rejects an implicit or single-cycle scope', () => {
+    assert.throws(
+        () => Move.detectConflicts({ policyCycle: 'secondary_qualifiant', timetableEntries: [] }),
+        /scopeCycles/
+    );
+    assert.throws(
+        () => Move.detectConflicts({ scopeCycles: 'secondary_qualifiant', policyCycle: 'secondary_qualifiant' }),
+        /scopeCycles/
+    );
+});
+
+test('detectConflicts finds the same teacher in the other cycle', () => {
+    const entries = [
+        ['secondary_qualifiant', { timetables: {} }],
+        ['secondary_collegial', {
+            teacherMetaByKey: { other: { teacherId: 42 } },
+            timetables: { other: { الثلاثاء: { morning: { H1: { subject: 'فيزياء' } } } } }
+        }]
+    ];
+    const conflicts = Move.detectConflicts({
+        scopeCycles: 'all',
+        policyCycle: 'secondary_qualifiant',
+        timetableEntries: entries,
+        teacher: 'current',
+        teacherMatcher: (candidate, data) => data.teacherMetaByKey?.[candidate]?.teacherId === 42,
+        day: 'الثلاثاء',
+        periodType: 'morning',
+        period: 'H1'
+    });
+    assert.strictEqual(conflicts.length, 1);
+    assert.strictEqual(conflicts[0].type, 'teacher');
+    assert.strictEqual(conflicts[0].cycleCode, 'secondary_collegial');
+});
+
+test('detectConflicts treats rooms as shared across cycles', () => {
+    const conflicts = Move.detectConflicts({
+        scopeCycles: 'all',
+        policyCycle: 'secondary_qualifiant',
+        timetableEntries: [
+            ['secondary_collegial', { timetables: {
+                T2: { الثلاثاء: { morning: { H1: { room: 'R1' } } } }
+            } }]
+        ],
+        room: 'R1',
+        day: 'الثلاثاء',
+        periodType: 'morning',
+        period: 'H1'
+    });
+    assert.strictEqual(conflicts.length, 1);
+    assert.strictEqual(conflicts[0].type, 'room');
+    assert.strictEqual(conflicts[0].cycleCode, 'secondary_collegial');
+});
+
 if (process.exitCode) {
     console.error('\nSome timetable-move-logic tests failed');
     process.exit(1);

@@ -16,6 +16,70 @@
     // "band" to clamp H-keys against.
     var PERIODS = ['H1', 'H2', 'H3', 'H4'];
 
+    /**
+     * Which conditions a move must satisfy.
+     *
+     * - STRICT  : teacher availability + class availability + no class gap + room free
+     * - NO_ROOM : teacher availability + class availability + no class gap (room reuse allowed)
+     *
+     * Teacher/class availability and the "no gap in the class day" rule are always
+     * enforced — only the room-availability condition is user-selectable.
+     */
+    var MOVE_CONDITIONS = { STRICT: 'strict', NO_ROOM: 'no-room' };
+
+    function isRoomCheckEnabled(mode) {
+        return mode !== MOVE_CONDITIONS.NO_ROOM;
+    }
+
+    /**
+     * Detect resource conflicts across every supplied cycle timetable.
+     * `scopeCycles: 'all'` is mandatory because teacher and room resources are
+     * institution-wide even when policy rules belong to `policyCycle`.
+     */
+    function detectConflicts(request) {
+        if (!request || request.scopeCycles !== 'all') {
+            throw new TypeError("detectConflicts requires scopeCycles: 'all'");
+        }
+        if (typeof request.policyCycle !== 'string' || request.policyCycle.trim() === '') {
+            throw new TypeError('detectConflicts requires policyCycle');
+        }
+        if (!Array.isArray(request.timetableEntries)) return [];
+
+        var conflicts = [];
+        var entries = request.timetableEntries.slice().sort(function (a, b) {
+            return String(a && a[0]).localeCompare(String(b && b[0]));
+        });
+        var teacherMatcher = typeof request.teacherMatcher === 'function'
+            ? request.teacherMatcher
+            : function (candidateTeacher) { return candidateTeacher === request.teacher; };
+
+        for (var i = 0; i < entries.length; i += 1) {
+            var cycleCode = entries[i] && entries[i][0];
+            var timetableData = entries[i] && entries[i][1];
+            var timetables = timetableData && timetableData.timetables;
+            if (!timetables || typeof timetables !== 'object') continue;
+
+            var teacherKeys = Object.keys(timetables).sort();
+            for (var j = 0; j < teacherKeys.length; j += 1) {
+                var candidateTeacher = teacherKeys[j];
+                if (cycleCode === request.policyCycle && candidateTeacher === request.excludeTeacher) continue;
+                var teacherTimetable = timetables[candidateTeacher];
+                var slot = teacherTimetable && teacherTimetable[request.day]
+                    && teacherTimetable[request.day][request.periodType]
+                    && teacherTimetable[request.day][request.periodType][request.period];
+                if (!slot) continue;
+
+                if (request.teacher && teacherMatcher(candidateTeacher, timetableData, cycleCode)) {
+                    conflicts.push({ type: 'teacher', cycleCode: cycleCode, teacher: candidateTeacher, slot: slot });
+                }
+                if (request.room && slot.room === request.room) {
+                    conflicts.push({ type: 'room', cycleCode: cycleCode, teacher: candidateTeacher, slot: slot });
+                }
+            }
+        }
+        return conflicts;
+    }
+
     function buildTimetableSlotKey(day, periodType, period) {
         return day + '|' + periodType + '|' + period;
     }
@@ -95,6 +159,11 @@
 
     /**
      * Pure move validation.
+     *
+     * input.checkRoom — when explicitly `false`, the room-availability condition is
+     * skipped (see MOVE_CONDITIONS.NO_ROOM). Omitted/undefined keeps the strict
+     * behaviour, so existing call sites are unaffected.
+     *
      * deps: {
      *   getSlotData(teacher, day, period, periodType) -> activity|null
      *   isRoomOccupied(room, day, period, periodType, excludeTeacher) -> { occupied, ... }
@@ -112,6 +181,7 @@
         var destDay = input.destDay;
         var destPeriod = input.destPeriod;
         var destPeriodType = input.destPeriodType;
+        var checkRoom = input.checkRoom !== false;
 
         if (
             !teacher ||
@@ -162,8 +232,13 @@
         for (var i = 0; i < destPeriods.length; i++) {
             var period = destPeriods[i];
             var slotKey = buildTimetableSlotKey(destDay, destPeriodType, period);
-            var teacherActivity = getSlotData(teacher, destDay, period, destPeriodType);
-            if (teacherActivity && !sourceKeys.has(slotKey)) {
+            const teacherCheck = deps.isTeacherOccupied
+                ? deps.isTeacherOccupied(teacher, destDay, period, destPeriodType)
+                : getSlotData(teacher, destDay, period, destPeriodType);
+            const teacherOccupied = deps.isTeacherOccupied
+                ? Boolean(teacherCheck && (teacherCheck.occupied ?? teacherCheck))
+                : Boolean(teacherCheck);
+            if (teacherOccupied && !sourceKeys.has(slotKey)) {
                 return {
                     valid: false,
                     message: 'غير متاح: الأستاذ مشغول في ' + destDay + ' ' + period + '.'
@@ -191,7 +266,7 @@
                 }
             }
 
-            if (room) {
+            if (room && checkRoom) {
                 var roomCheck = isRoomOccupied(room, destDay, period, destPeriodType, teacher);
                 if (roomCheck && roomCheck.occupied) {
                     return {
@@ -260,6 +335,9 @@
 
     var api = {
         PERIODS: PERIODS,
+        MOVE_CONDITIONS: MOVE_CONDITIONS,
+        isRoomCheckEnabled: isRoomCheckEnabled,
+        detectConflicts: detectConflicts,
         buildTimetableSlotKey: buildTimetableSlotKey,
         getConsecutivePeriods: getConsecutivePeriods,
         buildPeriodRange: buildPeriodRange,

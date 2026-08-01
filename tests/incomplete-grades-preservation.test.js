@@ -1,5 +1,8 @@
 'use strict';
 
+// @pre-fix exploratory
+// This baseline assumes the retired coefficient=1 fallback. It is retained for
+// investigation with --only, but must not run as a release regression after S1.
 // Preservation property test — EXPECTED to PASS on UNFIXED code.
 //
 // Spec: .kiro/specs/incomplete-grades-averages-risk/
