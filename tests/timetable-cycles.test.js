@@ -112,12 +112,13 @@ async function main() {
     assert.ok(pageSource.includes('allCycles: true'));
     assert.ok(pageSource.includes('timetable-cycle-select'));
     assert.ok(pageSource.includes('setActive(select.value, getSchoolYear())'));
-    assert.ok(pageSource.includes("activeTimetableCycleCode !== 'secondary_qualifiant'"));
+    assert.ok(pageSource.includes("activeTimetableCycleCode !== EducationCycles.QUALIFIANT_CYCLE"));
     assert.ok(pageSource.includes('response?.success === false'));
     assert.ok(ipcSource.includes('getAllBySchoolYear'));
     assert.ok(ipcSource.includes("cycle.capability === 'supported'"));
     assert.ok(htmlSource.includes('id="timetable-cycle-select"'));
     assert.ok(htmlSource.includes('js/shared/timetable-cycles.js'));
+    assert.ok(htmlSource.includes('js/shared/education/cycles.js'), 'timetable.html loads the cycle catalog SSOT before timetable-cycles.js');
 
     console.log('timetable-cycles: OK');
 }

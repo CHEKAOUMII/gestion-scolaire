@@ -149,7 +149,7 @@
      * @returns {number|null}  `round2` of the weighted average, or `null` when
      *          `termGrades` is empty or yields no usable subject averages.
      */
-    function buildTermSubjectAverages(enteredGrades) {
+     function buildTermSubjectAverages(enteredGrades, context) {
         var ccBaseSubjectFn = getCcBaseSubject();
         var normalizeSubjectNameFn = getNormalizeSubjectName();
         var computeSubjectAverageFn = getComputeSubjectAverage();
@@ -172,7 +172,7 @@
         return Object.keys(bySubject).map(function (subject) {
             var grades = bySubject[subject];
             var average = typeof computeSubjectAverageFn === 'function'
-                ? computeSubjectAverageFn(subject, grades)
+                 ? computeSubjectAverageFn(subject, grades, context)
                 : grades.reduce(function (sum, grade) { return sum + Number(grade.grade); }, 0) / grades.length;
             return { subject: subject, avg: average };
         });
@@ -183,7 +183,7 @@
         var enteredGrades = termGrades.filter(function (g) { return isGradeEntered(g && g.grade); });
         if (!enteredGrades.length) return { ok: true, value: null, incomplete: false };
 
-        var subjectAverages = buildTermSubjectAverages(enteredGrades);
+         var subjectAverages = buildTermSubjectAverages(enteredGrades, context);
         if (!subjectAverages.length) return { ok: true, value: null, incomplete: false };
         var resolveAverage = getComputeWeightedGeneralAverageResult();
         if (typeof resolveAverage !== 'function') {

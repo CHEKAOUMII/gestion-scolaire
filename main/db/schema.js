@@ -1,5 +1,6 @@
 const { getDb } = require('./context');
 const { generateRandomPassword, hashPassword } = require('../auth/password');
+const { QUALIFIANT_CYCLE } = require('../../js/shared/education/cycles');
 
 // Create tables
 function createTables() {
@@ -38,7 +39,7 @@ function createTables() {
         level TEXT,
         section TEXT,
         school_year TEXT,
-        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+        cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
         teacher_resolution TEXT DEFAULT 'unresolved',
         source_file_name TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -66,7 +67,7 @@ function createTables() {
         days REAL DEFAULT 0,
         reason TEXT,
         school_year TEXT,
-        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+        cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -374,6 +375,11 @@ function createTables() {
 
     // ── Performance indexes ──
     // Almost every query filters by school_year; many JOIN on student_code.
+    // NOTE: the *_year_cycle indexes on exams/tests/student_profile_data/student_files/
+    // correspondence/student_movements are owned by migration 2026-07-077, which adds
+    // the cycle_code columns first. createTables() runs BEFORE migrations
+    // (main/db/init.js), so creating them here breaks startup on pre-077 databases
+    // where those tables exist without cycle_code.
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_students_year       ON students(school_year);
         CREATE INDEX IF NOT EXISTS idx_students_code_year   ON students(code, school_year);
@@ -385,12 +391,6 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_lookup ON teacher_aliases(school_year, alias_normalized);
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_teacher ON teacher_aliases(teacher_id, school_year);
         CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
-        CREATE INDEX IF NOT EXISTS idx_exams_year_cycle ON exams(school_year, cycle_code);
-        CREATE INDEX IF NOT EXISTS idx_tests_year_cycle ON tests(school_year, cycle_code);
-        CREATE INDEX IF NOT EXISTS idx_student_profile_year_cycle ON student_profile_data(school_year, cycle_code);
-        CREATE INDEX IF NOT EXISTS idx_student_files_year_cycle ON student_files(school_year, cycle_code);
-        CREATE INDEX IF NOT EXISTS idx_correspondence_year_cycle ON correspondence(school_year, cycle_code);
-        CREATE INDEX IF NOT EXISTS idx_student_movements_year_cycle ON student_movements(school_year, cycle_code);
         CREATE INDEX IF NOT EXISTS idx_system_logs_entity   ON system_logs(entity_type, created_at);
         CREATE INDEX IF NOT EXISTS idx_system_logs_action   ON system_logs(action, created_at);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
@@ -964,6 +964,122 @@ function ensureCycleReferenceSchema(existingDb) {
     `);
 }
 
+// Canonical DDL for stage rules management tables (029). Called by migration
+// 2026-08-078-stage-rules-management; not wired into createTables().
+function ensureStageRulesSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS stage_rule_sets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_year TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('draft','active','closed')),
+            created_by TEXT,
+            reason TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(school_year, revision)
+        );
+        CREATE INDEX IF NOT EXISTS idx_stage_rule_sets_school_year
+            ON stage_rule_sets(school_year);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_stage_rule_sets_one_active
+            ON stage_rule_sets(school_year) WHERE status = 'active';
+
+        CREATE TABLE IF NOT EXISTS subject_coefficients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_set_id INTEGER NOT NULL REFERENCES stage_rule_sets(id),
+            cycle_code TEXT NOT NULL,
+            level_code TEXT NOT NULL,
+            stream_code TEXT NOT NULL,
+            subject_code TEXT NOT NULL,
+            coefficient INTEGER NOT NULL CHECK(coefficient BETWEEN 1 AND 20),
+            source TEXT NOT NULL CHECK(source IN ('official','custom')),
+            updated_by TEXT,
+            reason TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(rule_set_id, cycle_code, level_code, stream_code, subject_code, source)
+        );
+        CREATE INDEX IF NOT EXISTS idx_subject_coefficients_rule_set
+            ON subject_coefficients(rule_set_id);
+
+        CREATE TABLE IF NOT EXISTS exam_count_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_set_id INTEGER NOT NULL REFERENCES stage_rule_sets(id),
+            cycle_code TEXT NOT NULL,
+            level_code TEXT NOT NULL,
+            subject_code TEXT NOT NULL,
+            exam_count INTEGER NOT NULL CHECK(exam_count BETWEEN 1 AND 12),
+            source TEXT NOT NULL CHECK(source IN ('official','custom')),
+            updated_by TEXT,
+            reason TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(rule_set_id, cycle_code, level_code, subject_code, source)
+        );
+        CREATE INDEX IF NOT EXISTS idx_exam_count_rules_rule_set
+            ON exam_count_rules(rule_set_id);
+
+        CREATE TABLE IF NOT EXISTS subject_weight_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_set_id INTEGER NOT NULL REFERENCES stage_rule_sets(id),
+            cycle_code TEXT NOT NULL,
+            subject_code TEXT NOT NULL,
+            exam_weight_bps INTEGER NOT NULL CHECK(exam_weight_bps BETWEEN 0 AND 10000),
+            activity_weight_bps INTEGER NOT NULL CHECK(activity_weight_bps BETWEEN 0 AND 10000),
+            source TEXT NOT NULL CHECK(source IN ('official','custom')),
+            updated_by TEXT,
+            reason TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CHECK(exam_weight_bps + activity_weight_bps = 10000),
+            UNIQUE(rule_set_id, cycle_code, subject_code, source)
+        );
+        CREATE INDEX IF NOT EXISTS idx_subject_weight_rules_rule_set
+            ON subject_weight_rules(rule_set_id);
+    `);
+}
+
+// Canonical DDL for stage profiles (S4, docs/plans/2026-08-02-multi-stage-school-architecture.md
+// rows 105-115). Called by migration 2026-08-082-cycle-profiles; not wired into createTables().
+//
+// `cycle_profiles` holds official, immutable stage profiles; the logical key is
+// (cycle_code, profile_version). The EFFECTIVE profile for a school year is decided
+// exclusively by `cycle_profile_assignments` — CYCLE_CATALOG.profileVersion and
+// institution_cycles.profile_version are seed/migration hints only.
+// `cycle_profile_assignments`: one row per (school_year, cycle_code); rule_set_id
+// MUST be non-null when the profile uses coefficients (and must point at the
+// active stage_rule_sets of the same school year) and MUST be NULL for
+// continuous-assessment profiles. The composite FK (cycle_code, profile_version)
+// → cycle_profiles pins every assignment to a real, immutable official profile;
+// the cross-table year check is enforced in the repo transaction and re-checked
+// in sync apply (three-layer consistency, plan row 113).
+function ensureCycleProfilesSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS cycle_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_code TEXT NOT NULL,
+            profile_version TEXT NOT NULL,
+            uses_coefficients INTEGER NOT NULL DEFAULT 1 CHECK(uses_coefficients IN (0, 1)),
+            assessment_model TEXT NOT NULL DEFAULT 'exams' CHECK(assessment_model IN ('exams','continuous','exams_activities')),
+            is_official INTEGER NOT NULL DEFAULT 1 CHECK(is_official IN (0, 1)),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(cycle_code, profile_version)
+        );
+
+        CREATE TABLE IF NOT EXISTS cycle_profile_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_year TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            profile_version TEXT NOT NULL,
+            rule_set_id INTEGER REFERENCES stage_rule_sets(id),
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(school_year, cycle_code),
+            FOREIGN KEY(cycle_code, profile_version)
+                REFERENCES cycle_profiles(cycle_code, profile_version)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cycle_profile_assignments_school_year
+            ON cycle_profile_assignments(school_year);
+    `);
+}
+
 function ensureColumn(table, column, definition) {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table) || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)) {
         throw new Error(`ensureColumn: invalid identifier — table="${table}", column="${column}"`);
@@ -984,6 +1100,8 @@ module.exports = {
     ensureInstitutionSchema,
     ensureInstitutionCyclesSchema,
     ensureCycleReferenceSchema,
+    ensureStageRulesSchema,
+    ensureCycleProfilesSchema,
     ensureLicensingSchema,
     ensureNotificationsSchema,
     ensureOwnerSyncSchema,

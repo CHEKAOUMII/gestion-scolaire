@@ -5,8 +5,9 @@
 const { threeWayMerge, computeRowChecksum } = require('../merge');
 const { SENSITIVE_FIELDS } = require('../capture');
 const { ENTITY_TYPE_REGISTRY } = require('../authority');
-const { getApplyHooks, findLocalIdByLogicalKeys, getRequiredColumns, getContractVersion } = require('../entity-registry');
+const { getApplyHooks, findLocalIdByLogicalKeys, getRequiredColumns, getContractVersion, checkAppVersionGate } = require('../entity-registry');
 const { logConflictForensics } = require('../conflict-forensics');
+const { checkCycleProfileConsistency } = require('../apply-hooks-stage-rules');
 const {
     filterToValidColumns,
     getValidColumns,
@@ -275,6 +276,29 @@ function applySingleItem(
                 requiredColumns: getRequiredColumns(item.tableName)
             });
             return;
+        }
+
+        // S4 sync version gate (plan row 112) — a device older than the entity's declared
+        // minAppVersion cannot interpret the row: quarantine before any write so the row
+        // replays once the device upgrades, while the pull cursor keeps advancing.
+        const versionGate = checkAppVersionGate(item.tableName);
+        if (!versionGate.allowed) {
+            recordPullQuarantine(db, stats, item, versionGate.reason, {
+                contractVersion: getContractVersion(item.tableName),
+                minAppVersion: versionGate.minAppVersion
+            });
+            return;
+        }
+
+        // S4 profile/assignment consistency revalidation (plan row 113) — mirrors the
+        // repository transaction checks; a quarantined row replays once its
+        // prerequisites (profile, rule set) exist locally.
+        if (item.operation === 'PUT') {
+            const profileFailure = checkCycleProfileConsistency(db, item);
+            if (profileFailure) {
+                recordPullQuarantine(db, stats, item, profileFailure.reason, profileFailure.extra || {});
+                return;
+            }
         }
         // Passed the gate — if this row was previously held, it can leave quarantine.
         // Done here rather than after the write so a later per-row failure still falls

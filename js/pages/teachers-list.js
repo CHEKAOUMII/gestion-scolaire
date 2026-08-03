@@ -3,11 +3,13 @@ let teachers = [];
 let assignments = [];
 let assignmentReviewQueue = [];
 let canManageAssignments = false;
+let usableCycles = [];
 let filtered = [];
 const PAGE_SIZE = 20;
 let currentPage = 1;
 
 document.addEventListener('DOMContentLoaded', async () => {
+    await loadUsableCycles();
     await loadTeachers();
     setupForm();
     setupFilters();
@@ -127,6 +129,22 @@ function setupPrint() {
             printDiv.style.display = 'none';
         }
     });
+}
+
+async function loadUsableCycles() {
+    if (!window.api?.cycles?.list) return;
+    try {
+        const response = await window.api.cycles.list();
+        usableCycles = response?.success && Array.isArray(response.cycles)
+            ? response.cycles.filter((cycle) => Number(cycle.is_active) && cycle.capability === 'supported')
+            : [];
+    } catch (err) {
+        console.warn('teachers-list: usable cycles unavailable:', err);
+    }
+}
+
+function otherUsableCycles(cycleCode) {
+    return usableCycles.filter((cycle) => cycle.cycle_code !== cycleCode);
 }
 
 async function loadTeachers() {
@@ -580,11 +598,13 @@ function renderAssignmentReviewQueue() {
             if (item.queue_type === 'assignment') {
                 actions.appendChild(createReviewButton('اعتماد', 'confirm', index));
                 actions.appendChild(createReviewButton('رفض', 'reject', index));
-                actions.appendChild(
-                    createReviewButton('نقل للسلك الآخر', 'confirm', index, {
-                        targetCycle: item.cycle_code === 'secondary_collegial' ? 'secondary_qualifiant' : 'secondary_collegial'
-                    })
-                );
+                otherUsableCycles(item.cycle_code).forEach((cycle) => {
+                    actions.appendChild(
+                        createReviewButton(`نقل إلى ${cycle.label_ar}`, 'confirm', index, {
+                            targetCycle: cycle.cycle_code
+                        })
+                    );
+                });
             } else {
                 const select = document.createElement('select');
                 select.className = 'gs-field-control assignment-review-teacher-select';
@@ -743,7 +763,8 @@ function showDetail(id) {
                                 ${canReviewAssignments && assignment.confidence === 'review_required' ? `
                                     <button type="button" class="btn btn-success" data-assignment-action="confirmed" data-assignment-id="${assignment.id}">اعتماد</button>
                                     <button type="button" class="btn btn-secondary" data-assignment-action="rejected" data-assignment-id="${assignment.id}">رفض</button>
-                                    <button type="button" class="btn btn-secondary" data-assignment-action="confirmed" data-assignment-id="${assignment.id}" data-target-cycle="${assignment.cycle_code === 'secondary_collegial' ? 'secondary_qualifiant' : 'secondary_collegial'}">نقل للسلك الآخر</button>` : ''}
+                                    ${otherUsableCycles(assignment.cycle_code).map((cycle) => `
+                                    <button type="button" class="btn btn-secondary" data-assignment-action="confirmed" data-assignment-id="${assignment.id}" data-target-cycle="${escapeHtml(cycle.cycle_code)}">نقل إلى ${escapeHtml(cycle.label_ar)}</button>`).join('')}` : ''}
                             </span>
                         </div>`).join('')}
                 </div>

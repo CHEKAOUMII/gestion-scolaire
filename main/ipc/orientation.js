@@ -225,6 +225,7 @@ function handleBulkUpsert(db, payload) {
             skipped: prepared.preSkipped,
             duplicatesInFile: prepared.duplicatesInFile,
             imported: 0,
+            unresolvedCycle: [],
             details: prepared.preSkipDetails,
             detailsTruncated: prepared.preSkipped > prepared.preSkipDetails.length
         };

@@ -524,6 +524,7 @@
         <script>
             const year = getSchoolYear();
             const CHART_JS_CDN = 'vendor/chart.min.js';
+            let stageRuleSetPayload = null;
             let allSections = [];
             let allGradesCache = [];
             let allStudentsCache = [];
@@ -601,6 +602,12 @@
             }
 
             document.addEventListener('DOMContentLoaded', async () => {
+                try {
+                    stageRuleSetPayload =
+                        typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year) : null;
+                } catch (error) {
+                    console.warn('[student-support] stage rule set unavailable:', error);
+                }
                 document.getElementById('print-btn').addEventListener('click', () => {
                     void exportPdf();
                 });

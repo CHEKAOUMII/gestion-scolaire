@@ -897,7 +897,7 @@ async function readActiveTimetable(schoolYear) {
 
 async function migrateLegacyTimetableData() {
     const legacyKey = TimetableCycles.TIMETABLE_LEGACY_STORAGE_KEY;
-    if (activeTimetableCycleCode !== 'secondary_qualifiant' && localStorage.getItem(legacyKey) != null) {
+    if (activeTimetableCycleCode !== EducationCycles.QUALIFIANT_CYCLE && localStorage.getItem(legacyKey) != null) {
         throw new Error('اختر السلك التأهيلي لترحيل جدول الاستعمال القديم بأمان');
     }
     const schoolYear = getSchoolYear();

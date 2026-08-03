@@ -83,7 +83,6 @@ async function scenarioSetupNewInstitutionForm({ window }) {
     await expectVisible(window, '#form-new-institution');
 
     for (const id of [
-        '#new-massar-code',
         '#new-institution-name',
         '#new-admin-name',
         '#new-admin-email',
@@ -298,7 +297,9 @@ async function scenarioDashboardSidebar({ window }) {
     // utils.js may rebuild .header into unified-header and drop #header-search;
     // assert the search box input instead of a fragile id.
     await expectVisible(window, '.search-box input, #header-search');
-    await expectVisible(window, '#user-email');
+    // The signed-in user is rendered in the sidebar auth block (#user-email
+    // only exists on settings-imports/settings-sync pages).
+    await expectVisible(window, '#sidebar-auth-name');
     await expectVisible(window, '#school-year, select#school-year');
 
     // Dashboard nav label (Arabic).
@@ -313,17 +314,17 @@ async function scenarioDashboardSidebar({ window }) {
         assert.ok((await link.count()) > 0, `Expected sidebar link to ${href}`);
     }
 
-    // Session reflected in header (name or email).
-    const userLabel = ((await window.locator('#user-email').textContent()) || '').trim();
-    assert.ok(userLabel.length > 0, 'user-email should not be empty');
+    // Session reflected in the sidebar auth block (name or email).
+    const userLabel = ((await window.locator('#sidebar-auth-name').textContent()) || '').trim();
+    assert.ok(userLabel.length > 0, 'sidebar-auth-name should not be empty');
     // Prefer seeded name, but role badge / email fallbacks are acceptable.
     const looksLikeUser =
         userLabel.includes(E2E_SEED.name) ||
         /e2e/i.test(userLabel) ||
         userLabel.includes('@') ||
         userLabel.length >= 2;
-    assert.ok(looksLikeUser, `Unexpected user-email label: ${userLabel}`);
-    console.log(`[e2e]   user-email UI: ${userLabel}`);
+    assert.ok(looksLikeUser, `Unexpected sidebar-auth-name label: ${userLabel}`);
+    console.log(`[e2e]   user label: ${userLabel}`);
 
     // School block in sidebar should exist (name may still be loading).
     await expectVisible(window, '#sidebar-school-name, #sidebar .school-details');

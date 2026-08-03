@@ -419,7 +419,7 @@
                         <div class="level-select-row">
                             <select class="form-select" id="level-select" style="font-size: 15px">
                                 <option value="">-- اختر مستوى --</option>
-                                <optgroup label="الابتدائي والإعدادي">
+                                <optgroup label="الابتدائي والإعدادي" id="non-qualifiant-exam-optgroup">
                                     <option value="السادس ابتدائي - الامتحان الإقليمي">
                                         السادس ابتدائي - الامتحان الإقليمي
                                     </option>
@@ -1043,6 +1043,32 @@
             </div>
         </main>
 
+        <script>
+            (function () {
+                'use strict';
+                // The «الابتدائي والإعدادي» exam options are bound to the real
+                // education catalog: the group stays only while both its cycles
+                // are workable (capability 'supported'). Primary and collegial are
+                // currently 'preview', so the group is hidden until the catalog
+                // promotes them — fail closed when the catalog cannot be read.
+                document.addEventListener('DOMContentLoaded', async () => {
+                    const optgroup = document.getElementById('non-qualifiant-exam-optgroup');
+                    if (!optgroup || !window.api?.cycles?.getCatalog) return;
+                    try {
+                        const response = await window.api.cycles.getCatalog();
+                        const cycles = response?.success && Array.isArray(response.cycles) ? response.cycles : [];
+                        const workable = cycles.some(
+                            (cycle) =>
+                                cycle.capability === 'supported' &&
+                                (cycle.cycle_code === 'primary' || cycle.cycle_code === 'secondary_collegial')
+                        );
+                        if (!workable) optgroup.remove();
+                    } catch (err) {
+                        optgroup.remove();
+                    }
+                });
+            })();
+        </script>
         <script src="js/pages/exams-schedule.js" defer></script>
     </body>
 </html>

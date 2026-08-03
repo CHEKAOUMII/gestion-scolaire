@@ -27,6 +27,8 @@ let allSections = [];
 let allGradesCache = [];
 let sectionToLevel = {};
 let _filterManager = null;
+let activeRuleSetPayload = null;
+let activeCycleCode = null;
 // Pagination state
 const PAGE_SIZE = 20;
 let currentPage = 1;
@@ -43,9 +45,26 @@ window.debugGradesDump = async function debugGradesDump() {
     return { totalRows: rows.length, uniqueSubjects: subjects.length };
 };
 
+async function getActiveCycleCode() {
+    if (!window.api?.cycles?.getActive) return null;
+    try {
+        const response = await window.api.cycles.getActive();
+        return response?.success ? response.context?.cycleCode || response.cycle?.cycle_code || null : null;
+    } catch (err) {
+        console.warn('[results-hub] active cycle unavailable:', err);
+        return null;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         year = getSchoolYear();
+        try {
+            activeRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year) : null;
+        } catch (err) {
+            console.warn('[results-hub] stage rule set unavailable:', err);
+        }
+        activeCycleCode = await getActiveCycleCode();
         // Tab switching
         document.getElementById('tab-btn-results').addEventListener('click', () => switchTab('results'));
         document.getElementById('tab-btn-zeros').addEventListener('click', () => switchTab('zeros'));
@@ -105,7 +124,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tab3Loaded) renderTopPerformers();
         });
 
-        await ensureSubjectCoefficientMappings();
         await loadFilters();
 
         // Level/Class/Subject cascading is handled by FilterManager
@@ -313,9 +331,15 @@ async function loadResults() {
                 typeof detectBranch === 'function'
                     ? detectBranch(firstRecord.section || firstRecord.class_name || '')
                     : null;
+            const levelInfo =
+                typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
             const averageResolution = computeWeightedGeneralAverageResult(studentSubjectAvgs, branch, {
                 schoolYear: year,
-                streamCode: branch
+                streamCode: branch,
+                cycleCode: activeCycleCode,
+                levelCode: levelInfo.code,
+                levelLabel: levelInfo.label,
+                ruleSet: activeRuleSetPayload || undefined
             });
             if (!averageResolution.ok) incompleteResults.push(averageResolution);
 
@@ -544,9 +568,15 @@ async function showStudentDetail(studentId) {
     const subjectAvgs = subjects.map((s) => ({ subject: s, avg: computeSubjectAverage(s, bySubject[s]) }));
     const branch =
         typeof detectBranch === 'function' ? detectBranch(first.section || first.class_name || '') : null;
+    const levelInfo =
+        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
     const averageResolution = computeWeightedGeneralAverageResult(subjectAvgs, branch, {
         schoolYear: year,
-        streamCode: branch
+        streamCode: branch,
+        cycleCode: activeCycleCode,
+        levelCode: levelInfo.code,
+        levelLabel: levelInfo.label,
+        ruleSet: activeRuleSetPayload || undefined
     });
     const generalAvg = averageResolution.ok ? averageResolution.value : null;
     const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
@@ -1104,9 +1134,15 @@ function getTopStudentsForSemester(semester) {
                 typeof detectBranch === 'function'
                     ? detectBranch(first.section || first.class_name || '')
                     : null;
+            const levelInfo =
+                typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
             const averageResolution = computeWeightedGeneralAverageResult(subjectAvgs, branch, {
                 schoolYear: year,
-                streamCode: branch
+                streamCode: branch,
+                cycleCode: activeCycleCode,
+                levelCode: levelInfo.code,
+                levelLabel: levelInfo.label,
+                ruleSet: activeRuleSetPayload || undefined
             });
             const average = averageResolution.ok ? averageResolution.value : null;
 

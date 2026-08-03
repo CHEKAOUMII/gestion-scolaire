@@ -62,17 +62,36 @@ contextBridge.exposeInMainWorld('api', {
         setVisibility: (payload) => ipcRenderer.invoke('pageVisibility:setVisibility', payload)
     },
 
-    subjectCoefficients: {
-        getAll: () => ipcRenderer.invoke('subjectCoefficients:getAll'),
-        override: (payload) => ipcRenderer.invoke('subjectCoefficients:override', payload)
+    // Stage rules (قواعد المرحلة) — versioned rule sets per school year
+    stageRules: {
+        getActive: (schoolYear) => ipcRenderer.invoke('stageRules:getActive', schoolYear),
+        saveCoefficients: (payload) => ipcRenderer.invoke('stageRules:saveCoefficients', payload),
+        saveExamCounts: (payload) => ipcRenderer.invoke('stageRules:saveExamCounts', payload),
+        saveAll: (payload) => ipcRenderer.invoke('stageRules:saveAll', payload),
+        resetToOfficial: (payload) => ipcRenderer.invoke('stageRules:resetToOfficial', payload)
+    },
+
+    // Cycle access (user_cycle_access) — admin-only, LOCAL-ONLY authorization policy
+    // (multi-stage plan §3 S6 rows 128-130; never synced, like page-access permissions).
+    cycleAccess: {
+        list: () => ipcRenderer.invoke('cycleAccess:list'),
+        setUsers: (payload) => ipcRenderer.invoke('cycleAccess:setUsers', payload),
+        setCycles: (payload) => ipcRenderer.invoke('cycleAccess:setCycles', payload)
     },
 
     appDefaults: {
-        listLevels: () => ipcRenderer.invoke('appDefaults:listLevels'),
-        getExamCounts: (levelCode) => ipcRenderer.invoke('appDefaults:getExamCounts', levelCode),
+        listLevels: (cycleCode) => ipcRenderer.invoke('appDefaults:listLevels', cycleCode ? { cycleCode } : undefined),
+        getExamCounts: (levelCode, cycleCode) =>
+            ipcRenderer.invoke(
+                'appDefaults:getExamCounts',
+                cycleCode ? { levelCode, cycleCode } : levelCode
+            ),
         saveExamCounts: (payload) => ipcRenderer.invoke('appDefaults:saveExamCounts', payload),
-        getExamCount: (levelCode, subject) =>
-            ipcRenderer.invoke('appDefaults:getExamCount', { levelCode, subject }),
+        getExamCount: (levelCode, subject, cycleCode) =>
+            ipcRenderer.invoke(
+                'appDefaults:getExamCount',
+                cycleCode ? { levelCode, subject, cycleCode } : { levelCode, subject }
+            ),
         listPages: () => ipcRenderer.invoke('appDefaults:listPages'),
         getPageAccessMap: () => ipcRenderer.invoke('appDefaults:getPageAccessMap'),
         savePageAccess: (payload) => ipcRenderer.invoke('appDefaults:savePageAccess', payload),

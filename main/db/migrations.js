@@ -6,6 +6,8 @@ const {
     ensureInstitutionSchema,
     ensureInstitutionCyclesSchema,
     ensureCycleReferenceSchema,
+    ensureStageRulesSchema,
+    ensureCycleProfilesSchema,
     ensureLicensingSchema,
     ensureOwnerSyncSchema,
     ensurePageVisibilitySchema,
@@ -14,6 +16,7 @@ const {
 const { generateRandomPassword, hashPassword } = require('../auth/password');
 const { seedSyncDefaults } = require('../sync/defaults');
 const { normalizeTeacherName, seedTeacherAliases, resolveTeacherIdentity } = require('../teachers/identity');
+const { PRIMARY_CYCLE, COLLEGIAL_CYCLE, QUALIFIANT_CYCLE } = require('../../js/shared/education/cycles');
 
 function tableExists(db, tableName) {
     return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName);
@@ -42,12 +45,12 @@ function recordUnmappableCycle(db, report) {
 
 function populateSectionsFromStudents(db) {
     if (!tableExists(db, 'students') || !tableExists(db, 'sections')) return;
+    const { inferEducationPlacement } = require('../../js/shared/education/cycles');
     const students = db
         .prepare(
             `SELECT id, section, level, cycle_code, school_year
              FROM students
              WHERE TRIM(COALESCE(section, '')) != ''
-               AND TRIM(COALESCE(cycle_code, '')) != ''
                AND TRIM(COALESCE(school_year, '')) != ''`
         )
         .all();
@@ -56,16 +59,38 @@ function populateSectionsFromStudents(db) {
             section_code, raw_name, normalized_name, cycle_code, level_code, stream_code, school_year
          ) VALUES(?, ?, ?, ?, ?, NULL, ?)`
     );
+    // A student who already carries a cycle keeps it — inference never reclassifies
+    // an explicit value. Students without a cycle get catalog inference (primary-
+    // aware since 2026-08-01-primary-stage-catalogs.md, S1); the ones the catalog
+    // cannot classify are reported for operator review instead of silently
+    // defaulting (§13 rule, same reporting style as migration 076).
+    const unclassified = [];
     for (const student of students) {
         const sectionCode = String(student.section).trim();
+        const cycleCode = String(student.cycle_code || '').trim();
+        const resolved = cycleCode || inferEducationPlacement({ section: student.section, level: student.level });
+        if (!resolved) {
+            unclassified.push({
+                id: student.id,
+                section: sectionCode,
+                level: String(student.level || '').trim()
+            });
+            continue;
+        }
         insertSection.run(
             sectionCode,
             String(student.section),
             sectionCode,
-            String(student.cycle_code).trim(),
+            resolved,
             isBlankCycle(student.level) ? null : String(student.level).trim(),
             String(student.school_year).trim()
         );
+    }
+    if (unclassified.length) {
+        db.prepare(
+            `INSERT INTO system_logs(action, entity_type, entity_id, details)
+             VALUES('CYCLE_SECTION_UNCLASSIFIED', 'students', NULL, ?)`
+        ).run(JSON.stringify({ count: unclassified.length, samples: unclassified.slice(0, 10) }));
     }
 }
 
@@ -1618,7 +1643,9 @@ const MIGRATIONS = [
                         level TEXT,
                         section TEXT,
                         school_year TEXT,
-                        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+                        cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
+                        teacher_resolution TEXT DEFAULT 'unresolved',
+                        source_file_name TEXT,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
                         FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
@@ -1638,7 +1665,7 @@ const MIGRATIONS = [
                         days REAL DEFAULT 0,
                         reason TEXT,
                         school_year TEXT,
-                        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+                        cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
                     )`
@@ -1654,6 +1681,7 @@ const MIGRATIONS = [
                         letter_date DATE,
                         total_hours INTEGER,
                         school_year TEXT,
+                        cycle_code TEXT,
                         printed INTEGER DEFAULT 0,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
@@ -1668,6 +1696,7 @@ const MIGRATIONS = [
                         doc_key TEXT NOT NULL,
                         is_present INTEGER DEFAULT 0,
                         school_year TEXT,
+                        cycle_code TEXT,
                         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(student_id, doc_key, school_year),
                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
@@ -1685,6 +1714,7 @@ const MIGRATIONS = [
                         movement_date DATE NOT NULL,
                         notes TEXT,
                         school_year TEXT,
+                        cycle_code TEXT,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
                     )`
@@ -1755,6 +1785,7 @@ const MIGRATIONS = [
                         status TEXT DEFAULT 'planned',
                         test_date DATE,
                         school_year TEXT,
+                        cycle_code TEXT,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
                     )`
@@ -2068,7 +2099,7 @@ const MIGRATIONS = [
             db.prepare(
                 `INSERT OR IGNORE INTO institution_cycles
                  (cycle_code, is_active, profile_version, sort_order)
-                 VALUES ('secondary_qualifiant', 1, 'qualifiant-2026-v1', 20)`
+                 VALUES ('${QUALIFIANT_CYCLE}', 1, 'qualifiant-2026-v1', 20)`
             ).run();
         }
     },
@@ -2079,10 +2110,10 @@ const MIGRATIONS = [
         // than left nullable, which keeps older builds able to read the table unchanged.
         version: '2026-07-071-students-cycle-code',
         up: () => {
-            ensureColumn('students', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
+            ensureColumn('students', 'cycle_code', `TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}'`);
             const db = getDb();
             db.prepare(
-                `UPDATE students SET cycle_code = 'secondary_qualifiant'
+                `UPDATE students SET cycle_code = '${QUALIFIANT_CYCLE}'
                  WHERE cycle_code IS NULL OR TRIM(cycle_code) = ''`
             ).run();
             // UNIQUE(code, school_year) is intentionally untouched: a student belongs to
@@ -2097,8 +2128,8 @@ const MIGRATIONS = [
         // keys remain unchanged because student_code is institution-wide unique.
         version: '2026-07-072-grades-absences-cycle-code',
         up: () => {
-            ensureColumn('grades', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
-            ensureColumn('absences', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
+            ensureColumn('grades', 'cycle_code', `TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}'`);
+            ensureColumn('absences', 'cycle_code', `TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}'`);
             const db = getDb();
             for (const table of ['grades', 'absences']) {
                 const orphanPredicate = `NOT EXISTS (
@@ -2116,7 +2147,7 @@ const MIGRATIONS = [
                          SELECT s.cycle_code FROM students s
                          WHERE s.code = ${table}.student_code
                            AND s.school_year = ${table}.school_year
-                     ), 'secondary_qualifiant')`
+                     ), '${QUALIFIANT_CYCLE}')`
                 ).run();
                 if (unresolved.length) {
                     db.prepare(
@@ -2187,7 +2218,7 @@ const MIGRATIONS = [
                     CREATE TABLE timetable_data (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         school_year TEXT NOT NULL,
-                        cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+                        cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
                         data_json TEXT NOT NULL,
                         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(school_year, cycle_code)
@@ -2205,7 +2236,7 @@ const MIGRATIONS = [
                         CREATE TABLE timetable_data__rb (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             school_year TEXT NOT NULL,
-                            cycle_code TEXT NOT NULL DEFAULT 'secondary_qualifiant',
+                            cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
                             data_json TEXT NOT NULL,
                             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                             UNIQUE(school_year, cycle_code)
@@ -2234,7 +2265,7 @@ const MIGRATIONS = [
             const db = getDb();
             const table = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'support_sessions'").get();
             if (!table) return;
-            ensureColumn('support_sessions', 'cycle_code', "TEXT NOT NULL DEFAULT 'secondary_qualifiant'");
+            ensureColumn('support_sessions', 'cycle_code', `TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}'`);
             const { inferEducationPlacement } = require('../../js/shared/education/cycles');
             const rows = db.prepare('SELECT id, section FROM support_sessions').all();
             const update = db.prepare('UPDATE support_sessions SET cycle_code = ? WHERE id = ?');
@@ -2246,7 +2277,7 @@ const MIGRATIONS = [
             for (const row of rows) {
                 const inferred = inferEducationPlacement({ section: row.section });
                 if (!inferred) unclassified.push({ id: row.id, section: row.section });
-                update.run(inferred || 'secondary_qualifiant', row.id);
+                update.run(inferred || QUALIFIANT_CYCLE, row.id);
             }
             if (unclassified.length) {
                 db.prepare(
@@ -2278,7 +2309,7 @@ const MIGRATIONS = [
             ensureCycleReferenceSchema(db);
             db.prepare(
                 `INSERT OR IGNORE INTO user_cycle_access(user_id, cycle_code)
-                 SELECT id, 'secondary_qualifiant'
+                 SELECT id, '${QUALIFIANT_CYCLE}'
                  FROM users
                  WHERE LOWER(COALESCE(role, '')) NOT IN ('developer', 'admin', 'principal')`
             ).run();
@@ -2312,6 +2343,464 @@ const MIGRATIONS = [
                 CREATE INDEX IF NOT EXISTS idx_correspondence_year_cycle ON correspondence(school_year, cycle_code);
                 CREATE INDEX IF NOT EXISTS idx_student_movements_year_cycle ON student_movements(school_year, cycle_code);
             `);
+        }
+    },
+    {
+        version: '2026-08-078-stage-rules-management',
+        up: () => {
+            const db = getDb();
+            const { DEFAULT_EXAM_COUNTS } = require('./exam-count-defaults');
+            const { seedSubjectCatalog, mapSubjectToCode } = require('./education-catalogs/subject-catalog');
+            const { seedOfficialCoefficients } = require('./education-catalogs/qualifiant-coefficients');
+
+            function logUnmappable(entityType, entityId, reason) {
+                const details = JSON.stringify({ reason });
+                const exists = db
+                    .prepare(
+                        `SELECT 1 FROM system_logs
+                         WHERE action = 'STAGE_RULES_MIGRATION_UNMAPPABLE'
+                           AND entity_type = ? AND entity_id = ?`
+                    )
+                    .get(entityType, String(entityId));
+                if (!exists) {
+                    db.prepare(
+                        `INSERT INTO system_logs(action, entity_type, entity_id, details)
+                         VALUES('STAGE_RULES_MIGRATION_UNMAPPABLE', ?, ?, ?)`
+                    ).run(entityType, String(entityId), details);
+                }
+            }
+
+            const legacyRows = [];
+            if (tableExists(db, 'exam_count_rules')) {
+                const columns = db.prepare(`PRAGMA table_info(exam_count_rules)`).all().map((c) => c.name);
+                if (!columns.includes('rule_set_id')) {
+                    db.exec(`ALTER TABLE exam_count_rules RENAME TO exam_count_rules_legacy`);
+                    legacyRows.push(
+                        ...db.prepare(`SELECT level_code, subject, exam_count FROM exam_count_rules_legacy`).all()
+                    );
+                }
+            }
+
+            ensureStageRulesSchema(db);
+            seedSubjectCatalog(db);
+            if (legacyRows.length > 0) {
+                db.exec(`DROP TABLE exam_count_rules_legacy`);
+            }
+            const years = [];
+            if (tableExists(db, 'students')) {
+                years.push(
+                    ...db
+                        .prepare(
+                            `SELECT DISTINCT school_year FROM students
+                             WHERE TRIM(COALESCE(school_year, '')) != ''
+                             ORDER BY school_year`
+                        )
+                        .all()
+                        .map((row) => row.school_year)
+                );
+            }
+            if (years.length === 0) {
+                const currentYear = db.prepare(`SELECT value FROM settings WHERE key = 'currentSchoolYear'`).get();
+                if (currentYear && String(currentYear.value).trim() !== '') {
+                    years.push(String(currentYear.value).trim());
+                }
+            }
+            if (years.length === 0) return;
+
+            const insertRuleSet = db.prepare(
+                `INSERT OR IGNORE INTO stage_rule_sets(school_year, revision, status, created_by, reason)
+                 VALUES(?, 1, 'active', 'system', 'Official seed rules')`
+            );
+            const selectRuleSet = db.prepare(
+                `SELECT id FROM stage_rule_sets WHERE school_year = ? AND revision = 1`
+            );
+            const insertExamCount = db.prepare(
+                `INSERT OR IGNORE INTO exam_count_rules(
+                    rule_set_id, cycle_code, level_code, subject_code, exam_count, source
+                 ) VALUES(?, '${QUALIFIANT_CYCLE}', ?, ?, ?, 'official')`
+            );
+
+            for (const year of years) {
+                insertRuleSet.run(year);
+                const ruleSetId = selectRuleSet.get(year).id;
+                seedOfficialCoefficients(db, ruleSetId, QUALIFIANT_CYCLE);
+                const existingExamCount = db
+                    .prepare(`SELECT COUNT(*) AS count FROM exam_count_rules WHERE rule_set_id = ?`)
+                    .get(ruleSetId).count;
+                if (existingExamCount > 0) continue;
+                const examRows =
+                    legacyRows.length > 0
+                        ? legacyRows
+                        : DEFAULT_EXAM_COUNTS.map(([subject, examCount]) => ({
+                              level_code: '*',
+                              subject,
+                              exam_count: examCount
+                          }));
+                for (const row of examRows) {
+                    const subjectCode = mapSubjectToCode(row.subject);
+                    if (!subjectCode) {
+                        logUnmappable('exam_count_rules', row.subject, 'no alias for subject name');
+                        continue;
+                    }
+                    insertExamCount.run(ruleSetId, String(row.level_code).trim() || '*', subjectCode, row.exam_count);
+                }
+            }
+
+            const legacySettings = db
+                .prepare(`SELECT value FROM settings WHERE key = 'subjectCoefficientMappings:v1'`)
+                .get();
+            if (legacySettings && String(legacySettings.value).trim() !== '') {
+                let mappings = [];
+                try {
+                    mappings = JSON.parse(legacySettings.value);
+                } catch (err) {
+                    logUnmappable('subjectCoefficientMappings:v1', '', `invalid JSON: ${err.message}`);
+                    mappings = [];
+                }
+                if (!Array.isArray(mappings)) mappings = [];
+                const targetYear = years[years.length - 1];
+                const activeSet = db
+                    .prepare(`SELECT id FROM stage_rule_sets WHERE school_year = ? AND status = 'active' LIMIT 1`)
+                    .get(targetYear);
+                if (activeSet && mappings.length > 0) {
+                    const insertCustom = db.prepare(
+                        `INSERT OR IGNORE INTO subject_coefficients(
+                            rule_set_id, cycle_code, level_code, stream_code, subject_code, coefficient, source
+                         ) VALUES(?, '${QUALIFIANT_CYCLE}', '*', ?, ?, ?, 'custom')`
+                    );
+                    for (const mapping of mappings) {
+                        const subjectCode = mapSubjectToCode(mapping.subject);
+                        const streamCode = String(mapping.streamCode || '').toUpperCase().trim();
+                        const coefficient = Number(mapping.coefficient);
+                        if (!subjectCode || !streamCode || !(coefficient >= 1 && coefficient <= 20)) {
+                            logUnmappable(
+                                'subjectCoefficientMappings:v1',
+                                mapping.subject || JSON.stringify(mapping),
+                                'invalid mapping'
+                            );
+                            continue;
+                        }
+                        insertCustom.run(activeSet.id, streamCode, subjectCode, coefficient);
+                    }
+                }
+            }
+        }
+    },
+    {
+        version: '2026-08-079-stage-subject-weights',
+        up: () => {
+            const db = getDb();
+            const { seedOfficialSubjectWeights } = require('./education-catalogs/subject-weights');
+            ensureStageRulesSchema(db);
+            const activeRuleSets = db
+                .prepare(`SELECT id FROM stage_rule_sets WHERE status = 'active'`)
+                .all();
+            for (const ruleSet of activeRuleSets) {
+                seedOfficialSubjectWeights(db, ruleSet.id, QUALIFIANT_CYCLE);
+            }
+        }
+    },
+    {
+        // Primary-stage catalogs (docs/plans/2026-08-01-primary-stage-catalogs.md, S3).
+        // Seeds are LOCAL seed data written by direct idempotent SQL — no outbox, no
+        // capture: they are not user operations. institution_cycles remains a normal
+        // synced table for later add/setEnabled IPC operations (review decision 4).
+        // No primary exam_count_rules are seeded here: the official rule is not
+        // approved yet, and the CHECK 1..12 range cannot represent "zero exams" —
+        // exam_count_rules ownership belongs to 2026-08-01-stage-rules-management.md.
+        version: '2026-08-080-primary-stage-catalogs',
+        up: () => {
+            const db = getDb();
+            const { LEVEL_CODES } = require('./exam-count-defaults');
+            const { PRIMARY_LEVEL_CODES, COLLEGIAL_LEVEL_CODES } = require('./education-catalogs/primary-levels');
+            const { seedSubjectCatalog } = require('./education-catalogs/subject-catalog');
+            const { seedPrimarySubjects } = require('./education-catalogs/primary-subjects');
+            const { seedPrimaryLevelAliases } = require('./education-catalogs/primary-aliases');
+
+            if (!tableExists(db, 'education_levels')) {
+                ensureCycleReferenceSchema(db);
+            }
+
+            const insertLevel = db.prepare(
+                `INSERT OR IGNORE INTO education_levels(level_code, cycle_code, label_ar, label_fr, sort_order)
+                 VALUES (?, ?, ?, NULL, ?)`
+            );
+            const seedLevels = db.transaction(() => {
+                for (const level of PRIMARY_LEVEL_CODES) {
+                    insertLevel.run(level.code, PRIMARY_CYCLE, level.name, level.order);
+                }
+                for (const level of COLLEGIAL_LEVEL_CODES) {
+                    insertLevel.run(level.code, COLLEGIAL_CYCLE, level.name, level.order);
+                }
+                for (const level of LEVEL_CODES) {
+                    if (String(level.code).trim() === '*') continue;
+                    insertLevel.run(level.code, QUALIFIANT_CYCLE, level.name, level.order);
+                }
+            });
+            seedLevels();
+
+            // Institution-wide subject union: qualifiant catalog first (existing rows
+            // and aliases win), then the primary additions — INSERT OR IGNORE only.
+            seedSubjectCatalog(db);
+            seedPrimarySubjects(db);
+            seedPrimaryLevelAliases(db);
+
+            // The primary cycle becomes visible as a settings constraint (preview) but
+            // is never resolvable as a work cycle (capability gate in cycles repo).
+            db.prepare(
+                `INSERT OR IGNORE INTO institution_cycles
+                 (cycle_code, is_active, profile_version, sort_order)
+                 VALUES (?, 1, 'primary-2026-v1', 5)`
+            ).run(PRIMARY_CYCLE);
+        }
+    },
+    {
+        // S3 (docs/plans/2026-08-02-multi-stage-school-architecture.md, row 103):
+        // `student_orientation.cycle_code` is a historical snapshot derived in main
+        // from the students table at write time — never renderer-supplied, never
+        // rewritten on update. Backfill resolves each row against its matching
+        // student (same school_year, code-normalized); rows without a match stay
+        // NULL — never guessed, never defaulted — and are logged for review
+        // (reporting pattern mirrors 2026-08-078 STAGE_RULES_MIGRATION_UNMAPPABLE).
+        // All writes here are plain local data: zero sync_outbox rows.
+        version: '2026-08-081-student-orientation-cycle-code',
+        up: () => {
+            const db = getDb();
+            ensureColumn('student_orientation', 'cycle_code', 'TEXT');
+
+            if (tableExists(db, 'students')) {
+                db.exec(`
+                    UPDATE student_orientation
+                       SET cycle_code = (
+                           SELECT s.cycle_code
+                             FROM students s
+                            WHERE s.school_year = student_orientation.school_year
+                              AND UPPER(TRIM(s.code)) = UPPER(TRIM(student_orientation.student_code))
+                            LIMIT 1
+                       )
+                     WHERE cycle_code IS NULL
+                `);
+            }
+
+            // Rows still NULL after backfill have no resolvable student: they keep
+            // NULL and are logged once for operator review (idempotent — the
+            // exists-check prevents duplicates on re-run).
+            const unresolved = db
+                .prepare(`SELECT COUNT(*) AS count FROM student_orientation WHERE cycle_code IS NULL`)
+                .get().count;
+            if (unresolved > 0) {
+                const details = JSON.stringify({ count: unresolved });
+                const exists = db
+                    .prepare(
+                        `SELECT 1 FROM system_logs
+                         WHERE action = 'ORIENTATION_BACKFILL_UNRESOLVED'
+                           AND entity_type = 'student_orientation'
+                           AND entity_id = 'backfill'`
+                    )
+                    .get();
+                if (!exists) {
+                    db.prepare(
+                        `INSERT INTO system_logs(action, entity_type, entity_id, details)
+                         VALUES('ORIENTATION_BACKFILL_UNRESOLVED', 'student_orientation', 'backfill', ?)`
+                    ).run(details);
+                }
+            }
+        }
+    },
+    {
+        // S4 (docs/plans/2026-08-02-multi-stage-school-architecture.md, rows 105-115):
+        // official immutable stage profiles + the per-year effectivity spine.
+        //   - cycle_profiles logical key = (cycle_code, profile_version); only the
+        //     qualifiant profile (exams/coefficients) and the primary profile
+        //     (continuous, no coefficients) are seeded — the collegial profile stays
+        //     non-operational until its official file is approved (row 115).
+        //   - cycle_profile_assignments(school_year, cycle_code, profile_version,
+        //     rule_set_id) is the runtime-authoritative reference: the qualifiant
+        //     profile is bound to the ACTIVE stage_rule_sets revision of the same
+        //     school year when one exists; primary/continuous rows never bind a rule
+        //     set. CYCLE_CATALOG.profileVersion / institution_cycles.profile_version
+        //     remain seed/migration hints only (row 110).
+        //   - `default_exam_counts` is NOT recreated anywhere: exam_count_rules is the
+        //     sole source (row 107).
+        // All writes here are local seed data by direct idempotent SQL — zero
+        // sync_outbox rows, zero capture (they are not user operations).
+        version: '2026-08-082-cycle-profiles',
+        up: () => {
+            const db = getDb();
+            ensureCycleProfilesSchema(db);
+
+            const insertProfile = db.prepare(
+                `INSERT OR IGNORE INTO cycle_profiles(
+                    cycle_code, profile_version, uses_coefficients, assessment_model
+                 ) VALUES (?, ?, ?, ?)`
+            );
+            insertProfile.run(PRIMARY_CYCLE, 'primary-2026-v1', 0, 'continuous');
+            insertProfile.run(QUALIFIANT_CYCLE, 'qualifiant-2026-v1', 1, 'exams');
+
+            if (tableExists(db, 'stage_rule_sets')) {
+                // Seed the qualifiant profile only where its official rules exist:
+                // bind each school year's active revision (row 115).
+                const activeSets = db
+                    .prepare(`SELECT school_year, id FROM stage_rule_sets WHERE status = 'active'`)
+                    .all();
+                const upsertAssignment = db.prepare(
+                    `INSERT INTO cycle_profile_assignments(
+                        school_year, cycle_code, profile_version, rule_set_id
+                     ) VALUES (?, ?, 'qualifiant-2026-v1', ?)
+                     ON CONFLICT(school_year, cycle_code) DO UPDATE SET
+                        profile_version = excluded.profile_version,
+                        rule_set_id = excluded.rule_set_id`
+                );
+                for (const set of activeSets) upsertAssignment.run(set.school_year, QUALIFIANT_CYCLE, set.id);
+            }
+        }
+    },
+    {
+        // S4 follow-up (plan row 113): the composite FK (cycle_code, profile_version)
+        // → cycle_profiles was missing from the assignments table shipped by 082.
+        // Fresh installs get it from the canonical DDL (ensureCycleProfilesSchema);
+        // this migration rebuilds the table on upgraded DBs so every install enforces
+        // the same constraint (SQLite cannot ALTER-ADD a foreign key). The rebuild
+        // preserves id + row identity so sync_id_map / sync_snapshots linkage
+        // survives. Local schema operation only — zero sync_outbox rows.
+        // recordsVersionInternally: PRAGMA foreign_keys can only be toggled outside
+        // a transaction, so this migration runs outside the runner's wrapping
+        // transaction and manages its own atomic transaction + version record
+        // (pattern 2026-07-065-fk-ondelete-and-identity-keys).
+        version: '2026-08-083-cycle-profile-assignments-fk',
+        recordsVersionInternally: true,
+        up: () => {
+            const db = getDb();
+            const recordMigration = db.prepare('INSERT INTO schema_migrations(version) VALUES(?)');
+
+            if (!tableExists(db, 'cycle_profile_assignments') || !tableExists(db, 'cycle_profiles')) {
+                // Tables created after this migration runs (fresh install) already get
+                // the FK from the canonical DDL — nothing to rebuild here.
+                recordMigration.run('2026-08-083-cycle-profile-assignments-fk');
+                return;
+            }
+            const hasProfileFk = db
+                .prepare(`PRAGMA foreign_key_list(cycle_profile_assignments)`)
+                .all()
+                .some((fk) => String(fk.table) === 'cycle_profiles');
+            if (hasProfileFk) {
+                recordMigration.run('2026-08-083-cycle-profile-assignments-fk');
+                return;
+            }
+
+            db.exec('PRAGMA foreign_keys=off;');
+            const txn = db.transaction(() => {
+                rebuildTableWithConstraints(
+                    db,
+                    'cycle_profile_assignments',
+                    `CREATE TABLE cycle_profile_assignments__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        school_year TEXT NOT NULL,
+                        cycle_code TEXT NOT NULL,
+                        profile_version TEXT NOT NULL,
+                        rule_set_id INTEGER REFERENCES stage_rule_sets(id),
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(school_year, cycle_code),
+                        FOREIGN KEY(cycle_code, profile_version)
+                            REFERENCES cycle_profiles(cycle_code, profile_version)
+                    )`
+                );
+                recordMigration.run('2026-08-083-cycle-profile-assignments-fk');
+            });
+            try {
+                txn();
+            } finally {
+                db.exec('PRAGMA foreign_keys=on;');
+            }
+        }
+    },
+    {
+        // Collegial official file (2026-08-084-collegial-stage-file): seals the
+        // collegial dossier (D:\secondaire\معاملات المواد -نتاءئج مدرسية.md report cards + نسبة
+        // الأنشطة المندمجة الشامل.md) into the stage-rules spine so the collegial
+        // cycle is no longer "pending official data". Three parts:
+        //   a. widen cycle_profiles.assessment_model CHECK to 'exams_activities'
+        //      (SQLite cannot ALTER a CHECK → table rebuild via the recordsVersion-
+        //      Internally pattern used by 083; fresh installs already get the
+        //      widened CHECK from the updated ensureCycleProfilesSchema via 082);
+        //   b. seed the collegial-2026-v1 profile (uses_coefficients=1,
+        //      assessment_model='exams_activities') + the collegial subject catalog
+        //      (TECHNOLOGY is new; the rest union-seed existing codes);
+        //   c. for every ACTIVE stage_rule_sets revision, seed the collegial
+        //      official coefficient/exam-count/weight rows and bind the per-year
+        //      assignment (school_year, secondary_collegial, collegial-2026-v1,
+        //      rule_set_id) exactly like 082 binds the qualifiant profile.
+        // All seeds are direct idempotent SQL — zero capture, zero outbox rows.
+        version: '2026-08-084-collegial-stage-file',
+        recordsVersionInternally: true,
+        up: () => {
+            const db = getDb();
+            const recordMigration = db.prepare('INSERT INTO schema_migrations(version) VALUES(?)');
+
+            // (a) Widen the assessment_model CHECK on upgraded DBs.
+            if (tableExists(db, 'cycle_profiles')) {
+                const row = db
+                    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'cycle_profiles'`)
+                    .get();
+                const ddl = String(row?.sql || '');
+                if (!ddl.includes('exams_activities')) {
+                    db.exec('PRAGMA foreign_keys=off;');
+                    try {
+                        db.transaction(() => {
+                            rebuildTableWithConstraints(
+                                db,
+                                'cycle_profiles',
+                                `CREATE TABLE cycle_profiles__rb(
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    cycle_code TEXT NOT NULL,
+                                    profile_version TEXT NOT NULL,
+                                    uses_coefficients INTEGER NOT NULL DEFAULT 1 CHECK(uses_coefficients IN (0, 1)),
+                                    assessment_model TEXT NOT NULL DEFAULT 'exams'
+                                        CHECK(assessment_model IN ('exams','continuous','exams_activities')),
+                                    is_official INTEGER NOT NULL DEFAULT 1 CHECK(is_official IN (0, 1)),
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    UNIQUE(cycle_code, profile_version)
+                                )`
+                            );
+                        })();
+                    } finally {
+                        db.exec('PRAGMA foreign_keys=on;');
+                    }
+                }
+            }
+
+            // (b) Collegial profile + subject catalog.
+            db.prepare(
+                `INSERT OR IGNORE INTO cycle_profiles(
+                    cycle_code, profile_version, uses_coefficients, assessment_model
+                 ) VALUES (?, ?, ?, ?)`
+            ).run(COLLEGIAL_CYCLE, 'collegial-2026-v1', 1, 'exams_activities');
+            if (tableExists(db, 'education_subjects') && tableExists(db, 'subject_aliases')) {
+                const { seedCollegialSubjects } = require('./education-catalogs/collegial-subjects');
+                seedCollegialSubjects(db);
+            }
+
+            // (c) Collegial rule rows + assignment for every active revision.
+            if (tableExists(db, 'stage_rule_sets') && tableExists(db, 'cycle_profile_assignments')) {
+                const { seedOfficialCollegialRows } = require('./education-catalogs/collegial-rules');
+                const activeSets = db
+                    .prepare(`SELECT school_year, id FROM stage_rule_sets WHERE status = 'active'`)
+                    .all();
+                const upsertAssignment = db.prepare(
+                    `INSERT INTO cycle_profile_assignments(
+                        school_year, cycle_code, profile_version, rule_set_id
+                     ) VALUES (?, ?, 'collegial-2026-v1', ?)
+                     ON CONFLICT(school_year, cycle_code) DO UPDATE SET
+                        profile_version = excluded.profile_version,
+                        rule_set_id = excluded.rule_set_id`
+                );
+                for (const set of activeSets) {
+                    seedOfficialCollegialRows(db, set.id);
+                    upsertAssignment.run(set.school_year, COLLEGIAL_CYCLE, set.id);
+                }
+            }
+
+            recordMigration.run('2026-08-084-collegial-stage-file');
         }
     }
 ];
@@ -2427,4 +2916,10 @@ function runMigrations() {
     }
 }
 
-module.exports = { runMigrations, ensureMigrationsTable, assertMigrationVersionIntegrity, MIGRATIONS };
+module.exports = {
+    runMigrations,
+    ensureMigrationsTable,
+    assertMigrationVersionIntegrity,
+    MIGRATIONS,
+    populateSectionsFromStudents
+};

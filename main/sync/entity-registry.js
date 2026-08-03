@@ -393,7 +393,14 @@ const ENTITY_REGISTRY = {
             table: 'student_orientation',
             keyFields: ['school_year', 'student_code'],
             localIdField: 'id',
-            snapshot: true
+            snapshot: true,
+            // Cycle-carrying: the orientation row keeps a cycle_code snapshot, but its
+            // identity stays school_year + student_code (a student is the same person
+            // whichever cycle they study in). Requiring the column makes a device that
+            // has not run the cycle-code migration quarantine these rows instead of
+            // writing them with no cycle at all.
+            contractVersion: 2,
+            requiredColumns: ['cycle_code']
         },
         remote: {
             collection: 'studentOrientation',
@@ -450,16 +457,106 @@ const ENTITY_REGISTRY = {
         authority: { writers: ALL_WRITERS },
         applyHooks: {}
     },
+    stage_rule_sets: {
+        entityType: 'stage_rule_set',
+        local: {
+            table: 'stage_rule_sets',
+            keyFields: ['school_year', 'revision'],
+            localIdField: 'id',
+            snapshot: false,
+            contractVersion: 2,
+            requiredColumns: ['status', 'reason']
+        },
+        remote: { collection: 'stageRuleSets', idFields: ['school_year', 'revision'] },
+        authority: { writers: ALL_WRITERS },
+        applyHooks: {}
+    },
+    subject_coefficients: {
+        entityType: 'subject_coefficient',
+        local: {
+            table: 'subject_coefficients',
+            keyFields: ['rule_set_id', 'cycle_code', 'level_code', 'stream_code', 'subject_code', 'source'],
+            localIdField: 'id',
+            snapshot: false,
+            contractVersion: 2,
+            requiredColumns: ['rule_set_id', 'cycle_code', 'subject_code', 'source']
+        },
+        remote: {
+            collection: 'subjectCoefficients',
+            idFields: ['rule_set_id', 'cycle_code', 'level_code', 'stream_code', 'subject_code', 'source']
+        },
+        authority: { writers: ALL_WRITERS },
+        applyHooks: {}
+    },
     exam_count_rules: {
         entityType: 'exam_count_rule',
         local: {
             table: 'exam_count_rules',
-            keyFields: ['level_code', 'subject'],
+            keyFields: ['rule_set_id', 'cycle_code', 'level_code', 'subject_code', 'source'],
             localIdField: 'id',
-            snapshot: true
+            snapshot: false,
+            contractVersion: 2,
+            requiredColumns: ['rule_set_id', 'cycle_code', 'subject_code', 'source']
         },
-        remote: { collection: 'examCountRules', idFields: ['level_code', 'subject'] },
+        remote: {
+            collection: 'examCountRules',
+            idFields: ['rule_set_id', 'cycle_code', 'level_code', 'subject_code', 'source']
+        },
         authority: { writers: ALL_WRITERS },
+        applyHooks: {}
+    },
+    subject_weight_rules: {
+        entityType: 'subject_weight_rule',
+        local: {
+            table: 'subject_weight_rules',
+            keyFields: ['rule_set_id', 'cycle_code', 'subject_code', 'source'],
+            localIdField: 'id',
+            snapshot: false,
+            contractVersion: 2,
+            requiredColumns: ['rule_set_id', 'cycle_code', 'subject_code', 'source']
+        },
+        remote: {
+            collection: 'subjectWeightRules',
+            idFields: ['rule_set_id', 'cycle_code', 'subject_code', 'source']
+        },
+        authority: { writers: ALL_WRITERS },
+        applyHooks: {}
+    },
+    // S4 stage profiles (docs/plans/2026-08-02-multi-stage-school-architecture.md rows 105-115).
+    // Official immutable rows; the EFFECTIVE profile per school year is decided by
+    // cycle_profile_assignments — never by CYCLE_CATALOG.profileVersion. Both tables
+    // declare minAppVersion: the field is owned by the sync/registry, compared with
+    // semantic-version semantics against the local app version, and a device older
+    // than the minimum quarantines the row before apply instead of writing a shape
+    // it cannot interpret (plan row 112).
+    cycle_profiles: {
+        entityType: 'cycle_profile',
+        local: {
+            table: 'cycle_profiles',
+            keyFields: ['cycle_code', 'profile_version'],
+            localIdField: 'id',
+            snapshot: false,
+            contractVersion: 2,
+            requiredColumns: ['cycle_code', 'profile_version'],
+            minAppVersion: '1.0.42'
+        },
+        remote: { collection: 'cycleProfiles', idFields: ['cycle_code', 'profile_version'] },
+        authority: { writers: ['admin', 'principal'] },
+        applyHooks: {}
+    },
+    cycle_profile_assignments: {
+        entityType: 'cycle_profile_assignment',
+        local: {
+            table: 'cycle_profile_assignments',
+            keyFields: ['school_year', 'cycle_code'],
+            localIdField: 'id',
+            snapshot: false,
+            contractVersion: 2,
+            requiredColumns: ['school_year', 'cycle_code', 'profile_version'],
+            minAppVersion: '1.0.42'
+        },
+        remote: { collection: 'cycleProfileAssignments', idFields: ['school_year', 'cycle_code'] },
+        authority: { writers: ['admin', 'principal'] },
         applyHooks: {}
     },
     page_role_access: {
@@ -634,6 +731,96 @@ function getContractVersion(tableName) {
 }
 
 /**
+ * S4 sync version gate — the minAppVersion field is owned by the sync/registry
+ * (docs/plans/2026-08-02-multi-stage-school-architecture.md row 112).
+ * `getMinAppVersion(tableName)` returns the entity's declared minimum; the
+ * comparison is semantic-version and the LOCAL app version comes from the
+ * electron app when available (overridable for tests). An older device must
+ * quarantine the row before apply — it cannot interpret the shape correctly.
+ */
+
+let _localAppVersionOverride = null;
+
+/** Test seam: inject the local app version without an electron runtime. */
+function setLocalAppVersionForTests(version) {
+    _localAppVersionOverride = version == null ? null : String(version).trim();
+}
+
+function getMinAppVersion(tableName) {
+    return getEntity(tableName)?.local?.minAppVersion || null;
+}
+
+function getLocalAppVersion() {
+    if (_localAppVersionOverride != null) return _localAppVersionOverride;
+    try {
+        const { app } = require('electron');
+        const version = app && typeof app.getVersion === 'function' ? app.getVersion() : null;
+        return version && String(version).trim() !== '' ? String(version).trim() : null;
+    } catch {
+        // No electron runtime (pure-node tests / tooling): the gate is skipped.
+        return null;
+    }
+}
+
+/**
+ * Pure semantic-version comparison owned by the sync/registry.
+ * Returns -1 | 0 | 1 when both sides parse, null when either side is unparseable.
+ */
+function compareSemanticVersions(a, b) {
+    const parse = (raw) => {
+        const normalized = String(raw || '')
+            .trim()
+            .replace(/^v/i, '');
+        if (!normalized) return null;
+        const nums = normalized.split('.').map((part) => {
+            const stripped = part.replace(/[^0-9].*$/, '');
+            if (!stripped) return null;
+            const num = Number(stripped);
+            return Number.isFinite(num) ? num : null;
+        });
+        if (nums.some((num) => num === null)) return null;
+        return nums;
+    };
+    const pa = parse(a);
+    const pb = parse(b);
+    if (!pa || !pb) return null;
+    const length = Math.max(pa.length, pb.length);
+    for (let i = 0; i < length; i++) {
+        const left = pa[i] ?? 0;
+        const right = pb[i] ?? 0;
+        if (left !== right) return left < right ? -1 : 1;
+    }
+    return 0;
+}
+
+/**
+ * Quarantine gate evaluated by the sync engine BEFORE any write of an entity that
+ * declares minAppVersion: `{ allowed: true }`, or `{ allowed: false, reason }`.
+ */
+function checkAppVersionGate(tableName) {
+    const minAppVersion = getMinAppVersion(tableName);
+    if (!minAppVersion) return { allowed: true };
+    const localVersion = getLocalAppVersion();
+    if (!localVersion) return { allowed: true };
+    const comparison = compareSemanticVersions(localVersion, minAppVersion);
+    if (comparison === null) {
+        return {
+            allowed: false,
+            minAppVersion,
+            reason: `app version ${localVersion} cannot be compared against minAppVersion ${minAppVersion}`
+        };
+    }
+    if (comparison < 0) {
+        return {
+            allowed: false,
+            minAppVersion,
+            reason: `app version ${localVersion} is older than minAppVersion ${minAppVersion}`
+        };
+    }
+    return { allowed: true };
+}
+
+/**
  * Entities whose education cycle participates in row identity.
  *
  * Two distinct kinds of entity carry a cycle, and conflating them corrupts data in
@@ -764,6 +951,11 @@ module.exports = {
     setApplyHooks,
     getRequiredColumns,
     getContractVersion,
+    getMinAppVersion,
+    getLocalAppVersion,
+    setLocalAppVersionForTests,
+    compareSemanticVersions,
+    checkAppVersionGate,
     isCycleKeyed,
     buildCollectionMap,
     buildWriterAuthority,

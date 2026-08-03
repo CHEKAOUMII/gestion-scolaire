@@ -22,51 +22,9 @@ const DEFAULT_EXAM_COUNTS = [
     ['المحاسبة والرياضيات المالية', 2]
 ];
 
-/** Pedagogical level codes with Arabic labels (mirrors LEVEL_CODE_TO_AR keys). */
-const LEVEL_CODES = [
-    { code: '*', name: 'الافتراضي (كل المستويات)', order: 0 },
-    { code: 'TCSF', name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 },
-    { code: 'TCSA', name: 'الجذع المشترك العلمي خيار عربية', order: 2 },
-    { code: 'TCS', name: 'الجذع المشترك العلمي', order: 1 },
-    { code: 'TCLSH', name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    { code: 'TCL', name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    { code: 'TCTF', name: 'الجذع المشترك التكنولوجي', order: 4 },
-    { code: '1BACSMF', name: 'الأولى باكالوريا علوم رياضية خيار فرنسية', order: 5 },
-    { code: '1BACSMA', name: 'الأولى باكالوريا علوم رياضية خيار عربية', order: 6 },
-    { code: '1BACSM', name: 'الأولى باكالوريا العلوم الرياضية', order: 5 },
-    { code: '1BACSEF', name: 'الأولى باكالوريا علوم تجريبية خيار فرنسية', order: 7 },
-    { code: '1BACSEA', name: 'الأولى باكالوريا علوم تجريبية خيار عربية', order: 8 },
-    { code: '1BACSE', name: 'الأولى باكالوريا علوم تجريبية', order: 7 },
-    { code: '1BACSH', name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 9 },
-    { code: '1BACL', name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 9 },
-    { code: '1BACSEG', name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    { code: '1BACECO', name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    { code: '1BACGE', name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    { code: '2BACSMA', name: 'الثانية باكالوريا علوم رياضية أ', order: 11 },
-    { code: '2BACSMB', name: 'الثانية باكالوريا علوم رياضية ب', order: 12 },
-    { code: '2BACSM', name: 'الثانية باكالوريا علوم رياضية', order: 11 },
-    { code: '2BACSVTF', name: 'الثانية باكالوريا علوم الحياة والأرض', order: 13 },
-    { code: '2BACSVT', name: 'الثانية باكالوريا علوم الحياة والأرض', order: 13 },
-    { code: '2BACPCF', name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 14 },
-    { code: '2BACPC', name: 'الثانية باكالوريا علوم فيزيائية', order: 14 },
-    { code: '2BACSPF', name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 14 },
-    { code: '2BACSP', name: 'الثانية باكالوريا علوم فيزيائية', order: 14 },
-    { code: '2BACSHF', name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    { code: '2BACSH', name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    { code: '2BACL', name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    { code: '2BACLETF', name: 'الثانية باكالوريا آداب', order: 16 },
-    { code: '2BACLET', name: 'الثانية باكالوريا آداب', order: 16 },
-    { code: '2BACSECF', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    { code: '2BACSEC', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    { code: '2BACSE', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    { code: '2BACECO', name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    { code: '2BACSGCF', name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    { code: '2BACSGC', name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    { code: '2BACGC', name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    { code: '2BACSA', name: 'الثانية باكالوريا علوم شرعية', order: 19 },
-    { code: '2BACOAF', name: 'الثانية باكالوريا تعليم أصيل', order: 20 },
-    { code: '2BACAO', name: 'الثانية باكالوريا تعليم أصيل', order: 20 }
-];
+/** Pedagogical level codes with Arabic labels (single canonical source: js/shared/education/qualifiant-levels.js). */
+const { QUALIFIANT_LEVELS } = require('../../js/shared/education/qualifiant-levels');
+const LEVEL_CODES = QUALIFIANT_LEVELS;
 
 /** Page labels for auto-discovered HTML files (mirrors PAGE_VISIBILITY_CATALOG). */
 const PAGE_LABELS = {
@@ -126,6 +84,9 @@ const EXCLUDED_HTML_PAGES = new Set(['login.html', 'setup.html']);
 module.exports = {
     DEFAULT_EXAM_COUNTS,
     LEVEL_CODES,
+    // Per-cycle catalog symmetry (2026-08-01-primary-stage-catalogs.md, S2):
+    // the qualifiant catalog keeps its legacy name for appDefaults compatibility.
+    QUALIFIANT_LEVEL_CODES: LEVEL_CODES,
     PAGE_LABELS,
     EXCLUDED_HTML_PAGES
 };

@@ -5,7 +5,10 @@
  * (docs/plans/2026-07-30-cycle-scoping-students-slice.md, D2 and D4).
  *
  * Order of resolution, and nothing else:
- *   1. the session's active cycle context, when the sender has selected one;
+ *   1. the session's active cycle context, when the sender has selected one — but the
+ *      cached context is revalidated on every request against the current institution
+ *      state (`is_active` + capability) and the user grant; a stale or disabled context
+ *      fails closed and never falls through to another cycle;
  *   2. otherwise the institution's single enabled *supported* cycle.
  *
  * A `cycle_code` sent by the renderer is never consulted. When more than one usable
@@ -37,6 +40,11 @@ function resolveCycleForRequest(db, event) {
         context?.cycleCode && (!session || context.userId === Number(session.userId));
     if (contextBelongsToSession) {
         assertCycleAuthorized(db, session, context.cycleCode);
+        // S0 gate: the cached context must still match the current institution state.
+        // A cycle that was disabled, removed, or downgraded after the context was set
+        // fails closed here — the request must never silently fall through to another
+        // cycle (docs/plans/2026-08-02-multi-stage-school-architecture.md, §3 S0).
+        cyclesRepo.assertCycleIsActive(db, context.cycleCode);
         return context.cycleCode;
     }
 

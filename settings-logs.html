@@ -48,6 +48,12 @@
             <div class="grades-container">
                 <div class="students-results">
                     <div class="search-form">
+                        <div class="sd-field-inline">
+                            <label for="action-filter" class="sd-field-inline__label">
+                                <i class="fas fa-filter"></i> العملية
+                            </label>
+                            <select id="action-filter" class="sd-select" aria-label="تصفية حسب العملية"></select>
+                        </div>
                         <button class="btn btn-primary" id="refresh">تحديث</button>
                         <button class="btn btn-secondary" id="seed">إضافة سجل تجريبي</button>
                     </div>
@@ -68,42 +74,6 @@
             </div>
         </main>
 
-        <script>
-            document.addEventListener('DOMContentLoaded', async () => {
-                await loadLogs();
-                document.getElementById('refresh').addEventListener('click', loadLogs);
-                document.getElementById('seed').addEventListener('click', seedLog);
-            });
-
-            async function seedLog() {
-                await window.api.systemLogs.add({
-                    action: 'manual:test',
-                    details: 'seed log from settings-logs',
-                    entity_type: 'manual',
-                    entity_id: 'seed'
-                });
-                await loadLogs();
-            }
-
-            async function loadLogs() {
-                const rows = (await window.api.systemLogs.getAll(300)) || [];
-                document.getElementById('tbody').innerHTML = rows.length
-                    ? rows
-                          .map(
-                              (r, i) => `
-                <tr>
-                    <td>${i + 1}</td>
-                    <td>${r.action || '-'}</td>
-                    <td>${r.entity_type || '-'}</td>
-                    <td>${r.entity_id || '-'}</td>
-                    <td>${r.details || '-'}</td>
-                    <td>${r.created_at || '-'}</td>
-                </tr>
-            `
-                          )
-                          .join('')
-                    : '<tr><td class="px-5 py-5 text-center" colspan="6">لا توجد سجلات</td></tr>';
-            }
-        </script>
+        <script src="js/pages/settings-logs.js" defer></script>
     </body>
 </html>

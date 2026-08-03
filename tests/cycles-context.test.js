@@ -12,9 +12,11 @@ const {
 
 console.log('[test] education cycles and active contexts');
 
-assert.strictEqual(CYCLE_CATALOG.length, 2);
+assert.strictEqual(CYCLE_CATALOG.length, 3);
 assert.strictEqual(getCycleDefinition('secondary_qualifiant').capability, 'supported');
-assert.strictEqual(getCycleDefinition('secondary_collegial').capability, 'not_supported');
+assert.strictEqual(getCycleDefinition('secondary_collegial').capability, 'supported');
+assert.strictEqual(getCycleDefinition('primary').capability, 'preview');
+assert.strictEqual(getCycleDefinition('primary').sortOrder, 5);
 assert.strictEqual(getCycleDefinition('unknown'), null);
 console.log('  [ok] cycle capability catalog is closed');
 

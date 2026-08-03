@@ -83,4 +83,54 @@ assert.throws(
 clearContextForSender(sender.id);
 sessions.delete(sender.id);
 
+// ── S6: management API exports + repo-layer guard basics ──
+// (full management coverage: tests/cycle-access-management.test.js)
+const {
+    CYCLE_ACCESS_ERROR_CODES,
+    listUserCycleAccess,
+    setUserCycles,
+    setCyclesForAllUsers
+} = require('../main/auth/cycle-access');
+
+assert.deepStrictEqual(
+    Object.keys(CYCLE_ACCESS_ERROR_CODES).sort(),
+    ['CYCLE_NOT_IN_INSTITUTION', 'FORBIDDEN', 'LAST_USABLE_CYCLE', 'UNKNOWN_CYCLE', 'USER_NOT_FOUND'],
+    'CYCLE_ACCESS_ERROR_CODES must stay the documented SSOT'
+);
+for (const fn of [listUserCycleAccess, setUserCycles, setCyclesForAllUsers]) {
+    assert.strictEqual(typeof fn, 'function', `cycle-access management export missing: ${fn && fn.name}`);
+}
+
+const mgmtDb = openDb();
+seedCycle(mgmtDb);
+mgmtDb.exec(`
+    CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT,
+        role TEXT DEFAULT 'staff'
+    );
+`);
+require('../main/db/schema').ensureCycleReferenceSchema(mgmtDb);
+const insertMgmtUser = mgmtDb.prepare('INSERT INTO users (name, email, role) VALUES (?, ?, ?)');
+insertMgmtUser.run('المدير', 'admin@school.local', 'admin');
+insertMgmtUser.run('أستاذ', 'teacher@school.local', 'teacher');
+mgmtDb.prepare('INSERT INTO user_cycle_access (user_id, cycle_code) VALUES (?, ?)').run(2, 'secondary_qualifiant');
+
+assert.throws(
+    () => setUserCycles(mgmtDb, 1, []),
+    (error) => error.code === CYCLE_ACCESS_ERROR_CODES.FORBIDDEN,
+    'management must refuse to modify a developer/admin/principal user (repo layer)'
+);
+assert.throws(
+    () => setUserCycles(mgmtDb, 2, []),
+    (error) => error.code === CYCLE_ACCESS_ERROR_CODES.LAST_USABLE_CYCLE,
+    'management must refuse to remove the last usable supported cycle (repo layer)'
+);
+assert.throws(
+    () => setUserCycles(mgmtDb, 999, ['secondary_qualifiant']),
+    (error) => error.code === CYCLE_ACCESS_ERROR_CODES.USER_NOT_FOUND,
+    'management must reject unknown users'
+);
+
 console.log('cycle-access.test.js: OK');

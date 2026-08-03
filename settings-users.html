@@ -158,7 +158,46 @@
                 </section>
 
                 <!-- ═══════════════════════════════════════════
-                     SECTION 3 — Link Requests (conditional)
+                     SECTION 3 — Cycle Access (admin only, local-only)
+                     ═══════════════════════════════════════════ -->
+                <section class="su-card" id="cycle-access-panel" style="display: none">
+                    <div class="su-card__header">
+                        <h3 class="su-card__title">
+                            <i class="fas fa-layer-group su-card__icon"></i>
+                            صلاحيات الأسلاك
+                        </h3>
+                        <div class="su-card__actions">
+                            <button id="refresh-cycle-access" class="btn btn-secondary su-btn--icon" type="button">
+                                <i class="fas fa-sync-alt"></i> تحديث
+                            </button>
+                        </div>
+                    </div>
+                    <p class="su-help-text">
+                        حدد الأسلاك التي يمكن لكل مستخدم العمل داخلها. مدير التطبيق ومدير المؤسسة يتمتعان بصلاحية كاملة
+                        ولا يحتاجان إلى إعداد. لا يمكن سحب آخر سلك مفعل جاهز للعمل لأي مستخدم.
+                        هذا الإعداد محلي على هذا الجهاز ولا يُزامَن مع الأجهزة الأخرى.
+                    </p>
+                    <p class="su-help-text" id="cycle-access-cycle-actions"></p>
+                    <div class="su-table-wrap">
+                        <table class="students-table">
+                            <caption class="sr-only">
+                                صلاحيات الأسلاك لكل مستخدم
+                            </caption>
+                            <thead>
+                                <tr id="cycle-access-thead-row">
+                                    <th>#</th>
+                                    <th>المستخدم</th>
+                                    <th>الدور</th>
+                                    <th>الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cycle-access-tbody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ═══════════════════════════════════════════
+                     SECTION 4 — Link Requests (conditional)
                      ═══════════════════════════════════════════ -->
                 <section class="su-card" id="link-requests-panel" style="display: none">
                     <div class="su-card__header">

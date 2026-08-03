@@ -37,19 +37,29 @@ function registerCyclesIpc(ipcMain) {
             cyclesRepo.listCycles(db).filter((cycle) => Number(cycle.is_active) && cycle.capability === 'supported'),
             session
         );
-        const defaultCycleCode = visibleCycles[0]?.cycle_code;
-        if (!defaultCycleCode) throw new Error('لا يوجد سلك مصرح ومتاح للعمل');
         const schoolYear = normalizeYear(null);
         const existingContext = activeCycleContext.peekContext(event);
         const existingCycle = existingContext?.cycleCode
             ? visibleCycles.find((cycle) => cycle.cycle_code === existingContext.cycleCode)
             : null;
-        const context =
-            existingCycle && existingContext.userId === Number(session.userId) && existingContext.schoolYear === schoolYear
-                ? existingContext
-                : activeCycleContext.setContext(event, session.userId, defaultCycleCode, schoolYear);
-        const cycle = cyclesRepo.getLabeledCycle(db, context.cycleCode);
-        return { success: true, context, cycle };
+        if (existingCycle && existingContext.userId === Number(session.userId) && existingContext.schoolYear === schoolYear) {
+            const cycle = cyclesRepo.getLabeledCycle(db, existingContext.cycleCode);
+            return { success: true, context: existingContext, cycle };
+        }
+        // No usable explicit selection (G3 / S0 fail-closed): with more than one
+        // usable cycle we never pin one silently — the caller receives
+        // requiresSelection and must let the user choose via cycles:setActive.
+        // With exactly one usable cycle the choice is unambiguous and safe to
+        // establish as the session context.
+        if (visibleCycles.length > 1) {
+            return { success: true, context: null, cycle: null, requiresSelection: true };
+        }
+        if (visibleCycles.length === 1) {
+            const context = activeCycleContext.setContext(event, session.userId, visibleCycles[0].cycle_code, schoolYear);
+            const cycle = cyclesRepo.getLabeledCycle(db, context.cycleCode);
+            return { success: true, context, cycle };
+        }
+        throw new Error('لا يوجد سلك مصرح ومتاح للعمل');
     });
 
     handleWrite(ipcMain, 'cycles:add', ['admin', 'principal'], (db, event, payload) => {

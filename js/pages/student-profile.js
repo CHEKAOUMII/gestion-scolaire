@@ -5,6 +5,9 @@
 
 const SCHOOL_YEAR = getSchoolYear();
 
+let stageRuleSetPayload = null;
+let activeCycleCode = null;
+
 // Risk-tab inputs stashed by the render functions (general average, per-subject
 // averages, absence hours) so renderStudentRiskTab() can feed the pure engine
 // in js/student-risk.js without re-parsing the DOM. Profile-tab signals
@@ -105,6 +108,17 @@ function getStudentCodeFromUrl() {
     return params.get('code') || '';
 }
 
+async function getActiveCycleCode() {
+    if (!window.api?.cycles?.getActive) return null;
+    try {
+        const response = await window.api.cycles.getActive();
+        return response?.success ? response.context?.cycleCode || response.cycle?.cycle_code || null : null;
+    } catch (err) {
+        console.warn('[student-profile] active cycle unavailable:', err);
+        return null;
+    }
+}
+
 // ─── DOM Ready ───
 document.addEventListener('DOMContentLoaded', async () => {
     const code = getStudentCodeFromUrl();
@@ -130,7 +144,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     initBmScoring();
     initGuidanceLive();
 
-    await ensureSubjectCoefficientMappings();
+    try {
+        stageRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(SCHOOL_YEAR) : null;
+    } catch (err) {
+        console.warn('[student-profile] stage rule set unavailable:', err);
+    }
+    activeCycleCode = await getActiveCycleCode();
     await loadStudentProfile(code);
 });
 
@@ -333,9 +352,18 @@ function renderMiniStats(grades, absences, student) {
     // Per-term and general averages via the shared pure computation layer
     // (js/student-averages.js). This replaces the previous inline pooled
     // computation so the quick-stats card and grades tab can never drift.
+    const levelInfo =
+        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
     const averages =
         typeof computeStudentAverages === 'function'
-            ? computeStudentAverages(grades, branch, { schoolYear: SCHOOL_YEAR, streamCode: branch })
+            ? computeStudentAverages(grades, branch, {
+                  schoolYear: SCHOOL_YEAR,
+                  streamCode: branch,
+                  cycleCode: activeCycleCode,
+                  levelCode: levelInfo.code,
+                  levelLabel: levelInfo.label,
+                  ruleSet: stageRuleSetPayload || undefined
+              })
             : { term1: null, term2: null, general: null, incomplete: false };
 
     // Subject count for the quick-stats card (unchanged behavior): count the
@@ -454,6 +482,8 @@ function renderGradesTab(student, rawGrades) {
 
     const branch =
         typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
+    const levelInfo =
+        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
 
     // Per-term and general averages via the shared pure computation layer
     // (js/student-averages.js), the same call used by renderMiniStats. This
@@ -462,7 +492,14 @@ function renderGradesTab(student, rawGrades) {
     // its own per-term dedup/partitioning internally.
     const averages =
         typeof computeStudentAverages === 'function'
-            ? computeStudentAverages(rawGrades, branch, { schoolYear: SCHOOL_YEAR, streamCode: branch })
+            ? computeStudentAverages(rawGrades, branch, {
+                  schoolYear: SCHOOL_YEAR,
+                  streamCode: branch,
+                  cycleCode: activeCycleCode,
+                  levelCode: levelInfo.code,
+                  levelLabel: levelInfo.label,
+                  ruleSet: stageRuleSetPayload || undefined
+              })
             : { term1: null, term2: null, general: null, incomplete: false };
     _riskState.incompleteMetadata = averages.incomplete ? averages.metadata : null;
 
@@ -3216,8 +3253,21 @@ function initGuidanceLive() {
 // ═══════════════════════════════════════════════════════════════
 function setupHeaderActions() {
     const openPreview = () => {
-        if (_riskState.incompleteMetadata) {
-            showToast('لا يمكن تصدير ملف يتضمن نتائج غير مكتملة بسبب معاملات ناقصة', 'warning');
+        const metaCode = _riskState.incompleteMetadata && _riskState.incompleteMetadata.code;
+        const exportAllowed =
+            typeof SubjectCoefficientErrorContract?.isOfficialExportAllowed === 'function'
+                ? SubjectCoefficientErrorContract.isOfficialExportAllowed({
+                      incomplete: !!_riskState.incompleteMetadata,
+                      metadata: _riskState.incompleteMetadata || undefined
+                  })
+                : !_riskState.incompleteMetadata;
+        if (!exportAllowed) {
+            showToast(
+                metaCode === 'RULES_UNAVAILABLE'
+                    ? 'لا تتوفر نسخة قواعد فعالة لهذه السنة الدراسية. لا يمكن تصدير الملف.'
+                    : 'لا يمكن تصدير ملف يتضمن نتائج غير مكتملة بسبب معاملات ناقصة',
+                'warning'
+            );
             return;
         }
         // Recompute guidance analysis so print captures current averages/grades

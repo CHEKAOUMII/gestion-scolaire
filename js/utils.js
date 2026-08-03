@@ -2302,6 +2302,14 @@ function setupUnifiedHeader() {
     `;
     header.dataset.unifiedHeader = 'true';
 
+    // The unified header replaced the previous one wholesale, so any switcher
+    // wrapper that was injected earlier (e.g. by the cycle-config broadcast
+    // subscription firing before DOM ready) is gone. Re-run the loader against
+    // the final header — it no-ops when the wrapper already exists.
+    if (typeof window.refreshCycleSwitcher === 'function') {
+        window.refreshCycleSwitcher();
+    }
+
     // Re-apply theme icon after replacing #theme-toggle
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     if (typeof updateThemeIcon === 'function') {
@@ -2396,54 +2404,12 @@ function debounce(func, wait = 300) {
 }
 
 // ===== Level Code Normalization (مصدر موحد لأسماء المستويات) =====
-/**
- * القاموس المرجعي: رمز المستوى → { الاسم العربي, ترتيب العرض }
- * لإضافة مستوى جديد: أضف سطراً واحداً هنا فقط.
- */
-const LEVEL_CODE_TO_AR = Object.freeze({
-    TCSF: { name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 },
-    TCSA: { name: 'الجذع المشترك العلمي خيار عربية', order: 2 },
-    TCS: { name: 'الجذع المشترك العلمي', order: 1 },
-    TCLSH: { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    TCL: { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    TCTF: { name: 'الجذع المشترك التكنولوجي', order: 4 },
-    '1BACSMF': { name: 'الأولى باكالوريا علوم رياضية خيار فرنسية', order: 5 },
-    '1BACSMA': { name: 'الأولى باكالوريا علوم رياضية خيار عربية', order: 6 },
-    '1BACSM': { name: 'الأولى باكالوريا العلوم الرياضية', order: 5 },
-    '1BACSEF': { name: 'الأولى باكالوريا علوم تجريبية خيار فرنسية', order: 7 },
-    '1BACSEA': { name: 'الأولى باكالوريا علوم تجريبية خيار عربية', order: 8 },
-    '1BACSE': { name: 'الأولى باكالوريا علوم تجريبية', order: 7 },
-    '1BACSH': { name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 9 },
-    '1BACL': { name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 9 },
-    '1BACSEG': { name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    '1BACECO': { name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    '1BACGE': { name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    '2BACSMA': { name: 'الثانية باكالوريا علوم رياضية أ', order: 11 },
-    '2BACSMB': { name: 'الثانية باكالوريا علوم رياضية ب', order: 12 },
-    '2BACSM': { name: 'الثانية باكالوريا علوم رياضية', order: 11 },
-    '2BACSVTF': { name: 'الثانية باكالوريا علوم الحياة والأرض', order: 13 },
-    '2BACSVT': { name: 'الثانية باكالوريا علوم الحياة والأرض', order: 13 },
-    '2BACPCF': { name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 14 },
-    '2BACPC': { name: 'الثانية باكالوريا علوم فيزيائية', order: 14 },
-    '2BACSPF': { name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 14 },
-    '2BACSP': { name: 'الثانية باكالوريا علوم فيزيائية', order: 14 },
-    '2BACSHF': { name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    '2BACSH': { name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    '2BACL': { name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    '2BACLETF': { name: 'الثانية باكالوريا آداب', order: 16 },
-    '2BACLET': { name: 'الثانية باكالوريا آداب', order: 16 },
-    '2BACSECF': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACSEC': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACSE': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACECO': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACSGCF': { name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    '2BACSGC': { name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    '2BACGC': { name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    '2BACSA': { name: 'الثانية باكالوريا علوم شرعية', order: 19 },
-    '2BACOAF': { name: 'الثانية باكالوريا تعليم أصيل', order: 20 },
-    '2BACAO': { name: 'الثانية باكالوريا تعليم أصيل', order: 20 }
-});
-const _LEVEL_KEYS_DESC = Object.keys(LEVEL_CODE_TO_AR).sort((a, b) => b.length - a.length);
+// المصدر الوحيد للمستويات التأهيلية هو js/shared/education/qualifiant-levels.js
+// (التوزيع المزدوج: نافذة + CommonJS). لإضافة مستوى جديد: عدّل ذلك الملف فقط.
+const _QUALIFIANT_LEVELS =
+    typeof globalThis.EducationQualifiantLevels !== 'undefined' ? globalThis.EducationQualifiantLevels : null;
+const LEVEL_CODE_TO_AR = _QUALIFIANT_LEVELS ? _QUALIFIANT_LEVELS.LEVEL_CODE_TO_AR : Object.freeze({});
+const _LEVEL_KEYS_DESC = _QUALIFIANT_LEVELS ? _QUALIFIANT_LEVELS.LEVEL_KEYS_DESC : [];
 
 /**
  * تحويل رمز القسم إلى كائن { code, name, order }
@@ -2451,22 +2417,8 @@ const _LEVEL_KEYS_DESC = Object.keys(LEVEL_CODE_TO_AR).sort((a, b) => b.length -
  * @returns {{ code: string, name: string, order: number }}
  */
 function getLevelFromSection(section) {
-    if (!section) return { code: 'other', name: 'أخرى', order: 99 };
-    const s = String(section).trim();
-    const upper = s
-        .toUpperCase()
-        .replace(/[-_\s]?\d+$/, '')
-        .trim();
-    for (const key of _LEVEL_KEYS_DESC) {
-        if (upper === key || upper.startsWith(key)) {
-            const info = LEVEL_CODE_TO_AR[key];
-            return { code: key.toLowerCase(), name: info.name, order: info.order };
-        }
-    }
-    if (upper.startsWith('TC')) return { code: 'tc', name: 'الجذع المشترك', order: 90 };
-    if (upper.startsWith('1BAC')) return { code: '1bac', name: 'الأولى باكالوريا', order: 91 };
-    if (upper.startsWith('2BAC')) return { code: '2bac', name: 'الثانية باكالوريا', order: 92 };
-    return { code: 'other', name: section, order: 99 };
+    if (_QUALIFIANT_LEVELS) return _QUALIFIANT_LEVELS.matchLevelFromSection(section);
+    return { code: 'other', name: String(section || 'أخرى'), order: 99 };
 }
 
 /**

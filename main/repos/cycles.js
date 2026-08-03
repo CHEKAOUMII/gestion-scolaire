@@ -1,6 +1,6 @@
 'use strict';
 
-const { CYCLE_CATALOG, getCycleDefinition } = require('../../js/shared/education/cycles');
+const { CYCLE_CATALOG, getCycleDefinition, normalizeCapability } = require('../../js/shared/education/cycles');
 const { captureInputUpserts, notifyCaptureCommitted } = require('./capture-port');
 
 function withCycleLabel(row) {
@@ -10,7 +10,7 @@ function withCycleLabel(row) {
         ...row,
         label_ar: definition?.labelAr || row.cycle_code,
         label_fr: definition?.labelFr || row.cycle_code,
-        capability: definition?.capability || 'not_supported'
+        capability: normalizeCapability(definition?.capability)
     };
 }
 
@@ -78,7 +78,7 @@ function addCycle(db, cycleCode) {
 }
 
 function assertDisableKeepsInstitutionUsable(db, cycleCode) {
-    // A cycle that is enabled but still `not_supported` cannot be worked in, so the
+    // A cycle that is enabled but still `preview` cannot be worked in, so the
     // last *supported* enabled cycle must survive — otherwise the institution ends up
     // with rows in institution_cycles but no cycle any session can select.
     const remaining = listCycles(db).filter(

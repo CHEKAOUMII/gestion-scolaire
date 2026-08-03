@@ -11,6 +11,8 @@
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
         <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/errors/stage-rules-error-contract.js" defer></script>
+        <script src="js/data/ma-education-labels.js" defer></script>
         <script src="js/shared/auth-session.js" defer></script>
         <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
@@ -96,6 +98,18 @@
                             <i class="fas fa-user-shield"></i>
                             <span>صلاحيات الصفحات</span>
                         </button>
+                        <button
+                            type="button"
+                            class="rh-tab-btn"
+                            role="tab"
+                            id="tab-btn-rules"
+                            data-tab="rules"
+                            aria-selected="false"
+                            aria-controls="tab-rules"
+                        >
+                            <i class="fas fa-scale-balanced"></i>
+                            <span>قواعد المرحلة</span>
+                        </button>
                     </div>
                 </div>
 
@@ -169,6 +183,99 @@
                                 <thead id="page-access-thead"></thead>
                                 <tbody id="page-access-tbody"></tbody>
                             </table>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- ═══ Tab 3: Stage rules ═══ -->
+                <div class="rh-tab-panel" id="tab-rules" role="tabpanel" aria-labelledby="tab-btn-rules" hidden>
+                    <section class="sd-panel" dir="rtl" lang="ar">
+                        <div class="sd-toolbar">
+                            <div class="sd-toolbar__start">
+                                <div class="sd-field-inline">
+                                    <label for="stage-year-select" class="sd-field-inline__label">
+                                        <i class="fas fa-calendar-alt"></i> السنة الدراسية
+                                    </label>
+                                    <select id="stage-year-select" class="sd-select" aria-label="السنة الدراسية"></select>
+                                </div>
+                                <div class="sd-field-inline">
+                                    <label for="stage-cycle-select" class="sd-field-inline__label">
+                                        <i class="fas fa-layer-group"></i> السلك
+                                    </label>
+                                    <select id="stage-cycle-select" class="sd-select" aria-label="السلك"></select>
+                                </div>
+                                <div class="sd-field-inline">
+                                    <label for="stage-level-select" class="sd-field-inline__label">
+                                        <i class="fas fa-graduation-cap"></i> المستوى
+                                    </label>
+                                    <select id="stage-level-select" class="sd-select" aria-label="المستوى"></select>
+                                </div>
+                                <div class="sd-field-inline">
+                                    <label for="stage-stream-select" class="sd-field-inline__label">
+                                        <i class="fas fa-code-branch"></i> المسلك
+                                    </label>
+                                    <select id="stage-stream-select" class="sd-select" aria-label="المسلك"></select>
+                                </div>
+                                <div class="sd-field-inline">
+                                    <label for="stage-subject-select" class="sd-field-inline__label">
+                                        <i class="fas fa-book"></i> المادة
+                                    </label>
+                                    <select id="stage-subject-select" class="sd-select" aria-label="المادة"></select>
+                                </div>
+                            </div>
+                            <div class="sd-toolbar__end">
+                                <span id="stage-pending" class="sd-chip" data-state="dirty" hidden>غير محفوظ</span>
+                                <span id="stage-version-badge" class="sd-chip" data-state="clean">لا توجد نسخة قواعد</span>
+                                <button id="refresh-stage-rules" class="btn btn-secondary btn-sm" type="button" title="تحديث">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button id="restore-stage-rules" class="btn btn-secondary btn-sm" type="button" disabled title="استعادة جميع القيم المخصصة إلى القيم الرسمية">
+                                    <i class="fas fa-rotate-left"></i> استعادة كل القيم الرسمية
+                                </button>
+                                <button id="save-stage-rules" class="btn btn-success btn-sm" type="button" disabled>
+                                    <i class="fas fa-save"></i> حفظ
+                                </button>
+                            </div>
+                        </div>
+                        <p class="sd-hint">
+                            المعامل من 1 إلى 20 · عدد الفروض من 1 إلى 12 · نسب الفروض والأنشطة مجموعها 100% · كل حفظ أو استعادة إلى الرسمي ينشئ
+                            نسخة جديدة بموجب سبب إجباري، والنسخة السابقة تبقى مجمّدة.
+                        </p>
+                        <div class="note-box warning hidden" id="stage-lock-notice" role="status">
+                            <i class="fas fa-lock"></i>
+                            <span id="stage-lock-notice-text">لا يمكن تعديل نسخة قواعد مغلقة.</span>
+                        </div>
+                        <div class="note-box info hidden" id="stage-primary-notice">
+                            <i class="fas fa-info-circle"></i>
+                            <span>هذا السلك لا يستعمل المعاملات — تُعدَّل أعداد الفروض فقط.</span>
+                        </div>
+                        <div class="sd-table-scroll">
+                            <table class="sd-table sd-table--stage" id="stage-rules-table">
+                                <thead>
+                                    <tr>
+                                        <th class="sd-col-num">#</th>
+                                        <th>المادة</th>
+                                        <th>المستوى</th>
+                                        <th>المسلك</th>
+                                        <th class="sd-col-source">المصدر</th>
+                                        <th class="sd-col-count stage-col-coefficient">المعامل</th>
+                                        <th class="sd-col-count">نسبة الفروض %</th>
+                                        <th class="sd-col-count">نسبة الأنشطة %</th>
+                                        <th class="sd-col-count">عدد الفروض</th>
+                                        <th class="sd-col-action">استعادة</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stage-rules-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="form-group sd-reason-group">
+                            <label for="stage-reason"><i class="fas fa-pen"></i> سبب التعديل (إجباري)</label>
+                            <textarea
+                                id="stage-reason"
+                                rows="2"
+                                maxlength="500"
+                                placeholder="اذكر سبب تعديل القواعد..."
+                            ></textarea>
                         </div>
                     </section>
                 </div>

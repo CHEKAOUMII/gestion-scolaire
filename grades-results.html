@@ -114,6 +114,7 @@
             let allStudents = [];
             let allAbsences = [];
             let generatedData = null;
+            let activeCycleCode = null;
 
             const schoolYear = () => {
                 return typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
@@ -142,6 +143,13 @@
                         window.api?.grades?.getAll?.(year) || [],
                         window.api?.absences?.getAll?.(year) || []
                     ]);
+                    try {
+                        const active = await window.api?.cycles?.getActive?.();
+                        activeCycleCode = active?.success ? active.context?.cycleCode || active.cycle?.cycle_code || null : null;
+                    } catch (e) {
+                        console.warn('Failed to load active cycle', e);
+                        activeCycleCode = null;
+                    }
                 } catch (e) {
                     console.error('Failed to load data', e);
                     allStudents = []; allGrades = []; allAbsences = [];
@@ -184,12 +192,23 @@
             }
 
             // ─── Generate Results ───
-            function generateResults() {
+            async function generateResults() {
                 const className = document.getElementById('class-select').value;
                 const semester = parseInt(document.getElementById('semester-select').value, 10);
                 if (!className) {
                     if (typeof showToast === 'function') showToast('يرجى اختيار القسم', 'warning');
                     return;
+                }
+
+                let activeRuleSet = null;
+                if (typeof ensureStageRuleSet === 'function') {
+                    try {
+                        activeRuleSet = await ensureStageRuleSet(schoolYear());
+                    } catch (err) {
+                        if (typeof showToast === 'function') {
+                            showToast((err && (err.userMessage || err.message)) || 'تعذر تحميل قواعد المرحلة', 'error');
+                        }
+                    }
                 }
 
                 // Filter grades for this class and semester
@@ -217,12 +236,18 @@
                 }
 
                 const branch = typeof detectBranch === 'function' ? detectBranch(className) : null;
+                const levelInfo =
+                    typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
                 const coefficientContext = {
-                    cycleCode: 'secondary_qualifiant',
+                    cycleCode: activeCycleCode,
                     streamCode: branch,
+                    levelCode: levelInfo.code,
+                    levelLabel: levelInfo.label,
                     schoolYear: schoolYear()
                 };
+                if (activeRuleSet) coefficientContext.ruleSet = activeRuleSet;
                 const missingCoefficients = [];
+                let incompleteMetadata = null;
                 console.log('[بيان النتائج] className:', className, '→ branch:', branch);
                 if (branch && typeof CC_BRANCH_COEFFICIENTS !== 'undefined') {
                     console.log('[بيان النتائج] coefficient table keys:', Object.keys(CC_BRANCH_COEFFICIENTS[branch] || {}));
@@ -279,6 +304,9 @@
                         : { ok: false, missingCoefficients };
                     if (!averageResolution.ok) {
                         (averageResolution.missingCoefficients || []).forEach((entry) => missingCoefficients.push(entry));
+                        if (!incompleteMetadata && averageResolution.metadata) {
+                            incompleteMetadata = averageResolution.metadata;
+                        }
                     }
                     const generalAvg = averageResolution.ok ? averageResolution.value : null;
 
@@ -300,7 +328,7 @@
                     studentResults.push({
                         student,
                         subjectData,
-                        generalAvg: parseFloat(generalAvg.toFixed(2)),
+                        generalAvg: generalAvg == null ? null : parseFloat(generalAvg.toFixed(2)),
                         sumNxM: parseFloat(sumNxM.toFixed(2)),
                         justifiedHours, unjustifiedHours,
                         justifiedDays, unjustifiedDays
@@ -340,6 +368,7 @@
                         ])
                     ).values()
                 );
+                const isExportBlocked = incompleteMetadata && incompleteMetadata.officialExportBlocked === true;
                 generatedData = {
                     className,
                     semester,
@@ -347,11 +376,13 @@
                     studentResults,
                     classAvg: parseFloat(classAvg.toFixed(2)),
                     totalStudents: classStudents.length,
-                    incomplete: uniqueMissingCoefficients.length > 0,
+                    incomplete: uniqueMissingCoefficients.length > 0 || isExportBlocked,
                     missingCoefficients: uniqueMissingCoefficients,
-                    metadata: uniqueMissingCoefficients.length
-                        ? SubjectCoefficientErrorContract.createIncompleteResultMetadata(uniqueMissingCoefficients)
-                        : { status: 'complete', officialExportBlocked: false, missingCoefficients: [] }
+                    metadata: isExportBlocked
+                        ? Object.assign({}, incompleteMetadata, { missingCoefficients: uniqueMissingCoefficients })
+                        : uniqueMissingCoefficients.length
+                            ? SubjectCoefficientErrorContract.createIncompleteResultMetadata(uniqueMissingCoefficients)
+                            : { status: 'complete', officialExportBlocked: false, missingCoefficients: [] }
                 };
 
                 renderResults();
@@ -372,7 +403,10 @@
                 const title = document.createElement('h4');
                 title.textContent = 'تعذر اعتماد بيان النتائج';
                 const message = document.createElement('p');
-                message.textContent = 'توجد معاملات ناقصة. لا يمكن معاينة أو تصدير وثيقة رسمية قبل استكمالها.';
+                const metaCode = generatedData.metadata && generatedData.metadata.code;
+                message.textContent = metaCode === 'RULES_UNAVAILABLE'
+                    ? 'لا تتوفر نسخة قواعد فعالة لهذه السنة الدراسية. لا يمكن معاينة أو تصدير وثيقة رسمية قبل توفرها.'
+                    : 'توجد معاملات ناقصة. لا يمكن معاينة أو تصدير وثيقة رسمية قبل استكمالها.';
                 const list = document.createElement('ul');
                 generatedData.missingCoefficients.forEach((entry) => {
                     const item = document.createElement('li');
@@ -381,47 +415,7 @@
                 });
                 panel.append(title, message, list);
 
-                const role = typeof getCurrentAppRole === 'function' ? getCurrentAppRole() : null;
-                const canOverride = ['admin', 'developer'].includes(role);
-                if (canOverride && window.api?.subjectCoefficients?.override) {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'btn btn-primary';
-                    button.textContent = 'اعتماد معامل استثنائي للمادة الأولى';
-                    button.addEventListener('click', overrideFirstMissingCoefficient);
-                    panel.appendChild(button);
-                }
                 body.replaceChildren(panel);
-            }
-
-            async function overrideFirstMissingCoefficient() {
-                const entry = generatedData?.missingCoefficients?.[0];
-                if (!entry) return;
-                const coefficient = Number(window.prompt(`أدخل معامل المادة «${entry.subject}» (بين 0 و20):`, '1'));
-                if (!Number.isFinite(coefficient) || coefficient <= 0 || coefficient > 20) {
-                    showToast('المعامل غير صالح', 'warning');
-                    return;
-                }
-                const reason = window.prompt('اذكر سبب الاعتماد الاستثنائي:', 'تصحيح إعدادات المادة');
-                if (!reason || !reason.trim()) {
-                    showToast('سبب الاعتماد مطلوب للتدقيق', 'warning');
-                    return;
-                }
-                const response = await window.api.subjectCoefficients.override({
-                    cycleCode: 'secondary_qualifiant',
-                    streamCode: entry.streamCode || generatedData.branch,
-                    subject: entry.subject,
-                    coefficient,
-                    reason,
-                    schoolYear: schoolYear()
-                });
-                if (!response?.success) {
-                    showToast(response?.error || 'تعذر اعتماد المعامل', 'error');
-                    return;
-                }
-                setSubjectCoefficientOverrides(response.mappings || []);
-                generatedData = null;
-                generateResults();
             }
 
             function renderResults() {

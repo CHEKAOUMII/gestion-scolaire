@@ -8,9 +8,9 @@
  * caller supplies a row id directly. These tests drive the real repository SQL against a
  * real engine, using the schema the migration produces.
  *
- * Isolation is exercised at repository level with two raw cycle codes because
- * `secondary_collegial` is still `not_supported` and cannot be selected through IPC —
- * the capability gate itself is covered by tests/cycles-repo-ipc.test.js.
+ * Isolation is exercised at repository level with two raw cycle codes; the
+ * capability gate and approved collegial selection are covered separately by
+ * tests/cycles-repo-ipc.test.js.
  */
 
 const assert = require('assert');

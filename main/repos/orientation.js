@@ -2,12 +2,26 @@
 
 /**
  * Student orientation domain repository (027-layering-remediation).
+ *
+ * Cycle ownership: `student_orientation` is institution-wide by design (multi-stage
+ * plan §2 G8 / §3 S0) — its reads/writes are NOT scoped to the session's active
+ * cycle. Since S3 (migration 2026-08-081) it carries `cycle_code` as a historical
+ * snapshot derived here in main from the students table at write time: never
+ * renderer-supplied, immutable once written (updates preserve it even when the
+ * student's cycle changes later). The institution-wide read exception closes in
+ * S6, not here — do not add cycle filtering without updating
+ * tests/s0-cycle-gate.test.js and the plan.
  */
 
 const { captureInputUpserts, notifyCaptureCommitted } = require('./capture-port');
 
 /** Soft cap so IPC replies stay small; totals remain authoritative. */
 const MAX_DETAILS = 80;
+
+/** Schema probe: unit-test fixtures may pre-date the S3 column additions. */
+function tableHasColumn(db, tableName, columnName) {
+    return db.pragma(`table_info(${tableName})`).some((col) => col.name === columnName);
+}
 
 const MERGE_TEXT_FIELDS = [
     'full_name',
@@ -229,6 +243,7 @@ const FEMALE_GENDER_SQL = `('أنثى','F','f','female','Female','2')`;
 const ORIENTATION_LIST_SELECT = `
     o.id,
     o.student_code,
+    o.cycle_code,
     COALESCE(NULLIF(trim(o.full_name), ''), s.full_name) AS full_name,
     ${EFFECTIVE_GENDER_SQL} AS gender,
     COALESCE(NULLIF(trim(o.section), ''), s.section) AS section,
@@ -256,8 +271,13 @@ const ORIENTATION_FROM_JOIN = `
 `;
 
 function list(db, year, filters = {}) {
+    // Production always has the column after 2026-08-081; pre-migration unit-test
+    // fixtures may not, in which case the row shape is preserved via a NULL alias.
+    const selectFields = tableHasColumn(db, 'student_orientation', 'cycle_code')
+        ? ORIENTATION_LIST_SELECT
+        : ORIENTATION_LIST_SELECT.replace('o.cycle_code,', 'NULL AS cycle_code,');
     let sql = `
-            SELECT ${ORIENTATION_LIST_SELECT}
+            SELECT ${selectFields}
             ${ORIENTATION_FROM_JOIN}
             WHERE o.school_year = ?
         `;
@@ -401,7 +421,14 @@ function stats(db, year) {
  * Safety rules:
  * - Entire batch runs inside one SQLite transaction (atomic commit / full rollback).
  * - Merge key is ONLY (student_code, school_year) — never name, section, or level.
- * - UPDATE never changes student_code or school_year columns.
+ * - UPDATE never changes student_code, school_year, or cycle_code columns.
+ * - cycle_code is a main-derived historical snapshot: renderer values are stripped,
+ *   inserts take it from the students roster, updates keep the existing value, and
+ *   unresolvable inserts are written NULL and reported in `unresolvedCycle`. On the
+ *   production schema (students carries cycle_code, post 2026-08-081) an insert
+ *   whose student has no roster match is REJECTED — plan row 132 refuses history
+ *   for a student the institution does not know; pre-081 fixtures keep the
+ *   NULL-write fallback so legacy shapes stay importable.
  * - Non-destructive field merge (empty/NULL does not wipe existing values).
  * - Unchanged rows skip the UPDATE statement.
  * - Does NOT call clearYear / year-wide DELETE.
@@ -430,19 +457,31 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
     const selectExisting = db.prepare(
         `SELECT * FROM student_orientation WHERE student_code = ? AND school_year = ?`
     );
+    // cycle_code columns exist in production (2026-08-081 / students table); older
+    // unit-test fixtures without them degrade gracefully to the legacy shape.
+    const hasCycleColumn = tableHasColumn(db, 'student_orientation', 'cycle_code');
+    const hasStudentCycleCode = tableHasColumn(db, 'students', 'cycle_code');
     const selectStudentByCode = db.prepare(`
-                SELECT gender, full_name, section
+                SELECT gender, full_name, section${hasStudentCycleCode ? ', cycle_code' : ''}
                 FROM students
                 WHERE school_year = ? AND UPPER(TRIM(code)) = ?
                 LIMIT 1
             `);
-    const insertStmt = db.prepare(`
-                INSERT INTO student_orientation (
+    const insertStmt = db.prepare(
+        hasCycleColumn
+            ? `INSERT INTO student_orientation (
                     student_code, full_name, gender, section, level,
                     origin_stream, choice_1, choice_2, choice_3,
-                    assigned_stream, decision_status, average, rank_num, notes, school_year, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `);
+                    assigned_stream, decision_status, average, rank_num, notes,
+                    cycle_code, school_year, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+            : `INSERT INTO student_orientation (
+                    student_code, full_name, gender, section, level,
+                    origin_stream, choice_1, choice_2, choice_3,
+                    assigned_stream, decision_status, average, rank_num, notes,
+                    school_year, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+    );
     // NOTE: student_code and school_year are intentionally absent from SET
     const updateStmt = db.prepare(`
                 UPDATE student_orientation SET
@@ -468,6 +507,7 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
     let unchanged = 0;
     let skipped = 0;
     const details = [];
+    const unresolvedCycle = [];
     const captureItems = [];
 
     // One transaction: any unexpected throw rolls back every write in this batch.
@@ -475,6 +515,10 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
     const run = db.transaction((list) => {
         for (const raw of list) {
             const incoming = mapRow(raw);
+
+            // cycle_code is a main-derived historical snapshot — never renderer-supplied
+            delete incoming.cycle_code;
+            delete incoming.cycleCode;
 
             // Row school year must match the request year when present
             if (incoming.school_year) {
@@ -522,6 +566,8 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
                     incoming.section = normalizeText(roster.section);
                 }
             }
+            // Cycle snapshot source for the INSERT path (NULL when unresolvable).
+            const derivedCycleCode = roster && hasStudentCycleCode ? normalizeText(roster.cycle_code) : null;
 
             // origin_stream required for insert; for update may keep existing
             if (!incoming.origin_stream) {
@@ -566,8 +612,39 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
             }
             merged.student_code = code;
 
+            // Historical cycle snapshot (S3/S6, plan row 132): derived in main from
+            // the students roster on insert, preserved verbatim on update — it never
+            // changes even if the student's cycle does later. On the production
+            // schema (students carries cycle_code) an insert with no roster match is
+            // REJECTED: history may not be filed for a student the institution does
+            // not know. Pre-081 fixtures keep the legacy fallback — unresolvable
+            // inserts are written NULL (never guessed, never defaulted) and reported
+            // for review in the response.
+            if (existing) {
+                merged.cycle_code = existing.cycle_code != null ? normalizeText(existing.cycle_code) : null;
+            } else {
+                if (hasStudentCycleCode && !roster) {
+                    skipped += 1;
+                    pushDetail(details, {
+                        student_code: merged.student_code,
+                        outcome: 'skipped',
+                        reason: 'no_matching_student',
+                        message: 'رمز التلميذ غير موجود في سجل التلاميذ'
+                    });
+                    unresolvedCycle.push({ student_code: merged.student_code, reason: 'no_matching_student' });
+                    continue;
+                }
+                merged.cycle_code = derivedCycleCode;
+                if (!merged.cycle_code) {
+                    unresolvedCycle.push({
+                        student_code: merged.student_code,
+                        reason: roster ? 'student_cycle_empty' : 'no_matching_student'
+                    });
+                }
+            }
+
             if (!existing) {
-                insertStmt.run(
+                const insertArgs = [
                     merged.student_code,
                     merged.full_name,
                     merged.gender,
@@ -581,9 +658,11 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
                     merged.decision_status,
                     merged.average,
                     merged.rank_num,
-                    merged.notes,
-                    schoolYear
-                );
+                    merged.notes
+                ];
+                if (hasCycleColumn) insertArgs.push(merged.cycle_code);
+                insertArgs.push(schoolYear);
+                insertStmt.run(...insertArgs);
                 inserted += 1;
                 captureItems.push({ student_code: merged.student_code, school_year: schoolYear });
                 pushDetail(details, {
@@ -658,6 +737,7 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
         skipped,
         duplicatesInFile,
         imported,
+        unresolvedCycle,
         details,
         detailsTruncated: inserted + updated + unchanged + skipped > details.length
     };

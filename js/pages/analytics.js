@@ -9,6 +9,8 @@ let allSections = [];
 let allGradesCache = [];
 let sectionToLevel = {};
 let _filterManager = null;
+let activeRuleSetPayload = null;
+let activeCycleCode = null;
 const gradeBands = [
     { key: 'excellent', label: 'ممتاز', min: 16, max: 20, color: '#2FB36D' },
     { key: 'veryGood', label: 'حسن جدا', min: 14, max: 16, color: '#3C95D0' },
@@ -17,9 +19,25 @@ const gradeBands = [
     { key: 'weak', label: 'ضعيف', min: 0, max: 10, color: '#E74C3C' }
 ];
 
+async function getActiveCycleCode() {
+    if (!window.api?.cycles?.getActive) return null;
+    try {
+        const response = await window.api.cycles.getActive();
+        return response?.success ? response.context?.cycleCode || response.cycle?.cycle_code || null : null;
+    } catch (err) {
+        console.warn('[analytics] active cycle unavailable:', err);
+        return null;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        await ensureSubjectCoefficientMappings();
+        try {
+            activeRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year) : null;
+        } catch (err) {
+            console.warn('[analytics] stage rule set unavailable:', err);
+        }
+        activeCycleCode = await getActiveCycleCode();
         await loadFilters();
 
         const analyzeBtn = document.getElementById('analyze-btn');
@@ -430,9 +448,15 @@ function calculateStudentGeneralAverage(grades, studentId, section) {
     });
     const sectionName = section || (studentGrades[0] && studentGrades[0].section) || '';
     const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
+    const levelInfo =
+        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
     const resolution = computeWeightedGeneralAverageResult(subjectAverages, branch, {
         schoolYear: year,
-        streamCode: branch
+        streamCode: branch,
+        cycleCode: activeCycleCode,
+        levelCode: levelInfo.code,
+        levelLabel: levelInfo.label,
+        ruleSet: activeRuleSetPayload || undefined
     });
     return resolution.ok ? resolution.value : null;
 }
@@ -705,9 +729,15 @@ async function analyze() {
             });
             const sectionName = className || bySubject.values().next().value?.grades[0]?.section || '';
             const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
+            const levelInfo =
+                typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
             const resolution = computeWeightedGeneralAverageResult(studentSubjectAvgs, branch, {
                 schoolYear: year,
-                streamCode: branch
+                streamCode: branch,
+                cycleCode: activeCycleCode,
+                levelCode: levelInfo.code,
+                levelLabel: levelInfo.label,
+                ruleSet: activeRuleSetPayload || undefined
             });
             return resolution.ok ? resolution.value : null;
         }).filter((value) => value != null);

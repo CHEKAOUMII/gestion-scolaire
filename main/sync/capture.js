@@ -365,12 +365,6 @@ const CHANNEL_REGISTRY = {
     },
     'settings:set': { tables: ['settings'], operation: 'PUT', idExtractor: 'argKey' },
     'settings:setSchoolYear': { tables: ['settings'], operation: 'PUT', idExtractor: 'literal' },
-    'subjectCoefficients:override': {
-        tables: ['settings'],
-        operation: 'PUT',
-        idExtractor: 'literal',
-        exclude: true
-    },
 
     // Membership changes capture atomically in the repository; active context stays session-local.
     'cycles:add': {
@@ -436,6 +430,14 @@ const CHANNEL_REGISTRY = {
     // === system.js ===
     'users:getAll': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
 
+    // === cycle-access.js (S6 user_cycle_access) — LOCAL-ONLY, never captured ===
+    // user_cycle_access is a per-device authorization policy, not school data: the
+    // users table is not a sync entity (user IDs are device-local) and syncing grants
+    // would let any device push its own authorization. Deliberately excluded — see
+    // docs/plans/2026-08-02-multi-stage-school-architecture.md row 130.
+    'cycleAccess:setUsers': { tables: ['user_cycle_access'], operation: 'PUT', idExtractor: 'none', exclude: true },
+    'cycleAccess:setCycles': { tables: ['user_cycle_access'], operation: 'MIXED', idExtractor: 'none', exclude: true },
+
     // === pageVisibility.js ===
     'pageVisibility:setVisibility': { tables: ['page_visibility'], operation: 'PUT', idExtractor: 'argKey' },
 
@@ -450,6 +452,36 @@ const CHANNEL_REGISTRY = {
         tables: ['page_role_access'],
         operation: 'PUT',
         idExtractor: 'none',
+        exclude: true
+    },
+
+    // === stage-rules.js (explicit outbox written inside the repo transaction) ===
+    'stageRules:saveCoefficients': {
+        tables: ['stage_rule_sets', 'subject_coefficients'],
+        operation: 'PUT',
+        idExtractor: 'none',
+        captureMode: 'explicit',
+        exclude: true
+    },
+    'stageRules:saveExamCounts': {
+        tables: ['stage_rule_sets', 'exam_count_rules'],
+        operation: 'PUT',
+        idExtractor: 'none',
+        captureMode: 'explicit',
+        exclude: true
+    },
+    'stageRules:saveAll': {
+        tables: ['stage_rule_sets', 'subject_coefficients', 'exam_count_rules', 'subject_weight_rules'],
+        operation: 'PUT',
+        idExtractor: 'none',
+        captureMode: 'explicit',
+        exclude: true
+    },
+    'stageRules:resetToOfficial': {
+        tables: ['stage_rule_sets', 'subject_coefficients', 'exam_count_rules', 'subject_weight_rules'],
+        operation: 'PUT',
+        idExtractor: 'none',
+        captureMode: 'explicit',
         exclude: true
     },
 

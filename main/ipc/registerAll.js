@@ -33,7 +33,8 @@ const { registerInspectorsIpc } = require('./inspectors');
 const { registerAppAdminIpc } = require('./app-admin');
 const { registerDiagnosticsIpc } = require('./diagnostics');
 const { registerAppDefaultsIpc } = require('./appDefaults');
-const { registerSubjectCoefficientsIpc } = require('./subject-coefficients');
+const { registerStageRulesIpc } = require('./stage-rules');
+const { registerCycleAccessIpc } = require('./cycle-access');
 const { startOutboxCleanup } = require('../sync/capture');
 
 function registerAllIpcHandlers(ipcMain) {
@@ -72,7 +73,8 @@ function registerAllIpcHandlers(ipcMain) {
     registerAppAdminIpc(ipcMain);
     registerDiagnosticsIpc(ipcMain);
     registerAppDefaultsIpc(ipcMain);
-    registerSubjectCoefficientsIpc(ipcMain);
+    registerStageRulesIpc(ipcMain);
+    registerCycleAccessIpc(ipcMain);
     startOutboxCleanup();
 }
 

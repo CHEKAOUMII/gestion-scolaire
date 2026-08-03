@@ -86,47 +86,38 @@ assert.strictEqual(backfilled.capability, 'supported');
 assert.strictEqual(backfilled.profile_version, 'qualifiant-2026-v1');
 console.log('  [ok] migration backfills the existing institution as qualifiant');
 
-throwsWith(() => cyclesRepo.addCycle(db, 'primary'), 'غير معروف', 'unknown cycle codes are rejected');
+throwsWith(() => cyclesRepo.addCycle(db, 'unknown-cycle'), 'غير معروف', 'unknown cycle codes are rejected');
 throwsWith(() => cyclesRepo.addCycle(db, 'secondary_qualifiant'), 'مضاف مسبقاً', 'duplicate add is rejected');
 assert.strictEqual(cyclesRepo.listCycles(db).length, 1, 'a rejected add must not leave a partial row');
 
 const added = cyclesRepo.addCycle(db, 'secondary_collegial');
 assert.strictEqual(added.profile_version, 'collegial-2026-v1', 'profile version comes from the catalog, not the caller');
-assert.strictEqual(added.capability, 'not_supported');
+assert.strictEqual(added.capability, 'supported');
 assert.strictEqual(Number(added.is_active), 1);
 assert.strictEqual(cyclesRepo.listCycles(db).length, 2);
 console.log('  [ok] adding a cycle pins its catalog profile version');
 
-throwsWith(
-    () => cyclesRepo.assertCycleIsActive(db, 'secondary_collegial'),
-    'قيد الإعداد',
-    'an enabled but unsupported cycle cannot be selected'
+assert.strictEqual(
+    cyclesRepo.assertCycleIsActive(db, 'secondary_collegial').cycle_code,
+    'secondary_collegial',
+    'an enabled supported cycle can be selected'
 );
 assert.strictEqual(cyclesRepo.assertCycleIsActive(db, 'secondary_qualifiant').cycle_code, 'secondary_qualifiant');
-console.log('  [ok] capability gate blocks selecting an unsupported cycle');
+console.log('  [ok] capability gate allows the approved collegial cycle');
 
-// Disabling the only supported cycle would leave the institution with an enabled
-// but unusable cycle — that must be refused even though two rows are active.
+// Both approved cycles can be enabled, but the last enabled cycle still cannot be
+// disabled even when another catalogued preview cycle exists.
+assert.strictEqual(Number(cyclesRepo.setCycleActive(db, 'secondary_qualifiant', false).is_active), 0);
+assert.strictEqual(Number(cycleRow('secondary_qualifiant').is_active), 0);
 throwsWith(
-    () => cyclesRepo.setCycleActive(db, 'secondary_qualifiant', false),
-    'جاهز للعمل',
-    'the last supported enabled cycle cannot be disabled'
-);
-assert.strictEqual(Number(cycleRow('secondary_qualifiant').is_active), 1, 'refused disable must not mutate the row');
-
-assert.strictEqual(Number(cyclesRepo.setCycleActive(db, 'secondary_collegial', false).is_active), 0);
-throwsWith(
-    () => cyclesRepo.setCycleActive(db, 'secondary_qualifiant', false),
+    () => cyclesRepo.setCycleActive(db, 'secondary_collegial', false),
     'آخر سلك مفعل',
     'the last enabled cycle cannot be disabled'
 );
-throwsWith(
-    () => cyclesRepo.assertCycleIsActive(db, 'secondary_collegial'),
-    'غير مفعل',
-    'a disabled cycle cannot be selected'
-);
+assert.strictEqual(cyclesRepo.assertCycleIsActive(db, 'secondary_collegial').cycle_code, 'secondary_collegial');
+assert.strictEqual(Number(cyclesRepo.setCycleActive(db, 'secondary_qualifiant', true).is_active), 1);
 assert.strictEqual(Number(cyclesRepo.setCycleActive(db, 'secondary_collegial', true).is_active), 1);
-console.log('  [ok] disabling protects the last enabled and the last usable cycle');
+console.log('  [ok] disabling protects the last enabled supported cycle');
 
 // ── IPC surface ────────────────────────────────────────────────────────────
 const handlers = new Map();
@@ -158,7 +149,7 @@ async function main() {
     assert.strictEqual(catalog.success, true, 'the closed catalog stays public');
     assert.deepStrictEqual(
         catalog.cycles.map((cycle) => cycle.cycle_code),
-        ['secondary_collegial', 'secondary_qualifiant']
+        ['primary', 'secondary_collegial', 'secondary_qualifiant']
     );
 
     signIn(SENDER_ADMIN, 11, 'admin');
@@ -215,25 +206,45 @@ async function main() {
     );
 
     const adminActive = await call('cycles:getActive', SENDER_ADMIN);
+    if (adminActive.requiresSelection) {
+        const adminSwitch = await call('cycles:setActive', SENDER_ADMIN, {
+            cycleCode: 'secondary_qualifiant',
+            schoolYear: '2025/2026'
+        });
+        assert.strictEqual(adminSwitch.success, true);
+    }
+    const selectedAdminActive = adminActive.requiresSelection
+        ? await call('cycles:getActive', SENDER_ADMIN)
+        : adminActive;
     const teacherActive = await call('cycles:getActive', SENDER_TEACHER);
-    assert.strictEqual(adminActive.context.userId, 11);
+    assert.strictEqual(selectedAdminActive.context.userId, 11);
     assert.strictEqual(teacherActive.context.userId, 22);
     assert.strictEqual(teacherActive.context.schoolYear, '2025/2026', "one sender's switch keeps its own year");
-    assert.strictEqual(adminActive.cycle.cycle_code, 'secondary_qualifiant');
+    assert.strictEqual(selectedAdminActive.cycle.cycle_code, 'secondary_qualifiant');
     console.log('  [ok] each sender keeps an independent active-cycle context');
 
     const disableUsable = await call('cycles:setEnabled', SENDER_ADMIN, {
         cycleCode: 'secondary_qualifiant',
         isActive: false
     });
-    assert.strictEqual(disableUsable.success, false, 'IPC surfaces the last-usable-cycle guard');
+    assert.strictEqual(disableUsable.success, true, 'IPC allows disabling one of two usable cycles');
 
     const disableCollegial = await call('cycles:setEnabled', SENDER_ADMIN, {
         cycleCode: 'secondary_collegial',
         isActive: false
     });
-    assert.strictEqual(disableCollegial.success, true);
-    assert.strictEqual(Number(disableCollegial.cycle.is_active), 0);
+    assert.strictEqual(disableCollegial.success, false, 'IPC surfaces the last-usable-cycle guard');
+    const reenableQualifiant = await call('cycles:setEnabled', SENDER_ADMIN, {
+        cycleCode: 'secondary_qualifiant',
+        isActive: true
+    });
+    assert.strictEqual(reenableQualifiant.success, true);
+    const disableCollegialAfterRestore = await call('cycles:setEnabled', SENDER_ADMIN, {
+        cycleCode: 'secondary_collegial',
+        isActive: false
+    });
+    assert.strictEqual(disableCollegialAfterRestore.success, true);
+    assert.strictEqual(Number(disableCollegialAfterRestore.cycle.is_active), 0);
     console.log('  [ok] cycle membership changes go through the repository guards');
 
     sessions.delete(SENDER_ADMIN);

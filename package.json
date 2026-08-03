@@ -1,6 +1,6 @@
 {
     "name": "gestion-scolaire",
-    "version": "1.0.41",
+    "version": "1.0.42",
     "description": "برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا",
     "main": "main.js",
     "scripts": {
@@ -16,6 +16,7 @@
         "test:smoke": "node tests/smoke.js",
         "test:e2e": "node tests/e2e/electron-smoke.js",
         "test:e2e:dark-theme": "node tests/e2e/dark-theme-all-pages.js",
+        "test:e2e:stage": "node tests/e2e/stage-pages.e2e.js",
         "test:v3": "node tests/run-all.js --filter proctor-v3",
         "verify:v3": "node tests/proctor-v3/production-fixture.test.js",
         "build:v3-bundle": "node scripts/build-proctor-v3-bundle.js",

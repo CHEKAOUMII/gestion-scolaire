@@ -4,13 +4,24 @@
 const fs = require('fs');
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
-const { handleRead, handleWrite } = require('./ipc-helpers');
+const { handleRead, handleWrite, handleWriteSoftAuth, getDefaultYear } = require('./ipc-helpers');
 const {
     DEFAULT_EXAM_COUNTS,
     LEVEL_CODES,
     PAGE_LABELS,
     EXCLUDED_HTML_PAGES
 } = require('../db/exam-count-defaults');
+const { mapSubjectToCode, SUBJECT_CATALOG } = require('../db/education-catalogs/subject-catalog');
+const {
+    PRIMARY_CYCLE,
+    COLLEGIAL_CYCLE,
+    QUALIFIANT_CYCLE
+} = require('../../js/shared/education/cycles');
+
+/** Lazy require: repos are loaded at call time, never at module registration. */
+function getStageRulesRepo() {
+    return require('../repos/stage-rules');
+}
 const {
     PAGE_PERMISSIONS,
     ROLE_LABELS,
@@ -65,21 +76,8 @@ function normalizePageKey(value) {
     return '';
 }
 
-function clampExamCount(n) {
-    const num = Number(n);
-    if (!Number.isFinite(num)) return 2;
-    return Math.min(12, Math.max(1, Math.round(num)));
-}
-
 function ensureExamCountTables(db) {
     db.exec(`
-        CREATE TABLE IF NOT EXISTS exam_count_rules (
-            level_code TEXT NOT NULL,
-            subject TEXT NOT NULL,
-            exam_count INTEGER NOT NULL CHECK (exam_count BETWEEN 1 AND 12),
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (level_code, subject)
-        );
         CREATE TABLE IF NOT EXISTS page_role_access (
             page_key TEXT NOT NULL,
             role TEXT NOT NULL,
@@ -91,54 +89,69 @@ function ensureExamCountTables(db) {
 }
 
 function seedExamCountsIfEmpty(db) {
+    // Exam counts are seeded and versioned by the stage-rules migration.
+    // This legacy helper remains as a no-op for listLevels compatibility.
     ensureExamCountTables(db);
-    const row = db.prepare('SELECT COUNT(*) AS c FROM exam_count_rules').get();
-    if (Number(row?.c || 0) > 0) return;
-    const insert = db.prepare(`
-        INSERT INTO exam_count_rules(level_code, subject, exam_count, updated_at)
-        VALUES(?, ?, ?, CURRENT_TIMESTAMP)
-    `);
-    const tx = db.transaction(() => {
-        for (const [subject, count] of DEFAULT_EXAM_COUNTS) {
-            insert.run('*', subject, clampExamCount(count));
-        }
-    });
-    tx();
 }
 
-function lookupExamCount(db, levelCode, subject) {
+/**
+ * Resolve an exam-count row for a subject code against the active rule-set rows.
+ * Precedence per specs/029-stage-rules-management/contracts/resolver.md
+ * (exam-count variant): exact level → level '*' → cycle default. Key precedence
+ * comes first; within the same key, custom beats official.
+ *
+ * Cycle-aware (2026-08-02-multi-stage-school-architecture.md, S2-3): the
+ * requested cycle defaults to qualifiant so legacy call sites are unchanged.
+ * Non-qualifiant cycles have no seeded rows, so the lookups fail closed (null).
+ */
+function resolveExamCountRow(rows, subjectCode, level, cycleCode = QUALIFIANT_CYCLE) {
+    const forKey = (cycle, levelCode) => {
+        const matches = rows.filter(
+            (row) =>
+                String(row.cycle_code) === cycle &&
+                String(row.level_code) === levelCode &&
+                String(row.subject_code) === subjectCode
+        );
+        if (!matches.length) return null;
+        return matches.find((row) => row.source === 'custom') || matches[0];
+    };
+    return forKey(cycleCode, level) || forKey(cycleCode, '*') || forKey('*', '*') || null;
+}
+
+/** Map a resolved rule-set row back to the legacy source labels (seed/level/default). */
+function examCountSource(row, level, cycleCode = QUALIFIANT_CYCLE) {
+    if (String(row.level_code) === level && String(row.cycle_code) === cycleCode) return 'level';
+    if (level === '*' && String(row.level_code) === '*' && String(row.cycle_code) === cycleCode) {
+        return 'level';
+    }
+    return 'default';
+}
+
+function lookupExamCount(db, levelCode, subject, cycleCode = QUALIFIANT_CYCLE) {
     const level = normalizeLevelCode(levelCode);
     const subj = normalizeSubject(subject);
-    if (!subj) return 3;
+    if (!subj) return null;
 
-    if (level !== '*') {
-        const levelRow = db
-            .prepare(
-                'SELECT exam_count FROM exam_count_rules WHERE level_code = ? AND subject = ? COLLATE NOCASE'
-            )
-            .get(level, subj);
-        if (levelRow) return Number(levelRow.exam_count);
+    const ruleSet = getStageRulesRepo().getActiveRuleSet(db, getDefaultYear());
+    if (!ruleSet) return null;
+
+    const rows = getStageRulesRepo().getRuleSetRows(db, ruleSet.id).examCounts;
+    const subjectCode = mapSubjectToCode(subj);
+    if (subjectCode) {
+        const row = resolveExamCountRow(rows, subjectCode, level, cycleCode);
+        if (row) return Number(row.exam_count);
     }
 
-    const globalRow = db
-        .prepare(
-            "SELECT exam_count FROM exam_count_rules WHERE level_code = '*' AND subject = ? COLLATE NOCASE"
-        )
-        .get(subj);
-    if (globalRow) return Number(globalRow.exam_count);
-
-    // Fuzzy match against known subjects
-    const all = db
-        .prepare("SELECT subject, exam_count FROM exam_count_rules WHERE level_code = '*' OR level_code = ?")
-        .all(level);
+    // Fuzzy match against known subjects (catalog labels of codes present in the rule set).
     const lower = subj.toLowerCase();
-    for (const row of all) {
-        const s = String(row.subject || '').toLowerCase();
-        if (s && (lower.includes(s) || s.includes(lower))) {
-            return Number(row.exam_count);
+    for (const row of rows) {
+        const label = String(SUBJECT_CATALOG[row.subject_code]?.labelAr || '').toLowerCase();
+        if (label && (lower.includes(label) || label.includes(lower))) {
+            const matched = resolveExamCountRow(rows, row.subject_code, level, cycleCode);
+            if (matched) return Number(matched.exam_count);
         }
     }
-    return 3;
+    return null;
 }
 
 function listHtmlPages() {
@@ -209,45 +222,122 @@ function loadDbRoleMap(db) {
     return { map, pagesWithRows };
 }
 
+// Legacy "all levels" adapter row: LEVEL_CODES no longer carries the '*' marker
+// (S2-2 single-source dedup), but the listLevels API keeps it for compatibility.
+const LEGACY_ALL_LEVELS_ROW = Object.freeze({ code: '*', name: 'الافتراضي (كل المستويات)', order: 0 });
+
 function registerAppDefaultsIpc(ipcMain) {
-    handleRead(ipcMain, 'appDefaults:listLevels', (db) => {
+    handleRead(ipcMain, 'appDefaults:listLevels', (db, payload) => {
         seedExamCountsIfEmpty(db);
-        return { success: true, levels: LEVEL_CODES };
+        // Cycle-aware extension (2026-08-01-primary-stage-catalogs.md, S3/S5):
+        // without a cycle the legacy qualifiant shape is returned unchanged.
+        const cycleCode = String(payload?.cycleCode ?? payload ?? '').trim();
+        const withLegacyAllRow = (levels) => [LEGACY_ALL_LEVELS_ROW, ...levels];
+        if (!cycleCode) {
+            return { success: true, levels: withLegacyAllRow(LEVEL_CODES) };
+        }
+        const { PRIMARY_LEVEL_CODES, COLLEGIAL_LEVEL_CODES } = require('../db/education-catalogs/primary-levels');
+        const levelCatalogs = {
+            [PRIMARY_CYCLE]: PRIMARY_LEVEL_CODES,
+            [COLLEGIAL_CYCLE]: COLLEGIAL_LEVEL_CODES,
+            [QUALIFIANT_CYCLE]: withLegacyAllRow(LEVEL_CODES)
+        };
+        if (!levelCatalogs[cycleCode]) {
+            return { success: false, code: 'UNKNOWN_CYCLE', cycleCode, error: 'السلك التعليمي غير معروف' };
+        }
+        return { success: true, cycleCode, levels: levelCatalogs[cycleCode] };
     });
 
-    handleRead(ipcMain, 'appDefaults:getExamCounts', (db, levelCode) => {
-        seedExamCountsIfEmpty(db);
-        const level = normalizeLevelCode(levelCode);
-        const levelRows = db
-            .prepare('SELECT subject, exam_count FROM exam_count_rules WHERE level_code = ? ORDER BY subject')
-            .all(level);
-        const globalRows = db
-            .prepare("SELECT subject, exam_count FROM exam_count_rules WHERE level_code = '*' ORDER BY subject")
-            .all();
+    handleRead(ipcMain, 'appDefaults:getExamCounts', (db, ...args) => {
+        const raw = args[0];
+        const payload = raw && typeof raw === 'object' ? raw : null;
+        const level = normalizeLevelCode(payload ? payload.levelCode ?? payload.level ?? '*' : raw ?? '*');
+        const cycleCode = String(payload?.cycleCode ?? payload?.cycle_code ?? '').trim() || QUALIFIANT_CYCLE;
+
+        // Cycle-aware extension (2026-08-02-multi-stage-school-architecture.md, S2-3):
+        // without a cycle the legacy qualifiant shape is returned unchanged.
+        const { getCycleDefinition } = require('../../js/shared/education/cycles');
+        const cycleDefinition = getCycleDefinition(cycleCode);
+        if (!cycleDefinition) {
+            return { success: false, code: 'UNKNOWN_CYCLE', cycleCode, error: 'السلك التعليمي غير معروف' };
+        }
+        const assessmentModel = cycleDefinition.assessmentModel ?? null;
+        if (cycleCode === PRIMARY_CYCLE) {
+            // Primary subjects come from the primary catalog (single source of
+            // truth) — never hardcoded here. No exam_count_rules rows exist for
+            // primary (CHECK 1..12 cannot express zero exams), so every entry is
+            // null/'missing' (fail-closed read, no silent fallback to qualifiant).
+            const { PRIMARY_SUBJECTS } = require('../db/education-catalogs/primary-subjects');
+            const subjects = Object.keys(PRIMARY_SUBJECTS)
+                .map((code) => ({
+                    subject: PRIMARY_SUBJECTS[code].labelAr,
+                    examCount: null,
+                    source: 'missing'
+                }))
+                .sort((a, b) => String(a.subject).localeCompare(String(b.subject), 'ar'));
+            return { success: true, cycleCode, assessmentModel, levelCode: level, subjects };
+        }
+        if (cycleCode === COLLEGIAL_CYCLE) {
+            // Collegial subjects come from the collegial catalog (single source of
+            // truth — never hardcoded here); exam counts resolve from the ACTIVE
+            // rule set's collegial rows (fail-closed null/'missing' when absent —
+            // no silent fallback to qualifiant counts).
+            const { COLLEGIAL_SUBJECTS } = require('../db/education-catalogs/collegial-subjects');
+            const ruleSet = getStageRulesRepo().getActiveRuleSet(db, getDefaultYear());
+            const rows = ruleSet ? getStageRulesRepo().getRuleSetRows(db, ruleSet.id).examCounts : [];
+            const subjects = Object.keys(COLLEGIAL_SUBJECTS)
+                .map((code) => {
+                    const row = resolveExamCountRow(rows, code, level, cycleCode);
+                    return {
+                        subject: COLLEGIAL_SUBJECTS[code].labelAr,
+                        examCount: row ? Number(row.exam_count) : null,
+                        source: !row ? 'missing' : examCountSource(row, level, cycleCode)
+                    };
+                })
+                .sort((a, b) => String(a.subject).localeCompare(String(b.subject), 'ar'));
+            return { success: true, cycleCode, assessmentModel, levelCode: level, subjects };
+        }
+
+        const ruleSet = getStageRulesRepo().getActiveRuleSet(db, getDefaultYear());
+        if (!ruleSet) {
+            return {
+                success: false,
+                code: 'RULES_UNAVAILABLE',
+                error: 'لا تتوفر نسخة قواعد فعالة لهذه السنة الدراسية'
+            };
+        }
+        const rows = getStageRulesRepo().getRuleSetRows(db, ruleSet.id).examCounts;
 
         const bySubject = new Map();
-        for (const [subject, count] of DEFAULT_EXAM_COUNTS) {
-            bySubject.set(subject, { subject, examCount: count, source: 'seed' });
-        }
-        for (const row of globalRows) {
-            bySubject.set(row.subject, {
-                subject: row.subject,
-                examCount: Number(row.exam_count),
-                source: level === '*' ? 'level' : 'default'
+        const coveredCodes = new Set();
+        for (const [subject] of DEFAULT_EXAM_COUNTS) {
+            const subjectCode = mapSubjectToCode(subject);
+            if (subjectCode) coveredCodes.add(subjectCode);
+            const row = subjectCode ? resolveExamCountRow(rows, subjectCode, level, cycleCode) : null;
+            bySubject.set(subject, {
+                subject,
+                examCount: row ? Number(row.exam_count) : null,
+                source: !row ? 'missing' : examCountSource(row, level, cycleCode)
             });
         }
-        if (level !== '*') {
-            for (const row of levelRows) {
-                bySubject.set(row.subject, {
-                    subject: row.subject,
-                    examCount: Number(row.exam_count),
-                    source: 'level'
-                });
-            }
+        for (const row of rows) {
+            const code = String(row.subject_code || '');
+            if (!code || coveredCodes.has(code)) continue;
+            coveredCodes.add(code);
+            const resolved = resolveExamCountRow(rows, code, level, cycleCode);
+            if (!resolved) continue;
+            const label = SUBJECT_CATALOG[code]?.labelAr || code;
+            bySubject.set(label, {
+                subject: label,
+                examCount: Number(resolved.exam_count),
+                source: examCountSource(resolved, level, cycleCode)
+            });
         }
 
         return {
             success: true,
+            cycleCode,
+            assessmentModel,
             levelCode: level,
             subjects: Array.from(bySubject.values()).sort((a, b) =>
                 String(a.subject).localeCompare(String(b.subject), 'ar')
@@ -256,39 +346,66 @@ function registerAppDefaultsIpc(ipcMain) {
     });
 
     handleRead(ipcMain, 'appDefaults:getExamCount', (db, payload) => {
-        seedExamCountsIfEmpty(db);
         const levelCode = payload?.levelCode ?? payload?.level ?? '*';
         const subject = payload?.subject ?? '';
-        const count = lookupExamCount(db, levelCode, subject);
+        const cycleCode = String(payload?.cycleCode ?? payload?.cycle_code ?? '').trim() || QUALIFIANT_CYCLE;
+        const count = lookupExamCount(db, levelCode, subject, cycleCode);
+        if (count == null) {
+            return {
+                success: false,
+                code: 'MISSING_RULE',
+                count: null,
+                levelCode: normalizeLevelCode(levelCode),
+                subject: normalizeSubject(subject)
+            };
+        }
         return { success: true, count, levelCode: normalizeLevelCode(levelCode), subject: normalizeSubject(subject) };
     });
 
-    handleWrite(ipcMain, 'appDefaults:saveExamCounts', ['admin', 'developer'], (db, _event, payload) => {
-        seedExamCountsIfEmpty(db);
+    handleWriteSoftAuth(
+        ipcMain,
+        'appDefaults:saveExamCounts',
+        ['admin', 'principal', 'developer'],
+        ({ db, session }, payload) => {
         const level = normalizeLevelCode(payload?.levelCode);
         const subjects = Array.isArray(payload?.subjects) ? payload.subjects : [];
         if (!subjects.length) {
             return { success: false, code: 'INVALID_PAYLOAD', error: 'قائمة المواد فارغة' };
         }
 
-        const upsert = db.prepare(`
-            INSERT INTO exam_count_rules(level_code, subject, exam_count, updated_at)
-            VALUES(?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(level_code, subject)
-            DO UPDATE SET exam_count = excluded.exam_count, updated_at = CURRENT_TIMESTAMP
-        `);
+        // Cycle-aware (S2-3): absent cycle keeps the legacy qualifiant behavior.
+        // The cycle code rides on every entry so the existing repo guard
+        // (requireQualifiantCycles in main/repos/stage-rules.js) rejects any
+        // non-qualifiant write — this IPC layer never weakens that guard.
+        const cycleCode = String(payload?.cycleCode ?? payload?.cycle_code ?? '').trim() || QUALIFIANT_CYCLE;
 
-        const tx = db.transaction(() => {
-            for (const item of subjects) {
-                const subject = normalizeSubject(item?.subject ?? item?.name);
-                if (!subject) continue;
-                upsert.run(level, subject, clampExamCount(item?.examCount ?? item?.count));
-            }
+        const entries = subjects.reduce((result, item) => {
+            const subject = normalizeSubject(item?.subject ?? item?.name);
+            const subjectCode = mapSubjectToCode(subject);
+            const examCount = Number(item?.examCount ?? item?.count);
+            if (!subjectCode || !Number.isInteger(examCount) || examCount < 1 || examCount > 12) return result;
+            result.push({
+                cycleCode,
+                levelCode: level,
+                subjectCode,
+                examCount
+            });
+            return result;
+        }, []);
+        if (!entries.length) {
+            return { success: false, code: 'INVALID_PAYLOAD', error: 'لا توجد قواعد فروض قابلة للحفظ' };
+        }
+
+        const result = getStageRulesRepo().saveExamCounts(db, {
+            schoolYear: payload?.schoolYear || getDefaultYear(),
+            entries,
+            reason: payload?.reason || 'تحديث عدد الفروض من إعدادات التطبيق',
+            actor: session
         });
-        tx();
-
-        return { success: true, levelCode: level, saved: subjects.length };
-    });
+        return { success: true, levelCode: level, saved: entries.length, ...(result || {}) };
+    },
+        { withContext: true }
+    );
 
     handleRead(ipcMain, 'appDefaults:listPages', (db) => {
         ensureExamCountTables(db);

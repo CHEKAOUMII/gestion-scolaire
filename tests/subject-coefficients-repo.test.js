@@ -28,55 +28,28 @@ function openDb() {
 }
 
 const db = openDb();
-db.exec(`
-    CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE system_logs(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        action TEXT NOT NULL,
-        details TEXT,
-        entity_type TEXT,
-        entity_id TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-`);
+db.exec('CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT);');
 
-const actor = { userId: 7, name: 'مدير المؤسسة', email: 'admin@example.test', role: 'admin' };
-const saved = subjectCoefficientsRepo.overrideMapping(
-    db,
-    {
-        cycleCode: 'secondary_qualifiant',
-        streamCode: '2BACSMA',
-        subject: ' مادة مجهولة ',
-        coefficient: 3,
-        reason: 'تصحيح إعدادات المادة',
-        schoolYear: '2025/2026'
-    },
-    actor
-);
-
-assert.strictEqual(saved.replaced, false);
-assert.deepStrictEqual(subjectCoefficientsRepo.readMappings(db), [
+const legacyValue = JSON.stringify([
     { cycleCode: 'secondary_qualifiant', streamCode: '2BACSMA', subject: 'مادة مجهولة', coefficient: 3 }
 ]);
+db.prepare('INSERT INTO settings(key, value) VALUES(?, ?)').run(subjectCoefficientsRepo.SETTINGS_KEY, legacyValue);
 
-const audit = db.prepare('SELECT action, details, entity_type FROM system_logs').get();
-assert.strictEqual(audit.action, 'SUBJECT_COEFFICIENT_ADMIN_OVERRIDE');
-assert.strictEqual(audit.entity_type, 'subject_coefficient');
-const auditDetails = JSON.parse(audit.details);
-assert.strictEqual(auditDetails.actor.userId, 7);
-assert.strictEqual(auditDetails.reason, 'تصحيح إعدادات المادة');
-assert.strictEqual(auditDetails.next.coefficient, 3);
+// The legacy settings key must stay intact for rollback after migration 2026-08-078.
+const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(subjectCoefficientsRepo.SETTINGS_KEY);
+assert.strictEqual(row.value, legacyValue, 'legacy settings key retained untouched for rollback');
 
+// The repo must no longer read the legacy key.
+assert.deepStrictEqual(subjectCoefficientsRepo.readMappings(db), [], 'readMappings must not read legacy settings');
+
+// The override feature is retired and must not write the legacy key.
 assert.throws(
-    () => subjectCoefficientsRepo.overrideMapping(db, {
-        cycleCode: 'secondary_collegial',
-        streamCode: '3APIC',
-        subject: 'الرياضيات',
-        coefficient: 5,
-        reason: 'غير مسموح'
-    }, actor),
-    (error) => error.code === 'INVALID_SUBJECT_COEFFICIENT_OVERRIDE'
+    () => subjectCoefficientsRepo.overrideMapping(db, {}, {}),
+    (error) => error.code === 'RETIRED_SUBJECT_COEFFICIENT_OVERRIDE'
 );
 
+const after = db.prepare('SELECT value FROM settings WHERE key = ?').get(subjectCoefficientsRepo.SETTINGS_KEY);
+assert.strictEqual(after.value, legacyValue, 'override must not write the legacy settings key');
+
 db.close();
-console.log('[test] subject coefficient persistence and audit: all checks passed');
+console.log('[test] subject coefficient repo rollback-only: all checks passed');

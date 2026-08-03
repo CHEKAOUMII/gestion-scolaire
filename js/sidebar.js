@@ -15,10 +15,6 @@ function injectSidebar() {
                 <p id="sidebar-school-name">...</p>
             </div>
         </div>
-        <div id="sidebar-cycle-switcher" class="mx-[12px] mb-3 rounded-lg border border-white/10 bg-white/5 p-2" hidden>
-            <label for="sidebar-cycle-select" class="mb-1 block text-[11px] opacity-70">السلك النشط</label>
-            <select id="sidebar-cycle-select" class="w-full rounded-md border border-white/10 bg-transparent px-2 py-1.5 text-sm" aria-label="السلك التعليمي النشط"></select>
-        </div>
         <nav class="sidebar-nav flex-1 min-h-0 overflow-y-auto">
             <ul class="list-none">
                 <li class="my-[2px] mx-[10px]"><a href="index.html" class="nav-link"><i class="fas fa-chart-pie"></i><span>لوحة التحكم</span></a></li>
@@ -205,10 +201,7 @@ function injectSidebar() {
 
     // Load school name from database and update sidebar + page title
     loadSchoolIdentity();
-    loadCycleSwitcher();
-    if (window.api?.cycles?.onConfigurationChanged) {
-        window.api.cycles.onConfigurationChanged(loadCycleSwitcher);
-    }
+    loadTopbarCycleSwitcher();
 
     // Re-apply role-based navigation restrictions after sidebar injection.
     // This handles the timing gap: utils.js may run before sidebar.js,
@@ -473,28 +466,81 @@ async function loadSchoolIdentity() {
     }
 }
 
-async function loadCycleSwitcher() {
-    const wrapper = document.getElementById('sidebar-cycle-switcher');
-    const select = document.getElementById('sidebar-cycle-select');
-    if (!wrapper || !select || !window.api?.cycles) return;
+// Top-bar stage switcher — the single global control for the active cycle
+// (moved from the sidebar; docs/plans/2026-08-02-topbar-cycle-switcher.md).
+// Injected into `.header-right` on every page; pages without it are skipped.
+
+// Pure: decide which stages appear in the dropdown and which are selectable,
+// without a DOM. Every *active* stage ships so «قيد الإعداد» (preview) rows are
+// visible but disabled — the user sees why a registered stage is not workable.
+// Only enabled stages whose policies actually ship are ever selectable.
+function buildCycleSwitcherOptions(cycles, activeCycleCode) {
+    const active = Array.isArray(cycles)
+        ? cycles.filter((cycle) => Number(cycle.is_active))
+        : [];
+    return active.map((cycle) => {
+        const supported = cycle.capability === 'supported';
+        const label = cycle.label_ar || cycle.cycle_code;
+        return {
+            value: cycle.cycle_code,
+            label: supported ? label : `${label} (قيد الإعداد)`,
+            selected: supported && cycle.cycle_code === activeCycleCode,
+            disabled: !supported
+        };
+    });
+}
+window.buildCycleSwitcherOptions = buildCycleSwitcherOptions;
+
+async function loadTopbarCycleSwitcher() {
+    const headerRight = document.querySelector('.header-right');
+    if (!headerRight || !window.api?.cycles) return;
+    let wrapper = document.getElementById('topbar-cycle-switcher');
+    if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = 'topbar-cycle-switcher';
+        wrapper.className = 'topbar-cycle-switcher';
+        wrapper.hidden = true;
+        const inner = document.createElement('div');
+        inner.className = 'flex items-center gap-1.5';
+        const label = document.createElement('label');
+        label.htmlFor = 'topbar-cycle-select';
+        label.textContent = 'السلك';
+        const select = document.createElement('select');
+        select.id = 'topbar-cycle-select';
+        select.setAttribute('aria-label', 'السلك التعليمي النشط');
+        inner.appendChild(label);
+        inner.appendChild(select);
+        wrapper.appendChild(inner);
+        headerRight.prepend(wrapper);
+    }
+    const select = wrapper.querySelector('select');
     const [catalog, active] = await Promise.all([window.api.cycles.list(), window.api.cycles.getActive()]);
-    if (!catalog?.success || !active?.success) return;
-    select.replaceChildren();
-    // Only enabled cycles whose policies actually ship are selectable — an institution
-    // may register a cycle before its rules exist, and that row must not become workable.
-    catalog.cycles
-        .filter((cycle) => Number(cycle.is_active) && cycle.capability === 'supported')
-        .forEach((cycle) => {
-            const option = new Option(cycle.label_ar, cycle.cycle_code);
-            option.selected = cycle.cycle_code === active.context.cycleCode;
-            select.add(option);
-        });
-    wrapper.hidden = select.options.length < 2;
-    // Dirty-page contract: switching reloads the page, so a page with unsaved edits must
-    // either mark an element with data-unsaved-changes="true" or cancel (preventDefault)
-    // the cancelable 'app:beforeCycleChange' event to block the switch.
+    if (!catalog?.success || !active?.success) {
+        wrapper.hidden = true;
+        return;
+    }
+    const activeCycleCode = active.context?.cycleCode || active.cycle?.cycle_code || null;
+    const options = buildCycleSwitcherOptions(catalog.cycles, activeCycleCode);
+    const usableCount = options.filter((option) => !option.disabled).length;
+    select.replaceChildren(
+        ...options.map((option) => {
+            const element = new Option(option.label, option.value, option.selected, option.selected);
+            element.disabled = option.disabled;
+            return element;
+        })
+    );
+    // 0 active stages: nothing to show. With multiple active stages, keep the
+    // select openable so preview rows remain visible; those options are disabled
+    // individually. A single active stage is an unambiguous disabled indicator.
+    wrapper.hidden = options.length < 1;
+    select.disabled = options.length < 2;
+    select.onchange = null;
+    if (usableCount < 2) return;
+    // Dirty-page contract: switching reloads the page, so a page with unsaved edits
+    // must either mark an element with data-unsaved-changes="true" or cancel
+    // (preventDefault) the cancelable 'app:beforeCycleChange' event to block the switch.
     select.onchange = async () => {
-        const previousCycle = active.context.cycleCode;
+        const previousCycle = activeCycleCode || select.value;
         const pendingChanges = document.querySelector('[data-unsaved-changes="true"]');
         const guardEvent = new CustomEvent('app:beforeCycleChange', {
             cancelable: true,
@@ -514,7 +560,8 @@ async function loadCycleSwitcher() {
     };
 }
 
-window.refreshCycleSwitcher = loadCycleSwitcher;
+window.loadTopbarCycleSwitcher = loadTopbarCycleSwitcher;
+window.refreshCycleSwitcher = loadTopbarCycleSwitcher;
 
 /** Refresh sidebar school name — callable from other pages (e.g. settings). */
 window.refreshSidebarSchoolName = loadSchoolIdentity;
@@ -524,6 +571,12 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectSidebar);
 } else {
     injectSidebar();
+}
+
+// Stage-switcher refresh: subscribe once at module level — the loader no-ops on
+// pages without `.header-right`, so the subscription is independent of the sidebar.
+if (window.api?.cycles?.onConfigurationChanged) {
+    window.api.cycles.onConfigurationChanged(loadTopbarCycleSwitcher);
 }
 
 // Export for use in other scripts

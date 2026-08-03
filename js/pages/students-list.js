@@ -11,6 +11,8 @@ let sortDirection = 'asc';
 let allClasses = []; // keep all class names for level cascading
 let sectionToLevel = {}; // section → level mapping
 let _filterManager = null;
+let stageRuleSetPayload = null;
+let activeCycleCode = null;
 
 // Avatar color palette
 const avatarColors = [
@@ -42,9 +44,25 @@ function getInitial(name) {
 
 // escapeHtml is provided by utils.js (loaded globally)
 
+async function getActiveCycleCode() {
+    if (!window.api?.cycles?.getActive) return null;
+    try {
+        const response = await window.api.cycles.getActive();
+        return response?.success ? response.context?.cycleCode || response.cycle?.cycle_code || null : null;
+    } catch (err) {
+        console.warn('[students-list] active cycle unavailable:', err);
+        return null;
+    }
+}
+
 // ─── DOM Ready ───
 document.addEventListener('DOMContentLoaded', async () => {
-    await ensureSubjectCoefficientMappings();
+    try {
+        stageRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(getCurrentYear()) : null;
+    } catch (err) {
+        console.warn('[students-list] stage rule set unavailable:', err);
+    }
+    activeCycleCode = await getActiveCycleCode();
     await loadClassesAndLevels();
     restoreFilters();
     await searchStudents();
@@ -599,9 +617,15 @@ async function viewStudent(code) {
         });
         const branch =
             typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
+        const levelInfo =
+            typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
         const averageResolution = computeWeightedGeneralAverageResult(subjectAvgsArr, branch, {
             schoolYear: getCurrentYear(),
-            streamCode: branch
+            streamCode: branch,
+            cycleCode: activeCycleCode,
+            levelCode: levelInfo.code,
+            levelLabel: levelInfo.label,
+            ruleSet: stageRuleSetPayload || undefined
         });
         const generalAvg = averageResolution.ok ? averageResolution.value : null;
         const totalGrades = studentGrades.length;

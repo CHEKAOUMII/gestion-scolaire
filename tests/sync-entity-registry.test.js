@@ -55,4 +55,23 @@ assert.ok(snap.includes('students'));
 assert.ok(!snap.includes('device_revocation'));
 console.log('  [ok] snapshot tables exclude remoteOnly');
 
+for (const table of ['stage_rule_sets', 'subject_coefficients', 'exam_count_rules', 'subject_weight_rules']) {
+    const entry = ENTITY_REGISTRY[table];
+    assert.ok(entry, table + ' must be in ENTITY_REGISTRY');
+    assert.strictEqual(entry.local.snapshot, false, table + ' must be excluded from snapshots');
+    assert.ok([1, 2].includes(entry.local.contractVersion), table + ' must use a declared contract version');
+    assert.ok(!snap.includes(table), table + ' must not be a snapshot table');
+    assert.ok(entry.local.keyFields.length > 0, table + ' must define keyFields');
+    assert.ok(entry.remote && entry.remote.idFields.length > 0, table + ' must define remote idFields');
+}
+assert.deepStrictEqual(ENTITY_REGISTRY.stage_rule_sets.local.keyFields, ['school_year', 'revision']);
+assert.deepStrictEqual(ENTITY_REGISTRY.stage_rule_sets.remote.idFields, ['school_year', 'revision']);
+for (const table of ['subject_coefficients', 'exam_count_rules', 'subject_weight_rules']) {
+    assert.ok(
+        ENTITY_REGISTRY[table].remote.idFields.includes('rule_set_id'),
+        table + ' must be rule_set_id-scoped'
+    );
+}
+console.log('  [ok] stage-rules tables snapshot:false + rule_set_id scoping');
+
 console.log('[test] entity registry SSOT OK');

@@ -8,6 +8,8 @@
 
 const { registerDefaultApplyHooks } = require('../apply-hooks');
 registerDefaultApplyHooks();
+const { registerStageRulesApplyHooks } = require('../apply-hooks-stage-rules');
+registerStageRulesApplyHooks();
 
 const state = require('./state');
 const helpers = require('./helpers');

@@ -9,10 +9,10 @@
  *   const avg = computeSubjectAverage('الرياضيات', gradesArray);
  */
 
-// ─── Weight rules per base subject name ────────────────────────────
+// ─── Legacy weight fallback per base subject name ──────────────────
 // examWeight + activityWeight = 1.0
 // All keys are LOWERCASE for case-insensitive lookup.
-// For subjects not listed here the default is 75% / 25%.
+// The active stage-rule payload overrides these values at runtime.
 
 const CC_SUBJECT_WEIGHTS = {
     // ─── الفلسفة — 75% فروض + 25% أنشطة ───
@@ -130,8 +130,6 @@ const CC_SUBJECT_WEIGHTS = {
 
 /** Default weights when subject is not found in the lookup table */
 const CC_DEFAULT_WEIGHTS = { examWeight: 0.75, activityWeight: 0.25 };
-let CC_SUBJECT_COEFFICIENT_OVERRIDES = [];
-let subjectCoefficientMappingsPromise = null;
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
@@ -160,10 +158,17 @@ function ccIsActivity(subj) {
  * @param {string} baseSubjectName  e.g. "الرياضيات" or "LANGUE FRANCAISE"
  * @returns {{ examWeight: number, activityWeight: number }}
  */
-function getSubjectWeights(baseSubjectName) {
+function getSubjectWeights(baseSubjectName, context) {
     const name = String(baseSubjectName || '')
         .trim()
         .toLowerCase();
+    const ruleResolution = resolveSubjectWeights(baseSubjectName, context);
+    if (ruleResolution && ruleResolution.ok) {
+        return {
+            examWeight: ruleResolution.examWeight,
+            activityWeight: ruleResolution.activityWeight
+        };
+    }
     return CC_SUBJECT_WEIGHTS[name] || CC_DEFAULT_WEIGHTS;
 }
 
@@ -175,10 +180,10 @@ function getSubjectWeights(baseSubjectName) {
  *        All grade records (with original subject names) belonging to this base subject.
  * @returns {number}  The weighted average (0–20)
  */
-function computeSubjectAverage(baseSubjectName, grades) {
+function computeSubjectAverage(baseSubjectName, grades, context) {
     if (!grades || !grades.length) return 0;
 
-    const weights = getSubjectWeights(baseSubjectName);
+    const weights = getSubjectWeights(baseSubjectName, context);
 
     // Separate exams from activities
     const examGrades = [];
@@ -686,12 +691,256 @@ function buildCoefficientContext(subjectName, normalizedName, branch, context) {
     };
 }
 
-function createLocalMissingCoefficientError(context) {
+// ═══════════════════════════════════════════════════════════════════
+// قواعد المرحلة (029) — المعاملات وعدد الفروض من النسخة الفعالة
+// Subject coefficients and exam counts resolve against the ACTIVE rule set
+// of the school year (window.api.stageRules.getActive). Resolution NEVER
+// falls back to hardcoded constants: a missing rule marks results incomplete
+// and blocks official export (stage-rules-error-contract.js).
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Canonical subject-code → Arabic label map (thin renderer copy of the
+ * main-side subject catalog; rows reference subject_code). Used only to
+ * derive a code from a subject name when the caller passes no subjectCode.
+ */
+const STAGE_RULES_SUBJECT_CODE_LABELS = Object.freeze({
+    ARABIC: 'اللغة العربية',
+    FRENCH: 'اللغة الفرنسية',
+    ENGLISH: 'اللغة الإنجليزية',
+    SPANISH: 'اللغة الإسبانية',
+    GERMAN: 'اللغة الألمانية',
+    ITALIAN: 'اللغة الإيطالية',
+    PORTUGUESE: 'اللغة البرتغالية',
+    RUSSIAN: 'اللغة الروسية',
+    CHINESE: 'اللغة الصينية',
+    FOREIGN_LANGUAGE_1: 'اللغة الأجنبية الأولى',
+    FOREIGN_LANGUAGE_2: 'اللغة الأجنبية الثانية',
+    HISTORY_GEOGRAPHY: 'التاريخ والجغرافيا',
+    MATH: 'الرياضيات',
+    EARTH_SCIENCES: 'علوم الحياة والأرض',
+    PHYSICS_CHEMISTRY: 'الفيزياء والكيمياء',
+    ISLAMIC_EDUCATION: 'التربية الإسلامية',
+    PHYSICAL_EDUCATION: 'التربية البدنية',
+    PHYSICAL_EDUCATION_SPORT: 'التربية البدنية والرياضية',
+    COMPUTER_SCIENCE: 'المعلوميات',
+    PHILOSOPHY: 'الفلسفة',
+    TRANSLATION: 'الترجمة',
+    LAW: 'القانون',
+    ACCOUNTING_FINANCE: 'المحاسبة والرياضيات المالية',
+    ECONOMICS_STATS: 'الاقتصاد العام والإحصاء',
+    ECONOMICS_MANAGEMENT: 'الاقتصاد والتنظيم الإداري للمقاولات',
+    MANAGEMENT_COMPUTER_SCIENCE: 'معلوميات التدبير',
+    ENGINEERING_SCIENCES: 'علوم المهندس',
+    DEEP_ACCOUNTING: 'المحاسبة المعمقة',
+    QURAN_HADITH: 'علوم القرآن والحديث',
+    FIQH: 'الفقه وأصوله',
+    TAWHID_ISLAMIC_THOUGHT: 'التوحيد والفكر الإسلامي',
+    APPLIED_ARTS: 'الفنون التطبيقية',
+    FINE_ARTS: 'الفنون الجميلة',
+    ORIGINAL_EDUCATION: 'التعليم الأصيل',
+    TECHNOLOGY: 'التكنولوجيا',
+    TECHNICAL_SCIENCES: 'العلوم التقنية',
+    ELECTRONICS: 'الإلكترونيك',
+    ELECTROTECHNICS: 'الكهروتقنية',
+    MECHANICS: 'الميكانيك',
+    CIVIL_ENGINEERING: 'الهندسة المدنية',
+    TOPOGRAPHY: 'الطوبوغرافيا',
+    AGRICULTURE: 'الفلاحة',
+    AGROFOOD: 'الصناعة الغذائية',
+    TOURISM_HOSPITALITY: 'السياحة والفندقة',
+    TEXTILE: 'النسيج',
+    CONSTRUCTION: 'البناء والأشغال العامة',
+    SEWING: 'الخياطة',
+    HAIRDRESSING: 'الحلاقة والتجميل'
+});
+
+/** Reverse index: normalized Arabic label → subject_code. */
+const STAGE_RULES_SUBJECT_CODES = (function () {
+    const index = Object.create(null);
+    for (const [code, label] of Object.entries(STAGE_RULES_SUBJECT_CODE_LABELS)) {
+        index[_normalizeArabic(label).toLowerCase()] = code;
+    }
+    return Object.freeze(index);
+})();
+
+/** Active rule set of the current page: { schoolYear, ruleSet, rows }. */
+let stageRuleSetCache = null;
+let stageRuleSetLoadPromise = null;
+
+/**
+ * Coerce an IPC payload ({ ruleSet, rows: { coefficients, examCounts } }) or a
+ * bare rows object into the normalized { ruleSet, rows } shape.
+ */
+function normalizeRuleSetPayload(input) {
+    if (!input) return null;
+    if (input.ruleSet === undefined && (Array.isArray(input.coefficients) || Array.isArray(input.examCounts))) {
+        return {
+            ruleSet: null,
+            rows: {
+                coefficients: input.coefficients || [],
+                examCounts: input.examCounts || [],
+                weights: input.weights || []
+            }
+        };
+    }
+    return {
+        ruleSet: input.ruleSet || null,
+        rows: {
+            coefficients: Array.isArray(input.rows && input.rows.coefficients) ? input.rows.coefficients : [],
+            examCounts: Array.isArray(input.rows && input.rows.examCounts) ? input.rows.examCounts : [],
+            weights: Array.isArray(input.rows && input.rows.weights) ? input.rows.weights : []
+        }
+    };
+}
+
+/**
+ * The rule-set payload to resolve against: context.ruleSet wins, otherwise the
+ * per-page cache — and only for the SAME school year (never reused across
+ * years). Returns null when no active set is available.
+ */
+function getActiveRuleSetPayload(context) {
+    if (context && context.ruleSet) return normalizeRuleSetPayload(context.ruleSet);
+    const schoolYear = context ? coefficientContextValue(context, 'schoolYear', 'school_year') : null;
+    if (stageRuleSetCache && (schoolYear === null || stageRuleSetCache.schoolYear === schoolYear)) {
+        return stageRuleSetCache;
+    }
+    return null;
+}
+
+/**
+ * Load the ACTIVE rule set for a school year once per page
+ * (replaces the legacy ensureSubjectCoefficientMappings). In Node tests the
+ * window.api stub resolves the payload. Returns null when window.api is absent.
+ */
+async function ensureStageRuleSet(schoolYear) {
+    if (typeof window === 'undefined' || !window.api?.stageRules?.getActive) return null;
+    const year = String(schoolYear == null ? '' : schoolYear).trim();
+    if (stageRuleSetCache && stageRuleSetCache.schoolYear === year) return stageRuleSetCache;
+    if (stageRuleSetLoadPromise) return stageRuleSetLoadPromise;
+
+    stageRuleSetLoadPromise = window.api.stageRules
+        .getActive(year)
+        .then((response) => {
+            if (response && response.success === false) {
+                throw new Error((response.error && response.error.message) || 'تعذر تحميل قواعد المرحلة');
+            }
+            const payload = normalizeRuleSetPayload(response || {});
+            stageRuleSetCache = { schoolYear: year, ruleSet: payload.ruleSet, rows: payload.rows };
+            return stageRuleSetCache;
+        })
+        .catch((error) => {
+            stageRuleSetLoadPromise = null;
+            throw error;
+        });
+    return stageRuleSetLoadPromise;
+}
+
+/**
+ * Resolve the canonical subject_code for a lookup: context.subjectCode wins,
+ * otherwise the normalized Arabic label (via the embedded catalog copy).
+ * Returns null when the name cannot be mapped — never guessed.
+ */
+function resolveStageSubjectCode(subjectName, context) {
+    const explicit = coefficientContextValue(context, 'subjectCode', 'subject_code');
+    if (explicit) return String(explicit).trim().toUpperCase();
+    const name =
+        typeof normalizeSubjectName === 'function' ? normalizeSubjectName(subjectName) : ccBaseSubject(subjectName);
+    return STAGE_RULES_SUBJECT_CODES[_normalizeArabic(name).toLowerCase()] || null;
+}
+
+function resolveSubjectWeights(subjectName, context) {
+    const payload = getActiveRuleSetPayload(context);
+    if (!payload || !payload.ruleSet) return null;
+    const normalizedName =
+        typeof normalizeSubjectName === 'function' ? normalizeSubjectName(subjectName) : ccBaseSubject(subjectName);
+    const subjectCode = resolveStageSubjectCode(normalizedName, context);
+    // S1 (multi-stage plan, G3): a missing cycle must fail closed — the engine
+    // never guesses qualifiant when the caller did not pass a cycle explicitly.
+    const cycleCode = coefficientContextValue(context, 'cycleCode', 'cycle_code');
+    if (!cycleCode) return { ok: false, code: 'RULES_UNAVAILABLE' };
+    if (!subjectCode) return { ok: false, code: 'MISSING_RULE' };
+    const rows = payload.rows && Array.isArray(payload.rows.weights) ? payload.rows.weights : [];
+    const matches = rows.filter(
+        (row) =>
+            String(row.subject_code || '').toUpperCase() === subjectCode.toUpperCase() &&
+            (String(row.cycle_code || '') === cycleCode || String(row.cycle_code || '') === '*')
+    );
+    if (!matches.length) return { ok: false, code: 'MISSING_RULE' };
+    const selected = matches.find((row) => String(row.source || '').toLowerCase() === 'custom') || matches[0];
+    return {
+        ok: true,
+        source: String(selected.source || '').toLowerCase() === 'custom' ? 'admin_override' : 'rule',
+        examWeight: Number(selected.exam_weight_bps) / 10000,
+        activityWeight: Number(selected.activity_weight_bps) / 10000
+    };
+}
+
+/** Precedence steps for coefficient rows. */
+const STAGE_COEFFICIENT_LOOKUP_STEPS = [
+    (k) => ({ cycle_code: k.cycle_code, level_code: k.level_code, stream_code: k.stream_code, subject_code: k.subject_code }),
+    (k) => ({ cycle_code: k.cycle_code, level_code: k.level_code, stream_code: '*', subject_code: k.subject_code }),
+    (k) => ({ cycle_code: k.cycle_code, level_code: '*', stream_code: k.stream_code, subject_code: k.subject_code }),
+    (k) => ({ cycle_code: k.cycle_code, level_code: '*', stream_code: '*', subject_code: k.subject_code }),
+    (k) => ({ cycle_code: '*', level_code: '*', stream_code: '*', subject_code: k.subject_code })
+];
+
+/** Precedence steps for exam-count rows: exact level → '*' → cycle default. */
+const STAGE_EXAM_COUNT_LOOKUP_STEPS = [
+    (k) => ({ cycle_code: k.cycle_code, level_code: k.level_code, subject_code: k.subject_code }),
+    (k) => ({ cycle_code: k.cycle_code, level_code: '*', subject_code: k.subject_code }),
+    (k) => ({ cycle_code: '*', level_code: '*', subject_code: k.subject_code })
+];
+
+function stageRuleDimsMatch(row, dims) {
+    return Object.keys(dims).every((field) => {
+        const rowValue = String(row[field] == null ? '' : row[field]).trim();
+        const dimValue = String(dims[field] == null ? '' : dims[field]).trim();
+        return field === 'stream_code' || field === 'subject_code'
+            ? rowValue.toUpperCase() === dimValue.toUpperCase()
+            : rowValue === dimValue;
+    });
+}
+
+/** Within one key, the custom row beats the official row. */
+function findBestStageRule(rows, dims) {
+    const matches = rows.filter((row) => stageRuleDimsMatch(row, dims));
+    if (!matches.length) return null;
+    return matches.find((row) => String(row.source || '').trim().toLowerCase() === 'custom') || matches[0];
+}
+
+/** First precedence step yielding any row wins; null when none matches. */
+function lookupStageRule(rows, steps, key) {
+    if (!key.cycle_code || !key.subject_code) return null;
+    for (const step of steps) {
+        const dims = step(key);
+        const rule = findBestStageRule(rows, dims);
+        if (rule) return { rule, dims };
+    }
+    return null;
+}
+
+function createStageRulesUnavailableError(context) {
     const display = (contextValue) => contextValue || 'غير محدد';
-    const message = `لا يوجد معامل معتمد للمادة «${display(context.subject)}» ضمن السلك «${display(context.cycleLabel)}»، المستوى «${display(context.levelLabel)}»، المسلك «${display(context.streamLabel)}»، للسنة الدراسية «${display(context.schoolYear)}».`;
+    const message = `لا تتوفر نسخة قواعد فعالة للسنة الدراسية «${display(context.schoolYear)}».`;
     const error = new Error(message);
-    error.name = 'MissingSubjectCoefficientError';
-    error.code = 'MISSING_SUBJECT_COEFFICIENT';
+    error.name = 'StageRulesUnavailableError';
+    error.code = 'RULES_UNAVAILABLE';
+    error.userMessage = message;
+    error.details = context;
+    error.context = context;
+    error.retryable = false;
+    error.severity = 'error';
+    error.classification = 'domain';
+    return error;
+}
+
+function createMissingRuleError(context) {
+    const display = (contextValue) => contextValue || 'غير محدد';
+    const message = `لا توجد قاعدة معتمدة للمادة «${display(context.subject)}» ضمن السلك «${display(context.cycleLabel)}»، المستوى «${display(context.levelLabel)}»، المسلك «${display(context.streamLabel)}»، للسنة الدراسية «${display(context.schoolYear)}».`;
+    const error = new Error(message);
+    error.name = 'MissingStageRuleError';
+    error.code = 'MISSING_RULE';
     error.userMessage = message;
     error.details = context;
     error.context = context;
@@ -702,96 +951,48 @@ function createLocalMissingCoefficientError(context) {
     return error;
 }
 
-function createMissingCoefficientError(context) {
-    if (
-        typeof SubjectCoefficientErrorContract !== 'undefined' &&
-        typeof SubjectCoefficientErrorContract.createMissingSubjectCoefficientError === 'function'
-    ) {
-        return SubjectCoefficientErrorContract.createMissingSubjectCoefficientError(context);
-    }
-    return createLocalMissingCoefficientError(context);
-}
-
-function normalizeCoefficientSubject(subjectName) {
-    const normalized =
-        typeof normalizeSubjectName === 'function' ? normalizeSubjectName(subjectName) : ccBaseSubject(subjectName);
-    return _normalizeArabic(normalized).toLowerCase();
-}
-
-function normalizeCoefficientOverride(entry) {
-    const streamCode = String(entry?.streamCode || entry?.stream_code || '').trim().toUpperCase();
-    const subject = String(entry?.subject || entry?.subjectName || '').trim();
-    const coefficient = Number(entry?.coefficient);
-    if (!streamCode || !subject || !Number.isFinite(coefficient) || coefficient <= 0 || coefficient > 20) return null;
-    return {
-        cycleCode: 'secondary_qualifiant',
-        streamCode,
-        subject,
-        normalizedSubject: normalizeCoefficientSubject(subject),
-        coefficient
-    };
-}
-
-function setSubjectCoefficientOverrides(entries) {
-    CC_SUBJECT_COEFFICIENT_OVERRIDES = (Array.isArray(entries) ? entries : [])
-        .map(normalizeCoefficientOverride)
-        .filter(Boolean);
-    return CC_SUBJECT_COEFFICIENT_OVERRIDES.slice();
-}
-
-function findSubjectCoefficientOverride(subjectName, branch, context) {
-    const cycleCode =
-        coefficientContextValue(context, 'cycleCode', 'cycle_code') || (branch ? 'secondary_qualifiant' : null);
-    if (cycleCode !== 'secondary_qualifiant') return null;
-
-    const streamCode =
-        coefficientContextValue(context, 'streamCode', 'stream_code') || String(branch || '').trim().toUpperCase();
-    const normalizedSubject = normalizeCoefficientSubject(subjectName);
-    return (
-        CC_SUBJECT_COEFFICIENT_OVERRIDES.find(
-            (entry) => entry.streamCode === streamCode.toUpperCase() && entry.normalizedSubject === normalizedSubject
-        ) || null
-    );
-}
-
-function findCoefficient(table, subjectName) {
-    if (!table) return undefined;
-    if (table[subjectName] !== undefined) return table[subjectName];
-
-    const lowerName = subjectName.toLowerCase();
-    const normalizedName = _normalizeArabic(subjectName).toLowerCase();
-    for (const [key, coefficient] of Object.entries(table)) {
-        if (key.toLowerCase() === lowerName || _normalizeArabic(key).toLowerCase() === normalizedName) {
-            return coefficient;
-        }
-    }
-    return undefined;
-}
-
+/**
+ * Resolve the coefficient of a subject against the active rule set of the
+ * school year, using the 5-step precedence (exact → stream wildcard →
+ * level wildcard → cycle default). NEVER falls back to hardcoded constants.
+ *
+ * @param {string} subjectName  Subject name (canonical label or alias)
+ * @param {string|null} branch  Branch code from detectBranch()
+ * @param {object|null} context { cycleCode, levelCode, streamCode, subjectCode, schoolYear, ruleSet }
+ * @returns {{ok: boolean, success?: boolean, coefficient?: number, error?: Error, details?: object, incomplete?: boolean, source?: string, ruleSet?: object}}
+ */
 function resolveSubjectCoefficient(subjectName, branch, context) {
     const name =
         typeof normalizeSubjectName === 'function' ? normalizeSubjectName(subjectName) : ccBaseSubject(subjectName);
-    const override = findSubjectCoefficientOverride(name, branch, context);
-    if (override) {
+    const details = buildCoefficientContext(subjectName, name, branch, context);
+    const payload = getActiveRuleSetPayload(context);
+    if (!payload || !payload.ruleSet) {
+        const error = createStageRulesUnavailableError(details);
+        return { ok: false, success: false, code: error.code, error, details: error.details, incomplete: true };
+    }
+
+    const subjectCode = resolveStageSubjectCode(name, context);
+    details.subjectCode = subjectCode;
+    const rows = payload.rows && Array.isArray(payload.rows.coefficients) ? payload.rows.coefficients : [];
+    const found = lookupStageRule(rows, STAGE_COEFFICIENT_LOOKUP_STEPS, {
+        cycle_code: details.cycleCode,
+        level_code: details.levelCode,
+        stream_code: details.streamCode,
+        subject_code: subjectCode
+    });
+    if (found) {
         return {
             ok: true,
             success: true,
-            coefficient: override.coefficient,
+            coefficient: Number(found.rule.coefficient),
             subject: name,
             branch: branch || null,
-            source: 'admin_override'
+            source: String(found.rule.source || '').trim().toLowerCase() === 'custom' ? 'admin_override' : 'rule',
+            ruleSet: payload.ruleSet ? { id: payload.ruleSet.id, revision: payload.ruleSet.revision } : null
         };
     }
 
-    const requestedCycle = coefficientContextValue(context, 'cycleCode', 'cycle_code');
-    const table = requestedCycle && requestedCycle !== 'secondary_qualifiant' ? null : CC_BRANCH_COEFFICIENTS[branch];
-    const coefficient = findCoefficient(table, name);
-    if (coefficient !== undefined) {
-        return { ok: true, success: true, coefficient, subject: name, branch: branch || null, source: 'rule' };
-    }
-
-    const details = buildCoefficientContext(subjectName, name, branch, context);
-    const error = createMissingCoefficientError(details);
+    const error = createMissingRuleError(details);
     return { ok: false, success: false, code: error.code, error, details: error.details, incomplete: true };
 }
 
@@ -813,19 +1014,24 @@ function getSubjectCoefficient(subjectName, branch, context) {
  * @returns {{ok: boolean, value?: number, error?: Error, missingCoefficients: Array<object>}}
  */
 function createIncompleteCoefficientMetadata(missingCoefficients) {
+    let metadata;
     if (
-        typeof SubjectCoefficientErrorContract !== 'undefined' &&
-        typeof SubjectCoefficientErrorContract.createIncompleteResultMetadata === 'function'
+        typeof StageRulesErrorContract !== 'undefined' &&
+        typeof StageRulesErrorContract.createIncompleteResultMetadata === 'function'
     ) {
-        return SubjectCoefficientErrorContract.createIncompleteResultMetadata(missingCoefficients);
+        metadata = StageRulesErrorContract.createIncompleteResultMetadata(missingCoefficients);
+    } else {
+        metadata = {
+            status: 'incomplete',
+            code: 'MISSING_RULE',
+            reason: 'missing_rule',
+            officialExportBlocked: true,
+            missingRules: Array.isArray(missingCoefficients) ? missingCoefficients : []
+        };
     }
-    return {
-        status: 'incomplete',
-        code: 'INCOMPLETE_RESULT_MISSING_SUBJECT_COEFFICIENT',
-        reason: 'MISSING_SUBJECT_COEFFICIENT',
-        officialExportBlocked: true,
-        missingCoefficients
-    };
+    // Compatibility key: existing gates read metadata.missingCoefficients.
+    if (Array.isArray(missingCoefficients)) metadata.missingCoefficients = missingCoefficients;
+    return metadata;
 }
 
 function computeWeightedGeneralAverageResult(subjectAverages, branch, context) {
@@ -837,6 +1043,22 @@ function computeWeightedGeneralAverageResult(subjectAverages, branch, context) {
             incomplete: false,
             missingCoefficients: [],
             metadata: { status: 'complete', officialExportBlocked: false, missingCoefficients: [] }
+        };
+    }
+
+    const payload = getActiveRuleSetPayload(context);
+    if (!payload || !payload.ruleSet) {
+        const details = buildCoefficientContext(null, null, branch, context);
+        const error = createStageRulesUnavailableError(details);
+        return {
+            ok: false,
+            success: false,
+            incomplete: true,
+            code: error.code,
+            error,
+            details: error.details,
+            missingCoefficients: [],
+            metadata: { status: 'incomplete', code: error.code, officialExportBlocked: true }
         };
     }
 
@@ -894,19 +1116,82 @@ function computeWeightedGeneralAverage(subjectAverages, branch, context) {
     return averageResolution.value;
 }
 
-async function ensureSubjectCoefficientMappings() {
-    if (typeof window === 'undefined' || !window.api?.subjectCoefficients?.getAll) return [];
-    if (subjectCoefficientMappingsPromise) return subjectCoefficientMappingsPromise;
+/**
+ * @deprecated 029 — legacy callers only (pages still awaiting migration).
+ * The overrides/mappings channel was replaced by stage rule sets
+ * (ensureStageRuleSet); this stub accepts and ignores legacy payloads.
+ */
+function setSubjectCoefficientOverrides() {}
 
-    subjectCoefficientMappingsPromise = window.api.subjectCoefficients
-        .getAll()
-        .then((response) => {
-            if (response?.success === false) throw new Error(response.error || 'تعذر تحميل معاملات المواد');
-            return setSubjectCoefficientOverrides(response?.mappings || []);
-        })
-        .catch((error) => {
-            subjectCoefficientMappingsPromise = null;
-            throw error;
-        });
-    return subjectCoefficientMappingsPromise;
+/**
+ * @deprecated 029 — legacy callers only (pages still awaiting migration).
+ * Mappings are now rule-set rows loaded via ensureStageRuleSet; returns an
+ * empty list without side effects so old pages keep working unchanged.
+ */
+async function ensureSubjectCoefficientMappings() {
+    return [];
+}
+
+/**
+ * @deprecated 029 — legacy callers only. Overrides were folded into custom
+ * rule rows; resolves to an empty list.
+ */
+function getSubjectCoefficientOverrides() {
+    return [];
+}
+
+/**
+ * Resolve the exam count of a subject against the active rule set of the
+ * school year: exact level → level wildcard ('*') → cycle default. Missing
+ * rules produce MISSING_RULE; an unavailable rule set produces
+ * RULES_UNAVAILABLE. No fallback to a hardcoded count.
+ *
+ * @param {string} subjectName  Subject name (canonical label or alias)
+ * @param {string|null} branch  Branch code from detectBranch()
+ * @param {object|null} context { cycleCode, levelCode, subjectCode, schoolYear, ruleSet }
+ * @returns {{ok: boolean, success?: boolean, examCount?: number, error?: Error, details?: object, incomplete?: boolean, source?: string}}
+ */
+function resolveExamCount(subjectName, branch, context) {
+    const name =
+        typeof normalizeSubjectName === 'function' ? normalizeSubjectName(subjectName) : ccBaseSubject(subjectName);
+    const details = buildCoefficientContext(subjectName, name, branch, context);
+    const payload = getActiveRuleSetPayload(context);
+    if (!payload || !payload.ruleSet) {
+        const error = createStageRulesUnavailableError(details);
+        return { ok: false, success: false, code: error.code, error, details: error.details, incomplete: true };
+    }
+
+    const subjectCode = resolveStageSubjectCode(name, context);
+    details.subjectCode = subjectCode;
+    const rows = payload.rows && Array.isArray(payload.rows.examCounts) ? payload.rows.examCounts : [];
+    const found = lookupStageRule(rows, STAGE_EXAM_COUNT_LOOKUP_STEPS, {
+        cycle_code: details.cycleCode,
+        level_code: details.levelCode,
+        stream_code: null,
+        subject_code: subjectCode
+    });
+    if (found) {
+        return {
+            ok: true,
+            success: true,
+            examCount: Number(found.rule.exam_count),
+            subject: name,
+            branch: branch || null,
+            source: String(found.rule.source || '').trim().toLowerCase() === 'custom' ? 'admin_override' : 'rule',
+            ruleSet: payload.ruleSet ? { id: payload.ruleSet.id, revision: payload.ruleSet.revision } : null
+        };
+    }
+
+    const error = createMissingRuleError(details);
+    return { ok: false, success: false, code: error.code, error, details: error.details, incomplete: true };
+}
+
+/**
+ * Resolve the exam count or throw the structured error (MISSING_RULE /
+ * RULES_UNAVAILABLE).
+ */
+function getExamCount(subjectName, branch, context) {
+    const resolution = resolveExamCount(subjectName, branch, context);
+    if (!resolution.ok) throw resolution.error;
+    return resolution.examCount;
 }

@@ -17,7 +17,10 @@ function buildContext(userId, cycleCode, schoolYear) {
     };
 }
 
-function getContext(event, userId, defaultSchoolYear, defaultCycleCode = 'secondary_qualifiant') {
+// Request paths must receive the cycle explicitly (multi-stage plan S1, G3):
+// there is no default cycle, and an absent/unknown cycle fails in buildContext
+// instead of silently resolving to qualifiant.
+function getContext(event, userId, defaultSchoolYear, defaultCycleCode) {
     const senderId = event?.sender?.id;
     if (!senderId) throw new Error('جلسة المستخدم غير صالحة');
     const existing = CONTEXT_BY_SENDER.get(senderId);
