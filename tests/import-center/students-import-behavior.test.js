@@ -43,6 +43,7 @@ assert.strictEqual(metadataResult.records[0].section, 'TCSF-1');
 assert.strictEqual(metadataResult.records[0].level, 'الجذع المشترك العلمي – خيار فرنسية');
 assert.strictEqual(metadataResult.records[0].school_name, 'الثانوية التأهيلية ابن سينا');
 assert.strictEqual(metadataResult.records[1].birth_date, '2010-07-02');
+assert.ok(!Object.prototype.hasOwnProperty.call(metadataResult.records[0], 'status'));
 
 const columnResult = Parser.parseStudentSheets({
     sheets: [
@@ -110,5 +111,147 @@ const missingCodeResult = Parser.parseStudentSheets({
 });
 assert.strictEqual(missingCodeResult.valid, false);
 assert.ok(missingCodeResult.errors.some((item) => item.code === 'STUDENT_CODE_COLUMN_MISSING'));
+
+// Collegial levels via defaultNormalizeLevel (no custom normalizeLevel passed)
+const collegialMetadataRows = [
+    [],
+    ['لائحة التلاميذ'],
+    [' : المستوى', null, 'الأولى إعدادي مسار دولي'],
+    [' : القسم', null, '1APIC-1'],
+    ['المؤسسة:', null, 'الثانوية التأهيلية تالمست'],
+    ['ر.ت', 'الرمز', 'النسب', 'الإسم', 'النوع', 'تاريخ الازدياد', 'مكان الازدياد']
+];
+
+const collegialResult = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: '1APIC-1',
+            rows: [
+                ...collegialMetadataRows,
+                [1, 'G140130899', 'المعاون', 'ادم', 'ذكر', '2008-06-16', 'حد السوالم']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: 'الثانوية التأهيلية تالمست'
+});
+assert.strictEqual(collegialResult.valid, true);
+assert.strictEqual(collegialResult.records[0].level, 'الأولى إعدادي مسار دولي');
+assert.strictEqual(collegialResult.records[0].section, '1APIC-1');
+
+const qualifiantLevelResult = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: '1BAC-1',
+            rows: [
+                [],
+                ['لائحة التلاميذ'],
+                [' : المستوى', null, 'الأولى باكالوريا'],
+                [' : القسم', null, '1BAC-1'],
+                ['المؤسسة:', null, 'الثانوية التأهيلية تالمست'],
+                ['ر.ت', 'الرمز', 'النسب', 'الإسم', 'النوع', 'تاريخ الازدياد', 'مكان الازدياد'],
+                [1, 'X1001', 'المعاون', 'ادم', 'ذكر', '2008-06-16', 'حد السوالم']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: 'الثانوية التأهيلية تالمست'
+});
+assert.strictEqual(qualifiantLevelResult.valid, true);
+assert.strictEqual(qualifiantLevelResult.records[0].level, 'الأولى باكالوريا');
+
+const apicSectionResult = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: '3APIC-3',
+            rows: [
+                [],
+                ['لائحة التلاميذ'],
+                [' : المستوى', null, 'الثالثة إعدادي مسار دولي'],
+                [' : القسم', null, '3APIC-3'],
+                ['المؤسسة:', null, 'الثانوية التأهيلية تالمست'],
+                ['ر.ت', 'الرمز', 'النسب', 'الإسم', 'النوع', 'تاريخ الازدياد', 'مكان الازدياد'],
+                [1, 'X3001', 'المعاون', 'ادم', 'ذكر', '2008-06-16', 'حد السوالم']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: 'الثانوية التأهيلية تالمست'
+});
+assert.strictEqual(apicSectionResult.valid, true);
+assert.strictEqual(apicSectionResult.records[0].level, 'الثالثة إعدادي مسار دولي');
+
+
+// T1.1 regression cases (plan §T1.1): latin-header corruption vectors
+const lastNameFirst = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: 'Case A',
+            rows: [
+                ['Massar', 'LastName', 'FirstName', 'BirthDate'],
+                ['A1', 'ترباوي', 'ريم', '2010-01-01']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: ''
+});
+assert.strictEqual(lastNameFirst.valid, true);
+assert.strictEqual(lastNameFirst.records[0].full_name, 'ريم ترباوي', 'case A: must be first + last, not last + last');
+
+const schoolNameLeft = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: 'Case B',
+            rows: [
+                ['Massar', 'SchoolName', 'FirstName', 'LastName'],
+                ['B1', 'مدرسة الأمل', 'نور', 'العمراني']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: 'مدرسة الأمل'
+});
+assert.strictEqual(schoolNameLeft.valid, true);
+assert.ok(
+    !schoolNameLeft.records[0].full_name.includes('الأمل'),
+    'case B: full_name must not contain the school name'
+);
+assert.strictEqual(schoolNameLeft.records[0].full_name, 'نور العمراني');
+
+const controlName = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: 'Case C',
+            rows: [
+                ['Massar', 'FirstName', 'LastName'],
+                ['C1', 'سليم', 'بنعلي']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: ''
+});
+assert.strictEqual(controlName.valid, true);
+assert.strictEqual(controlName.records[0].full_name, 'سليم بنعلي');
+
+const ambiguousBinding = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: 'Case D',
+            rows: [
+                ['الرمز', 'الاسم العائلي', 'الاسم الشخصي'],
+                ['D1', 'ترباوي', 'ريم']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: ''
+});
+assert.ok(
+    ambiguousBinding.errors.some((item) => item.code === 'AMBIGUOUS_HEADER_BINDING'),
+    'case D: two roles bound to one column must emit AMBIGUOUS_HEADER_BINDING'
+);
+
 
 console.log('students-import-behavior: OK');

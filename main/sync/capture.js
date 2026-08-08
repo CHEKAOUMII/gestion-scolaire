@@ -318,13 +318,23 @@ const CHANNEL_REGISTRY = {
     },
     // Explicit year-wide delete only (settings UI). Outside automatic capture so a
     // bulk clear is never mistaken for per-row DELs; re-import re-syncs via bulkUpsert.
+    // DEL tombstones are written inside the repo transaction (main/repos/orientation.js
+    // clearYear) — captureMode 'explicit' keeps the wrapper from double-capturing.
     'orientation:clearYear': {
         tables: ['student_orientation'],
         operation: 'DEL',
+        captureMode: 'explicit',
         exclude: true
     },
-    // Individual row delete — single DEL outbox entry by id.
-    'orientation:delete': { tables: ['student_orientation'], operation: 'DEL', idExtractor: 'argId' },
+    // Individual row delete — DEL tombstone written inside the repo transaction
+    // (main/repos/orientation.js deleteById); explicit keeps the wrapper from
+    // writing a duplicate post-commit outbox entry.
+    'orientation:delete': {
+        tables: ['student_orientation'],
+        operation: 'DEL',
+        idExtractor: 'argId',
+        captureMode: 'explicit'
+    },
 
     // === students.js ===
     'students:add': { tables: ['students'], operation: 'PUT', idExtractor: 'lastInsertRowid' },
@@ -430,6 +440,9 @@ const CHANNEL_REGISTRY = {
     // === system.js ===
     'users:getAll': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
 
+    // systemLogs rows are device-local audit/diagnostic data, never synced.
+    'systemLogs:add': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
+
     // === cycle-access.js (S6 user_cycle_access) — LOCAL-ONLY, never captured ===
     // user_cycle_access is a per-device authorization policy, not school data: the
     // users table is not a sync entity (user IDs are device-local) and syncing grants
@@ -493,8 +506,8 @@ const CHANNEL_REGISTRY = {
     'sync:quarantineLegacyBulk': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
 
     // === timetable-data.js ===
-    'timetableData:save': { tables: ['timetable_data'], operation: 'UPSERT', idExtractor: 'argKey', exclude: true },
-    'timetableData:delete': { tables: ['timetable_data'], operation: 'DEL', idExtractor: 'argKey', exclude: true },
+    'timetableData:save': { tables: ['timetable_data'], operation: 'UPSERT', idExtractor: 'argKey', captureMode: 'explicit', exclude: true, localKeyFields: ['school_year', 'cycle_code'] },
+    'timetableData:delete': { tables: ['timetable_data'], operation: 'DEL', idExtractor: 'argKey', captureMode: 'explicit', exclude: true },
 
     // === exam-config-data.js ===
     'examConfigData:save': { tables: ['exam_config_data'], operation: 'UPSERT', idExtractor: 'argKey', exclude: true },

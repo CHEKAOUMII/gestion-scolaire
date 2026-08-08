@@ -1,40 +1,47 @@
 /**
- * import-signatures.js — Bounded signature definitions and confidence calibration.
+ * import-type-check.js — Harvested signature-based type checker (Phase 3a).
  *
+ * Bounded signature definitions and confidence calibration.
  * Content evidence is primary. Filename/extension/context are auxiliary and
  * cannot alone produce an automatic final destination.
+ * Dual-export: window.ImportTypeCheck + module.exports
  *
- * Dual-export: window.ImportSignatures + module.exports
+ * Harvested from js/import-center/import-signatures.js (~300 lines SIGNATURES + scoreSignature)
+ * Self-contained: SIGNATURES/scoreSignature/REGISTERED_SOURCE_TYPES embedded, no imports.
+ * and wired as non-blocking warning in prepareImportContextReview.
  */
 (function (root, factory) {
-    const api = factory(
-        root && root.ImportContracts
-            ? root.ImportContracts
-            : typeof require === 'function'
-              ? require('./import-contracts.js')
-              : null
-    );
+    const api = factory();
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }
     if (root) {
-        root.ImportSignatures = api;
+        root.ImportTypeCheck = api;
+        // Backward compat: keep ImportSignatures alias until deletion completes
+        if (!root.ImportSignatures) root.ImportSignatures = api;
     }
-})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this, function (Contracts) {
+})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
 
-    const CONFIDENCE = (Contracts && Contracts.CONFIDENCE) || {
+    const CONFIDENCE = Object.freeze({
         HIGH: 0.85,
         MEDIUM: 0.6,
         AMBIGUITY_GAP: 0.1
-    };
+    });
+
+    // Harvested from import-contracts.js (Phase 3 harvest): the registered
+    // source types the classic import path can produce.
+    const REGISTERED_SOURCE_TYPES = Object.freeze([
+        'students',
+        'grades',
+        'absences',
+        'fet',
+        'agent_xml',
+        'student_status'
+    ]);
 
     const SIGNATURE_VERSION = '1.1.0';
 
-    /**
-     * Each signature scores bounded reader output.
-     * Weights: content headers/xml/elements are primary; filename/extension/context auxiliary.
-     */
     const SIGNATURES = Object.freeze({
         students: Object.freeze({
             type: 'students',
@@ -45,7 +52,6 @@
                 'massar',
                 'cne',
                 'رمز',
-                'مسار',
                 'firstname',
                 'الاسم',
                 'familyname',
@@ -100,7 +106,6 @@
                 'massar',
                 'cne',
                 'رمز',
-                'مسار',
                 'subject',
                 'matiere',
                 'المادة',
@@ -117,9 +122,6 @@
             supportingHeaders: Object.freeze(['teacher', 'الأستاذ', 'level', 'المستوى', 'cc', 'exam', 'contrôle']),
             negativeHeaders: Object.freeze(['absence', 'غياب', 'justifiedhours', 'unjustified']),
             filenameHints: Object.freeze([/note/i, /notes/i, /grade/i, /point/i, /نقط/i]),
-            // Massar per-subject grade exports expose no conventional column
-            // headers; the marks live in a form sheet named "NotesCC". The sheet
-            // name is intrinsic file content and is the reliable discriminator.
             sheetNameHints: Object.freeze([/notescc/i]),
             contentPhrases: Object.freeze(['المراقبة المستمرة', 'نقط المراقبة']),
             xmlRoots: Object.freeze([]),
@@ -144,7 +146,6 @@
                 'massar',
                 'cne',
                 'رمز',
-                'مسار',
                 'رقم التلميذ',
                 'رقمالتلميذ',
                 'absence',
@@ -162,7 +163,6 @@
                 'ساعات',
                 'month',
                 'الشهر',
-                // Massar annual class export month columns
                 'شتنبر',
                 'أكتوبر',
                 'نونبر',
@@ -216,7 +216,6 @@
                 'massar',
                 'cne',
                 'رمز',
-                'مسار',
                 'status',
                 'الوضعية',
                 'وضعية',
@@ -284,7 +283,6 @@
             filenameHints: Object.freeze([]),
             xmlRoots: Object.freeze([]),
             xmlElements: Object.freeze([]),
-            // Base score when tabular structure exists without registered match
             baseTabularScore: 0.55,
             weights: Object.freeze({
                 tabularStructure: 0.55,
@@ -299,15 +297,11 @@
         return String(value || '')
             .toLowerCase()
             .normalize('NFKD')
-            .replace(/[\u064B-\u065F]/g, '')
+            .replace(/[ً-ٟ]/g, '')
             .replace(/[_\s\-./\\]+/g, '')
             .trim();
     }
 
-    // Substring matches are only accepted when the contained token is at least
-    // this many characters. This prevents garbage single-letter headers (A, C,
-    // O from malformed exports) from spuriously matching candidates such as
-    // "massar", "code", "note", or "score".
     const MIN_SUBSTRING_MATCH = 3;
 
     function headerMatches(header, candidates) {
@@ -346,11 +340,6 @@
         return Math.max(0, Math.min(1, n));
     }
 
-    /**
-     * Score one signature against bounded extraction features.
-     * Returns { type, score, evidence[] } — score never exceeds 1.
-     * Filename-only path cannot reach HIGH (0.85).
-     */
     function scoreSignature(signature, features) {
         const evidence = [];
         let score = 0;
@@ -391,9 +380,7 @@
             return { type: signature.type, score: clamp01(score), evidence };
         }
 
-        // Format gate for XML types
         if (signature.formats && signature.formats.length && !signature.formats.includes(format)) {
-            // Still allow weak filename/extension contribution only (capped below medium)
             let aux = 0;
             if (signature.filenameHints.some((re) => re.test(filename))) {
                 aux += Math.min(w.filename || 0, 0.08);
@@ -408,7 +395,6 @@
             return { type: signature.type, score: clamp01(Math.min(aux, CONFIDENCE.MEDIUM - 0.01)), evidence };
         }
 
-        // Tabular content scoring
         if (signature.primaryHeaders && signature.primaryHeaders.length) {
             const primaryHits = countHeaderHits(headers, signature.primaryHeaders);
             if (primaryHits > 0) {
@@ -446,9 +432,6 @@
             }
         }
 
-        // Sheet-name content evidence (intrinsic file content).
-        // Example: Massar per-subject grade exports name their form sheet
-        // "NotesCC" and expose no conventional column headers.
         if (signature.sheetNameHints && signature.sheetNameHints.length && sheetNames.length) {
             const matched = sheetNames.filter((s) =>
                 signature.sheetNameHints.some((re) => re.test(String(s || '')))
@@ -465,7 +448,6 @@
             }
         }
 
-        // Distinguishing body/label phrases inside the file content.
         if (signature.contentPhrases && signature.contentPhrases.length && contentText) {
             const hitPhrase = signature.contentPhrases.find((p) => contentText.includes(String(p)));
             if (hitPhrase) {
@@ -480,7 +462,6 @@
             }
         }
 
-        // XML content scoring
         if (signature.xmlRoots && signature.xmlRoots.length) {
             const rootHit = signature.xmlRoots.some((r) => r === root);
             if (rootHit) {
@@ -509,7 +490,6 @@
             }
         }
 
-        // Auxiliary filename (never sole path to HIGH)
         let filenameHit = false;
         for (const re of signature.filenameHints || []) {
             if (re.test(filename)) {
@@ -550,7 +530,6 @@
             });
         }
 
-        // Cap: filename/extension/context without primary content cannot reach HIGH
         const hasPrimaryContent = evidence.some((e) => e.strength === 'primary' && e.source === 'content');
         if (!hasPrimaryContent) {
             score = Math.min(score, CONFIDENCE.HIGH - 0.01);
@@ -586,10 +565,66 @@
         };
     }
 
+    // New: type-check wrapper for Phase 3a
+    function mapActionToSignatureType(action) {
+        const m = {
+            students: 'students',
+            grades: 'grades',
+            absences: 'absences',
+            'student-status': 'student_status',
+            fet: 'fet',
+            'agent-xml': 'agent_xml',
+            orientation: null // no signature
+        };
+        return m[action] || null;
+    }
+
+    function checkFile(features, expectedAction) {
+        const expectedType = mapActionToSignatureType(expectedAction);
+        if (!expectedType) return { isMismatch: false, reason: 'no_signature_for_action' };
+        const list = listSignatures().filter((s) => s.type !== 'generic_csv_xlsx');
+        let best = null;
+        for (const sig of list) {
+            const result = scoreSignature(sig, features);
+            if (!best || result.score > best.score) best = result;
+        }
+        if (!best) return { isMismatch: false };
+        // Only warn when top is content-primary and at least MEDIUM
+        const hasPrimary = best.evidence.some((e) => e.strength === 'primary' && e.source === 'content');
+        const isMismatch = best.type !== expectedType && best.score >= CONFIDENCE.MEDIUM && hasPrimary;
+        if (isMismatch) {
+            const expectedLabel = (SIGNATURES[expectedType] && SIGNATURES[expectedType].label) || expectedType;
+            const matchedLabel = (SIGNATURES[best.type] && SIGNATURES[best.type].label) || best.type;
+            return {
+                isMismatch: true,
+                expectedType,
+                matchedType: best.type,
+                score: best.score,
+                evidence: best.evidence,
+                code: 'TYPE_MISMATCH',
+                message: `الملف يبدو كـ «${matchedLabel}» (${Math.round(best.score * 100)}% ثقة) وليس «${expectedLabel}». تأكد من اختيار نوع الاستيراد الصحيح.`,
+                blocking: false
+            };
+        }
+        return { isMismatch: false, matchedType: best.type, score: best.score, evidence: best.evidence };
+    }
+
+    function checkBatch(filesFeatures, expectedAction) {
+        // filesFeatures: array of features objects
+        const results = (filesFeatures || []).map((f) => checkFile(f, expectedAction));
+        const mismatches = results.filter((r) => r.isMismatch);
+        return {
+            mismatches,
+            hasMismatch: mismatches.length > 0,
+            results
+        };
+    }
+
     return {
         SIGNATURE_VERSION,
         SIGNATURES,
         CONFIDENCE,
+        REGISTERED_SOURCE_TYPES,
         normalizeToken,
         headerMatches,
         countHeaderHits,
@@ -597,6 +632,9 @@
         listSignatures,
         getSignature,
         getCalibration,
-        mapContextHint
+        mapContextHint,
+        mapActionToSignatureType,
+        checkFile,
+        checkBatch
     };
 });

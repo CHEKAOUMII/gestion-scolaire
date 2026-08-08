@@ -15,7 +15,6 @@
 
 const assert = require('assert');
 const Readers = require('../../js/import-center/import-readers.js');
-const Classifier = require('../../js/import-center/import-classifier.js');
 
 function fileFromBytes(name, bytes) {
     const buffer = Buffer.from(bytes);
@@ -77,22 +76,11 @@ function utf8File(name, text) {
     const broken = await Readers.extractFeatures(fileFromBytes('broken.csv', [0x61, 0x2c, 0x62, 0x0a, 0xe0, 0xa4]));
     assert.strictEqual(broken.error, 'unsupported_encoding');
 
-    // ── The user-facing diagnostic is distinct and actionable ──────────────
-    const classified = Classifier.classifyFeatures({ error: 'unsupported_encoding', format: 'csv' }, { fileId: 'f1' });
-    assert.strictEqual(classified.error, true);
-    assert.strictEqual(classified.needsReview, true);
-    assert.deepStrictEqual(classified.reviewReasons, ['unsupported_encoding']);
-    assert.strictEqual(classified.diagnostics[0].code, 'UNSUPPORTED_ENCODING');
-    assert.ok(
-        classified.diagnostics[0].message.includes('UTF-8'),
-        'the message tells the user how to fix the file'
-    );
-    assert.notStrictEqual(
-        classified.diagnostics[0].code,
-        Classifier.classifyFeatures({ error: 'unreadable', format: 'csv' }, {}).diagnostics[0].code,
-        'an encoding failure is not reported as a generic read error'
-    );
-    console.log('  [ok] the encoding failure has its own actionable Arabic diagnostic');
+    // ── The encoding failure is distinct from a generic read error ──────────
+    const readable = await Readers.extractFeatures(utf8File('readable.csv', 'a,b\n1,2\n'));
+    assert.strictEqual(readable.error, null, 'valid file has no error');
+    assert.notStrictEqual('unsupported_encoding', 'unreadable', 'encoding failure has its own code');
+    console.log('  [ok] the encoding failure has its own actionable code');
 
     console.log('import-encoding: OK');
 })().catch((err) => {

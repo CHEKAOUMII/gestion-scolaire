@@ -5,11 +5,23 @@
 (function (root, factory) {
     const labels =
         typeof require === 'function' ? require('../data/ma-education-labels.js') : null;
-    const api = factory(root || {}, labels);
+    const normalize =
+        (root && root.ImportCenterNormalize) ||
+        (typeof require === 'function' ? require('./normalize.js') : null);
+    const diagnostics =
+        (root && root.ImportCenterDiagnostics) ||
+        (typeof require === 'function' ? require('./import-diagnostics-codes.js') : null);
+    const qualifiantLevels =
+        (root && root.EducationQualifiantLevels) ||
+        (typeof require === 'function' ? require('../shared/education/qualifiant-levels.js') : null);
+    const api = factory(root || {}, labels, normalize, diagnostics, qualifiantLevels);
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     if (root) root.GradesImportParser = api;
-})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this, function (root, labels) {
+})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this, function (root, labels, normalize, diagnostics, qualifiantLevels) {
     'use strict';
+
+    const { text, toLatinDigits, normalizeKey, normalizeStudentCode, parseStrictNumber } = normalize;
+    const Diagnostics = diagnostics;
 
     const MAX_SCAN_ROWS = 60;
     const GRADE_MARKERS = ['grade', 'score', 'note', 'mark', 'النقطة', 'النقط', 'الدرجة'];
@@ -20,7 +32,6 @@
         'massarcode',
         'codemassar',
         'codeeleve',
-        'مسار',
         'الرمز',
         'رمز',
         'رقمالتلميذ',
@@ -32,32 +43,6 @@
         activities: 'الأنشطة المندمجة',
         generic: 'التقييم'
     });
-
-    function normalizeArabicDigits(value) {
-        return String(value ?? '').replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
-    }
-
-    function normalizeKey(value) {
-        return String(value ?? '')
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[\u064B-\u065F]/g, '')
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9\u0600-\u06FF]+/g, '');
-    }
-
-    function normalizeStudentCode(value) {
-        const raw = String(value ?? '').trim();
-        if (!raw) return '';
-        const cleaned = normalizeArabicDigits(raw).replace(/\s+/g, '').replace(/^'+/, '');
-        if (/^\d+\.0+$/.test(cleaned)) return cleaned.replace(/\.0+$/, '');
-        return cleaned.toUpperCase();
-    }
-
-    function text(value) {
-        return String(value ?? '').trim();
-    }
 
     function isBlank(value) {
         return value == null || text(value) === '';
@@ -116,7 +101,11 @@
     function normalizeLevel(level) {
         const value = text(level);
         if (!value) return '';
-        const upper = normalizeArabicDigits(value).toUpperCase();
+        if (qualifiantLevels && typeof qualifiantLevels.matchLevelFromSection === 'function') {
+            const hit = qualifiantLevels.matchLevelFromSection(value);
+            if (hit && hit.code !== 'other') return hit.name;
+        }
+        const upper = toLatinDigits(value).toUpperCase();
         if (/^1BAC/i.test(upper) || /أولى\s*باكالوريا|اولى\s*باكالوريا/i.test(value)) {
             if (/اقتصاد|تدبير|محاسب/i.test(value) || /1BACSEG/i.test(upper)) return 'الأولى باكالوريا علوم الاقتصاد والتدبير';
             if (/تجريب/i.test(value) || /1BACSEF/i.test(upper)) return 'الأولى باكالوريا علوم تجريبية';
@@ -129,36 +118,54 @@
     }
 
     function parseSemester(value) {
-        const candidate = normalizeArabicDigits(value).toLowerCase();
-        if (candidate.includes('الثانية') || candidate.includes('ثانية') || /\b2\b/.test(candidate)) return 2;
-        if (candidate.includes('الأولى') || candidate.includes('اولى') || candidate.includes('الأول') || /\b1\b/.test(candidate)) return 1;
+        const candidate = toLatinDigits(value).toLowerCase();
+        if (
+            candidate.includes('الثانية') ||
+            candidate.includes('ثانية') ||
+            candidate.includes('الثاني') ||
+            /deuxi(?:e|è)me|second/.test(candidate) ||
+            /\b(?:s|semestre|semester|term)\s*2\b/.test(candidate) ||
+            /\b2\b/.test(candidate)
+        ) {
+            return 2;
+        }
+        if (
+            candidate.includes('الأولى') ||
+            candidate.includes('اولى') ||
+            candidate.includes('الأول') ||
+            /premier|first/.test(candidate) ||
+            /\b(?:s|semestre|semester|term)\s*1\b/.test(candidate) ||
+            /\b1\b/.test(candidate)
+        ) {
+            return 1;
+        }
         return null;
     }
 
     function parseSchoolYear(value) {
-        const match = normalizeArabicDigits(value).match(/\b(20\d{2})\s*[/-]\s*(20\d{2})\b/);
+        const match = toLatinDigits(value).match(/\b(20\d{2})\s*[/-]\s*(20\d{2})\b/);
         return match ? `${match[1]}/${match[2]}` : '';
     }
 
-    function parseGrade(value) {
-        if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
-        const normalized = normalizeArabicDigits(value).replace(',', '.').trim();
-        if (!normalized || !/^-?(?:\d+)(?:\.\d+)?$/.test(normalized)) return NaN;
-        const grade = Number(normalized);
-        return Number.isFinite(grade) ? grade : NaN;
-    }
-
-    function diagnostic(code, message, sheet, row, field, severity = 'error') {
+    function diagnostic(code, message, sheet, row, field, severity = 'error', blocking) {
+        if (blocking === undefined) {
+            // Row-scoped (non-blocking): INVALID_GRADE is a cell defect, not a file defect.
+            // File-blocking: UNKNOWN_STUDENT, STUDENT_CODE_MISSING, GRADE_COLUMNS_NOT_FOUND, etc.
+            if (severity !== 'error') blocking = false;
+            else if (code === Diagnostics.INVALID_GRADE) blocking = false;
+            else blocking = true;
+        }
         return {
             code,
             severity,
+            blocking,
             stage: 'parse',
             message,
             sheet,
             row,
             field: field || '',
             rule: code.toLowerCase(),
-            action: severity === 'error' ? 'correct_file' : 'review'
+            action: blocking ? 'correct_file' : severity === 'error' ? 'review' : 'review'
         };
     }
 
@@ -358,12 +365,12 @@
 
             if (workbookYear && !metadata.workbookSchoolYears.includes(workbookYear)) metadata.workbookSchoolYears.push(workbookYear);
             if (semester == null) {
-                diagnostics.push(diagnostic('SEMESTER_UNRESOLVED', 'تعذر تحديد الدورة الدراسية', sheetName, headerIndex + 1, 'semester'));
+                diagnostics.push(diagnostic(Diagnostics.SEMESTER_UNRESOLVED, 'تعذر تحديد الدورة الدراسية', sheetName, headerIndex + 1, 'semester'));
             } else if (metadata.semester == null) {
                 metadata.semester = semester;
             }
             if (!subject) {
-                diagnostics.push(diagnostic('SUBJECT_UNRESOLVED', 'تعذر تحديد المادة من اسم الملف أو بيانات المصنف', sheetName, headerIndex + 1, 'subject'));
+                diagnostics.push(diagnostic(Diagnostics.SUBJECT_UNRESOLVED, 'تعذر تحديد المادة من اسم الملف أو بيانات المصنف', sheetName, headerIndex + 1, 'subject'));
             } else if (!metadata.subject) {
                 metadata.subject = subject;
             }
@@ -371,7 +378,7 @@
             if (level && !metadata.levels.includes(level)) metadata.levels.push(level);
             if (teacher && !metadata.teacherNames.includes(teacher)) metadata.teacherNames.push(teacher);
             if (!gradeColumns.length) {
-                diagnostics.push(diagnostic('GRADE_COLUMNS_NOT_FOUND', 'لم يتم العثور على أعمدة نقط صالحة', sheetName, headerIndex + 1, 'grade'));
+                diagnostics.push(diagnostic(Diagnostics.GRADE_COLUMNS_NOT_FOUND, 'لم يتم العثور على أعمدة نقط صالحة', sheetName, headerIndex + 1, 'grade'));
                 return;
             }
             if (semester == null || !subject) return;
@@ -382,7 +389,7 @@
             }));
             if (resolvedColumns.some((column) => !column.assessment)) {
                 diagnostics.push(
-                    diagnostic('ASSESSMENT_UNRESOLVED', 'تعذر تحديد نوع التقييم من عنوان العمود أو اسم الملف', sheetName, headerIndex + 1, 'assessment')
+                    diagnostic(Diagnostics.ASSESSMENT_UNRESOLVED, 'تعذر تحديد نوع التقييم من عنوان العمود أو اسم الملف', sheetName, headerIndex + 1, 'assessment')
                 );
                 return;
             }
@@ -405,14 +412,14 @@
                 }
                 if (!code) {
                     counts.invalidRows += 1;
-                    diagnostics.push(diagnostic('STUDENT_CODE_MISSING', 'صف النقطة لا يحتوي على رقم تلميذ', sheetName, rowIndex + 1, 'student_code'));
+                    diagnostics.push(diagnostic(Diagnostics.STUDENT_CODE_MISSING, 'صف النقطة لا يحتوي على رقم تلميذ', sheetName, rowIndex + 1, 'student_code'));
                     continue;
                 }
                 const student = studentByCode.get(code);
                 if (!student) {
                     counts.unknownStudents += 1;
                     diagnostics.push(
-                        diagnostic('UNKNOWN_STUDENT', `رقم التلميذ غير موجود في السنة الدراسية: ${code}`, sheetName, rowIndex + 1, 'student_code')
+                        diagnostic(Diagnostics.UNKNOWN_STUDENT, `رقم التلميذ غير موجود في السنة الدراسية: ${code}`, sheetName, rowIndex + 1, 'student_code')
                     );
                     continue;
                 }
@@ -421,11 +428,11 @@
                 resolvedColumns.forEach((column) => {
                     const rawGrade = row[column.index];
                     if (isBlank(rawGrade)) return;
-                    const grade = parseGrade(rawGrade);
+                    const grade = parseStrictNumber(rawGrade);
                     if (!Number.isFinite(grade) || grade < 0 || grade > 20) {
                         counts.invalidRows += 1;
                         diagnostics.push(
-                            diagnostic('INVALID_GRADE', `النقطة يجب أن تكون رقماً بين 0 و20: ${text(rawGrade)}`, sheetName, rowIndex + 1, 'grade')
+                            diagnostic(Diagnostics.INVALID_GRADE, `النقطة يجب أن تكون رقماً بين 0 و20: ${text(rawGrade)}`, sheetName, rowIndex + 1, 'grade')
                         );
                         return;
                     }
@@ -433,12 +440,12 @@
                     const rowLevel = levelColumn === -1 ? '' : normalizeLevel(row[levelColumn]);
                     const finalSection = section || text(student.section);
                     const finalLevel = rowLevel || level;
-                    const subjectKey = `${subject} — ${column.assessment}`;
                     records.push({
                         student_id: student.id,
                         student_code: code,
                         teacher_id: null,
-                        subject: subjectKey,
+                        subject,
+                        assessment: column.assessment,
                         grade,
                         semester,
                         teacher_name: rowTeacher || teacher,
@@ -458,8 +465,21 @@
 
         const recordMap = new Map();
         records.forEach((record) => {
-            const key = `${record.school_year}||${record.student_code}||${record.subject}||${record.semester}`;
-            if (recordMap.has(key)) counts.duplicateInputRows += 1;
+            const key = `${record.school_year}||${record.student_code}||${record.subject}||${record.assessment}||${record.semester}`;
+            if (recordMap.has(key)) {
+                counts.duplicateInputRows += 1;
+                diagnostics.push(
+                    diagnostic(
+                        Diagnostics.DUPLICATE_GRADE,
+                        `نقطة مكررة لنفس المادة والتقييم: ${record.student_code} ${record.subject} ${record.assessment} D${record.semester} (تم الاحتفاظ بآخر قيمة ${record.grade})`,
+                        '',
+                        null,
+                        'grade',
+                        'warning',
+                        false
+                    )
+                );
+            }
             recordMap.set(key, record);
         });
         const uniqueRecords = Array.from(recordMap.values());
@@ -471,7 +491,7 @@
             metadata,
             diagnostics,
             counts,
-            valid: uniqueRecords.length > 0 && !diagnostics.some((item) => item.severity === 'error')
+            valid: uniqueRecords.length > 0 && !diagnostics.some((item) => item.blocking)
         };
     }
 

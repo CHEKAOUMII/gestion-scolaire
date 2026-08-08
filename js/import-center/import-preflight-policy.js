@@ -18,6 +18,8 @@
         INSTITUTION_CODE_MISMATCH: 'INSTITUTION_CODE_MISMATCH',
         INSTITUTION_NAME_DIFFERENCE: 'INSTITUTION_NAME_DIFFERENCE',
         CYCLE_MISMATCH: 'CYCLE_MISMATCH',
+        CYCLE_SELECTION_REQUIRED: 'CYCLE_SELECTION_REQUIRED',
+        NO_USABLE_CYCLE: 'NO_USABLE_CYCLE',
         DESTINATION_CONTEXT_UNAVAILABLE: 'DESTINATION_CONTEXT_UNAVAILABLE',
         FILE_READ_ERROR: 'FILE_READ_ERROR',
         FILE_SCOPE_INFO: 'FILE_SCOPE_INFO',
@@ -36,6 +38,7 @@
         }
         if (key === 'institutionCode' && status === 'mismatch') return highRisk ? DECISIONS.BLOCK : DECISIONS.REQUIRE_REVIEW;
         if (key === 'cycle' && status === 'mismatch') return highRisk && confidence === 'high' ? DECISIONS.BLOCK : DECISIONS.REQUIRE_REVIEW;
+        if (key === 'cycle' && status === 'unknown') return highRisk ? DECISIONS.BLOCK : DECISIONS.REQUIRE_REVIEW;
         if ((key === 'semester' || key === 'subject' || key === 'studentCodes') && status !== 'match') {
             return action === 'grades' || action === 'absences' ? DECISIONS.BLOCK : DECISIONS.REQUIRE_REVIEW;
         }

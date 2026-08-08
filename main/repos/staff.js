@@ -784,6 +784,38 @@ function saveTafwijAliases(db, payload, schoolYear) {
     return { success: true, count: saved.length, aliases: saved };
 }
 
+/**
+ * Upsert one teacher alias for another repository transaction. The caller owns
+ * the surrounding transaction and captures the returned row when the alias is
+ * created or refreshed.
+ */
+function saveTeacherAlias(db, payload = {}) {
+    payload = payload || {};
+    const teacherId = Number(payload.teacher_id);
+    const schoolYear = String(payload.school_year || '').trim();
+    const aliasName = String(payload.alias_name || '')
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const aliasNormalized = normalizeTeacherName(aliasName);
+    if (!Number.isFinite(teacherId) || teacherId <= 0 || !schoolYear || !aliasName || !aliasNormalized) return null;
+
+    db.prepare(
+        `INSERT INTO teacher_aliases(teacher_id, alias_name, alias_normalized, source, school_year)
+         VALUES(?, ?, ?, ?, ?)
+         ON CONFLICT(teacher_id, school_year, alias_normalized) DO UPDATE SET
+             alias_name = excluded.alias_name,
+             source = COALESCE(excluded.source, teacher_aliases.source)`
+    ).run(teacherId, aliasName, aliasNormalized, payload.source || null, schoolYear);
+
+    return db
+        .prepare(
+            `SELECT * FROM teacher_aliases
+             WHERE teacher_id = ? AND school_year = ? AND alias_normalized = ?`
+        )
+        .get(teacherId, schoolYear, aliasNormalized);
+}
+
 function importBulk(db, teachers, options = {}) {
     if (!Array.isArray(teachers) || !teachers.length) {
         return { success: false, error: 'No data to import' };
@@ -804,47 +836,50 @@ function importBulk(db, teachers, options = {}) {
                 @source, @school_year, @active, @source_function_code, @source_assignment_mode, @source_cycle_code,
                 COALESCE(@scope_type, 'teaching_assignment'), @source_updated_at, @source_activity_json)
             ON CONFLICT(ppr, school_year) WHERE ppr IS NOT NULL AND ppr != '' DO UPDATE SET
-                cin              = COALESCE(excluded.cin, cin),
-                full_name        = COALESCE(excluded.full_name, full_name),
-                full_name_fr     = COALESCE(excluded.full_name_fr, full_name_fr),
-                specialty_subject = excluded.specialty_subject,
-                grade            = excluded.grade,
-                cadre            = excluded.cadre,
+                cin              = CASE WHEN excluded.cin IS NOT NULL AND excluded.cin != '' THEN excluded.cin ELSE cin END,
+                full_name        = CASE WHEN excluded.full_name IS NOT NULL AND excluded.full_name != '' THEN excluded.full_name ELSE full_name END,
+                full_name_fr     = CASE WHEN excluded.full_name_fr IS NOT NULL AND excluded.full_name_fr != '' THEN excluded.full_name_fr ELSE full_name_fr END,
+                specialty_subject = CASE WHEN excluded.specialty_subject IS NOT NULL AND excluded.specialty_subject != '' THEN excluded.specialty_subject ELSE specialty_subject END,
+                grade            = CASE WHEN excluded.grade IS NOT NULL AND excluded.grade != '' THEN excluded.grade ELSE grade END,
+                cadre            = CASE WHEN excluded.cadre IS NOT NULL AND excluded.cadre != '' THEN excluded.cadre ELSE cadre END,
                 subject          = CASE
                                      WHEN excluded.subject IS NOT NULL AND excluded.subject != ''
                                      THEN excluded.subject
                                      ELSE COALESCE(subject, excluded.subject)
                                    END,
-                gender           = COALESCE(excluded.gender, gender),
-                birth_date       = COALESCE(excluded.birth_date, birth_date),
-                birth_place      = COALESCE(excluded.birth_place, birth_place),
-                phone            = COALESCE(excluded.phone, phone),
-                email            = COALESCE(excluded.email, email),
-                address          = COALESCE(excluded.address, address),
+                gender           = CASE WHEN excluded.gender IS NOT NULL AND excluded.gender != '' THEN excluded.gender ELSE gender END,
+                birth_date       = CASE WHEN excluded.birth_date IS NOT NULL AND excluded.birth_date != '' THEN excluded.birth_date ELSE birth_date END,
+                birth_place      = CASE WHEN excluded.birth_place IS NOT NULL AND excluded.birth_place != '' THEN excluded.birth_place ELSE birth_place END,
+                phone            = CASE WHEN excluded.phone IS NOT NULL AND excluded.phone != '' THEN excluded.phone ELSE phone END,
+                email            = CASE WHEN excluded.email IS NOT NULL AND excluded.email != '' THEN excluded.email ELSE email END,
+                address          = CASE WHEN excluded.address IS NOT NULL AND excluded.address != '' THEN excluded.address ELSE address END,
                 echelon          = COALESCE(excluded.echelon, echelon),
-                hire_date        = COALESCE(excluded.hire_date, hire_date),
-                marital_status   = COALESCE(excluded.marital_status, marital_status),
-                function_title   = COALESCE(excluded.function_title, function_title),
-                position         = excluded.position,
-                statut           = excluded.statut,
-                diploma_school   = COALESCE(excluded.diploma_school, diploma_school),
-                diploma_professional = COALESCE(excluded.diploma_professional, diploma_professional),
-                seniority_admin  = excluded.seniority_admin,
-                seniority_grade  = excluded.seniority_grade,
-                echelon_date     = excluded.echelon_date,
-                titularization_date = excluded.titularization_date,
-                total_hours      = excluded.total_hours,
-                overtime_hours   = excluded.overtime_hours,
-                num_classes      = excluded.num_classes,
+                hire_date        = CASE WHEN excluded.hire_date IS NOT NULL AND excluded.hire_date != '' THEN excluded.hire_date ELSE hire_date END,
+                marital_status   = CASE WHEN excluded.marital_status IS NOT NULL AND excluded.marital_status != '' THEN excluded.marital_status ELSE marital_status END,
+                function_title   = CASE WHEN excluded.function_title IS NOT NULL AND excluded.function_title != '' THEN excluded.function_title ELSE function_title END,
+                position         = CASE WHEN excluded.position IS NOT NULL AND excluded.position != '' THEN excluded.position ELSE position END,
+                statut           = CASE WHEN excluded.statut IS NOT NULL AND excluded.statut != '' THEN excluded.statut ELSE statut END,
+                diploma_school   = CASE WHEN excluded.diploma_school IS NOT NULL AND excluded.diploma_school != '' THEN excluded.diploma_school ELSE diploma_school END,
+                diploma_professional = CASE WHEN excluded.diploma_professional IS NOT NULL AND excluded.diploma_professional != '' THEN excluded.diploma_professional ELSE diploma_professional END,
+                seniority_admin  = CASE WHEN excluded.seniority_admin IS NOT NULL AND excluded.seniority_admin != '' THEN excluded.seniority_admin ELSE seniority_admin END,
+                seniority_grade  = CASE WHEN excluded.seniority_grade IS NOT NULL AND excluded.seniority_grade != '' THEN excluded.seniority_grade ELSE seniority_grade END,
+                echelon_date     = CASE WHEN excluded.echelon_date IS NOT NULL AND excluded.echelon_date != '' THEN excluded.echelon_date ELSE echelon_date END,
+                titularization_date = CASE WHEN excluded.titularization_date IS NOT NULL AND excluded.titularization_date != '' THEN excluded.titularization_date ELSE titularization_date END,
+                total_hours      = COALESCE(excluded.total_hours, total_hours),
+                overtime_hours   = COALESCE(excluded.overtime_hours, overtime_hours),
+                num_classes      = COALESCE(excluded.num_classes, num_classes),
+                -- is_surplus and active are booleans where 0 is meaningful; COALESCE guards only NULL,
+                -- but the parser emits 0 for a missing XML tag, so we leave them unconditional and
+                -- document the limitation (see settings-imports.js:3765 isSurplus logic).
                 is_surplus       = excluded.is_surplus,
                 source           = excluded.source,
                 active           = excluded.active,
-                source_function_code = excluded.source_function_code,
-                source_assignment_mode = excluded.source_assignment_mode,
-                source_cycle_code = excluded.source_cycle_code,
-                scope_type = COALESCE(excluded.scope_type, scope_type),
+                source_function_code = CASE WHEN excluded.source_function_code IS NOT NULL AND excluded.source_function_code != '' THEN excluded.source_function_code ELSE source_function_code END,
+                source_assignment_mode = CASE WHEN excluded.source_assignment_mode IS NOT NULL AND excluded.source_assignment_mode != '' THEN excluded.source_assignment_mode ELSE source_assignment_mode END,
+                source_cycle_code = CASE WHEN excluded.source_cycle_code IS NOT NULL AND excluded.source_cycle_code != '' THEN excluded.source_cycle_code ELSE source_cycle_code END,
+                scope_type = CASE WHEN excluded.scope_type IS NOT NULL AND excluded.scope_type != '' THEN excluded.scope_type ELSE scope_type END,
                 source_updated_at = excluded.source_updated_at,
-                source_activity_json = excluded.source_activity_json
+                source_activity_json = CASE WHEN excluded.source_activity_json IS NOT NULL AND excluded.source_activity_json != '' THEN excluded.source_activity_json ELSE source_activity_json END
         `);
 
     const insertByName = db.prepare(`
@@ -951,6 +986,7 @@ function importBulk(db, teachers, options = {}) {
                 captureResolvedRows(db, 'teacher_aliases', aliasRows, 'PUT');
             }
         }
+        if (typeof options.audit === 'function') options.audit({ success: true, count: imported });
     });
     txn();
     notifyCaptureCommitted();
@@ -958,14 +994,31 @@ function importBulk(db, teachers, options = {}) {
 }
 
 function listNameAliases(db, entityType, schoolYear) {
-    return db
-        .prepare(
-            `SELECT * FROM name_aliases
-                 WHERE entity_type = ?
-                   AND (school_year = ? OR school_year IS NULL)
-                 ORDER BY created_at DESC`
-        )
-        .all(entityType, schoolYear || null);
+    const aliases = [];
+    if (tableExists(db, 'name_aliases')) {
+        aliases.push(
+            ...db
+                .prepare(
+                    `SELECT * FROM name_aliases
+                     WHERE entity_type = ?
+                       AND (school_year = ? OR school_year IS NULL)`
+                )
+                .all(entityType, schoolYear || null)
+        );
+    }
+    if (entityType === 'teacher' && tableExists(db, 'teacher_aliases')) {
+        aliases.push(
+            ...db
+                .prepare(
+                    `SELECT id, teacher_id AS canonical_id, alias_name AS alias_text,
+                            alias_normalized, source, school_year, created_at
+                     FROM teacher_aliases
+                     WHERE school_year = ?`
+                )
+                .all(schoolYear || null)
+        );
+    }
+    return aliases.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 }
 
 function saveNameAlias(db, payload) {
@@ -1004,6 +1057,7 @@ module.exports = {
     deleteTeacher,
     deleteByYear,
     saveTafwijAliases,
+    saveTeacherAlias,
     importBulk,
     listNameAliases,
     saveNameAlias,

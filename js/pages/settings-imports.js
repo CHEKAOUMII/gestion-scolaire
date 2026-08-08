@@ -21,7 +21,12 @@ const XLSX_CDN = 'vendor/xlsx.full.min.js';
 const PRIORITY_IMPORT_ACTIONS = new Set(['students', 'grades', 'absences', 'student-status', 'orientation']);
 let xlsxLoaderPromise = null;
 const importWorkbookCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
-let lastImportContextReview = null;
+const importFilePreflightCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+let importInFlight = false;
+
+const MAX_XLSX_IMPORT_SIZE = 100 * 1024 * 1024;
+const MAX_XML_IMPORT_SIZE = 20 * 1024 * 1024;
+const FILE_READ_TIMEOUT_MS = 60000;
 
 function setElementHidden(element, hidden) {
     if (!element) return;
@@ -196,7 +201,6 @@ const HEADER_ALIASES = {
         'massarcode',
         'codemassar',
         'codeeleve',
-        'مسار',
         'الرمز',
         'رمز',
         'رقمالتلميذ',
@@ -259,15 +263,6 @@ const HEADER_ALIASES = {
     hours: ['hours', 'nbrhours', 'nbheures', 'heuresabsence', 'totalhours', 'الساعات', 'عددالساعات'],
     days: ['days', 'nbrdays', 'nbjours', 'jours', 'الأيام', 'عددالأيام']
 };
-const GRADES_IMPORT_DEBUG =
-    /[?\u0026]debugGrades=1(?:\u0026|$)/.test(location.search) || localStorage.getItem('debugGrades') === '1';
-function debugGradesImport(...args) {
-    if (GRADES_IMPORT_DEBUG) console.log('[grades-import]', ...args);
-}
-function debugFetImport(...args) {
-    if (GRADES_IMPORT_DEBUG) console.log('[fet-import]', ...args);
-}
-
 const TAFWIJ_TIMETABLE_STORAGE_VERSION = 2;
 let pendingTafwijImportState = null;
 
@@ -308,28 +303,6 @@ function normalizeStoredTeacherEntry(entry) {
     };
 }
 
-function validateGrade(value) {
-    return Number.isFinite(value) && value >= 0 && value <= 20;
-}
-
-function validateAbsenceHours(hours) {
-    return Number.isFinite(hours) && hours > 0 && hours <= 200;
-}
-
-function createAbsenceRecord({ studentId, studentCode, date, month, type, hours, days, schoolYear }) {
-    return {
-        student_id: studentId,
-        student_code: studentCode,
-        absence_date: date || '',
-        month: String(month || ''),
-        absence_type: type,
-        hours,
-        days: days || 0,
-        reason: '',
-        school_year: schoolYear
-    };
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         initializeImportAccessibility();
@@ -346,6 +319,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             input.addEventListener('change', async (event) => {
                 const files = Array.from(event.target.files || []);
                 if (!files.length) return;
+                importInFlight = true;
+                setImportButtonsDisabled(true);
                 const label = ACTION_LABELS[action] || action;
                 updateImportSelectionStatus(
                     files.length === 1
@@ -353,20 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         : `تم اختيار ${files.length} ملفات لـ ${label}`
                 );
                 try {
-                    let confirmed = false;
-                    if (PRIORITY_IMPORT_ACTIONS.has(action)) {
-                        confirmed = await showImportContextReview(action, files);
-                    } else {
-                        const result = await showConfirm({
-                            title: 'استيراد البيانات',
-                            ...buildImportConfirmMessage(action, files),
-                            type: 'info',
-                            icon: 'fa-cloud-upload-alt',
-                            confirmText: 'بدء الاستيراد',
-                            cancelText: 'إلغاء'
-                        });
-                        confirmed = !!result?.confirmed;
-                    }
+                    const confirmed = await showImportContextReview(action, files);
                     if (!confirmed) {
                         showToast('تم إلغاء الاستيراد أو منعه قبل حفظ البيانات', 'info');
                         return;
@@ -379,6 +341,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             : getSafeImportMessage(error, { actionLabel: ACTION_LABELS[action] });
                     showToast(`فشل الاستيراد: ${msg}`, 'error');
                 } finally {
+                    importInFlight = false;
+                    setImportButtonsDisabled(false);
                     input.value = '';
                 }
             });
@@ -519,6 +483,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         await Promise.all([loadLogs(), loadDataStats()]);
         await renderTafwijWarningBanner();
         await restorePendingTafwijStateFromStorage();
+
+        // Deep link: ?type= handling (hint only, never auto-executes)
+        try {
+            const params = new URLSearchParams(location.search);
+            const type = params.get('type');
+            if (type && Object.prototype.hasOwnProperty.call(FILE_INPUTS, type)) {
+                const card = document.querySelector(`.imports-action-card[data-action="${type}"]`);
+                if (card) {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (typeof card.focus === 'function') {
+                        try {
+                            card.focus({ preventScroll: true });
+                        } catch {
+                            card.focus();
+                        }
+                    }
+                    card.classList.add('ring-2', 'ring-[var(--color-primary)]', 'ring-offset-2');
+                    setTimeout(() => {
+                        card.classList.remove('ring-2', 'ring-[var(--color-primary)]', 'ring-offset-2');
+                    }, 2500);
+                }
+            }
+        } catch {}
     } catch (error) {
         console.error('settings-imports init failed:', error);
         showToast(
@@ -534,6 +521,10 @@ function setImportButtonsDisabled(disabled) {
         btn.disabled = disabled;
         btn.style.opacity = disabled ? '0.7' : '1';
         btn.style.pointerEvents = disabled ? 'none' : 'auto';
+    });
+    Object.values(FILE_INPUTS).forEach((inputId) => {
+        const input = document.getElementById(inputId);
+        if (input) input.disabled = disabled;
     });
 }
 
@@ -551,11 +542,9 @@ function updateImportProgress(percent, message, title = 'جاري الاستير
     p.textContent = `${Math.round(normalizedPercent)}%`;
     track?.setAttribute('aria-valuenow', String(Math.round(normalizedPercent)));
     msg.textContent = message;
-    t.textContent = '';
     const icon = document.createElement('i');
     icon.className = 'fas fa-upload';
-    t.appendChild(icon);
-    t.append(` ${title}`);
+    t.replaceChildren(icon, ` ${title}`);
 }
 
 function hideImportProgress(delay = 0) {
@@ -570,31 +559,6 @@ function hideImportProgress(delay = 0) {
     };
     if (delay > 0) setTimeout(reset, delay);
     else reset();
-}
-
-function buildImportConfirmMessage(action, files) {
-    const label = ACTION_LABELS[action] || action;
-    const safeFiles = Array.isArray(files) ? files : [];
-    const semesterLabel = action === 'grades' ? ' سيتم تحديد الدورة تلقائياً من الملف.' : '';
-
-    if (safeFiles.length === 1) {
-        const fileName = safeFiles[0]?.name || 'الملف المحدد';
-        return {
-            message: `هل تريد استيراد ${label} من الملف:`,
-            detail: `${fileName}${semesterLabel}`,
-        };
-    }
-
-    const preview = safeFiles
-        .slice(0, 4)
-        .map((file) => file?.name || 'ملف غير معروف')
-        .join('، ');
-    const more = safeFiles.length > 4 ? ` ... (+${safeFiles.length - 4})` : '';
-
-    return {
-        message: `هل تريد استيراد ${label} بشكل جماعي من ${safeFiles.length} ملفات؟`,
-        detail: `${preview}${more}${semesterLabel}`,
-    };
 }
 
 function getSafeImportMessage(error, context = {}) {
@@ -612,6 +576,49 @@ function getSafeOperationMessage(error, fallback) {
     return safe || fallback;
 }
 
+function throwImportFailure(res, fallback) {
+    const code = res?.code;
+    const typedCode =
+        typeof code === 'string' && code.trim() !== '' && code !== 'INTERNAL_ERROR'
+            ? code
+            : null;
+    if (typedCode) {
+        const contractMessage =
+            typeof ImportResultContract !== 'undefined' && ImportResultContract?.CODE_MESSAGES
+                ? ImportResultContract.CODE_MESSAGES[typedCode]
+                : null;
+        const error = new Error(res?.error || contractMessage || fallback);
+        error.code = typedCode;
+        throw error;
+    }
+    throw new Error(res?.error || fallback);
+}
+
+async function getGradesStudentDependencyCheck(schoolYear) {
+    const studentsResult = await window.api?.students?.getAll?.(schoolYear);
+    if (!Array.isArray(studentsResult)) {
+        return {
+            key: 'studentRoster',
+            code: 'STUDENTS_UNAVAILABLE',
+            status: 'unknown',
+            blocking: true,
+            decision: 'block',
+            message: 'تعذر تحميل لائحة التلاميذ للسنة والسلك النشطين.'
+        };
+    }
+    if (!studentsResult.length) {
+        return {
+            key: 'studentRoster',
+            code: 'STUDENTS_REQUIRED',
+            status: 'missing',
+            blocking: true,
+            decision: 'block',
+            message: 'لا توجد لائحة تلاميذ لهذا السلك والسنة؛ استوردها قبل استيراد النقط.'
+        };
+    }
+    return null;
+}
+
 async function getImportDestinationContext(schoolYear) {
     if (typeof window.api?.reports?.getIdentity !== 'function' || typeof window.api?.cycles?.getActive !== 'function') {
         throw ImportResultContract.createContextError('DESTINATION_CONTEXT_UNAVAILABLE', null, { retryable: true });
@@ -624,15 +631,26 @@ async function getImportDestinationContext(schoolYear) {
         throw ImportResultContract.createContextError('DESTINATION_CONTEXT_UNAVAILABLE', null, { retryable: true });
     }
     const identity = identityResult.value || {};
-    const active = activeResult.value;
-    const cycle = active?.cycle || {};
+    const active = activeResult.value || {};
+    // Multi-cycle without a session selection refuses to pin a destination cycle
+    // (G3 / S0 fail-closed). Surface the typed code before any commit so the user
+    // is told to select a stage and retry instead of discovering a generic failure.
+    if (active.requiresSelection === true) {
+        throw typeof ImportResultContract !== 'undefined'
+            ? ImportResultContract.createContextError('CYCLE_SELECTION_REQUIRED', null, { retryable: true })
+            : new Error('توجد عدة أسلكة متاحة دون تحديد السلك النشط. اختر السلك من الشريط العلوي ثم أعد المحاولة.');
+    }
+    const cycle = active.cycle || {};
     const context = active?.context || {};
     return {
         schoolYear,
         institutionCode: identity.school_code || identity.code_etablissement || identity.massar_code || null,
         institutionName: identity.school_name || identity.institution_name || null,
         cycleCode: context.cycleCode || cycle.cycle_code || null,
-        cycleLabel: cycle.label_ar || cycle.label || context.cycleCode || null
+        cycleLabel: cycle.label_ar || cycle.label || context.cycleCode || null,
+        semester: typeof getSelectedSemester === 'function' ? getSelectedSemester() : null,
+        subject: null,
+        templateVersion: null
     };
 }
 
@@ -668,6 +686,23 @@ function buildImportContextReviewDetail(review) {
         lines.push(`   السلك: ${formatImportContextValue(source.cycleLabel || source.cycleCode)}${source.cycleConfidence ? ` (${source.cycleConfidence === 'high' ? 'ثقة عالية' : 'ثقة متوسطة'})` : ''}`);
         if (source.levels?.length || source.streams?.length || source.sections?.length) {
             lines.push(`   النطاق: ${formatImportContextValue(source.levels, '')}${source.streams?.length ? ` | المسالك: ${formatImportContextValue(source.streams)}` : ''}${source.sections?.length ? ` | الأقسام: ${formatImportContextValue(source.sections)}` : ''}`);
+        }
+        if (fileReview.preflight) {
+            const preflight = fileReview.preflight;
+            lines.push(`   فحص المحتوى: ${preflight.valid && preflight.executable ? 'صالح قبل الحفظ' : 'ممنوع قبل الحفظ'}${preflight.recordEstimate != null ? ` — ${preflight.recordEstimate} سجل` : ''}`);
+            (preflight.errors || []).slice(0, 8).forEach((item) => lines.push(`   ⛔ ${item.message}`));
+            (preflight.warnings || []).slice(0, 8).forEach((item) => lines.push(`   ⚠ ${item.message || item}`));
+            // Row-failure reconciliation: show counts before confirmation (T2.4)
+            const diagnostics = preflight.diagnostics || [...(preflight.errors || []), ...(preflight.warnings || [])];
+            const validCount = preflight.recordEstimate != null ? preflight.recordEstimate : (preflight.valid ? 1 : 0);
+            const excludedCount = diagnostics.filter((d) => !d.blocking && (d.code === 'INVALID_GRADE' || d.code === 'MISSING_CODE' || d.code === 'STUDENT_CODE_MISSING')).length;
+            const blockedCount = diagnostics.filter((d) => d.blocking).length;
+            if (excludedCount || blockedCount || validCount) {
+                const summary = typeof ImportResultContract !== 'undefined' && ImportResultContract.outcomeSummary
+                    ? ImportResultContract.outcomeSummary({ parsed: validCount + excludedCount + blockedCount, saved: validCount, skipped: excludedCount, failed: blockedCount })
+                    : `صالح ${validCount}، مستبعد ${excludedCount}، ممنوع ${blockedCount}`;
+                lines.push(`   الملخص: ${summary}`);
+            }
         }
         const relevantChecks = (fileReview.comparison?.checks || []).filter(
             (check) => check.status !== 'match' && check.status !== 'info'
@@ -707,7 +742,11 @@ function renderImportContextReview(review) {
         title.textContent = `${fileReview.fileName} — ${fileReview.comparison?.status === 'blocked' ? 'ممنوع' : fileReview.comparison?.status === 'review' ? 'يتطلب مراجعة' : 'مطابق'}`;
         const diagnostics = document.createElement('pre');
         diagnostics.className = 'mt-2 whitespace-pre-wrap font-[inherit] text-sm text-[var(--color-text-muted)]';
-        diagnostics.textContent = fileReview.error || (fileReview.comparison?.checks || []).map((item) => `${item.blocking ? 'ممنوع' : item.decision === 'require_review' ? 'يتطلب مراجعة' : 'مطابق'}: ${item.message}`).join('\n');
+        diagnostics.textContent = fileReview.error || [
+            ...(fileReview.preflight?.errors || []).map((item) => `ممنوع: ${item.message}`),
+            ...(fileReview.preflight?.warnings || []).map((item) => `تحذير: ${item.message || item}`),
+            ...(fileReview.comparison?.checks || []).map((item) => `${item.blocking ? 'ممنوع' : item.decision === 'require_review' ? 'يتطلب مراجعة' : 'مطابق'}: ${item.message}`)
+        ].join('\n');
         details.append(title, diagnostics);
         content.appendChild(details);
     });
@@ -757,15 +796,194 @@ async function preflightImport(action, files) {
     return prepareImportContextReview(action, files);
 }
 
+function createImportPreflightResult(partial = {}) {
+    return Object.assign(
+        {
+            valid: false,
+            executable: false,
+            recordEstimate: 0,
+            warnings: [],
+            errors: [],
+            diagnostics: [],
+            noRecordsSaved: true
+        },
+        partial
+    );
+}
+
+function createImportPreflightFailure(error, fileName) {
+    const code = error?.code || 'INVALID_FILE_STRUCTURE';
+    const message = getSafeImportMessage(error, {
+        actionLabel: ACTION_LABELS[error?.action] || 'الاستيراد',
+        fileName
+    });
+    const diagnostic = {
+        code,
+        severity: 'error',
+        stage: 'preflight',
+        message,
+        fileId: fileName || '',
+        sheet: error?.details?.sheet || error?.sheet || null,
+        row: error?.details?.row || error?.row || null,
+        field: error?.details?.field || error?.field || null,
+        rule: 'read_only_preflight',
+        action: 'correct_file'
+    };
+    return createImportPreflightResult({
+        errors: [diagnostic],
+        diagnostics: [diagnostic]
+    });
+}
+
+async function runManualImportPreflight(action, file, schoolYear, workbook) {
+    const cached = importFilePreflightCache?.get(file);
+    if (cached && cached.action === action && cached.schoolYear === schoolYear) return cached.result;
+
+    let result;
+    try {
+        if (action === 'students') {
+            const identity = (await window.api?.reports?.getIdentity?.()) || {};
+            const parsed = window.StudentImportParser.parseStudentSheets({
+                sheets: (workbook?.SheetNames || []).map((name) => ({ name, rows: getSheetRows(workbook, name) })),
+                schoolYear,
+                configuredSchoolName: identity.school_name || '',
+                normalizeLevel: (value) => normalizeLevelName(value)
+            });
+            if (!parsed.valid) throw createStudentImportError(parsed);
+            result = createImportPreflightResult({
+                valid: true,
+                executable: true,
+                recordEstimate: parsed.records.length,
+                warnings: parsed.warnings || [],
+                diagnostics: parsed.diagnostics || []
+            });
+        } else if (action === 'grades') {
+            const students = await window.api?.students?.getAll?.(schoolYear);
+            if (!Array.isArray(students)) throw ImportResultContract.createContextError('STUDENTS_UNAVAILABLE', { schoolYear });
+            if (!students.length) throw ImportResultContract.createContextError('STUDENTS_REQUIRED', { schoolYear });
+            const teachers = await window.api?.teachers?.getAll?.(schoolYear);
+            if (!Array.isArray(teachers)) throw ImportResultContract.createContextError('TEACHERS_UNAVAILABLE', { schoolYear });
+            const parsed = window.GradesImportParser.parseGradesSheets({
+                sheets: (workbook?.SheetNames || []).map((name) => ({ name, rows: getSheetRows(workbook, name) })),
+                sourceFileName: file?.name || '',
+                schoolYear,
+                students
+            });
+            const errors = (parsed.diagnostics || []).filter((item) => item.blocking);
+            if (!parsed.valid || errors.length) {
+                const first = errors[0] || parsed.diagnostics?.[0] || {};
+                const error = new Error(first.message || 'لم يتم العثور على نقط صالحة داخل الملف');
+                error.code = first.code === 'UNKNOWN_STUDENT' ? 'UNKNOWN_STUDENT_CODES' : first.code || 'INVALID_FILE_STRUCTURE';
+                error.details = { sheet: first.sheet, row: first.row, field: first.field };
+                throw error;
+            }
+            result = createImportPreflightResult({
+                valid: true,
+                executable: true,
+                recordEstimate: parsed.records.length,
+                warnings: (parsed.diagnostics || []).filter((item) => !item.blocking),
+                diagnostics: parsed.diagnostics || [],
+                metadata: parsed.metadata
+            });
+        } else if (action === 'absences') {
+            const parsed = await importAbsences(workbook, schoolYear, { persist: false });
+            if (parsed.unknownStudentCodes?.length) {
+                throw ImportResultContract.createContextError(
+                    'UNKNOWN_STUDENT_CODES',
+                    { codes: parsed.unknownStudentCodes.slice(0, 40) },
+                    { noRecordsSaved: true }
+                );
+            }
+            const absenceDiagnostics = parsed.diagnostics || parsed.invalidHoursDiagnostics || [];
+            result = createImportPreflightResult({
+                valid: true,
+                executable: true,
+                recordEstimate: parsed.length,
+                warnings: absenceDiagnostics.filter((d) => !d.blocking),
+                diagnostics: absenceDiagnostics
+            });
+        } else if (action === 'student-status') {
+            const parsed = await importStudentStatus(workbook, schoolYear, { persist: false });
+            result = createImportPreflightResult({
+                valid: true,
+                executable: true,
+                recordEstimate: parsed.records.length,
+                diagnostics: []
+            });
+        } else if (action === 'orientation') {
+            let parsed;
+            if (isOrientationJsonFile(file)) {
+                const extracted = await parseOrientationJsonFile(file, schoolYear);
+                assertOrientationSchoolYearMatch(extracted.detectedYear, schoolYear);
+                parsed = await importOrientation(file, schoolYear, null, extracted, { persist: false });
+            } else {
+                if (!workbook) throw new Error('تعذر قراءة ملف Excel/CSV للتوجيه');
+                parsed = await importOrientation(file, schoolYear, workbook, null, { persist: false });
+            }
+            result = createImportPreflightResult({
+                valid: true,
+                executable: true,
+                recordEstimate: parsed.rows.length,
+                warnings: parsed.skipReasons || [],
+                diagnostics: []
+            });
+        } else if (action === 'fet' || action === 'agent-xml') {
+            const features = await ImportReaders.extractFeatures(file);
+            const expectedRoot = action === 'fet' ? 'Teachers_Timetable' : 'DsAgentExport';
+            const requiredElement = action === 'fet' ? 'Teacher' : 'DATAIDENTIFPERSONNEL';
+            if (features.truncated && !features.xmlElements.includes(requiredElement)) {
+                const error = new Error('الملف كبير وتم اقتطاعه أثناء الفحص؛ تعذر التأكد من وجود بيانات الأساتذة. سيُحاول الاستيراد معالجة الملف كاملاً.');
+                error.code = 'XML_TRUNCATED';
+                throw error;
+            }
+            if (features.error || features.empty || features.xmlRoot !== expectedRoot || !features.xmlElements.includes(requiredElement)) {
+                const error = new Error(action === 'fet' ? 'ملف FET غير صالح أو لا يحتوي على بيانات الأساتذة' : 'ملف الوزارة غير صالح أو لا يحتوي على بيانات الأساتذة');
+                error.code = 'INVALID_FILE_STRUCTURE';
+                throw error;
+            }
+            result = createImportPreflightResult({
+                valid: true,
+                executable: true,
+                recordEstimate: features.xmlElements.includes(requiredElement) ? 1 : 0,
+                diagnostics: []
+            });
+        } else {
+            const error = new Error('نوع الاستيراد غير مدعوم');
+            error.code = 'TEMPLATE_UNKNOWN';
+            throw error;
+        }
+    } catch (error) {
+        result = createImportPreflightFailure(error, file?.name || '');
+    }
+
+    if (importFilePreflightCache && file) {
+        importFilePreflightCache.set(file, { action, schoolYear, result });
+    }
+    return result;
+}
+
+function applyDetectedSemesterForSingleGradeFile(semester, fileCount) {
+    const detectedSemester = Number(semester);
+    if (fileCount !== 1 || ![1, 2].includes(detectedSemester)) return false;
+
+    const semesterSelect = document.getElementById('semester-select');
+    if (!semesterSelect || Number(semesterSelect.value) === detectedSemester) return false;
+
+    semesterSelect.value = String(detectedSemester);
+    semesterSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+}
+
 async function prepareImportContextReview(action, files) {
     if (typeof ImportContext === 'undefined') {
         throw new Error('وحدة فحص سياق الاستيراد غير متاحة');
     }
+    const importFiles = Array.isArray(files) ? files : [];
     const schoolYear = getCurrentSchoolYear();
     const destination = await getImportDestinationContext(schoolYear);
     const fileReviews = [];
 
-    for (const file of Array.isArray(files) ? files : []) {
+    for (const file of importFiles) {
         try {
             let source;
             let workbook = null;
@@ -786,6 +1004,31 @@ async function prepareImportContextReview(action, files) {
                     sections: [],
                     metadataFound: { schoolYear: !!extracted?.detectedYear }
                 };
+            } else if (action === 'fet' || action === 'agent-xml') {
+                const features = typeof ImportReaders !== 'undefined' && ImportReaders?.extractFeatures
+                    ? await ImportReaders.extractFeatures(file)
+                    : null;
+                source = {
+                    sourceType: action,
+                    fileName: file.name,
+                    schoolYear: features?.detectedYear || null,
+                    schoolYearSource: features?.detectedYear ? 'explicit' : null,
+                    institutionCode: null,
+                    institutionName: null,
+                    cycleCode: null,
+                    cycleLabel: null,
+                    cycleConfidence: null,
+                    levels: [],
+                    streams: [],
+                    sections: [],
+                    semester: null,
+                    subject: null,
+                    templateVersion: null,
+                    metadataFound: { schoolYear: !!features?.detectedYear },
+                    evidence: {
+                        schoolYear: features?.detectedYear ? { source: 'explicit', confidence: 'high' } : null
+                    }
+                };
             } else {
                 workbook = await getWorkbookForImport(file);
                 const contextWorkbook = {
@@ -795,10 +1038,89 @@ async function prepareImportContextReview(action, files) {
                 source = ImportContext.extractContext(contextWorkbook, file.name, { action });
             }
             if (workbook && importWorkbookCache) importWorkbookCache.set(file, { workbook, source });
+            const preflight = await runManualImportPreflight(action, file, schoolYear, workbook);
+            if (action === 'grades') {
+                const parserSemester = preflight.metadata?.semester;
+                if (parserSemester != null) {
+                    source.semester = parserSemester;
+                    source.semesterSource = 'explicit';
+                    if (source.evidence) source.evidence.semester = { source: 'explicit', confidence: 'high' };
+                }
+                const detectedSemester = parserSemester ?? source.semester;
+                if (applyDetectedSemesterForSingleGradeFile(detectedSemester, importFiles.length)) {
+                    destination.semester = Number(detectedSemester);
+                }
+                if (!source.subject && preflight.metadata?.subject) {
+                    source.subject = preflight.metadata.subject;
+                    source.subjectSource = 'explicit';
+                }
+            }
+            const comparison = ImportContext.compareContexts(source, destination, action);
+            comparison.preflight = preflight;
+            // Phase 3a: non-blocking type-mismatch warning (content vs button)
+            if (typeof ImportTypeCheck !== 'undefined' && ImportTypeCheck.checkFile) {
+                try {
+                    let featuresForCheck = null;
+                    if (typeof ImportReaders !== 'undefined' && ImportReaders.extractFeatures) {
+                        featuresForCheck = await ImportReaders.extractFeatures(file);
+                    }
+                    if (featuresForCheck) {
+                        // Ensure context hint is the expected action
+                        featuresForCheck.contextTypeHint = action;
+                        const typeCheck = ImportTypeCheck.checkFile(featuresForCheck, action);
+                        if (typeCheck.isMismatch) {
+                            const typeWarn = {
+                                key: 'typeMismatch',
+                                code: typeCheck.code || 'TYPE_MISMATCH',
+                                status: 'mismatch',
+                                sourceValue: typeCheck.matchedType || null,
+                                destinationValue: action,
+                                message: typeCheck.message,
+                                blocking: false,
+                                decision: 'require_review'
+                            };
+                            comparison.checks.push(typeWarn);
+                            comparison.warnings.push(typeWarn);
+                            if (comparison.status === 'ready') comparison.status = 'review';
+                        }
+                    }
+                } catch {}
+            }
+            if (!preflight.valid || !preflight.executable) {
+                const firstError = preflight.errors?.[0] || {
+                    code: 'INVALID_FILE_STRUCTURE',
+                    message: 'الملف لا يحتوي على سجلات صالحة للاستيراد'
+                };
+                const preflightCheck = {
+                    key: 'fileContent',
+                    code: firstError.code,
+                    status: 'mismatch',
+                    sourceValue: null,
+                    destinationValue: null,
+                    message: firstError.message,
+                    blocking: true,
+                    decision: 'block'
+                };
+                comparison.checks.push(preflightCheck);
+                comparison.blocking.push(preflightCheck);
+                comparison.status = 'blocked';
+                comparison.canProceed = false;
+            }
+            if (preflight.warnings?.length) comparison.warnings.push(...preflight.warnings);
+            if (action === 'grades') {
+                const dependencyCheck = await getGradesStudentDependencyCheck(schoolYear);
+                if (dependencyCheck) {
+                    comparison.checks.push(dependencyCheck);
+                    comparison.blocking.push(dependencyCheck);
+                    comparison.status = 'blocked';
+                    comparison.canProceed = false;
+                }
+            }
             fileReviews.push({
                 fileName: file.name || 'ملف غير معروف',
                 source,
-                comparison: ImportContext.compareContexts(source, destination, action)
+                comparison,
+                preflight
             });
         } catch (error) {
             const safeError = getSafeImportMessage(error, { actionLabel: ACTION_LABELS[action], fileName: file?.name });
@@ -849,8 +1171,7 @@ async function showImportFailureReport(report) {
 
 async function showImportContextReview(action, files) {
     const review = await preflightImport(action, files);
-    lastImportContextReview = review;
-    renderImportContextReview(review);
+        renderImportContextReview(review);
     const label = ACTION_LABELS[action] || action;
     const blocked = !review.canProceed;
     const result = await showConfirm({
@@ -913,13 +1234,15 @@ async function restorePendingTafwijStateFromStorage() {
         if (!parsed) return;
         const unresolvedKeys = Array.isArray(parsed?.unresolvedTeacherKeys) ? parsed.unresolvedTeacherKeys : [];
         if (!unresolvedKeys.length || !parsed?.teacherMetaByKey) return;
-        const allTeachers = (await window.api?.teachers?.getAll?.(getCurrentSchoolYear())) || [];
-        const teacherResolver = buildTeacherResolver(allTeachers);
+        const schoolYear = getCurrentSchoolYear();
+        const allTeachers = (await window.api?.teachers?.getAll?.(schoolYear)) || [];
+        const nameAliases = (await window.api?.teachers?.getNameAliases?.('teacher', schoolYear)) || [];
+        const teacherResolver = buildSharedKeyTeacherResolver(allTeachers, nameAliases);
         const storedTeachers = Array.isArray(parsed?.teachers)
             ? parsed.teachers.map(normalizeStoredTeacherEntry)
             : Object.values(parsed.teacherMetaByKey || {}).map(normalizeStoredTeacherEntry);
         pendingTafwijImportState = {
-            schoolYear: getCurrentSchoolYear(),
+            schoolYear,
             allTeachers,
             fileName: 'tafwij (stored)',
             entries: storedTeachers.map((storedTeacher) => {
@@ -1127,6 +1450,10 @@ function renderTafwijMatchingPanel() {
     const tbody = document.getElementById('tafwij-matching-tbody');
     const summary = document.getElementById('tafwij-matching-summary');
     if (!panel || !tbody || !summary) return;
+    if (typeof escapeHtml !== 'function') {
+        setElementHidden(panel, true);
+        return;
+    }
 
     const state = pendingTafwijImportState;
     if (!state?.entries?.length) {
@@ -1216,6 +1543,8 @@ async function finalizePendingTafwijImport({ saveAliases = false, keepUnresolved
 }
 
 function normalizeKey(value) {
+    if (typeof ImportCenterNormalize !== 'undefined' && ImportCenterNormalize.normalizeKey) return ImportCenterNormalize.normalizeKey(value);
+    if (typeof globalThis !== 'undefined' && globalThis.ImportCenterNormalize?.normalizeKey) return globalThis.ImportCenterNormalize.normalizeKey(value);
     return String(value || '')
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -1226,6 +1555,9 @@ function normalizeKey(value) {
 }
 
 function normalizeStudentCode(value) {
+    if (globalThis.ImportCenterNormalize?.normalizeStudentCode) {
+        return globalThis.ImportCenterNormalize.normalizeStudentCode(value);
+    }
     const raw = String(value ?? '').trim();
     if (!raw) return '';
     const cleaned = raw.replace(/\s+/g, '').replace(/^'+/, '');
@@ -1298,42 +1630,50 @@ function sanitizeTeacherName(value) {
     return raw;
 }
 
-function normalizeTeacherMatchKey(value) {
-    const normalized = normalizeKey(
-        String(value || '')
-            .replace(/_/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-    );
-    if (!normalized) return '';
-    return normalized
-        .replace(/(^|\s)ال/g, '$1')
-        .replace(/\s+/g, ' ')
-        .trim();
+function getTeacherIdentityModule() {
+    return typeof PencilShared !== 'undefined' && PencilShared.TeacherIdentity
+        ? PencilShared.TeacherIdentity
+        : null;
 }
 
-function buildTeacherResolver(teachers) {
-    const normalizedMap = new Map();
-    (Array.isArray(teachers) ? teachers : []).forEach((teacher) => {
-        const variants = [teacher.full_name, teacher.full_name_fr]
-            .map((value) => String(value || '').trim())
-            .filter(Boolean);
-        variants.forEach((variant) => {
-            const key = normalizeTeacherMatchKey(variant);
-            if (!key) return;
-            if (!normalizedMap.has(key)) normalizedMap.set(key, []);
-            normalizedMap.get(key).push(teacher);
-        });
+function buildTeacherIdentityIndex(teachers, aliases) {
+    const index = new Map();
+    const identity = getTeacherIdentityModule();
+    if (!identity) return index;
+    const teachersList = Array.isArray(teachers) ? teachers : [];
+    const allTeachersById = new Map(
+        teachersList.map((teacher) => [Number(teacher?.id), teacher]).filter(([id]) => Boolean(id))
+    );
+    const addKey = (key, teacher) => {
+        if (!key || !teacher) return;
+        if (!index.has(key)) index.set(key, []);
+        const bucket = index.get(key);
+        if (!bucket.some((existing) => Number(existing.id) === Number(teacher.id))) bucket.push(teacher);
+    };
+    teachersList.forEach((teacher) => {
+        addKey(identity.normalizeIdentityKey(teacher.full_name), teacher);
+        addKey(identity.normalizeIdentityKey(teacher.full_name_fr), teacher);
     });
+    (Array.isArray(aliases) ? aliases : []).forEach((alias) => {
+        const teacher = allTeachersById.get(Number(alias?.canonical_id));
+        if (!teacher) return;
+        addKey(identity.normalizeIdentityKey(alias?.alias_text || alias?.alias_name), teacher);
+    });
+    return index;
+}
+
+function buildSharedKeyTeacherResolver(teachers, aliases) {
+    const index = buildTeacherIdentityIndex(teachers, aliases);
     return {
         resolve(rawName) {
             const cleaned = sanitizeTeacherName(rawName);
-            if (!cleaned) return { teacher_id: null, teacher_name: '', candidates: [] };
-            const key = normalizeTeacherMatchKey(cleaned);
-            const matches = normalizedMap.get(key) || [];
+            const identity = getTeacherIdentityModule();
+            const key = identity ? identity.normalizeIdentityKey(cleaned) : '';
+            if (!cleaned || !key) return { teacher_id: null, teacher_name: '', candidates: [] };
+            const matches = index.get(key) || [];
             if (matches.length === 1) {
                 return {
-                    teacher_id: matches[0].id || null,
+                    teacher_id: Number(matches[0].id) || null,
                     teacher_name: matches[0].full_name || cleaned,
                     matched: true,
                     candidates: matches
@@ -1348,81 +1688,6 @@ function buildTeacherResolver(teachers) {
             };
         }
     };
-}
-
-function findTeacherNameColumnIndex(headers, subHeaders = []) {
-    const aliases = HEADER_ALIASES.teacherName.map(normalizeKey).filter(Boolean);
-    for (let i = 0; i < headers.length; i++) {
-        const h = String(headers[i] ?? '').trim();
-        const sh = String(subHeaders[i] ?? '').trim();
-        const combined = `${h} ${sh}`.trim();
-        const key = normalizeKey(combined);
-        if (!key) continue;
-        if (isTeacherNoiseText(combined)) continue;
-
-        const matched = aliases.some((alias) => {
-            if (key === alias) return true;
-            if (alias.length < 5) return false;
-            return key.startsWith(alias) || key.endsWith(alias);
-        });
-        if (matched) return i;
-    }
-    return -1;
-}
-
-function findTeacherNameFromMeta(rows, maxScan = 40) {
-    const labels = ['الأستاذ', 'الاستاذ', 'استاذ', 'professeur', 'prof', 'teacher'];
-    const labelKeys = labels.map(normalizeKey).filter(Boolean);
-    const isTeacherLabelCell = (value) => {
-        const cellKey = normalizeKey(value);
-        if (!cellKey) return false;
-        return labelKeys.some((label) => {
-            if (cellKey === label) return true;
-            if (label.length < 5) return false;
-            return cellKey.startsWith(label) || cellKey.endsWith(label);
-        });
-    };
-
-    for (let i = 0; i < Math.min(rows.length, maxScan); i++) {
-        const row = rows[i] || [];
-        for (let c = 0; c < row.length; c++) {
-            const cellRaw = String(row[c] ?? '').trim();
-            if (!cellRaw || isTeacherNoiseText(cellRaw)) continue;
-            if (!isTeacherLabelCell(cellRaw)) continue;
-
-            const inlinePatterns = [
-                /(?:الأستاذ|الاستاذ|استاذ)\s*[:：-]\s*(.+)$/i,
-                /(?:professeur|prof|teacher)\s*[:：-]\s*(.+)$/i,
-                /^(?:الأستاذ|الاستاذ|استاذ)\s+(.+)$/i,
-                /^(?:professeur|prof|teacher)\s+(.+)$/i
-            ];
-            for (const re of inlinePatterns) {
-                const m = cellRaw.match(re);
-                if (m && m[1]) {
-                    const inlineName = sanitizeTeacherName(m[1]);
-                    if (inlineName) return inlineName;
-                }
-            }
-
-            const candidateOffsets = [1, 2, 3, 4, 5, 6, -1, -2, -3, -4, -5, -6];
-            for (const offset of candidateOffsets) {
-                const value = row[c + offset];
-                if (isTeacherLabelCell(value) || isTeacherNoiseText(value)) continue;
-                const candidate = sanitizeTeacherName(value);
-                if (candidate) return candidate;
-            }
-
-            const nextRow = rows[i + 1] || [];
-            for (const offset of [0, 1, 2, 3, 4, -1, -2, -3, -4]) {
-                const value = nextRow[c + offset];
-                if (isTeacherLabelCell(value) || isTeacherNoiseText(value)) continue;
-                const candidate = sanitizeTeacherName(value);
-                if (candidate) return candidate;
-            }
-        }
-    }
-
-    return '';
 }
 
 function findHeaderIndex(headers, aliases) {
@@ -1516,6 +1781,15 @@ function parseMonthNumber(rawMonth) {
     return m[text] || 0;
 }
 
+function normalizeAbsenceMonth(rawMonth) {
+    const text = String(rawMonth ?? '').trim();
+    if (!text) return '';
+    if (/^(سنوي|annuel|annual)$/i.test(text)) return 'سنوي';
+    if (/^\d{4}-\d{2}$/.test(text)) return text;
+    const n = parseMonthNumber(text);
+    return n ? String(n) : text;
+}
+
 function deriveAbsenceDate(schoolYear, rawDate, rawMonth) {
     const iso = excelDateToIso(rawDate);
     if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
@@ -1533,6 +1807,45 @@ function toNumber(value, fallback = 0) {
     const extracted = asText.match(/-?\d+(\.\d+)?/);
     const n = Number(extracted ? extracted[0] : asText);
     return Number.isFinite(n) ? n : fallback;
+}
+
+function parseStrictAbsenceNumber(value, fallback = 0, diagnostics = null, context = null) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return fallback;
+    let parsed;
+    const normalize = typeof ImportCenterNormalize !== 'undefined' && ImportCenterNormalize.parseStrictNumber
+        ? ImportCenterNormalize.parseStrictNumber
+        : (typeof window !== 'undefined' && window.ImportCenterNormalize && window.ImportCenterNormalize.parseStrictNumber
+            ? window.ImportCenterNormalize.parseStrictNumber
+            : null);
+    if (normalize) {
+        parsed = normalize(value);
+    } else {
+        const latin = String(value ?? '').replace(/[٠-٩۰-۹]/g, (d) => {
+            const code = d.charCodeAt(0);
+            return String(code - (code >= 0x06f0 ? 0x06f0 : 0x0660));
+        }).replace(',', '.').trim();
+        parsed = /^-?(?:\d+)(?:\.\d+)?$/.test(latin) ? Number(latin) : NaN;
+    }
+    if (Number.isNaN(parsed)) {
+        if (Array.isArray(diagnostics)) {
+            const diag = {
+                code: 'INVALID_HOURS',
+                severity: 'warning',
+                stage: 'parse',
+                blocking: false,
+                message: `\u0633\u0627\u0639\u0627\u062a \u063a\u064a\u0627\u0628 \u063a\u064a\u0631 \u0631\u0642\u0645\u064a\u0629 \u00ab${raw.slice(0, 40)}\u00bb \u062a\u0645 \u062a\u062c\u0627\u0647\u0644\u0647\u0627`,
+                sheet: (context && context.sheet) || '',
+                row: (context && context.row) || null,
+                field: 'hours',
+                rule: 'invalid_hours',
+                action: 'review'
+            };
+            diagnostics.push(diag);
+        }
+        return fallback;
+    }
+    return parsed;
 }
 
 function inferStudentCodeColumn(rows, headerIndex, fallbackIndex, validCodesSet) {
@@ -1563,7 +1876,16 @@ function inferStudentCodeColumn(rows, headerIndex, fallbackIndex, validCodesSet)
 }
 
 function getCurrentSchoolYear() {
-    return typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
+    return typeof getSchoolYear === 'function' ? getSchoolYear() : '';
+}
+
+function resolveSemesterDecision(parserSemester, selectSemester) {
+    const parsed = Number(parserSemester);
+    const selected = Number(selectSemester);
+    if (parserSemester == null || parserSemester === '' || !Number.isFinite(parsed)) return { ok: true };
+    if (selectSemester == null || selectSemester === '' || !Number.isFinite(selected)) return { ok: true };
+    if (parsed !== selected) return { ok: false, parserSemester: parsed, selectSemester: selected };
+    return { ok: true };
 }
 
 function getSelectedSemester() {
@@ -1575,10 +1897,28 @@ function getImportLogsTbody() {
 }
 
 async function parseWorkbook(file) {
+    if (file?.size === 0) {
+        throw typeof ImportResultContract !== 'undefined'
+            ? ImportResultContract.createContextError('EMPTY_FILE', null, { noRecordsSaved: true })
+            : new Error('الملف فارغ أو لا يحتوي على سجلات قابلة للاستيراد');
+    }
+    if (file?.size > MAX_XLSX_IMPORT_SIZE) {
+        throw new Error('الملف كبير جداً (الحد الأقصى 100 MB). اختر ملفاً أصغر ثم أعد المحاولة.');
+    }
     await ensureXlsxLoaded();
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
+        const timeoutId = setTimeout(() => {
+            try {
+                reader.abort();
+            } catch {
+                // abort may throw if the read already finished
+            }
+            reject(new Error('انتهت مهلة قراءة الملف (60 ثانية). أعد المحاولة.'));
+        }, FILE_READ_TIMEOUT_MS);
+        const finishRead = () => clearTimeout(timeoutId);
         reader.onload = (event) => {
+            finishRead();
             try {
                 const workbook = XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
                 resolve(workbook);
@@ -1586,26 +1926,53 @@ async function parseWorkbook(file) {
                 reject(error);
             }
         };
-        reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
+        reader.onerror = () => {
+            finishRead();
+            reject(new Error('تعذر قراءة الملف'));
+        };
+        reader.onabort = () => {
+            finishRead();
+            reject(new Error('تعذر قراءة الملف'));
+        };
         reader.readAsArrayBuffer(file);
     });
 }
-function inferSubjectFromFileName(fileName) {
-    const base = String(fileName || '')
-        .replace(/\.[^.]+$/, '')
-        .trim();
-    if (!base) return '';
-    const m = base.match(/^[^_]+_[^_]+_[^_]+_(.+?)_(\d{8,})$/i);
-    if (!m) return '';
-    const rawSubject = String(m[1] || '')
-        .replace(/[_-]+/g, ' ')
-        .trim();
-    const genericNames = ['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة'];
-    const normalized = normalizeKey(rawSubject);
-    if (!rawSubject || genericNames.some((n) => normalized === normalizeKey(n))) return '';
-    return rawSubject;
-}
 
+function readImportFileAsText(file, maxSize, errorMessage = 'تعذر قراءة الملف') {
+    return new Promise((resolve, reject) => {
+        if (!file) {
+            reject(new Error(errorMessage));
+            return;
+        }
+        if (file.size > maxSize) {
+            reject(new Error('الملف كبير جداً (الحد الأقصى 20 MB). اختر ملفاً أصغر ثم أعد المحاولة.'));
+            return;
+        }
+        const reader = new FileReader();
+        const timeoutId = setTimeout(() => {
+            try {
+                reader.abort();
+            } catch {
+                // abort may throw if the read already finished
+            }
+            reject(new Error('انتهت مهلة قراءة الملف (60 ثانية). أعد المحاولة.'));
+        }, FILE_READ_TIMEOUT_MS);
+        const finishRead = () => clearTimeout(timeoutId);
+        reader.onload = () => {
+            finishRead();
+            resolve(String(reader.result || ''));
+        };
+        reader.onerror = () => {
+            finishRead();
+            reject(new Error(errorMessage));
+        };
+        reader.onabort = () => {
+            finishRead();
+            reject(new Error(errorMessage));
+        };
+        reader.readAsText(file, 'UTF-8');
+    });
+}
 // ─── Level Normalization ────────────────────────────────────────────────────
 // LEVEL_CODE_TO_AR and _LEVEL_KEYS_DESC are provided globally by js/utils.js
 
@@ -1642,6 +2009,10 @@ const LEVEL_AR_PATTERNS = [
 function normalizeLevelName(rawLevel) {
     const text = String(rawLevel || '').trim();
     if (!text) return '';
+    if (typeof globalThis.EdCollegialLevels?.resolveLevel === 'function') {
+        const hit = globalThis.EdCollegialLevels.resolveLevel(text);
+        if (hit) return hit.name;
+    }
     // 1. Section code match: "TCSF-1" → strip digits → "TCSF" → Arabic
     const upper = text
         .toUpperCase()
@@ -1659,12 +2030,6 @@ function normalizeLevelName(rawLevel) {
     if (/^1BAC/i.test(upper) || /أولى/i.test(text)) return 'الأولى باكالوريا';
     if (/^2BAC/i.test(upper) || /ثانية/i.test(text)) return 'الثانية باكالوريا';
     return text;
-}
-
-function deriveLevelFromSection(sectionValue) {
-    const section = String(sectionValue || '').trim();
-    if (!section) return '';
-    return normalizeLevelName(section);
 }
 
 // ─── Subject Normalization (French → Arabic) ─────────────────────────────────
@@ -1701,6 +2066,21 @@ function mapHeaderPositions(headers) {
 }
 
 function findBestHeaderRow(rows, requiredAliases) {
+    // Phase 3b harvest: delegate to ImportReaders' Massar-aware implementation when available
+    if (typeof ImportReaders !== 'undefined' && typeof ImportReaders.findBestHeaderRow === 'function') {
+        try {
+            const rich = ImportReaders.findBestHeaderRow(rows, 30);
+            if (Array.isArray(requiredAliases) && requiredAliases.length) {
+                const headers = rich.headers || (rows[rich.index] || []);
+                let score = 0;
+                requiredAliases.forEach((aliases) => {
+                    if (findHeaderIndex(headers, aliases) !== -1) score += 1;
+                });
+                return { index: rich.index, score, headers: rich.headers, dataStart: rich.dataStart, subHeaderMerged: rich.subHeaderMerged };
+            }
+            return rich;
+        } catch {}
+    }
     let best = { index: -1, score: -1 };
     const maxRows = Math.min(rows.length, 15);
     for (let i = 0; i < maxRows; i++) {
@@ -1715,6 +2095,10 @@ function findBestHeaderRow(rows, requiredAliases) {
 }
 
 async function runImport(action) {
+    if (importInFlight) {
+        showToast('عملية استيراد جارية حالياً؛ يرجى الانتظار حتى اكتمالها', 'warning');
+        return;
+    }
     const inputId = FILE_INPUTS[action];
     const input = document.getElementById(inputId);
     if (!input) {
@@ -1984,7 +2368,6 @@ async function commitImport(action, files) {
     setImportButtonsDisabled(true);
     const actionLabel = ACTION_LABELS[action] || action;
     const fileList = Array.isArray(files) ? files : [files];
-    if (!PRIORITY_IMPORT_ACTIONS.has(action)) lastImportContextReview = null;
     updateImportProgress(5, `بدء معالجة ${fileList.length} ملف`, `استيراد ${actionLabel}`);
     try {
         const year = getCurrentSchoolYear();
@@ -2099,7 +2482,9 @@ async function commitImport(action, files) {
                             pendingDeparted = studentsResult.departedStudents;
                         }
                     } else if (action === 'grades') {
-                        const gradeResult = await importGrades(workbook, year, file.name);
+                        const gradeResult = await importGrades(workbook, year, file.name, {
+                            autoSelectSemester: fileList.length === 1
+                        });
                         totalGradesImported += gradeResult.gradesCount;
                         totalGradesInserted += Number(gradeResult.imported) || 0;
                         totalGradesUpdated += Number(gradeResult.updated) || 0;
@@ -2201,17 +2586,32 @@ async function commitImport(action, files) {
             let absenceRes;
             if (typeof window.api?.absences?.replaceByYear === 'function') {
                 absenceRes = await window.api.absences.replaceByYear(year, stagedAbsences);
+                if (absenceRes?.code === 'INCOMPLETE_COVERAGE' && Array.isArray(absenceRes.missingMonths) && absenceRes.missingMonths.length) {
+                    const coverageConfirm = await showConfirm({
+                        title: 'استيراد الغياب سيحذف بيانات غير مغطاة',
+                        message: 'الملف لا يغطي كل أشهر الغياب المسجلة سابقاً لهذه السنة والسلك؛ المتابعة ستحذف بيانات الأشهر غير المغطاة.',
+                        detail: `الأشهر غير المغطاة: ${absenceRes.missingMonths.join('، ')}`,
+                        type: 'warning',
+                        icon: 'fa-exclamation-triangle',
+                        confirmText: 'المتابعة والحذف',
+                        cancelText: 'إلغاء'
+                    });
+                    if (!coverageConfirm?.confirmed) {
+                        throw new Error('تم إلغاء الاستيراد؛ الملف لا يغطي كل أشهر الغياب المسجلة سابقاً.');
+                    }
+                    absenceRes = await window.api.absences.replaceByYear(year, stagedAbsences, { confirm: true });
+                }
                 if (!absenceRes || absenceRes.success === false) {
-                    throw new Error(absenceRes?.error || 'فشل استبدال سجلات الغياب');
+                    throwImportFailure(absenceRes, 'فشل استبدال سجلات الغياب');
                 }
             } else {
                 const cleanRes = await window.api.absences.deleteByYear(year);
                 if (!cleanRes || cleanRes.success === false) {
-                    throw new Error(cleanRes?.error || 'تعذر تهيئة استيراد الغياب');
+                    throwImportFailure(cleanRes, 'تعذر تهيئة استيراد الغياب');
                 }
                 absenceRes = await window.api.absences.saveBulk(stagedAbsences);
                 if (!absenceRes || absenceRes.success === false) {
-                    throw new Error(absenceRes?.error || 'فشل حفظ سجلات الغياب');
+                    throwImportFailure(absenceRes, 'فشل حفظ سجلات الغياب');
                 }
             }
 
@@ -2266,10 +2666,9 @@ async function commitImport(action, files) {
             action === 'students' && importedStudentSchools.size
                 ? ` (المؤسسة: ${[...importedStudentSchools].join('، ')})`
                 : '';
-        const destination = lastImportContextReview?.destination || {};
-        const contextLog = ` | السنة=${destination.schoolYear || year} | المؤسسة=${destination.institutionCode || 'غير متحقق'} | السلك=${destination.cycleCode || 'غير متحقق'}`;
-        const logDetails = `استيراد ${totalImported} ${unit}${gradesStudentsSummary}${gradesOutcomeSummary}${fetSummary}${orientationSummary}${studentsSchoolSummary} من ${fileList.length} ${fileWord}${batchStatus}${contextLog}`;
-        await safeLogImport(action, logDetails);
+        // Business audit for a successful import is written by the authenticated
+        // main-process handler (import-pipeline review F2) — the renderer never
+        // records import completions itself.
         if (failedReasons.length > 0) {
             window.lastFailedImports = { action, createdAt: new Date().toISOString(), files: failedReports };
             renderImportFailureReport(window.lastFailedImports);
@@ -2514,7 +2913,7 @@ async function importStudents(workbook, schoolYear) {
     const departedStudents = existingStudents.filter((s) => !importedCodes.has(String(s.code || '').trim().toUpperCase()));
 
     const res = await window.api.students.addBulk(deduped);
-    if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ بيانات التلاميذ');
+    if (!res || res.success === false) throwImportFailure(res, 'فشل حفظ بيانات التلاميذ');
 
     const registryWarnings = (parsed.warnings || []).map((item) => ({
         level: 'warning',
@@ -2559,13 +2958,32 @@ async function importStudents(workbook, schoolYear) {
     };
 }
 
-async function importGrades(workbook, schoolYear, sourceFileName = '') {
+async function importGrades(workbook, schoolYear, sourceFileName = '', options = {}) {
     if (!window.GradesImportParser) throw new Error('محلل ملفات النقط غير متاح');
 
-    const students = (await window.api.students.getAll(schoolYear)) || [];
+    const studentsResult = await window.api.students.getAll(schoolYear);
+    if (!Array.isArray(studentsResult)) {
+        const importError = typeof ImportResultContract !== 'undefined'
+            ? ImportResultContract.createContextError('STUDENTS_UNAVAILABLE', { schoolYear })
+            : new Error('تعذر تحميل لائحة التلاميذ للسنة والسلك النشطين');
+        throw importError;
+    }
+    const students = studentsResult;
+    if (!students.length) {
+        const importError = typeof ImportResultContract !== 'undefined'
+            ? ImportResultContract.createContextError('STUDENTS_REQUIRED', { schoolYear })
+            : new Error('لا توجد لائحة تلاميذ متاحة لهذا السلك والسنة');
+        throw importError;
+    }
     // Do not hide teacher-loading failures: metadata must not silently degrade.
-    const teachers = await window.api.teachers.getAll(schoolYear);
-    if (!Array.isArray(teachers)) throw new Error('تعذر تحميل لائحة الأساتذة قبل استيراد النقط');
+    const teachersResult = await window.api.teachers.getAll(schoolYear);
+    if (!Array.isArray(teachersResult)) {
+        const importError = typeof ImportResultContract !== 'undefined'
+            ? ImportResultContract.createContextError('TEACHERS_UNAVAILABLE', { schoolYear })
+            : new Error('تعذر تحميل لائحة الأساتذة قبل استيراد النقط');
+        throw importError;
+    }
+    const teachers = teachersResult;
     const sheets = (workbook.SheetNames || []).map((name) => ({
         name,
         rows: getSheetRows(workbook, name)
@@ -2576,21 +2994,42 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
         schoolYear,
         students
     });
-    const errors = parsed.diagnostics.filter((item) => item.severity === 'error');
-    if (!parsed.valid || errors.length) {
-        const details = errors
+    const blocking = parsed.diagnostics.filter((item) => item.blocking);
+    if (blocking.length || !parsed.records.length) {
+        const details = blocking
             .slice(0, 8)
             .map((item) => `${item.sheet || 'ورقة'}${item.row ? `، صف ${item.row}` : ''}: ${item.message}`)
             .join(' | ');
-        const error = new Error(details || 'لم يتم العثور على نقط صالحة داخل الملف');
-        error.diagnostics = parsed.diagnostics;
-        throw error;
+        const firstError = blocking[0] || parsed.diagnostics[0] || {};
+        const errorCode = {
+            UNKNOWN_STUDENT: 'UNKNOWN_STUDENT_CODES',
+            SEMESTER_UNRESOLVED: 'SEMESTER_UNRESOLVED',
+            SUBJECT_UNRESOLVED: 'SUBJECT_UNRESOLVED',
+            ASSESSMENT_UNRESOLVED: 'ASSESSMENT_UNRESOLVED',
+            INVALID_GRADE: 'INVALID_GRADE'
+        }[firstError.code] || 'INVALID_FILE_STRUCTURE';
+        const importError = new Error(details || 'لم يتم العثور على نقط صالحة داخل الملف');
+        importError.code = errorCode;
+        importError.noRecordsSaved = true;
+        importError.diagnostics = parsed.diagnostics;
+        importError.details = {
+            sheet: firstError.sheet || null,
+            row: firstError.row || null,
+            field: firstError.field || null
+        };
+        throw importError;
     }
     if (parsed.records.length > 5000) {
         throw new Error(`يتضمن الملف ${parsed.records.length} سجلاً صالحاً، والحد الأقصى هو 5000. اختر ملفاً أصغر ولا يمكن تقسيم الملف تلقائياً حفاظاً على ذرية الاستيراد.`);
     }
 
-    const teacherResolver = buildTeacherResolver(teachers);
+    let nameAliases = [];
+    try {
+        nameAliases = (await window.api.teachers.getNameAliases('teacher', schoolYear)) || [];
+    } catch (_err) {
+        nameAliases = [];
+    }
+    const teacherResolver = buildSharedKeyTeacherResolver(teachers, nameAliases);
     const records = parsed.records.map((record) => {
         const resolvedTeacher = teacherResolver.resolve(record.teacher_name);
         return {
@@ -2600,8 +3039,24 @@ async function importGrades(workbook, schoolYear, sourceFileName = '') {
             source_file_name: sourceFileName
         };
     });
-    const res = await window.api.grades.saveBulk(records);
-    if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ النقط');
+    // The grades storage key is (student_code, subject, semester). The assessment
+    // must stay inside the stored subject string so فرض/الأنشطة rows do not collide.
+    const dbRecords = records.map((record) => ({
+        ...record,
+        subject: record.assessment ? `${record.subject} — ${record.assessment}` : record.subject
+    }));
+    if (options.autoSelectSemester) applyDetectedSemesterForSingleGradeFile(parsed.metadata.semester, 1);
+    const semesterDecision = resolveSemesterDecision(parsed.metadata.semester, getSelectedSemester());
+    if (!semesterDecision.ok) {
+        const mismatchError = new Error(
+            `الدورة في الملف (${semesterDecision.parserSemester === 2 ? 'الدورة الثانية' : 'الدورة الأولى'}) لا تطابق الدورة المحددة في الصفحة (${semesterDecision.selectSemester === 2 ? 'الدورة الثانية' : 'الدورة الأولى'}). عدّل الدورة من شريط الأدوات ثم أعد الاستيراد.`
+        );
+        mismatchError.code = 'SEMESTER_MISMATCH';
+        mismatchError.noRecordsSaved = true;
+        throw mismatchError;
+    }
+    const res = await window.api.grades.saveBulk(dbRecords);
+    if (!res || res.success === false) throwImportFailure(res, 'فشل حفظ النقط');
     reportSkippedOtherCycle(res, 'نقطة');
 
     const gradeSections = [...new Set(records.map((grade) => grade.section).filter(Boolean))];
@@ -2642,6 +3097,7 @@ async function importAbsences(workbook, schoolYear, options = {}) {
     const studentByCode = new Map(students.map((s) => [normalizeStudentCode(s.code), s]).filter(([code]) => !!code));
     const unknownStudentCodes = new Set();
     const absences = [];
+    const invalidHoursDiagnostics = [];
 
     workbook.SheetNames.forEach((sheetName) => {
         const rows = getSheetRows(workbook, sheetName);
@@ -2680,10 +3136,11 @@ async function importAbsences(workbook, schoolYear, options = {}) {
 
                 // Read each month's data from its specific columns
                 for (const { month, startCol } of monthColumns) {
-                    const justifiedDays = toNumber(row[startCol], 0);
-                    const justifiedHours = toNumber(row[startCol + 1], 0);
-                    const unjustifiedDays = toNumber(row[startCol + 2], 0);
-                    const unjustifiedHours = toNumber(row[startCol + 3], 0);
+                    const ctx = { sheet: sheetName, row: i + 1 };
+                    const justifiedDays = parseStrictAbsenceNumber(row[startCol], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1, field: 'days' });
+                    const justifiedHours = parseStrictAbsenceNumber(row[startCol + 1], 0, invalidHoursDiagnostics, ctx);
+                    const unjustifiedDays = parseStrictAbsenceNumber(row[startCol + 2], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1, field: 'days' });
+                    const unjustifiedHours = parseStrictAbsenceNumber(row[startCol + 3], 0, invalidHoursDiagnostics, ctx);
 
                     if (justifiedHours > 0) {
                         absences.push({
@@ -2778,7 +3235,7 @@ async function importAbsences(workbook, schoolYear, options = {}) {
             }
             const month = h.month !== -1 ? String(row[h.month] ?? '').trim() : matrixMode ? 'سنوي' : '';
             const absenceDate = h.absenceDate !== -1 ? row[h.absenceDate] : '';
-            const finalMonth = month || (matrixMode ? 'سنوي' : '');
+            const finalMonth = normalizeAbsenceMonth(month || (matrixMode ? 'سنوي' : ''));
             const finalDate = deriveAbsenceDate(schoolYear, absenceDate, finalMonth);
 
             if (matrixMode) {
@@ -2788,9 +3245,9 @@ async function importAbsences(workbook, schoolYear, options = {}) {
                 let unjustifiedDays = 0;
 
                 matrixHourColumns.forEach(({ col, type }) => {
-                    const hoursVal = toNumber(row[col], 0);
+                    const hoursVal = parseStrictAbsenceNumber(row[col], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1 });
                     const dayCol = col - 1;
-                    const daysVal = dayCol >= 0 && isDaysHeader(thirdHeader[dayCol]) ? toNumber(row[dayCol], 0) : 0;
+                    const daysVal = dayCol >= 0 && isDaysHeader(thirdHeader[dayCol]) ? parseStrictAbsenceNumber(row[dayCol], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1, field: 'days' }) : 0;
                     if (type === 'justified') {
                         justifiedHours += hoursVal;
                         justifiedDays += daysVal;
@@ -2827,10 +3284,10 @@ async function importAbsences(workbook, schoolYear, options = {}) {
                     });
                 }
             } else {
-                const days = h.days !== -1 ? toNumber(row[h.days], 0) : 0;
-                const justifiedHours = h.justifiedHours !== -1 ? toNumber(row[h.justifiedHours], 0) : 0;
-                const unjustifiedHours = h.unjustifiedHours !== -1 ? toNumber(row[h.unjustifiedHours], 0) : 0;
-                const totalHours = h.hours !== -1 ? toNumber(row[h.hours], 0) : 0;
+                const days = h.days !== -1 ? parseStrictAbsenceNumber(row[h.days], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1, field: 'days' }) : 0;
+                const justifiedHours = h.justifiedHours !== -1 ? parseStrictAbsenceNumber(row[h.justifiedHours], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1 }) : 0;
+                const unjustifiedHours = h.unjustifiedHours !== -1 ? parseStrictAbsenceNumber(row[h.unjustifiedHours], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1 }) : 0;
+                const totalHours = h.hours !== -1 ? parseStrictAbsenceNumber(row[h.hours], 0, invalidHoursDiagnostics, { sheet: sheetName, row: i + 1 }) : 0;
 
                 if (justifiedHours > 0 || unjustifiedHours > 0) {
                     if (justifiedHours > 0) {
@@ -2895,11 +3352,13 @@ async function importAbsences(workbook, schoolYear, options = {}) {
 
     if (options.persist === false) {
         absences.unknownStudentCodes = [...unknownStudentCodes];
+        absences.diagnostics = [...invalidHoursDiagnostics];
+        absences.invalidHoursDiagnostics = [...invalidHoursDiagnostics];
         return absences;
     }
 
     const res = await window.api.absences.saveBulk(absences);
-    if (!res || res.success === false) throw new Error(res?.error || 'فشل حفظ الغياب');
+    if (!res || res.success === false) throwImportFailure(res, 'فشل حفظ الغياب');
     const absCodes      = [...new Set(absences.map((a) => a.student_code).filter(Boolean))];
     const absTeachers   = [...new Set(absences.map((a) => a.teacher_name).filter(Boolean))];
     const absValidator  = new CrossSourceValidator(schoolYear);
@@ -2912,11 +3371,10 @@ async function importAbsences(workbook, schoolYear, options = {}) {
 
 async function importFetXml(file) {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
+        readImportFileAsText(file, MAX_XML_IMPORT_SIZE).then(async (text) => {
             try {
                 const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
+                const xmlDoc = parser.parseFromString(text, 'text/xml');
 
                 // Validate root element
                 const rootTag = xmlDoc.documentElement.tagName;
@@ -2942,16 +3400,15 @@ async function importFetXml(file) {
                     throw new Error('نوع ملف غير معروف. يرجى استخدام ملف _teachers.xml');
                 }
 
-                console.log('Found teachers in XML:', teacherElements.length);
-
                 // Fetch canonical teacher names from DB (filled by MASSAR import)
-                let _teacherResolver = buildTeacherResolver([]);
+                let _teacherResolver = buildSharedKeyTeacherResolver([], []);
                 let allTeachers = [];
                 try {
-                    const dbTeachers = await window.api.teachers.getAll(getCurrentSchoolYear());
+                    const schoolYear = getCurrentSchoolYear();
+                    const dbTeachers = await window.api.teachers.getAll(schoolYear);
                     allTeachers = Array.isArray(dbTeachers) ? dbTeachers : [];
-                    _teacherResolver = buildTeacherResolver(allTeachers);
-                    console.log('[FET import] Canonical teacher resolver ready:', allTeachers.length, 'teachers');
+                    const dbAliases = (await window.api.teachers.getNameAliases('teacher', schoolYear)) || [];
+                    _teacherResolver = buildSharedKeyTeacherResolver(allTeachers, dbAliases);
                 } catch (_e) {
                     console.warn('[FET import] Could not load teachers from DB for name normalization:', _e.message);
                 }
@@ -2967,10 +3424,6 @@ async function importFetXml(file) {
                     const teacherSubjects = new Set();
                     const teacherClasses = new Set();
                     const timetable = {};
-
-                    if (resolvedTeacher.teacher_id) {
-                        console.log(`[FET import] Name mapped: "${rawAttrName}" → "${canonicalName}"`);
-                    }
 
                     const days = teacher.querySelectorAll('Day');
                     days.forEach((day) => {
@@ -3091,9 +3544,7 @@ async function importFetXml(file) {
             } catch (error) {
                 reject(error);
             }
-        };
-        reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
-        reader.readAsText(file, 'UTF-8');
+        }).catch((error) => reject(error));
     });
 }
 
@@ -3101,11 +3552,10 @@ async function importFetXml(file) {
 
 async function importAgentXml(file) {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
+        readImportFileAsText(file, MAX_XML_IMPORT_SIZE).then(async (text) => {
             try {
                 const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(event.target.result, 'text/xml');
+                const xmlDoc = parser.parseFromString(text, 'text/xml');
 
                 if (xmlDoc.querySelector('parsererror')) {
                     throw new Error('ملف XML غير صالح');
@@ -3142,26 +3592,6 @@ async function importAgentXml(file) {
                 const disciplineArMap = buildLookup('R_Discip', 'CD_Discip', 'LA_DISCIP');
                 const dipScolArMap = buildLookup('R_DipSCol', 'CD_DIPS', 'LA_DIPS');
                 const dipProfArMap = buildLookup('R_DipProf', 'CD_DIPP', 'LA_DIPP');
-
-                console.log(
-                    '[agent-xml] Lookup tables built:',
-                    'grades:',
-                    gradeMap.size,
-                    'cadres:',
-                    cadreMap.size,
-                    'disciplines:',
-                    disciplineMap.size,
-                    'fonctions:',
-                    fonctionMap.size,
-                    'sitFam:',
-                    sitFamMap.size,
-                    'positions:',
-                    positionMap.size,
-                    'statuts:',
-                    statutMap.size
-                );
-                console.log('[agent-xml] positionMap values:', JSON.stringify([...positionMap.entries()]));
-                console.log('[agent-xml] statutMap values:', JSON.stringify([...statutMap.entries()]));
 
                 // ── Build ACTIVITE map: PPR → best activity details ──
                 // Priority: E002 (surnombre) wins; otherwise keep most recent DATEAFFECT.
@@ -3411,9 +3841,7 @@ async function importAgentXml(file) {
             } catch (error) {
                 reject(error);
             }
-        };
-        reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
-        reader.readAsText(file, 'UTF-8');
+        }).catch((error) => reject(error));
     });
 }
 
@@ -3433,8 +3861,10 @@ async function safeLogImport(action, details) {
     try {
         await logImport(action, details);
     } catch (error) {
+        // The log channel is session+bound restricted (import-pipeline review F2);
+        // failing to record a renderer-side notice must never surface a misleading
+        // "import succeeded" toast — the import result is reported by its own path.
         console.warn('Import log failed:', error);
-        showToast('تم الاستيراد، لكن تعذر حفظ سجل العملية', 'warning');
     }
 }
 
@@ -3628,9 +4058,10 @@ function detectStatusFromText(text) {
     return '';
 }
 
-async function importStudentStatus(workbook, schoolYear) {
+async function importStudentStatus(workbook, schoolYear, options = {}) {
     const allRecords = []; // {code, full_name, family_name, birth_date, birth_place, gender, section, status}
     let skippedNoCode = 0;
+    const statusDiagnostics = [];
 
     // Header aliases for additional columns
     const familyNameAliases = [...HEADER_ALIASES.familyName, 'النسب', 'اللقب'];
@@ -3704,7 +4135,18 @@ async function importStudentStatus(workbook, schoolYear) {
             const row = rows[i] || [];
             const rawCode = normalizeStudentCode(row[codeIdx]);
             if (!rawCode) {
-                skippedNoCode++;
+                if ((row || []).some((cell) => String(cell ?? '').trim())) {
+                    skippedNoCode++;
+                    statusDiagnostics.push({
+                        code: 'MISSING_CODE',
+                        message: `صف بدون رمز مسار في الورقة «${sheetName}» صف ${i + 1} تم تجاوزه`,
+                        sheet: sheetName,
+                        row: i + 1,
+                        field: 'code',
+                        severity: 'warning',
+                        blocking: false
+                    });
+                }
                 continue;
             }
 
@@ -3759,11 +4201,19 @@ async function importStudentStatus(workbook, schoolYear) {
         throw new Error('لم يتم العثور على سجلات صالحة. ' + hint);
     }
 
+    if (options.persist === false) {
+        return {
+            records: allRecords,
+            skippedNoCode,
+            diagnostics: statusDiagnostics
+        };
+    }
+
     // Use addBulk which does UPSERT (insert new + update existing)
     let totalProcessed = 0;
     for (let i = 0; i < allRecords.length; i += 500) {
         const batch = allRecords.slice(i, i + 500);
-        const result = await window.api.students.addBulk(batch);
+        const result = await window.api.students.addBulk(batch, 'student-status');
         if (!result || result.success === false) {
             const failure =
                 typeof ImportResultContract !== 'undefined'
@@ -4082,18 +4532,6 @@ function cellText(row, idx) {
     return String(v).trim();
 }
 
-function cellNumber(row, idx) {
-    if (idx < 0 || !row) return null;
-    const v = row[idx];
-    if (v == null || v === '') return null;
-    const n = Number(String(v).replace(',', '.').trim());
-    return Number.isFinite(n) ? n : null;
-}
-
-/**
- * Extract ordered orientation choices from flat fields or Massar `choices[]`.
- * @returns {[string|null, string|null, string|null]}
- */
 function extractOrientationChoices(raw) {
     if (!raw || typeof raw !== 'object') return [null, null, null];
 
@@ -4149,19 +4587,6 @@ function buildOrientationNotes(raw) {
 /**
  * Parse Massar-style averages (`"12,13"`) and numeric values.
  * Never coerces invalid values to 0 — returns null instead.
- */
-function parseOrientationAverage(value) {
-    return parseOrientationNumericStrict(value).value;
-}
-
-/**
- * Normalize a raw orientation/results record into bulkUpsert shape.
- * @param {object} raw
- * @param {object} [context] — Massar export context (filterLevel, schoolYear, pageType, …)
- * @param {object} [options]
- * @param {string} [options.sheetName]
- * @param {string} [options.schoolYear]
- * @returns {{ ok: true, row: object } | { ok: false, code: string, reason: string, message: string } | null}
  */
 function normalizeOrientationRecord(raw, context, options = {}) {
     if (!raw || typeof raw !== 'object') {
@@ -4516,18 +4941,56 @@ async function parseOrientationJsonFile(file, schoolYear) {
                 reject(createOrientationError('EMPTY_FILE', { noRecordsSaved: true }));
                 return;
             }
+            if (file.size > MAX_XML_IMPORT_SIZE) {
+                reject(
+                    createOrientationError('FILE_READ_ERROR', {
+                        message: 'ملف JSON للتوجيه كبير جداً (الحد الأقصى 20 MB). لم يُحفظ أي سجل.',
+                        noRecordsSaved: true
+                    })
+                );
+                return;
+            }
             const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result || ''));
-            reader.onerror = () =>
+            const timeoutId = setTimeout(() => {
+                try {
+                    reader.abort();
+                } catch {
+                    // abort may throw if the read already finished
+                }
+                reject(
+                    createOrientationError('FILE_READ_ERROR', {
+                        message: 'انتهت مهلة قراءة ملف JSON للتوجيه. لم يُحفظ أي سجل.',
+                        noRecordsSaved: true
+                    })
+                );
+            }, FILE_READ_TIMEOUT_MS);
+            const finishRead = () => clearTimeout(timeoutId);
+            reader.onload = () => {
+                finishRead();
+                resolve(String(reader.result || ''));
+            };
+            reader.onerror = () => {
+                finishRead();
                 reject(
                     createOrientationError('FILE_READ_ERROR', {
                         message: 'تعذر قراءة ملف JSON للتوجيه. لم يُحفظ أي سجل.',
                         noRecordsSaved: true
                     })
                 );
+            };
+            reader.onabort = () => {
+                finishRead();
+                reject(
+                    createOrientationError('FILE_READ_ERROR', {
+                        message: 'تعذر قراءة ملف JSON للتوجيه. لم يُحفظ أي سجل.',
+                        noRecordsSaved: true
+                    })
+                );
+            };
             try {
                 reader.readAsText(file, 'UTF-8');
             } catch {
+                finishRead();
                 reject(
                     createOrientationError('FILE_READ_ERROR', {
                         message: 'تعذر فتح ملف JSON للتوجيه. لم يُحفظ أي سجل.',
@@ -4659,7 +5122,7 @@ function assertOrientationSchoolYearMatch(detectedYear, selectedYear) {
  * Non-destructive merge is enforced in the orientation repository (SSOT).
  * @returns {Promise<{ imported, inserted, updated, unchanged, skipped, duplicatesInFile, schoolYear, skipReasons, success }>}
  */
-async function importOrientation(file, schoolYear, preparsedWorkbook, preparsedJson) {
+async function importOrientation(file, schoolYear, preparsedWorkbook, preparsedJson, options = {}) {
     if (!window.api?.orientation?.bulkUpsert) {
         throw createOrientationError('DATABASE_ERROR', {
             message: 'ميزة استيراد التوجيه غير متاحة في هذا الإصدار. لم يُحفظ أي سجل.',
@@ -4799,6 +5262,24 @@ async function importOrientation(file, schoolYear, preparsedWorkbook, preparsedJ
     let updated = 0;
     let unchanged = 0;
     let skipped = preIpcSkipped;
+
+    if (options.persist === false) {
+        return {
+            rows: deduped,
+            imported: deduped.length,
+            inserted: 0,
+            updated: 0,
+            unchanged: 0,
+            skipped,
+            duplicatesInFile,
+            schoolYear: year,
+            skipReasons: skipReasonsToList(skipBucket),
+            success: true,
+            noRecordsSaved: true
+        };
+    }
+
+
     const ipcSkipDetails = [];
     let wroteAny = false;
 

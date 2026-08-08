@@ -6,8 +6,10 @@ const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
 
-const Signatures = require('../../js/import-center/import-signatures.js');
-const Contracts = require('../../js/import-center/import-contracts.js');
+// import-contracts.js was deleted in the Phase 3 harvest; import-type-check.js
+// is now the stand-alone home of SIGNATURES/scoreSignature and the constants
+// the manifest asserts against.
+const Signatures = require('../../js/import-center/import-type-check.js');
 
 const cal = Signatures.getCalibration();
 assert.strictEqual(cal.high, 0.85);
@@ -18,7 +20,7 @@ assert.strictEqual(cal.filenameOnlyCannotAutoFinalize, true);
 
 const list = Signatures.listSignatures();
 const types = list.map((s) => s.type);
-for (const t of Contracts.REGISTERED_SOURCE_TYPES) {
+for (const t of Signatures.REGISTERED_SOURCE_TYPES) {
     assert.ok(types.includes(t), `missing signature for registered type ${t}`);
 }
 assert.ok(types.includes('generic_csv_xlsx'), 'missing generic signature');
@@ -33,7 +35,7 @@ const filenameOnly = Signatures.scoreSignature(students, {
     contextTypeHint: null
 });
 assert.ok(
-    filenameOnly.score < Contracts.CONFIDENCE.HIGH,
+    filenameOnly.score < Signatures.CONFIDENCE.HIGH,
     `filename-only score ${filenameOnly.score} must be < HIGH`
 );
 
@@ -59,7 +61,7 @@ const fetScore = Signatures.scoreSignature(fet, {
     filename: 'x.xml',
     extension: 'xml'
 });
-assert.ok(fetScore.score >= Contracts.CONFIDENCE.HIGH, 'FET content should be high confidence');
+assert.ok(fetScore.score >= Signatures.CONFIDENCE.HIGH, 'FET content should be high confidence');
 
 // Agent
 const agent = Signatures.getSignature('agent_xml');
@@ -70,7 +72,7 @@ const agentScore = Signatures.scoreSignature(agent, {
     filename: '14007Z_20260309.xml',
     extension: 'xml'
 });
-assert.ok(agentScore.score >= Contracts.CONFIDENCE.MEDIUM, 'agent content should score well');
+assert.ok(agentScore.score >= Signatures.CONFIDENCE.MEDIUM, 'agent content should score well');
 
 // Docs exist
 const sigDoc = path.join(__dirname, '..', '..', 'docs', 'import-center', 'signatures.md');

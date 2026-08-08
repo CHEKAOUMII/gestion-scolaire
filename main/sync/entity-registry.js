@@ -438,6 +438,23 @@ const ENTITY_REGISTRY = {
         authority: { writers: ['admin', 'principal'] },
         applyHooks: {}
     },
+    timetable_data: {
+        entityType: 'timetable_data',
+        local: {
+            table: 'timetable_data',
+            keyFields: ['school_year', 'cycle_code'],
+            localIdField: 'id',
+            snapshot: true,
+            contractVersion: 2,
+            requiredColumns: ['cycle_code']
+        },
+        remote: {
+            collection: 'timetableData',
+            idFields: ['school_year', 'cycle_code']
+        },
+        authority: { writers: ALL_WRITERS },
+        applyHooks: {}
+    },
     settings: {
         entityType: 'settings',
         local: { table: 'settings', keyFields: ['key'], localIdField: 'id', snapshot: true },
@@ -524,7 +541,7 @@ const ENTITY_REGISTRY = {
     },
     // S4 stage profiles (docs/plans/2026-08-02-multi-stage-school-architecture.md rows 105-115).
     // Official immutable rows; the EFFECTIVE profile per school year is decided by
-    // cycle_profile_assignments — never by CYCLE_CATALOG.profileVersion. Both tables
+    // cycle_profile_assignments — never by CYCLE_CATALOG.seedProfileVersionHint. Both tables
     // declare minAppVersion: the field is owned by the sync/registry, compared with
     // semantic-version semantics against the local app version, and a device older
     // than the minimum quarantines the row before apply instead of writing a shape

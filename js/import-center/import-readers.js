@@ -19,6 +19,7 @@
     const MAX_HEADERS = 80;
     const MAX_XML_ELEMENTS = 40;
     const MAX_TEXT_BYTES = 512 * 1024;
+    const REQUIRED_XML_ELEMENTS = Object.freeze(['Teacher', 'Teachers_Timetable', 'DATAIDENTIFPERSONNEL', 'AGENT', 'DsAgentExport']);
 
     function extensionOf(name) {
         const n = String(name || '');
@@ -142,18 +143,27 @@
             ns.push(nm[2]);
         }
         const elSet = new Set();
+        const requiredSet = new Set();
+        const requiredLookup = new Set(REQUIRED_XML_ELEMENTS);
         const elRe = /<([A-Za-z_][\w:.-]*)\b/g;
         let em;
-        while ((em = elRe.exec(raw)) && elSet.size < MAX_XML_ELEMENTS) {
+        while ((em = elRe.exec(raw))) {
             const name = em[1].replace(/^.*:/, '');
-            if (name && name !== xmlRoot && name.toLowerCase() !== 'parsererror') {
+            if (!name || name.toLowerCase() === 'parsererror') continue;
+            if (requiredLookup.has(name)) requiredSet.add(name);
+            if (name === xmlRoot) continue;
+            if (elSet.size < MAX_XML_ELEMENTS) {
                 elSet.add(name);
+            } else if (requiredSet.size >= requiredLookup.size) {
+                break;
             }
         }
+        const combined = new Set(elSet);
+        for (const req of requiredSet) combined.add(req);
         return {
             xmlRoot,
             namespaces: ns,
-            xmlElements: Array.from(elSet),
+            xmlElements: Array.from(combined),
             empty: false,
             error: null
         };
@@ -168,7 +178,6 @@
         'massar',
         'cne',
         'رمز',
-        'مسار',
         'رقمالتلميذ',
         'رقمالتلميذ',
         'النسب',
@@ -206,6 +215,13 @@
     ]);
 
     function normalizeHeaderCell(value) {
+        // Phase 4a: thin re-export of canonical normalizeKey (foldArabic rules)
+        if (typeof ImportCenterNormalize !== 'undefined' && ImportCenterNormalize.normalizeKey) {
+            return ImportCenterNormalize.normalizeKey(value).replace(/[_\s\-./\\:]+/g, '').trim();
+        }
+        if (typeof window !== 'undefined' && window.ImportCenterNormalize && window.ImportCenterNormalize.normalizeKey) {
+            return window.ImportCenterNormalize.normalizeKey(value).replace(/[_\s\-./\\:]+/g, '').trim();
+        }
         return String(value || '')
             .toLowerCase()
             .normalize('NFKD')
@@ -219,7 +235,6 @@
         'massar',
         'cne',
         'رمز',
-        'مسار',
         'رقمالتلميذ',
         'رقمالتلميذ',
         'النسب',
@@ -523,24 +538,32 @@
     async function readAsText(file) {
         if (!file) throw new Error('no_file');
         if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
-            return decodeTextStrict(toBytes(file)).slice(0, MAX_TEXT_BYTES);
+            return decodeTextStrict(toBytes(file));
         }
         // Bytes first: File.text() decodes UTF-8 with replacement characters, so it
         // cannot distinguish a valid file from a mis-encoded one.
         if (typeof file.arrayBuffer === 'function') {
             const bytes = toBytes(await file.arrayBuffer());
-            return decodeTextStrict(bytes).slice(0, MAX_TEXT_BYTES);
+            return decodeTextStrict(bytes);
         }
         if (file && typeof file === 'object' && typeof file.content === 'string') {
-            return stripTextBom(file.content).slice(0, MAX_TEXT_BYTES);
+            return stripTextBom(file.content);
         }
         if (typeof file.text === 'function') {
             const text = String((await file.text()) || '');
             // U+FFFD means the platform decoder already replaced undecodable bytes.
             if (text.indexOf('�') !== -1) throw new Error('unsupported_encoding');
-            return stripTextBom(text).slice(0, MAX_TEXT_BYTES);
+            return stripTextBom(text);
         }
         throw new Error('unreadable');
+    }
+
+    function truncateText(text) {
+        const full = String(text || '');
+        if (full.length > MAX_TEXT_BYTES) {
+            return { text: full.slice(0, MAX_TEXT_BYTES), truncated: true, truncatedAt: MAX_TEXT_BYTES, fullLength: full.length };
+        }
+        return { text: full, truncated: false };
     }
 
     async function readAsArrayBuffer(file) {
@@ -594,9 +617,11 @@
 
         try {
             if (format === 'csv' || format === 'unknown') {
-                const text = await readAsText(file);
+                const rawText = await readAsText(file);
+                const truncatedInfo = truncateText(rawText);
+                const text = truncatedInfo.text;
                 if (!text.trim()) {
-                    return Object.assign(base, { empty: true, error: 'empty_file', format: format === 'unknown' ? 'csv' : format });
+                    return Object.assign(base, { empty: true, error: 'empty_file', format: format === 'unknown' ? 'csv' : format, truncated: truncatedInfo.truncated, truncatedAt: truncatedInfo.truncatedAt });
                 }
                 // Heuristic: if looks like XML
                 if (text.trimStart().startsWith('<')) {
@@ -609,7 +634,9 @@
                         empty: xml.empty,
                         error: xml.error,
                         detectedYear: extractYearFromText(text),
-                        detectedTerm: extractTermFromText(text)
+                        detectedTerm: extractTermFromText(text),
+                        truncated: truncatedInfo.truncated,
+                        truncatedAt: truncatedInfo.truncatedAt
                     });
                 }
                 const csv = parseCsvText(text);
@@ -623,12 +650,16 @@
                     empty: csv.empty,
                     error: csv.empty ? 'empty_file' : null,
                     detectedYear: extractYearFromText(joined),
-                    detectedTerm: extractTermFromText(joined)
+                    detectedTerm: extractTermFromText(joined),
+                    truncated: truncatedInfo.truncated,
+                    truncatedAt: truncatedInfo.truncatedAt
                 });
             }
 
             if (format === 'xml') {
-                const text = await readAsText(file);
+                const rawText = await readAsText(file);
+                const truncatedInfo = truncateText(rawText);
+                const text = truncatedInfo.text;
                 const xml = parseXmlText(text);
                 return Object.assign(base, {
                     xmlRoot: xml.xmlRoot,
@@ -637,7 +668,9 @@
                     empty: xml.empty,
                     error: xml.error || (xml.empty ? 'empty_file' : null),
                     detectedYear: extractYearFromText(text),
-                    detectedTerm: extractTermFromText(text)
+                    detectedTerm: extractTermFromText(text),
+                    truncated: truncatedInfo.truncated,
+                    truncatedAt: truncatedInfo.truncatedAt
                 });
             }
 
@@ -647,7 +680,9 @@
                 if (x.error === 'xlsx_unavailable') {
                     // Fallback: try text (some tests pass CSV labeled xlsx)
                     try {
-                        const text = await readAsText(file);
+                        const rawFallback = await readAsText(file);
+                        const truncatedFallback = truncateText(rawFallback);
+                        const text = truncatedFallback.text;
                         if (text && !text.includes('\0')) {
                             const csv = parseCsvText(text);
                             return Object.assign(base, {
@@ -658,7 +693,9 @@
                                 empty: csv.empty,
                                 error: csv.empty ? 'empty_file' : null,
                                 detectedYear: extractYearFromText(text),
-                                detectedTerm: extractTermFromText(text)
+                                detectedTerm: extractTermFromText(text),
+                                truncated: truncatedFallback.truncated,
+                                truncatedAt: truncatedFallback.truncatedAt
                             });
                         }
                     } catch (_e) {

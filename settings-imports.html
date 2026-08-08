@@ -15,6 +15,10 @@
         <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/shared/errors/orientation-error-contract.js" defer></script>
         <script src="js/shared/education/qualifiant-levels.js" defer></script>
+        <script src="js/shared/education/collegial-levels.js" defer></script>
+        <script src="js/shared/teacher-identity.js" defer></script>
+        <script src="js/import-center/normalize.js" defer></script>
+        <script src="js/import-center/import-diagnostics-codes.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -144,11 +148,7 @@
                     >
                         <i class="fas fa-keyboard"></i>
                     </button>
-                    <label for="semester-select" class="sr-only">الدورة</label>
-                    <select class="min-w-0 shrink-0" id="semester-select" title="الدورة">
-                        <option value="1" selected>الدورة الأولى</option>
-                        <option value="2">الدورة الثانية</option>
-                    </select>
+
                     <div
                         class="user-info max-w-[10rem] overflow-hidden text-ellipsis whitespace-nowrap rounded-[10px] bg-[var(--color-primary-mist)] px-3 py-2 font-bold text-[var(--color-primary-dark)]"
                         id="user-info"
@@ -235,6 +235,29 @@
                             بدء الاستيراد.
                         </p>
                         <p id="imports-selection-status" class="sr-only" aria-live="polite"></p>
+                        <div
+                            id="grade-import-semester-control"
+                            class="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[var(--color-primary-light)] bg-[var(--color-primary-mist)] px-4 py-3.5"
+                        >
+                            <div class="flex items-start gap-3">
+                                <i class="fas fa-calendar-check mt-0.5 text-[1.15rem] text-[var(--color-primary)]" aria-hidden="true"></i>
+                                <div>
+                                    <label for="semester-select" class="block font-bold text-[var(--color-text-main)]">دورة استيراد النقط</label>
+                                    <p id="grade-import-semester-help" class="mt-1 text-[0.82rem] text-[var(--color-text-muted)]">
+                                        اختر الدورة المطابقة للملف قبل استيراد النقط، خاصة عند تحديد عدة ملفات.
+                                    </p>
+                                </div>
+                            </div>
+                            <select
+                                id="semester-select"
+                                class="min-h-10 min-w-[11rem] rounded-lg border border-[var(--color-primary-light)] bg-[var(--color-surface)] px-3 py-2 font-bold text-[var(--color-text-main)] shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                                title="دورة استيراد النقط"
+                                aria-describedby="grade-import-semester-help"
+                            >
+                                <option value="1" selected>الدورة الأولى</option>
+                                <option value="2">الدورة الثانية</option>
+                            </select>
+                        </div>
                         <div class="imports-grid">
                             <button class="imports-action-card" data-action="students" type="button">
                                 <i class="fas fa-user-graduate" aria-hidden="true"></i>
@@ -400,7 +423,7 @@
                     </div>
                     <div id="import-failure-report" class="mt-4 hidden" role="status" aria-live="polite">
                         <div class="flex flex-wrap items-center justify-between gap-3">
-                            <strong>تقرير مراجعة الاست</strong>يراد</strong>
+                            <strong>تقرير مراجعة الاستيراد</strong>
                             <div class="flex gap-2">
                                 <button type="button" class="btn btn-secondary" id="copy-import-report-btn"><i class="fas fa-copy" aria-hidden="true"></i> نسخ التقرير</button>
                                 <button type="button" class="btn btn-secondary" id="download-import-report-btn"><i class="fas fa-download" aria-hidden="true"></i> تنزيل تقرير المراجعة</button>
@@ -720,6 +743,8 @@
         <script src="js/data-source-registry.js" defer></script>
         <script src="js/cross-source-validator.js" defer></script>
         <script src="js/shared/fet-import.js" defer></script>
+        <script src="js/import-center/import-readers.js" defer></script>
+        <script src="js/import-center/import-type-check.js" defer></script>
         <script src="js/import-center/students-import-parser.js" defer></script>
         <script src="vendor/xlsx.full.min.js" defer></script>
         <script src="js/pages/settings-imports.js" defer></script>

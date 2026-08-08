@@ -7,6 +7,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { importSourceIncludes, importSourceMatches } = require('../helpers/import-source.js');
 
 const root = path.join(__dirname, '..', '..');
 const html = fs.readFileSync(path.join(root, 'settings-imports.html'), 'utf8');
@@ -66,8 +67,8 @@ assert.ok(html.includes('create-backup-btn') && html.includes('restore-backup-bt
 // Logs pagination (5 per page)
 assert.ok(html.includes('id="import-logs-pagination"'), 'logs pagination bar');
 assert.ok(html.includes('id="import-logs-prev"') && html.includes('id="import-logs-next"'), 'logs pagination buttons');
-assert.ok(/LOGS_PAGE_SIZE\s*=\s*5/.test(pageJs), 'logs page size is 5');
-assert.ok(pageJs.includes('renderImportLogsPage'), 'logs page renderer');
+assert.ok(importSourceMatches(/LOGS_PAGE_SIZE\s*=\s*5/), 'logs page size is 5');
+assert.ok(importSourceIncludes('renderImportLogsPage'), 'logs page renderer');
 
 // Accessibility
 assert.ok(html.includes('aria-live="polite"'), 'aria-live polite');
@@ -76,13 +77,13 @@ assert.ok(html.includes('lang="ar"'), 'Arabic lang');
 
 // Controller: manual path preserved, smart bootstrap removed
 assert.ok(!pageJs.includes('initSmartImportCenter'), 'smart center bootstrap removed');
-assert.ok(pageJs.includes('function runImport'), 'runImport preserved');
-assert.ok(pageJs.includes('async function handleImport') || pageJs.includes('function handleImport'), 'handleImport preserved');
-assert.ok(pageJs.includes('detectSchoolYearFromWorkbook'), 'year detect preserved');
-assert.ok(pageJs.includes('checkYearMismatch'), 'year mismatch preserved');
-assert.ok(pageJs.includes('updateImportProgress'), 'progress preserved');
-assert.ok(pageJs.includes('renderImportStatusPanel'), 'status panel preserved');
-assert.ok(pageJs.includes('logImport'), 'logImport preserved');
+assert.ok(importSourceIncludes('function runImport'), 'runImport preserved');
+assert.ok(importSourceIncludes('async function handleImport') || importSourceIncludes('function handleImport'), 'handleImport preserved');
+assert.ok(importSourceIncludes('detectSchoolYearFromWorkbook'), 'year detect preserved');
+assert.ok(importSourceIncludes('checkYearMismatch'), 'year mismatch preserved');
+assert.ok(importSourceIncludes('updateImportProgress'), 'progress preserved');
+assert.ok(importSourceIncludes('renderImportStatusPanel'), 'status panel preserved');
+assert.ok(importSourceIncludes('logImport'), 'logImport preserved');
 for (const fn of [
     'importStudents',
     'importGrades',
@@ -92,7 +93,7 @@ for (const fn of [
     'importStudentStatus',
     'importOrientation'
 ]) {
-    assert.ok(pageJs.includes(fn), fn);
+    assert.ok(importSourceIncludes(fn), fn);
 }
 assert.ok(!/function\s+initDropZone\b/.test(pageJs), 'legacy silent drop path removed');
 

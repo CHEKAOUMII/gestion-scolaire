@@ -85,6 +85,21 @@ function resolveAbsenceForBulk(absence, db, cycle) {
     };
 }
 
+function assertReplacementRowYear(absence, year) {
+    if (String(absence?.school_year || '').trim() === String(year).trim()) return;
+    const error = new Error('سنة سجل الغياب لا تطابق سنة الاستبدال');
+    error.code = 'SCHOOL_YEAR_MISMATCH';
+    throw error;
+}
+
+function cycleScopeError(studentCode, schoolYear) {
+    const error = new Error(`سجل الغياب للرمز ${String(studentCode || '').trim()} لا ينتمي إلى السلك النشط`);
+    error.code = 'CYCLE_SCOPE_MISMATCH';
+    error.student_code = studentCode;
+    error.school_year = schoolYear;
+    return error;
+}
+
 function runUpsert(upsert, row) {
     return upsert.run(row.student_id, row.student_code, row.absence_date, row.month, row.absence_type, row.hours, row.days, row.reason, row.school_year, row.cycle_code);
 }
@@ -123,7 +138,16 @@ function saveBulk(db, absences, cycleCode, options = {}) {
             applied.push({ school_year: row.school_year, student_code: row.student_code, month: row.month, absence_type: row.absence_type });
         }
         captureInputUpserts(db, { tableName: 'absences', keyFields: ABSENCE_KEY_FIELDS, items: applied, operation: 'PUT' });
-        return { applied, skippedRows };
+        const summary = { applied, skippedRows };
+        if (typeof options.audit === 'function') {
+            options.audit({
+                success: true,
+                count: applied.length,
+                skippedOtherCycle: skippedRows.length,
+                skippedRows
+            });
+        }
+        return summary;
     });
     const result = run(absences);
     if (result.applied.length) notifyCaptureCommitted();
@@ -183,25 +207,74 @@ function deleteByYear(db, year, cycleCode) {
     return count;
 }
 
-function replaceByYear(db, year, absences, cycleCode, options = {}) {
+function canonicalMonth(value) {
+    const text = String(value ?? '').trim();
+    if (!text) return '';
+    if (/^(سنوي|annuel|annual)$/i.test(text)) return 'سنوي';
+    const m = /^(\d{4})-(\d{1,2})$/.exec(text);
+    if (m) return String(Number(m[2]));
+    const n = Number(text);
+    return Number.isFinite(n) && n >= 1 && n <= 12 ? String(n) : text;
+}
+
+function replaceByYear(db, year, absences, cycleCode, options) {
+    const opts = options || null;
     const cycle = requireCycle(cycleCode);
     if (year == null || year === '') return { success: false, error: 'school_year required' };
     if (!Array.isArray(absences)) return { success: false, error: 'Expected an array' };
     if (absences.length > 5000) return { success: false, error: 'Batch size exceeds maximum of 5000' };
+    if (opts && typeof opts.validate === 'function') {
+        for (const absence of absences) opts.validate(absence);
+    }
+    // Import pipeline (IPC) always passes an options object; legacy positional
+    // callers without one keep the pre-F8 behavior.
+    if (opts && opts.confirm !== true) {
+        const existingRows = db.prepare(
+            'SELECT DISTINCT student_code, month, absence_type FROM absences WHERE school_year = ? AND cycle_code = ?'
+        ).all(year, cycle);
+        if (existingRows.length) {
+            const existingKeys = new Set(
+                existingRows
+                    .map((row) => `${String(row.student_code || '').trim().toUpperCase()}|${canonicalMonth(row.month)}|${String(row.absence_type || '').trim()}`)
+                    .filter((key) => key !== '||')
+            );
+            const stagedKeys = new Set(
+                absences
+                    .map((a) => `${String(a.student_code || a.studentCode || '').trim().toUpperCase()}|${canonicalMonth(a.month)}|${String(a.absence_type || a.absenceType || '').trim()}`)
+                    .filter((key) => key !== '||')
+            );
+            const missingKeys = [...existingKeys].filter((key) => !stagedKeys.has(key));
+            if (missingKeys.length) {
+                const existingMonths = [...new Set(existingRows.map((row) => canonicalMonth(row.month)).filter(Boolean))];
+                const stagedMonths = new Set(absences.map((a) => canonicalMonth(a.month)).filter(Boolean));
+                const missingMonths = existingMonths.filter((m) => !stagedMonths.has(m));
+                return {
+                    success: false,
+                    code: 'INCOMPLETE_COVERAGE',
+                    error: 'الملف لا يغطي كل سجلات الغياب المسجلة سابقاً لهذه السنة والسلك؛ الاستيراد سيحذف السجلات غير المغطاة. أعد تصدير ملف كامل أو أكد الاستبدال صراحة.',
+                    missingMonths,
+                    missingKeys: missingKeys.slice(0, 20)
+                };
+            }
+        }
+    }
     const upsert = createUpsert(db);
     const run = db.transaction((items) => {
+        // Resolve every row before the destructive DELETE. A replacement is an
+        // all-or-nothing snapshot for one year and cycle, not a best-effort bulk save.
+        const prepared = [];
+        for (const absence of items) {
+            assertReplacementRowYear(absence, year);
+            const { row, skipped } = resolveAbsenceForBulk(absence, db, cycle);
+            if (skipped) throw cycleScopeError(absence.student_code, absence.school_year);
+            prepared.push(row);
+        }
         const deletedRows = db.prepare('SELECT * FROM absences WHERE school_year = ? AND cycle_code = ?').all(year, cycle);
         captureDeletesFromRows(db, 'absences', deletedRows);
         const deleted = db.prepare('DELETE FROM absences WHERE school_year = ? AND cycle_code = ?').run(year, cycle).changes;
         const applied = [];
         const skippedRows = [];
-        for (const absence of items) {
-            if (typeof options.validate === 'function') options.validate(absence);
-            const { row, skipped } = resolveAbsenceForBulk(absence, db, cycle);
-            if (skipped) {
-                skippedRows.push(skipped);
-                continue;
-            }
+        for (const row of prepared) {
             const info = runUpsert(upsert, row);
             if (!info.changes) {
                 skippedRows.push({ student_code: row.student_code, school_year: row.school_year });
@@ -210,7 +283,17 @@ function replaceByYear(db, year, absences, cycleCode, options = {}) {
             applied.push({ school_year: row.school_year, student_code: row.student_code, month: row.month, absence_type: row.absence_type });
         }
         captureInputUpserts(db, { tableName: 'absences', keyFields: ABSENCE_KEY_FIELDS, items: applied, operation: 'PUT' });
-        return { deleted, applied, skippedRows };
+        const summary = { deleted, applied, skippedRows };
+        if (typeof opts?.audit === 'function') {
+            opts.audit({
+                success: true,
+                deleted,
+                count: applied.length,
+                skippedOtherCycle: skippedRows.length,
+                skippedRows
+            });
+        }
+        return summary;
     });
     const result = run(absences);
     if (result.deleted || result.applied.length) notifyCaptureCommitted();

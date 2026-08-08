@@ -19,7 +19,14 @@
         SCHOOL_YEAR_MISMATCH: 'السنة الدراسية في الملف لا تطابق السنة المختارة.',
         INSTITUTION_CODE_MISMATCH: 'رمز المؤسسة في الملف لا يطابق المؤسسة الحالية.',
         CYCLE_MISMATCH: 'السلك التعليمي في الملف لا يطابق السلك النشط.',
+        CYCLE_SELECTION_REQUIRED: 'توجد عدة أسلكة متاحة دون تحديد السلك النشط. سجّل الدخول واختر السلك من الشريط العلوي ثم أعد الاستيراد.',
+        NO_USABLE_CYCLE: 'لا يوجد سلك مفعّل ومتاح للاستيراد. فعّل سلكاً واحداً على الأقل ثم أعد المحاولة.',
         UNKNOWN_STUDENT_CODES: 'يحتوي الملف على رموز تلاميذ غير موجودة في السلك النشط.',
+        STUDENTS_REQUIRED: 'لا توجد لائحة تلاميذ متاحة لهذا السلك والسنة. استورد لائحة التلاميذ الصحيحة أولاً.',
+        STUDENTS_UNAVAILABLE: 'تعذر تحميل لائحة التلاميذ للسنة والسلك النشطين.',
+        TEACHERS_UNAVAILABLE: 'تعذر تحميل لائحة الأساتذة قبل استيراد النقط.',
+        ASSESSMENT_UNRESOLVED: 'تعذر تحديد نوع التقييم من ملف النقط.',
+        INVALID_GRADE: 'يحتوي الملف على نقطة غير صالحة؛ يجب أن تكون بين 0 و20.',
         DESTINATION_CONTEXT_UNAVAILABLE: 'تعذر التحقق من وجهة الحفظ الحالية. لم يبدأ الاستيراد.',
         TEMPLATE_UNKNOWN: 'تعذر التحقق من نوع أو نسخة قالب الاستيراد.',
         TEMPLATE_MISMATCH: 'نوع أو نسخة قالب الاستيراد لا تطابق العملية المختارة.',
@@ -66,11 +73,21 @@
         const prefix = fileName ? `الملف «${fileName}»: ` : actionLabel ? `${actionLabel}: ` : '';
         const nextStep = code === 'SCHOOL_YEAR_MISMATCH' || code === 'INSTITUTION_CODE_MISMATCH' || code === 'CYCLE_MISMATCH'
             ? 'غيّر السنة أو اختر ملف المؤسسة والسلك الصحيحين ثم أعد المحاولة.'
-            : code === 'UNKNOWN_STUDENT_CODES'
+            : code === 'CYCLE_SELECTION_REQUIRED' || code === 'NO_USABLE_CYCLE'
+              ? 'سجّل الدخول واختر السلك من الشريط العلوي (أو فعّل سلكاً واحداً) ثم أعد المحاولة.'
+              : code === 'UNKNOWN_STUDENT_CODES'
               ? 'راجع رموز التلاميذ في الملف واستورد لائحة التلاميذ الصحيحة أولاً.'
-              : code === 'FILE_READ_ERROR' || code === 'INVALID_FILE_STRUCTURE'
-              ? 'تحقق من نوع الملف ورؤوس الأعمدة ثم أعد التصدير.'
-              : 'صحح الملف أو أعد المحاولة بعد مراجعة التقرير.';
+              : code === 'STUDENTS_REQUIRED' || code === 'STUDENTS_UNAVAILABLE'
+                ? 'تأكد من اختيار السلك الصحيح ثم استورد لائحة تلاميذه قبل استيراد النقط.'
+                : code === 'TEACHERS_UNAVAILABLE'
+                  ? 'تحقق من ملف الأساتذة أو أعد تحميل الصفحة ثم أعد المحاولة.'
+                  : code === 'ASSESSMENT_UNRESOLVED'
+                    ? 'استخدم ملفاً يوضح الفرض أو التقييم في عنوان العمود أو اسم الملف.'
+                    : code === 'INVALID_GRADE'
+                      ? 'صحح القيمة المشار إليها في التقرير ثم أعد تصدير الملف.'
+                      : code === 'FILE_READ_ERROR' || code === 'INVALID_FILE_STRUCTURE'
+                        ? 'تحقق من نوع الملف ورؤوس الأعمدة ثم أعد التصدير.'
+                        : 'صحح الملف أو أعد المحاولة بعد مراجعة التقرير.';
 
         return {
             success: false,

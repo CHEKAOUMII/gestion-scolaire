@@ -24,6 +24,11 @@
         INSTITUTION_CODE_MISMATCH: 'INSTITUTION_CODE_MISMATCH',
         INSTITUTION_NAME_DIFFERENCE: 'INSTITUTION_NAME_DIFFERENCE',
         CYCLE_MISMATCH: 'CYCLE_MISMATCH',
+        CYCLE_SELECTION_REQUIRED: 'CYCLE_SELECTION_REQUIRED',
+        NO_USABLE_CYCLE: 'NO_USABLE_CYCLE',
+        SEMESTER_UNRESOLVED: 'SEMESTER_UNRESOLVED',
+        SUBJECT_UNRESOLVED: 'SUBJECT_UNRESOLVED',
+        TEMPLATE_MISMATCH: 'TEMPLATE_MISMATCH',
         FILE_SCOPE_INFO: 'FILE_SCOPE_INFO'
     });
 
@@ -121,6 +126,50 @@
         return filenameYear ? { value: filenameYear, source: 'filename' } : null;
     }
 
+    function parseSemester(value) {
+        const normalized = key(value);
+        if (!normalized) return null;
+        if (normalized.includes('الثانية') || normalized.includes('الثاني') || /(?:^|\D)2(?:\D|$)/.test(normalized)) return 2;
+        if (normalized.includes('الأولى') || normalized.includes('الاولى') || normalized.includes('الأول') || /(?:^|\D)1(?:\D|$)/.test(normalized)) return 1;
+        return null;
+    }
+
+    function detectSemester(rows) {
+        const semesterLabel = /^(?:semester|semestre|term|periode|الدورة|الاسدس|الفصل)$/;
+        const semesterContext = /(?:semester|semestre|term|periode|الدورة|الاسدس|الفصل)/;
+        for (const row of rows) {
+            const cells = Array.isArray(row) ? row : [];
+            for (let index = 0; index < cells.length; index += 1) {
+                const raw = text(cells[index]);
+                const normalized = key(raw);
+                const directValue = parseSemester(raw);
+                if (directValue != null && semesterContext.test(normalized)) {
+                    return { value: directValue, source: 'explicit' };
+                }
+                if (!semesterLabel.test(normalized)) continue;
+                for (const offset of [1, -1, 2, -2]) {
+                    const adjacentValue = parseSemester(cells[index + offset]);
+                    if (adjacentValue != null) return { value: adjacentValue, source: 'explicit' };
+                }
+            }
+        }
+        return null;
+    }
+
+    function detectSubject(rows, fileName) {
+        const explicit = findLabeledValue(rows, /(?:subject|matiere|module|المادة|مادة)/);
+        if (explicit?.value) return explicit;
+        const base = text(fileName).replace(/\.[^.]+$/, '');
+        const match = base.match(/^[^_]+_[^_]+_[^_]+_(.+?)_\d{8,}$/i);
+        if (!match) return null;
+        const value = text(match[1]).replace(/[_-]+/g, ' ');
+        return value ? { value, source: 'filename' } : null;
+    }
+
+    function detectTemplateVersion(rows) {
+        return findLabeledValue(rows, /(?:templateversion|template|version|نسخةالقالب|إصدارالقالب|اصدارالقالب|نسخة|إصدار|اصدار)/);
+    }
+
     function detectCycle(rows, sheetNames) {
         const explicit = findLabeledValue(rows, /(?:cycle|educationcycle|السلك|المستوىالتعليمي)/);
         const explicitValue = explicit?.value || '';
@@ -180,6 +229,10 @@
             /(?:institutionname|schoolname|nometablissement|nomdelinstitution|اسمالمؤسسة|اسمالموسسة|المؤسسة|الموسسة|مؤسسة|موسسة)/
         );
         const cycle = detectCycle(rows.slice(0, 100), sheetNames);
+        const semester = detectSemester(rows.slice(0, 60));
+        const semesterValue = semester?.value ?? null;
+        const subject = detectSubject(rows.slice(0, 60), fileName);
+        const templateVersion = detectTemplateVersion(rows.slice(0, 60));
         const levels = [];
         const streams = [];
         const sections = [];
@@ -203,14 +256,20 @@
             levels,
             streams,
             sections,
-            semester: null,
-            subject: null,
-            templateVersion: null,
+            semester: semesterValue,
+            semesterSource: semesterValue == null ? null : semester.source,
+            subject: subject?.value || null,
+            subjectSource: subject?.source || null,
+            templateVersion: templateVersion?.value || null,
+            templateVersionSource: templateVersion?.source || null,
             evidence: {
                 schoolYear: year ? { source: year.source, confidence: year.source === 'filename' ? 'low' : 'high' } : null,
                 institutionCode: institutionCode ? { source: institutionCode.source, confidence: 'high' } : null,
                 institutionName: institutionName ? { source: institutionName.source, confidence: 'high' } : null,
-                cycle: cycle ? { source: cycle.source, confidence: cycle.confidence } : null
+                cycle: cycle ? { source: cycle.source, confidence: cycle.confidence } : null,
+                semester: semesterValue == null ? null : { source: semester.source, confidence: semester.source === 'filename' ? 'low' : 'high' },
+                subject: subject ? { source: subject.source, confidence: subject.source === 'filename' ? 'low' : 'high' } : null,
+                templateVersion: templateVersion ? { source: templateVersion.source, confidence: 'high' } : null
             },
             sheetNames,
             metadataFound: {
@@ -218,6 +277,9 @@
                 institutionCode: !!institutionCode,
                 institutionName: !!institutionName,
                 cycle: !!cycle,
+                semester: semesterValue != null,
+                subject: !!subject,
+                templateVersion: !!templateVersion,
                 levels: levels.length > 0,
                 streams: streams.length > 0,
                 sections: sections.length > 0
@@ -301,7 +363,17 @@
         if (!src.cycleCode) {
             checks.push(check('cycle', 'missing', null, dest.cycleCode, 'لم يُستنتج السلك التعليمي بثقة كافية', false));
         } else if (!dest.cycleCode) {
-            checks.push(check('cycle', 'unknown', src.cycleCode, null, 'تعذر التحقق من السلك النشط', false));
+            checks.push(
+                check(
+                    'cycle',
+                    'unknown',
+                    src.cycleCode,
+                    null,
+                    'تعذر تحديد السلك النشط — سجّل الدخول واختر السلك من الشريط العلوي ثم أعد المحاولة',
+                    hardAction,
+                    { code: IMPORT_CONTEXT_CODES.CYCLE_SELECTION_REQUIRED, confidence: src.cycleConfidence }
+                )
+            );
         } else if (src.cycleCode === dest.cycleCode) {
             checks.push(check('cycle', 'match', src.cycleCode, dest.cycleCode, `السلك مطابق: ${src.cycleLabel || src.cycleCode}`, false));
         } else {
@@ -319,18 +391,63 @@
             );
         }
 
-        if (src.levels.length || src.streams.length || src.sections.length) {
+        const levels = Array.isArray(src.levels) ? src.levels : [];
+        const streams = Array.isArray(src.streams) ? src.streams : [];
+        const sections = Array.isArray(src.sections) ? src.sections : [];
+        if (levels.length || streams.length || sections.length) {
             checks.push(
                 check(
                     'scope',
                     'info',
                     null,
                     null,
-                    `النطاق المكتشف: ${src.levels.length ? `المستويات ${src.levels.slice(0, 5).join('، ')}` : ''}${src.streams.length ? `؛ المسالك ${src.streams.slice(0, 5).join('، ')}` : ''}${src.sections.length ? `؛ الأقسام ${src.sections.slice(0, 5).join('، ')}` : ''}`,
+                    `النطاق المكتشف: ${levels.length ? `المستويات ${levels.slice(0, 5).join('، ')}` : ''}${streams.length ? `؛ المسالك ${streams.slice(0, 5).join('، ')}` : ''}${sections.length ? `؛ الأقسام ${sections.slice(0, 5).join('، ')}` : ''}`,
                     false,
                     { code: IMPORT_CONTEXT_CODES.FILE_SCOPE_INFO }
                 )
             );
+        }
+
+        if (action === 'grades') {
+            if (src.semester == null) {
+                checks.push(
+                    contextualCheck(action, 'semester', 'unknown', null, dest.semester || null, 'تعذر تحديد الدورة الدراسية من الملف', {
+                        code: IMPORT_CONTEXT_CODES.SEMESTER_UNRESOLVED
+                    })
+                );
+            } else if (dest.semester != null && Number(src.semester) !== Number(dest.semester)) {
+                checks.push(
+                    contextualCheck(action, 'semester', 'mismatch', src.semester, dest.semester, 'الدورة الدراسية في الملف لا تطابق الدورة المختارة', {
+                        code: IMPORT_CONTEXT_CODES.SEMESTER_UNRESOLVED
+                    })
+                );
+            } else {
+                checks.push(contextualCheck(action, 'semester', 'match', src.semester, dest.semester || null, 'الدورة الدراسية محددة داخل الملف'));
+            }
+
+            if (!src.subject) {
+                checks.push(
+                    contextualCheck(action, 'subject', 'unknown', null, dest.subject || null, 'تعذر تحديد المادة الدراسية من الملف', {
+                        code: IMPORT_CONTEXT_CODES.SUBJECT_UNRESOLVED
+                    })
+                );
+            } else {
+                checks.push(contextualCheck(action, 'subject', 'match', src.subject, dest.subject || null, 'المادة الدراسية محددة داخل الملف'));
+            }
+        }
+
+        if (src.templateVersion && dest.templateVersion) {
+            if (key(src.templateVersion) === key(dest.templateVersion)) {
+                checks.push(contextualCheck(action, 'templateVersion', 'match', src.templateVersion, dest.templateVersion, 'نسخة القالب مطابقة'));
+            } else {
+                checks.push(
+                    contextualCheck(action, 'templateVersion', 'mismatch', src.templateVersion, dest.templateVersion, 'نسخة القالب في الملف لا تطابق النسخة المعتمدة', {
+                        code: IMPORT_CONTEXT_CODES.TEMPLATE_MISMATCH
+                    })
+                );
+            }
+        } else if (src.templateVersion) {
+            checks.push(contextualCheck(action, 'templateVersion', 'info', src.templateVersion, dest.templateVersion || null, 'تم اكتشاف نسخة قالب داخل الملف'));
         }
 
         const evaluatedChecks = Policy?.apply ? checks.map((item) => Policy.apply(item, action)) : checks;

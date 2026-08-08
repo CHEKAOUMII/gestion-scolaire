@@ -45,4 +45,27 @@ const safeFallback = ImportResultContract.message(englishRaw, { actionLabel: 'ا
 assert.ok(safeFallback.includes('تعذر إتمام الاستيراد'));
 assert.ok(!safeFallback.includes('Unexpected parser failure'));
 
+const selectionRequired = ImportResultContract.normalizeError({ code: 'CYCLE_SELECTION_REQUIRED' });
+assert.strictEqual(selectionRequired.code, 'CYCLE_SELECTION_REQUIRED');
+assert.strictEqual(selectionRequired.success, false);
+assert.ok(selectionRequired.userMessage.includes('الشريط العلوي'));
+assert.ok(selectionRequired.userMessage.includes('سجّل الدخول'));
+assert.ok(!selectionRequired.userMessage.includes('INTERNAL_ERROR'));
+
+const noUsableCycle = ImportResultContract.normalizeError({ code: 'NO_USABLE_CYCLE' });
+assert.strictEqual(noUsableCycle.code, 'NO_USABLE_CYCLE');
+assert.strictEqual(noUsableCycle.success, false);
+assert.ok(
+    noUsableCycle.userMessage.includes('فعّل') || noUsableCycle.userMessage.includes('الشريط العلوي'),
+    'NO_USABLE_CYCLE must carry an enable/select-cycle remedy'
+);
+
+const selectionContextError = ImportResultContract.createContextError('CYCLE_SELECTION_REQUIRED');
+assert.strictEqual(selectionContextError.code, 'CYCLE_SELECTION_REQUIRED');
+assert.strictEqual(
+    selectionContextError.message,
+    ImportResultContract.CODE_MESSAGES.CYCLE_SELECTION_REQUIRED
+);
+assert.ok(selectionContextError.message.includes('الشريط العلوي'));
+
 console.log('import-error-presentation: OK');

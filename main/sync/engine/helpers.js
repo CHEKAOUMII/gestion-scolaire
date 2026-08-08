@@ -32,6 +32,7 @@ const TOPO_ORDER_PUT = [
     'exam_proctors',
     'exam_rooms',
     'tests',
+    'timetable_data',
     'system_tags'
 ];
 

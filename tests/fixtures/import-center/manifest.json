@@ -10,19 +10,19 @@
   },
   "types": {
     "students": {
-      "valid": ["students/valid-01.csv", "students/valid-02.csv"],
+      "valid": ["students/valid-01.csv", "students/valid-02.csv", "students/basic.xlsx", "students/latin-headers-lastname-first.xlsx", "students/mixed-dates.xlsx"],
       "failure": ["students/incomplete-header.csv", "students/empty.csv", "students/year-mismatch.csv"]
     },
     "grades": {
-      "valid": ["grades/valid-01.csv", "grades/valid-02.csv"],
-      "failure": ["grades/incomplete-header.csv", "grades/empty.csv", "grades/year-mismatch.csv"]
+      "valid": ["grades/valid-01.csv", "grades/valid-02.csv", "grades/single-semester.xlsx", "grades/mixed-semester-sheets.xlsx"],
+      "failure": ["grades/incomplete-header.csv", "grades/empty.csv", "grades/year-mismatch.csv", "grades/header-only.xlsx"]
     },
     "absences": {
-      "valid": ["absences/valid-01.csv", "absences/valid-02.csv"],
+      "valid": ["absences/valid-01.csv", "absences/valid-02.csv", "absences/massar-matrix.xlsx"],
       "failure": ["absences/incomplete-header.csv", "absences/empty.csv", "absences/year-mismatch.csv"]
     },
     "student_status": {
-      "valid": ["student_status/valid-01.csv", "student_status/valid-02.csv"],
+      "valid": ["student_status/valid-01.csv", "student_status/valid-02.csv", "student_status/basic.xlsx"],
       "failure": ["student_status/incomplete-header.csv", "student_status/empty.csv"]
     },
     "fet": {

@@ -3,11 +3,29 @@
  * XLSX so the same parser can run in the renderer and in Node tests.
  */
 (function (root, factory) {
-    const api = factory(root || {});
+    const collegialLevels =
+        typeof require === 'function'
+            ? require('../shared/education/collegial-levels.js')
+            : root && root.EdCollegialLevels;
+    const qualifiantLevels =
+        typeof require === 'function'
+            ? require('../shared/education/qualifiant-levels.js')
+            : root && root.EducationQualifiantLevels;
+    const normalize =
+        (root && root.ImportCenterNormalize) ||
+        (typeof require === 'function' ? require('./normalize.js') : null);
+    const diagnostics =
+        (root && root.ImportCenterDiagnostics) ||
+        (typeof require === 'function' ? require('./import-diagnostics-codes.js') : null);
+
+    const api = factory(root || {}, collegialLevels, qualifiantLevels, normalize, diagnostics);
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     if (root) root.StudentImportParser = api;
-})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this, function (root, collegialLevels, qualifiantLevels, normalize, diagnostics) {
     'use strict';
+
+    const { text, toLatinDigits, normalizeKey, normalizeStudentCode, excelDateToIso } = normalize;
+    const Diagnostics = diagnostics;
 
     const MAX_HEADER_SCAN_ROWS = 60;
     const METADATA_ALIASES = Object.freeze({
@@ -16,7 +34,7 @@
         section: ['القسم', 'الفصل', 'section', 'class', 'classe', 'group']
     });
     const HEADER_ALIASES = Object.freeze({
-        code: ['code', 'studentcode', 'massar', 'massarcode', 'codemassar', 'codeeleve', 'مسار', 'الرمز', 'رمز', 'رقم التلميذ', 'cne'],
+        code: ['code', 'studentcode', 'massar', 'massarcode', 'codemassar', 'codeeleve', 'الرمز', 'رمز', 'رقم التلميذ', 'cne'],
         familyName: ['familyname', 'lastname', 'nom', 'النسب', 'العائلي', 'الاسم العائلي'],
         firstName: ['firstname', 'name', 'prenom', 'الاسم', 'الإسم', 'الاسم الشخصي'],
         fullName: ['fullname', 'studentname', 'nomcomplet', 'الاسم الكامل', 'الاسم والنسب'],
@@ -27,40 +45,6 @@
         level: METADATA_ALIASES.level,
         schoolName: METADATA_ALIASES.schoolName
     });
-
-    function text(value) {
-        return String(value ?? '').trim();
-    }
-
-    function normalizeArabicDigits(value) {
-        return text(value).replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
-    }
-
-    function normalizeKey(value) {
-        return text(value)
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[\u064B-\u065F]/g, '')
-            .toLowerCase()
-            .replace(/[^a-z0-9\u0600-\u06FF]+/g, '');
-    }
-
-    function normalizeStudentCode(value) {
-        const raw = normalizeArabicDigits(value).replace(/^'+/, '').replace(/\s+/g, '');
-        if (!raw) return '';
-        if (/^\d+\.0+$/.test(raw)) return raw.replace(/\.0+$/, '');
-        return raw.toUpperCase();
-    }
-
-    function excelDateToIso(value) {
-        if (value === null || value === undefined || value === '') return '';
-        if (typeof value === 'number') {
-            const date = new Date((value - 25569) * 86400 * 1000);
-            return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
-        }
-        const parsed = new Date(text(value));
-        return Number.isNaN(parsed.getTime()) ? text(value) : parsed.toISOString().slice(0, 10);
-    }
 
     function normalizeSchoolName(value) {
         return text(value)
@@ -78,7 +62,9 @@
         const key = normalizeKey(value);
         return Boolean(key) && aliases.some((alias) => {
             const aliasKey = normalizeKey(alias);
-            return aliasKey && key.includes(aliasKey);
+            if (!aliasKey) return false;
+            if (aliasKey.length < 5) return key === aliasKey;
+            return key.includes(aliasKey);
         });
     }
 
@@ -155,11 +141,19 @@
     }
 
     function defaultNormalizeLevel(value) {
-        const raw = normalizeArabicDigits(value);
+        const raw = toLatinDigits(value);
         if (!raw) return '';
+        if (collegialLevels && typeof collegialLevels.resolveLevel === 'function') {
+            const hit = collegialLevels.resolveLevel(raw);
+            if (hit) return hit.name;
+        }
+        if (qualifiantLevels && typeof qualifiantLevels.matchLevelFromSection === 'function') {
+            const hit = qualifiantLevels.matchLevelFromSection(raw);
+            if (hit && hit.code !== 'other') return hit.name;
+        }
         const upper = raw.toUpperCase().replace(/[-_\s]?\d+$/, '').trim();
         const names = [
-            ['1BACSEG', 'الأولى باكالوريا علوم تجريبية'],
+            ['1BACSEG', 'الأولى باكالوريا علوم الاقتصاد والتدبير'],
             ['1BACSEF', 'الأولى باكالوريا علوم تجريبية خيار فرنسية'],
             ['1BACSMF', 'الأولى باكالوريا علوم رياضية خيار فرنسية'],
             ['1BACSM', 'الأولى باكالوريا علوم رياضية'],
@@ -205,7 +199,7 @@
             const header = findHeaderRow(rows);
             if (header.index === -1) {
                 diagnostics.push(diagnostic(
-                    'STUDENT_CODE_COLUMN_MISSING',
+                    Diagnostics.STUDENT_CODE_COLUMN_MISSING,
                     `تعذر العثور على عمود رمز مسار في الورقة «${name}».`,
                     name,
                     null,
@@ -219,7 +213,23 @@
             if (metadataSchoolKey && !metadataSchools.has(metadataSchoolKey)) {
                 metadataSchools.set(metadataSchoolKey, metadata.schoolName);
             }
-            contexts.push({ name, rows, header, headers: mapHeaderPositions(header.headers), metadata });
+            const headers = mapHeaderPositions(header.headers);
+            const seenHeaderIndices = new Map();
+            for (const [role, idx] of Object.entries(headers)) {
+                if (idx === -1) continue;
+                if (seenHeaderIndices.has(idx)) {
+                    diagnostics.push(diagnostic(
+                        Diagnostics.AMBIGUOUS_HEADER_BINDING,
+                        `تعارض في ربط الأعمدة في الورقة «${name}»: العمود ${idx + 1} مرتبط بأكثر من حقل (${seenHeaderIndices.get(idx)} و ${role}).`,
+                        name,
+                        header.index + 1,
+                        role
+                    ));
+                    break;
+                }
+                seenHeaderIndices.set(idx, role);
+            }
+            contexts.push({ name, rows, header, headers, metadata });
         }
 
         const workbookSchoolName = metadataSchools.size === 1 ? [...metadataSchools.values()][0] : '';
@@ -235,7 +245,19 @@
             for (let index = header.index + 1; index < rows.length; index += 1) {
                 const row = rows[index] || [];
                 const code = normalizeStudentCode(row[headers.code]);
-                if (!code) continue;
+                if (!code) {
+                    if ((row || []).some((cell) => text(cell))) {
+                        diagnostics.push(diagnostic(
+                            Diagnostics.STUDENT_CODE_MISSING,
+                            `صف بدون رمز مسار في الورقة «${name}» صف ${index + 1} تم تجاوزه`,
+                            name,
+                            index + 1,
+                            'code',
+                            'warning'
+                        ));
+                    }
+                    continue;
+                }
 
                 const firstName = headers.firstName === -1 ? '' : text(row[headers.firstName]);
                 const familyName = headers.familyName === -1 ? '' : text(row[headers.familyName]);
@@ -251,7 +273,7 @@
                 if (level) levelValues.add(level);
                 if (!level && !unresolvedLevelWarning) {
                     diagnostics.push(diagnostic(
-                        'LEVEL_UNRESOLVED',
+                        Diagnostics.LEVEL_UNRESOLVED,
                         'تعذر تحديد المستوى لبعض التلاميذ؛ راجع عمود المستوى أو اسم القسم.',
                         name,
                         index + 1,
@@ -266,7 +288,7 @@
                 const previous = seenCodes.get(code);
                 if (previous) {
                     diagnostics.push(diagnostic(
-                        'DUPLICATE_STUDENT_CODE',
+                        Diagnostics.DUPLICATE_STUDENT_CODE,
                         `رمز مسار مكرر «${code}»؛ تم الاحتفاظ بأول ظهور في الورقة «${previous.sheet}» والصف ${previous.row}.`,
                         name,
                         index + 1,
@@ -287,19 +309,18 @@
                     level,
                     school_name: schoolName,
                     school_year: schoolYear,
-                    status: 'active',
                     registration_type: 'new'
                 });
             }
         }
 
         if (!records.length) {
-            diagnostics.push(diagnostic('NO_VALID_STUDENTS', 'لم يتم العثور على بيانات تلاميذ صالحة.', '', null, 'students'));
+            diagnostics.push(diagnostic(Diagnostics.NO_VALID_STUDENTS, 'لم يتم العثور على بيانات تلاميذ صالحة.', '', null, 'students'));
         }
 
         if (!schoolValues.size) {
             diagnostics.push(diagnostic(
-                'SCHOOL_NAME_MISSING',
+                Diagnostics.SCHOOL_NAME_MISSING,
                 'لم يتم العثور على اسم المؤسسة في الملف؛ سيتم الاستيراد دون تغيير اسم المؤسسة الموجود مسبقاً.',
                 '',
                 null,
@@ -309,7 +330,7 @@
         }
         if (!normalizeSchoolName(configuredSchoolName)) {
             diagnostics.push(diagnostic(
-                'CONFIGURED_SCHOOL_MISSING',
+                Diagnostics.CONFIGURED_SCHOOL_MISSING,
                 'اسم المؤسسة المضبوط في إعدادات التطبيق غير متوفر؛ تعذر إجراء مطابقة كاملة للمؤسسة.',
                 '',
                 null,
@@ -321,7 +342,7 @@
         const schoolEntries = [...schoolValues.entries()];
         if (schoolEntries.length > 1) {
             diagnostics.push(diagnostic(
-                'MULTIPLE_SCHOOLS',
+                Diagnostics.MULTIPLE_SCHOOLS,
                 `يحتوي الملف على مؤسسات متعددة: ${schoolEntries.map(([, value]) => value).join('، ')}. لم يتم حفظ أي سجل.`,
                 '',
                 null,
@@ -329,7 +350,7 @@
             ));
         } else if (schoolEntries.length === 1 && normalizeSchoolName(configuredSchoolName) && schoolEntries[0][0] !== normalizeSchoolName(configuredSchoolName)) {
             diagnostics.push(diagnostic(
-                'SCHOOL_MISMATCH',
+                Diagnostics.SCHOOL_MISMATCH,
                 `المؤسسة في الملف «${schoolEntries[0][1]}» لا تطابق المؤسسة المضبوطة «${text(configuredSchoolName)}». لم يتم حفظ أي سجل.`,
                 '',
                 null,

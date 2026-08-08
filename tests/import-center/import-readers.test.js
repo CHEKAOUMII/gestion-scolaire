@@ -9,6 +9,20 @@ const Readers = require('../../js/import-center/import-readers.js');
 
 const FIX = path.join(__dirname, '..', 'fixtures', 'import-center');
 
+function fileFromXmlText(content, name) {
+    return {
+        name: name || 'synthetic.xml',
+        size: Buffer.byteLength(content, 'utf8'),
+        type: 'text/xml',
+        content,
+        async text() {
+            return content;
+        },
+        async arrayBuffer() {
+            return Buffer.from(content, 'utf8');
+        }
+    };
+}
 function fileFromDisk(rel, name) {
     const content = fs.readFileSync(path.join(FIX, rel), 'utf8');
     return {
@@ -58,6 +72,33 @@ function fileFromDisk(rel, name) {
     const parsed = Readers.parseCsvText('a,b\n1,2\n3,4\n');
     assert.deepStrictEqual(parsed.headers, ['a', 'b']);
     assert.strictEqual(parsed.recordEstimate, 2);
+
+
+    // ── T1.5: required XML elements tracked beyond the capped distinct-names set ──
+    // Case A: 45 distinct element names, DATAIDENTIFPERSONNEL LAST → still detected
+    const manyNames = [];
+    for (let i = 1; i <= 45; i += 1) manyNames.push(`R${i}`);
+    manyNames.push('DATAIDENTIFPERSONNEL');
+    const body = manyNames.map((n) => `<${n}/>`).join('');
+    const bigAgent = fileFromXmlText(`<DsAgentExport>${body}</DsAgentExport>`);
+    const bigAgentFeatures = await Readers.extractFeatures(bigAgent);
+    assert.strictEqual(bigAgentFeatures.xmlRoot, 'DsAgentExport');
+    assert.ok(
+        bigAgentFeatures.xmlElements.includes('DATAIDENTIFPERSONNEL'),
+        'case A: required element must survive the 40-name distinct cap'
+    );
+
+    // Case B: text beyond MAX_TEXT_BYTES surfaces truncated:true
+    const MAX_TEXT_BYTES = 512 * 1024;
+    const oversized = `<DsAgentExport><A/>` + 'x'.repeat(MAX_TEXT_BYTES + 1024) + `</DsAgentExport>`;
+    const truncated = await Readers.extractFeatures(
+        fileFromXmlText(oversized, 'oversized.xml')
+    );
+    assert.strictEqual(truncated.truncated, true, 'case B: truncation must be surfaced');
+    assert.ok(truncated.truncatedAt >= MAX_TEXT_BYTES);
+
+    // Case C: small valid FET file stays unchanged
+    // (covered above by fet/valid-01.xml assertion)
 
     console.log('import-readers: OK');
 })().catch((e) => {

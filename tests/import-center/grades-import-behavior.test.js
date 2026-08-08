@@ -40,8 +40,13 @@ assert.deepStrictEqual(
 );
 assert.deepStrictEqual(
     new Set(parsed.records.map((record) => record.subject)),
-    new Set(['اللغة العربية — الفرض الأول', 'اللغة العربية — الفرض الثاني', 'اللغة العربية — الأنشطة المندمجة'])
+    new Set(['اللغة العربية'])
 );
+assert.deepStrictEqual(
+    new Set(parsed.records.map((record) => record.assessment)),
+    new Set(['الفرض الأول', 'الفرض الثاني', 'الأنشطة المندمجة'])
+);
+assert.ok(parsed.records.every((record) => record.subject === 'اللغة العربية'), 'assessment must not be mixed into the subject name');
 assert.strictEqual(parsed.metadata.subject, 'اللغة العربية');
 assert.strictEqual(parsed.metadata.semester, 1);
 assert.deepStrictEqual(parsed.metadata.sections, ['1BACSEF-1']);
@@ -93,9 +98,11 @@ const secondFile = Parser.parseGradesSheets({
     schoolYear,
     students
 });
-assert.strictEqual(firstFile.records[0].subject, 'اللغة العربية — الفرض الأول');
-assert.strictEqual(secondFile.records[0].subject, 'اللغة العربية — الفرض الثاني');
-assert.notStrictEqual(firstFile.records[0].subject, secondFile.records[0].subject);
+assert.strictEqual(firstFile.records[0].subject, 'اللغة العربية');
+assert.strictEqual(secondFile.records[0].subject, 'اللغة العربية');
+assert.strictEqual(firstFile.records[0].assessment, 'الفرض الأول');
+assert.strictEqual(secondFile.records[0].assessment, 'الفرض الثاني');
+assert.notStrictEqual(firstFile.records[0].assessment, secondFile.records[0].assessment);
 
 const unresolvedAssessment = Parser.parseGradesSheets({
     sheets: [{ name: 'Grades', rows: [...metadataRows(), ['رقم التلميذ', 'النقطة'], ['K141075862', 12]] }],
@@ -116,5 +123,58 @@ assert.strictEqual(invalid.valid, false);
 assert.ok(invalid.diagnostics.some((item) => item.code === 'UNKNOWN_STUDENT' && item.sheet === 'Grades'));
 assert.ok(invalid.diagnostics.some((item) => item.code === 'INVALID_GRADE' && item.row === 5));
 assert.strictEqual(invalid.records.length, 0);
+
+// T2.4 — single INVALID_GRADE must be row-scoped (non-blocking), other rows still written
+const invalidOnly = Parser.parseGradesSheets({
+    sheets: [{ name: 'Grades', rows: [...metadataRows(), ['رقم التلميذ', 'الفرض الأول'], ['K141075862', 'not-a-grade'], ['K141097404', 12]] }],
+    sourceFileName: 'Export_1_X_LANGUE ARABE_28072026153232.xlsx',
+    schoolYear,
+    students
+});
+assert.strictEqual(invalidOnly.valid, true, 'single INVALID_GRADE must not block file');
+assert.ok(invalidOnly.diagnostics.some((item) => item.code === 'INVALID_GRADE' && item.blocking === false), 'INVALID_GRADE must be non-blocking');
+assert.ok(invalidOnly.diagnostics.every((item) => item.code !== 'UNKNOWN_STUDENT'), 'no UNKNOWN_STUDENT in this case');
+assert.strictEqual(invalidOnly.records.length, 1, 'one valid row must still be written');
+assert.strictEqual(invalidOnly.records[0].student_code, 'K141097404');
+
+const massarLayout = [
+    ['', '', 'المستوى :', 'الأولى إعدادي مسار دولي'],
+    ['الدورة :', 'الدورة الأولى', 'السنة الدراسية :', schoolYear],
+    ['رقم التلميذ', 'إسم التلميذ', 'الفرض الأول', 'الفرض الثاني', 'الأنشطة المندمجة'],
+    ['K141075862', 'الأول', 12, 14, 16],
+    ['K141097404', 'الأخير', 10, 13, 15]
+];
+const massarResult = Parser.parseGradesSheets({
+    sheets: [{ name: 'NotesCC', rows: massarLayout }],
+    sourceFileName: 'Export_10401E_1APIC-2_INSTRUCTION ISLAMIQUE_28072026160612.xlsx',
+    schoolYear,
+    students
+});
+assert.strictEqual(massarResult.valid, true, 'level row containing «مسار» must not stop header detection');
+assert.strictEqual(massarResult.metadata.semester, 1);
+assert.strictEqual(massarResult.records.length, 6);
+assert.ok(massarResult.records.every((record) => record.subject === 'التربية الإسلامية'), 'imported subject must be the bare subject name');
+assert.deepStrictEqual(
+    new Set(massarResult.records.map((record) => record.assessment)),
+    new Set(['الفرض الأول', 'الفرض الثاني', 'الأنشطة المندمجة'])
+);
+
+const semesterTwoResult = Parser.parseGradesSheets({
+    sheets: [{
+        name: 'NotesCC',
+        rows: [
+            ['', '', 'المستوى :', 'الأولى إعدادي مسار دولي'],
+            ['الدورة :', 'الدورة الثانية', 'السنة الدراسية :', schoolYear],
+            ['رقم التلميذ', 'إسم التلميذ', 'الفرض الأول'],
+            ['K141075862', 'الأول', 13]
+        ]
+    }],
+    sourceFileName: 'Export_10401E_1APIC-1_EDUCATION PHYSIQUE_28072026160705.xlsx',
+    schoolYear,
+    students
+});
+assert.strictEqual(semesterTwoResult.valid, true);
+assert.strictEqual(semesterTwoResult.metadata.semester, 2);
+assert.ok(semesterTwoResult.records.every((record) => record.semester === 2));
 
 console.log('grades-import-behavior: OK');

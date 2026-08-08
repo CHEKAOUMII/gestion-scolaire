@@ -81,6 +81,45 @@ assert.strictEqual(gradeExport.institutionName, 'الثانوية التأهيل
 assert.deepStrictEqual(gradeExport.levels, ['الأولى إعدادي مسار دولي']);
 assert.deepStrictEqual(gradeExport.sections, ['1APIC-2']);
 
+const gradeMetadata = ImportContext.extractContext(
+    workbook([
+        ['السنة الدراسية', '2026/2027'],
+        ['الدورة', 'الأولى'],
+        ['المادة', 'الرياضيات'],
+        ['نسخة القالب', 'v2']
+    ]),
+    'grades.xlsx',
+    { action: 'grades' }
+);
+assert.strictEqual(gradeMetadata.semester, 1);
+assert.strictEqual(gradeMetadata.subject, 'الرياضيات');
+assert.strictEqual(gradeMetadata.templateVersion, 'v2');
+
+const semesterTwoGradeContext = ImportContext.extractContext(
+    workbook([
+        ['المستوى', 'الأولى إعدادي مسار دولي'],
+        ['الدورة', 'الدورة الثانية']
+    ]),
+    'grades-semester-two.xlsx',
+    { action: 'grades' }
+);
+assert.strictEqual(semesterTwoGradeContext.semester, 2, 'the level name must not override explicit semester metadata');
+
+const templateMismatch = ImportContext.compareContexts(
+    gradeMetadata,
+    Object.assign({}, destination, { templateVersion: 'v1' }),
+    'grades'
+);
+assert.ok(templateMismatch.blocking.some((item) => item.code === 'TEMPLATE_MISMATCH'));
+
+const unresolvedGradeContext = ImportContext.compareContexts(
+    ImportContext.extractContext(workbook([['رقم التلميذ', 'S1'], ['النقطة', 12]]), 'grades.xlsx', { action: 'grades' }),
+    destination,
+    'grades'
+);
+assert.ok(unresolvedGradeContext.blocking.some((item) => item.code === 'SEMESTER_UNRESOLVED'));
+assert.ok(unresolvedGradeContext.blocking.some((item) => item.code === 'SUBJECT_UNRESOLVED'));
+
 const blocked = ImportContext.compareContexts(source, destination, 'students');
 assert.strictEqual(blocked.status, 'blocked');
 assert.ok(blocked.blocking.some((item) => item.code === 'SCHOOL_YEAR_MISMATCH'));
@@ -128,5 +167,44 @@ const missingMetadata = ImportContext.compareContexts(
 );
 assert.strictEqual(missingMetadata.canProceed, true);
 assert.strictEqual(missingMetadata.blocking.length, 0);
+
+const cycleSelectionSource = ImportContext.extractContext(
+    workbook([
+        ['الموسم الدراسي', '2026/2027'],
+        ['رمز المؤسسة', 'ABC123'],
+        ['اسم المؤسسة', 'ثانوية ابن سينا'],
+        ['السلك', 'الثانوي التأهيلي']
+    ]),
+    'students.xlsx',
+    { action: 'students' }
+);
+const nullCycleDestination = {
+    schoolYear: '2026/2027',
+    institutionCode: 'ABC123',
+    institutionName: 'ثانوية ابن سينا',
+    cycleCode: null,
+    cycleLabel: null
+};
+
+const selectionRequired = ImportContext.compareContexts(cycleSelectionSource, nullCycleDestination, 'students');
+assert.strictEqual(selectionRequired.status, 'blocked');
+assert.strictEqual(selectionRequired.canProceed, false);
+assert.ok(selectionRequired.blocking.some((item) => item.code === 'CYCLE_SELECTION_REQUIRED'));
+
+const nonHardCycleCheck = ImportContext.compareContexts(cycleSelectionSource, nullCycleDestination, 'fet');
+assert.ok(
+    !nonHardCycleCheck.blocking.some((item) => item.code === 'CYCLE_SELECTION_REQUIRED'),
+    'non-hard action must not block on a missing destination cycle'
+);
+
+const selectedCycleMatch = ImportContext.compareContexts(
+    cycleSelectionSource,
+    { schoolYear: '2026/2027', institutionCode: 'ABC123', institutionName: 'ثانوية ابن سينا',
+      cycleCode: 'secondary_qualifiant', cycleLabel: 'الثانوي التأهيلي' },
+    'students'
+);
+const selectedCycleCheck = selectedCycleMatch.checks.find((item) => item.key === 'cycle');
+assert.strictEqual(selectedCycleCheck.status, 'match');
+assert.strictEqual(selectedCycleCheck.blocking, false);
 
 console.log('import-context-preflight: OK');
