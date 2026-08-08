@@ -2,10 +2,14 @@
 
 const assert = require('assert');
 const timetableRepo = require('../main/repos/timetable.js');
+const { setRepoCapturePort, createNoOpCapturePort } = require('../main/repos/capture-port');
 
 function createFakeDb() {
     const rows = [];
     return {
+        transaction(fn) {
+            return (...args) => fn(...args);
+        },
         prepare(sql) {
             return {
                 run(...args) {
@@ -44,6 +48,7 @@ function createFakeDb() {
 }
 
 const db = createFakeDb();
+setRepoCapturePort(createNoOpCapturePort());
 const year = '2026/2027';
 timetableRepo.upsertByCycle(db, year, 'secondary_qualifiant', '{"timetables":{"Q":{}}}');
 timetableRepo.upsertByCycle(db, year, 'secondary_collegial', '{"timetables":{"C":{}}}');
@@ -56,7 +61,7 @@ assert.deepStrictEqual(
 assert.strictEqual(timetableRepo.getAllBySchoolYear(db, year, ['secondary_qualifiant']).length, 1);
 assert.strictEqual(timetableRepo.getAllBySchoolYear(db, year, ['secondary_qualifiant', 'secondary_collegial']).length, 2);
 assert.strictEqual(timetableRepo.getAllBySchoolYear(db, year, []).length, 0);
-assert.throws(() => timetableRepo.getByCycle(db, year, ''), /cycle_code is required/);
+assert.throws(() => timetableRepo.getByCycle(db, year, ''), /السلك التعليمي غير محدد|غير معروف/);
 
 timetableRepo.deleteByCycle(db, year, 'secondary_collegial');
 assert.strictEqual(timetableRepo.getByCycle(db, year, 'secondary_collegial'), null);
