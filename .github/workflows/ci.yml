@@ -27,5 +27,5 @@ jobs:
             - name: Run lint
               run: npm run lint
 
-            - name: Run smoke checks
-              run: npm run test:smoke
+            - name: Run tests
+              run: npm test

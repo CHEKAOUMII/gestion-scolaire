@@ -3,6 +3,7 @@
  * Aggregated test runner for Pencil2.
  *
  * Discovers and runs:
+ *   0. scripts/check-invariants.js            (repository invariant gate — must pass first)
  *   1. tests/smoke.js                          (existing IPC/contract smoke checks)
  *   2. tests/proctor-v3/*.test.js              (V3 algorithm tests — Section 3+)
  *   3. tests/proctor-distribution-v2-*.test.js (existing V2 algorithm tests)
@@ -96,6 +97,11 @@ function listTestFiles(dir) {
  */
 function buildPlan() {
   const plan = [];
+
+  // 0. Repository invariant gate (scripts/check-invariants.js) — cheap source-level
+  //    checks that must pass before any test runs (verdict 2026-08-03, Phase 5B).
+  const invariants = path.join(ROOT, 'scripts', 'check-invariants.js');
+  plan.push({ group: 'invariants', file: invariants });
 
   // 1. Smoke checks (single self-contained script).
   const smoke = path.join(TESTS_DIR, 'smoke.js');

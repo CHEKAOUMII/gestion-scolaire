@@ -57,6 +57,7 @@
             this._els = {};
             this._allClasses = [];
             this._levelMap = new Map();
+            this._classLevels = new Map();
             this._levelsMapping = {};
             this._allSubjects = [];
             this._allGradesCache = [];
@@ -119,6 +120,7 @@
             return {
                 classes: this._allClasses.slice(),
                 levelMap: new Map(this._levelMap),
+                classLevels: new Map(this._classLevels),
                 subjects: this._allSubjects.slice(),
                 grades: this._allGradesCache.slice()
             };
@@ -185,6 +187,12 @@
             }
             this._allClasses = classes.map((c) => c.name).filter(Boolean);
 
+            this._classLevels = new Map();
+            classes.forEach((c) => {
+                const lvl = String(c.level || '').trim();
+                if (c && c.name && lvl) this._classLevels.set(c.name, lvl);
+            });
+
             if (needsClasses || needsSubjects) {
                 try {
                     const mappingRaw = await api?.settings?.get?.('levelsMapping');
@@ -200,8 +208,10 @@
             const getLevelFromSection = global.getLevelFromSection;
             this._levelMap = new Map();
             this._allClasses.forEach((name) => {
-                const levelInfo =
-                    typeof getLevelFromSection === 'function'
+                const official = this._classLevels.get(name);
+                const levelInfo = official
+                    ? { code: official, name: official, order: Number.MAX_SAFE_INTEGER }
+                    : typeof getLevelFromSection === 'function'
                         ? getLevelFromSection(name)
                         : { code: name, name, order: 0 };
                 if (!this._levelMap.has(levelInfo.code)) {
@@ -266,6 +276,8 @@
         }
 
         _getLocalLevelName(section) {
+            const official = this._classLevels.get(section);
+            if (official) return official;
             const resolveLevelName = global.resolveLevelName;
             if (typeof resolveLevelName === 'function') {
                 return resolveLevelName(section, this._levelsMapping);

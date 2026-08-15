@@ -10,8 +10,19 @@ const gradesRepo = require('../repos/grades');
 const staffRepo = require('../repos/staff');
 const studentsRepo = require('../repos/students');
 const { normalizeStudentCode } = require('../../js/import-center/grades-import-parser');
+const { writeImportAudit, buildImportAuditDetails } = require('./import-audit');
 
 const WRITE_ROLES = ALLOWED_ROLES.filter((role) => role !== 'viewer');
+
+function buildTeacherAlias(teacher, rawName, schoolYear, source) {
+    if (!teacher?.teacher_id || !String(rawName || '').trim()) return null;
+    return {
+        teacher_id: teacher.teacher_id,
+        alias_name: rawName,
+        school_year: schoolYear,
+        source
+    };
+}
 
 /**
  * Validate shape and resolve student references for a bulk grade import.
@@ -91,15 +102,22 @@ function registerGradesIpc(ipcMain) {
     handleWrite(ipcMain, 'grades:save', WRITE_ROLES, (db, event, grade) => {
         validateRange('grade', grade.grade, 0, 20);
         requireSchoolYear(grade.school_year);
-        const teacher = resolveTeacherIdentity(db, { teacher_id: grade.teacher_id, teacher_name: grade.teacher_name, school_year: grade.school_year, source: 'grades:save' });
+        const teacher = resolveTeacherIdentity(
+            db,
+            { teacher_id: grade.teacher_id, teacher_name: grade.teacher_name, school_year: grade.school_year, source: 'grades:save' },
+            { persistAlias: false }
+        );
         return gradesRepo.saveOne(db, {
             ...grade,
             teacher_id: teacher.teacher_id || null,
             teacher_name: teacher.teacher_name || grade.teacher_name || '',
             teacher_resolution: teacher.ambiguous ? 'ambiguous' : teacher.teacher_id ? 'resolved' : 'unresolved',
             level: grade.level || '',
-            section: grade.section || ''
-        }, resolveCycleForRequest(db, event));
+            section: grade.section || '',
+            teacher_alias: buildTeacherAlias(teacher, grade.teacher_name, grade.school_year, 'grades:save')
+        }, resolveCycleForRequest(db, event), {
+            saveTeacherAlias: (dbConn, alias) => staffRepo.saveTeacherAlias(dbConn, alias)
+        });
     });
     handleWriteSoftAuth(ipcMain, 'grades:saveBulk', WRITE_ROLES, ({ db, event }, grades) => {
         if (!Array.isArray(grades)) return { success: false, error: 'Expected an array' };
@@ -108,21 +126,47 @@ function registerGradesIpc(ipcMain) {
         const { rows, skippedOtherCycle } = validateBulkStudentReferences(db, grades, cycle);
         const result = gradesRepo.saveBulk(db, rows, cycle, {
             resolveRow(grade) {
-                const teacher = resolveTeacherIdentity(db, { teacher_id: grade.teacher_id, teacher_name: grade.teacher_name, school_year: grade.school_year, source: 'grades:saveBulk' });
+                const teacher = resolveTeacherIdentity(
+                    db,
+                    { teacher_id: grade.teacher_id, teacher_name: grade.teacher_name, school_year: grade.school_year, source: 'grades:saveBulk' },
+                    { persistAlias: false }
+                );
                 return {
                     ...grade,
                     teacher_id: teacher.teacher_id || null,
                     teacher_name: teacher.teacher_name || grade.teacher_name || '',
                     teacher_resolution: teacher.ambiguous ? 'ambiguous' : teacher.teacher_id ? 'resolved' : 'unresolved',
                     level: grade.level || '',
-                    section: grade.section || ''
+                    section: grade.section || '',
+                    teacher_alias: buildTeacherAlias(teacher, grade.teacher_name, grade.school_year, 'grades:saveBulk')
                 };
+            },
+            saveTeacherAlias(dbConn, alias) {
+                return staffRepo.saveTeacherAlias(dbConn, alias);
             },
             onTeacherAssignments(dbConn, gradeRows, cycleCode) {
                 return staffRepo.createAssignmentSuggestions(dbConn, gradeRows, cycleCode, {
                     inTransaction: true,
                     source: 'grades_import'
                 });
+            },
+            audit(summary) {
+                const skippedRows = [...skippedOtherCycle, ...(summary.skippedRows || [])];
+                writeImportAudit(
+                    db,
+                    'grades',
+                    buildImportAuditDetails(
+                        {
+                            label: 'نقطة',
+                            count: summary.applied.length,
+                            inserted: summary.inserted,
+                            updated: summary.updated,
+                            skipped: skippedRows.length
+                        },
+                        rows[0]?.school_year,
+                        cycle
+                    )
+                );
             }
         });
         // Merge the rows filtered out before the repository ran with the ones its own
@@ -134,7 +178,7 @@ function registerGradesIpc(ipcMain) {
             skippedOtherCycle: skippedRows.length,
             skippedRows
         };
-    }, { allowNoSession: true, withContext: true });
+    }, { withContext: true });
     handleWriteSoftAuth(ipcMain, 'grades:reassignTeacherBulk', WRITE_ROLES, ({ db, event }, payload) => {
         const year = requireSchoolYear(payload?.school_year || payload?.schoolYear);
         const changes = Array.isArray(payload?.changes) ? payload.changes : [];
@@ -143,7 +187,14 @@ function registerGradesIpc(ipcMain) {
         return gradesRepo.reassignTeacherBulk(db, year, resolveCycleForRequest(db, event), changes, {
             normalizeSubject: normalizeSubjectName,
             resolveTeacher(dbConn, item, schoolYear) {
-                return resolveTeacherIdentity(dbConn, { teacher_id: item?.to_teacher_id, teacher_name: item?.to_teacher_name, school_year: schoolYear, source: 'grades:reassignTeacherBulk' });
+                return resolveTeacherIdentity(
+                    dbConn,
+                    { teacher_id: item?.to_teacher_id, teacher_name: item?.to_teacher_name, school_year: schoolYear, source: 'grades:reassignTeacherBulk' },
+                    { persistAlias: false }
+                );
+            },
+            saveTeacherAlias(dbConn, alias) {
+                return staffRepo.saveTeacherAlias(dbConn, alias);
             }
         });
     }, { withContext: true });

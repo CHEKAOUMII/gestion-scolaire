@@ -554,11 +554,16 @@
     }
 
     function stageErrorMessage(res) {
+        if (window.StageRulesErrorContract && typeof window.StageRulesErrorContract.renderErrorMessage === 'function') {
+            return window.StageRulesErrorContract.renderErrorMessage(res);
+        }
+        const serverMessage = res?.error || res?.message;
+        if (serverMessage) return serverMessage;
         const code = res?.code || res?.errorCode;
         if (code && window.StageRulesErrorContract && typeof window.StageRulesErrorContract.getMessage === 'function') {
             return window.StageRulesErrorContract.getMessage(code);
         }
-        return res?.error || res?.message || 'فشل العملية';
+        return 'فشل العملية';
     }
 
     function stageMessageFor(code) {

@@ -4,6 +4,7 @@ const cyclesRepo = require('../repos/cycles');
 const timetableRepo = require('../repos/timetable');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
+const { writeImportAudit, buildImportAuditDetails } = require('./import-audit');
 
 // R9 — size guard for the timetable_data JSON blob, mirroring the size-limit half
 // of the student_profile_data pattern. A full-year timetable is legitimately large,
@@ -66,7 +67,11 @@ function registerTimetableDataIpc(ipcMain) {
         if (json.length > TIMETABLE_MAX_JSON) {
             return { success: false, error: 'Timetable data exceeds maximum allowed size' };
         }
-        timetableRepo.upsertByCycle(db, year, cycle, json);
+        timetableRepo.upsertByCycle(db, year, cycle, json, {
+            audit() {
+                writeImportAudit(db, 'fet', buildImportAuditDetails({ label: 'جدول زمني', count: 1 }, year, cycle));
+            }
+        });
         return { success: true };
     }, { withContext: true });
 

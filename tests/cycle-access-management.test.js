@@ -65,12 +65,12 @@ function buildFixture({ includeCollegial = false } = {}) {
     `);
     ensureCycleReferenceSchema(db);
     db.prepare(
-        `INSERT INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+        `INSERT INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
          VALUES ('secondary_qualifiant', 1, 'qualifiant-2026-v1', 20)`
     ).run();
     if (includeCollegial) {
         db.prepare(
-            `INSERT INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+            `INSERT INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
              VALUES ('secondary_collegial', 1, 'collegial-2026-v1', 10)`
         ).run();
     }

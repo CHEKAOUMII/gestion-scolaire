@@ -19,6 +19,15 @@ const SOFT_AUTH_NO_SESSION_CHANNELS = new Set();
 
 const AUTH_ERROR_CODES = new Set(['UNAUTHENTICATED', 'FORBIDDEN', 'SESSION_LOCKED']);
 
+/**
+ * Cycle-resolution refusal codes (main/auth/resolve-cycle.js). They are stable,
+ * typed, and carry a direct remedy for the caller (select a stage / enable a
+ * cycle), so they must survive the IPC boundary as their own code instead of
+ * collapsing to INTERNAL_ERROR. Deliberately a closed set — unknown codes keep
+ * the generic collapse so nothing leaks.
+ */
+const CYCLE_RESOLUTION_CODES = new Set(['NO_USABLE_CYCLE', 'CYCLE_SELECTION_REQUIRED']);
+
 function looksLikeInternalErrorMessage(message) {
     const msg = String(message || '').trim();
     if (!msg) return true;
@@ -66,10 +75,10 @@ function getDefaultYear() {
  * Single source of truth — replaces the 9 copy-pasted versions.
  */
 function authErrorResponse(err) {
-    const isAuthError = AUTH_ERROR_CODES.has(err?.code);
+    const isKnownCode = AUTH_ERROR_CODES.has(err?.code) || CYCLE_RESOLUTION_CODES.has(err?.code);
     return {
         success: false,
-        code: isAuthError ? err.code : 'INTERNAL_ERROR',
+        code: isKnownCode ? err.code : 'INTERNAL_ERROR',
         error: sanitizeIpcErrorMessage(err)
     };
 }

@@ -95,8 +95,8 @@ function dbWithColumns(columns) {
     };
 }
 
-const STALE_COLUMNS = ['id', 'profile_version'];
-const CURRENT_COLUMNS = ['id', 'cycle_code', 'profile_version', 'is_active'];
+const STALE_COLUMNS = ['id'];
+const CURRENT_COLUMNS = ['id', 'cycle_code', 'seed_profile_version_hint', 'is_active'];
 const incoming = {
     tableName: 'institution_cycles',
     operation: 'PUT',

@@ -17,6 +17,7 @@ const {
     COLLEGIAL_CYCLE,
     QUALIFIANT_CYCLE
 } = require('../../js/shared/education/cycles');
+const StageRulesErrorContract = require('../../js/shared/errors/stage-rules-error-contract');
 
 /** Lazy require: repos are loaded at call time, never at module registration. */
 function getStageRulesRepo() {
@@ -351,9 +352,12 @@ function registerAppDefaultsIpc(ipcMain) {
         const cycleCode = String(payload?.cycleCode ?? payload?.cycle_code ?? '').trim() || QUALIFIANT_CYCLE;
         const count = lookupExamCount(db, levelCode, subject, cycleCode);
         if (count == null) {
+            const message = StageRulesErrorContract.getMessage('MISSING_RULE');
             return {
                 success: false,
                 code: 'MISSING_RULE',
+                error: message,
+                message,
                 count: null,
                 levelCode: normalizeLevelCode(levelCode),
                 subject: normalizeSubject(subject)

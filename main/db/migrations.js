@@ -2094,11 +2094,12 @@ const MIGRATIONS = [
     {
         version: '2026-07-070-institution-cycles',
         up: () => {
-            ensureInstitutionCyclesSchema();
             const db = getDb();
+            ensureInstitutionCycleSeedHintColumn(db);
+            ensureInstitutionCyclesSchema();
             db.prepare(
                 `INSERT OR IGNORE INTO institution_cycles
-                 (cycle_code, is_active, profile_version, sort_order)
+                 (cycle_code, is_active, seed_profile_version_hint, sort_order)
                  VALUES ('${QUALIFIANT_CYCLE}', 1, 'qualifiant-2026-v1', 20)`
             ).run();
         }
@@ -2511,6 +2512,7 @@ const MIGRATIONS = [
         version: '2026-08-080-primary-stage-catalogs',
         up: () => {
             const db = getDb();
+            ensureInstitutionCycleSeedHintColumn(db);
             const { LEVEL_CODES } = require('./exam-count-defaults');
             const { PRIMARY_LEVEL_CODES, COLLEGIAL_LEVEL_CODES } = require('./education-catalogs/primary-levels');
             const { seedSubjectCatalog } = require('./education-catalogs/subject-catalog');
@@ -2549,7 +2551,7 @@ const MIGRATIONS = [
             // is never resolvable as a work cycle (capability gate in cycles repo).
             db.prepare(
                 `INSERT OR IGNORE INTO institution_cycles
-                 (cycle_code, is_active, profile_version, sort_order)
+                 (cycle_code, is_active, seed_profile_version_hint, sort_order)
                  VALUES (?, 1, 'primary-2026-v1', 5)`
             ).run(PRIMARY_CYCLE);
         }
@@ -2618,7 +2620,7 @@ const MIGRATIONS = [
         //     rule_set_id) is the runtime-authoritative reference: the qualifiant
         //     profile is bound to the ACTIVE stage_rule_sets revision of the same
         //     school year when one exists; primary/continuous rows never bind a rule
-        //     set. CYCLE_CATALOG.profileVersion / institution_cycles.profile_version
+        //     set. CYCLE_CATALOG.seedProfileVersionHint / institution_cycles.seed_profile_version_hint
         //     remain seed/migration hints only (row 110).
         //   - `default_exam_counts` is NOT recreated anywhere: exam_count_rules is the
         //     sole source (row 107).
@@ -2802,8 +2804,143 @@ const MIGRATIONS = [
 
             recordMigration.run('2026-08-084-collegial-stage-file');
         }
+    },
+    {
+        // Pencil2 remediation verdict 2026-08-03 (Phase 1, P0): drop the historical
+        // qualifiant cycle default from students/grades/absences. The G3
+        // "no default to qualifiant" rule was violated at the DDL layer: any INSERT
+        // that omitted cycle_code silently wrote a qualifiant row. NOT NULL stays;
+        // no replacement default, no guessed value. All write paths (repos,
+        // sync requiredColumns) already supply cycle_code explicitly, so this is
+        // pure DDL hardening. SQLite cannot ALTER a column's default away, so each
+        // affected table is rebuilt only when the default is actually present.
+        // recordsVersionInternally: PRAGMA foreign_keys can only be toggled outside
+        // a transaction (pattern 2026-07-065 / 2026-08-083). Zero outbox rows.
+        version: '2026-08-085-drop-silent-cycle-code-defaults',
+        recordsVersionInternally: true,
+        up: () => {
+            const db = getDb();
+            const recordMigration = db.prepare('INSERT INTO schema_migrations(version) VALUES(?)');
+
+            const REBUILDS = [
+                {
+                    table: 'students',
+                    createTempSql: `CREATE TABLE students__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        code TEXT,
+                        full_name TEXT NOT NULL,
+                        family_name TEXT,
+                        birth_date TEXT,
+                        birth_place TEXT,
+                        gender TEXT,
+                        section TEXT,
+                        level TEXT,
+                        school_name TEXT,
+                        school_year TEXT,
+                        status TEXT DEFAULT 'active',
+                        registration_type TEXT DEFAULT 'new',
+                        cycle_code TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(code, school_year)
+                    )`
+                },
+                {
+                    table: 'grades',
+                    createTempSql: `CREATE TABLE grades__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        student_id INTEGER,
+                        student_code TEXT,
+                        teacher_id INTEGER,
+                        subject TEXT,
+                        grade REAL,
+                        semester INTEGER,
+                        teacher_name TEXT,
+                        level TEXT,
+                        section TEXT,
+                        school_year TEXT,
+                        cycle_code TEXT NOT NULL,
+                        teacher_resolution TEXT DEFAULT 'unresolved',
+                        source_file_name TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+                         FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
+                    )`
+                },
+                {
+                    table: 'absences',
+                    createTempSql: `CREATE TABLE absences__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        student_id INTEGER,
+                        student_code TEXT,
+                        absence_date DATE,
+                        month TEXT,
+                        absence_type TEXT DEFAULT 'unjustified',
+                        hours INTEGER DEFAULT 0,
+                        days REAL DEFAULT 0,
+                        reason TEXT,
+                        school_year TEXT,
+                        cycle_code TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+                    )`
+                }
+            ];
+
+            const silentDefaultPattern = new RegExp(`cycle_code\\s+TEXT NOT NULL DEFAULT\\s+'${QUALIFIANT_CYCLE}'`);
+            const needsRebuild = REBUILDS.filter(({ table }) => {
+                if (!tableExists(db, table)) return false;
+                const row = db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`).get(table);
+                return silentDefaultPattern.test(String(row?.sql || ''));
+            });
+
+            if (!needsRebuild.length) {
+                recordMigration.run('2026-08-085-drop-silent-cycle-code-defaults');
+                return;
+            }
+
+            db.exec('PRAGMA foreign_keys=off;');
+            const txn = db.transaction(() => {
+                for (const { table, createTempSql } of needsRebuild) {
+                    rebuildTableWithConstraints(db, table, createTempSql);
+                }
+                recordMigration.run('2026-08-085-drop-silent-cycle-code-defaults');
+            });
+            try {
+                txn();
+            } finally {
+                db.exec('PRAGMA foreign_keys=on;');
+            }
+        }
+    },
+    {
+        // Remediation verdict 2026-08-03 (Phase 5A,
+        // docs/reviews/2026-08-03-multi-stage-management-review-verdict.md):
+        // `institution_cycles.profile_version` is a seed/migration hint only —
+        // never effectivity truth (that is `cycle_profile_assignments.profile_version`).
+        // Renamed to `seed_profile_version_hint` so the hint cannot be mistaken for
+        // the runtime-authoritative profile. Fresh installs already create the new
+        // column name (ensureInstitutionCyclesSchema); upgraded DBs get the rename
+        // here. Idempotent: skipped when the new column exists or the old one is
+        // absent (including installs without the table). Schema-only — zero
+        // sync_outbox rows, zero capture. SQLite >= 3.25 supports ALTER TABLE RENAME
+        // COLUMN (available on the bundled better-sqlite3 and node:sqlite engines).
+        version: '2026-08-086-rename-cycle-seed-profile-version-hint',
+        up: () => {
+            const db = getDb();
+            ensureInstitutionCycleSeedHintColumn(db);
+        }
     }
 ];
+
+function ensureInstitutionCycleSeedHintColumn(db) {
+    if (!tableExists(db, 'institution_cycles')) return;
+    const columns = db
+        .prepare(`PRAGMA table_info(institution_cycles)`)
+        .all()
+        .map((column) => column.name);
+    if (columns.includes('seed_profile_version_hint') || !columns.includes('profile_version')) return;
+    db.exec('ALTER TABLE institution_cycles RENAME COLUMN profile_version TO seed_profile_version_hint');
+}
 
 // R6/R7 — SQLite cannot ALTER an existing table to add/modify a FOREIGN KEY or its
 // ON DELETE action, so each affected table must be rebuilt. This helper performs the

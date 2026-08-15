@@ -40,7 +40,7 @@ assert.ok(primaryDefinition, 'primary must be in the cycle catalog');
 assert.strictEqual(primaryDefinition.labelAr, 'سلك التعليم الابتدائي');
 assert.strictEqual(primaryDefinition.labelFr, 'Enseignement primaire');
 assert.strictEqual(primaryDefinition.sortOrder, 5);
-assert.strictEqual(primaryDefinition.profileVersion, 'primary-2026-v1');
+assert.strictEqual(primaryDefinition.seedProfileVersionHint, 'primary-2026-v1');
 assert.strictEqual(primaryDefinition.capability, 'preview', 'primary is preview until the flows slice');
 assert.strictEqual(CYCLE_CATALOG.length, 3);
 
@@ -118,7 +118,7 @@ function buildFixture() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cycle_code TEXT NOT NULL UNIQUE,
             is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
-            profile_version TEXT NOT NULL,
+            seed_profile_version_hint TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -150,7 +150,7 @@ function buildFixture() {
     const cycles = db.prepare('SELECT * FROM institution_cycles').all();
     assert.strictEqual(cycles.length, 1, 'direct SQL seed, not cyclesRepo.addCycle');
     assert.strictEqual(cycles[0].cycle_code, PRIMARY);
-    assert.strictEqual(cycles[0].profile_version, 'primary-2026-v1');
+    assert.strictEqual(cycles[0].seed_profile_version_hint, 'primary-2026-v1');
     assert.strictEqual(Number(cycles[0].is_active), 1);
     assert.strictEqual(Number(cycles[0].sort_order), 5);
     assert.strictEqual(outboxAfterFirstRun, outboxBefore, 'migration must not write the sync outbox');
@@ -218,6 +218,123 @@ function buildFixture() {
     // No primary exam_count_rules are seeded by this slice (official rule pending).
     db.close();
     console.log('  [ok] S3 migration seeds cycles/levels/subjects/aliases idempotently, no outbox');
+}
+
+// ── 2026-08-086: rename the seed/profile-version hint column ────────────────
+{
+    const renameMigration = MIGRATIONS.find((entry) => entry.version === '2026-08-086-rename-cycle-seed-profile-version-hint');
+    assert.ok(renameMigration, 'cycle seed-profile-version-hint rename migration must be registered');
+
+    function columnNames(db) {
+        return db.prepare(`PRAGMA table_info(institution_cycles)`).all().map((c) => c.name);
+    }
+
+    // Upgraded DB: the pre-rename column exists and must be renamed in place.
+    {
+        const db = openDb();
+        db.exec(`
+            CREATE TABLE institution_cycles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cycle_code TEXT NOT NULL UNIQUE,
+                is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
+                profile_version TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        db.prepare(
+            `INSERT INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+             VALUES (?, 1, 'qualifiant-2026-v1', 20)`
+        ).run(QUALIFIANT);
+        setDb(db);
+        renameMigration.up();
+        assert.ok(columnNames(db).includes('seed_profile_version_hint'), 'old column is renamed on upgraded DBs');
+        assert.ok(!columnNames(db).includes('profile_version'), 'old hint column no longer exists');
+        const row = db.prepare(`SELECT * FROM institution_cycles WHERE cycle_code = ?`).get(QUALIFIANT);
+        assert.strictEqual(row.seed_profile_version_hint, 'qualifiant-2026-v1', 'hint value survives the rename');
+        renameMigration.up(); // idempotence: a re-run must be a no-op
+        assert.ok(columnNames(db).includes('seed_profile_version_hint'));
+        assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM institution_cycles').get().c, 1);
+        db.close();
+        console.log('  [ok] 086 renames institution_cycles.profile_version on upgraded DBs, idempotently');
+    }
+
+    // Migration 070 is the first migration that writes the hint column. It must
+    // repair an upgraded pre-086 table before issuing that INSERT.
+    {
+        const institutionMigration = MIGRATIONS.find((entry) => entry.version === '2026-07-070-institution-cycles');
+        assert.ok(institutionMigration, 'institution cycle migration must be registered');
+        const db = openDb();
+        db.exec(`
+            CREATE TABLE institution_cycles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cycle_code TEXT NOT NULL UNIQUE,
+                is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
+                profile_version TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        db.prepare(
+            `INSERT INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+             VALUES (?, 1, 'qualifiant-2026-v1', 20)`
+        ).run(QUALIFIANT);
+        setDb(db);
+        institutionMigration.up();
+        assert.ok(columnNames(db).includes('seed_profile_version_hint'), 'migration 070 repairs the old hint column first');
+        assert.strictEqual(
+            db.prepare(`SELECT COUNT(*) AS c FROM institution_cycles WHERE cycle_code = ?`).get(QUALIFIANT).c,
+            1,
+            'migration 070 remains idempotent after the compatibility rename'
+        );
+        db.close();
+        setDb(null);
+        console.log('  [ok] migration 070 repairs old hint schema before its first INSERT');
+    }
+
+    // Fresh DB: the new column name already exists — nothing to rename, no outbox.
+    {
+        const db = openDb();
+        db.exec(`
+            CREATE TABLE institution_cycles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cycle_code TEXT NOT NULL UNIQUE,
+                is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
+                seed_profile_version_hint TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE sync_outbox (
+                id INTEGER PRIMARY KEY,
+                table_name TEXT,
+                row_sync_id TEXT,
+                operation TEXT,
+                row_data TEXT,
+                school_year TEXT,
+                status TEXT,
+                retries INTEGER
+            );
+        `);
+        db.prepare(
+            `INSERT INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
+             VALUES (?, 1, 'primary-2026-v1', 5)`
+        ).run(PRIMARY);
+        setDb(db);
+        const outboxBefore = db.prepare('SELECT COUNT(*) AS c FROM sync_outbox').get().c;
+        renameMigration.up();
+        assert.ok(columnNames(db).includes('seed_profile_version_hint'));
+        assert.ok(!columnNames(db).includes('profile_version'));
+        assert.strictEqual(
+            db.prepare('SELECT COUNT(*) AS c FROM sync_outbox').get().c,
+            outboxBefore,
+            'the rename writes zero outbox rows'
+        );
+        db.close();
+        console.log('  [ok] 086 is a no-op on fresh schemas with zero outbox rows');
+    }
 }
 
 // ── S1/S3: re-running inference never rewrites an explicit cycle_code ───────

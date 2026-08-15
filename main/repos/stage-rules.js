@@ -27,7 +27,9 @@ function normalizeCoefficientEntries(entries) {
         const streamCode = String(entry?.streamCode || '').trim();
         const subjectCode = String(entry?.subjectCode || '').trim();
         const coefficient = Number(entry?.coefficient);
-        if (!cycleCode || !levelCode || !streamCode || !subjectCode) throw stageRulesError('MISSING_RULE');
+        if (!cycleCode || !levelCode || !streamCode || !subjectCode) {
+            throw stageRulesError('RULES_INPUT_INVALID', 'المدخل غير مكتمل: يجب تحديد السلك والمستوى والشعبة والمادة');
+        }
         if (!Number.isInteger(coefficient) || coefficient < 1 || coefficient > 20) {
             throw stageRulesError('COEFFICIENT_OUT_OF_RANGE');
         }
@@ -41,7 +43,9 @@ function normalizeExamCountEntries(entries) {
         const levelCode = String(entry?.levelCode || '').trim();
         const subjectCode = String(entry?.subjectCode || '').trim();
         const examCount = Number(entry?.examCount);
-        if (!cycleCode || !levelCode || !subjectCode) throw stageRulesError('MISSING_RULE');
+        if (!cycleCode || !levelCode || !subjectCode) {
+            throw stageRulesError('RULES_INPUT_INVALID', 'المدخل غير مكتمل: يجب تحديد السلك والمستوى والمادة');
+        }
         if (!Number.isInteger(examCount) || examCount < 1 || examCount > 12) {
             throw stageRulesError('EXAM_COUNT_OUT_OF_RANGE');
         }
@@ -55,7 +59,9 @@ function normalizeWeightEntries(entries) {
         const subjectCode = String(entry?.subjectCode || '').trim();
         const examWeightBps = Number(entry?.examWeightBps);
         const activityWeightBps = Number(entry?.activityWeightBps);
-        if (!cycleCode || !subjectCode) throw stageRulesError('MISSING_RULE');
+        if (!cycleCode || !subjectCode) {
+            throw stageRulesError('RULES_INPUT_INVALID', 'المدخل غير مكتمل: يجب تحديد السلك والمادة');
+        }
         if (
             !Number.isInteger(examWeightBps) ||
             !Number.isInteger(activityWeightBps) ||
@@ -130,8 +136,28 @@ function getActiveProfileForCycle(db, schoolYear, cycleCode) {
  * and must point at a stage_rule_sets revision of the SAME school year. Any
  * contradictory combination refuses the whole operation.
  */
-function assignActiveProfile(db, schoolYear, cycleCode, ruleSetId) {
-    const profile = resolveProfileForCycle(db, cycleCode);
+function resolveAssignmentProfile(db, schoolYear, cycleCode, preferredProfileVersion) {
+    if (preferredProfileVersion) {
+        const profile = db
+            .prepare(`SELECT * FROM cycle_profiles WHERE cycle_code = ? AND profile_version = ?`)
+            .get(cycleCode, preferredProfileVersion);
+        if (!profile) throw stageRulesError('RULES_UNAVAILABLE', 'ملف المرحلة المشار إليه غير متوفر.');
+        return profile;
+    }
+    const assignment = db
+        .prepare(`SELECT profile_version FROM cycle_profile_assignments WHERE school_year = ? AND cycle_code = ?`)
+        .get(schoolYear, cycleCode);
+    if (!assignment) return resolveProfileForCycle(db, cycleCode);
+    const profile = db
+        .prepare(`SELECT * FROM cycle_profiles WHERE cycle_code = ? AND profile_version = ?`)
+        .get(cycleCode, assignment.profile_version);
+    if (!profile) throw stageRulesError('RULES_UNAVAILABLE', 'ملف المرحلة المعيّن غير متوفر.');
+    return profile;
+}
+
+function assignActiveProfile(db, schoolYear, cycleCode, options) {
+    const { ruleSetId, profileVersion } = options;
+    const profile = resolveAssignmentProfile(db, schoolYear, cycleCode, profileVersion);
     const usesCoefficients = Number(profile.uses_coefficients) !== 0;
     if (usesCoefficients && ruleSetId == null) {
         throw stageRulesError('RULES_UNAVAILABLE', 'ملف المرحلة يتطلب مجموعة قواعد نشطة لهذه السنة.');
@@ -189,7 +215,7 @@ function getActiveRuleSet(db, schoolYear) {
  * S4 runtime-authoritative resolver (plan rows 110-111): reads the effectivity
  * assignment for (school_year, cycle_code) and returns the rule set it points at.
  * Missing assignment / missing rule set / non-null rule_set_id on a continuous
- * profile are all RULES_UNAVAILABLE — CYCLE_CATALOG.profileVersion is never used
+ * profile are all RULES_UNAVAILABLE — CYCLE_CATALOG.seedProfileVersionHint is never used
  * to second-guess the assignment. The assignment's profile_version must itself
  * resolve to a real cycle_profiles row, otherwise the spine is broken and the
  * call refuses instead of guessing.
@@ -211,7 +237,18 @@ function getActiveRuleSetForCycle(db, schoolYear, cycleCode) {
             `ملف المرحلة المعيّن (${cycleCode}/${assignment.profile_version}) غير متوفر.`
         );
     }
-    const setRow = db.prepare(`SELECT * FROM stage_rule_sets WHERE id = ?`).get(assignment.rule_set_id);
+    const profileDetails = db
+        .prepare(`SELECT uses_coefficients FROM cycle_profiles WHERE cycle_code = ? AND profile_version = ?`)
+        .get(cycleCode, assignment.profile_version);
+    if (!profileDetails) {
+        throw stageRulesError('RULES_UNAVAILABLE', 'ملف المرحلة المعيّن غير متوفر.');
+    }
+    if (Number(profileDetails.uses_coefficients) === 0) {
+        throw stageRulesError('RULES_UNAVAILABLE', 'ملف التقويم المستمر لا يقبل ربطاً بمجموعة قواعد.');
+    }
+    const setRow = db
+        .prepare(`SELECT * FROM stage_rule_sets WHERE id = ? AND school_year = ? AND status = 'active'`)
+        .get(assignment.rule_set_id, schoolYear);
     if (!setRow) throw stageRulesError('RULES_UNAVAILABLE', 'مجموعة القواعد المشار إليها غير متوفرة.');
     return setRow;
 }
@@ -355,7 +392,7 @@ function createNextRevision(db, schoolYear, previous, reason, actor, cycleCode) 
     }
     // S4: every new revision atomically re-binds the effectivity spine for its
     // cycle (plan row 111) — or refuses the whole operation.
-    assignActiveProfile(db, schoolYear, cycleCode, setRow.id);
+    assignActiveProfile(db, schoolYear, cycleCode, { ruleSetId: setRow.id });
     return setRow;
 }
 
@@ -543,7 +580,7 @@ function saveAllRules(db, payload) {
     requireCyclesEditable(db, coefficientEntries.map((entry) => entry.cycle_code));
     requireCyclesEditable(db, weightEntries.map((entry) => entry.cycle_code));
     if (!coefficientEntries.length && !examCountEntries.length && !weightEntries.length) {
-        throw stageRulesError('MISSING_RULE');
+        throw stageRulesError('RULES_INPUT_INVALID', 'لا توجد قواعد للتعديل');
     }
     const previous = requireEditableState(db, payload.schoolYear);
     const cycleCode =
@@ -724,7 +761,10 @@ function applyOfficialRuleSet(db, seedData, reason) {
         upsertOfficialWeights(db, setRow.id, weightSeeds);
         // S4 effectivity spine: the seed path refreshes the assignment in the same
         // transaction (local seed data — never captures, never audits).
-        assignActiveProfile(db, schoolYear, cycleCode, setRow.id);
+        assignActiveProfile(db, schoolYear, cycleCode, {
+            ruleSetId: setRow.id,
+            profileVersion: resolveProfileForCycle(db, cycleCode).profile_version
+        });
         return setRow;
     });
 
@@ -855,7 +895,7 @@ function upsertOfficialWeights(db, ruleSetId, seeds) {
 function resetToOfficial(db, payload) {
     const normalizedReason = requireReason(payload?.reason);
     const scope = String(payload?.scope || '');
-    if (scope !== 'row' && scope !== 'bulk') throw stageRulesError('MISSING_RULE');
+    if (scope !== 'row' && scope !== 'bulk') throw stageRulesError('RULES_INPUT_INVALID', 'نطاق الاستعادة يجب أن يكون "row" أو "bulk"');
     if (scope === 'bulk' && payload?.confirm !== true) throw stageRulesError('CONFIRM_REQUIRED');
     const keys =
         scope === 'row'
@@ -894,7 +934,7 @@ function resetToOfficial(db, payload) {
             if (coefficient) beforeRows.push({ table: 'coefficients', key, row: coefficient });
             if (examCount) beforeRows.push({ table: 'examCounts', key, row: examCount });
         }
-        if (!beforeRows.length) throw stageRulesError('MISSING_RULE');
+        if (!beforeRows.length) throw stageRulesError('MISSING_RULE', 'لا توجد قاعدة مخصصة لاستعادتها لهذا المفتاح');
     }
 
     const run = db.transaction(() => {
@@ -1012,9 +1052,9 @@ function normalizeResetKey(raw) {
     const streamCode = String(key.streamCode || '').trim();
     const subjectCode = String(key.subjectCode || '').trim();
     const ruleType = String(key.ruleType || key.rule_type || '').trim();
-    if (!cycleCode || !subjectCode) throw stageRulesError('MISSING_RULE');
+    if (!cycleCode || !subjectCode) throw stageRulesError('RULES_INPUT_INVALID', 'مفتاح الاستعادة غير مكتمل: السلك والمادة مطلوبان');
     if (ruleType === 'weight') return { rule_type: ruleType, cycle_code: cycleCode, subject_code: subjectCode };
-    if (!levelCode || !streamCode) throw stageRulesError('MISSING_RULE');
+    if (!levelCode || !streamCode) throw stageRulesError('RULES_INPUT_INVALID', 'مفتاح الاستعادة غير مكتمل: المستوى والشعبة مطلوبان');
     return { rule_type: ruleType, cycle_code: cycleCode, level_code: levelCode, stream_code: streamCode, subject_code: subjectCode };
 }
 

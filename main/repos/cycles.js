@@ -20,7 +20,7 @@ function listCycleCatalog() {
         label_ar: definition.labelAr,
         label_fr: definition.labelFr,
         sort_order: definition.sortOrder,
-        profile_version: definition.profileVersion,
+        seed_profile_version_hint: definition.seedProfileVersionHint,
         capability: definition.capability
     }));
 }
@@ -28,7 +28,7 @@ function listCycleCatalog() {
 function listCycles(db) {
     return db
         .prepare(
-            `SELECT id, cycle_code, is_active, profile_version, created_at, updated_at
+            `SELECT id, cycle_code, is_active, seed_profile_version_hint, created_at, updated_at
              FROM institution_cycles ORDER BY sort_order, cycle_code`
         )
         .all()
@@ -38,7 +38,7 @@ function listCycles(db) {
 function getActiveCycle(db, cycleCode) {
     return db
         .prepare(
-            `SELECT id, cycle_code, is_active, profile_version, created_at, updated_at
+            `SELECT id, cycle_code, is_active, seed_profile_version_hint, created_at, updated_at
              FROM institution_cycles WHERE cycle_code = ? LIMIT 1`
         )
         .get(cycleCode) || null;
@@ -67,9 +67,9 @@ function addCycle(db, cycleCode) {
     const insertCycle = db.transaction(() => {
         if (getActiveCycle(db, definition.cycleCode)) throw new Error('السلك مضاف مسبقاً إلى المؤسسة');
         db.prepare(
-            `INSERT INTO institution_cycles(cycle_code, is_active, profile_version, sort_order, updated_at)
+            `INSERT INTO institution_cycles(cycle_code, is_active, seed_profile_version_hint, sort_order, updated_at)
              VALUES (?, 1, ?, ?, CURRENT_TIMESTAMP)`
-        ).run(definition.cycleCode, definition.profileVersion, definition.sortOrder);
+        ).run(definition.cycleCode, definition.seedProfileVersionHint, definition.sortOrder);
         captureCycleMutation(db, definition.cycleCode);
     });
     insertCycle();

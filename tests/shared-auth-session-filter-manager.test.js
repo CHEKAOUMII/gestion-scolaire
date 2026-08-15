@@ -77,6 +77,47 @@ const fm = new FilterManager({
 assert.deepStrictEqual(fm.getValues(), { level: '', class: '', subject: '', teacher: '' });
 console.log('  [ok] FilterManager class published on PencilShared + bare global');
 
+// Official level from classes:getAll drives the level dropdown (plan §2.5)
+(async () => {
+    const apiStub = {
+        classes: {
+            getAll: async () => [
+                { name: '1APIC-1', level: 'الأولى إعدادي مسار دولي' },
+                { name: '1APIC-2', level: 'الأولى إعدادي مسار دولي' },
+                { name: '3APIC-7', level: 'الثالثة إعدادي مسار دولي' }
+            ]
+        },
+        settings: { get: async () => '' },
+        subjects: { getAll: async () => [] },
+        grades: { getAll: async () => [] }
+    };
+    global.window.api = apiStub;
+    const fmDataDriven = new FilterManager({
+        selectors: { level: 'search-level' },
+        year: '2025/2026'
+    });
+    await fmDataDriven._loadData();
+    assert.strictEqual(
+        fmDataDriven._getLocalLevelName('1APIC-1'),
+        'الأولى إعدادي مسار دولي',
+        'official DB level wins over section-derived fallback'
+    );
+    assert.strictEqual(fmDataDriven._getLocalLevelName('1APIC-2'), 'الأولى إعدادي مسار دولي');
+    assert.strictEqual(fmDataDriven._getLocalLevelName('3APIC-7'), 'الثالثة إعدادي مسار دولي');
+    const levelNames = [...fmDataDriven._levelMap.values()].map((e) => e.name).sort();
+    assert.deepStrictEqual(
+        levelNames,
+        ['الأولى إعدادي مسار دولي', 'الثالثة إعدادي مسار دولي'],
+        'dropdown values are the official labels, not raw section codes'
+    );
+    assert.strictEqual(fmDataDriven.getData().classLevels.get('1APIC-1'), 'الأولى إعدادي مسار دولي');
+    delete global.window.api;
+    console.log('  [ok] FilterManager uses official students.level via classes:getAll');
+})().catch((err) => {
+    console.error('  [FAIL] official-level FilterManager block:', err);
+    process.exit(1);
+});
+
 // HTML pages that load utils.js must load shared scripts first
 const root = path.join(__dirname, '..');
 const htmlFiles = fs.readdirSync(root).filter((f) => f.endsWith('.html'));

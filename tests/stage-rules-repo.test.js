@@ -369,7 +369,7 @@ function run() {
                     reason: 'cause',
                     actor: ACTOR
                 }),
-            'MISSING_RULE'
+            'RULES_INPUT_INVALID'
         );
         throwsCode(
             () =>
@@ -508,11 +508,18 @@ function run() {
             0,
             'the continuous primary profile is never bound to a rule set'
         );
+        throwsCode(
+            () => stageRulesRepo.getActiveRuleSetForCycle(db, YEAR_A, 'secondary_qualifiant'),
+            'RULES_UNAVAILABLE',
+            'a closed assigned rule set is not active'
+        );
+        db.prepare(`UPDATE stage_rule_sets SET status = 'active' WHERE id = ?`).run(setA5.id);
         assert.deepStrictEqual(
             stageRulesRepo.getActiveRuleSetForCycle(db, YEAR_A, 'secondary_qualifiant'),
             db.prepare(`SELECT * FROM stage_rule_sets WHERE id = ?`).get(setA5.id),
             'the runtime resolver reads the assignment, not status alone'
         );
+        db.prepare(`UPDATE stage_rule_sets SET status = 'closed' WHERE id = ?`).run(setA5.id);
         throwsCode(
             () => stageRulesRepo.getActiveRuleSetForCycle(db, YEAR_A, 'primary'),
             'RULES_UNAVAILABLE',

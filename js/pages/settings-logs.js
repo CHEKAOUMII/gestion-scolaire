@@ -90,17 +90,6 @@
         else select.value = '';
     }
 
-    async function seedLog() {
-        if (!window.api?.systemLogs?.add) return;
-        await window.api.systemLogs.add({
-            action: 'manual:test',
-            details: 'seed log from settings-logs',
-            entity_type: 'manual',
-            entity_id: 'seed'
-        });
-        await loadLogs();
-    }
-
     async function loadLogs() {
         if (!window.api?.systemLogs?.getAll) return;
         allLogs = (await window.api.systemLogs.getAll(300)) || [];
@@ -110,7 +99,6 @@
 
     function init() {
         document.getElementById('refresh')?.addEventListener('click', loadLogs);
-        document.getElementById('seed')?.addEventListener('click', seedLog);
         document.getElementById('action-filter')?.addEventListener('change', renderLogRows);
         loadLogs();
     }

@@ -37,19 +37,28 @@ function getKnownCycleCodes(db, fallbackCycle) {
             `SELECT cycle_code FROM institution_cycles WHERE cycle_code IS NOT NULL AND TRIM(cycle_code) <> '' ORDER BY sort_order, cycle_code`
         ).all();
         const codes = rows.map((row) => String(row.cycle_code).trim()).filter(Boolean);
-        if (codes.length) return [...new Set([...codes, fallbackCycle])];
+        if (codes.length) return [...new Set([...codes, ...(fallbackCycle ? [fallbackCycle] : [])])];
     } catch {
         // Single-cycle installations may not have institution_cycles yet.
     }
-    return [fallbackCycle];
+    return fallbackCycle ? [fallbackCycle] : [];
 }
 
 function resolveReportScope(db, event, session, request) {
-    const activeCycle = resolveCycleForRequest(db, event);
     const requestedCycle = request.cycleCode;
     if (requestedCycle && ALL_CYCLE_VALUES.has(requestedCycle.toLowerCase())) {
+        // The all-cycles gate is a pure role decision — it must never be shadowed by
+        // an unrelated cycle-resolution failure (multi-stage review, Phase 4A).
         if (!ADMINISTRATIVE_REPORT_ROLES.has(session?.role)) {
             throw reportError('التقرير المجمع بين الأسلاك مخصص للإدارة فقط', 'ALL_CYCLES_REPORT_FORBIDDEN');
+        }
+        let activeCycle = null;
+        try {
+            activeCycle = resolveCycleForRequest(db, event);
+        } catch {
+            // Administrative aggregate reports do not depend on a single active
+            // cycle; the institution rows below are authoritative. The active
+            // cycle only feeds the fallback when no rows exist.
         }
         return {
             cycleCode: 'all',
@@ -59,6 +68,7 @@ function resolveReportScope(db, event, session, request) {
         };
     }
 
+    const activeCycle = resolveCycleForRequest(db, event);
     if (requestedCycle && requestedCycle !== activeCycle) {
         throw reportError('السلك المطلوب لا يطابق السلك النشط للجلسة', 'REPORT_CYCLE_MISMATCH');
     }

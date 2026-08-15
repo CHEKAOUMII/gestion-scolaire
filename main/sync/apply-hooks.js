@@ -66,7 +66,7 @@ function validateInstitutionCycleBeforePut(_db, item) {
     item.data = {
         ...item.data,
         cycle_code: definition.cycleCode,
-        profile_version: definition.profileVersion,
+        seed_profile_version_hint: definition.seedProfileVersionHint,
         sort_order: definition.sortOrder,
         is_active: Number(item.data?.is_active) ? 1 : 0
     };

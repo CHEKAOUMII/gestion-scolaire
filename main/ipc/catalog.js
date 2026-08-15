@@ -48,7 +48,8 @@ function registerCatalogIpc(ipcMain) {
         const rows = db
             .prepare(
                 `
-            SELECT section
+            SELECT section,
+                   MAX(NULLIF(TRIM(level), '')) AS level
             FROM students
             WHERE school_year = ? AND cycle_code = ? AND section IS NOT NULL AND TRIM(section) <> ''
             GROUP BY section
@@ -56,7 +57,7 @@ function registerCatalogIpc(ipcMain) {
         `
             )
             .all(normalizeYear(schoolYear), resolveCycleForRequest(db, event));
-        return rows.map((r) => ({ name: r.section }));
+        return rows.map((r) => ({ name: r.section, level: r.level || '' }));
     });
 
     handleAuthedRead(ipcMain, 'subjects:getAll', ({ db, event }) => {

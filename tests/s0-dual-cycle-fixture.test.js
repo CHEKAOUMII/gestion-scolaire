@@ -146,11 +146,11 @@ function student(code, name, cycle) {
 const db = openDb();
 ensureInstitutionCyclesSchema(db);
 db.prepare(
-    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
      VALUES (?, 1, ?, ?)`
 ).run(QUALIFIANT, 'qualifiant-2026-v1', 20);
 db.prepare(
-    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
      VALUES (?, 1, ?, ?)`
 ).run(COLLEGIAL, 'collegial-2026-v1', 10);
 createStudentsSchema(db);

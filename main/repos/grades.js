@@ -3,6 +3,7 @@
 /** Grades SQL and atomic capture. */
 const {
     captureInputUpserts,
+    captureResolvedRows,
     capturePutsByIds,
     captureDeletesFromRows,
     notifyCaptureCommitted
@@ -228,8 +229,10 @@ function createUpsert(db) {
         'teacher_id = excluded.teacher_id',
         'grade = excluded.grade',
         'teacher_name = excluded.teacher_name',
-        'level = excluded.level',
-        'section = excluded.section'
+        // Blank imported level/section must never clobber an existing value (F4) —
+        // a partial file row missing these fields silently blanks the DB columns.
+        "level = COALESCE(NULLIF(trim(excluded.level), ''), grades.level)",
+        "section = COALESCE(NULLIF(trim(excluded.section), ''), grades.section)"
     ];
     if (hasResolution) updateColumns.push('teacher_resolution = excluded.teacher_resolution');
     if (hasSourceFile) updateColumns.push('source_file_name = COALESCE(excluded.source_file_name, grades.source_file_name)');
@@ -249,10 +252,17 @@ function createUpsert(db) {
     };
 }
 
-function saveOne(db, grade, cycleCode) {
+function saveOne(db, grade, cycleCode, options = {}) {
     const cycle = requireCycle(cycleCode);
     const student = resolveStudentForCycle(db, grade.student_code, grade.school_year, cycle);
-    const result = db.transaction(() => writeGradeForStudent(createUpsert(db), grade, student))();
+    const result = db.transaction(() => {
+        const result = writeGradeForStudent(createUpsert(db), grade, student);
+        const aliasRow = grade.teacher_alias && typeof options.saveTeacherAlias === 'function'
+            ? options.saveTeacherAlias(db, grade.teacher_alias)
+            : null;
+        if (aliasRow) captureResolvedRows(db, 'teacher_aliases', [aliasRow], 'PUT');
+        return result;
+    })();
     if (result.info.changes > 0) notifyCaptureCommitted();
     return { success: true, saved: result.info.changes, skippedOtherCycle: result.info.changes ? 0 : 1 };
 }
@@ -274,6 +284,7 @@ function saveBulk(db, grades, cycleCode, options = {}) {
     const run = db.transaction((items) => {
         const applied = [];
         const appliedGradeRows = [];
+        const aliasRows = new Map();
         const skippedRows = [];
         const seenInputKeys = new Set();
         let inserted = 0;
@@ -289,6 +300,10 @@ function saveBulk(db, grades, cycleCode, options = {}) {
                 skippedRows.push({ student_code: student.code, school_year: input.school_year });
                 continue;
             }
+            const aliasRow = input.teacher_alias && typeof options.saveTeacherAlias === 'function'
+                ? options.saveTeacherAlias(db, input.teacher_alias)
+                : null;
+            if (aliasRow) aliasRows.set(Number(aliasRow.id), aliasRow);
             const key = `${student.code}||${input.subject}||${input.semester}||${input.school_year}`;
             const alreadyExists = Boolean(existing.get(student.code, input.subject, input.semester, input.school_year));
             const { info, row } = writeGradeForStudent(insert, { ...input, student_code: student.code }, student);
@@ -306,10 +321,13 @@ function saveBulk(db, grades, cycleCode, options = {}) {
             appliedGradeRows.push(row);
         }
         captureInputUpserts(db, { tableName: 'grades', keyFields: GRADE_KEY_FIELDS, items: applied, operation: 'PUT' });
+        if (aliasRows.size) captureResolvedRows(db, 'teacher_aliases', Array.from(aliasRows.values()), 'PUT');
         const assignmentResult = typeof options.onTeacherAssignments === 'function'
             ? options.onTeacherAssignments(db, appliedGradeRows, cycle)
             : null;
-        return { applied, skippedRows, inserted, updated, duplicateInput, assignmentResult };
+        const summary = { applied, skippedRows, inserted, updated, duplicateInput, assignmentResult };
+        if (typeof options.audit === 'function') options.audit(summary);
+        return summary;
     });
     const result = run(grades);
     if (result.applied.length) notifyCaptureCommitted();
@@ -339,12 +357,25 @@ function reassignTeacherBulk(db, year, cycleCode, changes, options = {}) {
     const applyChanges = db.transaction((items) => {
         const results = [];
         const updatedIds = [];
+        const aliasRows = new Map();
         for (const item of items) {
             const section = String(item?.section || '').trim();
             const subject = normalizeSubject(item?.subject || '');
             if (!section || !subject) throw new Error('Section and subject are required');
             const resolvedTeacher = resolveTeacher(db, item, year);
             if (!resolvedTeacher.teacher_id && !resolvedTeacher.teacher_name) throw new Error(`Unable to resolve target teacher for ${section} / ${subject}`);
+            const teacherAlias = resolvedTeacher.teacher_id
+                ? {
+                      teacher_id: resolvedTeacher.teacher_id,
+                      alias_name: item?.to_teacher_name,
+                      school_year: year,
+                      source: 'grades:reassignTeacherBulk'
+                  }
+                : null;
+            const aliasRow = teacherAlias && typeof options.saveTeacherAlias === 'function'
+                ? options.saveTeacherAlias(db, teacherAlias)
+                : null;
+            if (aliasRow) aliasRows.set(Number(aliasRow.id), aliasRow);
             const fromTeacherId = Number(item?.from_teacher_id) || null;
             const fromTeacherName = String(item?.from_teacher_name || '').trim().toLowerCase();
             let updated = 0;
@@ -359,6 +390,7 @@ function reassignTeacherBulk(db, year, cycleCode, changes, options = {}) {
             results.push({ section, subject, updated, to_teacher_id: resolvedTeacher.teacher_id || null, to_teacher_name: resolvedTeacher.teacher_name || item?.to_teacher_name || '' });
         }
         if (updatedIds.length) capturePutsByIds(db, 'grades', updatedIds, year);
+        if (aliasRows.size) captureResolvedRows(db, 'teacher_aliases', Array.from(aliasRows.values()), 'PUT');
         return results;
     });
     const results = applyChanges(changes);
@@ -380,7 +412,13 @@ function deleteByYear(db, year, cycleCode) {
 
 function deleteBySemester(db, year, semester, cycleCode) {
     const cycle = requireCycle(cycleCode);
-    const sem = parseInt(semester, 10) || 1;
+    const sem = Number(semester);
+    // Fail-closed: a falsy/unparseable semester must never silently delete semester 1.
+    if (sem !== 1 && sem !== 2) {
+        const err = new Error('الفصل الدراسي يجب أن يكون 1 أو 2');
+        err.code = 'INVALID_SEMESTER';
+        throw err;
+    }
     const run = db.transaction(() => {
         const rows = db.prepare('SELECT * FROM grades WHERE school_year = ? AND CAST(semester AS INTEGER) = ? AND cycle_code = ?').all(year, sem, cycle);
         captureDeletesFromRows(db, 'grades', rows);

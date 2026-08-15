@@ -30,12 +30,11 @@ const ID_CHUNK_SIZE = 500;
  * session in main. There is deliberately no default: a silent fallback would be exactly
  * the "قواعد التأهيلي كـfallback" the plan forbids, and it would read another cycle's
  * students the moment a second cycle ships.
+ *
+ * The shared guard (main/repos/student-cycle.js) resolves the static catalog entry and
+ * requires `capability === 'supported'` — no preview-cycle write can slip through here.
  */
-function requireCycle(cycleCode) {
-    const cycle = String(cycleCode || '').trim();
-    if (!cycle) throw new Error('السلك التعليمي غير محدد لهذه العملية');
-    return cycle;
-}
+const { requireCycle } = require('./student-cycle');
 const VALID_STATUSES = ['active', 'dropout', 'expelled', 'not_enrolled', 'transferred_in'];
 const NON_ACTIVE_STATUSES = ['dropout', 'expelled', 'not_enrolled', 'transferred_in'];
 const UPDATABLE_FIELDS = [
@@ -163,9 +162,12 @@ function insertOne(db, student, cycleCode) {
  */
 function addBulk(db, students, cycleCode, options = {}) {
     const cycle = requireCycle(cycleCode);
+    // A normal roster import omits status: keep an existing dropout/expelled/etc.
+    // value, while new rows still get the active default. Dedicated status imports
+    // provide an explicit non-blank value and update it.
     const insert = db.prepare(`
                 INSERT INTO students (code, full_name, family_name, birth_date, birth_place, gender, section, level, school_name, school_year, status, registration_type, cycle_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'active'), ?, ?)
                 ON CONFLICT(code, school_year) DO UPDATE SET
                     full_name=excluded.full_name,
                     family_name=excluded.family_name,
@@ -175,7 +177,7 @@ function addBulk(db, students, cycleCode, options = {}) {
                     section=excluded.section,
                     level=COALESCE(NULLIF(trim(excluded.level), ''), level),
                     school_name=COALESCE(NULLIF(trim(excluded.school_name), ''), school_name),
-                    status=excluded.status,
+                    status=CASE WHEN ? = 1 THEN excluded.status ELSE students.status END,
                     registration_type=excluded.registration_type
                 WHERE students.cycle_code = excluded.cycle_code
             `);
@@ -202,9 +204,10 @@ function addBulk(db, students, cycleCode, options = {}) {
                 student.level || '',
                 student.school_name || '',
                 student.school_year,
-                student.status || 'active',
+                Object.prototype.hasOwnProperty.call(student, 'status') ? student.status : null,
                 student.registration_type || 'new',
-                cycle
+                cycle,
+                Object.prototype.hasOwnProperty.call(student, 'status') ? 1 : 0
             );
             if (info.changes > 0) applied.push(student);
             else skipped.push({ code: student.code, school_year: student.school_year });
@@ -217,7 +220,16 @@ function addBulk(db, students, cycleCode, options = {}) {
             items: applied,
             operation: 'PUT'
         });
-        return { applied: applied.length, skipped };
+        const summary = { applied: applied.length, skipped };
+        if (typeof options.audit === 'function') {
+            options.audit({
+                success: true,
+                count: summary.applied,
+                skippedOtherCycle: summary.skipped.length,
+                skippedRows: summary.skipped
+            });
+        }
+        return summary;
     });
 
     const result = run(students);

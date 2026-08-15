@@ -12,6 +12,7 @@ const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields, normalizePagination, buildPaginatedResult } = require('./validation');
 const studentsRepo = require('../repos/students');
 const { resolveCycleForRequest } = require('../auth/resolve-cycle');
+const { writeImportAudit, buildImportAuditDetails } = require('./import-audit');
 
 function mapStudentAliases(row) {
     if (!row) return null;
@@ -74,28 +75,51 @@ function registerStudentsIpc(ipcMain) {
         return { success: true };
     });
 
-    // No auth: bulk-import is used by settings-imports page before login. Without a
-    // session the cycle must be unambiguous — resolveCycleForRequest refuses rather than
-    // filing the whole import under a guessed cycle (D4).
+    // Bulk roster/status import is a school-data write: a session and a write role
+    // are required (import-pipeline review F2 — no pre-login imports). The cycle is
+    // still resolved from the session in main; resolveCycleForRequest refuses rather
+    // than filing the whole import under a guessed cycle (D4).
     handleWriteSoftAuth(
         ipcMain,
         'students:addBulk',
         WRITE_ROLES,
-        ({ db, event }, students) => {
+        ({ db, event }, students, auditType) => {
             if (!Array.isArray(students)) {
                 return { success: false, error: 'Expected an array' };
             }
             if (students.length > 5000) {
                 return { success: false, error: 'Batch size exceeds maximum of 5000' };
             }
-            return studentsRepo.addBulk(db, students, resolveCycleForRequest(db, event), {
+            // The bulk channel serves both the students import and the student-status
+            // import (js/pages/settings-imports.js). The audit label must reflect the
+            // import kind, but only a whitelisted value from main is accepted — the
+            // renderer can never pick an arbitrary audit action.
+            const auditKind = auditType === 'student-status' ? 'student-status' : 'students';
+            const year = Array.isArray(students) && students[0] ? students[0].school_year : null;
+            const cycleCode = resolveCycleForRequest(db, event);
+            const result = studentsRepo.addBulk(db, students, cycleCode, {
                 validate(student) {
                     requireFields(student, ['code', 'full_name', 'school_year']);
                     requireSchoolYear(student.school_year);
+                    if (Object.prototype.hasOwnProperty.call(student, 'status') && !studentsRepo.VALID_STATUSES.includes(String(student.status || '').trim())) {
+                        throw new Error('وضعية التلميذ غير صالحة');
+                    }
+                },
+                audit(summary) {
+                    writeImportAudit(
+                        db,
+                        auditKind,
+                        buildImportAuditDetails(
+                            { label: auditKind === 'student-status' ? 'وضعية' : 'تلميذ', count: summary.count },
+                            year,
+                            cycleCode
+                        )
+                    );
                 }
             });
+            return result;
         },
-        { allowNoSession: true, withContext: true }
+        { withContext: true }
     );
 
     handleWrite(ipcMain, 'students:update', WRITE_ROLES, (db, event, id, data) => {

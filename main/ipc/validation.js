@@ -29,6 +29,9 @@ function requireFields(data, fields) {
  * @throws {Error} if the value is not a number or is outside the range
  */
 function validateRange(fieldName, value, min, max) {
+    if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
+        throw new Error(`${fieldName}: يجب أن يكون رقماً`);
+    }
     const num = Number(value);
     if (!Number.isFinite(num)) {
         throw new Error(`${fieldName}: يجب أن يكون رقماً`);
@@ -61,15 +64,19 @@ function validateDate(fieldName, value) {
 /**
  * Validate that a school year string matches the expected YYYY/YYYY pattern.
  * @param {*} value
- * @throws {Error} if the value does not match
+ * @throws {Error} with code INVALID_SCHOOL_YEAR if the value does not match
  */
 function validateSchoolYear(value) {
     const str = String(value || '').trim();
     if (!str) {
-        throw new Error('السنة الدراسية مطلوبة');
+        const error = new Error('السنة الدراسية مطلوبة');
+        error.code = 'INVALID_SCHOOL_YEAR';
+        throw error;
     }
     if (!/^\d{4}\/\d{4}$/.test(str)) {
-        throw new Error(`السنة الدراسية يجب أن تكون بصيغة YYYY/YYYY (مثال: 2024/2025)`);
+        const error = new Error(`السنة الدراسية يجب أن تكون بصيغة YYYY/YYYY (مثال: 2024/2025)`);
+        error.code = 'INVALID_SCHOOL_YEAR';
+        throw error;
     }
     return str;
 }

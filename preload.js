@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('api', {
         search: (name, className, code, schoolYear) =>
             ipcRenderer.invoke('students:search', name, className, code, schoolYear),
         add: (student) => ipcRenderer.invoke('students:add', student),
-        addBulk: (students) => ipcRenderer.invoke('students:addBulk', students),
+        addBulk: (students, auditType) => ipcRenderer.invoke('students:addBulk', students, auditType),
         update: (id, data) => ipcRenderer.invoke('students:update', id, data),
         delete: (id) => ipcRenderer.invoke('students:delete', id),
         deleteByYear: (schoolYear) => ipcRenderer.invoke('students:deleteByYear', schoolYear),
@@ -121,8 +121,8 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('absences:delete', id),
         deleteByYear: (schoolYear) => ipcRenderer.invoke('absences:deleteByYear', schoolYear),
         /** Atomic year wipe + bulk insert for import apply (Package 5). */
-        replaceByYear: (schoolYear, absences) =>
-            ipcRenderer.invoke('absences:replaceByYear', schoolYear, absences),
+        replaceByYear: (schoolYear, absences, options) =>
+            ipcRenderer.invoke('absences:replaceByYear', schoolYear, absences, options),
         getStats: (schoolYear) => ipcRenderer.invoke('absences:getStats', schoolYear),
         getSummaryByStudent: (schoolYear) => ipcRenderer.invoke('absences:getSummaryByStudent', schoolYear)
     },
@@ -470,7 +470,8 @@ contextBridge.exposeInMainWorld('api', {
     diagnostics: {
         getRecent: (options) => ipcRenderer.invoke('diagnostics:getRecent', options),
         exportLog: () => ipcRenderer.invoke('diagnostics:exportLog'),
-        revealLog: () => ipcRenderer.invoke('diagnostics:revealLog')
+        revealLog: () => ipcRenderer.invoke('diagnostics:revealLog'),
+        reportRendererError: (payload) => ipcRenderer.invoke('diagnostics:reportRendererError', payload)
     },
 
 });

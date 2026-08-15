@@ -11,6 +11,7 @@ const {
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const orientationRepo = require('../repos/orientation');
 const OrientationErrorContract = require('../../js/shared/errors/orientation-error-contract');
+const { writeImportAudit, buildImportAuditDetails } = require('./import-audit');
 
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 
@@ -237,7 +238,25 @@ function handleBulkUpsert(db, payload) {
         { rows: prepared.rows, schoolYear },
         schoolYear,
         normalizeYear,
-        { duplicatesInFile: prepared.duplicatesInFile }
+        {
+            duplicatesInFile: prepared.duplicatesInFile,
+            audit(summary) {
+                writeImportAudit(
+                    db,
+                    'orientation',
+                    buildImportAuditDetails(
+                        {
+                            label: 'توجيه',
+                            count: (Number(summary.inserted) || 0) + (Number(summary.updated) || 0),
+                            inserted: Number(summary.inserted) || 0,
+                            updated: Number(summary.updated) || 0,
+                            skipped: (Number(summary.skipped) || 0) + prepared.preSkipped
+                        },
+                        schoolYear
+                    )
+                );
+            }
+        }
     );
 
     const details = [...prepared.preSkipDetails, ...(result.details || [])];
@@ -309,7 +328,7 @@ function registerOrientationIpc(ipcMain) {
             }
             return mapped;
         }
-    }, { allowNoSession: true });
+    });
 
     // clearYear: explicit bulk delete only — never called from bulkUpsert / normal import
     handleWrite(ipcMain, 'orientation:clearYear', WRITE_ROLES, (db, _event, schoolYear) => {

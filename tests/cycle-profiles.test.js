@@ -12,7 +12,7 @@
  *      on upgraded DBs (row 113), row identity preserved, FK enforced at schema;
  *   2. repository effectivity: every version-copy save re-binds the assignment
  *      atomically, getActiveRuleSetForCycle resolves through the assignment
- *      (never CYCLE_CATALOG.profileVersion), getActiveProfileForCycle returns
+ *      (never CYCLE_CATALOG.seedProfileVersionHint), getActiveProfileForCycle returns
  *      the ASSIGNED version (never the newest), continuous cycles refuse a
  *      rule-set binding, missing cycle_profiles table is RULES_UNAVAILABLE
  *      (row 114);

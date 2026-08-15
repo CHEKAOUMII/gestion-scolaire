@@ -28,7 +28,7 @@
             labelAr: 'سلك التعليم الابتدائي',
             labelFr: 'Enseignement primaire',
             sortOrder: 5,
-            profileVersion: 'primary-2026-v1',
+            seedProfileVersionHint: 'primary-2026-v1',
             capability: 'preview',
             assessmentModel: 'continuous'
         }),
@@ -37,7 +37,7 @@
             labelAr: 'السلك الثانوي الإعدادي',
             labelFr: 'Secondaire collégial',
             sortOrder: 10,
-            profileVersion: 'collegial-2026-v1',
+            seedProfileVersionHint: 'collegial-2026-v1',
             capability: 'supported',
             assessmentModel: 'exams_activities'
         }),
@@ -46,7 +46,7 @@
             labelAr: 'السلك الثانوي التأهيلي',
             labelFr: 'Secondaire qualifiant',
             sortOrder: 20,
-            profileVersion: 'qualifiant-2026-v1',
+            seedProfileVersionHint: 'qualifiant-2026-v1',
             capability: 'supported'
         })
     ]);

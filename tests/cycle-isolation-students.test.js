@@ -114,6 +114,12 @@ function student(code, name, cycle) {
     };
 }
 
+function rosterStudentWithoutStatus(code, name, cycle) {
+    const row = student(code, name, cycle);
+    delete row.status;
+    return row;
+}
+
 console.log('[test] students cycle isolation');
 
 const db = openDb();
@@ -192,6 +198,31 @@ assert.strictEqual(
 console.log('  [ok] update, delete and bulk status refuse another cycle id');
 
 // ── Bulk import never moves a student across cycles ────────────────────────
+studentsRepo.updateStatusBulk(db, [{ student_id: 1, status: 'dropout' }], QUALIFIANT);
+const preservedStatus = studentsRepo.addBulk(
+    db,
+    [rosterStudentWithoutStatus('Q1', 'تلميذ تأهيلي محدث', QUALIFIANT)],
+    QUALIFIANT
+);
+assert.strictEqual(preservedStatus.count, 1);
+assert.strictEqual(
+    studentsRepo.getByCode(db, 'Q1', YEAR, QUALIFIANT).status,
+    'dropout',
+    'a normal roster re-import must not reset an existing status'
+);
+
+const explicitStatus = studentsRepo.addBulk(
+    db,
+    [Object.assign(rosterStudentWithoutStatus('Q1', 'تلميذ تأهيلي محدث', QUALIFIANT), { status: 'active' })],
+    QUALIFIANT
+);
+assert.strictEqual(explicitStatus.count, 1);
+assert.strictEqual(
+    studentsRepo.getByCode(db, 'Q1', YEAR, QUALIFIANT).status,
+    'active',
+    'an explicitly supplied status must remain updateable'
+);
+
 const reimport = studentsRepo.addBulk(db, [student('C1', 'محاولة نقل', QUALIFIANT)], QUALIFIANT);
 assert.strictEqual(reimport.count, 0, 'the row belongs to another cycle — nothing written');
 assert.strictEqual(reimport.skippedOtherCycle, 1, 'the skip is reported, not silent');
@@ -199,9 +230,14 @@ const afterImport = studentsRepo.getByCode(db, 'C1', YEAR, COLLEGIAL);
 assert.strictEqual(afterImport.full_name, 'اسم جديد', 'the other cycle row is untouched');
 assert.strictEqual(afterImport.cycle_code, COLLEGIAL);
 
-const freshImport = studentsRepo.addBulk(db, [student('Q2', 'تلميذ جديد', QUALIFIANT)], QUALIFIANT);
+const freshImport = studentsRepo.addBulk(
+    db,
+    [rosterStudentWithoutStatus('Q2', 'تلميذ جديد دون وضعية', QUALIFIANT)],
+    QUALIFIANT
+);
 assert.strictEqual(freshImport.count, 1);
 assert.strictEqual(freshImport.skippedOtherCycle, 0);
+assert.strictEqual(studentsRepo.getByCode(db, 'Q2', YEAR, QUALIFIANT).status, 'active');
 console.log('  [ok] re-import cannot pull a student into the importing cycle');
 
 // ── deleteByYear takes one cycle's students and only their dependents ──────

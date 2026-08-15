@@ -6,6 +6,11 @@ const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields } = require('./validation');
 const staffRepo = require('../repos/staff');
 const { resolveCycleForRequest } = require('../auth/resolve-cycle');
+const { writeImportAudit, buildImportAuditDetails } = require('./import-audit');
+
+const TEACHER_IMPORT_MAX_BATCH = 5000;
+const TEACHER_FIELD_MAX_LENGTH = 500;
+const TEACHER_BOUNDED_FIELDS = ['full_name', 'full_name_fr'];
 
 function registerStaffIpc(ipcMain) {
     handleRead(ipcMain, 'teachers:getAll', (db, schoolYear) => {
@@ -87,10 +92,42 @@ function registerStaffIpc(ipcMain) {
     });
 
     handleWriteSoftAuth(ipcMain, 'teachers:importBulk', WRITE_ROLES, (db, teachers) => {
-        return staffRepo.importBulk(db, teachers, {
-            validateSchoolYear: (year) => requireSchoolYear(year)
+        if (!Array.isArray(teachers)) {
+            return { success: false, error: 'Expected an array' };
+        }
+        if (teachers.length > TEACHER_IMPORT_MAX_BATCH) {
+            return { success: false, error: `Batch size exceeds maximum of ${TEACHER_IMPORT_MAX_BATCH}` };
+        }
+        // Fail-closed row validation before the repo transaction: one malformed row
+        // rejects the whole batch instead of being silently skipped (F6).
+        for (let i = 0; i < teachers.length; i++) {
+            const teacher = teachers[i];
+            if (!teacher || typeof teacher !== 'object' || Array.isArray(teacher)) {
+                return { success: false, error: `Invalid teacher row at index ${i + 1}` };
+            }
+            try {
+                requireFields(teacher, ['full_name', 'school_year']);
+            } catch (err) {
+                return { success: false, error: `Invalid teacher row at index ${i + 1}: ${err.message}` };
+            }
+            for (const field of TEACHER_BOUNDED_FIELDS) {
+                if (typeof teacher[field] === 'string' && teacher[field].length > TEACHER_FIELD_MAX_LENGTH) {
+                    return { success: false, error: `Field ${field} exceeds ${TEACHER_FIELD_MAX_LENGTH} characters at row ${i + 1}` };
+                }
+            }
+        }
+        const result = staffRepo.importBulk(db, teachers, {
+            validateSchoolYear: (year) => requireSchoolYear(year),
+            audit(summary) {
+                writeImportAudit(
+                    db,
+                    'agent-xml',
+                    buildImportAuditDetails({ label: 'أستاذا', count: summary.count }, teachers[0].school_year)
+                );
+            }
         });
-    }, { allowNoSession: true });
+        return result;
+    });
 
     handleRead(ipcMain, 'teachers:getNameAliases', (db, entityType, schoolYear) => {
         return staffRepo.listNameAliases(db, entityType, schoolYear);

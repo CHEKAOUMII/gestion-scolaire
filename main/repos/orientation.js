@@ -13,7 +13,11 @@
  * tests/s0-cycle-gate.test.js and the plan.
  */
 
-const { captureInputUpserts, notifyCaptureCommitted } = require('./capture-port');
+const {
+    captureInputUpserts,
+    captureDeletesFromRows,
+    notifyCaptureCommitted
+} = require('./capture-port');
 
 /** Soft cap so IPC replies stay small; totals remain authoritative. */
 const MAX_DETAILS = 80;
@@ -720,6 +724,16 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
                 operation: 'PUT'
             });
         }
+        if (typeof options.audit === 'function') {
+            options.audit({
+                success: true,
+                inserted,
+                updated,
+                unchanged,
+                skipped,
+                unresolvedCycle
+            });
+        }
     });
 
     run(rows);
@@ -744,8 +758,14 @@ function bulkUpsert(db, payload, schoolYear, normalizeYearFn, options = {}) {
 }
 
 function clearYear(db, year) {
-    const result = db.prepare('DELETE FROM student_orientation WHERE school_year = ?').run(year);
-    return { success: true, deleted: result.changes, schoolYear: year };
+    const run = db.transaction((targetYear) => {
+        const rows = db.prepare('SELECT * FROM student_orientation WHERE school_year = ?').all(targetYear);
+        captureDeletesFromRows(db, 'student_orientation', rows);
+        return db.prepare('DELETE FROM student_orientation WHERE school_year = ?').run(targetYear).changes;
+    });
+    const deleted = run(year);
+    if (deleted > 0) notifyCaptureCommitted();
+    return { success: true, deleted, schoolYear: year };
 }
 
 function deleteById(db, id) {
@@ -753,7 +773,16 @@ function deleteById(db, id) {
     if (!Number.isFinite(numId) || numId <= 0) {
         throw new Error('معرّف غير صالح');
     }
-    db.prepare('DELETE FROM student_orientation WHERE id = ?').run(numId);
+    // Tombstone written here, inside the transaction (CHANNEL_REGISTRY
+    // 'orientation:delete' is captureMode 'explicit') — the IPC wrapper no
+    // longer captures, so a mid-capture failure rolls the delete back.
+    const run = db.transaction(() => {
+        const rows = db.prepare('SELECT * FROM student_orientation WHERE id = ?').all(numId);
+        captureDeletesFromRows(db, 'student_orientation', rows);
+        return db.prepare('DELETE FROM student_orientation WHERE id = ?').run(numId).changes;
+    });
+    const deleted = run();
+    if (deleted > 0) notifyCaptureCommitted();
     return { success: true };
 }
 

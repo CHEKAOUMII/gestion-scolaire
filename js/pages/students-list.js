@@ -187,9 +187,13 @@ async function searchStudents() {
         // Pass query to server-side search (filters by name/code on the DB)
         students = (await window.api.students.search(query, className, '', getCurrentYear())) || [];
 
-        // Level filter (client-side — depends on local mapping)
+        // Level filter (client-side — official level stored by the import)
         if (levelName) {
-            students = students.filter((s) => _getLocalLevelName(s.class_name || s.section || '') === levelName);
+            students = students.filter((s) => {
+                const official = String(s.level || '').trim();
+                if (official) return official === levelName;
+                return _getLocalLevelName(s.class_name || s.section || '') === levelName;
+            });
         }
 
         // Birth date filter (client-side — not covered by server search)

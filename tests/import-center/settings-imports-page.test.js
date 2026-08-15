@@ -30,7 +30,7 @@ class Element {
     get className() { return this._className; }
     setAttribute(n, v) { this.attributes[n] = String(v); }
     getAttribute(n) { return Object.prototype.hasOwnProperty.call(this.attributes, n) ? this.attributes[n] : null; }
-    appendChild(c) { if (c.parentElement) c.parentElement.children = c.parentElement.children.filter((x) => x !== c); c.parentElement = this; this.children.push(c); return c; }
+    appendChild(c) { if (c === null || c === undefined) return c; if (typeof c !== 'object') c = { textContent: String(c), nodeType: 3, parentElement: null }; if (c.parentElement) c.parentElement.children = c.parentElement.children.filter((x) => x !== c); c.parentElement = this; this.children.push(c); return c; }
     prepend(c) { if (c.parentElement) c.parentElement.children = c.parentElement.children.filter((x) => x !== c); c.parentElement = this; this.children.unshift(c); return c; }
     replaceChildren(...children) { this.children.forEach((c) => { c.parentElement = null; }); this.children = []; children.forEach((c) => this.appendChild(c)); }
     addEventListener(n, fn) { (this.listeners[n] = this.listeners[n] || []).push(fn); }
@@ -92,7 +92,7 @@ function createHarness() {
         ImportContext: {},
         ImportReaders: require('../../js/import-center/import-readers.js'),
         ImportResultContract: require('../../js/import-center/import-result-contract.js'),
-        OrientationErrorContract: { create: (code, msg) => { const e = new Error(msg); e.code = code; return e; } },
+        OrientationErrorContract: require('../../js/shared/errors/orientation-error-contract.js'),
         PencilShared: { TeacherIdentity: { normalizeTeacherName: (s) => String(s || '').trim() } },
         StudentImportParser: require('../../js/import-center/students-import-parser.js'),
         GradesImportParser: require('../../js/import-center/grades-import-parser.js'),
@@ -214,18 +214,15 @@ async function testMultiFileGradesSemesterSelection() {
     const { sandbox } = createHarness();
     // Check that the helper exists and respects fileCount !==1
     const fn = sandbox.applyDetectedSemesterForSingleGradeFile;
-    if (typeof fn === 'function') {
-        // Create a fake select
-        const sel = sandbox.document.getElementById('semester-select');
-        sel.value = '1';
-        const applied = fn(2, 1); // single file should apply
-        assert.strictEqual(typeof applied, 'boolean');
-        const notApplied = fn(2, 2); // multi-file should not apply
-        assert.strictEqual(notApplied, false, 'multi-file must keep explicit semester');
-        console.log('  [case 3] multi-file grades explicit semester: PASS — would violate P1-3 on reverted code');
-    } else {
-        console.log('  [case 3] skipped (applyDetectedSemesterForSingleGradeFile not exposed)');
-    }
+    assert.strictEqual(typeof fn, 'function', 'applyDetectedSemesterForSingleGradeFile must be reachable from the harness');
+    // Create a fake select
+    const sel = sandbox.document.getElementById('semester-select');
+    sel.value = '1';
+    const applied = fn(2, 1); // single file should apply
+    assert.strictEqual(typeof applied, 'boolean');
+    const notApplied = fn(2, 2); // multi-file should not apply
+    assert.strictEqual(notApplied, false, 'multi-file must keep explicit semester');
+    console.log('  [case 3] multi-file grades explicit semester: PASS — would violate P1-3 on reverted code');
 }
 
 async function testHeaderOnlyDiagnostic() {
@@ -253,14 +250,11 @@ async function testReentrancyGuard() {
     const origClick = input.click;
     input.click = () => { clicked = true; };
     // runImport is global in sandbox
-    if (typeof sandbox.runImport === 'function') {
-        await sandbox.runImport('grades');
-        assert.strictEqual(clicked, false, 'T1.7: runImport while importInFlight must not open picker');
-        assert.ok(toastMsg && /جارية/.test(toastMsg), 'must toast about ongoing import');
-        console.log('  [case 5] re-entrancy guard (T1.7): PASS — would open second picker on reverted code');
-    } else {
-        console.log('  [case 5] skipped (runImport not exposed)');
-    }
+    assert.strictEqual(typeof sandbox.runImport, 'function', 'runImport must be reachable from the harness');
+    await sandbox.runImport('grades');
+    assert.strictEqual(clicked, false, 'T1.7: runImport while importInFlight must not open picker');
+    assert.ok(toastMsg && /جارية/.test(toastMsg), 'must toast about ongoing import');
+    console.log('  [case 5] re-entrancy guard (T1.7): PASS — would open second picker on reverted code');
     input.click = origClick;
     vm.runInContext('importInFlight = false;', sandbox);
 }
@@ -274,20 +268,113 @@ async function testOrientationPreflightDoesNotThrow() {
     const declIdx = src.indexOf('let skipped = preIpcSkipped', persistIdx - 2000);
     // After fix, decl should be before the if
     assert.ok(declIdx !== -1 && declIdx < persistIdx, 'T1.4: skipped must be declared before persist check');
-    // Also test runtime: if importOrientation is exposed, call it
-    if (typeof sandbox.importOrientation === 'function') {
-        try {
-            // Provide minimal stub that will throw EMPTY_FILE but not TDZ
-            await sandbox.importOrientation(null, '2025/2026', null, { rows: [] }, { persist: false });
-            // If it throws, it should not be ReferenceError
-            assert.fail('should not throw TDZ, but may throw EMPTY_FILE');
-        } catch (e) {
-            assert.ok(!/Cannot access.*skipped.*before initialization/.test(e.message), 'must not throw TDZ');
-            console.log('  [case 6] orientation preflight (T1.4) runtime: PASS — would throw ReferenceError on reverted code');
-        }
-    } else {
-        console.log('  [case 6] orientation preflight (T1.4) static: PASS — would throw ReferenceError on reverted code');
-    }
+    // Runtime: the rows MUST survive validation, otherwise the call throws
+    // EMPTY_FILE long before the persist block and the TDZ is never exercised.
+    assert.strictEqual(typeof sandbox.importOrientation, 'function', 'importOrientation must be reachable from the harness');
+    const preview = await sandbox.importOrientation(
+        null,
+        '2025/2026',
+        null,
+        { rows: [{ student_code: 'S0001001', full_name: 'تلميذ تجريبي', origin_stream: 'الجذع المشترك العلمي', choice_1: 'علوم' }] },
+        { persist: false }
+    );
+    assert.strictEqual(preview.rows.length, 1, 'preflight must return the deduped rows');
+    assert.strictEqual(typeof preview.skipped, 'number', 'T1.4: reading `skipped` in the preflight return must not hit the TDZ');
+    assert.strictEqual(preview.noRecordsSaved, true, 'preflight must not write');
+    console.log('  [case 6] orientation preflight (T1.4) runtime: PASS — would throw ReferenceError on reverted code');
+}
+
+// ── Truncated ministry XML must not be turned into a blocking verdict ────────
+
+async function testTruncatedXmlPreflightIsNotBlocking() {
+    const { sandbox } = createHarness();
+    assert.strictEqual(typeof sandbox.runManualImportPreflight, 'function', 'runManualImportPreflight must be reachable');
+    const file = { name: 'DsAgentExport.xml', size: 4 * 1024 * 1024 };
+
+    // Oversized file: the required element sits past the read cap, so the fast
+    // preflight cannot see it. That is "unknown", never "invalid".
+    sandbox.ImportReaders = {
+        extractFeatures: async () => ({
+            xmlRoot: 'DsAgentExport',
+            xmlElements: ['R_GRADE', 'CD_GRADE', 'LL_GRADE'],
+            truncated: true,
+            truncatedAt: 512 * 1024,
+            empty: false,
+            error: null
+        })
+    };
+    const truncated = await sandbox.runManualImportPreflight('agent-xml', file, '2025/2026', null);
+    assert.strictEqual(truncated.valid, true, 'T1.5: a truncated read must not invalidate the file');
+    assert.strictEqual(truncated.executable, true, 'T1.5: a truncated read must stay executable');
+    assert.ok(
+        (truncated.warnings || []).some((item) => item.code === 'XML_TRUNCATED'),
+        'T1.5: truncation must be surfaced as a warning'
+    );
+
+    // A genuinely wrong file is still blocked.
+    sandbox.ImportReaders = {
+        extractFeatures: async () => ({
+            xmlRoot: 'DsAgentExport',
+            xmlElements: ['R_GRADE'],
+            truncated: false,
+            empty: false,
+            error: null
+        })
+    };
+    const invalid = await sandbox.runManualImportPreflight('agent-xml', { name: 'other.xml', size: 100 }, '2025/2026', null);
+    assert.strictEqual(invalid.valid, false, 'a complete read that lacks the personnel block must still block');
+    console.log('  [case 7] truncated ministry XML (T1.5): PASS — was blocked as INVALID_FILE_STRUCTURE on reverted code');
+}
+
+// ── Student-status header binding (the page's own header engine) ─────────────
+
+async function testStatusHeaderRolesAreExclusive() {
+    const { sandbox } = createHarness();
+    assert.strictEqual(typeof sandbox.bindHeaderRoles, 'function', 'bindHeaderRoles must be reachable from the harness');
+
+    const bind = (headers) =>
+        vm.runInContext(
+            `(function () {
+                const headers = ${JSON.stringify(headers)};
+                const familyNameAliases = [...HEADER_ALIASES.familyName, 'النسب', 'اللقب'];
+                const firstNameAliases = [...HEADER_ALIASES.firstName, 'الاسم', 'الإسم'];
+                const bound = bindHeaderRoles(headers, {
+                    code: STATUS_CODE_ALIASES,
+                    status: STATUS_HEADER_ALIASES.status,
+                    fullName: HEADER_ALIASES.fullName,
+                    familyName: familyNameAliases,
+                    firstName: firstNameAliases,
+                    section: HEADER_ALIASES.section
+                });
+                const family = bound.familyName >= 0 ? headers[bound.familyName] : '';
+                const first = bound.firstName >= 0 ? headers[bound.firstName] : '';
+                const full = bound.fullName >= 0 ? headers[bound.fullName] : '';
+                return JSON.stringify({
+                    code: bound.code,
+                    status: bound.status,
+                    composed: full || [family, first].filter(Boolean).join(' ')
+                });
+            })()`,
+            sandbox
+        );
+
+    // `LastName` contains the bare `name` alias: a first-match binder puts both
+    // name roles on column 1 and full_name becomes "LastName LastName", which
+    // importStudentStatus then writes to the students table via addBulk.
+    const latin = JSON.parse(bind(['Massar', 'LastName', 'FirstName', 'Status']));
+    assert.strictEqual(latin.composed, 'LastName FirstName', 'family and first name must bind to different columns');
+    assert.strictEqual(latin.code, 0);
+    assert.strictEqual(latin.status, 3);
+
+    // «الاسم العائلي» contains «الاسم» — the same trap in Arabic.
+    const arabicPair = JSON.parse(bind(['الرمز', 'الاسم العائلي', 'الاسم الشخصي', 'الوضعية']));
+    assert.strictEqual(arabicPair.composed, 'الاسم العائلي الاسم الشخصي', 'the Arabic name pair must bind to different columns');
+
+    // A dedicated full-name column wins over the composed pair.
+    const fullNameColumn = JSON.parse(bind(['رمز مسار', 'الاسم الكامل', 'القسم', 'الوضعية']));
+    assert.strictEqual(fullNameColumn.composed, 'الاسم الكامل');
+    assert.strictEqual(fullNameColumn.code, 0, '«رمز مسار» must still resolve the code column');
+    console.log('  [case 8] student-status header binding: PASS — was "LastName LastName" on reverted code');
 }
 
 // ── T2.4 Row-failure policy (depends on T2.2 harness) ────────────────────────
@@ -361,6 +448,66 @@ async function testReviewModalShowsExclusionCount() {
     console.log('  [T2.4 Case D] review modal shows exclusion count before confirmation: PASS — was only post-import on reverted code');
 }
 
+// ── End-to-end: the live page controller's own handleImport (commit path) ───
+
+async function testEndToEndStudentsHandleImport() {
+    const XLSX = require('xlsx');
+    const { sandbox, window, stubs } = createHarness();
+
+    // importStudents reads window.StudentImportParser directly; the harness only
+    // exposes the parser as a bare global, so wire it onto window for this path.
+    window.StudentImportParser = require('../../js/import-center/students-import-parser.js');
+    window.api.students.getCodesByYear = async () => [];
+    const addBulkCalls = [];
+    window.api.students.addBulk = async (rows) => {
+        addBulkCalls.push(rows);
+        return { success: true, count: rows.length };
+    };
+    const registryUpdates = [];
+    sandbox.DataSourceRegistry.update = (source, year, state, warnings) => {
+        registryUpdates.push({ source, year, state, warnings });
+    };
+
+    // getCurrentSchoolYear delegates to getSchoolYear when present; the level
+    // normalizer reads _LEVEL_KEYS_DESC from js/utils.js (absent in this harness).
+    vm.runInContext('var getSchoolYear = () => "2025/2026"; var _LEVEL_KEYS_DESC = [];', sandbox);
+
+    // Single-sheet workbook carrying the T1.1 trap: LastName left of FirstName.
+    const ws = XLSX.utils.aoa_to_sheet([
+        ['Massar', 'LastName', 'FirstName'],
+        ['S0009001', 'Benali', 'Ahmed'],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+    // Feed the workbook through the page's own cache so commitImport never needs FileReader.
+    const file = { name: 'students.xlsx', size: 1024 };
+    sandbox.__testFile = file;
+    sandbox.__testWorkbook = wb;
+    vm.runInContext('importWorkbookCache.set(__testFile, { workbook: __testWorkbook, source: "xlsx" });', sandbox);
+
+    // Drive the live page controller's own handleImport end to end.
+    await sandbox.handleImport('students', [file], {});
+
+    assert.strictEqual(addBulkCalls.length, 1, 'addBulk must be called exactly once');
+    assert.strictEqual(addBulkCalls[0].length, 1, 'one student record must be written');
+    assert.strictEqual(addBulkCalls[0][0].code, 'S0009001');
+    assert.strictEqual(
+        addBulkCalls[0][0].full_name,
+        'Ahmed Benali',
+        'T1.1: LastName left of FirstName must yield "Ahmed Benali", not "Benali Benali"'
+    );
+    assert.ok(
+        registryUpdates.some((u) => u.source === 'students' && u.state.count === 1),
+        'the write count must be reported through the data registry'
+    );
+    assert.ok(
+        (stubs._toasts || []).some((t) => t.type === 'success' && /1/.test(t.message)),
+        'a success summary must be surfaced to the operator'
+    );
+    console.log('  [case 13] end-to-end handleImport (T1.1): PASS — would write "Benali Benali" on reverted code');
+}
+
 async function main() {
     console.log('settings-imports-page: live path scenarios');
     await testSingleFileStudentsHappyPath();
@@ -369,10 +516,13 @@ async function main() {
     await testHeaderOnlyDiagnostic();
     await testReentrancyGuard();
     await testOrientationPreflightDoesNotThrow();
+    await testTruncatedXmlPreflightIsNotBlocking();
+    await testStatusHeaderRolesAreExclusive();
     await testGradesOneInvalidCellOutOf400();
     await testGradesUnknownStudentBlocks();
     await testStudentsCodeLessRowDiagnostic();
     await testReviewModalShowsExclusionCount();
+    await testEndToEndStudentsHandleImport();
     console.log('settings-imports-page: OK');
 }
 

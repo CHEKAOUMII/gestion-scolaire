@@ -49,8 +49,16 @@ function resolveCycleForRequest(db, event) {
     }
 
     const usable = filterAuthorizedCycles(db, listUsableCycles(db), session);
-    if (!usable.length) throw new Error('لا يوجد سلك مصرح ومتاح للعمل');
-    if (usable.length > 1) throw new Error('يتعذر تحديد السلك — يرجى تسجيل الدخول قبل تنفيذ هذه العملية');
+    if (!usable.length) {
+        const error = new Error('لا يوجد سلك مصرح ومتاح للعمل');
+        error.code = 'NO_USABLE_CYCLE';
+        throw error;
+    }
+    if (usable.length > 1) {
+        const error = new Error('يتعذر تحديد السلك — يرجى تسجيل الدخول قبل تنفيذ هذه العملية');
+        error.code = 'CYCLE_SELECTION_REQUIRED';
+        throw error;
+    }
     return usable[0].cycle_code;
 }
 

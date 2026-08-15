@@ -76,13 +76,13 @@ function getCycleInventory(db) {
     const hasInstitutionCycles = tableExists(db, 'main', 'institution_cycles');
     if (hasInstitutionCycles) {
         const rows = db.prepare(
-            `SELECT cycle_code, is_active, profile_version FROM institution_cycles
+            `SELECT cycle_code, is_active, seed_profile_version_hint FROM institution_cycles
              WHERE cycle_code IS NOT NULL AND TRIM(cycle_code) <> '' ORDER BY sort_order, cycle_code`
         ).all();
         return { known: true, cycles: rows.map((row) => ({
             cycle_code: String(row.cycle_code).trim(),
             is_active: Number(row.is_active) ? 1 : 0,
-            profile_version: row.profile_version || null
+            seed_profile_version_hint: row.seed_profile_version_hint || null
         })) };
     }
 

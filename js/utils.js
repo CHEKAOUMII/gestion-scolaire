@@ -21,12 +21,11 @@
 
     function _logToMain(action, data) {
         try {
-            if (window.api && window.api.systemLogs && window.api.systemLogs.add) {
-                window.api.systemLogs.add({
+            if (window.api && window.api.diagnostics && window.api.diagnostics.reportRendererError) {
+                window.api.diagnostics.reportRendererError({
                     action: action,
                     details: JSON.stringify(data),
-                    entity_type: 'renderer',
-                    entity_id: window.location.pathname
+                    page: window.location.pathname
                 });
             }
         } catch (_) {}

@@ -58,14 +58,33 @@
             .trim();
     }
 
-    function matchesAlias(value, aliases) {
+    // Alias matching stays substring-based (a header cell usually carries extra
+    // words), but an EXACT match always outranks a substring one and role
+    // binding is EXCLUSIVE: one column is never bound to two roles. That is what
+    // keeps «الاسم العائلي» on familyName even though it contains «الاسم», and
+    // `LastName` off firstName even though it contains `name`, without breaking
+    // short aliases such as «رمز» matching the header «رمز مسار».
+    const EXACT_MATCH_BONUS = 1000;
+    // Only a familyName/firstName clash can silently corrupt a composed name
+    // ("Benali Benali"); fullName legitimately supersedes both, so it is not a
+    // reportable collision.
+    const COMPOSED_NAME_ROLES = Object.freeze(['familyName', 'firstName']);
+
+    function aliasScore(value, aliases) {
         const key = normalizeKey(value);
-        return Boolean(key) && aliases.some((alias) => {
+        if (!key) return 0;
+        let best = 0;
+        for (const alias of aliases) {
             const aliasKey = normalizeKey(alias);
-            if (!aliasKey) return false;
-            if (aliasKey.length < 5) return key === aliasKey;
-            return key.includes(aliasKey);
-        });
+            if (!aliasKey) continue;
+            if (key === aliasKey) best = Math.max(best, EXACT_MATCH_BONUS + aliasKey.length);
+            else if (key.includes(aliasKey)) best = Math.max(best, aliasKey.length);
+        }
+        return best;
+    }
+
+    function matchesAlias(value, aliases) {
+        return aliasScore(value, aliases) > 0;
     }
 
     function isOnlyAlias(value, aliases) {
@@ -74,14 +93,51 @@
     }
 
     function findHeaderIndex(row, aliases) {
+        let bestIndex = -1;
+        let bestScore = 0;
         for (let index = 0; index < row.length; index += 1) {
-            if (matchesAlias(row[index], aliases)) return index;
+            const score = aliasScore(row[index], aliases);
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = index;
+            }
         }
-        return -1;
+        return bestIndex;
     }
 
     function mapHeaderPositions(headers) {
-        return Object.fromEntries(Object.entries(HEADER_ALIASES).map(([key, aliases]) => [key, findHeaderIndex(headers, aliases)]));
+        const roles = Object.keys(HEADER_ALIASES);
+        const candidates = [];
+        roles.forEach((role, roleOrder) => {
+            for (let index = 0; index < headers.length; index += 1) {
+                const score = aliasScore(headers[index], HEADER_ALIASES[role]);
+                if (score > 0) candidates.push({ role, index, score, roleOrder });
+            }
+        });
+        candidates.sort((a, b) => (b.score - a.score) || (a.index - b.index) || (a.roleOrder - b.roleOrder));
+
+        const positions = Object.fromEntries(roles.map((role) => [role, -1]));
+        const columnOwner = new Map();
+        const blocked = new Map();
+        for (const candidate of candidates) {
+            if (positions[candidate.role] !== -1) continue;
+            const owner = columnOwner.get(candidate.index);
+            if (owner !== undefined) {
+                if (!blocked.has(candidate.role)) blocked.set(candidate.role, { owner, index: candidate.index });
+                continue;
+            }
+            positions[candidate.role] = candidate.index;
+            columnOwner.set(candidate.index, candidate.role);
+        }
+        // Report only when one of the two composed-name roles ended up with no
+        // column at all because the other claimed the single column they share.
+        const collisions = [...blocked.entries()]
+            .filter(([role, info]) =>
+                positions[role] === -1 &&
+                COMPOSED_NAME_ROLES.includes(role) &&
+                COMPOSED_NAME_ROLES.includes(info.owner))
+            .map(([role, info]) => ({ role, owner: info.owner, index: info.index }));
+        return { positions, collisions };
     }
 
     function findHeaderRow(rows) {
@@ -213,21 +269,16 @@
             if (metadataSchoolKey && !metadataSchools.has(metadataSchoolKey)) {
                 metadataSchools.set(metadataSchoolKey, metadata.schoolName);
             }
-            const headers = mapHeaderPositions(header.headers);
-            const seenHeaderIndices = new Map();
-            for (const [role, idx] of Object.entries(headers)) {
-                if (idx === -1) continue;
-                if (seenHeaderIndices.has(idx)) {
-                    diagnostics.push(diagnostic(
-                        Diagnostics.AMBIGUOUS_HEADER_BINDING,
-                        `تعارض في ربط الأعمدة في الورقة «${name}»: العمود ${idx + 1} مرتبط بأكثر من حقل (${seenHeaderIndices.get(idx)} و ${role}).`,
-                        name,
-                        header.index + 1,
-                        role
-                    ));
-                    break;
-                }
-                seenHeaderIndices.set(idx, role);
+            const { positions: headers, collisions } = mapHeaderPositions(header.headers);
+            for (const collision of collisions) {
+                diagnostics.push(diagnostic(
+                    Diagnostics.AMBIGUOUS_HEADER_BINDING,
+                    `العمود ${collision.index + 1} في الورقة «${name}» يطابق أكثر من حقل؛ تم ربطه بالحقل الأدق (${collision.owner}) وبقي الحقل (${collision.role}) بدون عمود.`,
+                    name,
+                    header.index + 1,
+                    collision.role,
+                    'warning'
+                ));
             }
             contexts.push({ name, rows, header, headers, metadata });
         }

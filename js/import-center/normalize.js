@@ -75,6 +75,14 @@
             if (month < 1 || month > 12 || day < 1 || day > 31) return '';
             return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         }
+        match = raw.match(/^(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})$/);
+        if (match) {
+            const year = Number(match[1]);
+            const month = Number(match[2]);
+            const day = Number(match[3]);
+            if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+            return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
         match = raw.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/);
         if (match) {
             const day = Number(match[1]);

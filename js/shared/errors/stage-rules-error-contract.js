@@ -13,6 +13,7 @@
 
     const RULES_UNAVAILABLE = 'RULES_UNAVAILABLE';
     const MISSING_RULE = 'MISSING_RULE';
+    const RULES_INPUT_INVALID = 'RULES_INPUT_INVALID';
     const INVALID_RULE_VERSION = 'INVALID_RULE_VERSION';
     const CONFIRM_REQUIRED = 'CONFIRM_REQUIRED';
     const REASON_REQUIRED = 'REASON_REQUIRED';
@@ -36,6 +37,13 @@
             severity: 'error',
             retryable: false,
             classification: 'domain'
+        }),
+        RULES_INPUT_INVALID: Object.freeze({
+            code: RULES_INPUT_INVALID,
+            message: 'المدخلات غير صالحة — تحقق من اكتمال بيانات القواعد.',
+            severity: 'error',
+            retryable: false,
+            classification: 'validation'
         }),
         INVALID_RULE_VERSION: Object.freeze({
             code: INVALID_RULE_VERSION,
@@ -140,21 +148,52 @@
         );
     }
 
+    function looksLikeInternalMessage(message) {
+        const msg = String(message || '').trim();
+        if (!msg) return true;
+        if (/SQLITE|ENOENT|EACCES|EPERM|ECONNREFUSED|ENOTFOUND/i.test(msg)) return true;
+        if (/\.js:\d+|at\s+\S+\s+\(/i.test(msg)) return true;
+        if (/^(Error:|TypeError:|SyntaxError:)/i.test(msg)) return true;
+        if (/\[sync:capture\]/i.test(msg)) return true;
+        return false;
+    }
+
+    /**
+     * Renderer-facing message resolution: prefer the server message when it is
+     * present and safe (Arabic, not internal plumbing), use the catalog only as the
+     * fallback. Replaces the reverse-drift logic that preferred catalog text over
+     * the server's more specific message.
+     * @param {{ code?: string, errorCode?: string, error?: string, message?: string }} response
+     */
+    function renderErrorMessage(response) {
+        const raw = response && typeof response === 'object' ? response : {};
+        const serverMessage = String(raw.error || raw.message || '').trim();
+        if (serverMessage && /[\u0600-\u06FF]/.test(serverMessage) && !looksLikeInternalMessage(serverMessage)) {
+            return serverMessage;
+        }
+        const code = String(raw.code || raw.errorCode || '').trim();
+        const def = getDefinition(code);
+        return (def && def.message) || serverMessage || UNKNOWN_MESSAGE;
+    }
+
     return {
         RULES_UNAVAILABLE,
         MISSING_RULE,
+        RULES_INPUT_INVALID,
         INVALID_RULE_VERSION,
         CONFIRM_REQUIRED,
         REASON_REQUIRED,
         COEFFICIENT_OUT_OF_RANGE,
         EXAM_COUNT_OUT_OF_RANGE,
         SUBJECT_WEIGHT_OUT_OF_RANGE,
+        UNKNOWN_MESSAGE,
         ERROR_CATALOG,
         getDefinition,
         getMessage,
         createError,
         createIncompleteResultMetadata,
         createRulesUnavailableResult,
-        isOfficialExportAllowed
+        isOfficialExportAllowed,
+        renderErrorMessage
     };
 });

@@ -20,9 +20,9 @@ assert.strictEqual(getCycleDefinition('primary').sortOrder, 5);
 assert.strictEqual(getCycleDefinition('unknown'), null);
 console.log('  [ok] cycle capability catalog is closed');
 
-const remoteCycle = { data: { cycle_code: 'secondary_collegial', is_active: true, profile_version: 'tampered' } };
+const remoteCycle = { data: { cycle_code: 'secondary_collegial', is_active: true, seed_profile_version_hint: 'tampered' } };
 assert.strictEqual(validateInstitutionCycleBeforePut(null, remoteCycle), null);
-assert.strictEqual(remoteCycle.data.profile_version, 'collegial-2026-v1');
+assert.strictEqual(remoteCycle.data.seed_profile_version_hint, 'collegial-2026-v1');
 assert.ok(validateInstitutionCycleBeforePut(null, { data: { cycle_code: 'unknown' } }).fail);
 console.log('  [ok] synced cycle rows are validated against the catalog');
 

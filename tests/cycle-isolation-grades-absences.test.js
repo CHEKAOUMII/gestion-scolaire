@@ -137,6 +137,36 @@ assert.strictEqual(db.prepare("SELECT grade FROM grades WHERE student_code = 'Q2
 db.prepare('UPDATE grades SET cycle_code = ? WHERE student_code = ?').run(QUALIFIANT, 'Q2');
 console.log('  [ok] the upsert guard refuses a drifted row and reports it');
 
+// ── F4: blank imported level/section must not clobber stored values ─────────
+// A partial re-import row that omits these fields would silently blank the DB
+// columns; the upsert must only update them when the imported value is non-blank.
+db.prepare('UPDATE grades SET level = ?, section = ? WHERE student_code = ? AND subject = ?')
+    .run('الأولى باكالوريا علوم تجريبية', '1BACSEF-1', 'Q2', 'الفيزياء');
+const guarded = gradesRepo.saveBulk(
+    db,
+    [grade('Q2', 19, { subject: 'الفيزياء', level: '', section: '' })],
+    QUALIFIANT
+);
+assert.strictEqual(guarded.count, 1);
+const afterGuard = db.prepare(
+    'SELECT grade, level, section FROM grades WHERE student_code = ? AND subject = ? AND school_year = ?'
+).get('Q2', 'الفيزياء', YEAR);
+assert.strictEqual(afterGuard.grade, 19, 'grade still updates');
+assert.strictEqual(afterGuard.level, 'الأولى باكالوريا علوم تجريبية', 'blank imported level must not clobber the stored level');
+assert.strictEqual(afterGuard.section, '1BACSEF-1', 'blank imported section must not clobber the stored section');
+const explicit = gradesRepo.saveBulk(
+    db,
+    [grade('Q2', 19, { subject: 'الفيزياء', level: 'الثانية باكالوريا', section: '2BACSEF-1' })],
+    QUALIFIANT
+);
+assert.strictEqual(explicit.count, 1);
+const afterExplicit = db.prepare(
+    'SELECT level, section FROM grades WHERE student_code = ? AND subject = ? AND school_year = ?'
+).get('Q2', 'الفيزياء', YEAR);
+assert.strictEqual(afterExplicit.level, 'الثانية باكالوريا', 'a non-blank imported level still updates');
+assert.strictEqual(afterExplicit.section, '2BACSEF-1', 'a non-blank imported section still updates');
+console.log('  [ok] blank level/section do not clobber stored values on re-import (F4)');
+
 const cAbsenceId = absencesRepo.getByStudentCode(db, 'C1', YEAR, COLLEGIAL)[0].id;
 assert.strictEqual(absencesRepo.deleteById(db, cAbsenceId, QUALIFIANT).deleted, 0);
 assert.strictEqual(absencesRepo.getByStudentCode(db, 'C1', YEAR, COLLEGIAL).length, 1);

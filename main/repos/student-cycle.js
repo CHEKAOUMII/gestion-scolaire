@@ -1,5 +1,7 @@
 'use strict';
 
+const { getCycleDefinition } = require('../../js/shared/education/cycles');
+
 /**
  * Resolve a child record's owner from the authoritative student row.
  * Child payloads never determine either the student id or education cycle.
@@ -7,6 +9,11 @@
 function requireCycle(cycleCode) {
     const cycle = String(cycleCode || '').trim();
     if (!cycle) throw new Error('السلك التعليمي غير محدد لهذه العملية');
+    const definition = getCycleDefinition(cycle);
+    if (!definition) throw new Error('السلك التعليمي غير معروف');
+    if (definition.capability !== 'supported') {
+        throw new Error('هذا السلك قيد الإعداد وغير متاح للعمل بعد');
+    }
     return cycle;
 }
 

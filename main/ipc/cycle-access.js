@@ -22,6 +22,7 @@ const { requireFields } = require('./validation');
 const { requireRole } = require('./auth');
 const cycleAccess = require('../auth/cycle-access');
 const cyclesRepo = require('../repos/cycles');
+const CycleAccessErrorContract = require('../../js/shared/errors/cycle-access-error-contract');
 
 const AUTH_CODES = new Set(['UNAUTHENTICATED', 'FORBIDDEN', 'SESSION_LOCKED']);
 
@@ -33,10 +34,18 @@ function createCycleAccessIpcError(code, message) {
 
 /** Map any thrown error to a flat, user-safe response preserving domain codes. */
 function toCycleAccessErrorResponse(err) {
-    const code = AUTH_CODES.has(err && err.code)
-        ? err.code
-        : cycleAccess.CYCLE_ACCESS_ERROR_CODES[String(err && err.code)] || 'INTERNAL_ERROR';
-    return { success: false, code, error: sanitizeIpcErrorMessage(err) };
+    const rawCode = err && err.code;
+    const code = AUTH_CODES.has(rawCode) || CycleAccessErrorContract.getDefinition(rawCode)
+        ? rawCode
+        : 'INTERNAL_ERROR';
+    const sanitized = sanitizeIpcErrorMessage(err);
+    const hasSpecificMessage = sanitized !== 'حدث خطأ داخلي';
+    return {
+        success: false,
+        code,
+        error: hasSpecificMessage ? sanitized : CycleAccessErrorContract.getMessage(code),
+        message: hasSpecificMessage ? sanitized : CycleAccessErrorContract.getMessage(code)
+    };
 }
 
 function registerCycleAccessIpc(ipcMain) {

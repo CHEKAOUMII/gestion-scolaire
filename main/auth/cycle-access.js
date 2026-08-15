@@ -24,18 +24,10 @@
 const { resolveRole } = require('./permissions');
 const { isKnownCycleCode } = require('../../js/shared/education/cycles');
 const cyclesRepo = require('../repos/cycles');
+const { CYCLE_ACCESS_ERROR_CODES } = require('../../js/shared/errors/cycle-access-error-contract');
 
 const CYCLE_ACCESS_TABLE = 'user_cycle_access';
 const FULL_CYCLE_ACCESS_ROLES = new Set(['developer', 'admin', 'principal']);
-
-/** SSOT error codes — consumed by IPC handlers and tests (no parallel catalogs). */
-const CYCLE_ACCESS_ERROR_CODES = Object.freeze({
-    USER_NOT_FOUND: 'USER_NOT_FOUND',
-    UNKNOWN_CYCLE: 'UNKNOWN_CYCLE',
-    CYCLE_NOT_IN_INSTITUTION: 'CYCLE_NOT_IN_INSTITUTION',
-    FORBIDDEN: 'FORBIDDEN',
-    LAST_USABLE_CYCLE: 'LAST_USABLE_CYCLE'
-});
 
 function createCycleAccessError(code, message) {
     const error = new Error(message);
@@ -54,7 +46,7 @@ function requireCycleAccessTable(db, session) {
     if (hasCycleAccessTable(db)) return;
 
     const error = new Error('لم يتم إعداد صلاحيات الأسلاك لهذه المؤسسة بعد');
-    error.code = 'CYCLE_ACCESS_SCHEMA_REQUIRED';
+    error.code = CYCLE_ACCESS_ERROR_CODES.CYCLE_ACCESS_SCHEMA_REQUIRED;
     throw error;
 }
 

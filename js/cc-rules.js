@@ -137,11 +137,13 @@ const CC_DEFAULT_WEIGHTS = { examWeight: 0.75, activityWeight: 0.25 };
  * Strip the exam/activity suffix from a subject name.
  * "الرياضيات (فرض 1)" → "الرياضيات"
  * "الرياضيات (الأنشطة المندمجة)" → "الرياضيات"
+ * "الرياضيات — الفرض الأول" → "الرياضيات"
  */
 function ccBaseSubject(subj) {
     return String(subj || '')
         .replace(/\s*\(\s*فرض\s*[\d٠-٩]+\s*\)\s*$/i, '')
         .replace(/\s*\(الأنشطة المندمجة\)\s*$/, '')
+        .replace(/\s*[—–-]\s*(?:الفرض\s*(?:الأول|الاول|الثاني|الثالث|[\d٠-٩]+)|الأنشطة\s*المندمجة|التقييم(?:\s*[\d٠-٩]+)?)\s*$/i, '')
         .trim();
 }
 

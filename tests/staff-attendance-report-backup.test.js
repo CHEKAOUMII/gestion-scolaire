@@ -19,8 +19,8 @@ function throwsWithCode(fn, code) {
 }
 
 const cycleRows = [
-    { cycle_code: 'secondary_qualifiant', is_active: 1, profile_version: 'qualifiant-2026-v1' },
-    { cycle_code: 'secondary_collegial', is_active: 1, profile_version: 'collegial-2026-v1' }
+    { cycle_code: 'secondary_qualifiant', is_active: 1, seed_profile_version_hint: 'qualifiant-2026-v1' },
+    { cycle_code: 'secondary_collegial', is_active: 1, seed_profile_version_hint: 'collegial-2026-v1' }
 ];
 
 const cycleDb = {
@@ -46,6 +46,28 @@ throwsWithCode(
 const administrativeScope = resolveReportScope(cycleDb, {}, { role: 'principal' }, { cycleCode: 'all' });
 assert.strictEqual(administrativeScope.administrative, true);
 assert.deepStrictEqual(administrativeScope.cycleCodes, ['secondary_qualifiant', 'secondary_collegial']);
+
+// A default (non-admin) scope must surface a TYPED cycle failure, never leak an
+// untyped one, and the all-cycles gate stays a pure role decision even when the
+// active cycle cannot be resolved (Phase 4A resolveReportScope ordering).
+const singleCycleDb = {
+    prepare(sql) {
+        if (sql.includes('FROM institution_cycles')) return { all: () => [cycleRows[0]] };
+        throw new Error(`unexpected SQL: ${sql}`);
+    }
+};
+const singleScope = resolveReportScope(singleCycleDb, {}, { role: 'principal' }, {});
+assert.strictEqual(singleScope.cycleCode, 'secondary_qualifiant');
+assert.strictEqual(singleScope.administrative, false);
+const twoCycleDb = cycleDb; // two active supported catalog rows, no session context
+throwsWithCode(
+    () => resolveReportScope(twoCycleDb, {}, { role: 'principal' }, {}),
+    'CYCLE_SELECTION_REQUIRED'
+);
+throwsWithCode(
+    () => resolveReportScope(singleCycleDb, {}, { role: 'teacher' }, { cycleCode: 'all' }),
+    'ALL_CYCLES_REPORT_FORBIDDEN'
+);
 
 throwsWithCode(() => rejectReportWrite({ cycle_code: 'all' }), 'ALL_CYCLES_WRITE_FORBIDDEN');
 throwsWithCode(() => rejectAttendanceWrite({ scope: 'all_cycles' }), 'ALL_CYCLES_WRITE_FORBIDDEN');

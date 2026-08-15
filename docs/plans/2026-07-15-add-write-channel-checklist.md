@@ -12,14 +12,15 @@ Follow this every time you add a **write** (mutating) IPC channel. Skipping a st
    - Row-level wrapper capture: choose an `idExtractor`
    - **Bulk / multi-row correctness:** use `captureMode: 'explicit'` + `exclude: true` and write exact outbox rows inside the same SQLite transaction via capture-port helpers `captureInputUpserts` / `captureResolvedRows` (see `main/repos/students.js`)
    - Local-only: `{ exclude: true }` with a comment
-6. **Soft auth (optional)** — If the channel must work **before login** (setup / bulk import), pass:
+6. **Soft auth** — School-data **import** channels must **never** be `allowNoSession` (import-pipeline review F2, `docs/reviews/2026-08-04-import-pipeline-review.md`): bulk imports (students, grades, absences, orientation, teachers, FET) require an authenticated session. Reserve `{ allowNoSession: true }` for genuinely pre-login setup flows only (e.g. `settings:setSchoolYear`, institution setup):
    ```js
    handleWriteSoftAuth(ipcMain, 'domain:action', WRITE_ROLES, handler, { allowNoSession: true });
    ```
    Default soft-auth still requires a session when one is missing.
-7. **Register module** — Ensure the file’s `register*Ipc` is called from `main/ipc/registerAll.js`.
-8. **Shared error contract (when domain has one)** — If the domain owns a shared error vocabulary (e.g. orientation: `js/shared/errors/orientation-error-contract.js`), IPC and renderer consumers MUST use it for stable codes / default Arabic messages / severity / retryability. Do **not** reintroduce parallel catalogs on pages or in IPC. Page-only codes live in a separate section of the same contract, not as ad-hoc maps. Keep the IPC response **flat** (`success`, `code`, `error`, optional `message`/`details`/`retryable`) and strip unsafe details at the boundary.
-9. **Verify** — Run:
+7. **Import audit (when the channel is a school-data import)** — Business audit entries originate in main, never the renderer. After a successful repo write call `logImportAudit(db, type, details)` / `buildImportAuditDetails(...)` from `main/ipc/import-audit.js` (whitelisted types, bounded details, never throws). Renderer may only record bounded `import:<type>` notices (blocked/failed/clear) plus the single `print_semester_report` action through the authenticated, whitelisted `systemLogs:add` channel (`main/ipc/system.js`). Renderer error reporting uses `diagnostics:reportRendererError` (`main/ipc/diagnostics.js`), which writes to the error-log file only and can never forge `system_logs` entries.
+8. **Register module** — Ensure the file’s `register*Ipc` is called from `main/ipc/registerAll.js`.
+9. **Shared error contract (when domain has one)** — If the domain owns a shared error vocabulary (e.g. orientation: `js/shared/errors/orientation-error-contract.js`), IPC and renderer consumers MUST use it for stable codes / default Arabic messages / severity / retryability. Do **not** reintroduce parallel catalogs on pages or in IPC. Page-only codes live in a separate section of the same contract, not as ad-hoc maps. Keep the IPC response **flat** (`success`, `code`, `error`, optional `message`/`details`/`retryable`) and strip unsafe details at the boundary.
+10. **Verify** — Run:
    ```bash
    npm run test:smoke
    npm run lint

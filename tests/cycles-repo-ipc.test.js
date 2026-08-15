@@ -60,7 +60,7 @@ setRepoCapturePort(createNoOpCapturePort());
 // Same DDL + backfill the institution-cycles migration applies to an existing install.
 ensureInstitutionCyclesSchema(db);
 db.prepare(
-    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
      VALUES ('secondary_qualifiant', 1, 'qualifiant-2026-v1', 20)`
 ).run();
 db.exec(`
@@ -83,7 +83,7 @@ function throwsWith(fn, fragment, message) {
 const backfilled = cycleRow('secondary_qualifiant');
 assert.strictEqual(Number(backfilled.is_active), 1);
 assert.strictEqual(backfilled.capability, 'supported');
-assert.strictEqual(backfilled.profile_version, 'qualifiant-2026-v1');
+assert.strictEqual(backfilled.seed_profile_version_hint, 'qualifiant-2026-v1');
 console.log('  [ok] migration backfills the existing institution as qualifiant');
 
 throwsWith(() => cyclesRepo.addCycle(db, 'unknown-cycle'), 'غير معروف', 'unknown cycle codes are rejected');
@@ -91,7 +91,7 @@ throwsWith(() => cyclesRepo.addCycle(db, 'secondary_qualifiant'), 'مضاف مس
 assert.strictEqual(cyclesRepo.listCycles(db).length, 1, 'a rejected add must not leave a partial row');
 
 const added = cyclesRepo.addCycle(db, 'secondary_collegial');
-assert.strictEqual(added.profile_version, 'collegial-2026-v1', 'profile version comes from the catalog, not the caller');
+assert.strictEqual(added.seed_profile_version_hint, 'collegial-2026-v1', 'profile version comes from the catalog, not the caller');
 assert.strictEqual(added.capability, 'supported');
 assert.strictEqual(Number(added.is_active), 1);
 assert.strictEqual(cyclesRepo.listCycles(db).length, 2);

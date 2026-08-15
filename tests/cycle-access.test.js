@@ -36,7 +36,7 @@ function openDb() {
 function seedCycle(db) {
     ensureInstitutionCyclesSchema(db);
     db.prepare(
-        `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+        `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
          VALUES ('secondary_qualifiant', 1, 'qualifiant-2026-v1', 20)`
     ).run();
 }
@@ -94,8 +94,15 @@ const {
 
 assert.deepStrictEqual(
     Object.keys(CYCLE_ACCESS_ERROR_CODES).sort(),
-    ['CYCLE_NOT_IN_INSTITUTION', 'FORBIDDEN', 'LAST_USABLE_CYCLE', 'UNKNOWN_CYCLE', 'USER_NOT_FOUND'],
-    'CYCLE_ACCESS_ERROR_CODES must stay the documented SSOT'
+    [
+        'CYCLE_ACCESS_SCHEMA_REQUIRED',
+        'CYCLE_NOT_IN_INSTITUTION',
+        'FORBIDDEN',
+        'LAST_USABLE_CYCLE',
+        'UNKNOWN_CYCLE',
+        'USER_NOT_FOUND'
+    ],
+    'CYCLE_ACCESS_ERROR_CODES must stay the documented SSOT (Phase 4A: schema-required code consolidated into the contract)'
 );
 for (const fn of [listUserCycleAccess, setUserCycles, setCyclesForAllUsers]) {
     assert.strictEqual(typeof fn, 'function', `cycle-access management export missing: ${fn && fn.name}`);

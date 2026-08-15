@@ -49,7 +49,10 @@ for (const fn of fns) {
 
 // Manual path still wires FILE_INPUTS change -> handleImport
 assert.ok(importSourceIncludes('FILE_INPUTS'), 'FILE_INPUTS map');
-assert.ok(importSourceIncludes('await handleImport(action, files)'), 'manual handleImport path');
+assert.ok(
+    importSourceMatches(/await\s+handleImport\(action,\s*files,\s*\{\s*review:\s*decision\.review\s*\}\)/),
+    'manual handleImport path passes the confirmed review without replacing the original files'
+);
 assert.ok(importSourceIncludes('runManualImportPreflight'), 'manual path runs read-only preflight');
 assert.ok(importSourceIncludes('persist: false'), 'preflight parsers use non-persisting mode');
 

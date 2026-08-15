@@ -235,7 +235,10 @@ const controlName = Parser.parseStudentSheets({
 assert.strictEqual(controlName.valid, true);
 assert.strictEqual(controlName.records[0].full_name, 'سليم بنعلي');
 
-const ambiguousBinding = Parser.parseStudentSheets({
+// Case D — the canonical Arabic Massar pair. «الاسم العائلي» contains «الاسم»,
+// so a first-match binder puts both name roles on the family column. Exclusive
+// best-match binding must keep them apart and must NOT reject the file.
+const arabicNamePair = Parser.parseStudentSheets({
     sheets: [
         {
             name: 'Case D',
@@ -248,10 +251,54 @@ const ambiguousBinding = Parser.parseStudentSheets({
     schoolYear,
     configuredSchoolName: ''
 });
+assert.strictEqual(arabicNamePair.valid, true, 'case D: the Arabic Massar header pair must stay importable');
+assert.strictEqual(arabicNamePair.records[0].full_name, 'ريم ترباوي', 'case D: must be first + family, not family + family');
 assert.ok(
-    ambiguousBinding.errors.some((item) => item.code === 'AMBIGUOUS_HEADER_BINDING'),
-    'case D: two roles bound to one column must emit AMBIGUOUS_HEADER_BINDING'
+    !arabicNamePair.diagnostics.some((item) => item.code === 'AMBIGUOUS_HEADER_BINDING'),
+    'case D: a resolvable pair is not a collision'
 );
+
+// Case E — a single column shared by both composed-name roles: the parser binds
+// the more specific role and reports the leftover as a NON-blocking warning.
+const sharedNameColumn = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: 'Case E',
+            rows: [
+                ['الرمز', 'الاسم العائلي'],
+                ['E1', 'ترباوي']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: ''
+});
+assert.strictEqual(sharedNameColumn.valid, true, 'case E: a shared name column must not block the import');
+assert.strictEqual(sharedNameColumn.records[0].full_name, 'ترباوي');
+assert.ok(
+    sharedNameColumn.warnings.some((item) => item.code === 'AMBIGUOUS_HEADER_BINDING'),
+    'case E: the leftover name role must be reported as a warning'
+);
+
+// Case F — short Arabic aliases must keep matching inside longer headers
+// («رمز» inside «رمز مسار»), which the earlier short-alias-exact rule broke.
+const shortAliasHeader = Parser.parseStudentSheets({
+    sheets: [
+        {
+            name: 'Case F',
+            rows: [
+                ['رمز مسار', 'النسب', 'الاسم', 'تاريخ الازدياد'],
+                ['F1', 'ترباوي', 'ريم', '15/03/2009']
+            ]
+        }
+    ],
+    schoolYear,
+    configuredSchoolName: ''
+});
+assert.strictEqual(shortAliasHeader.valid, true, 'case F: «رمز مسار» must resolve the student-code column');
+assert.strictEqual(shortAliasHeader.records[0].code, 'F1');
+assert.strictEqual(shortAliasHeader.records[0].full_name, 'ريم ترباوي');
+assert.strictEqual(shortAliasHeader.records[0].birth_date, '2009-03-15');
 
 
 console.log('students-import-behavior: OK');

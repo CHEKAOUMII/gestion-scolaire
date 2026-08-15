@@ -136,7 +136,9 @@ function checkCycleProfileConsistency(db, item) {
         if (ruleSetId != null) {
             let ruleSet = null;
             try {
-                ruleSet = db.prepare('SELECT school_year FROM stage_rule_sets WHERE id = ?').get(ruleSetId);
+                ruleSet = db
+                    .prepare(`SELECT school_year, status FROM stage_rule_sets WHERE id = ?`)
+                    .get(ruleSetId);
             } catch {
                 return { reason: `assignment references rule set ${ruleSetId}: stage_rule_sets is missing locally` };
             }
@@ -145,6 +147,9 @@ function checkCycleProfileConsistency(db, item) {
                 return {
                     reason: `assignment rule set ${ruleSetId} belongs to ${ruleSet.school_year}, not ${schoolYear}`
                 };
+            }
+            if (ruleSet.status !== 'active') {
+                return { reason: `assignment references non-active rule set ${ruleSetId}` };
             }
         }
         return null;

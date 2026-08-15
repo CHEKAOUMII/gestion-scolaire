@@ -474,6 +474,7 @@ function normalizeSubjectName(subject) {
     const text = raw
         .replace(/\s*\(\s*(?:فرض|نشط)\s*[0-9\u0660-\u0669]+\s*\)\s*$/i, '')
         .replace(/\s*\(الأنشطة المندمجة\)\s*$/i, '')
+        .replace(/\s*[—–-]\s*(?:الفرض\s*(?:الأول|الاول|الثاني|الثالث|[0-9\u0660-\u0669]+)|الأنشطة\s*المندمجة|التقييم(?:\s*[0-9\u0660-\u0669]+)?)\s*$/i, '')
         .trim();
     if (!text) { _normalizeCache[raw] = text; return text; }
     const result = translateSubject(text);

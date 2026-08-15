@@ -31,12 +31,30 @@ function getStageRulesRepo() {
 const CONTRACT_CODES = new Set([
     'RULES_UNAVAILABLE',
     'MISSING_RULE',
+    'RULES_INPUT_INVALID',
     'INVALID_RULE_VERSION',
     'CONFIRM_REQUIRED',
     'REASON_REQUIRED',
     'COEFFICIENT_OUT_OF_RANGE',
     'EXAM_COUNT_OUT_OF_RANGE',
     'SUBJECT_WEIGHT_OUT_OF_RANGE'
+]);
+
+/**
+ * Domain/auth codes that may legitimately reach this IPC surface from repos,
+ * auth helpers, and cycle resolution. Everything else is internal and must not
+ * leak. Never infer a code from Arabic message text — rewording a message must
+ * not change the emitted code (multi-stage review verdict, Phase 4A).
+ */
+const PASSTHROUGH_CODES = new Set([
+    ...CONTRACT_CODES,
+    'FORBIDDEN',
+    'UNAUTHENTICATED',
+    'SESSION_LOCKED',
+    'INVALID_SCHOOL_YEAR',
+    'CYCLE_SELECTION_REQUIRED',
+    'NO_USABLE_CYCLE',
+    'CYCLE_ACCESS_SCHEMA_REQUIRED'
 ]);
 
 function createDomainError(code, message) {
@@ -46,14 +64,8 @@ function createDomainError(code, message) {
 }
 
 function inferStageRulesErrorCode(err, fallbackCode) {
-    const code = err && err.code;
-    if (code && (CONTRACT_CODES.has(code) || code === 'FORBIDDEN' || code === 'UNAUTHENTICATED')) {
-        return code;
-    }
-    const msg = String((err && err.message) || '');
-    if (/السنة الدراسية|YYYY\/YYYY|school.?year/i.test(msg)) return 'INVALID_SCHOOL_YEAR';
-    if (/السلك|صلاحية|غير مصرح|تسجيل الدخول/i.test(msg)) return 'FORBIDDEN';
-    return fallbackCode;
+    const code = err && typeof err.code === 'string' ? err.code.trim() : '';
+    return PASSTHROUGH_CODES.has(code) ? code : fallbackCode;
 }
 
 /**
@@ -112,10 +124,10 @@ function requireCycleEntryScope(db, session, event, entryCycleCode, sessionCycle
 /** Shared batch pre-checks; resolves the session's working cycle once per save. */
 function resolveEntryScope(db, session, event, rawEntries) {
     if (!Array.isArray(rawEntries) || rawEntries.length === 0) {
-        throw createDomainError('MISSING_RULE', 'لا توجد مدخلات للتعديل');
+        throw createDomainError('RULES_INPUT_INVALID', 'لا توجد مدخلات للتعديل');
     }
     if (rawEntries.length > MAX_ENTRIES) {
-        throw createDomainError('MISSING_RULE', `عدد المدخلات يتجاوز الحد الأقصى (${MAX_ENTRIES})`);
+        throw createDomainError('RULES_INPUT_INVALID', `عدد المدخلات يتجاوز الحد الأقصى (${MAX_ENTRIES})`);
     }
     return resolveCycleForRequest(db, event);
 }
@@ -129,7 +141,7 @@ function validateCoefficientEntries(db, session, event, rawEntries) {
         const streamCode = String(entry.streamCode || '').trim();
         const subjectCode = String(entry.subjectCode || '').trim();
         if (!levelCode || !streamCode || !subjectCode) {
-            throw createDomainError('MISSING_RULE', `المدخل رقم ${index + 1}: يجب تحديد المستوى والشعبة والمادة`);
+            throw createDomainError('RULES_INPUT_INVALID', `المدخل رقم ${index + 1}: يجب تحديد المستوى والشعبة والمادة`);
         }
         const coefficient = requireIntegerInRange('المعامل', entry.coefficient, 1, 20, 'COEFFICIENT_OUT_OF_RANGE');
         return { cycleCode, levelCode, streamCode, subjectCode, coefficient };
@@ -144,7 +156,7 @@ function validateExamCountEntries(db, session, event, rawEntries) {
         const levelCode = String(entry.levelCode || '').trim();
         const subjectCode = String(entry.subjectCode || '').trim();
         if (!levelCode || !subjectCode) {
-            throw createDomainError('MISSING_RULE', `المدخل رقم ${index + 1}: يجب تحديد المستوى والمادة`);
+            throw createDomainError('RULES_INPUT_INVALID', `المدخل رقم ${index + 1}: يجب تحديد المستوى والمادة`);
         }
         const examCount = requireIntegerInRange('عدد الفروض', entry.examCount, 1, 12, 'EXAM_COUNT_OUT_OF_RANGE');
         return { cycleCode, levelCode, subjectCode, examCount };
@@ -180,14 +192,14 @@ function validateWeightEntries(db, session, event, rawEntries) {
 
 /**
  * Validate a resetToOfficial payload and enforce cycle auth:
- *  - scope must be 'row' or 'bulk' (MISSING_RULE otherwise)
+ *  - scope must be 'row' or 'bulk' (RULES_INPUT_INVALID otherwise)
  *  - row: the single target key must be fully specified and cycle-authorized
  *  - bulk: requires confirm === true (CONFIRM_REQUIRED) and a cycle-authorized session
  */
 function validateResetPayload(db, session, event, payload) {
     const scope = String(payload && payload.scope || '');
     if (scope !== 'row' && scope !== 'bulk') {
-        throw createDomainError('MISSING_RULE', 'نطاق الاستعادة يجب أن يكون "row" أو "bulk"');
+        throw createDomainError('RULES_INPUT_INVALID', 'نطاق الاستعادة يجب أن يكون "row" أو "bulk"');
     }
     if (scope === 'row') {
         const sessionCycle = resolveCycleForRequest(db, event);
@@ -200,7 +212,7 @@ function validateResetPayload(db, session, event, payload) {
             const subjectCode = String(key.subjectCode || '').trim();
             const ruleType = String(key.ruleType || key.rule_type || '').trim();
             if (!subjectCode || (ruleType !== 'weight' && (!levelCode || !streamCode))) {
-                throw createDomainError('MISSING_RULE', 'يجب تحديد المستوى والشعبة والمادة لاستعادة القاعدة الرسمية');
+                throw createDomainError('RULES_INPUT_INVALID', 'يجب تحديد المستوى والشعبة والمادة لاستعادة القاعدة الرسمية');
             }
             return { cycleCode, levelCode, streamCode, subjectCode, ...(ruleType ? { ruleType } : {}) };
         });
@@ -215,11 +227,12 @@ function validateResetPayload(db, session, event, payload) {
 }
 
 function registerStageRulesIpc(ipcMain) {
-    handleAuthedRead(ipcMain, 'stageRules:getActive', ({ db }, schoolYear) => {
+    handleAuthedRead(ipcMain, 'stageRules:getActive', ({ db, event }, schoolYear) => {
         try {
             const year = requireSchoolYear(schoolYear);
+            const cycleCode = resolveCycleForRequest(db, event);
             const repo = getStageRulesRepo();
-            const ruleSet = repo.getActiveRuleSet(db, year);
+            const ruleSet = repo.getActiveRuleSetForCycle(db, year, cycleCode);
             const rows = ruleSet
                 ? repo.getRuleSetRows(db, ruleSet.id)
                 : { coefficients: [], examCounts: [], weights: [] };
@@ -229,7 +242,9 @@ function registerStageRulesIpc(ipcMain) {
                 ruleSet,
                 rows,
                 profiles: repo.getCycleProfiles(db),
-                assignments: repo.getActiveAssignments(db, year)
+                assignments: repo.getActiveAssignments(db, year).filter(
+                    (assignment) => assignment.cycle_code === cycleCode
+                )
             };
         } catch (err) {
             return toStageRulesErrorResponse(err);

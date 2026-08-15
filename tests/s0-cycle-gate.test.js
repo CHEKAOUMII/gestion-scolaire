@@ -65,7 +65,7 @@ function openDb() {
 function seedInstitutionCycles(db) {
     ensureInstitutionCyclesSchema(db);
     const insert = db.prepare(
-        `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+        `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
          VALUES (?, 1, ?, ?)`
     );
     insert.run(QUALIFIANT, 'qualifiant-2026-v1', 20);
@@ -159,14 +159,14 @@ assert.throws(
     'a removed-cycle context must fail closed'
 );
 db.prepare(
-    `INSERT INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+    `INSERT INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
      VALUES (?, 1, ?, 20)`
 ).run(QUALIFIANT, 'qualifiant-2026-v1');
 console.log('  [ok] removed-cycle context fails closed');
 
 // ── Preview cycle context → fails closed (capability gate) ─────────────────
 db.prepare(
-    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+    `INSERT OR IGNORE INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
      VALUES (?, 1, ?, 5)`
 ).run(PRIMARY, 'primary-2026-v1');
 setContext(event, 7, PRIMARY, YEAR);

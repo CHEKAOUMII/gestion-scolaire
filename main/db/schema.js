@@ -1,6 +1,5 @@
 const { getDb } = require('./context');
 const { generateRandomPassword, hashPassword } = require('../auth/password');
-const { QUALIFIANT_CYCLE } = require('../../js/shared/education/cycles');
 
 // Create tables
 function createTables() {
@@ -39,7 +38,7 @@ function createTables() {
         level TEXT,
         section TEXT,
         school_year TEXT,
-        cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
+        cycle_code TEXT NOT NULL,
         teacher_resolution TEXT DEFAULT 'unresolved',
         source_file_name TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -67,7 +66,7 @@ function createTables() {
         days REAL DEFAULT 0,
         reason TEXT,
         school_year TEXT,
-        cycle_code TEXT NOT NULL DEFAULT '${QUALIFIANT_CYCLE}',
+        cycle_code TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -880,7 +879,7 @@ function ensureInstitutionCyclesSchema(existingDb) {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cycle_code TEXT NOT NULL UNIQUE,
             is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
-            profile_version TEXT NOT NULL,
+            seed_profile_version_hint TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1041,8 +1040,8 @@ function ensureStageRulesSchema(existingDb) {
 //
 // `cycle_profiles` holds official, immutable stage profiles; the logical key is
 // (cycle_code, profile_version). The EFFECTIVE profile for a school year is decided
-// exclusively by `cycle_profile_assignments` — CYCLE_CATALOG.profileVersion and
-// institution_cycles.profile_version are seed/migration hints only.
+// exclusively by `cycle_profile_assignments` — CYCLE_CATALOG.seedProfileVersionHint and
+// institution_cycles.seed_profile_version_hint are seed/migration hints only.
 // `cycle_profile_assignments`: one row per (school_year, cycle_code); rule_set_id
 // MUST be non-null when the profile uses coefficients (and must point at the
 // active stage_rule_sets of the same school year) and MUST be NULL for

@@ -1,0 +1,102 @@
+Short answer
+The program has no concept of an educational cycle today. It is hard-wired to qualifying secondary (الثانوي التأهيلي). Managing primary and middle alongside it is either a deployment decision (one install per establishment) or a schema change (add a cycle dimension) — those are two very different amounts of work, and the choice comes first.
+
+Here is what I found in the code.
+
+What exists today
+There is no cycles, levels, sections, or subjects table anywhere. Level and section are plain TEXT columns on students, grades, exams, tests (
+schema.js
+). institution_config stores only the Massar code and institution name — no school type.
+
+The level catalogue is a hardcoded dictionary containing only TC / 1BAC / 2BAC codes, and it exists twice:
+
+LEVEL_CODE_TO_AR —
+utils.js 2403
+ (renderer SSOT)
+LEVEL_CODES —
+exam-count-defaults.js 26
+ (main-process mirror, comment says "mirrors LEVEL_CODE_TO_AR keys")
+No 1AP–6AP, no 1APIC–3APIC. The only place in the whole app that acknowledges the other cycles is an optgroup in exams-schedule.html:421 offering الامتحان الإقليمي / الامتحان الجهوي under "الابتدائي والإعدادي". The sidebar also parses the cycle out of the institution name string (
+sidebar.js 420
+) purely for a display label — cosmetic, drives nothing.
+
+Subjects (المواد): no catalogue at all. subject is free text on grades, exams, tests, teachers. The closest thing is DEFAULT_EXAM_COUNTS (
+exam-count-defaults.js 8
+) — 15 lycée subjects with فرض counts.
+
+Resources: only exam_rooms(room_name, capacity, equipment), scoped to exam proctoring. There is no general room or equipment inventory.
+
+Teachers: no teacher ↔ subject ↔ section junction table. The relationship is implied by denormalized columns on grades and tests, and load is stored as scalars on teachers (total_hours, overtime_hours, num_classes, is_surplus).
+
+Timetable: a single opaque JSON blob — timetable_data(school_year PK, data_json), capped at 5 MB (
+timetable-data.js
+). Groups are a string convention inside the section (TCSF-1:G1). Period and session semantics live inside the JSON, so there is nothing to configure per cycle.
+
+Orientation:
+orientation.js
+ is shaped for TC→1BAC stream choice (origin_stream, choice_1..3, assigned_stream). Streams are free text. No cycle reference, no 3APIC→TC transition.
+
+What already works for any cycle
+Three things are genuinely cycle-neutral and you can use them right now:
+
+1. The user level mapping. settings.levelsMapping is a JSON map of section → Arabic level name, written by the Massar import (app.js:298 saveLevelsMapping). resolveLevelName(section, mapping) in
+utils.js
+ checks the user mapping first, then falls back to the hardcoded parser. So if you import a primary school's sections and map 1AP-1 → المستوى الأول ابتدائي, reporting groups correctly without touching code. This is the single biggest existing lever.
+
+2. Core records. Students, grades, absences, correspondence are keyed on free-text section + school_year. A primary or collège section code stores and queries fine.
+
+3. Page visibility. page_visibility is device-local and excluded from sync (per AGENTS.md). A primary-school install can hide التوجيه المدرسي, تتبع أوراق التحرير, and the lycée exam pages without affecting other devices.
+
+What breaks per cycle
+Area	Failure
+Level grouping	getLevelFromSection('3APIC-1') returns {code:'other', name:'3APIC-1'}. Analytics, results-hub, students-list, teachers-performance fall back to raw section codes unless levelsMapping is filled in
+فرض counts
+exam-papers.js 143
+ resolves the level code and deliberately ignores levelsMapping. For non-lycée codes it silently lands on the '*' default
+Subjects	The default catalogue is lycée-only. Primary needs النشاط العلمي، التربية الفنية; collège needs الاجتماعيات، التربية الأسرية
+Evaluation model	grades.semester is a bare INTEGER. Primary (مراحل / مراقبة مستمرة), collège (فرض + جهوي in 3APIC), lycée (فروض + جهوي 1BAC + وطني 2BAC) are three different models with no way to express which applies
+Teacher model	Primary teachers are polyvalent — one teacher, one section, all subjects. The denormalized columns and the load scalars assume a subject specialist spread across many sections. Proctor distribution (
+proctor-distribution-v2.js
+) inherits that assumption
+Timetable	No per-cycle session model. Primary half-days with one teacher all day vs collège/lycée :G1/:G2 splits and 1h/2h blocks are indistinguishable inside the blob
+Orientation	Only the TC→1BAC transition is modelled
+The decision that comes first
+Option A — one database per establishment. Each cycle gets its own install. This fits the current design exactly: institution_config is a single row, sync partitions by school_id_hash, page visibility is per-device. Zero schema change, zero risk. This is the correct answer if the three cycles are legally separate establishments — which they usually are.
+
+Option B — one database, multi-cycle. Required only if a single director genuinely manages a combined establishment (مجموعة مدارس, مدارس الريادة) and needs one consolidated view. This needs a real cycle dimension and touches most of the app.
+
+I'd take A unless you have a concrete combined-establishment requirement, and treat B as a roadmap.
+
+If you go with Option B
+Ordered so each phase is independently useful and low-risk:
+
+Phase 1 — one level SSOT, cycle-tagged. Collapse the two dictionaries into a single shared module (the pattern already used by
+system-tag-types.js
+ and
+orientation-error-contract.js
+, which dual-export to main and renderer). Add a cycle field per entry and the missing 1AP–6AP / 1APIC–3APIC codes. Offset order by cycle (primary 100s, collège 200s, lycée 300s) so sortLevelNames and sortSectionNames stay stable. Have
+exam-count-defaults.js
+ require it instead of mirroring it — the current duplication is already a drift risk. This alone fixes level grouping across five pages.
+
+Phase 2 — cycle in configuration. Add the active cycle(s) to institution_config (or a settings key) plus a selector in settings-school.html. It drives which levels appear in dropdowns and which page-visibility preset applies. Replaces the institution-name string parsing in the sidebar with real data.
+
+Phase 3 — subject catalogue + evaluation model. A subjects(code, name_ar, cycle, weekly_hours, coefficient, order) table, and generalize the exam-count lookup to key on (cycle, level_code, subject) with fallback to (cycle,'*') then ('*','*'). Also fix exam-papers.js to be mapping-aware.
+
+Phase 4 — teacher assignments junction. teacher_assignments(teacher_id, section, subject, weekly_hours, cycle, school_year). This is what makes both the polyvalent and specialist models expressible, and lets load and overtime be computed rather than stored as stale scalars.
+
+Phase 5 — normalize the timetable. timetable_slots(day, period, teacher_id, section, subject, room, cycle, group_label, school_year). Your own audit already recommends this at
+database-schema-audit.md 348
+. Keep the JSON blob as an import cache. This is the prerequisite for any per-cycle session configuration.
+
+Phase 6 — orientation transitions. Add cycle and transition ('3APIC→TC', 'TC→1BAC') to orientation rows, and extend the existing error contract SSOT rather than forking it (AGENTS.md 028).
+
+Non-negotiable guardrails from your own conventions: all new domain SQL goes in main/repos/*, IPC handlers do only auth plus field validation, change tracking goes through
+capture-port.js
+, bulk writes use captureMode: 'explicit' with outbox rows inside the same transaction, and each new write channel follows
+2026-07-15-add-write-channel-checklist.md
+.
+
+What I did not verify
+I did not locate the exam_count_rules DDL — it is seeded from exam-count-defaults.js but the CREATE TABLE was not in the schema or migration files I read, so my Phase 3 claim about its current key shape is inferred from the seed and lookup code, not from the table definition. Worth a grep before planning against it.
+
+Tell me which option you're taking and I'll write the spec or start on Phase 1.

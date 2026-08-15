@@ -374,7 +374,7 @@ assert.throws(
 );
 
 resDb.prepare(
-    `INSERT INTO institution_cycles (cycle_code, is_active, profile_version, sort_order)
+    `INSERT INTO institution_cycles (cycle_code, is_active, seed_profile_version_hint, sort_order)
      VALUES (?, 1, ?, ?)`
 ).run(PRIMARY, 'primary-2026-v1', 5);
 assert.throws(

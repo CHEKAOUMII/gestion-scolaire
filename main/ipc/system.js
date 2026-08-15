@@ -1,10 +1,13 @@
 const { getDb } = require('../db/context');
 const { requireRole, getSessionByEvent } = require('./auth');
 const { hashPassword, generateRandomPassword } = require('../auth/password');
-const { authErrorResponse, handleWrite, handleRead } = require('./ipc-helpers');
+const { authErrorResponse, handleWrite, handleWriteSoftAuth, handleAuthedRead } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
 const { applySyncDefaults } = require('../sync/defaults');
+const { IMPORT_AUDIT_TYPES, IMPORT_AUDIT_MAX_DETAILS, isRendererImportNotice } = require('./import-audit');
+
+const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 
 function normalizeEmail(value) {
     return String(value || '')
@@ -170,7 +173,7 @@ function buildFirebaseProvisioningWarning(result) {
 }
 
 function registerSystemIpc(ipcMain) {
-    handleRead(ipcMain, 'systemLogs:getAll', (db, limit) => {
+    handleAuthedRead(ipcMain, 'systemLogs:getAll', ({ db }, limit) => {
         return db
             .prepare(
                 `
@@ -182,36 +185,49 @@ function registerSystemIpc(ipcMain) {
             .all(limit || 200);
     });
 
-    ipcMain.handle('systemLogs:add', async (_event, payload) => {
-        try {
-            const db = getDb();
-            db.prepare(
-                `
-                INSERT INTO system_logs(action, details, entity_type, entity_id)
-                VALUES(?, ?, ?, ?)
-            `
-            ).run(payload.action, payload.details || null, payload.entity_type || null, payload.entity_id || null);
+    // ── Business audit entry (import-pipeline review F2) ──
+    // Authenticated (session + write role) and action-bounded: the renderer may only
+    // record a small closed set of renderer-observable events —
+    //   • import notices (blocked review / failure / clear) under the shared
+    //     `import:<type>` vocabulary, and
+    //   • the semester-report print audit (entity_type 'print', action
+    //     'print_semester_report').
+    // Successful import completions are written by main-side handlers via
+    // import-audit.js, so the audit trail can never be forged with arbitrary
+    // actions. Renderer error reporting does NOT go through this channel — it uses
+    // the bounded diagnostics:reportRendererError path instead.
+    handleWriteSoftAuth(ipcMain, 'systemLogs:add', WRITE_ROLES, (db, payload) => {
+        const action = String(payload?.action || '');
+        const entityType = String(payload?.entity_type || '');
+        const entityId = String(payload?.entity_id || '');
 
-            // Mirror renderer errors into the persistent, uploadable error-log file.
-            // The renderer global error boundary (js/utils.js) already routes here with
-            // entity_type='renderer', so we capture it without any renderer-side change.
-            if (payload && payload.entity_type === 'renderer') {
-                try {
-                    require('../diagnostics/error-log').logAppError({
-                        source: 'renderer',
-                        action: payload.action,
-                        page: payload.entity_id,
-                        extra: payload.details
-                    });
-                } catch (_) {
-                    /* logging must never block */
-                }
+        if (entityType === 'import') {
+            if (!action.startsWith('import:')) {
+                return { success: false, error: 'Invalid log entry type' };
             }
-
-            return { success: true };
-        } catch (err) {
-            return { success: false, error: err.message };
+            const type = action.slice('import:'.length);
+            if (!IMPORT_AUDIT_TYPES.includes(type) || entityId !== type) {
+                return { success: false, error: 'Invalid log entry action' };
+            }
+        } else if (entityType === 'print') {
+            if (action !== 'print_semester_report') {
+                return { success: false, error: 'Invalid log entry action' };
+            }
+        } else {
+            return { success: false, error: 'Invalid log entry type' };
         }
+
+        const details = String(payload?.details || '').slice(0, IMPORT_AUDIT_MAX_DETAILS);
+        if (entityType === 'import' && !isRendererImportNotice(details)) {
+            return { success: false, error: 'Only blocked, failed, or clear import notices may be renderer-authored' };
+        }
+        db.prepare(
+            `
+            INSERT INTO system_logs(action, details, entity_type, entity_id)
+            VALUES(?, ?, ?, ?)
+        `
+        ).run(action, details || null, entityType, entityId || null);
+        return { success: true };
     });
 
     // IPC Handlers - Users

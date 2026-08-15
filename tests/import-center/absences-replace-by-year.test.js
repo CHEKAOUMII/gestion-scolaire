@@ -34,8 +34,22 @@ const repoSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'main', 'repos'
 assert.ok(repoSrc.includes('INCOMPLETE_COVERAGE'), 'repo must report incomplete coverage (F8)');
 assert.ok(repoSrc.includes('missingMonths'), 'repo must list the missing months (F8)');
 assert.ok(repoSrc.includes('confirm !== true'), 'coverage guard must be bypassed only by confirm');
+assert.ok(repoSrc.includes('missingKeys'), 'repo must sample the uncovered row keys (T1.3)');
 assert.ok(importSourceIncludes('INCOMPLETE_COVERAGE'), 'import page must handle the coverage response');
 assert.ok(importSourceIncludes('showConfirm('), 'import page must ask before a destructive replace');
+// The guard compares row keys, not months: a section-by-section file covers all
+// months and still reports INCOMPLETE_COVERAGE with an EMPTY missingMonths list.
+// Gating the override dialog on missingMonths would leave the operator refused
+// with no way to confirm — the exact dead end T1.3 must not create.
+assert.ok(
+    !importSourceIncludes("absenceRes.code === 'INCOMPLETE_COVERAGE' && Array.isArray(absenceRes.missingMonths) && absenceRes.missingMonths.length"),
+    'the override dialog must not be gated on a non-empty missingMonths list'
+);
+assert.ok(
+    importSourceIncludes("if (absenceRes?.code === 'INCOMPLETE_COVERAGE')"),
+    'the override dialog must trigger on the code alone'
+);
+assert.ok(importSourceIncludes('absenceRes.missingKeys'), 'the dialog detail must fall back to the uncovered row keys');
 assert.ok(
     preload.includes('ipcRenderer.invoke(\'absences:replaceByYear\', schoolYear, absences, options)'),
     'preload must bridge the confirm options payload'

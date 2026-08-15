@@ -502,6 +502,16 @@ function collectUserCycleSelections(userId) {
         .map((checkbox) => checkbox.dataset.cycle);
 }
 
+function cycleAccessErrorMessage(response, fallback) {
+    const serverMessage = response?.error || response?.message;
+    if (serverMessage && /[\u0600-\u06FF]/.test(serverMessage)) return serverMessage;
+    const code = response?.code || response?.errorCode;
+    if (code && window.CycleAccessErrorContract && typeof window.CycleAccessErrorContract.getMessage === 'function') {
+        return window.CycleAccessErrorContract.getMessage(code);
+    }
+    return serverMessage || fallback;
+}
+
 async function saveUserCycles(userId) {
     if (!window.api?.cycleAccess?.setUsers) {
         showToast('هذه الميزة غير متاحة', 'error');
@@ -511,7 +521,7 @@ async function saveUserCycles(userId) {
     const selected = collectUserCycleSelections(userId);
     const response = await window.api.cycleAccess.setUsers({ userId, cycleCodes: selected });
     if (!response || response.success === false) {
-        showToast(response?.error || 'فشل حفظ صلاحيات الأسلاك', 'error', 6000);
+        showToast(cycleAccessErrorMessage(response, 'فشل حفظ صلاحيات الأسلاك'), 'error', 6000);
         await loadCycleAccess();
         return;
     }
@@ -537,7 +547,7 @@ async function toggleCycleForAllUsers(cycleCode, enabled) {
 
     const response = await window.api.cycleAccess.setCycles({ cycleCode, enabled });
     if (!response || response.success === false) {
-        showToast(response?.error || 'فشل تحديث صلاحيات السلك', 'error', 6000);
+        showToast(cycleAccessErrorMessage(response, 'فشل تحديث صلاحيات السلك'), 'error', 6000);
         await loadCycleAccess();
         return;
     }
