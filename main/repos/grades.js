@@ -20,6 +20,23 @@ function tableColumns(db, tableName) {
     return new Set(rows.map((row) => row.name));
 }
 
+// Subject catalog for the filter-manager dropdown (main/ipc/catalog.js `subjects:getAll`).
+// The caller resolves the cycle (resolveCycleForRequest) and it is bound verbatim —
+// no guard the original query never had.
+function listDistinctSubjects(db, cycleCode) {
+    return db
+        .prepare(
+            `
+            SELECT subject
+            FROM grades
+            WHERE cycle_code = ? AND subject IS NOT NULL AND TRIM(subject) <> ''
+            GROUP BY subject
+            ORDER BY subject
+        `
+        )
+        .all(cycleCode);
+}
+
 function listByYear(db, year, cycleCode) {
     const cycle = requireCycle(cycleCode);
     return db
@@ -436,4 +453,4 @@ function findByLocalKeys(db, keyObj) {
     return db.prepare(`SELECT * FROM grades WHERE school_year = ? AND student_code = ? AND subject = ? AND CAST(semester AS TEXT) = CAST(? AS TEXT) LIMIT 1`).get(year, studentCode, subject, semester);
 }
 
-module.exports = { GRADE_KEY_FIELDS, listByYear, listPaginated, getByStudentCode, getZeroStudents, saveOne, saveBulk, reassignTeacherBulk, deleteByYear, deleteBySemester, findByLocalKeys };
+module.exports = { GRADE_KEY_FIELDS, listByYear, listPaginated, listDistinctSubjects, getByStudentCode, getZeroStudents, saveOne, saveBulk, reassignTeacherBulk, deleteByYear, deleteBySemester, findByLocalKeys };

@@ -2,20 +2,11 @@ const { handleAuthedRead, handleWrite, normalizeYear, requireSchoolYear } = requ
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { validateDate } = require('./validation');
+const teacherAbsencesRepo = require('../repos/teacher-absences');
 
 function registerTeacherAbsencesIpc(ipcMain) {
     handleAuthedRead(ipcMain, 'teacherAbsences:getAll', ({ db }, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT a.*, t.full_name
-            FROM teacher_absences a
-            LEFT JOIN teachers t ON t.id = a.teacher_id
-            WHERE a.school_year = ?
-            ORDER BY a.absence_date DESC
-        `
-            )
-            .all(normalizeYear(schoolYear));
+        return teacherAbsencesRepo.listByYear(db, normalizeYear(schoolYear));
     });
 
     handleWrite(ipcMain, 'teacherAbsences:save', WRITE_ROLES, (db, _event, payload) => {
@@ -23,12 +14,8 @@ function registerTeacherAbsencesIpc(ipcMain) {
             validateDate('absence_date', payload.absence_date);
         }
         requireSchoolYear(payload.school_year);
-        db.prepare(
-            `
-                INSERT INTO teacher_absences(teacher_id, absence_date, reason, replacement_teacher, school_year)
-                VALUES(?, ?, ?, ?, ?)
-            `
-        ).run(
+        teacherAbsencesRepo.insert(
+            db,
             payload.teacher_id,
             payload.absence_date,
             payload.reason || null,
@@ -43,7 +30,7 @@ function registerTeacherAbsencesIpc(ipcMain) {
         if (!Number.isFinite(absenceId) || absenceId <= 0) {
             return { success: false, error: 'Invalid ID' };
         }
-        db.prepare('DELETE FROM teacher_absences WHERE id = ?').run(absenceId);
+        teacherAbsencesRepo.deleteById(db, absenceId);
         return { success: true };
     });
 }

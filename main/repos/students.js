@@ -52,6 +52,48 @@ const UPDATABLE_FIELDS = [
     'registration_type'
 ];
 
+// ── Catalog / stats lookups (main/ipc/catalog.js) ──
+// Read-only aggregations feeding the filter-manager dropdowns. The caller resolves
+// the cycle (resolveCycleForRequest) and it is bound verbatim — these mirrors must
+// not add guards the original queries never had.
+
+function countTotalByYearCycle(db, year, cycleCode) {
+    return db
+        .prepare('SELECT COUNT(*) as total FROM students WHERE school_year = ? AND cycle_code = ?')
+        .get(year, cycleCode);
+}
+
+function countGroupedByGender(db, year, cycleCode) {
+    return db
+        .prepare(
+            'SELECT gender, COUNT(*) as count FROM students WHERE school_year = ? AND cycle_code = ? GROUP BY gender'
+        )
+        .all(year, cycleCode);
+}
+
+function countGroupedBySection(db, year, cycleCode) {
+    return db
+        .prepare(
+            'SELECT section, COUNT(*) as count FROM students WHERE school_year = ? AND cycle_code = ? GROUP BY section'
+        )
+        .all(year, cycleCode);
+}
+
+function listSectionLevels(db, year, cycleCode) {
+    return db
+        .prepare(
+            `
+            SELECT section,
+                   MAX(NULLIF(TRIM(level), '')) AS level
+            FROM students
+            WHERE school_year = ? AND cycle_code = ? AND section IS NOT NULL AND TRIM(section) <> ''
+            GROUP BY section
+            ORDER BY section
+        `
+        )
+        .all(year, cycleCode);
+}
+
 function listByYear(db, year, cycleCode) {
     return db
         .prepare(
@@ -492,6 +534,10 @@ module.exports = {
     VALID_STATUSES,
     listByYear,
     listPaginated,
+    countTotalByYearCycle,
+    countGroupedByGender,
+    countGroupedBySection,
+    listSectionLevels,
     getCodesByYear,
     getByCode,
     search,

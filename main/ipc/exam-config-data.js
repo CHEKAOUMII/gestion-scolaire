@@ -1,6 +1,7 @@
 const { handleRead, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
+const examsRepo = require('../repos/exams');
 
 const VALID_CONFIG_KEYS = new Set([
     'examCenterConfig',
@@ -23,9 +24,7 @@ function registerExamConfigDataIpc(ipcMain) {
         const year = normalizeYear(schoolYear);
         const key = String(configKey || '').trim();
         if (!key || !VALID_CONFIG_KEYS.has(key)) return null;
-        const row = db
-            .prepare('SELECT data_json FROM exam_config_data WHERE school_year = ? AND config_key = ?')
-            .get(year, key);
+        const row = examsRepo.getExamConfigRow(db, year, key);
         if (!row || !row.data_json) return null;
         try {
             return JSON.parse(row.data_json);
@@ -36,9 +35,7 @@ function registerExamConfigDataIpc(ipcMain) {
 
     handleRead(ipcMain, 'examConfigData:getAll', (db, schoolYear) => {
         const year = normalizeYear(schoolYear);
-        const rows = db
-            .prepare('SELECT config_key, data_json FROM exam_config_data WHERE school_year = ?')
-            .all(year);
+        const rows = examsRepo.listExamConfigRows(db, year);
         const result = {};
         for (const row of rows) {
             try {
@@ -59,14 +56,7 @@ function registerExamConfigDataIpc(ipcMain) {
         if (payload.data === null || payload.data === undefined) {
             return { success: false, error: 'Data is required' };
         }
-        const json = JSON.stringify(payload.data);
-        db.prepare(`
-            INSERT INTO exam_config_data (school_year, config_key, data_json, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(school_year, config_key) DO UPDATE SET
-                data_json = excluded.data_json,
-                updated_at = CURRENT_TIMESTAMP
-        `).run(year, key, json);
+        examsRepo.upsertExamConfig(db, year, key, JSON.stringify(payload.data));
         return { success: true };
     });
 
@@ -77,9 +67,9 @@ function registerExamConfigDataIpc(ipcMain) {
             if (!VALID_CONFIG_KEYS.has(key)) {
                 return { success: false, error: 'Invalid config_key' };
             }
-            db.prepare('DELETE FROM exam_config_data WHERE school_year = ? AND config_key = ?').run(year, key);
+            examsRepo.deleteExamConfigByKey(db, year, key);
         } else {
-            db.prepare('DELETE FROM exam_config_data WHERE school_year = ?').run(year);
+            examsRepo.deleteExamConfigsByYear(db, year);
         }
         return { success: true };
     });

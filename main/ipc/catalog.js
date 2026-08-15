@@ -1,6 +1,8 @@
 const { handleAuthedRead, normalizeYear } = require('./ipc-helpers');
 const { resolveCycleForRequest } = require('../auth/resolve-cycle');
 const { normalizeSubjectName } = require('../../js/data/ma-education-labels');
+const studentsRepo = require('../repos/students');
+const gradesRepo = require('../repos/grades');
 
 // These three channels read `students` and `grades`, which are cycle-scoped
 // (multi-cycle plan §5.4). They must resolve the cycle from the session: `classes:getAll`
@@ -12,25 +14,15 @@ function registerCatalogIpc(ipcMain) {
         const cycle = resolveCycleForRequest(db, event);
 
         // Total students
-        const { total: totalStudents } = db
-            .prepare('SELECT COUNT(*) as total FROM students WHERE school_year = ? AND cycle_code = ?')
-            .get(year, cycle);
+        const { total: totalStudents } = studentsRepo.countTotalByYearCycle(db, year, cycle);
 
         // By gender
-        const genderRows = db
-            .prepare(
-                'SELECT gender, COUNT(*) as count FROM students WHERE school_year = ? AND cycle_code = ? GROUP BY gender'
-            )
-            .all(year, cycle);
+        const genderRows = studentsRepo.countGroupedByGender(db, year, cycle);
         const byGender = {};
         for (const row of genderRows) byGender[row.gender] = row.count;
 
         // By section
-        const sectionRows = db
-            .prepare(
-                'SELECT section, COUNT(*) as count FROM students WHERE school_year = ? AND cycle_code = ? GROUP BY section'
-            )
-            .all(year, cycle);
+        const sectionRows = studentsRepo.countGroupedBySection(db, year, cycle);
         const bySection = {};
         for (const row of sectionRows) bySection[row.section] = row.count;
 
@@ -45,33 +37,16 @@ function registerCatalogIpc(ipcMain) {
     // ── Catalogs/lookup ──
 
     handleAuthedRead(ipcMain, 'classes:getAll', ({ db, event }, schoolYear) => {
-        const rows = db
-            .prepare(
-                `
-            SELECT section,
-                   MAX(NULLIF(TRIM(level), '')) AS level
-            FROM students
-            WHERE school_year = ? AND cycle_code = ? AND section IS NOT NULL AND TRIM(section) <> ''
-            GROUP BY section
-            ORDER BY section
-        `
-            )
-            .all(normalizeYear(schoolYear), resolveCycleForRequest(db, event));
+        const rows = studentsRepo.listSectionLevels(
+            db,
+            normalizeYear(schoolYear),
+            resolveCycleForRequest(db, event)
+        );
         return rows.map((r) => ({ name: r.section, level: r.level || '' }));
     });
 
     handleAuthedRead(ipcMain, 'subjects:getAll', ({ db, event }) => {
-        const rows = db
-            .prepare(
-                `
-            SELECT subject
-            FROM grades
-            WHERE cycle_code = ? AND subject IS NOT NULL AND TRIM(subject) <> ''
-            GROUP BY subject
-            ORDER BY subject
-        `
-            )
-            .all(resolveCycleForRequest(db, event));
+        const rows = gradesRepo.listDistinctSubjects(db, resolveCycleForRequest(db, event));
 
         // Subject normalization — uses normalizeSubjectName() from js/data/ma-education-labels.js
         const invalidSubjectNames = new Set(['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة']);

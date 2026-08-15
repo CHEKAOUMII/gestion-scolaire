@@ -81,6 +81,21 @@ function readIdentityRows(db) {
     return identity;
 }
 
+/**
+ * Raw diagnostics read for `reports:getIdentityDiagnostics`: table existence plus
+ * all rows. Deliberately free of ensureIdentityTable's seeding side effects so the
+ * diagnostic reflects what is actually on disk.
+ * @param {object} db
+ * @returns {{ tableExists: boolean, rows: Array<{key: string, value: string}> }}
+ */
+function readIdentityDiagnostics(db) {
+    const tableExists = !!db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'school_identity'")
+        .get();
+    const rows = tableExists ? db.prepare('SELECT key, value FROM school_identity ORDER BY key').all() : [];
+    return { tableExists, rows };
+}
+
 function readLegacySchoolInfo(db) {
     try {
         const row = db.prepare("SELECT value FROM settings WHERE key = 'school_info'").get();
@@ -216,6 +231,7 @@ function getLogoScale(key = 'logo_scale') {
 module.exports = {
     getIdentity,
     updateIdentity,
+    readIdentityDiagnostics,
     getAssetBase64,
     getLogoScale,
     resolveLogoMaxPx,

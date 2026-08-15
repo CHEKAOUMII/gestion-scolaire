@@ -1,4 +1,5 @@
 const { handleRead, handleWrite } = require('./ipc-helpers');
+const pageVisibilityRepo = require('../repos/page-visibility');
 
 function normalizePageKey(value) {
     const raw = String(value || '').trim();
@@ -11,7 +12,7 @@ function normalizePageKey(value) {
 
 function registerPageVisibilityIpc(ipcMain) {
     handleRead(ipcMain, 'pageVisibility:getMap', (db) => {
-        const rows = db.prepare('SELECT page_key, is_visible FROM page_visibility').all();
+        const rows = pageVisibilityRepo.listVisibilityRows(db);
         const map = {};
         for (const row of rows) {
             const key = normalizePageKey(row.page_key);
@@ -28,14 +29,7 @@ function registerPageVisibilityIpc(ipcMain) {
         }
 
         const isVisible = payload?.isVisible === true ? 1 : 0;
-        db.prepare(
-            `
-                    INSERT INTO page_visibility(page_key, is_visible, updated_at)
-                    VALUES(?, ?, CURRENT_TIMESTAMP)
-                    ON CONFLICT(page_key)
-                    DO UPDATE SET is_visible = excluded.is_visible, updated_at = CURRENT_TIMESTAMP
-                `
-        ).run(pageKey, isVisible);
+        pageVisibilityRepo.setVisibility(db, pageKey, isVisible);
 
         return {
             success: true,

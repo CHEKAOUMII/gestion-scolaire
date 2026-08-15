@@ -727,6 +727,42 @@ function deleteAllAttendance(db, year) {
     return { success: true, deleted };
 }
 
+// ── Exam center config key-values (exam_config_data) ──
+// JSON (de)serialization stays at the IPC layer; these functions move the raw
+// rows only. Outbox capture for these channels is the generic wrapper's job.
+
+function getExamConfigRow(db, year, configKey) {
+    return db
+        .prepare('SELECT data_json FROM exam_config_data WHERE school_year = ? AND config_key = ?')
+        .get(year, configKey);
+}
+
+function listExamConfigRows(db, year) {
+    return db
+        .prepare('SELECT config_key, data_json FROM exam_config_data WHERE school_year = ?')
+        .all(year);
+}
+
+function upsertExamConfig(db, year, configKey, dataJson) {
+    db.prepare(
+        `
+        INSERT INTO exam_config_data (school_year, config_key, data_json, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(school_year, config_key) DO UPDATE SET
+            data_json = excluded.data_json,
+            updated_at = CURRENT_TIMESTAMP
+    `
+    ).run(year, configKey, dataJson);
+}
+
+function deleteExamConfigByKey(db, year, configKey) {
+    db.prepare('DELETE FROM exam_config_data WHERE school_year = ? AND config_key = ?').run(year, configKey);
+}
+
+function deleteExamConfigsByYear(db, year) {
+    db.prepare('DELETE FROM exam_config_data WHERE school_year = ?').run(year);
+}
+
 module.exports = {
     listExams,
     saveExam,
@@ -752,5 +788,10 @@ module.exports = {
     upsertAttendance,
     deleteAttendance,
     bulkUpsertAttendance,
-    deleteAllAttendance
+    deleteAllAttendance,
+    getExamConfigRow,
+    listExamConfigRows,
+    upsertExamConfig,
+    deleteExamConfigByKey,
+    deleteExamConfigsByYear
 };

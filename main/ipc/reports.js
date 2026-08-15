@@ -1,5 +1,5 @@
 const { printDocument } = require('../reports/engine');
-const { getIdentity, updateIdentity } = require('../reports/identity');
+const { getIdentity, updateIdentity, readIdentityDiagnostics } = require('../reports/identity');
 const { renderLetterhead } = require('../reports/letterhead');
 const { FORM_BUILDERS } = require('../reports/channels/adminForms');
 const { getDb } = require('../db/context');
@@ -10,10 +10,7 @@ const IDENTITY_DIAG_ROLES = ['admin', 'developer', 'staff', 'principal'];
 
 function getIdentityDiagnostics() {
     const db = getDb();
-    const tableExists = !!db
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'school_identity'")
-        .get();
-    const rows = tableExists ? db.prepare('SELECT key, value FROM school_identity ORDER BY key').all() : [];
+    const { tableExists, rows } = readIdentityDiagnostics(db);
     const identity = {};
     for (const row of rows) {
         identity[row.key] = row.value;
