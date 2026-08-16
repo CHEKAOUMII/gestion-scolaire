@@ -72,6 +72,75 @@ function clearAppSessionSettings(db) {
     db.prepare('DELETE FROM settings WHERE key = ?').run(APP_SESSION_SETTINGS_KEY);
 }
 
+function upsertFirebaseCachedUser(db, user, passwordHash, fallbackRole) {
+    const name = String(user?.name || '').trim();
+    const email = String(user?.email || '').trim().toLowerCase();
+    const firebaseUid = String(user?.uid || '').trim();
+    const role = String(user?.role || fallbackRole || 'viewer').trim();
+    const emailVerified = Number(user?.emailVerified || 0) ? 1 : 0;
+    const mustChangePassword = Number(user?.mustChangePassword || 0) ? 1 : 0;
+
+    if (!name || !email) {
+        throw new Error('Missing local user cache name/email');
+    }
+
+    const existing = db.prepare('SELECT id FROM users WHERE lower(email) = ? LIMIT 1').get(email);
+    if (existing) {
+        db.prepare(
+            `
+                UPDATE users
+                SET
+                    name = ?,
+                    role = ?,
+                    password_hash = ?,
+                    firebase_uid = COALESCE(NULLIF(?, ''), firebase_uid),
+                    auth_source = ?,
+                    email_verified = ?,
+                    invite_status = 'active',
+                    must_change_password = ?,
+                    disabled = 0,
+                    last_login_at = CURRENT_TIMESTAMP,
+                    last_auth_mode = 'online'
+                WHERE id = ?
+            `
+        ).run(
+            name,
+            role,
+            passwordHash,
+            firebaseUid,
+            firebaseUid ? 'firebase' : 'local',
+            emailVerified,
+            mustChangePassword,
+            existing.id
+        );
+        return existing.id;
+    }
+
+    const result = db
+        .prepare(
+            `
+                INSERT INTO users (
+                    name,
+                    email,
+                    role,
+                    password_hash,
+                    firebase_uid,
+                    auth_source,
+                    email_verified,
+                    invite_status,
+                    must_change_password,
+                    disabled,
+                    last_login_at,
+                    last_auth_mode
+                )
+                VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, 'active', ?, 0, CURRENT_TIMESTAMP, 'online')
+            `
+        )
+        .run(name, email, role, passwordHash, firebaseUid, firebaseUid ? 'firebase' : 'local', emailVerified, mustChangePassword);
+
+    return result.lastInsertRowid;
+}
+
 module.exports = {
     APP_SESSION_SETTINGS_KEY,
     getLoginAttempt,
@@ -82,5 +151,6 @@ module.exports = {
     getUserByEmail,
     readAppSessionSettings,
     writeAppSessionSettings,
-    clearAppSessionSettings
+    clearAppSessionSettings,
+    upsertFirebaseCachedUser
 };

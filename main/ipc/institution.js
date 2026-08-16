@@ -3,11 +3,11 @@
 const os = require('os');
 const { app } = require('electron');
 const { handleRead, handleWrite, handleWriteSoftAuth } = require('./ipc-helpers');
-const { ensureSchoolIdentitySchema } = require('../db/schema');
 const { hashPassword } = require('../auth/password');
 const { collectCurrentFingerprint } = require('../licensing/deviceFingerprint');
 const { applySyncDefaults } = require('../sync/defaults');
 const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
+const institutionRepo = require('../repos/institution');
 
 const ERROR_MESSAGES = {
     ALREADY_CONFIGURED: 'تم إعداد المؤسسة مسبقاً على هذا الجهاز',
@@ -30,13 +30,6 @@ const ERROR_MESSAGES = {
 const INSTITUTION_CODE_REGEX = /^[A-Z0-9]+$/;
 const MASSAR_CODE_MAX_LENGTH = 20;
 
-// Pre-refactor Massar/GRESA codes always matched this digits-then-1-2-letters shape (e.g.
-// "12345A"). It is used ONLY to tell a genuine legacy code — safe to display — apart from a
-// new server-generated opaque School_Id (20–30 random [A-Z0-9] chars, which never matches
-// this shape) when deriving a display Massar_Code for rows that have no explicit massar_code.
-// setup_mode cannot be used for this: the old setup flow also stamped 'firebase-new'.
-const LEGACY_MASSAR_CODE_SHAPE = /^\d+[A-Za-z]{1,2}$/;
-
 function fail(code, error) {
     return {
         success: false,
@@ -53,55 +46,15 @@ function ok(payload = {}) {
 }
 
 function normalizeMassarCode(value) {
-    return String(value || '').trim().toUpperCase();
+    return institutionRepo.normalizeMassarCode(value);
 }
 
 function isValidMassarCode(value) {
     return INSTITUTION_CODE_REGEX.test(normalizeMassarCode(value));
 }
 
-function looksLikeLegacyMassarCode(value) {
-    return LEGACY_MASSAR_CODE_SHAPE.test(normalizeMassarCode(value));
-}
-
 function getInstitutionStatusRecord(db) {
-    const institutionRow = db
-        .prepare(
-            'SELECT setup_completed, code_etablissement, massar_code, institution_name FROM institution_config WHERE id = 1'
-        )
-        .get();
-    const syncRow = db.prepare('SELECT school_id FROM sync_config WHERE id = 1').get();
-
-    const explicitMassar = normalizeMassarCode(institutionRow?.massar_code);
-    const legacyCode = normalizeMassarCode(institutionRow?.code_etablissement);
-    const legacySchoolId = normalizeMassarCode(syncRow?.school_id);
-
-    // Displayed Massar_Code: the explicit value always wins. Only when it is empty do we fall
-    // back to code_etablissement / school_id, and then ONLY if that value is a genuine legacy
-    // Massar code. Under the new scheme those columns hold the opaque server-generated
-    // School_Id (the tenant key), which must never be shown to the user as a Massar_Code —
-    // so an institution set up without a Massar_Code correctly reports none (Req 3.3, 3.5).
-    const massarCode =
-        explicitMassar ||
-        (looksLikeLegacyMassarCode(legacyCode) ? legacyCode : '') ||
-        (looksLikeLegacyMassarCode(legacySchoolId) ? legacySchoolId : '') ||
-        null;
-
-    const institutionName = String(institutionRow?.institution_name || '').trim() || null;
-
-    // setupCompleted reflects provisioning state, NOT whether a displayable Massar_Code exists
-    // (a new institution may legitimately have none). Detect it from the presence of any stored
-    // identifier — including the opaque School_Id — mirroring the original completion logic.
-    const anyIdentifier = explicitMassar || legacyCode || legacySchoolId;
-    const setupCompleted =
-        !!anyIdentifier &&
-        (!!Number(institutionRow?.setup_completed) || !!legacyCode || !institutionRow);
-
-    return {
-        setupCompleted,
-        massarCode,
-        institutionName
-    };
+    return institutionRepo.getStatusRecord(db);
 }
 
 function isSetupAlreadyCompleted(db) {
@@ -140,181 +93,8 @@ function buildCurrentDeviceSummary(db, deviceContext = getCurrentDeviceContext()
     };
 }
 
-function normalizeSyncConfig(rawConfig, massarCode) {
-    const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
-    const syncIntervalValue = Number(config.sync_interval_minutes ?? config.syncIntervalMinutes);
-    const enabledValue = config.enabled ?? config.sync_enabled ?? config.syncEnabled;
-    const schoolIdSource = config.school_id ?? config.schoolId ?? massarCode ?? '';
-    const firebaseFunctionsUrlSource =
-        config.firebase_functions_url ?? config.firebaseFunctionsUrl ?? config.auth_lambda_url ?? config.authLambdaUrl ?? '';
-    const firebaseProjectIdSource = config.firebase_project_id ?? config.firebaseProjectId ?? '';
-    const firebaseApiKeySource = config.firebase_api_key ?? config.firebaseApiKey ?? config.apiKey ?? '';
-    const firebaseAuthDomainSource = config.firebase_auth_domain ?? config.firebaseAuthDomain ?? config.authDomain ?? '';
-    const firebaseAppIdSource = config.firebase_app_id ?? config.firebaseAppId ?? config.appId ?? '';
-    const firebaseStorageBucketSource =
-        config.firebase_storage_bucket ?? config.firebaseStorageBucket ?? config.storageBucket ?? '';
-    const firebaseMessagingSenderIdSource =
-        config.firebase_messaging_sender_id ?? config.firebaseMessagingSenderId ?? config.messagingSenderId ?? '';
-
-    return {
-        schoolId: String(schoolIdSource).trim() || null,
-        firebaseFunctionsUrl: String(firebaseFunctionsUrlSource).trim().replace(/\/+$/, '') || null,
-        firebaseProjectId: String(firebaseProjectIdSource).trim() || null,
-        firebaseApiKey: String(firebaseApiKeySource).trim() || null,
-        firebaseAuthDomain: String(firebaseAuthDomainSource).trim() || null,
-        firebaseAppId: String(firebaseAppIdSource).trim() || null,
-        firebaseStorageBucket: String(firebaseStorageBucketSource).trim() || null,
-        firebaseMessagingSenderId: String(firebaseMessagingSenderIdSource).trim() || null,
-        syncIntervalMinutes: Number.isFinite(syncIntervalValue) && syncIntervalValue > 0 ? syncIntervalValue : null,
-        enabled: enabledValue === undefined || enabledValue === null ? 1 : Number(enabledValue) ? 1 : 0
-    };
-}
-
-function upsertSyncConfig(db, syncConfig) {
-    const currentConfig = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
-    const firebaseFunctionsUrl =
-        syncConfig.firebaseFunctionsUrl ||
-        currentConfig.firebase_functions_url ||
-        null;
-    const mergedConfig = {
-        schoolId: syncConfig.schoolId || currentConfig.school_id || null,
-        firebaseFunctionsUrl,
-        firebaseProjectId: syncConfig.firebaseProjectId || currentConfig.firebase_project_id || null,
-        firebaseApiKey: syncConfig.firebaseApiKey || currentConfig.firebase_api_key || null,
-        firebaseAuthDomain: syncConfig.firebaseAuthDomain || currentConfig.firebase_auth_domain || null,
-        firebaseAppId: syncConfig.firebaseAppId || currentConfig.firebase_app_id || null,
-        firebaseStorageBucket: syncConfig.firebaseStorageBucket || currentConfig.firebase_storage_bucket || null,
-        firebaseMessagingSenderId:
-            syncConfig.firebaseMessagingSenderId || currentConfig.firebase_messaging_sender_id || null,
-        syncIntervalMinutes: syncConfig.syncIntervalMinutes || Number(currentConfig.sync_interval_minutes) || 10,
-        enabled: 1
-    };
-
-    db.prepare(
-        `
-            INSERT INTO sync_config (
-                id,
-                school_id,
-                firebase_functions_url,
-                firebase_project_id,
-                firebase_api_key,
-                firebase_auth_domain,
-                firebase_app_id,
-                firebase_storage_bucket,
-                firebase_messaging_sender_id,
-                sync_interval_minutes,
-                enabled,
-                updated_at
-            )
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(id) DO UPDATE SET
-                school_id = excluded.school_id,
-                firebase_functions_url = excluded.firebase_functions_url,
-                firebase_project_id = excluded.firebase_project_id,
-                firebase_api_key = excluded.firebase_api_key,
-                firebase_auth_domain = excluded.firebase_auth_domain,
-                firebase_app_id = excluded.firebase_app_id,
-                firebase_storage_bucket = excluded.firebase_storage_bucket,
-                firebase_messaging_sender_id = excluded.firebase_messaging_sender_id,
-                sync_interval_minutes = excluded.sync_interval_minutes,
-                enabled = excluded.enabled,
-                updated_at = CURRENT_TIMESTAMP
-        `
-    ).run(
-        mergedConfig.schoolId,
-        mergedConfig.firebaseFunctionsUrl,
-        mergedConfig.firebaseProjectId,
-        mergedConfig.firebaseApiKey,
-        mergedConfig.firebaseAuthDomain,
-        mergedConfig.firebaseAppId,
-        mergedConfig.firebaseStorageBucket,
-        mergedConfig.firebaseMessagingSenderId,
-        mergedConfig.syncIntervalMinutes,
-        mergedConfig.enabled
-    );
-
-    try {
-        if (mergedConfig.firebaseFunctionsUrl) {
-            const url = mergedConfig.firebaseFunctionsUrl;
-            db.prepare('UPDATE sync_config SET firebase_functions_url = ? WHERE id = 1').run(url);
-        }
-    } catch {
-        // Column not yet added by migration — safe to ignore
-    }
-}
-
-function upsertFirebaseCachedUser(db, user, password, fallbackRole) {
-    const name = String(user?.name || '').trim();
-    const email = String(user?.email || '').trim().toLowerCase();
-    const firebaseUid = String(user?.uid || '').trim();
-    const role = String(user?.role || fallbackRole || 'viewer').trim();
-    const passwordHash = hashPassword(password);
-    const emailVerified = Number(user?.emailVerified || 0) ? 1 : 0;
-    const mustChangePassword = Number(user?.mustChangePassword || 0) ? 1 : 0;
-
-    if (!name || !email) {
-        throw new Error('Missing local user cache name/email');
-    }
-
-    const existing = db.prepare('SELECT id FROM users WHERE lower(email) = ? LIMIT 1').get(email);
-    if (existing) {
-        db.prepare(
-            `
-                UPDATE users
-                SET
-                    name = ?,
-                    role = ?,
-                    password_hash = ?,
-                    firebase_uid = COALESCE(NULLIF(?, ''), firebase_uid),
-                    auth_source = ?,
-                    email_verified = ?,
-                    invite_status = 'active',
-                    must_change_password = ?,
-                    disabled = 0,
-                    last_login_at = CURRENT_TIMESTAMP,
-                    last_auth_mode = 'online'
-                WHERE id = ?
-            `
-        ).run(
-            name,
-            role,
-            passwordHash,
-            firebaseUid,
-            firebaseUid ? 'firebase' : 'local',
-            emailVerified,
-            mustChangePassword,
-            existing.id
-        );
-        return existing.id;
-    }
-
-    const result = db
-        .prepare(
-            `
-                INSERT INTO users (
-                    name,
-                    email,
-                    role,
-                    password_hash,
-                    firebase_uid,
-                    auth_source,
-                    email_verified,
-                    invite_status,
-                    must_change_password,
-                    disabled,
-                    last_login_at,
-                    last_auth_mode
-                )
-                VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, 'active', ?, 0, CURRENT_TIMESTAMP, 'online')
-            `
-        )
-        .run(name, email, role, passwordHash, firebaseUid, firebaseUid ? 'firebase' : 'local', emailVerified, mustChangePassword);
-
-    return result.lastInsertRowid;
-}
-
 function getFirebaseFunctionsUrl(db) {
-    const row = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+    const row = institutionRepo.getSyncConfigRow(db);
     return applySyncDefaults(row).firebaseFunctionsUrl || null;
 }
 
@@ -387,13 +167,41 @@ async function postFirebaseFunction(functionsUrl, functionName, body) {
     }
 }
 
+function normalizeSyncConfig(rawConfig, massarCode) {
+    const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
+    const syncIntervalValue = Number(config.sync_interval_minutes ?? config.syncIntervalMinutes);
+    const enabledValue = config.enabled ?? config.sync_enabled ?? config.syncEnabled;
+    const schoolIdSource = config.school_id ?? config.schoolId ?? massarCode ?? '';
+    const firebaseFunctionsUrlSource =
+        config.firebase_functions_url ?? config.firebaseFunctionsUrl ?? config.auth_lambda_url ?? config.authLambdaUrl ?? '';
+    const firebaseProjectIdSource = config.firebase_project_id ?? config.firebaseProjectId ?? '';
+    const firebaseApiKeySource = config.firebase_api_key ?? config.firebaseApiKey ?? config.apiKey ?? '';
+    const firebaseAuthDomainSource = config.firebase_auth_domain ?? config.firebaseAuthDomain ?? config.authDomain ?? '';
+    const firebaseAppIdSource = config.firebase_app_id ?? config.firebaseAppId ?? config.appId ?? '';
+    const firebaseStorageBucketSource =
+        config.firebase_storage_bucket ?? config.firebaseStorageBucket ?? config.storageBucket ?? '';
+    const firebaseMessagingSenderIdSource =
+        config.firebase_messaging_sender_id ?? config.firebaseMessagingSenderId ?? config.messagingSenderId ?? '';
+
+    return {
+        schoolId: String(schoolIdSource).trim() || null,
+        firebaseFunctionsUrl: String(firebaseFunctionsUrlSource).trim().replace(/\/+$/, '') || null,
+        firebaseProjectId: String(firebaseProjectIdSource).trim() || null,
+        firebaseApiKey: String(firebaseApiKeySource).trim() || null,
+        firebaseAuthDomain: String(firebaseAuthDomainSource).trim() || null,
+        firebaseAppId: String(firebaseAppIdSource).trim() || null,
+        firebaseStorageBucket: String(firebaseStorageBucketSource).trim() || null,
+        firebaseMessagingSenderId: String(firebaseMessagingSenderIdSource).trim() || null,
+        syncIntervalMinutes: Number.isFinite(syncIntervalValue) && syncIntervalValue > 0 ? syncIntervalValue : null,
+        enabled: enabledValue === undefined || enabledValue === null ? 1 : Number(enabledValue) ? 1 : 0
+    };
+}
+
 function normalizeBootstrapResponse(data, fallback) {
     const payload = data && typeof data === 'object' ? data : {};
     const institution = payload.institution || payload.school || payload.meta || {};
     const user = payload.user || payload.adminUser || payload.admin || {};
     const firebaseConfig = payload.firebaseConfig || payload.firebase || {};
-    // schoolId is the server-generated opaque tenant key — it must NEVER be derived from the
-    // entered massarCode; only from what the server itself returned as schoolId/gresaCode.
     const schoolId =
         normalizeMassarCode(payload.schoolId ?? payload.gresaCode) ||
         normalizeMassarCode(institution.schoolId ?? institution.gresaCode) ||
@@ -466,8 +274,6 @@ function registerInstitutionIpc(ipcMain) {
 
         const lookup = await postFirebaseFunction(functionsUrl, 'lookupInstitutionBySchoolMassarCode', {
             massarCode,
-            // MUST be sent explicitly — postFirebaseFunction only forwards the body given to
-            // it, it does not attach this secret automatically.
             bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || ''
         });
         if (!lookup.success) {
@@ -481,25 +287,8 @@ function registerInstitutionIpc(ipcMain) {
             return fail('MASSAR_NOT_FOUND');
         }
 
-        const transaction = db.transaction(() => {
-            db.prepare(
-                `INSERT INTO institution_config (id, code_etablissement, massar_code, setup_completed, setup_mode, updated_at)
-                 VALUES (1, ?, ?, 0, NULL, CURRENT_TIMESTAMP)
-                 ON CONFLICT(id) DO UPDATE SET
-                     code_etablissement = excluded.code_etablissement,
-                     massar_code = excluded.massar_code,
-                     setup_completed = 0,
-                     setup_mode = NULL,
-                     updated_at = CURRENT_TIMESTAMP`
-            ).run(resolvedSchoolId, massarCode);
-
-            db.prepare(
-                'UPDATE sync_config SET school_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
-            ).run(resolvedSchoolId);
-        });
-
         try {
-            transaction();
+            institutionRepo.applyRelink(db, resolvedSchoolId, massarCode);
         } catch (err) {
             return fail('INTERNAL_ERROR', 'حدث خطأ أثناء ربط المؤسسة: ' + err.message);
         }
@@ -512,16 +301,10 @@ function registerInstitutionIpc(ipcMain) {
             return fail('ALREADY_CONFIGURED');
         }
 
-        // MASSAR code is no longer collected at registration (Req: registration
-        // simplification). It is not sent to bootstrapInstitution; the Cloud Function stores
-        // massarCode: '' for newly-created institutions. Existing institutions that already
-        // have a massar_code keep it — see institution:updateMassarCode, which is unaffected.
         const institutionName = String(payload?.institutionName || '').trim();
         const adminName = String(payload?.adminName || '').trim();
         const adminEmail = String(payload?.adminEmail || '').trim().toLowerCase();
         const adminPassword = String(payload?.adminPassword || '');
-        // Region is collected at registration (optional) and seeded into school_identity so
-        // the letterhead / settings-school page reflect it without re-entry.
         const academy = String(payload?.academy || '').trim();
         const directorate = String(payload?.directorate || '').trim();
 
@@ -559,7 +342,6 @@ function registerInstitutionIpc(ipcMain) {
             adminEmail,
             adminPassword,
             role: 'principal',
-            // SECURITY: this secret is readable from the packaged app — rotate it periodically
             bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || '',
             device: deviceContext
         });
@@ -577,57 +359,14 @@ function registerInstitutionIpc(ipcMain) {
             return fail('INVALID_BOOTSTRAP_RESPONSE');
         }
 
-        const transaction = db.transaction(() => {
-            db.prepare(
-                `
-                    INSERT INTO institution_config (
-                        id,
-                        code_etablissement,
-                        massar_code,
-                        institution_name,
-                        setup_completed,
-                        setup_mode,
-                        setup_device_hash,
-                        onboarding_version,
-                        onboarding_completed_at,
-                        updated_at
-                    )
-                    VALUES (1, ?, ?, ?, 1, 'firebase-new', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT(id) DO UPDATE SET
-                        code_etablissement = excluded.code_etablissement,
-                        massar_code = excluded.massar_code,
-                        institution_name = excluded.institution_name,
-                        setup_completed = 1,
-                        setup_mode = 'firebase-new',
-                        setup_device_hash = excluded.setup_device_hash,
-                        onboarding_version = 1,
-                        onboarding_completed_at = COALESCE(onboarding_completed_at, CURRENT_TIMESTAMP),
-                        updated_at = CURRENT_TIMESTAMP
-                `
-            ).run(bootstrap.schoolId, null, bootstrap.institutionName, deviceContext.deviceHash);
-
-            upsertSyncConfig(db, bootstrap.syncConfig);
-            upsertFirebaseCachedUser(db, { ...bootstrap.user, role: 'principal' }, adminPassword, 'principal');
-
-            // Seed the region into school_identity when provided. Uses an upsert on the
-            // key/value schema (INSERT OR IGNORE default-seeding elsewhere would no-op once
-            // the keys exist, so it cannot fill them — see the plan's empty-seed note). Only
-            // non-empty values are written, so blanks never clobber later user edits.
-            if (academy || directorate) {
-                ensureSchoolIdentitySchema(db);
-                const upsertIdentity = db.prepare(
-                    `INSERT INTO school_identity (key, value, updated_at)
-                     VALUES (?, ?, ?)
-                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
-                );
-                const identityTs = Date.now();
-                if (academy) upsertIdentity.run('academy', academy, identityTs);
-                if (directorate) upsertIdentity.run('directorate', directorate, identityTs);
-            }
-        });
-
         try {
-            transaction();
+            institutionRepo.applyBootstrap(db, {
+                bootstrap,
+                passwordHash: hashPassword(adminPassword),
+                deviceHash: deviceContext.deviceHash,
+                academy,
+                directorate
+            });
             return ok({
                 message: 'تم إعداد المؤسسة بنجاح',
                 setupCompleted: true,
@@ -684,11 +423,7 @@ function registerInstitutionIpc(ipcMain) {
             return fail('INTERNAL_ERROR', 'فشل تحديث رمز المؤسسة');
         }
 
-        // The Cloud Function has already confirmed the remote write; it is authoritative from
-        // this point on. Retry the local cache write once before surfacing a
-        // remote-succeeded-but-local-stale warning — retrying the same UPDATE is safe/idempotent.
-        const persistLocally = () =>
-            db.prepare('UPDATE institution_config SET massar_code = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(massarCode);
+        const persistLocally = () => institutionRepo.setMassarCode(db, massarCode);
         try {
             persistLocally();
         } catch {
@@ -713,8 +448,6 @@ function registerInstitutionIpc(ipcMain) {
             return fail('SETUP_REQUIRED');
         }
 
-        // School_Id/Massar_Code are immutable via this approval mechanism — Massar edits go
-        // through the direct institution:updateMassarCode path (Req 8/9) instead.
         if (payload?.codeEtablissement || payload?.newSchoolId) {
             return fail('SCHOOL_ID_IMMUTABLE');
         }
@@ -830,9 +563,6 @@ function registerInstitutionIpc(ipcMain) {
             return fail('REQUEST_NOT_FOUND', 'لم يتم العثور على طلب معتمد بهذا المعرّف');
         }
 
-        // School_Id/Massar_Code changes are no longer applied through this mechanism — only
-        // the institution name. If a pre-existing pending/approved request predates this
-        // feature and still carries a code-change component, refuse to apply it.
         if (approvedRequest.codeChanged) {
             return fail('SCHOOL_ID_IMMUTABLE');
         }
@@ -840,22 +570,7 @@ function registerInstitutionIpc(ipcMain) {
         const newName = approvedRequest.newInstitutionName;
 
         try {
-            const transaction = db.transaction(() => {
-                if (newName) {
-                    db.prepare(
-                        'UPDATE institution_config SET institution_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
-                    ).run(newName);
-
-                    try {
-                        db.prepare(
-                            'UPDATE school_identity SET school_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1'
-                        ).run(newName);
-                    } catch {
-                        // school_identity table may not exist
-                    }
-                }
-            });
-            transaction();
+            institutionRepo.applyInstitutionName(db, newName);
         } catch (err) {
             return fail('INTERNAL_ERROR', 'فشل تحديث قاعدة البيانات المحلية: ' + err.message);
         }
