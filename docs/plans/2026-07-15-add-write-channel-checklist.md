@@ -36,7 +36,7 @@ Follow this every time you add a **write** (mutating) IPC channel. Skipping a st
 ## Domain file map (after SOLID split)
 
 | Namespace | Module |
-|-----------|--------|
+|---|---|
 | `students:*` | `main/ipc/students.js` |
 | `grades:*` | `main/ipc/grades.js` |
 | `settings:*` | `main/ipc/settings-ipc.js` |
@@ -48,6 +48,24 @@ Follow this every time you add a **write** (mutating) IPC channel. Skipping a st
 | `compensation:*` | `main/ipc/compensation.js` |
 | `supportSessions:*` | `main/ipc/support-sessions.js` |
 | `systemTags:*` | `main/ipc/system-tags.js` |
+| `inspectors:*` | `main/ipc/inspectors.js` |
+| `appDefaults:*` | `main/ipc/appDefaults.js` |
+| `staffAttendance:*` | `main/ipc/staffAttendance.js` |
+| `institution:*` | `main/ipc/institution.js` |
+| `users:*` / `systemLogs:*` | `main/ipc/system.js` |
+| `auth:*` | `main/ipc/auth.js` |
+
+## Layering Architecture & Exemptions (027 rule)
+
+All domain SQL queries (`db.prepare`, `db.exec`, `db.transaction`) must reside in `main/repos/*` and are enforced in CI via `tests/ipc-layering-guard.test.js`.
+
+The following 6 files are explicitly exempt from this rule as they handle SQLite or sync engine infrastructure rather than school-domain entities:
+- `system-backup.js`: SQLite schema introspection, dynamic table cloning, and schema copy PRAGMAs.
+- `sync.js`: Sync engine internal tables (`sync_outbox`, `sync_conflicts`, `sync_id_map`, `sync_config`).
+- `settings-ipc.js`: Generic key-value application settings table.
+- `ipc-helpers.js`: Cross-cutting audit logging and error handling plumbing.
+- `import-audit.js`: Import audit log writer.
+- `app-admin.js`: Administrative identity change request approvals on `sync_config`.
 | `system:print*` | `main/ipc/system-print.js` (local-only) |
 | `system:backup*` / `restore*` | `main/ipc/system-backup.js` (local-only) |
 

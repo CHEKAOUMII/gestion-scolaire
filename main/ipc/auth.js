@@ -11,14 +11,14 @@ const {
 const { logAuthDebug } = require('../auth/debug');
 const { applySyncDefaults } = require('../sync/defaults');
 const { ATTEMPT_TTL_MS, buildFailedAttemptUpdate } = require('../auth/lockout-policy');
-const { SESSION_TTL_MS, isSessionExpired, computeExpiresAt } = require('../auth/session-policy');
+const { isSessionExpired, computeExpiresAt } = require('../auth/session-policy');
 const usersRepo = require('../repos/users');
+const institutionRepo = require('../repos/institution');
 
 const SESSION_BY_SENDER = new Map();
 const CLEANUP_BOUND = new Set();
 const { ALLOWED_ROLES: ALLOWED_ROLES_ARR, resolveRole: resolveRoleAlias } = require('../auth/permissions');
 const MAX_PIN_ATTEMPTS = 5;
-const APP_SESSION_SETTINGS_KEY = usersRepo.APP_SESSION_SETTINGS_KEY;
 
 // ── Developer credentials (env-var gated, never in production builds) ──
 const DEV_CREDENTIALS =
@@ -303,14 +303,14 @@ function tryDevBypass(email, password, event) {
 async function handleLinkRequest(email) {
     try {
         const db = getDb();
-        const instRow = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
-        const localSchoolCode = String(instRow.code_etablissement || '')
+        const instStatus = institutionRepo.getStatusRecord(db);
+        const localSchoolCode = String(instStatus.massarCode || '')
             .trim()
             .toUpperCase();
         if (!localSchoolCode) return null;
 
         const idToken = await getCurrentFirebaseIdToken(false);
-        const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+        const syncRow = institutionRepo.getSyncConfigRow(db);
         const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
         if (!idToken || !functionsUrl) return null;
 
@@ -353,7 +353,6 @@ function getLoginErrorMessage(code) {
 
 async function postLoginSetup(event, loginResult, email, password) {
     clearLoginAttempts(email);
-    // loginFirebaseFirst / local fallback return { mode, userRow } — not userProps.
     const session = setSessionForEvent(event, loginResult.userRow);
     if (!session) {
         logAuthDebug('ipc.login.session-build-failed', {
@@ -472,7 +471,6 @@ function registerAuthIpc(ipcMain) {
                 return { success: true, authenticated: false };
             }
 
-            // Developer sessions have no DB row — skip refresh
             if (session.role === 'developer') {
                 return { success: true, authenticated: true, user: session };
             }
@@ -496,7 +494,6 @@ function registerAuthIpc(ipcMain) {
 
     ipcMain.handle('auth:logout', async (event) => {
         try {
-            // Lifecycle stops push/pull/snapshot (D5), bumps epoch, clears credentials.
             try {
                 await require('../sync/lifecycle').onLogout({
                     signOutFirebase: () => logoutFirebaseUser()
@@ -512,7 +509,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Self-registration is disabled. Users must be created by an admin/onboarding flow. ──
     ipcMain.handle('auth:register', async (_event, _payload) => {
         try {
             return {
@@ -525,7 +521,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Change password (requires current password) ──
     ipcMain.handle('auth:changePassword', async (event, payload) => {
         try {
             const session = requireAuth(event);
@@ -545,7 +540,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db.prepare('SELECT id, email, password_hash FROM users WHERE id = ?').get(session.userId);
+            const user = usersRepo.getUserPasswordHash(db, session.userId);
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
@@ -571,13 +566,9 @@ function registerAuthIpc(ipcMain) {
                     return { success: false, code: 'INVALID_CURRENT', error: 'كلمة المرور الحالية غير صحيحة' };
                 }
 
-                db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(
-                    hashPassword(newPassword),
-                    session.userId
-                );
+                usersRepo.updateUserPassword(db, session.userId, hashPassword(newPassword));
             }
 
-            // Rebuild session from DB so mustChangePassword is consistent
             const updatedUser = findUserById(session.userId);
             if (updatedUser) {
                 setSessionForEvent(event, updatedUser);
@@ -589,7 +580,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── PIN: setup (authenticated user sets or changes PIN) ──
     ipcMain.handle('auth:setupPin', async (event, payload) => {
         try {
             const session = requireAuth(event);
@@ -600,10 +590,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            db.prepare('UPDATE users SET pin_hash = ?, pin_failed_attempts = 0 WHERE id = ?').run(
-                hashPassword(pin),
-                session.userId
-            );
+            usersRepo.setupPin(db, session.userId, hashPassword(pin));
 
             return { success: true };
         } catch (err) {
@@ -611,7 +598,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── PIN: verify (lock-screen unlock) ──
     ipcMain.handle('auth:verifyPin', async (event, payload) => {
         try {
             const session = getSessionByEvent(event);
@@ -625,9 +611,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db
-                .prepare('SELECT id, pin_hash, pin_failed_attempts FROM users WHERE id = ?')
-                .get(session.userId);
+            const user = usersRepo.getPinInfo(db, session.userId);
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
@@ -649,7 +633,7 @@ function registerAuthIpc(ipcMain) {
 
             if (!verifyPassword(pin, storedPinHash)) {
                 const newCount = failedAttempts + 1;
-                db.prepare('UPDATE users SET pin_failed_attempts = ? WHERE id = ?').run(newCount, session.userId);
+                usersRepo.updatePinFailedAttempts(db, session.userId, newCount);
 
                 if (newCount >= MAX_PIN_ATTEMPTS) {
                     return {
@@ -669,8 +653,7 @@ function registerAuthIpc(ipcMain) {
                 };
             }
 
-            // Success — reset failed attempts and unlock
-            db.prepare('UPDATE users SET pin_failed_attempts = 0 WHERE id = ?').run(session.userId);
+            usersRepo.updatePinFailedAttempts(db, session.userId, 0);
             session.locked = false;
 
             return { success: true };
@@ -679,13 +662,12 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── PIN: remove ──
     ipcMain.handle('auth:removePin', async (event) => {
         try {
             const session = requireAuth(event);
 
             const db = getDb();
-            db.prepare('UPDATE users SET pin_hash = NULL, pin_failed_attempts = 0 WHERE id = ?').run(session.userId);
+            usersRepo.clearPin(db, session.userId);
 
             return { success: true };
         } catch (err) {
@@ -693,7 +675,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── PIN: get status (has PIN configured?) ──
     ipcMain.handle('auth:getPinStatus', async (event) => {
         try {
             const session = getSessionByEvent(event);
@@ -702,7 +683,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db.prepare('SELECT pin_hash, pin_failed_attempts FROM users WHERE id = ?').get(session.userId);
+            const user = usersRepo.getPinInfo(db, session.userId);
 
             const hasPin = !!(user && String(user.pin_hash || '').trim());
             const pinLocked = hasPin && Number(user.pin_failed_attempts || 0) >= MAX_PIN_ATTEMPTS;
@@ -713,7 +694,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Session lock (marks in-memory session as locked) ──
     ipcMain.handle('auth:lockSession', async (event) => {
         try {
             const session = getSessionByEvent(event);
@@ -727,7 +707,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Allowed pages for the current session's role ──
     ipcMain.handle('auth:getAllowedPages', (event) => {
         const { getAllowedPages } = require('../auth/permissions');
         const session = getSessionByEvent(event);
@@ -735,7 +714,6 @@ function registerAuthIpc(ipcMain) {
         return getAllowedPages(session.role);
     });
 
-    // ── Unlock with password (fallback when PIN is locked out) ──
     ipcMain.handle('auth:unlockWithPassword', async (event, payload) => {
         try {
             const session = getSessionByEvent(event);
@@ -749,7 +727,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const user = db.prepare('SELECT id, password_hash FROM users WHERE id = ?').get(session.userId);
+            const user = usersRepo.getUserPasswordHash(db, session.userId);
             if (!user) {
                 return { success: false, code: 'USER_NOT_FOUND', error: 'المستخدم غير موجود' };
             }
@@ -758,8 +736,7 @@ function registerAuthIpc(ipcMain) {
                 return { success: false, code: 'INVALID_PASSWORD', error: 'كلمة المرور غير صحيحة' };
             }
 
-            // Reset PIN failed attempts and unlock session
-            db.prepare('UPDATE users SET pin_failed_attempts = 0 WHERE id = ?').run(session.userId);
+            usersRepo.updatePinFailedAttempts(db, session.userId, 0);
             session.locked = false;
 
             return { success: true };
@@ -768,7 +745,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Link request: legacy user submits request to be linked to a school ──
     ipcMain.handle('auth:submitLinkRequest', async (_event, payload) => {
         try {
             const idToken = payload?.idToken;
@@ -781,7 +757,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+            const syncRow = institutionRepo.getSyncConfigRow(db);
             const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
             if (!functionsUrl) {
                 return {
@@ -815,12 +791,11 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Link request: admin lists pending requests ──
     ipcMain.handle('auth:listLinkRequests', async (event) => {
         try {
             requireRole(event, ['admin', 'principal']);
             const db = getDb();
-            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+            const syncRow = institutionRepo.getSyncConfigRow(db);
             const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
             if (!functionsUrl) {
                 return {
@@ -849,7 +824,6 @@ function registerAuthIpc(ipcMain) {
         }
     });
 
-    // ── Link request: admin approves or rejects ──
     ipcMain.handle('auth:resolveLinkRequest', async (event, payload) => {
         try {
             requireRole(event, ['admin', 'principal']);
@@ -865,7 +839,7 @@ function registerAuthIpc(ipcMain) {
             }
 
             const db = getDb();
-            const syncRow = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
+            const syncRow = institutionRepo.getSyncConfigRow(db);
             const functionsUrl = applySyncDefaults(syncRow).firebaseFunctionsUrl || '';
             if (!functionsUrl) {
                 return {
@@ -902,8 +876,30 @@ function registerAuthIpc(ipcMain) {
 
 module.exports = {
     registerAuthIpc,
+    getSessionByEvent,
+    getActiveSessions,
+    setSessionForEvent,
+    clearSessionForEvent,
     requireAuth,
     requireRole,
-    getSessionByEvent,
-    getActiveSessions
+    isSessionLocked,
+    createAuthError,
+    _private: {
+        DEV_CREDENTIALS,
+        getLoginAttemptRecord,
+        recordFailedLogin,
+        clearLoginAttempts,
+        cleanupStaleAttempts,
+        normalizeRole,
+        buildPublicSession,
+        persistAppSession,
+        clearPersistedAppSession,
+        readPersistedAppSession,
+        tryRestorePersistedSession,
+        findUserById,
+        tryDevBypass,
+        handleLinkRequest,
+        getLoginErrorMessage,
+        postLoginSetup
+    }
 };

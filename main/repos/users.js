@@ -1,10 +1,24 @@
 'use strict';
 
 /**
- * Users / login_attempts / app session settings data access.
+ * Users, login attempts, app session settings, and user management repository.
+ * Owns SQL for `users`, `login_attempts`, and user settings; IPC handles
+ * session management, role verification, password hashing, and Firebase provisioning.
  */
 
 const APP_SESSION_SETTINGS_KEY = 'app_auth_session';
+
+function getTableColumns(db, tableName) {
+    try {
+        return new Set(db.prepare(`PRAGMA table_info(${tableName})`).all().map((column) => column.name));
+    } catch {
+        return new Set();
+    }
+}
+
+function columnExpr(columns, columnName, fallbackSql = 'NULL') {
+    return columns.has(columnName) ? columnName : `${fallbackSql} AS ${columnName}`;
+}
 
 function getLoginAttempt(db, emailNormalized) {
     return db.prepare('SELECT * FROM login_attempts WHERE email = ?').get(emailNormalized) || null;
@@ -141,6 +155,129 @@ function upsertFirebaseCachedUser(db, user, passwordHash, fallbackRole) {
     return result.lastInsertRowid;
 }
 
+function listUsers(db) {
+    const columns = getTableColumns(db, 'users');
+    return db
+        .prepare(
+            `
+            SELECT
+                id,
+                name,
+                email,
+                role,
+                disabled,
+                must_change_password,
+                created_at,
+                ${columnExpr(columns, 'firebase_uid')},
+                ${columnExpr(columns, 'auth_source', "'local'")},
+                ${columnExpr(columns, 'email_verified', '0')},
+                ${columnExpr(columns, 'invite_status', "'active'")}
+            FROM users
+            ORDER BY created_at DESC
+        `
+        )
+        .all();
+}
+
+function insertUser(db, { name, email, role, passwordHash, disabled, mustChangePassword, firebaseUid, emailVerified, inviteStatus }) {
+    const columns = getTableColumns(db, 'users');
+    const insertColumns = ['name', 'email', 'role', 'password_hash', 'disabled', 'must_change_password'];
+    const insertValues = [
+        name,
+        email,
+        role,
+        passwordHash,
+        disabled ? 1 : 0,
+        mustChangePassword ? 1 : 0
+    ];
+
+    if (columns.has('firebase_uid')) {
+        insertColumns.push('firebase_uid');
+        insertValues.push(firebaseUid || null);
+    }
+    if (columns.has('auth_source')) {
+        insertColumns.push('auth_source');
+        insertValues.push(firebaseUid ? 'firebase' : 'local');
+    }
+    if (columns.has('email_verified')) {
+        insertColumns.push('email_verified');
+        insertValues.push(emailVerified ? 1 : 0);
+    }
+    if (columns.has('invite_status')) {
+        insertColumns.push('invite_status');
+        insertValues.push(inviteStatus || (disabled ? 'disabled' : 'active'));
+    }
+
+    const placeholders = insertColumns.map(() => '?').join(', ');
+    return db.prepare(`INSERT INTO users(${insertColumns.join(', ')}) VALUES(${placeholders})`).run(...insertValues);
+}
+
+function getUserWithFirebaseUid(db, id) {
+    const columns = getTableColumns(db, 'users');
+    return db
+        .prepare(
+            `
+            SELECT id, name, email, role, disabled, ${columnExpr(columns, 'firebase_uid')}
+            FROM users
+            WHERE id = ?
+        `
+        )
+        .get(id);
+}
+
+function updateUserRole(db, id, role) {
+    return db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+}
+
+function updateUserDisabled(db, id, disabled) {
+    const columns = getTableColumns(db, 'users');
+    db.prepare('UPDATE users SET disabled = ? WHERE id = ?').run(disabled ? 1 : 0, id);
+    if (columns.has('invite_status')) {
+        db.prepare('UPDATE users SET invite_status = ? WHERE id = ?').run(disabled ? 'disabled' : 'active', id);
+    }
+}
+
+function getAdminUser(db) {
+    return db.prepare("SELECT id FROM users WHERE lower(email) = 'admin@school.local'").get();
+}
+
+function resetAdminPassword(db, passwordHash) {
+    return db.prepare(
+        "UPDATE users SET password_hash = ?, role = 'developer', disabled = 0, must_change_password = 0 WHERE lower(email) = 'admin@school.local'"
+    ).run(passwordHash);
+}
+
+function createDeveloperUser(db, passwordHash) {
+    return db.prepare(`
+        INSERT INTO users(name, email, role, password_hash, disabled, must_change_password)
+        VALUES('المشرف', 'admin@school.local', 'developer', ?, 0, 0)
+    `).run(passwordHash);
+}
+
+function getUserPasswordHash(db, id) {
+    return db.prepare('SELECT id, email, password_hash FROM users WHERE id = ?').get(id);
+}
+
+function updateUserPassword(db, id, passwordHash) {
+    return db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(passwordHash, id);
+}
+
+function setupPin(db, userId, pinHash) {
+    return db.prepare('UPDATE users SET pin_hash = ?, pin_failed_attempts = 0 WHERE id = ?').run(pinHash, userId);
+}
+
+function getPinInfo(db, userId) {
+    return db.prepare('SELECT id, pin_hash, pin_failed_attempts FROM users WHERE id = ?').get(userId);
+}
+
+function updatePinFailedAttempts(db, userId, count) {
+    return db.prepare('UPDATE users SET pin_failed_attempts = ? WHERE id = ?').run(count, userId);
+}
+
+function clearPin(db, userId) {
+    return db.prepare('UPDATE users SET pin_hash = NULL, pin_failed_attempts = 0 WHERE id = ?').run(userId);
+}
+
 module.exports = {
     APP_SESSION_SETTINGS_KEY,
     getLoginAttempt,
@@ -152,5 +289,20 @@ module.exports = {
     readAppSessionSettings,
     writeAppSessionSettings,
     clearAppSessionSettings,
-    upsertFirebaseCachedUser
+    upsertFirebaseCachedUser,
+    listUsers,
+    insertUser,
+    getUserWithFirebaseUid,
+    updateUserRole,
+    updateUserDisabled,
+    getAdminUser,
+    resetAdminPassword,
+    createDeveloperUser,
+    getUserPasswordHash,
+    updateUserPassword,
+    setupPin,
+    getPinInfo,
+    updatePinFailedAttempts,
+    clearPin,
+    getTableColumns
 };
