@@ -7,7 +7,8 @@
  */
 
 // Reserved marker keeps an explicit deny-all override distinguishable from no override.
-const OVERRIDE_MARKER = '__override__';
+// Name kept in sync with the smoke-test source audit (tests/smoke.js runRoleHierarchySmoke).
+const PAGE_ACCESS_OVERRIDE_MARKER = '__override__';
 
 function ensureTable(db) {
     db.exec(`
@@ -46,14 +47,15 @@ function saveAccess(db, pageEntries) {
 
     const tx = db.transaction(() => {
         for (const entry of pageEntries) {
-            deleteStmt.run(entry.pageKey);
-            markerStmt.run(entry.pageKey, OVERRIDE_MARKER);
-            for (const role of entry.roles) {
-                insertStmt.run(entry.pageKey, role);
+            const { pageKey, roles } = entry;
+            deleteStmt.run(pageKey);
+            markerStmt.run(pageKey, PAGE_ACCESS_OVERRIDE_MARKER);
+            for (const role of roles) {
+                insertStmt.run(pageKey, role);
             }
         }
     });
     tx();
 }
 
-module.exports = { OVERRIDE_MARKER, ensureTable, listRoleRows, saveAccess };
+module.exports = { PAGE_ACCESS_OVERRIDE_MARKER, ensureTable, listRoleRows, saveAccess };

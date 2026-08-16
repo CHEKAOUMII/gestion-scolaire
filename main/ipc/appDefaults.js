@@ -18,6 +18,7 @@ const {
     QUALIFIANT_CYCLE
 } = require('../../js/shared/education/cycles');
 const StageRulesErrorContract = require('../../js/shared/errors/stage-rules-error-contract');
+const pageAccessRepo = require('../repos/page-access');
 
 /** Lazy require: repos are loaded at call time, never at module registration. */
 function getStageRulesRepo() {
@@ -31,9 +32,6 @@ const {
 } = require('../auth/permissions');
 
 const INSTITUTION_ROLES = ALLOWED_ROLES.filter((r) => r !== 'admin');
-
-// Reserved marker keeps an explicit deny-all override distinguishable from no override.
-const PAGE_ACCESS_OVERRIDE_MARKER = '__override__';
 
 // Push a "page access changed" signal to every open window so already-open pages
 // re-run their access guard live (redirect off a now-forbidden page, refresh the
@@ -78,15 +76,7 @@ function normalizePageKey(value) {
 }
 
 function ensureExamCountTables(db) {
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS page_role_access (
-            page_key TEXT NOT NULL,
-            role TEXT NOT NULL,
-            allowed INTEGER NOT NULL DEFAULT 1,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (page_key, role)
-        );
-    `);
+    pageAccessRepo.ensureTable(db);
 }
 
 function seedExamCountsIfEmpty(db) {
@@ -207,8 +197,7 @@ function listHtmlPages() {
 }
 
 function loadDbRoleMap(db) {
-    ensureExamCountTables(db);
-    const rows = db.prepare('SELECT page_key, role, allowed FROM page_role_access').all();
+    const rows = pageAccessRepo.listRoleRows(db);
     const map = {};
     const pagesWithRows = new Set();
     for (const row of rows) {
@@ -458,31 +447,20 @@ function registerAppDefaultsIpc(ipcMain) {
             return { success: false, code: 'INVALID_PAYLOAD', error: 'لا توجد صفحات للحفظ' };
         }
 
-        const deleteStmt = db.prepare('DELETE FROM page_role_access WHERE page_key = ?');
-        const markerStmt = db.prepare(`
-            INSERT INTO page_role_access(page_key, role, allowed, updated_at)
-            VALUES(?, ?, 0, CURRENT_TIMESTAMP)
-        `);
-        const insertStmt = db.prepare(`
-            INSERT INTO page_role_access(page_key, role, allowed, updated_at)
-            VALUES(?, ?, 1, CURRENT_TIMESTAMP)
-        `);
-
-        const tx = db.transaction(() => {
-            for (const item of pages) {
-                const pageKey = normalizePageKey(item?.pageKey ?? item?.page);
-                if (!pageKey) continue;
-                deleteStmt.run(pageKey);
-                markerStmt.run(pageKey, PAGE_ACCESS_OVERRIDE_MARKER);
-                const roles = Array.isArray(item?.roles) ? item.roles : [];
-                for (const role of roles) {
-                    const r = String(role || '').trim().toLowerCase();
-                    if (!INSTITUTION_ROLES.includes(r)) continue;
-                    insertStmt.run(pageKey, r);
-                }
+        const entries = [];
+        for (const item of pages) {
+            const pageKey = normalizePageKey(item?.pageKey ?? item?.page);
+            if (!pageKey) continue;
+            const rawRoles = Array.isArray(item?.roles) ? item.roles : [];
+            const roles = [];
+            for (const role of rawRoles) {
+                const r = String(role || '').trim().toLowerCase();
+                if (INSTITUTION_ROLES.includes(r)) roles.push(r);
             }
-        });
-        tx();
+            entries.push({ pageKey, roles });
+        }
+
+        pageAccessRepo.saveAccess(db, entries);
 
         clearPageAccessCache();
         broadcastPageAccessChanged();

@@ -4,6 +4,9 @@ const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { requireFields } = require('./validation');
 const { getCycleDefinition } = require('../../js/shared/education/cycles');
+const dailyReportRepo = require('../repos/daily-report');
+const schoolEventsRepo = require('../repos/school-events');
+const systemTagsRepo = require('../repos/system-tags');
 
 const ADMINISTRATIVE_REPORT_ROLES = new Set(['admin', 'principal', 'developer']);
 const ALL_CYCLE_VALUES = new Set(['all', 'all_cycles', 'all-cycles']);
@@ -33,9 +36,7 @@ function rejectAllCycleWrite(payload) {
 
 function getKnownCycleCodes(db, fallbackCycle) {
     try {
-        const rows = db.prepare(
-            `SELECT cycle_code FROM institution_cycles WHERE cycle_code IS NOT NULL AND TRIM(cycle_code) <> '' ORDER BY sort_order, cycle_code`
-        ).all();
+        const rows = dailyReportRepo.listKnownCycleCodes(db);
         const codes = rows.map((row) => String(row.cycle_code).trim()).filter(Boolean);
         if (codes.length) return [...new Set([...codes, ...(fallbackCycle ? [fallbackCycle] : [])])];
     } catch {
@@ -140,14 +141,14 @@ function hasScheduledSession(data, teacherId, teacherName, date, period) {
 function getLinkedSessionCycles(db, year, record, cycleCodes) {
     const table = (() => {
         try {
-            return db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'timetable_data'").get();
+            return dailyReportRepo.timetableTableExists(db);
         } catch {
-            return null;
+            return false;
         }
     })();
     if (!table) return [];
 
-    const rows = db.prepare('SELECT cycle_code, data_json FROM timetable_data WHERE school_year = ?').all(year);
+    const rows = dailyReportRepo.listTimetableRows(db, year);
     const allowed = new Set(cycleCodes);
     return rows
         .filter((row) => allowed.has(String(row.cycle_code || '').trim()))
@@ -187,53 +188,19 @@ function registerDailyReportIpc(ipcMain) {
         const request = parseReportRequest(schoolYearOrContext);
         const year = normalizeYear(request.schoolYear);
         const reportScope = resolveReportScope(db, event, session, request);
-        const cyclePlaceholders = reportScope.cycleCodes.map(() => '?').join(', ');
-        const cycleParams = reportScope.cycleCodes;
 
         // 1. Teacher absences from teacher_absences table (legacy)
-        const absences = db
-            .prepare(
-                `
-            SELECT a.*, t.full_name, t.subject
-            FROM teacher_absences a
-            LEFT JOIN teachers t ON t.id = a.teacher_id
-            WHERE a.absence_date = ? AND a.school_year = ?
-            ORDER BY t.full_name
-        `
-            )
-            .all(date, year);
+        const absences = dailyReportRepo.listLegacyAbsencesByDate(db, date, year);
 
         // 1b. Staff attendance records for the given date (new table)
-        const staffRecords = db
-            .prepare(
-                `
-            SELECT sa.*,
-                   COALESCE(t.full_name, sa.teacher_name) as full_name,
-                   COALESCE(sa.subject, t.subject, '') as subject
-            FROM staff_attendance sa
-            LEFT JOIN teachers t ON t.id = sa.teacher_id
-            WHERE sa.attendance_date = ? AND sa.school_year = ?
-            ORDER BY sa.type, COALESCE(t.full_name, sa.teacher_name)
-        `
-            )
-            .all(date, year);
+        const staffRecords = dailyReportRepo.listStaffAttendanceByDate(db, date, year);
 
         // Fill in missing subjects from grades table
         const recordsNeedingSubject = staffRecords.filter((r) => !r.subject && (r.full_name || r.teacher_name));
         if (recordsNeedingSubject.length > 0) {
             const gradeSubjects = new Map();
             try {
-                const gs = db
-                    .prepare(
-                        `
-                    SELECT teacher_id, teacher_name, subject
-                    FROM grades
-                    WHERE school_year = ? AND cycle_code IN (${cyclePlaceholders})
-                      AND subject IS NOT NULL AND TRIM(subject) <> ''
-                      AND ((teacher_id IS NOT NULL AND teacher_id > 0) OR (teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''))
-                `
-                    )
-                    .all(year, ...cycleParams);
+                const gs = dailyReportRepo.listGradeTeacherSubjects(db, year, reportScope.cycleCodes);
                 for (const row of gs) {
                     const key = row.teacher_id ? `id:${row.teacher_id}` : `name:${row.teacher_name}`;
                     const current = gradeSubjects.get(key);
@@ -259,17 +226,7 @@ function registerDailyReportIpc(ipcMain) {
         const linkedLegacyAbsences = absences.map((record) => annotateLinkedSession(record, db, year, reportScope.cycleCodes));
 
         // 2. Teacher → sections mapping (derived from grades)
-        const teacherSectionRows = db
-            .prepare(
-                `
-            SELECT teacher_id, teacher_name, section, cycle_code
-            FROM grades
-            WHERE school_year = ? AND cycle_code IN (${cyclePlaceholders})
-              AND section IS NOT NULL AND TRIM(section) <> ''
-              AND ((teacher_id IS NOT NULL AND teacher_id > 0) OR (teacher_name IS NOT NULL AND TRIM(teacher_name) <> ''))
-        `
-            )
-            .all(year, ...cycleParams);
+        const teacherSectionRows = dailyReportRepo.listTeacherSections(db, year, reportScope.cycleCodes);
 
         const teacherSections = {};
         for (const row of teacherSectionRows) {
@@ -291,18 +248,7 @@ function registerDailyReportIpc(ipcMain) {
         }
 
         // 3. Student counts per section
-        const sectionRows = db
-            .prepare(
-                `
-            SELECT section, COUNT(*) as count
-            FROM students
-            WHERE school_year = ? AND cycle_code IN (${cyclePlaceholders}) AND status = 'active'
-              AND section IS NOT NULL AND TRIM(section) <> ''
-            GROUP BY cycle_code, section
-            ORDER BY cycle_code, section
-        `
-            )
-            .all(year, ...cycleParams);
+        const sectionRows = dailyReportRepo.countActiveStudentsBySection(db, year, reportScope.cycleCodes);
 
         const sectionStudentCounts = {};
         for (const row of sectionRows) {
@@ -324,26 +270,12 @@ function registerDailyReportIpc(ipcMain) {
         }
 
         // 6. School events for this date
-        const events = db
-            .prepare(
-                `
-            SELECT * FROM school_events
-            WHERE event_date = ? AND school_year = ?
-            ORDER BY event_time, id
-        `
-            )
-            .all(date, year);
+        const events = schoolEventsRepo.listByDate(db, date, year);
 
         // 7. System tags for this date
         let tags = [];
         try {
-            tags = db
-                .prepare(
-                    `SELECT * FROM system_tags
-                     WHERE tag_date = ? AND school_year = ?
-                     ORDER BY entity_type, entity_name, id`
-                )
-                .all(date, year);
+            tags = systemTagsRepo.listByDate(db, date, year);
         } catch { /* table may not exist yet */ }
 
         // 8. Merge legacy school_events into tags format
@@ -414,23 +346,23 @@ function registerDailyReportIpc(ipcMain) {
         const year = requireSchoolYear(school_year);
 
         if (id) {
-            db.prepare(
-                `
-                UPDATE school_events
-                SET event_type = ?, details = ?, event_time = ?, event_date = ?, school_year = ?
-                WHERE id = ?
-            `
-            ).run(event_type, details || '', event_time || '', event_date, year, id);
+            schoolEventsRepo.updateById(db, {
+                id,
+                event_type,
+                details: details || '',
+                event_time: event_time || '',
+                event_date,
+                school_year: year
+            });
             return { success: true, id };
         } else {
-            const result = db
-                .prepare(
-                    `
-                INSERT INTO school_events (event_date, event_type, details, event_time, school_year)
-                VALUES (?, ?, ?, ?, ?)
-            `
-                )
-                .run(event_date, event_type, details || '', event_time || '', year);
+            const result = schoolEventsRepo.insert(db, {
+                event_date,
+                event_type,
+                details: details || '',
+                event_time: event_time || '',
+                school_year: year
+            });
             return { success: true, id: result.lastInsertRowid };
         }
     });
@@ -443,7 +375,7 @@ function registerDailyReportIpc(ipcMain) {
         }
         if (!eventId || (typeof eventId === 'object' && !eventId.id)) return { success: false, error: 'Invalid ID' };
         const resolvedEventId = typeof eventId === 'object' ? eventId.id : eventId;
-        db.prepare('DELETE FROM school_events WHERE id = ?').run(resolvedEventId);
+        schoolEventsRepo.deleteById(db, resolvedEventId);
         return { success: true };
     });
 }

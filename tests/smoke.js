@@ -588,12 +588,13 @@ function runRoleHierarchySmoke() {
         'deny-all override marker must not be an assignable role'
     );
     const appDefaultsSource = read(path.join('main', 'ipc', 'appDefaults.js'));
+    const pageAccessRepoSource = read(path.join('main', 'repos', 'page-access.js'));
     assert.ok(
-        appDefaultsSource.includes("const PAGE_ACCESS_OVERRIDE_MARKER = '__override__';"),
+        pageAccessRepoSource.includes("const PAGE_ACCESS_OVERRIDE_MARKER = '__override__';"),
         'page access saves must persist an explicit override marker'
     );
     assert.ok(
-        appDefaultsSource.includes('markerStmt.run(pageKey, PAGE_ACCESS_OVERRIDE_MARKER);'),
+        pageAccessRepoSource.includes('markerStmt.run(pageKey, PAGE_ACCESS_OVERRIDE_MARKER);'),
         'page access saves must write the override marker before allowed roles'
     );
     assert.ok(

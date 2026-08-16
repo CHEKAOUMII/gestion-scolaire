@@ -4,6 +4,7 @@ const { ALLOWED_ROLES } = require('../auth/permissions');
 const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const { validateDate } = require('./validation');
 const { resolveTeacherIdentity } = require('../teachers/identity');
+const staffAttendanceRepo = require('../repos/staff-attendance');
 
 const ALL_CYCLE_VALUES = new Set(['all', 'all_cycles', 'all-cycles']);
 
@@ -24,130 +25,17 @@ function getCanonicalAbsencePeriod(type, payload) {
     return type === 'absence' ? String(payload?.absence_period || 'full_day').trim() || 'full_day' : null;
 }
 
-function findAttendanceConflict(db, { recordId = null, teacherId, teacherName, attendanceDate, type, absencePeriod, schoolYear }) {
-    const teacherIdValue = Number(teacherId) > 0 ? Number(teacherId) : null;
-    const teacherNameValue = String(teacherName || '').trim();
-
-    if (type === 'late') {
-        return db.prepare(`
-            SELECT id
-            FROM staff_attendance
-            WHERE school_year = ?
-              AND attendance_date = ?
-              AND type = 'late'
-              AND COALESCE(teacher_id, -1) = COALESCE(?, -1)
-              AND COALESCE(teacher_name, '') = ?
-              AND (? IS NULL OR id != ?)
-            LIMIT 1
-        `).get(
-            schoolYear,
-            attendanceDate,
-            teacherIdValue,
-            teacherNameValue,
-            recordId,
-            recordId
-        );
-    }
-
-    return db.prepare(`
-        SELECT id
-        FROM staff_attendance
-        WHERE school_year = ?
-          AND attendance_date = ?
-          AND type = 'absence'
-          AND COALESCE(teacher_id, -1) = COALESCE(?, -1)
-          AND COALESCE(teacher_name, '') = ?
-          AND COALESCE(absence_period, 'full_day') = ?
-          AND (? IS NULL OR id != ?)
-        LIMIT 1
-    `).get(
-        schoolYear,
-        attendanceDate,
-        teacherIdValue,
-        teacherNameValue,
-        String(absencePeriod || 'full_day'),
-        recordId,
-        recordId
-    );
-}
-
 function registerStaffAttendanceIpc(ipcMain) {
-    // Build teacher options from canonical teachers first, then append unresolved grade-only names.
-    // Teachers are institution-wide, but the subjects and the unresolved names are derived
-    // from `grades`, which is cycle-scoped: without the filter a teacher would be listed
-    // with the subjects they teach in the other cycle.
     handleAuthedRead(ipcMain, 'teachers:getFromGrades', ({ db, event }, schoolYear) => {
         const year = normalizeYear(schoolYear);
         const cycle = resolveCycleForRequest(db, event);
-        return db
-            .prepare(
-                `
-            WITH canonical_teachers AS (
-                SELECT
-                    t.id AS id,
-                    t.full_name AS full_name,
-                    COALESCE(
-                        GROUP_CONCAT(DISTINCT NULLIF(TRIM(g.subject), '')),
-                        NULLIF(TRIM(t.subject), '')
-                    ) AS subject
-                FROM teachers t
-                LEFT JOIN grades g
-                    ON g.school_year = t.school_year
-                   AND g.cycle_code = ?
-                   AND (
-                        g.teacher_id = t.id
-                        OR (
-                            (g.teacher_id IS NULL OR g.teacher_id <= 0)
-                            AND TRIM(COALESCE(g.teacher_name, '')) = TRIM(t.full_name)
-                        )
-                   )
-                WHERE t.school_year = ?
-                  AND TRIM(COALESCE(t.full_name, '')) <> ''
-                GROUP BY t.id, t.full_name, t.subject
-            ),
-            unresolved_grade_teachers AS (
-                SELECT
-                    NULL AS id,
-                    TRIM(g.teacher_name) AS full_name,
-                    GROUP_CONCAT(DISTINCT NULLIF(TRIM(g.subject), '')) AS subject
-                FROM grades g
-                LEFT JOIN teachers t
-                    ON t.school_year = g.school_year
-                   AND TRIM(COALESCE(t.full_name, '')) = TRIM(COALESCE(g.teacher_name, ''))
-                WHERE g.school_year = ?
-                  AND g.cycle_code = ?
-                  AND (g.teacher_id IS NULL OR g.teacher_id <= 0)
-                  AND TRIM(COALESCE(g.teacher_name, '')) <> ''
-                  AND t.id IS NULL
-                GROUP BY TRIM(g.teacher_name), COALESCE(NULLIF(TRIM(g.subject), ''), '')
-            )
-            SELECT id, full_name, subject
-            FROM canonical_teachers
-            UNION ALL
-            SELECT id, full_name, subject
-            FROM unresolved_grade_teachers
-            ORDER BY full_name, subject
-        `
-            )
-            .all(cycle, year, year, cycle);
+        return staffAttendanceRepo.listTeachersFromGrades(db, year, cycle);
     });
 
     // ── Staff Attendance CRUD ──
 
     handleAuthedRead(ipcMain, 'staffAttendance:getAll', ({ db }, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT sa.*,
-                   COALESCE(t.full_name, sa.teacher_name) as full_name,
-                   COALESCE(sa.subject, t.subject, '') as subject
-            FROM staff_attendance sa
-            LEFT JOIN teachers t ON t.id = sa.teacher_id
-            WHERE sa.school_year = ?
-            ORDER BY sa.attendance_date DESC, sa.created_at DESC
-        `
-            )
-            .all(normalizeYear(schoolYear));
+        return staffAttendanceRepo.listByYear(db, normalizeYear(schoolYear));
     });
 
     handleWrite(ipcMain, 'staffAttendance:save', WRITE_ROLES, (db, _event, payload) => {
@@ -170,7 +58,7 @@ function registerStaffAttendanceIpc(ipcMain) {
         });
         const canonicalTeacherName = getCanonicalTeacherName(resolved, payload);
         const canonicalAbsencePeriod = getCanonicalAbsencePeriod(type, payload);
-        const conflict = findAttendanceConflict(db, {
+        const conflict = staffAttendanceRepo.findConflict(db, {
             teacherId: resolved.teacher_id || null,
             teacherName: canonicalTeacherName,
             attendanceDate: payload.attendance_date,
@@ -182,24 +70,19 @@ function registerStaffAttendanceIpc(ipcMain) {
             return { success: true, duplicate: true, id: conflict.id };
         }
 
-        const result = db.prepare(
-            `
-            INSERT OR IGNORE INTO staff_attendance(teacher_id, teacher_name, subject, attendance_date, type, late_duration, arrival_time, reason, notes, absence_period, school_year)
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
-        ).run(
-            resolved.teacher_id || null,
-            canonicalTeacherName || null,
-            resolved.subject || payload.subject || null,
-            payload.attendance_date,
+        const result = staffAttendanceRepo.insert(db, {
+            teacher_id: resolved.teacher_id || null,
+            teacher_name: canonicalTeacherName || null,
+            subject: resolved.subject || payload.subject || null,
+            attendance_date: payload.attendance_date,
             type,
-            type === 'late' ? Number(payload.late_duration) || null : null,
-            type === 'late' ? payload.arrival_time || null : null,
-            payload.reason || null,
-            payload.notes || null,
-            canonicalAbsencePeriod,
-            year
-        );
+            late_duration: type === 'late' ? Number(payload.late_duration) || null : null,
+            arrival_time: type === 'late' ? payload.arrival_time || null : null,
+            reason: payload.reason || null,
+            notes: payload.notes || null,
+            absence_period: canonicalAbsencePeriod,
+            school_year: year
+        });
         return {
             success: true,
             duplicate: result.changes === 0,
@@ -231,7 +114,7 @@ function registerStaffAttendanceIpc(ipcMain) {
         });
         const canonicalTeacherName = getCanonicalTeacherName(resolved, payload);
         const canonicalAbsencePeriod = getCanonicalAbsencePeriod(type, payload);
-        const conflict = findAttendanceConflict(db, {
+        const conflict = staffAttendanceRepo.findConflict(db, {
             recordId,
             teacherId: resolved.teacher_id || null,
             teacherName: canonicalTeacherName,
@@ -243,26 +126,19 @@ function registerStaffAttendanceIpc(ipcMain) {
         if (conflict) {
             return { success: false, error: 'السجل موجود بالفعل لنفس الأستاذ والتاريخ.' };
         }
-        db.prepare(`
-            UPDATE staff_attendance
-            SET teacher_id = ?, teacher_name = ?, subject = ?, attendance_date = ?,
-                type = ?, late_duration = ?, arrival_time = ?, reason = ?, notes = ?,
-                absence_period = ?, school_year = ?
-            WHERE id = ?
-        `).run(
-            resolved.teacher_id || null,
-            canonicalTeacherName || null,
-            resolved.subject || payload.subject || null,
-            payload.attendance_date,
+        staffAttendanceRepo.updateById(db, recordId, {
+            teacher_id: resolved.teacher_id || null,
+            teacher_name: canonicalTeacherName || null,
+            subject: resolved.subject || payload.subject || null,
+            attendance_date: payload.attendance_date,
             type,
-            type === 'late' ? Number(payload.late_duration) || null : null,
-            type === 'late' ? payload.arrival_time || null : null,
-            payload.reason || null,
-            payload.notes || null,
-            canonicalAbsencePeriod,
-            year,
-            recordId
-        );
+            late_duration: type === 'late' ? Number(payload.late_duration) || null : null,
+            arrival_time: type === 'late' ? payload.arrival_time || null : null,
+            reason: payload.reason || null,
+            notes: payload.notes || null,
+            absence_period: canonicalAbsencePeriod,
+            school_year: year
+        });
         return { success: true };
     });
 
@@ -271,7 +147,7 @@ function registerStaffAttendanceIpc(ipcMain) {
         if (!Number.isFinite(recordId) || recordId <= 0) {
             return { success: false, error: 'Invalid ID' };
         }
-        db.prepare('DELETE FROM staff_attendance WHERE id = ?').run(recordId);
+        staffAttendanceRepo.deleteById(db, recordId);
         return { success: true };
     });
 }
