@@ -70,6 +70,23 @@ function getSyncConfigRow(db) {
     return db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
 }
 
+/**
+ * Raw technical code read (may be the opaque server-generated School_Id — the tenant
+ * key used for Firebase provisioning and link requests). This is deliberately NOT
+ * getStatusRecord's massarCode, which is the display value that hides opaque ids.
+ * Column-existence tolerant, mirroring the pre-refactor guarded read.
+ */
+function getCodeEtablissement(db) {
+    try {
+        const columns = new Set(db.prepare('PRAGMA table_info(institution_config)').all().map((column) => column.name));
+        if (!columns.has('code_etablissement')) return '';
+        const row = db.prepare('SELECT code_etablissement FROM institution_config WHERE id = 1').get() || {};
+        return String(row.code_etablissement || '');
+    } catch {
+        return '';
+    }
+}
+
 function upsertSyncConfig(db, syncConfig) {
     const currentConfig = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
     const firebaseFunctionsUrl =
@@ -243,6 +260,7 @@ module.exports = {
     looksLikeLegacyMassarCode,
     getStatusRecord,
     getSyncConfigRow,
+    getCodeEtablissement,
     upsertSyncConfig,
     applyRelink,
     applyBootstrap,

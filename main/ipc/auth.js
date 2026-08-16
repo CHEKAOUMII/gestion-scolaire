@@ -303,8 +303,7 @@ function tryDevBypass(email, password, event) {
 async function handleLinkRequest(email) {
     try {
         const db = getDb();
-        const instStatus = institutionRepo.getStatusRecord(db);
-        const localSchoolCode = String(instStatus.massarCode || '')
+        const localSchoolCode = institutionRepo.getCodeEtablissement(db)
             .trim()
             .toUpperCase();
         if (!localSchoolCode) return null;

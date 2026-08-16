@@ -21,8 +21,8 @@ function normalizeEmail(value) {
 
 function getSchoolId(db) {
     const syncRow = institutionRepo.getSyncConfigRow(db);
-    const instStatus = institutionRepo.getStatusRecord(db);
-    return String(syncRow.school_id || instStatus.massarCode || process.env.FIREBASE_SCHOOL_ID || '').trim();
+    const codeEtablissement = institutionRepo.getCodeEtablissement(db);
+    return String(syncRow.school_id || codeEtablissement || process.env.FIREBASE_SCHOOL_ID || '').trim();
 }
 
 function getFirebaseFunctionsUrl(db) {
