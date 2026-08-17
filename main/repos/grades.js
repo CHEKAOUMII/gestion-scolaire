@@ -10,14 +10,12 @@ const {
 } = require('./capture-port');
 const { getLocalKeyFields } = require('../sync/entity-registry');
 const { requireCycle, resolveStudentForCycle, resolveStudentOwnership } = require('./student-cycle');
+const { listTableColumns } = require('../db/schema');
 
 const GRADE_KEY_FIELDS = getLocalKeyFields('grades') || ['school_year', 'student_code', 'subject', 'semester'];
 
 function tableColumns(db, tableName) {
-    const rows = typeof db.pragma === 'function'
-        ? db.pragma(`table_info(${tableName})`)
-        : db.prepare(`PRAGMA table_info(${tableName})`).all();
-    return new Set(rows.map((row) => row.name));
+    return new Set(listTableColumns(db, tableName).map((row) => row.name));
 }
 
 // Subject catalog for the filter-manager dropdown (main/ipc/catalog.js `subjects:getAll`).

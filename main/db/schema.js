@@ -1106,5 +1106,6 @@ module.exports = {
     ensureOwnerSyncSchema,
     ensureSchoolIdentitySchema,
     ensureSyncSchema,
-    ensurePageVisibilitySchema
+    ensurePageVisibilitySchema,
+    listTableColumns
 };

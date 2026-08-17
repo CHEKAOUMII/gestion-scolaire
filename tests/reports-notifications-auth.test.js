@@ -23,34 +23,7 @@ const { getActiveSessions } = require('../main/ipc/auth');
 const { registerReportsIpc } = require('../main/ipc/reports');
 const { registerNotificationsIpc } = require('../main/ipc/notifications');
 const store = require('../main/notifications/store');
-
-// Same ABI-tolerant fixture pattern as tests/cycle-isolation-students.test.js:
-// prefer better-sqlite3, fall back to node:sqlite (+ transaction shim) when the
-// native module was built for Electron's Node ABI.
-function openDb() {
-    try {
-        const Database = require('better-sqlite3');
-        const probe = new Database(':memory:');
-        probe.close();
-        return new Database(':memory:');
-    } catch {
-        // Native ABI mismatch (module built for Electron) — fall back to node:sqlite.
-    }
-    const { DatabaseSync } = require('node:sqlite');
-    const db = new DatabaseSync(':memory:');
-    db.transaction = (fn) => (...args) => {
-        db.exec('BEGIN');
-        try {
-            const result = fn(...args);
-            db.exec('COMMIT');
-            return result;
-        } catch (err) {
-            db.exec('ROLLBACK');
-            throw err;
-        }
-    };
-    return db;
-}
+const { openDb } = require('./fixtures/open-db');
 
 function collectHandlers() {
     const handlers = new Map();
