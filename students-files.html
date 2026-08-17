@@ -124,10 +124,10 @@
                           .map(
                               (s) => `
                 <tr>
-                    <td data-label="رقم الملف" style="font-weight: bold; color: var(--primary);">${s.file_number}</td>
-                    <td data-label="رمز مسار">${s.massar_code || '-'}</td>
-                    <td data-label="الاسم الكامل">${s.full_name || '-'}</td>
-                    <td data-label="القسم">${s.class_name || '-'}</td>
+                    <td data-label="رقم الملف" style="font-weight: bold; color: var(--primary);">${Number(s.file_number) || '-'}</td>
+                    <td data-label="رمز مسار">${escapeHtml(s.massar_code || '-')}</td>
+                    <td data-label="الاسم الكامل">${escapeHtml(s.full_name || '-')}</td>
+                    <td data-label="القسم">${escapeHtml(s.class_name || '-')}</td>
                     <td data-label="مكان الحفظ">خزانة ${Math.ceil(s.file_number / 50)} - رف ${Math.ceil((s.file_number % 50 || 50) / 10)}</td>
                 </tr>
             `

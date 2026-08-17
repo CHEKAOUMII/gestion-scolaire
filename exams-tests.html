@@ -87,13 +87,13 @@
                               (r, i) => `
                 <tr>
                     <td data-label="#">${i + 1}</td>
-                    <td data-label="العنوان">${r.title || '-'}</td>
-                    <td data-label="المادة">${r.subject || '-'}</td>
-                    <td data-label="القسم">${r.section || '-'}</td>
-                    <td data-label="التاريخ">${r.date || '-'}</td>
+                    <td data-label="العنوان">${escapeHtml(r.title || '-')}</td>
+                    <td data-label="المادة">${escapeHtml(r.subject || '-')}</td>
+                    <td data-label="القسم">${escapeHtml(r.section || '-')}</td>
+                    <td data-label="التاريخ">${escapeHtml(r.date || '-')}</td>
                     <td data-label="الإجراء">
-                        <button class="btn btn-secondary" onclick="editRow(${r.id})"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-secondary" onclick="delRow(${r.id})"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-secondary" onclick="editRow(${Number(r.id)})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-secondary" onclick="delRow(${Number(r.id)})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `

@@ -152,9 +152,9 @@
                               (a, i) => `
                 <tr>
                     <td data-label="الرقم الترتيبي">${i + 1}</td>
-                    <td data-label="رمز مسار">${a.massar_code || '-'}</td>
-                    <td data-label="الاسم والنسب">${a.student_name || '-'}</td>
-                    <td data-label="القسم">${a.class_name || '-'}</td>
+                    <td data-label="رمز مسار">${escapeHtml(a.massar_code || '-')}</td>
+                    <td data-label="الاسم والنسب">${escapeHtml(a.student_name || '-')}</td>
+                    <td data-label="القسم">${escapeHtml(a.class_name || '-')}</td>
                     <td data-label="ساعات مبررة" style="color: var(--color-success);">${a.justified_hours || 0}</td>
                     <td data-label="ساعات غير مبررة" style="color: var(--color-danger);">${a.unjustified_hours || 0}</td>
                     <td data-label="مجموع ساعات الغياب" style="font-weight: bold;">${(a.justified_hours || 0) + (a.unjustified_hours || 0)}</td>

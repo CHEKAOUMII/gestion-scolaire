@@ -1393,7 +1393,7 @@
                 <div class="student-summary">
                     <div class="student-summary-item">
                         <div class="label">القسم</div>
-                        <div class="value">${section}</div>
+                        <div class="value">${escapeHtml(section)}</div>
                     </div>
                     <div class="student-summary-item">
                         <div class="label">عدد المواد المتعثر فيها</div>
@@ -1416,7 +1416,7 @@
                             .map((g) => {
                                 const lvl = getSupportLabel(getSupportLevel(g.grade));
                                 return `<tr>
-                                <td>${normalizeSubjectName(g.subject) || '-'}</td>
+                                <td>${escapeHtml(normalizeSubjectName(g.subject) || '-')}</td>
                                 <td class="${getGradeCssClass(g.grade)} grade-value">${g.grade}</td>
                                 <td><span class="support-badge ${lvl.cssClass}"><i class="fas ${lvl.icon}" aria-hidden="true"></i> ${lvl.text}</span></td>
                             </tr>`;

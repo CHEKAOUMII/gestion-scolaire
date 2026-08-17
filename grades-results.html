@@ -466,12 +466,12 @@
                     </div>
 
                     <div class="gr-student-meta">
-                        <span>المستوى: ${getLevelFromSection(className).name}</span>
-                        <span>القسم: ${className}</span>
+                        <span>المستوى: ${escapeHtml(getLevelFromSection(className).name)}</span>
+                        <span>القسم: ${escapeHtml(className)}</span>
                         <span>عدد التلاميذ: ${totalStudents}</span>
                     </div>
                     <div class="gr-student-meta">
-                        <span>إسم ورقم التلميذ: ${student.full_name || ''} ${student.code || ''}</span>
+                        <span>إسم ورقم التلميذ: ${escapeHtml(student.full_name || '')} ${escapeHtml(student.code || '')}</span>
                     </div>
 
                     <!-- Grades Table -->
@@ -489,7 +489,7 @@
                         <tbody>
                             ${subjectData.map(sd => `
                             <tr>
-                                <td>${sd.subject}</td>
+                                <td>${escapeHtml(sd.subject || '')}</td>
                                 <td>${sd.avg.toFixed(2).replace('.', ',')}</td>
                                 <td>${sd.coeff}</td>
                                 <td>${sd.nxm.toFixed(2).replace('.', ',')}</td>

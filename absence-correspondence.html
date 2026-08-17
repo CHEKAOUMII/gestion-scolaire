@@ -89,11 +89,11 @@
 
             document.getElementById('preview').innerHTML =
                 '<div style="border: 2px solid var(--primary); padding: 40px; border-radius: 12px; text-align: right; background: white; max-width: 700px; margin: 0 auto;">' +
-                '<h2 style="text-align: center; margin-bottom: 30px;">' + (typeLabels[type] || 'مراسلة') + '</h2>' +
-                '<p>التاريخ: ' + date + '</p>' +
-                '<p>نحيط علم ولي أمر التلميذ(ة): ' + (student.full_name || '-') + '</p>' +
-                '<p>القسم: ' + (student.class_name || student.section || '-') + '</p>' +
-                '<p>رمز مسار: ' + (student.massar_code || student.code || '-') + '</p>' +
+                '<h2 style="text-align: center; margin-bottom: 30px;">' + escapeHtml(typeLabels[type] || 'مراسلة') + '</h2>' +
+                '<p>التاريخ: ' + escapeHtml(date) + '</p>' +
+                '<p>نحيط علم ولي أمر التلميذ(ة): ' + escapeHtml(student.full_name || '-') + '</p>' +
+                '<p>القسم: ' + escapeHtml(student.class_name || student.section || '-') + '</p>' +
+                '<p>رمز مسار: ' + escapeHtml(student.massar_code || student.code || '-') + '</p>' +
                 '<p style="margin-top: 20px;">نحيطكم علماً بأن ابنكم/ابنتكم قد تجاوز عدد ساعات الغياب المسموح بها...</p>' +
                 '<button class="btn btn-primary" onclick="PrintSystem.preview({title:\'مراسلة الغياب\',pageSize:\'A4\'})" style="margin-top: 30px;"><i class="fas fa-eye"></i> معاينة الطباعة</button>' +
                 '</div>';

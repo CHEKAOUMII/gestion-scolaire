@@ -109,7 +109,7 @@
                     html += `<tr><td data-label="الفترة" style="font-weight: bold; background: var(--color-surface-alt);">${period}</td>`;
                     days.forEach((day) => {
                         const lesson = lessons.find((l) => l.day === day && l.period === period);
-                        html += `<td data-label="${day}" style="padding: 8px;">${lesson ? `<span style="background: var(--color-primary); color: var(--color-surface); padding: 4px 8px; border-radius: 6px;">${lesson.subject || ''} - ${lesson.class_name || ''}</span>` : '-'}</td>`;
+                        html += `<td data-label="${day}" style="padding: 8px;">${lesson ? `<span style="background: var(--color-primary); color: var(--color-surface); padding: 4px 8px; border-radius: 6px;">${escapeHtml(lesson.subject || '')} - ${escapeHtml(lesson.class_name || '')}</span>` : '-'}</td>`;
                     });
                     html += '</tr>';
                 });

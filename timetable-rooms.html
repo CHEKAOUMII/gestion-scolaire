@@ -441,17 +441,17 @@
                                 let sectionsRow = '';
                                 if (allSame && uniqueSections[0]) {
                                     const sc = getSectionColor(uniqueSections[0]);
-                                    sectionsRow = `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${uniqueSections[0]}</div>`;
+                                    sectionsRow = `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${escapeHtml(uniqueSections[0])}</div>`;
                                 } else {
                                     sectionsRow = `<div style="display:flex">${cell.mergedSections
                                         .map((s) => {
                                             if (!s) return '<span style="flex:1"></span>';
                                             const sc = getSectionColor(s);
-                                            return `<span class="class-name" style="background:${sc.bg};color:${sc.fg};flex:1">${s}</span>`;
+                                            return `<span class="class-name" style="background:${sc.bg};color:${sc.fg};flex:1">${escapeHtml(s)}</span>`;
                                         })
                                         .join('')}</div>`;
                                 }
-                                const cellContent = `<div class="subject-cell">${sectionsRow}<div class="teacher-name" style="color:${tc.fg}">${lesson.teacher} : (${lesson.subject})</div></div>`;
+                                const cellContent = `<div class="subject-cell">${sectionsRow}<div class="teacher-name" style="color:${tc.fg}">${escapeHtml(lesson.teacher || '')} : (${escapeHtml(lesson.subject || '')})</div></div>`;
                                 html += `<td${colspanAttr} class="merged-cell" style="background:${tc.bg};">${cellContent}</td>`;
                             } else if (lessonsAtSlot.length > 1) {
                                 // Multiple lessons stacked in same slot
@@ -461,8 +461,8 @@
                                         const sc = lesson.students ? getSectionColor(lesson.students) : null;
                                         return `
                   <div class="subject-cell" style="background:${tc.bg};">
-                    ${lesson.students ? `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${lesson.students}</div>` : ''}
-                    <div class="teacher-name" style="color:${tc.fg}">${lesson.teacher} : (${lesson.subject})</div>
+                    ${lesson.students ? `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${escapeHtml(lesson.students)}</div>` : ''}
+                    <div class="teacher-name" style="color:${tc.fg}">${escapeHtml(lesson.teacher || '')} : (${escapeHtml(lesson.subject || '')})</div>
                   </div>`;
                                     })
                                     .join('');
@@ -477,8 +477,8 @@
                                 const tdClasses = cell.colspan > 1 ? ' class="merged-cell"' : '';
                                 html += `<td${colspanAttr}${tdClasses} style="background:${tc.bg};">
                 <div class="subject-cell">
-                  ${lesson.students ? `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${lesson.students}</div>` : ''}
-                  <div class="teacher-name" style="color:${tc.fg}">${lesson.teacher} : (${lesson.subject})</div>
+                  ${lesson.students ? `<div class="class-name" style="background:${sc.bg};color:${sc.fg}">${escapeHtml(lesson.students)}</div>` : ''}
+                  <div class="teacher-name" style="color:${tc.fg}">${escapeHtml(lesson.teacher || '')} : (${escapeHtml(lesson.subject || '')})</div>
                 </div>
               </td>`;
                             }

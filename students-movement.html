@@ -93,11 +93,11 @@
       document.getElementById('tbody').innerHTML = rows.length ? rows.map((r, i) => `
                 <tr>
                     <td>${i + 1}</td>
-                    <td>${r.massar_code || '-'}</td>
-                    <td>${r.student_name || '-'}</td>
-                    <td>${typeLabels[r.movement_type] || r.movement_type || '-'}</td>
-                    <td>${r.movement_date || '-'}</td>
-                    <td>${r.notes || '-'}</td>
+                    <td>${escapeHtml(r.massar_code || '-')}</td>
+                    <td>${escapeHtml(r.student_name || '-')}</td>
+                    <td>${escapeHtml(typeLabels[r.movement_type] || r.movement_type || '-')}</td>
+                    <td>${escapeHtml(r.movement_date || '-')}</td>
+                    <td>${escapeHtml(r.notes || '-')}</td>
                 </tr>
             `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center;">لا توجد حركات مسجلة</td></tr>';
     }
