@@ -3,7 +3,7 @@ const { getIdentity, updateIdentity, readIdentityDiagnostics } = require('../rep
 const { renderLetterhead } = require('../reports/letterhead');
 const { FORM_BUILDERS } = require('../reports/channels/adminForms');
 const { getDb } = require('../db/context');
-const { authErrorResponse } = require('./ipc-helpers');
+const { authErrorResponse, handleAuthedRead, handleWrite } = require('./ipc-helpers');
 const { requireRole } = require('./auth');
 
 const IDENTITY_DIAG_ROLES = ['admin', 'developer', 'staff', 'principal'];
@@ -34,14 +34,10 @@ function getIdentityDiagnostics() {
 
 function registerReportsIpc(ipcMain) {
     // Unified document printing — single entry point for all pages
-    ipcMain.handle('reports:printDocument', (_event, payload) => {
-        return printDocument(payload);
-    });
+    handleAuthedRead(ipcMain, 'reports:printDocument', (_ctx, payload) => printDocument(payload));
 
     // Identity management
-    ipcMain.handle('reports:getIdentity', () => {
-        return getIdentity();
-    });
+    handleAuthedRead(ipcMain, 'reports:getIdentity', () => getIdentity());
 
     ipcMain.handle('reports:getIdentityDiagnostics', async (event) => {
         try {
@@ -52,18 +48,17 @@ function registerReportsIpc(ipcMain) {
         }
     });
 
-    ipcMain.handle('reports:updateIdentity', (_event, updates) => {
-        return updateIdentity(updates);
-    });
+    // Same writers as the institution identity channels (permissions.js settings-school page roles)
+    handleWrite(ipcMain, 'reports:updateIdentity', ['principal', 'external-guardian'], (db, _event, updates) =>
+        updateIdentity(updates || {})
+    );
 
     // Server-rendered letterhead — single source of truth for all contexts
-    ipcMain.handle('reports:renderLetterhead', (_event, overrides) => {
-        return renderLetterhead(overrides || {});
-    });
+    handleAuthedRead(ipcMain, 'reports:renderLetterhead', (_ctx, overrides) => renderLetterhead(overrides || {}));
 
     // Admin forms — generates official form PDFs via the unified engine
-    ipcMain.handle('reports:generateAdminForm', (_event, payload) => {
-        const { formType, data = {}, mode = 'pdf' } = payload;
+    handleAuthedRead(ipcMain, 'reports:generateAdminForm', (_ctx, payload) => {
+        const { formType, data = {}, mode = 'pdf' } = payload || {};
         const builder = FORM_BUILDERS[formType];
         if (!builder) {
             return { success: false, error: `نوع الاستمارة غير معروف: ${formType}` };

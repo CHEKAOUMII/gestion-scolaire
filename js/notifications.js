@@ -260,6 +260,8 @@
     function updateBadge() {
         if (!window.api || !window.api.notifications) return;
         window.api.notifications.unreadCount().then(function (count) {
+            // Auth failures resolve as { success:false } — never a count.
+            if (typeof count !== 'number') return;
             var btn = document.querySelector('.notification-btn');
             if (!btn) return;
             var badge = btn.querySelector('.notification-badge');
@@ -347,7 +349,8 @@
         // Mark all read button
         header.querySelector('.mark-all-read').addEventListener('click', function () {
             if (window.api && window.api.notifications) {
-                window.api.notifications.markAllRead().then(function () {
+                window.api.notifications.markAllRead().then(function (res) {
+                    if (res && res.success === false) return;
                     var items = list.querySelectorAll('.notification-item.unread');
                     for (var i = 0; i < items.length; i++) {
                         items[i].classList.remove('unread');
@@ -360,6 +363,7 @@
         // Load real notifications
         if (window.api && window.api.notifications) {
             window.api.notifications.getRecent(20).then(function (notifications) {
+                if (!Array.isArray(notifications)) return;
                 list.innerHTML = '';
                 if (!notifications || notifications.length === 0) {
                     list.innerHTML = '<div class="notification-empty">لا توجد إشعارات</div>';

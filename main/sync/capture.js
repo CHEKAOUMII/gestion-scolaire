@@ -376,6 +376,11 @@ const CHANNEL_REGISTRY = {
     'settings:set': { tables: ['settings'], operation: 'PUT', idExtractor: 'argKey' },
     'settings:setSchoolYear': { tables: ['settings'], operation: 'PUT', idExtractor: 'literal' },
 
+    // school_identity (letterhead/logo) is device-local presentation config, not a
+    // sync entity — excluded so the write channel stays registry-complete without
+    // producing outbox rows.
+    'reports:updateIdentity': { tables: ['school_identity'], operation: 'PUT', idExtractor: 'argKey', exclude: true },
+
     // Membership changes capture atomically in the repository; active context stays session-local.
     'cycles:add': {
         tables: ['institution_cycles'],
