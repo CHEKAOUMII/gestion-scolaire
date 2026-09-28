@@ -39,17 +39,19 @@ function openDb() {
     const { DatabaseSync } = require('node:sqlite');
     const db = new DatabaseSync(':memory:');
     // better-sqlite3 API surface the repositories rely on.
-    db.transaction = (fn) => (...args) => {
-        db.exec('BEGIN');
-        try {
-            const result = fn(...args);
-            db.exec('COMMIT');
-            return result;
-        } catch (err) {
-            db.exec('ROLLBACK');
-            throw err;
-        }
-    };
+    db.transaction =
+        (fn) =>
+        (...args) => {
+            db.exec('BEGIN');
+            try {
+                const result = fn(...args);
+                db.exec('COMMIT');
+                return result;
+            } catch (err) {
+                db.exec('ROLLBACK');
+                throw err;
+            }
+        };
     return db;
 }
 
@@ -70,6 +72,13 @@ db.exec(`
         PRIMARY KEY (user_id, cycle_code)
     )
 `);
+db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+`);
+db.prepare("INSERT INTO settings (key, value) VALUES ('currentSchoolYear', ?)").run('2025/2026');
 
 function cycleRow(code) {
     return cyclesRepo.getLabeledCycle(db, code);
@@ -91,7 +100,11 @@ throwsWith(() => cyclesRepo.addCycle(db, 'secondary_qualifiant'), 'مضاف مس
 assert.strictEqual(cyclesRepo.listCycles(db).length, 1, 'a rejected add must not leave a partial row');
 
 const added = cyclesRepo.addCycle(db, 'secondary_collegial');
-assert.strictEqual(added.seed_profile_version_hint, 'collegial-2026-v1', 'profile version comes from the catalog, not the caller');
+assert.strictEqual(
+    added.seed_profile_version_hint,
+    'collegial-2026-v1',
+    'profile version comes from the catalog, not the caller'
+);
 assert.strictEqual(added.capability, 'supported');
 assert.strictEqual(Number(added.is_active), 1);
 assert.strictEqual(cyclesRepo.listCycles(db).length, 2);
@@ -186,7 +199,6 @@ async function main() {
     });
     assert.strictEqual(unauthorized.success, false, 'sessions cannot switch into an unauthorized cycle');
     assert.match(unauthorized.error, /صلاحية/);
-
 
     const badYear = await call('cycles:setActive', SENDER_TEACHER, {
         cycleCode: 'secondary_qualifiant',

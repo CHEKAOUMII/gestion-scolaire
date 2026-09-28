@@ -47,11 +47,7 @@ async function seedAndRelaunch(ctx, overrides = {}) {
     const seedResult = await seedLocalProfile(ctx.userDataDir, overrides);
     assert.strictEqual(seedResult.setupCompleted, true, 'Seed should mark setup_completed');
     await ctx.relaunch();
-    assertMatch(
-        ctx.window.url(),
-        /login\.html/i,
-        `Seeded profile should open login.html, got: ${ctx.window.url()}`
-    );
+    assertMatch(ctx.window.url(), /login\.html/i, `Seeded profile should open login.html, got: ${ctx.window.url()}`);
 }
 
 /**
@@ -66,25 +62,39 @@ async function assertTopbarSwitcherSingleState(window, pageLabel) {
     await wrapper.waitFor({ state: 'visible', timeout: 15_000 });
 
     const select = window.locator('#topbar-cycle-select');
-    assert.strictEqual(await select.isDisabled(), true, `${pageLabel}: select should be disabled with a single supported stage`);
+    assert.strictEqual(
+        await select.isDisabled(),
+        false,
+        `${pageLabel}: select should remain openable to inspect active preview stages`
+    );
 
     const options = select.locator('option');
     const count = await options.count();
     assert.ok(count >= 2, `${pageLabel}: active preview stages must appear in the dropdown, got ${count} option(s)`);
 
     const qualifiant = select.locator('option[value="secondary_qualifiant"]').first();
-    assert.strictEqual(await qualifiant.getAttribute('value'), 'secondary_qualifiant', `${pageLabel}: qualifiant option present`);
+    assert.strictEqual(
+        await qualifiant.getAttribute('value'),
+        'secondary_qualifiant',
+        `${pageLabel}: qualifiant option present`
+    );
     assert.strictEqual(await qualifiant.isDisabled(), false, `${pageLabel}: qualifiant option must be selectable`);
     assert.ok(await qualifiant.evaluate((el) => el.selected), `${pageLabel}: qualifiant option must be selected`);
     const qualifiantText = ((await qualifiant.textContent()) || '').trim();
-    assert.ok(qualifiantText.includes(QUALIFIANT_LABEL), `${pageLabel}: qualifiant option text should name the stage, got: ${qualifiantText}`);
+    assert.ok(
+        qualifiantText.includes(QUALIFIANT_LABEL),
+        `${pageLabel}: qualifiant option text should name the stage, got: ${qualifiantText}`
+    );
 
     for (const previewCode of ['primary']) {
         const preview = select.locator(`option[value="${previewCode}"]`);
         if ((await preview.count()) > 0) {
             assert.strictEqual(await preview.isDisabled(), true, `${pageLabel}: ${previewCode} must render disabled`);
             const text = ((await preview.textContent()) || '').trim();
-            assert.ok(text.includes('قيد الإعداد'), `${pageLabel}: ${previewCode} must be labelled «قيد الإعداد», got: ${text}`);
+            assert.ok(
+                text.includes('قيد الإعداد'),
+                `${pageLabel}: ${previewCode} must be labelled «قيد الإعداد», got: ${text}`
+            );
         }
     }
 
@@ -129,9 +139,7 @@ async function scenarioDashboardSwitcher({ window }) {
     // Session context must already pin the qualifiant stage.
     const active = await window.evaluate(async () => {
         const response = await window.api.cycles.getActive();
-        return response?.success
-            ? response.context?.cycleCode || response.cycle?.cycle_code || null
-            : null;
+        return response?.success ? response.context?.cycleCode || response.cycle?.cycle_code || null : null;
     });
     assert.strictEqual(active, 'secondary_qualifiant', `Active cycle should be qualifiant, got: ${active}`);
 }
@@ -156,7 +164,11 @@ async function scenarioSwitcherFiltering({ window }) {
     });
     assert.deepStrictEqual(synthetic.values, ['a', 'p', 'q'], 'Every active stage appears; inactive rows never do');
     assert.deepStrictEqual(synthetic.selected, [false, false, true], 'Selected flag must follow activeCycleCode');
-    assert.deepStrictEqual(synthetic.disabled, [false, true, false], 'Preview rows are disabled, supported rows selectable');
+    assert.deepStrictEqual(
+        synthetic.disabled,
+        [false, true, false],
+        'Preview rows are disabled, supported rows selectable'
+    );
     assert.strictEqual(synthetic.labels[1], 'ب-قيد (قيد الإعداد)', 'Preview label carries the «قيد الإعداد» suffix');
     assert.strictEqual(synthetic.labels[2], 'ق', 'Supported label is untouched');
 
@@ -176,7 +188,10 @@ async function scenarioSwitcherFiltering({ window }) {
         return { options, rendered, list: listResponse.cycles };
     });
     assert.deepStrictEqual(live.rendered, live.options, 'Rendered switcher must equal the pure builder output');
-    assert.ok(live.options.some((o) => o.value === 'secondary_qualifiant' && !o.disabled && o.selected), 'Qualifiant must be selected and selectable');
+    assert.ok(
+        live.options.some((o) => o.value === 'secondary_qualifiant' && !o.disabled && o.selected),
+        'Qualifiant must be selected and selectable'
+    );
     assert.ok(
         live.options.some((o) => o.value === 'primary' && o.disabled && o.label.includes('قيد الإعداد')),
         'Seeded primary stage must be present, disabled and labelled «قيد الإعداد»'
@@ -201,7 +216,11 @@ async function scenarioSwitcherAcrossPages({ window }) {
     ];
     for (const pageFile of stagePages) {
         await gotoAppPage(window, pageFile);
-        assertMatch(window.url(), new RegExp(pageFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), `Expected ${pageFile}`);
+        assertMatch(
+            window.url(),
+            new RegExp(pageFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+            `Expected ${pageFile}`
+        );
         await assertTopbarSwitcherSingleState(window, pageFile);
         await expectVisible(window, '#sidebar');
         console.log(`[e2e:stage]   switcher ok on ${pageFile}`);
@@ -228,10 +247,16 @@ async function scenarioCycleManagementButtons({ window }) {
 
     // Add collegial via the real button.
     await collegialAdd.click();
-    const collegialToggle = window.locator('#institution-cycles-list .cycle-toggle[data-cycle-code="secondary_collegial"]');
+    const collegialToggle = window.locator(
+        '#institution-cycles-list .cycle-toggle[data-cycle-code="secondary_collegial"]'
+    );
     await collegialToggle.waitFor({ state: 'visible', timeout: 15_000 });
     assert.strictEqual(await collegialToggle.getAttribute('data-active'), '1', 'collegial should be added and active');
-    assertMatch(((await collegialToggle.textContent()) || ''), /تعطيل/i, 'Toggle should read «تعطيل» for an enabled cycle');
+    assertMatch(
+        (await collegialToggle.textContent()) || '',
+        /تعطيل/i,
+        'Toggle should read «تعطيل» for an enabled cycle'
+    );
 
     // The approved collegial cycle becomes a second selectable work stage.
     const topbarSelect = window.locator('#topbar-cycle-select');
@@ -284,7 +309,10 @@ async function scenarioCycleAccessMatrix({ window }) {
 
     const theadText = ((await window.locator('#cycle-access-thead-row').textContent()) || '').trim();
     assert.ok(theadText.includes(QUALIFIANT_LABEL), 'Matrix header should include the qualifiant stage');
-    assert.ok(theadText.includes('السلك الثانوي الإعدادي'), 'Matrix header should include the collegial stage (added earlier)');
+    assert.ok(
+        theadText.includes('السلك الثانوي الإعدادي'),
+        'Matrix header should include the collegial stage (added earlier)'
+    );
 
     // Seeded admin holds full access — matrix shows the protected row, no checkboxes.
     const bodyText = ((await window.locator('#cycle-access-tbody').textContent()) || '').trim();
@@ -292,7 +320,10 @@ async function scenarioCycleAccessMatrix({ window }) {
 
     // Per-cycle «تفعيل للجميع» / «تعطيل للجميع» actions are wired per active cycle.
     const chipCount = await window.locator('#cycle-access-cycle-actions .su-status-chip').count();
-    assert.ok(chipCount >= 3, `Expected a chip per active institution cycle (primary/collegial/qualifiant), got ${chipCount}`);
+    assert.ok(
+        chipCount >= 3,
+        `Expected a chip per active institution cycle (primary/collegial/qualifiant), got ${chipCount}`
+    );
     assert.ok(
         (await window.locator('#cycle-access-cycle-actions button:has-text("تفعيل للجميع")').count()) >= 3,
         'Every active cycle should have a «تفعيل للجميع» button'
@@ -322,10 +353,7 @@ async function scenarioTopbarSwitching({ window }) {
     await window.waitForTimeout(700);
     assertMatch(window.url(), /students-list\.html/i, 'Blocked switch must not reload the page');
     const toastText = ((await window.locator('#toast-container').textContent()) || '').trim();
-    assert.ok(
-        toastText.includes('احفظ التعديلات'),
-        'Blocked switch must explain that edits must be saved'
-    );
+    assert.ok(toastText.includes('احفظ التعديلات'), 'Blocked switch must explain that edits must be saved');
     assert.strictEqual(await select.isDisabled(), false, 'approved collegial stage remains selectable');
     await window.evaluate(() => document.body.removeAttribute('data-unsaved-changes'));
 
@@ -352,10 +380,21 @@ async function scenarioTimetableAndStageRules({ window }) {
 
     const timetableSelect = window.locator('#timetable-cycle-select');
     await timetableSelect.waitFor({ state: 'visible', timeout: 15_000 });
-    assert.strictEqual(await timetableSelect.isDisabled(), false, 'timetable cycle select should enable with two supported stages');
-    assert.strictEqual(await timetableSelect.inputValue(), 'secondary_qualifiant', 'timetable cycle select should hold the qualifiant stage');
+    assert.strictEqual(
+        await timetableSelect.isDisabled(),
+        false,
+        'timetable cycle select should enable with two supported stages'
+    );
+    assert.strictEqual(
+        await timetableSelect.inputValue(),
+        'secondary_qualifiant',
+        'timetable cycle select should hold the qualifiant stage'
+    );
     const statusText = ((await window.locator('#timetable-cycle-status').textContent()) || '').trim();
-    assert.ok(statusText.includes(QUALIFIANT_LABEL), `timetable status should name the qualifiant stage, got: ${statusText}`);
+    assert.ok(
+        statusText.includes(QUALIFIANT_LABEL),
+        `timetable status should name the qualifiant stage, got: ${statusText}`
+    );
 
     await gotoAppPage(window, 'settings-defaults.html');
 
@@ -364,16 +403,29 @@ async function scenarioTimetableAndStageRules({ window }) {
     await stageSelect.waitFor({ state: 'attached', timeout: 15_000 });
     const optionCount = await stageSelect.locator('option').count();
     assert.strictEqual(optionCount, 3, `stage rules cycle select should list the 3 catalog stages, got ${optionCount}`);
-    assert.strictEqual(await stageSelect.inputValue(), 'secondary_qualifiant', 'stage rules should preselect the active stage');
+    assert.strictEqual(
+        await stageSelect.inputValue(),
+        'secondary_qualifiant',
+        'stage rules should preselect the active stage'
+    );
 
     const optionTexts = await stageSelect.locator('option').allTextContents();
-    assert.ok(optionTexts.some((text) => text.includes('السلك الثانوي الإعدادي') && !text.includes('قيد الإعداد')), 'Approved collegial stage must not be labelled «قيد الإعداد»');
-    assert.ok(optionTexts.some((text) => text.includes('سلك التعليم الابتدائي') && text.includes('قيد الإعداد')), 'Primary preview must be labelled «قيد الإعداد»');
+    assert.ok(
+        optionTexts.some((text) => text.includes('السلك الثانوي الإعدادي') && !text.includes('قيد الإعداد')),
+        'Approved collegial stage must not be labelled «قيد الإعداد»'
+    );
+    assert.ok(
+        optionTexts.some((text) => text.includes('سلك التعليم الابتدائي') && text.includes('قيد الإعداد')),
+        'Primary preview must be labelled «قيد الإعداد»'
+    );
 
     await window.locator('#tab-btn-rules').click();
     await expectVisible(window, '#tab-rules');
     await expectVisible(window, '#stage-year-select');
-    assert.ok((await window.locator('#stage-year-select option').count()) >= 1, 'stage rules year select should have options');
+    assert.ok(
+        (await window.locator('#stage-year-select option').count()) >= 1,
+        'stage rules year select should have options'
+    );
 }
 
 async function main() {

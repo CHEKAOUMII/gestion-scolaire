@@ -3,6 +3,7 @@
 const { handleRead, handleWrite } = require('./ipc-helpers');
 const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
 const { applySyncDefaults } = require('../sync/defaults');
+const { postFirebaseFunction } = require('./firebase-functions-client');
 
 function getFirebaseFunctionsUrl(db) {
     const row = db.prepare('SELECT * FROM sync_config WHERE id = 1').get() || {};
@@ -15,39 +16,6 @@ function fail(code, error) {
 
 function ok(payload = {}) {
     return { success: true, ...payload };
-}
-
-async function postFirebaseFunction(functionsUrl, functionName, body) {
-    const normalizedUrl = String(functionsUrl || '').trim().replace(/\/+$/, '');
-    if (!normalizedUrl) {
-        return fail('SERVER_UNAVAILABLE', 'لم يتم ضبط رابط Firebase Functions');
-    }
-
-    try {
-        const response = await fetch(`${normalizedUrl}/${functionName}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body || {})
-        });
-        const text = await response.text();
-        let data = {};
-        if (text) {
-            try {
-                data = JSON.parse(text);
-            } catch {
-                data = { message: text };
-            }
-        }
-
-        if (!response.ok || data.success === false) {
-            const rawCode = data.code || data.error || 'SERVER_ERROR';
-            return fail(rawCode, data.message || data.error || rawCode);
-        }
-
-        return ok({ data });
-    } catch (err) {
-        return fail('SERVER_UNAVAILABLE', 'تعذر الاتصال بـ Firebase Functions: ' + err.message);
-    }
 }
 
 function registerAppAdminIpc(ipcMain) {

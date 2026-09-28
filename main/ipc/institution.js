@@ -7,6 +7,7 @@ const { hashPassword } = require('../auth/password');
 const { collectCurrentFingerprint } = require('../licensing/deviceFingerprint');
 const { applySyncDefaults } = require('../sync/defaults');
 const { getCurrentFirebaseIdToken } = require('../auth/firebase-auth-service');
+const { postFirebaseFunction } = require('./firebase-functions-client');
 const institutionRepo = require('../repos/institution');
 
 const ERROR_MESSAGES = {
@@ -98,85 +99,21 @@ function getFirebaseFunctionsUrl(db) {
     return applySyncDefaults(row).firebaseFunctionsUrl || null;
 }
 
-function mapFailureCode(rawCode) {
-    switch (String(rawCode || '').trim()) {
-        case 'ALREADY_CONFIGURED':
-            return 'ALREADY_CONFIGURED';
-        case 'INVALID_MASSAR':
-            return 'INVALID_MASSAR';
-        case 'INVALID_PASSWORD':
-            return 'INVALID_PASSWORD';
-        case 'INVALID_ADMIN_NAME':
-            return 'INVALID_ADMIN_NAME';
-        case 'BOOTSTRAP_UNAUTHORIZED':
-            return 'BOOTSTRAP_UNAUTHORIZED';
-        case 'BOOTSTRAP_TIMEOUT':
-            return 'BOOTSTRAP_TIMEOUT';
-        case 'MASSAR_NOT_FOUND':
-            return 'MASSAR_NOT_FOUND';
-        case 'MASSAR_AMBIGUOUS':
-            return 'MASSAR_AMBIGUOUS';
-        default:
-            return 'SERVER_UNAVAILABLE';
-    }
-}
-
-async function postFirebaseFunction(functionsUrl, functionName, body) {
-    const normalizedUrl = String(functionsUrl || '').trim().replace(/\/+$/, '');
-    if (!normalizedUrl) {
-        return fail('SERVER_UNAVAILABLE', 'لم يتم ضبط رابط Firebase Functions لهذا الجهاز');
-    }
-
-    const controller = new AbortController();
-    const timeoutTimer = setTimeout(() => controller.abort(), 30_000);
-
-    try {
-        const response = await fetch(`${normalizedUrl}/${functionName}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body || {}),
-            signal: controller.signal
-        });
-        const text = await response.text();
-        let data = {};
-        if (text) {
-            try {
-                data = JSON.parse(text);
-            } catch {
-                data = { message: text };
-            }
-        }
-
-        if (!response.ok || data.success === false) {
-            if (response.status === 404 && functionName === 'bootstrapInstitution') {
-                return fail('SERVER_UNAVAILABLE', 'دالة Firebase bootstrapInstitution غير متاحة في الخادم الحالي');
-            }
-            const rawCode = data.code || data.error || (response.status === 404 ? 'NOT_FOUND' : 'SERVER_ERROR');
-            const mappedCode = mapFailureCode(rawCode);
-            return fail(mappedCode, data.message || data.error || data.errorMessage || ERROR_MESSAGES[mappedCode]);
-        }
-
-        return ok({ data });
-    } catch (err) {
-        if (err.name === 'AbortError') {
-            return fail('BOOTSTRAP_TIMEOUT', 'انتهت مهلة الاتصال بالخادم');
-        }
-        return fail('SERVER_UNAVAILABLE', 'تعذر الاتصال بـ Firebase Functions: ' + err.message);
-    } finally {
-        clearTimeout(timeoutTimer);
-    }
-}
-
 function normalizeSyncConfig(rawConfig, massarCode) {
     const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
     const syncIntervalValue = Number(config.sync_interval_minutes ?? config.syncIntervalMinutes);
     const enabledValue = config.enabled ?? config.sync_enabled ?? config.syncEnabled;
     const schoolIdSource = config.school_id ?? config.schoolId ?? massarCode ?? '';
     const firebaseFunctionsUrlSource =
-        config.firebase_functions_url ?? config.firebaseFunctionsUrl ?? config.auth_lambda_url ?? config.authLambdaUrl ?? '';
+        config.firebase_functions_url ??
+        config.firebaseFunctionsUrl ??
+        config.auth_lambda_url ??
+        config.authLambdaUrl ??
+        '';
     const firebaseProjectIdSource = config.firebase_project_id ?? config.firebaseProjectId ?? '';
     const firebaseApiKeySource = config.firebase_api_key ?? config.firebaseApiKey ?? config.apiKey ?? '';
-    const firebaseAuthDomainSource = config.firebase_auth_domain ?? config.firebaseAuthDomain ?? config.authDomain ?? '';
+    const firebaseAuthDomainSource =
+        config.firebase_auth_domain ?? config.firebaseAuthDomain ?? config.authDomain ?? '';
     const firebaseAppIdSource = config.firebase_app_id ?? config.firebaseAppId ?? config.appId ?? '';
     const firebaseStorageBucketSource =
         config.firebase_storage_bucket ?? config.firebaseStorageBucket ?? config.storageBucket ?? '';
@@ -237,7 +174,9 @@ function normalizeBootstrapResponse(data, fallback) {
         user: {
             uid: String(payload.uid ?? payload.firebaseUid ?? user.uid ?? user.firebaseUid ?? '').trim() || null,
             name: String(user.name ?? user.displayName ?? payload.adminName ?? fallback.adminName ?? '').trim(),
-            email: String(user.email ?? payload.adminEmail ?? fallback.adminEmail ?? '').trim().toLowerCase(),
+            email: String(user.email ?? payload.adminEmail ?? fallback.adminEmail ?? '')
+                .trim()
+                .toLowerCase(),
             role: 'principal',
             emailVerified: Number(user.emailVerified ?? payload.emailVerified) ? 1 : 0,
             mustChangePassword: Number(user.mustChangePassword ?? payload.mustChangePassword) ? 1 : 0
@@ -252,143 +191,157 @@ function registerInstitutionIpc(ipcMain) {
         return ok(getInstitutionStatusRecord(db));
     });
 
-    handleWriteSoftAuth(ipcMain, 'institution:relink', [], async (db, payload) => {
-        const massarCode = normalizeMassarCode(payload?.massarCode);
-        if (!massarCode) {
-            return fail('INVALID_MASSAR', 'رمز المؤسسة مطلوب');
-        }
-        if (massarCode.length > MASSAR_CODE_MAX_LENGTH || !isValidMassarCode(massarCode)) {
-            return fail('INVALID_MASSAR');
-        }
+    handleWriteSoftAuth(
+        ipcMain,
+        'institution:relink',
+        [],
+        async (db, payload) => {
+            const massarCode = normalizeMassarCode(payload?.massarCode);
+            if (!massarCode) {
+                return fail('INVALID_MASSAR', 'رمز المؤسسة مطلوب');
+            }
+            if (massarCode.length > MASSAR_CODE_MAX_LENGTH || !isValidMassarCode(massarCode)) {
+                return fail('INVALID_MASSAR');
+            }
 
-        const functionsUrl = getFirebaseFunctionsUrl(db);
-        if (!functionsUrl) {
-            return fail('SERVER_UNAVAILABLE');
-        }
-        if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
-            return fail(
-                'BOOTSTRAP_UNAUTHORIZED',
-                'إعداد المؤسسة الجديدة وربط المؤسسة متوقفان مؤقتًا حتى يتم تفعيل رمز التفعيل.'
-            );
-        }
+            const functionsUrl = getFirebaseFunctionsUrl(db);
+            if (!functionsUrl) {
+                return fail('SERVER_UNAVAILABLE');
+            }
+            if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
+                return fail(
+                    'BOOTSTRAP_UNAUTHORIZED',
+                    'إعداد المؤسسة الجديدة وربط المؤسسة متوقفان مؤقتًا حتى يتم تفعيل رمز التفعيل.'
+                );
+            }
 
-        const lookup = await postFirebaseFunction(functionsUrl, 'lookupInstitutionBySchoolMassarCode', {
-            massarCode,
-            bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || ''
-        });
-        if (!lookup.success) {
-            if (lookup.code === 'MASSAR_NOT_FOUND') return fail('MASSAR_NOT_FOUND');
-            if (lookup.code === 'MASSAR_AMBIGUOUS') return fail('MASSAR_AMBIGUOUS');
-            return lookup;
-        }
-
-        const resolvedSchoolId = String(lookup.data?.schoolId || '').trim();
-        if (!resolvedSchoolId) {
-            return fail('MASSAR_NOT_FOUND');
-        }
-
-        try {
-            institutionRepo.applyRelink(db, resolvedSchoolId, massarCode);
-        } catch (err) {
-            return fail('INTERNAL_ERROR', 'حدث خطأ أثناء ربط المؤسسة: ' + err.message);
-        }
-
-        return ok({ message: 'تم تحديث رمز المؤسسة. يمكنك الآن إعداد الربط بـ Firebase.', massarCode });
-    }, { allowNoSession: true });
-
-    handleWriteSoftAuth(ipcMain, 'institution:setup-new', [], async (db, payload) => {
-        if (isSetupAlreadyCompleted(db)) {
-            return fail('ALREADY_CONFIGURED');
-        }
-
-        const institutionName = String(payload?.institutionName || '').trim();
-        const adminName = String(payload?.adminName || '').trim();
-        const adminEmail = String(payload?.adminEmail || '').trim().toLowerCase();
-        const adminPassword = String(payload?.adminPassword || '');
-        const academy = String(payload?.academy || '').trim();
-        const directorate = String(payload?.directorate || '').trim();
-
-        if (!institutionName) {
-            return fail('INVALID_INSTITUTION_NAME', 'اسم المؤسسة مطلوب');
-        }
-        if (!adminName) {
-            return fail('INVALID_ADMIN_NAME');
-        }
-        if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
-            return fail('INVALID_EMAIL', 'البريد الإلكتروني غير صالح');
-        }
-        if (adminPassword.length < 6) {
-            return fail('INVALID_PASSWORD');
-        }
-
-        const deviceContext = getCurrentDeviceContext();
-        const functionsUrl = getFirebaseFunctionsUrl(db);
-        if (!functionsUrl) {
-            return fail(
-                'SERVER_UNAVAILABLE',
-                'إعداد مؤسسة جديدة يتطلب ضبط FIREBASE_FUNCTIONS_URL أو firebase_functions_url أولاً'
-            );
-        }
-        if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
-            return fail(
-                'BOOTSTRAP_UNAUTHORIZED',
-                'إعداد المؤسسة الجديدة وربط المؤسسة متوقفان مؤقتًا حتى يتم تفعيل رمز التفعيل.'
-            );
-        }
-
-        const bootstrapResult = await postFirebaseFunction(functionsUrl, 'bootstrapInstitution', {
-            institutionName,
-            adminName,
-            adminEmail,
-            adminPassword,
-            role: 'principal',
-            bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || '',
-            device: deviceContext
-        });
-        if (!bootstrapResult.success) {
-            return bootstrapResult;
-        }
-
-        const bootstrap = normalizeBootstrapResponse(bootstrapResult.data, {
-            institutionName,
-            adminName,
-            adminEmail,
-            functionsUrl
-        });
-        if (!bootstrap.schoolId || bootstrap.schoolId.length < 1 || bootstrap.schoolId.length > 64) {
-            return fail('INVALID_BOOTSTRAP_RESPONSE');
-        }
-
-        try {
-            institutionRepo.applyBootstrap(db, {
-                bootstrap,
-                passwordHash: hashPassword(adminPassword),
-                deviceHash: deviceContext.deviceHash,
-                academy,
-                directorate
+            const lookup = await postFirebaseFunction(functionsUrl, 'lookupInstitutionBySchoolMassarCode', {
+                massarCode,
+                bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || ''
             });
-            return ok({
-                message: 'تم إعداد المؤسسة بنجاح',
-                setupCompleted: true,
-                schoolId: bootstrap.schoolId,
-                massarCode: null,
-                institution: buildInstitutionSummary(bootstrap.massarCode, bootstrap.institutionName),
-                currentDevice: buildCurrentDeviceSummary(db, deviceContext),
-                autoLoginEmail: bootstrap.user.email || adminEmail,
-                loginPayload: {
-                    email: bootstrap.user.email || adminEmail,
-                    password: adminPassword,
-                    source: bootstrap.user.uid ? 'firebase' : 'local-cache'
-                },
-                firebaseUid: bootstrap.user.uid,
-                customToken: bootstrap.customToken,
-                idToken: bootstrap.idToken
+            if (!lookup.success) {
+                if (lookup.code === 'MASSAR_NOT_FOUND') return fail('MASSAR_NOT_FOUND');
+                if (lookup.code === 'MASSAR_AMBIGUOUS') return fail('MASSAR_AMBIGUOUS');
+                return lookup;
+            }
+
+            const resolvedSchoolId = String(lookup.data?.schoolId || '').trim();
+            if (!resolvedSchoolId) {
+                return fail('MASSAR_NOT_FOUND');
+            }
+
+            try {
+                institutionRepo.applyRelink(db, resolvedSchoolId, massarCode);
+            } catch (err) {
+                return fail('INTERNAL_ERROR', 'حدث خطأ أثناء ربط المؤسسة: ' + err.message);
+            }
+
+            return ok({ message: 'تم تحديث رمز المؤسسة. يمكنك الآن إعداد الربط بـ Firebase.', massarCode });
+        },
+        { allowNoSession: true }
+    );
+
+    handleWriteSoftAuth(
+        ipcMain,
+        'institution:setup-new',
+        [],
+        async (db, payload) => {
+            if (isSetupAlreadyCompleted(db)) {
+                return fail('ALREADY_CONFIGURED');
+            }
+
+            const institutionName = String(payload?.institutionName || '').trim();
+            const adminName = String(payload?.adminName || '').trim();
+            const adminEmail = String(payload?.adminEmail || '')
+                .trim()
+                .toLowerCase();
+            const adminPassword = String(payload?.adminPassword || '');
+            const academy = String(payload?.academy || '').trim();
+            const directorate = String(payload?.directorate || '').trim();
+
+            if (!institutionName) {
+                return fail('INVALID_INSTITUTION_NAME', 'اسم المؤسسة مطلوب');
+            }
+            if (!adminName) {
+                return fail('INVALID_ADMIN_NAME');
+            }
+            if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) {
+                return fail('INVALID_EMAIL', 'البريد الإلكتروني غير صالح');
+            }
+            if (adminPassword.length < 6) {
+                return fail('INVALID_PASSWORD');
+            }
+
+            const deviceContext = getCurrentDeviceContext();
+            const functionsUrl = getFirebaseFunctionsUrl(db);
+            if (!functionsUrl) {
+                return fail(
+                    'SERVER_UNAVAILABLE',
+                    'إعداد مؤسسة جديدة يتطلب ضبط FIREBASE_FUNCTIONS_URL أو firebase_functions_url أولاً'
+                );
+            }
+            if (!String(process.env.GESTION_BOOTSTRAP_SECRET || '').trim()) {
+                return fail(
+                    'BOOTSTRAP_UNAUTHORIZED',
+                    'إعداد المؤسسة الجديدة وربط المؤسسة متوقفان مؤقتًا حتى يتم تفعيل رمز التفعيل.'
+                );
+            }
+
+            const bootstrapResult = await postFirebaseFunction(functionsUrl, 'bootstrapInstitution', {
+                institutionName,
+                adminName,
+                adminEmail,
+                adminPassword,
+                role: 'principal',
+                bootstrapSecret: process.env.GESTION_BOOTSTRAP_SECRET || '',
+                device: deviceContext
             });
-        } catch (err) {
-            console.error('[institution] setupNewInstitution error:', err);
-            return fail('INTERNAL_ERROR', 'حدث خطأ أثناء إعداد المؤسسة: ' + err.message);
-        }
-    }, { allowNoSession: true });
+            if (!bootstrapResult.success) {
+                return bootstrapResult;
+            }
+
+            const bootstrap = normalizeBootstrapResponse(bootstrapResult.data, {
+                institutionName,
+                adminName,
+                adminEmail,
+                functionsUrl
+            });
+            if (!bootstrap.schoolId || bootstrap.schoolId.length < 1 || bootstrap.schoolId.length > 64) {
+                return fail('INVALID_BOOTSTRAP_RESPONSE');
+            }
+
+            try {
+                institutionRepo.applyBootstrap(db, {
+                    bootstrap,
+                    passwordHash: hashPassword(adminPassword),
+                    deviceHash: deviceContext.deviceHash,
+                    academy,
+                    directorate
+                });
+                return ok({
+                    message: 'تم إعداد المؤسسة بنجاح',
+                    setupCompleted: true,
+                    schoolId: bootstrap.schoolId,
+                    massarCode: null,
+                    institution: buildInstitutionSummary(bootstrap.massarCode, bootstrap.institutionName),
+                    currentDevice: buildCurrentDeviceSummary(db, deviceContext),
+                    autoLoginEmail: bootstrap.user.email || adminEmail,
+                    loginPayload: {
+                        email: bootstrap.user.email || adminEmail,
+                        password: adminPassword,
+                        source: bootstrap.user.uid ? 'firebase' : 'local-cache'
+                    },
+                    firebaseUid: bootstrap.user.uid,
+                    customToken: bootstrap.customToken,
+                    idToken: bootstrap.idToken
+                });
+            } catch (err) {
+                console.error('[institution] setupNewInstitution error:', err);
+                return fail('INTERNAL_ERROR', 'حدث خطأ أثناء إعداد المؤسسة: ' + err.message);
+            }
+        },
+        { allowNoSession: true }
+    );
 
     handleWrite(ipcMain, 'institution:updateMassarCode', ['principal'], async (db, event, payload) => {
         const status = getInstitutionStatusRecord(db);

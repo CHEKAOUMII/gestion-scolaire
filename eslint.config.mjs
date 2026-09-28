@@ -18,9 +18,9 @@ export default [
         ]
     },
 
-    // Node.js files (main process, preload, tests)
+    // Node.js files (main process, preload, server, scripts, tests)
     {
-        files: ['main/**/*.js', 'preload.js', 'tests/**/*.js'],
+        files: ['main.js', 'main/**/*.js', 'preload.js', 'server/**/*.js', 'scripts/**/*.js', 'tests/**/*.js'],
         ...js.configs.recommended,
         languageOptions: {
             ecmaVersion: 'latest',
@@ -37,7 +37,7 @@ export default [
 
     // Browser-side JS files
     {
-        files: ['js/**/*.js'],
+        files: ['js/**/*.js', 'app.js'],
         ...js.configs.recommended,
         languageOptions: {
             ecmaVersion: 'latest',

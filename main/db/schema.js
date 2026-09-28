@@ -283,7 +283,9 @@ function createTables() {
             UNIQUE(student_code, tab_key, school_year)
         );
     `);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_student_profile_student ON student_profile_data(student_code, school_year)`);
+    db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_student_profile_student ON student_profile_data(student_code, school_year)`
+    );
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS system_logs(
@@ -357,7 +359,9 @@ function createTables() {
             `
         ).run(hashPassword(adminPassword));
 
-        console.log('[SETUP] Initial admin account created (admin@school.local). Password will be required on first login.');
+        console.log(
+            '[SETUP] Initial admin account created (admin@school.local). Password will be required on first login.'
+        );
     }
 
     // Safety net: if admin exists but has no password (e.g. corrupted data), reset it
@@ -649,6 +653,7 @@ function ensureSyncSchema(existingDb) {
 
         CREATE TABLE IF NOT EXISTS sync_config (
             id                      INTEGER PRIMARY KEY CHECK(id = 1),
+            school_id               TEXT,
             enabled                 INTEGER  DEFAULT 0,
             sync_interval_minutes   INTEGER  DEFAULT 10,
             device_hash             TEXT,
@@ -771,8 +776,9 @@ function ensurePageVisibilitySchema(existingDb) {
             upsert.run(page, hiddenPages.has(page) ? 0 : 1);
         }
         // Record the applied version
-        db.prepare("INSERT INTO app_meta(key, value) VALUES('page_visibility_defaults_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-            .run(String(configVersion));
+        db.prepare(
+            "INSERT INTO app_meta(key, value) VALUES('page_visibility_defaults_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        ).run(String(configVersion));
         console.log(`[schema] page_visibility: force-updated to defaults version ${configVersion}`);
     } else {
         // Same version → only seed missing pages (INSERT OR IGNORE)
@@ -790,6 +796,7 @@ function ensureInstitutionSchema(existingDb) {
         CREATE TABLE IF NOT EXISTS institution_config (
             id                INTEGER PRIMARY KEY CHECK(id = 1),
             code_etablissement TEXT,
+            massar_code       TEXT,
             institution_name  TEXT,
             setup_completed   INTEGER DEFAULT 0,
             setup_mode        TEXT,
@@ -831,6 +838,7 @@ function ensureInstitutionSchema(existingDb) {
         ON linked_devices(status);
     `);
 
+    ensureColumn('institution_config', 'massar_code', 'TEXT');
     ensureColumn('institution_config', 'onboarding_version', 'INTEGER DEFAULT 1');
     ensureColumn('institution_config', 'onboarding_completed_at', 'DATETIME');
 }
