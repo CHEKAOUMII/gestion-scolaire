@@ -26,6 +26,10 @@
  * Usage:
  *   node scripts/check-invariants.js
  *
+ *   - Check D — stage carve-out pins (Slice 0): ISOLATION-CARVEOUT markers
+ *     present on the carved-out surfaces, no cycle_code in carve-out code,
+ *     and no school-data queries in the reports engine (identity.js exempt).
+ *
  * Exit: 0 when no violations; 1 otherwise (process.exitCode).
  */
 
@@ -288,12 +292,94 @@ function checkCoreArtifacts() {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Check D — stage carve-out pins (isolation plan Slice 0)
+// ---------------------------------------------------------------------------
+
+const CARVEOUT_MARKER = 'ISOLATION-CARVEOUT';
+const CARVEOUT_MARKED_FILES = [
+    ['main', 'ipc', 'reports.js'],
+    ['main', 'ipc', 'daily-report.js'],
+    ['main', 'ipc', 'system-tags.js'],
+    ['main', 'ipc', 'compensation.js'],
+    ['main', 'ipc', 'exam-config-data.js'],
+    ['main', 'repos', 'school-events.js'],
+    ['main', 'repos', 'system-tags.js'],
+    ['main', 'repos', 'compensation.js']
+];
+const CARVEOUT_NO_CYCLE_FILES = [
+    ['main', 'repos', 'school-events.js'],
+    ['main', 'repos', 'system-tags.js'],
+    ['main', 'repos', 'compensation.js'],
+    ['main', 'ipc', 'exam-config-data.js']
+];
+
+function checkStageCarveouts() {
+    for (const parts of CARVEOUT_MARKED_FILES) {
+        const file = path.join(ROOT, ...parts);
+        let source;
+        try {
+            source = fs.readFileSync(file, 'utf8');
+        } catch (err) {
+            addViolation(file, 1, `carve-out file could not be read: ${err.message}`);
+            continue;
+        }
+        if (!source.includes(CARVEOUT_MARKER)) {
+            addViolation(file, 1, `missing ${CARVEOUT_MARKER} marker — the institution-wide carve-out must stay documented (Slice 0)`);
+        }
+    }
+    for (const parts of CARVEOUT_NO_CYCLE_FILES) {
+        const file = path.join(ROOT, ...parts);
+        let lines;
+        try {
+            lines = fs.readFileSync(file, 'utf8').split('\n');
+        } catch (err) {
+            addViolation(file, 1, `carve-out file could not be read: ${err.message}`);
+            continue;
+        }
+        lines.forEach((line, idx) => {
+            if (isLiteralInCodeLine(line, 'cycle_code')) {
+                addViolation(file, idx + 1, `'cycle_code' appeared in carved-out code — scoping a carve-out needs an ADR + tests (Slice 0), then update this check`);
+            }
+        });
+    }
+    // Reports engine: no school-data queries outside institution identity
+    // (identity.js is the documented exemption — venue/school letterhead only).
+    const reportsDir = path.join(ROOT, 'main', 'reports');
+    const engineFiles = [];
+    if (fs.existsSync(reportsDir)) {
+        for (const entry of fs.readdirSync(reportsDir, { withFileTypes: true })) {
+            if (entry.isFile() && entry.name.endsWith('.js') && entry.name !== 'identity.js') {
+                engineFiles.push(path.join(reportsDir, entry.name));
+            }
+        }
+        const channelsDir = path.join(reportsDir, 'channels');
+        if (fs.existsSync(channelsDir)) {
+            for (const entry of fs.readdirSync(channelsDir, { withFileTypes: true })) {
+                if (entry.isFile() && entry.name.endsWith('.js')) engineFiles.push(path.join(channelsDir, entry.name));
+            }
+        }
+    }
+    for (const file of engineFiles) {
+        const lines = fs.readFileSync(file, 'utf8').split('\n');
+        lines.forEach((line, idx) => {
+            if (isLiteralInCodeLine(line, '.prepare(')) {
+                addViolation(file, idx + 1, 'school-data query in the reports engine — printDocument/generateAdminForm must stay render-only (Slice 0 carve-out)');
+            }
+            if (isLiteralInCodeLine(line, 'repos/') || isLiteralInCodeLine(line, 'db/context')) {
+                addViolation(file, idx + 1, 'repo/db require in the reports engine — printDocument/generateAdminForm must stay render-only (Slice 0 carve-out)');
+            }
+        });
+    }
+}
+
 // Runner
 // ---------------------------------------------------------------------------
 
 checkMainLiteral();
 checkLegacyAllLevelsRow();
 checkCoreArtifacts();
+checkStageCarveouts();
 
 for (const info of infos) {
     console.log(`  [info] ${info.rel}:${info.line} — ${info.text}`);

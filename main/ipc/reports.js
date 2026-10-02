@@ -34,6 +34,7 @@ function getIdentityDiagnostics() {
 
 function registerReportsIpc(ipcMain) {
     // Unified document printing — single entry point for all pages
+    // ISOLATION-CARVEOUT (Slice 0): printDocument/generateAdminForm render caller data + institution identity only; the engine runs no school-data queries (pinned by scripts/check-invariants.js Check D). Scoping this surface needs an ADR + tests.
     handleAuthedRead(ipcMain, 'reports:printDocument', (_ctx, payload) => printDocument(payload));
 
     // Identity management

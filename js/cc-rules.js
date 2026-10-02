@@ -155,10 +155,13 @@ function ccIsActivity(subj) {
 }
 
 /**
- * Look up the weight ratios for a given base subject name.
- * Uses case-insensitive matching to handle Latin names like "LANGUE FRANCAISE".
- * @param {string} baseSubjectName  e.g. "الرياضيات" or "LANGUE FRANCAISE"
- * @returns {{ examWeight: number, activityWeight: number }}
+ * Legacy display shim over resolveSubjectWeights() (Slice 2 compat).
+ * Rule hits return authoritative weights; the constant fallback below is
+ * explicitly provisional (isAuthoritative: false) so no caller mistakes it
+ * for a resolved rule. Authoritative paths must call resolveSubjectWeights()
+ * directly and fail closed when ok is false.
+ * @param {string} baseSubjectName  e.g. base subject name
+ * @returns {{ examWeight: number, activityWeight: number, isAuthoritative: boolean, provisional?: boolean, code?: string }}
  */
 function getSubjectWeights(baseSubjectName, context) {
     const name = String(baseSubjectName || '')
@@ -168,10 +171,18 @@ function getSubjectWeights(baseSubjectName, context) {
     if (ruleResolution && ruleResolution.ok) {
         return {
             examWeight: ruleResolution.examWeight,
-            activityWeight: ruleResolution.activityWeight
+            activityWeight: ruleResolution.activityWeight,
+            isAuthoritative: true
         };
     }
-    return CC_SUBJECT_WEIGHTS[name] || CC_DEFAULT_WEIGHTS;
+    const legacy = CC_SUBJECT_WEIGHTS[name] || CC_DEFAULT_WEIGHTS;
+    return {
+        examWeight: legacy.examWeight,
+        activityWeight: legacy.activityWeight,
+        isAuthoritative: false,
+        provisional: true,
+        code: (ruleResolution && ruleResolution.code) || 'RULES_UNAVAILABLE'
+    };
 }
 
 /**
@@ -224,6 +235,9 @@ function computeSubjectAverage(baseSubjectName, grades, context) {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
+ * @deprecated Slice 2 — legacy qualifiant branch table. Authoritative resolution
+ * NEVER reads this table (rule-set rows only); the sole remaining accessor is
+ * the explicit non-authoritative resolveProvisionalBranchCoefficient() helper.
  * Coefficient tables per branch.
  * Key = branch code, Value = { subjectName: coefficient }
  * Subject names must be lowercase for case-insensitive lookup.
@@ -662,15 +676,123 @@ function inferQualifiantLevel(branch) {
     return { code: null, label: null };
 }
 
+/**
+ * Derive the collegial level from a section/class label via the shared
+ * collegial catalog (js/shared/education/collegial-levels.js). detectBranch()
+ * returns null for collegial sections, so branch inference can never supply
+ * the level here. Returns { code: null, label: null } when the section is
+ * absent, the catalog script is not loaded, or nothing matches — the
+ * authoritative resolvers then fail closed, never guess.
+ */
+function deriveCollegialLevelFromSection(source) {
+    const section =
+        coefficientContextValue(source, 'section', 'section_name') ||
+        coefficientContextValue(source, 'className', 'class_name') ||
+        coefficientContextValue(source, 'level', 'level_name');
+    if (!section) return { code: null, label: null };
+    const catalog =
+        (typeof EdCollegialLevels !== 'undefined' && EdCollegialLevels) ||
+        (typeof window !== 'undefined' && window.EdCollegialLevels) ||
+        null;
+    if (!catalog || typeof catalog.matchLevelFromSection !== 'function') return { code: null, label: null };
+    const hit = catalog.matchLevelFromSection(section);
+    if (!hit || !hit.code) return { code: null, label: null };
+    return { code: String(hit.code), label: hit.name ? String(hit.name) : null };
+}
+
+// ─── Stage grading policies (Slice 2) ─────────────────────────────────
+// Minimal stage-keyed config, NOT a StageGradingPolicy interface: both stages
+// share the exact same resolution machinery (precedence steps,
+// custom-beats-official, fail-closed errors) and differ ONLY in context
+// derivation — level source, stream default, cycle label. A 4-method
+// per-stage interface would duplicate identical resolvers; this table keeps a
+// single dispatch point in buildCoefficientContext with no scattered
+// 'if cycle == ...' branches. Resolution formulas live in the shared
+// resolvers below; the policy only answers "how is this stage's context
+// derived when the caller passes a partial context".
+const STAGE_GRADING_POLICIES = {
+    secondary_collegial: {
+        cycleLabel: 'الثانوي الإعدادي',
+        defaultStreamCode: '*',
+        deriveLevel: (source) => deriveCollegialLevelFromSection(source)
+    },
+    secondary_qualifiant: {
+        cycleLabel: 'الثانوي التأهيلي',
+        defaultStreamCode: null,
+        deriveLevel: (source, branch) => inferQualifiantLevel(branch)
+    }
+};
+
+/**
+ * Explicit non-authoritative lookup into the legacy qualifiant branch table.
+ * For legacy unmigrated display widgets ONLY — never for grading, imports,
+ * mutations, or official exports. Results are always provisional
+ * (isAuthoritative: false, officialExportBlocked: true) so the existing
+ * export gates (isOfficialExportAllowed) keep blocking official output.
+ */
+function resolveProvisionalBranchCoefficient(subjectName, branch) {
+    const name = String(subjectName || '').trim();
+    const table = (branch && CC_BRANCH_COEFFICIENTS[branch]) || null;
+    const coefficient = table ? table[name] : undefined;
+    if (typeof coefficient !== 'number') {
+        return {
+            ok: false,
+            success: false,
+            code: 'MISSING_RULE',
+            subject: name,
+            branch: branch || null,
+            source: 'legacy_provisional',
+            isAuthoritative: false,
+            provisional: true,
+            incomplete: true,
+            officialExportBlocked: true,
+            metadata: { status: 'provisional', code: 'MISSING_RULE', officialExportBlocked: true }
+        };
+    }
+    return {
+        ok: true,
+        success: true,
+        coefficient,
+        subject: name,
+        branch: branch || null,
+        source: 'legacy_provisional',
+        isAuthoritative: false,
+        provisional: true,
+        incomplete: true,
+        officialExportBlocked: true,
+        metadata: { status: 'provisional', officialExportBlocked: true, missingCoefficients: [] }
+    };
+}
+
+/**
+ * Stage-aware level derivation for page call sites (replaces the qualifiant-only
+ * inferQualifiantLevel(branch) at every authoritative call site, which yields
+ * null for collegial sections and made collegial students fail MISSING_RULE).
+ * Dispatches through STAGE_GRADING_POLICIES; unknown/missing cycle keeps the
+ * legacy branch inference for diagnostics only (resolution still fails closed).
+ */
+function deriveStageLevel(cycleCode, branch, section) {
+    const cycle = cycleCode == null ? '' : String(cycleCode).trim();
+    const policy = (cycle && STAGE_GRADING_POLICIES[cycle]) || null;
+    return policy ? policy.deriveLevel({ section }, branch) : inferQualifiantLevel(branch);
+}
+
 function buildCoefficientContext(subjectName, normalizedName, branch, context) {
     const source = context || {};
-    const level = inferQualifiantLevel(branch);
-    const cycleCode =
-        coefficientContextValue(source, 'cycleCode', 'cycle_code') ||
-        (CC_BRANCH_COEFFICIENTS[branch] ? 'secondary_qualifiant' : null);
-    const levelCode = coefficientContextValue(source, 'levelCode', 'level_code') || level.code;
-    const levelLabel = coefficientContextValue(source, 'levelLabel', 'level_label') || level.label;
-    const streamCode = coefficientContextValue(source, 'streamCode', 'stream_code') || branch || null;
+    // No cycle default: a missing cycle fails closed with RULES_UNAVAILABLE
+    // in the authoritative resolvers — the engine never guesses qualifiant.
+    const cycleCode = coefficientContextValue(source, 'cycleCode', 'cycle_code');
+    const policy = (cycleCode && STAGE_GRADING_POLICIES[cycleCode]) || null;
+    // Unknown cycles keep the historical branch inference for diagnostics
+    // only; resolution still fails closed because the cycle is missing.
+    const derivedLevel = policy ? policy.deriveLevel(source, branch) : inferQualifiantLevel(branch);
+    const levelCode = coefficientContextValue(source, 'levelCode', 'level_code') || derivedLevel.code;
+    const levelLabel = coefficientContextValue(source, 'levelLabel', 'level_label') || derivedLevel.label;
+    const streamCode =
+        coefficientContextValue(source, 'streamCode', 'stream_code') ||
+        (policy ? policy.defaultStreamCode : null) ||
+        branch ||
+        null;
     const streamLabel =
         coefficientContextValue(source, 'streamLabel', 'stream_label') ||
         coefficientContextValue(source, 'stream', 'stream_name') ||
@@ -680,7 +802,7 @@ function buildCoefficientContext(subjectName, normalizedName, branch, context) {
         cycleCode,
         cycleLabel:
             coefficientContextValue(source, 'cycleLabel', 'cycle_label') ||
-            (cycleCode === 'secondary_qualifiant' ? 'الثانوي التأهيلي' : null),
+            (policy ? policy.cycleLabel : null),
         levelCode,
         levelLabel,
         streamCode,
@@ -719,6 +841,7 @@ const STAGE_RULES_SUBJECT_CODE_LABELS = Object.freeze({
     FOREIGN_LANGUAGE_1: 'اللغة الأجنبية الأولى',
     FOREIGN_LANGUAGE_2: 'اللغة الأجنبية الثانية',
     HISTORY_GEOGRAPHY: 'التاريخ والجغرافيا',
+    SOCIAL_STUDIES: 'الاجتماعيات',
     MATH: 'الرياضيات',
     EARTH_SCIENCES: 'علوم الحياة والأرض',
     PHYSICS_CHEMISTRY: 'الفيزياء والكيمياء',
@@ -766,9 +889,10 @@ const STAGE_RULES_SUBJECT_CODES = (function () {
     return Object.freeze(index);
 })();
 
-/** Active rule set of the current page: { schoolYear, ruleSet, rows }. */
+/** Active rule set of the current page: { schoolYear, cycleCode, ruleSet, rows }. */
 let stageRuleSetCache = null;
 let stageRuleSetLoadPromise = null;
+let stageRuleSetLoadKey = null;
 
 /**
  * Coerce an IPC payload ({ ruleSet, rows: { coefficients, examCounts } }) or a
@@ -799,28 +923,65 @@ function normalizeRuleSetPayload(input) {
 /**
  * The rule-set payload to resolve against: context.ruleSet wins, otherwise the
  * per-page cache — and only for the SAME school year (never reused across
- * years). Returns null when no active set is available.
+ * years) and the SAME stage (never served across a stage switch). Returns
+ * null when no active set is available.
  */
 function getActiveRuleSetPayload(context) {
     if (context && context.ruleSet) return normalizeRuleSetPayload(context.ruleSet);
     const schoolYear = context ? coefficientContextValue(context, 'schoolYear', 'school_year') : null;
+    const cycleCode = context ? coefficientContextValue(context, 'cycleCode', 'cycle_code') : null;
     if (stageRuleSetCache && (schoolYear === null || stageRuleSetCache.schoolYear === schoolYear)) {
+        // A payload cached for one stage is never served to another stage's
+        // context — callers fail closed (RULES_UNAVAILABLE) instead. Payloads
+        // loaded without a cycle (legacy single-argument ensureStageRuleSet)
+        // carry cycleCode null and keep serving until pages pass the cycle.
+        if (
+            cycleCode !== null &&
+            stageRuleSetCache.cycleCode !== null &&
+            stageRuleSetCache.cycleCode !== cycleCode
+        ) {
+            return null;
+        }
         return stageRuleSetCache;
     }
     return null;
 }
 
 /**
- * Load the ACTIVE rule set for a school year once per page
- * (replaces the legacy ensureSubjectCoefficientMappings). In Node tests the
- * window.api stub resolves the payload. Returns null when window.api is absent.
+ * Invalidate the page rule-set cache and any in-flight load. Called
+ * defensively from the stage switch path (cycles.setActive /
+ * app:beforeCycleChange) so the first read after a switch can never serve
+ * the previous stage's rules.
  */
-async function ensureStageRuleSet(schoolYear) {
+function clearStageRuleSetCache() {
+    stageRuleSetCache = null;
+    stageRuleSetLoadPromise = null;
+    stageRuleSetLoadKey = null;
+}
+
+/**
+ * Load the ACTIVE rule set for a school year once per page (keyed by
+ * (schoolYear, cycleCode) so a stage switch reloads the new stage's rules).
+ * Replaces the legacy ensureSubjectCoefficientMappings. In Node tests the
+ * window.api stub resolves the payload. Returns null when window.api is
+ * absent. The cycleCode argument stays optional while pages migrate; an
+ * unkeyed load keeps serving until the switch path clears the cache.
+ */
+async function ensureStageRuleSet(schoolYear, cycleCode) {
     if (typeof window === 'undefined' || !window.api?.stageRules?.getActive) return null;
     const year = String(schoolYear == null ? '' : schoolYear).trim();
-    if (stageRuleSetCache && stageRuleSetCache.schoolYear === year) return stageRuleSetCache;
-    if (stageRuleSetLoadPromise) return stageRuleSetLoadPromise;
+    const cycle = cycleCode == null || String(cycleCode).trim() === '' ? null : String(cycleCode).trim();
+    if (
+        stageRuleSetCache &&
+        stageRuleSetCache.schoolYear === year &&
+        (cycle === null || stageRuleSetCache.cycleCode === null || stageRuleSetCache.cycleCode === cycle)
+    ) {
+        return stageRuleSetCache;
+    }
+    const key = year + '|' + (cycle || '');
+    if (stageRuleSetLoadPromise && stageRuleSetLoadKey === key) return stageRuleSetLoadPromise;
 
+    stageRuleSetLoadKey = key;
     stageRuleSetLoadPromise = window.api.stageRules
         .getActive(year)
         .then((response) => {
@@ -828,11 +989,14 @@ async function ensureStageRuleSet(schoolYear) {
                 throw new Error((response.error && response.error.message) || 'تعذر تحميل قواعد المرحلة');
             }
             const payload = normalizeRuleSetPayload(response || {});
-            stageRuleSetCache = { schoolYear: year, ruleSet: payload.ruleSet, rows: payload.rows };
+            stageRuleSetCache = { schoolYear: year, cycleCode: cycle, ruleSet: payload.ruleSet, rows: payload.rows };
             return stageRuleSetCache;
         })
         .catch((error) => {
-            stageRuleSetLoadPromise = null;
+            if (stageRuleSetLoadKey === key) {
+                stageRuleSetLoadPromise = null;
+                stageRuleSetLoadKey = null;
+            }
             throw error;
         });
     return stageRuleSetLoadPromise;
@@ -866,7 +1030,7 @@ function resolveSubjectWeights(subjectName, context) {
     const matches = rows.filter(
         (row) =>
             String(row.subject_code || '').toUpperCase() === subjectCode.toUpperCase() &&
-            (String(row.cycle_code || '') === cycleCode || String(row.cycle_code || '') === '*')
+            String(row.cycle_code || '') === cycleCode
     );
     if (!matches.length) return { ok: false, code: 'MISSING_RULE' };
     const selected = matches.find((row) => String(row.source || '').toLowerCase() === 'custom') || matches[0];
@@ -884,14 +1048,16 @@ const STAGE_COEFFICIENT_LOOKUP_STEPS = [
     (k) => ({ cycle_code: k.cycle_code, level_code: k.level_code, stream_code: '*', subject_code: k.subject_code }),
     (k) => ({ cycle_code: k.cycle_code, level_code: '*', stream_code: k.stream_code, subject_code: k.subject_code }),
     (k) => ({ cycle_code: k.cycle_code, level_code: '*', stream_code: '*', subject_code: k.subject_code }),
-    (k) => ({ cycle_code: '*', level_code: '*', stream_code: '*', subject_code: k.subject_code })
+    // Slice 2: the cycle_code '*' fallback step was removed — a cross-cycle row
+    // must never match. See specs/029-stage-rules-management/contracts/resolver.md.
 ];
 
-/** Precedence steps for exam-count rows: exact level → '*' → cycle default. */
+/** Precedence steps for exam-count rows: exact level → level wildcard ('*'). */
 const STAGE_EXAM_COUNT_LOOKUP_STEPS = [
     (k) => ({ cycle_code: k.cycle_code, level_code: k.level_code, subject_code: k.subject_code }),
     (k) => ({ cycle_code: k.cycle_code, level_code: '*', subject_code: k.subject_code }),
-    (k) => ({ cycle_code: '*', level_code: '*', subject_code: k.subject_code })
+    // Slice 2: the cycle_code '*' fallback step was removed — a cross-cycle row
+    // must never match. See specs/029-stage-rules-management/contracts/resolver.md.
 ];
 
 function stageRuleDimsMatch(row, dims) {
@@ -955,8 +1121,8 @@ function createMissingRuleError(context) {
 
 /**
  * Resolve the coefficient of a subject against the active rule set of the
- * school year, using the 5-step precedence (exact → stream wildcard →
- * level wildcard → cycle default). NEVER falls back to hardcoded constants.
+ * school year, using the 4-step precedence (exact → stream wildcard →
+ * level wildcard). NEVER falls back to hardcoded constants.
  *
  * @param {string} subjectName  Subject name (canonical label or alias)
  * @param {string|null} branch  Branch code from detectBranch()
@@ -968,7 +1134,9 @@ function resolveSubjectCoefficient(subjectName, branch, context) {
         typeof normalizeSubjectName === 'function' ? normalizeSubjectName(subjectName) : ccBaseSubject(subjectName);
     const details = buildCoefficientContext(subjectName, name, branch, context);
     const payload = getActiveRuleSetPayload(context);
-    if (!payload || !payload.ruleSet) {
+    // A missing cycle fails closed here — never a qualifiant default: without
+    // an explicit stage the engine cannot choose a rule row.
+    if (!details.cycleCode || !payload || !payload.ruleSet) {
         const error = createStageRulesUnavailableError(details);
         return { ok: false, success: false, code: error.code, error, details: error.details, incomplete: true };
     }
@@ -1048,9 +1216,11 @@ function computeWeightedGeneralAverageResult(subjectAverages, branch, context) {
         };
     }
 
+    const details = buildCoefficientContext(null, null, branch, context);
     const payload = getActiveRuleSetPayload(context);
-    if (!payload || !payload.ruleSet) {
-        const details = buildCoefficientContext(null, null, branch, context);
+    // A missing cycle fails closed here, like a missing rule set — without an
+    // explicit stage the engine cannot choose a rule row.
+    if (!details.cycleCode || !payload || !payload.ruleSet) {
         const error = createStageRulesUnavailableError(details);
         return {
             ok: false,
@@ -1144,7 +1314,7 @@ function getSubjectCoefficientOverrides() {
 
 /**
  * Resolve the exam count of a subject against the active rule set of the
- * school year: exact level → level wildcard ('*') → cycle default. Missing
+ * school year: exact level → level wildcard ('*'). Missing
  * rules produce MISSING_RULE; an unavailable rule set produces
  * RULES_UNAVAILABLE. No fallback to a hardcoded count.
  *
@@ -1158,7 +1328,9 @@ function resolveExamCount(subjectName, branch, context) {
         typeof normalizeSubjectName === 'function' ? normalizeSubjectName(subjectName) : ccBaseSubject(subjectName);
     const details = buildCoefficientContext(subjectName, name, branch, context);
     const payload = getActiveRuleSetPayload(context);
-    if (!payload || !payload.ruleSet) {
+    // A missing cycle fails closed here — never a qualifiant default: without
+    // an explicit stage the engine cannot choose a rule row.
+    if (!details.cycleCode || !payload || !payload.ruleSet) {
         const error = createStageRulesUnavailableError(details);
         return { ok: false, success: false, code: error.code, error, details: error.details, incomplete: true };
     }

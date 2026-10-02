@@ -9,6 +9,7 @@
  *   3. tests/proctor-distribution-v2-*.test.js (existing V2 algorithm tests)
  *   4. tests/proctor-v2-*.test.js              (V2 regression / PBT tests)
  *   5. Hand-picked V2 / display tests at the repo root of tests/
+ *   6. tests/collegial/*.test.js + tests/qualifiant/*.test.js (stage suites, Slice 7)
  *
  * Each test file is spawned as an independent `node` subprocess so that
  * isolated state (require cache, module-level mutables, process.exit calls)
@@ -129,6 +130,14 @@ function buildPlan() {
   const importCenterDir = path.join(TESTS_DIR, 'import-center');
   for (const f of listTestFiles(importCenterDir)) {
     plan.push({ group: 'import-center', file: f });
+  }
+
+  // 5. Stage isolation suites (Slice 7: tests/collegial + tests/qualifiant).
+  for (const suite of ['collegial', 'qualifiant']) {
+    const suiteDir = path.join(TESTS_DIR, suite);
+    for (const f of listTestFiles(suiteDir)) {
+      plan.push({ group: `stage-${suite}`, file: f });
+    }
   }
 
   return plan;

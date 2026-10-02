@@ -1087,6 +1087,41 @@ function ensureCycleProfilesSchema(existingDb) {
     `);
 }
 
+// Slice 1 (2026-09-27 isolation plan): schema half of student child-table cycle
+// isolation. The quarantine table preserves NULL-cycle ownerless movements that
+// cannot satisfy the rebuilt NOT NULL column (audit history is never deleted);
+// the students (id, cycle_code) unique index is the parent key for the composite
+// child→owner FKs. Index-only — students itself is never rebuilt (id is already
+// the PK, so the composite is always satisfiable). Idempotent.
+function ensureStudentChildCycleSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS student_movements_quarantine (
+            id INTEGER PRIMARY KEY,
+            student_id INTEGER,
+            movement_type TEXT,
+            from_section TEXT,
+            to_section TEXT,
+            movement_date DATE,
+            notes TEXT,
+            school_year TEXT,
+            cycle_code TEXT,
+            created_at DATETIME,
+            reason TEXT NOT NULL DEFAULT 'null_cycle_orphan',
+            quarantined_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_student_movements_quarantine_year
+            ON student_movements_quarantine(school_year);
+    `);
+    const hasStudents = !!db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'students'")
+        .get();
+    if (!hasStudents) return;
+    const columns = db.prepare('PRAGMA table_info(students)').all().map((column) => column.name);
+    if (!columns.includes('id') || !columns.includes('cycle_code')) return;
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uidx_students_id_cycle ON students(id, cycle_code)');
+}
+
 function ensureColumn(table, column, definition) {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table) || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)) {
         throw new Error(`ensureColumn: invalid identifier — table="${table}", column="${column}"`);
@@ -1109,6 +1144,7 @@ module.exports = {
     ensureCycleReferenceSchema,
     ensureStageRulesSchema,
     ensureCycleProfilesSchema,
+    ensureStudentChildCycleSchema,
     ensureLicensingSchema,
     ensureNotificationsSchema,
     ensureOwnerSyncSchema,

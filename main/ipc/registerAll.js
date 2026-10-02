@@ -75,6 +75,8 @@ function registerAllIpcHandlers(ipcMain) {
     registerAppDefaultsIpc(ipcMain);
     registerStageRulesIpc(ipcMain);
     registerCycleAccessIpc(ipcMain);
+    require('./stage-transition').registerStageTransitionIpc(ipcMain);
+    require('./stage-config').registerStageConfigIpc(ipcMain);
     startOutboxCleanup();
 }
 

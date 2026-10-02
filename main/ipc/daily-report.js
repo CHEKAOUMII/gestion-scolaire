@@ -335,6 +335,7 @@ function registerDailyReportIpc(ipcMain) {
 
     // ── School Events CRUD ──
 
+    // ISOLATION-CARVEOUT (Slice 0): school events are an institution-wide calendar (no student link, no cycle); unscoped writes are by design (pinned by Check D). Scoping needs an ADR + tests.
     handleWriteSoftAuth(ipcMain, 'schoolEvents:save', WRITE_ROLES, (db, payload) => {
         try {
             rejectAllCycleWrite(payload);

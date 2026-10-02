@@ -97,6 +97,10 @@ async function main() {
     console.log('[test] cc-rules coefficient contract');
 
     // Exact branch/subject coefficients are the qualifying behavior being preserved.
+    // Slice 2: no cycle default - authoritative lookups require an explicit cycle context;
+    // The branch still supplies level/stream inference under that explicit cycle.
+    const QUALIFIANT_CONTEXT = { cycleCode: 'secondary_qualifiant', schoolYear: '2025/2026' };
+
     [
         ['الرياضيات', '2BACSMA', 9],
         ['الفيزياء والكيمياء', '2BACSMA', 7],
@@ -104,13 +108,13 @@ async function main() {
         ['الرياضيات', '2BACSVT', 5],
         ['التربية البدنية', '2BACSP', 4]
     ].forEach(([subject, branch, expected]) => {
-        assert.strictEqual(coefficient(subject, branch), expected);
+        assert.strictEqual(coefficient(subject, branch, QUALIFIANT_CONTEXT), expected);
     });
     console.log('  [ok] exact branch/subject coefficients');
 
     // Canonical Arabic normalization still resolves to the declared coefficient.
-    assert.strictEqual(coefficient('التربيه البدنيه', '2BACSP'), 4);
-    assert.strictEqual(coefficient('  الرياضيات  ', '2BACSMA'), 9);
+    assert.strictEqual(coefficient('التربيه البدنيه', '2BACSP', QUALIFIANT_CONTEXT), 4);
+    assert.strictEqual(coefficient('  الرياضيات  ', '2BACSMA', QUALIFIANT_CONTEXT), 9);
     console.log('  [ok] canonical Arabic normalization');
 
     const context = {
@@ -149,7 +153,14 @@ async function main() {
     // cycle/level/stream context of a rule row.
     expectMissingCoefficient('الرياضيات التطبيقية', '2BACSMA', context);
     expectMissingCoefficient('ا', '2BACSMA', context);
-    expectMissingCoefficient('الرياضيات', null, { schoolYear: '2025/2026' });
+    // Slice 2: a missing cycle fails closed with RULES_UNAVAILABLE (never a guessed default).
+    assert.throws(
+        () => coefficient('الرياضيات', null, { schoolYear: '2025/2026' }),
+        (error) => {
+            assert.strictEqual(error.code, 'RULES_UNAVAILABLE');
+            return true;
+        }
+    );
     console.log('  [ok] no bidirectional substring or silent branch fallback');
 
     // The context is authoritative: a full context resolves even when the

@@ -19,6 +19,8 @@
     <script src="js/message-system.js" defer></script>
     <script src="js/sidebar.js" defer></script>
     <script src="js/shared/errors/subject-coefficient-error-contract.js"></script>
+    <script src="js/shared/education/collegial-levels.js"></script>
+    <script src="js/shared/education/stage-thresholds.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js" defer></script>
     <script src="js/print-system.js"></script>
@@ -126,6 +128,16 @@
             // ─── Helpers ───
 
             function gradeComment(avg) {
+                // Stage-thresholds SSOT (Slice 2): bulletin comments resolve per stage.
+                // Known unseeded stages yield null so the cell renders '\u2014' instead of
+                // another stage's vocabulary; unknown stage or missing module keeps
+                // the legacy qualifiant cascade below (display only).
+                var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+                if (T) {
+                    var res = T.resolveGradeComment(avg, activeCycleCode);
+                    if (res && res.ok) return res.label;
+                    if (res && !res.ok && activeCycleCode) return null;
+                }
                 if (avg >= 16) return 'ممتاز';
                 if (avg >= 14) return 'حسن جداً';
                 if (avg >= 12) return 'حسن';
@@ -200,10 +212,20 @@
                     return;
                 }
 
+                if (
+                    typeof EducationStageThresholds !== 'undefined' &&
+                    EducationStageThresholds &&
+                    activeCycleCode
+                ) {
+                    var _gcProbe = EducationStageThresholds.resolveGradeComment(10, activeCycleCode);
+                    if (_gcProbe && !_gcProbe.ok && typeof showToast === 'function') {
+                        showToast(EducationStageThresholds.MENTION_UNAVAILABLE_NOTICE, 'warning');
+                    }
+                }
                 let activeRuleSet = null;
                 if (typeof ensureStageRuleSet === 'function') {
                     try {
-                        activeRuleSet = await ensureStageRuleSet(schoolYear());
+                        activeRuleSet = await ensureStageRuleSet(schoolYear(), activeCycleCode);
                     } catch (err) {
                         if (typeof showToast === 'function') {
                             showToast((err && (err.userMessage || err.message)) || 'تعذر تحميل قواعد المرحلة', 'error');
@@ -237,7 +259,9 @@
 
                 const branch = typeof detectBranch === 'function' ? detectBranch(className) : null;
                 const levelInfo =
-                    typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+                    typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, className)
+                    : { code: null, label: null };
                 const coefficientContext = {
                     cycleCode: activeCycleCode,
                     streamCode: branch,
@@ -249,9 +273,6 @@
                 const missingCoefficients = [];
                 let incompleteMetadata = null;
                 console.log('[بيان النتائج] className:', className, '→ branch:', branch);
-                if (branch && typeof CC_BRANCH_COEFFICIENTS !== 'undefined') {
-                    console.log('[بيان النتائج] coefficient table keys:', Object.keys(CC_BRANCH_COEFFICIENTS[branch] || {}));
-                }
 
                 // Compute subject-level data for all students
                 // First: get all subjects in this class
@@ -494,7 +515,7 @@
                                 <td>${sd.coeff}</td>
                                 <td>${sd.nxm.toFixed(2).replace('.', ',')}</td>
                                 <td>${sd.rank || ''}</td>
-                                <td>${gradeComment(sd.avg)}</td>
+                                <td>${gradeComment(sd.avg) ?? '\u2014'}</td>
                             </tr>
                             `).join('')}
                         </tbody>

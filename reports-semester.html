@@ -16,6 +16,8 @@
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
+        <script src="js/shared/education/collegial-levels.js"></script>
+        <script src="js/shared/education/stage-thresholds.js"></script>
         <script src="js/cc-rules.js"></script>
         <script src="js/ux-enhancements.js" defer></script>
     <script src="js/print-system.js"></script>
@@ -245,13 +247,48 @@
             let lastReportContext = null;
             let lastPreparedSnapshot = null;
 
-            const gradeBands = [
+            let gradeBands = [
                 { key: 'excellent', label: 'ممتاز', min: 16, max: 20, color: 'var(--color-grade-excellent)' },
                 { key: 'veryGood', label: 'حسن جدا', min: 14, max: 16, color: 'var(--color-info)' },
                 { key: 'good', label: 'حسن', min: 12, max: 14, color: 'var(--color-grade-good)' },
                 { key: 'acceptable', label: 'مقبول', min: 10, max: 12, color: 'var(--color-warning)' },
                 { key: 'weak', label: 'ضعيف', min: 0, max: 10, color: 'var(--color-danger)' }
             ];
+
+            // Mention colors are page styling (CSS vars); only (key, min, label) comes from the module.
+            const REPORT_BAND_COLORS = {
+                excellent: 'var(--color-grade-excellent)',
+                veryGood: 'var(--color-info)',
+                good: 'var(--color-grade-good)',
+                acceptable: 'var(--color-warning)',
+                weak: 'var(--color-danger)',
+            };
+            let mentionBandsUnavailable = false;
+
+            // Stage-thresholds SSOT (Slice 2): rebuild the mention ladder from the shared
+            // module. Null stage keeps the legacy literal above (this page is stage-unaware;
+            // its legacy grading vocabulary matches the legacy ladder). A known stage without
+            // a mention source empties the ladder (fail closed); consumers below null-guard.
+            function refreshReportBands(stage) {
+                var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+                mentionBandsUnavailable = false;
+                if (!T || !stage) return; // legacy literal stays
+                var res = T.resolveMentionBands(stage);
+                if (res && res.ok) {
+                    gradeBands = res.bands.map(function (b, i) {
+                        return {
+                            key: b.key,
+                            label: b.label,
+                            min: b.min,
+                            max: i === 0 ? 20 : res.bands[i - 1].min,
+                            color: REPORT_BAND_COLORS[b.key]
+                        };
+                    });
+                    return;
+                }
+                gradeBands = [];
+                mentionBandsUnavailable = true;
+            }
 
             const reportPalette = window.UXEnhancements?.getSharedChartPalette?.() || [
                 'var(--color-primary)',
@@ -287,6 +324,7 @@
             }
 
             function getBand(grade) {
+                if (!gradeBands.length) return null;
                 for (const b of gradeBands) {
                     if (grade >= b.min && (grade < b.max || (b.max === 20 && grade <= 20))) return b;
                 }
@@ -298,7 +336,7 @@
                 gradeBands.forEach((b) => (counts[b.key] = 0));
                 grades.forEach((g) => {
                     const b = getBand(g);
-                    counts[b.key]++;
+                    if (b) counts[b.key]++;
                 });
                 return counts;
             }
@@ -838,11 +876,11 @@
                         secStudents.length,
                         null,
                         `${secPass.toFixed(1)}%`,
-                        bc.excellent,
-                        bc.veryGood,
-                        bc.good,
-                        bc.acceptable,
-                        bc.weak
+                        bc.excellent ?? '\u2014',
+                        bc.veryGood ?? '\u2014',
+                        bc.good ?? '\u2014',
+                        bc.acceptable ?? '\u2014',
+                        bc.weak ?? '\u2014'
                     ];
                     values.forEach((value, index) => {
                         const td = document.createElement('td');
@@ -850,7 +888,7 @@
                         if (index === 2) {
                             const pill = document.createElement('span');
                             pill.className = 'report-grade-pill';
-                            pill.style.background = getBand(secAvg).color;
+                            pill.style.background = getBand(secAvg)?.color;
                             pill.textContent = secAvg.toFixed(2);
                             td.appendChild(pill);
                         } else {
@@ -870,18 +908,18 @@
                     totalStudents,
                     null,
                     `${passRate.toFixed(1)}%`,
-                    totalBc.excellent,
-                    totalBc.veryGood,
-                    totalBc.good,
-                    totalBc.acceptable,
-                    totalBc.weak
+                    totalBc.excellent ?? '\u2014',
+                    totalBc.veryGood ?? '\u2014',
+                    totalBc.good ?? '\u2014',
+                    totalBc.acceptable ?? '\u2014',
+                    totalBc.weak ?? '\u2014'
                 ];
                 totalValues.forEach((value, index) => {
                     const td = document.createElement('td');
                     if (index === 2) {
                         const pill = document.createElement('span');
                         pill.className = 'report-grade-pill';
-                        pill.style.background = getBand(average).color;
+                        pill.style.background = getBand(average)?.color;
                         pill.textContent = average.toFixed(2);
                         td.appendChild(pill);
                     } else {
@@ -958,6 +996,22 @@
 
                 try {
                     await ensureChartJs();
+
+                    // Stage-thresholds SSOT (Slice 2): resolve the mention ladder for the
+                    // active stage (best-effort; null keeps the legacy ladder).
+                    let _reportStage = null;
+                    try {
+                        const _active = await window.api?.cycles?.getActive?.();
+                        _reportStage = _active?.success
+                            ? _active.context?.cycleCode || _active.cycle?.cycle_code || null
+                            : null;
+                    } catch {
+                        _reportStage = null;
+                    }
+                    refreshReportBands(_reportStage);
+                    if (mentionBandsUnavailable) {
+                        showToast(EducationStageThresholds.MENTION_UNAVAILABLE_NOTICE, 'warning');
+                    }
 
                     // Fetch data
                     const [allGrades, allStudents, allAbsences] = await Promise.all([
@@ -1115,13 +1169,15 @@
                             }
                         }
                     });
-                    const topBandKey = gradeBands.reduce(
-                        (best, band) => (bandCounts[band.key] > bandCounts[best.key] ? band : best),
-                        gradeBands[0]
-                    );
+                    const topBandKey = gradeBands.length
+                        ? gradeBands.reduce(
+                              (best, band) => (bandCounts[band.key] > bandCounts[best.key] ? band : best),
+                              gradeBands[0]
+                          )
+                        : null;
                     updateChartSummary(
                         'grades-bar-chart',
-                        `أكثر التقديرات عددا هو ${topBandKey.label} بعدد ${bandCounts[topBandKey.key]} تلميذ.`,
+                        `أكثر التقديرات عددا هو ${topBandKey ? topBandKey.label : '\u2014'} بعدد ${bandCounts[topBandKey.key]} تلميذ.`,
                         'رسم بياني يوضح عدد التلاميذ في كل تقدير'
                     );
 
@@ -1162,7 +1218,7 @@
                     });
                     updateChartSummary(
                         'grades-donut-chart',
-                        `يمثل ${topBandKey.label} النسبة الأكبر من التقديرات الحالية.`,
+                        `يمثل ${topBandKey ? topBandKey.label : '\u2014'} النسبة الأكبر من التقديرات الحالية.`,
                         'رسم دائري يوضح نسب التقديرات'
                     );
 
@@ -1211,11 +1267,12 @@
 
                     // --- Performance Indicators (Progress Bars) ---
                     const passRatePct = passRate;
-                    const goodPlusPct = pct(
-                        bandCounts.excellent + bandCounts.veryGood + bandCounts.good,
-                        gradeValues.length
-                    );
-                    const weakPct = pct(bandCounts.weak, gradeValues.length);
+                    // Numeric cutoffs (not mention vocabulary): computed directly from grades
+                    // so these indicators survive a fail-closed mention ladder unchanged.
+                    const goodPlusCount = gradeValues.filter((v) => v >= 12).length;
+                    const weakCount = gradeValues.filter((v) => v < 10).length;
+                    const goodPlusPct = pct(goodPlusCount, gradeValues.length);
+                    const weakPct = pct(weakCount, gradeValues.length);
 
                     renderReportProgress('report-progress', [
                         {
@@ -1236,7 +1293,7 @@
                             title: 'نسبة الضعفاء (< 10)',
                             percent: weakPct,
                             background: 'linear-gradient(90deg, var(--color-danger), var(--color-danger-border))',
-                            meta: [`${bandCounts.weak} تلميذ`]
+                            meta: [`${weakCount} تلميذ`]
                         }
                     ]);
 

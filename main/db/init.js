@@ -2,6 +2,7 @@ const Database = require('better-sqlite3');
 const { setDb, getDbPath, applyConnectionPragmas } = require('./context');
 const { createTables } = require('./schema');
 const { runMigrations } = require('./migrations');
+const { ensureStageTransitionSchema } = require('./stage-transition-schema');
 const { QUALIFIANT_CYCLE } = require('../../js/shared/education/cycles');
 
 /**
@@ -112,6 +113,10 @@ function initDatabase() {
 
         createTables();
         runMigrations();
+        ensureStageTransitionSchema(db);
+        // Slice 5 stage configs: the table self-ensures (CREATE TABLE IF NOT
+        // EXISTS) — no numbered migration. Device-local data, zero outbox rows.
+        require('../repos/stage-config').ensureStageConfigSchema(db);
         maybeApplyOfficialRuleSets(db);
         return db;
     } catch (error) {

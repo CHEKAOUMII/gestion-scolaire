@@ -1,4 +1,5 @@
 'use strict';
+// ISOLATION-CARVEOUT (Slice 0): school_events carries no cycle_code by design (institution-wide calendar).
 
 /**
  * School events repository.

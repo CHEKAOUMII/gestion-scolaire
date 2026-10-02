@@ -5,6 +5,7 @@ const { requireFields } = require('./validation');
 const systemTagsRepo = require('../repos/system-tags');
 
 function registerSystemTagsIpc(ipcMain) {
+    // ISOLATION-CARVEOUT (Slice 0): staff observation notes stay institution-wide (shared teacher persons, free-text sections); no cycle scoping by design (pinned by Check D). Scoping needs an ADR + tests.
     handleRead(ipcMain, 'systemTags:getByDate', (db, date, schoolYear) => {
         return systemTagsRepo.listByDate(db, date, normalizeYear(schoolYear));
     });

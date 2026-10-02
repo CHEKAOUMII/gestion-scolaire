@@ -1,4 +1,5 @@
 'use strict';
+// ISOLATION-CARVEOUT (Slice 0): compensation_tracking carries no cycle_code by design (staff-domain, row-131-like).
 
 /**
  * Compensation tracking repository.

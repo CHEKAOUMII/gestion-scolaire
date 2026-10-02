@@ -30,6 +30,10 @@ const { resolveCycleForRequest } = require('../main/auth/resolve-cycle');
 const { setContext, clearContextForSender } = require('../main/auth/active-cycle-context');
 const { getActiveSessions } = require('../main/ipc/auth');
 const orientationRepo = require('../main/repos/orientation');
+const absencesRepo = require('../main/repos/absences');
+const studentFilesRepo = require('../main/repos/student-files');
+const studentMovementsRepo = require('../main/repos/student-movements');
+const studentProfileRepo = require('../main/repos/student-profile');
 
 const QUALIFIANT = 'secondary_qualifiant';
 const COLLEGIAL = 'secondary_collegial';
@@ -207,6 +211,85 @@ assert.deepStrictEqual(
 const stats = orientationRepo.stats(db, YEAR);
 assert.strictEqual(stats.summary.total, 2);
 console.log('  [ok] student_orientation stays institution-wide (declared exception)');
+
+// ── Slice 1 child-table entry points fail closed without a cycle ───────────
+// Correspondence, files, movements and profile reads/writes resolve through
+// requireCycle: a missing, unknown, or preview cycle throws — never a silent
+// qualifiant default (isolation plan, Slice 0 contract).
+db.exec(`
+    CREATE TABLE correspondence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER, student_code TEXT,
+        letter_type TEXT, letter_date TEXT, total_hours REAL, school_year TEXT,
+        printed INTEGER DEFAULT 0, cycle_code TEXT
+    );
+    CREATE TABLE student_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL, doc_key TEXT NOT NULL,
+        is_present INTEGER DEFAULT 0, school_year TEXT NOT NULL,
+        cycle_code TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(student_id, doc_key, school_year)
+    );
+    CREATE TABLE student_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL,
+        movement_type TEXT, from_section TEXT, to_section TEXT, movement_date TEXT,
+        notes TEXT, school_year TEXT, cycle_code TEXT
+    );
+    CREATE TABLE student_profile_data (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER NOT NULL,
+        student_code TEXT NOT NULL, tab_key TEXT NOT NULL, data_json TEXT,
+        school_year TEXT NOT NULL, cycle_code TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_by TEXT,
+        UNIQUE(student_code, tab_key, school_year)
+    );
+`);
+for (const badCycle of [undefined, '', 'nope']) {
+    assert.throws(() => studentFilesRepo.listByYear(db, YEAR, badCycle), /السلك التعليمي غير/);
+    assert.throws(
+        () =>
+            studentFilesRepo.upsertOne(
+                db,
+                { student_id: 1, doc_key: 'd', is_present: 1, school_year: YEAR },
+                badCycle
+            ),
+        /السلك التعليمي غير/
+    );
+    assert.throws(() => studentMovementsRepo.listByYear(db, YEAR, badCycle), /السلك التعليمي غير/);
+    assert.throws(() => studentMovementsRepo.getStats(db, YEAR, badCycle), /السلك التعليمي غير/);
+    assert.throws(
+        () =>
+            studentMovementsRepo.addMovement(
+                db,
+                { massar_code: 'Q1', movement_type: 'arrival', movement_date: '2025-10-01', school_year: YEAR },
+                badCycle
+            ),
+        /السلك التعليمي غير/
+    );
+    assert.throws(() => absencesRepo.listCorrespondenceByYear(db, YEAR, badCycle), /السلك التعليمي غير/);
+    assert.throws(
+        () =>
+            absencesRepo.saveCorrespondence(
+                db,
+                { student_code: 'Q1', letter_type: 'w', letter_date: '2025-10-01', school_year: YEAR },
+                badCycle
+            ),
+        /السلك التعليمي غير/
+    );
+    assert.throws(() => studentProfileRepo.listProfileTabs(db, 'Q1', YEAR, badCycle), /السلك التعليمي غير/);
+    assert.throws(
+        () =>
+            studentProfileRepo.saveProfileTab(
+                db,
+                { student_code: 'Q1', school_year: YEAR, tab_key: 'social' },
+                '{}',
+                badCycle
+            ),
+        /السلك التعليمي غير/
+    );
+}
+assert.throws(() => studentFilesRepo.listByYear(db, YEAR, PRIMARY), /قيد الإعداد/);
+assert.throws(() => studentMovementsRepo.getStats(db, YEAR, PRIMARY), /قيد الإعداد/);
+assert.throws(() => absencesRepo.listCorrespondenceByYear(db, YEAR, PRIMARY), /قيد الإعداد/);
+assert.throws(() => studentProfileRepo.listProfileTabs(db, 'Q1', YEAR, PRIMARY), /قيد الإعداد/);
+console.log('  [ok] child-table entry points fail closed without a usable cycle');
 
 // ── Cleanup ────────────────────────────────────────────────────────────────
 clearContextForSender(sender.id);

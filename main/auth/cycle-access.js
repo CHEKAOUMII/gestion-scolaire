@@ -27,6 +27,15 @@ const cyclesRepo = require('../repos/cycles');
 const { CYCLE_ACCESS_ERROR_CODES } = require('../../js/shared/errors/cycle-access-error-contract');
 
 const CYCLE_ACCESS_TABLE = 'user_cycle_access';
+/**
+ * Full access is granted BY ROLE, never by per-stage rows: developer, admin,
+ * and principal bypass `user_cycle_access` entirely (`listAuthorizedCycleCodes`
+ * returns null for them, so `filterAuthorizedCycles` keeps every cycle and
+ * `assertCycleAuthorized` never throws). In particular the principal needs no
+ * grant rows to read/write any stage, and the admin matrix cannot revoke that
+ * access (`assertModifiableUser` refuses developer/admin/principal targets with
+ * FORBIDDEN). Pinned by tests/stage-isolation-auth-matrix.test.js (Slice 3).
+ */
 const FULL_CYCLE_ACCESS_ROLES = new Set(['developer', 'admin', 'principal']);
 
 function createCycleAccessError(code, message) {

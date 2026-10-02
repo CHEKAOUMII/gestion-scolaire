@@ -57,12 +57,15 @@ async function getActiveCycleCode() {
 
 // ─── DOM Ready ───
 document.addEventListener('DOMContentLoaded', async () => {
+    activeCycleCode = await getActiveCycleCode();
     try {
-        stageRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(getCurrentYear()) : null;
+        stageRuleSetPayload =
+            typeof ensureStageRuleSet === 'function'
+                ? await ensureStageRuleSet(getCurrentYear(), activeCycleCode)
+                : null;
     } catch (err) {
         console.warn('[students-list] stage rule set unavailable:', err);
     }
-    activeCycleCode = await getActiveCycleCode();
     await loadClassesAndLevels();
     restoreFilters();
     await searchStudents();
@@ -622,7 +625,9 @@ async function viewStudent(code) {
         const branch =
             typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
         const levelInfo =
-            typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+            typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, student.section || student.class_name)
+                    : { code: null, label: null };
         const averageResolution = computeWeightedGeneralAverageResult(subjectAvgsArr, branch, {
             schoolYear: getCurrentYear(),
             streamCode: branch,

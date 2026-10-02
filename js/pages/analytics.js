@@ -11,13 +11,47 @@ let sectionToLevel = {};
 let _filterManager = null;
 let activeRuleSetPayload = null;
 let activeCycleCode = null;
-const gradeBands = [
+let gradeBands = [
     { key: 'excellent', label: 'ممتاز', min: 16, max: 20, color: '#2FB36D' },
     { key: 'veryGood', label: 'حسن جدا', min: 14, max: 16, color: '#3C95D0' },
     { key: 'good', label: 'حسن', min: 12, max: 14, color: '#F0C20E' },
     { key: 'acceptable', label: 'مقبول', min: 10, max: 12, color: '#E67F22' },
     { key: 'weak', label: 'ضعيف', min: 0, max: 10, color: '#E74C3C' }
 ];
+
+// Stage-threshold mention colors are page styling (they differ per page);
+// only the (key, min, label) ladder comes from the shared module.
+const ANALYTICS_BAND_COLORS = {
+    excellent: '#2FB36D',
+    veryGood: '#3C95D0',
+    good: '#F0C20E',
+    acceptable: '#E67F22',
+    weak: '#E74C3C',
+};
+
+// Stage-thresholds SSOT (Slice 2): rebuild the distribution ladder from the
+// shared module for the active stage. Unknown stage or missing module keeps
+// the legacy literal above; a known stage without a mention source empties
+// the ladder (fail closed) and the caller toasts the shared notice.
+function refreshGradeBandsForStage() {
+    var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+    if (!T || !activeCycleCode) return true; // legacy literal stays
+    var res = T.resolveMentionBands(activeCycleCode);
+    if (res && res.ok) {
+        gradeBands = res.bands.map(function (b, i) {
+            return {
+                key: b.key,
+                min: b.min,
+                max: i === 0 ? 20 : res.bands[i - 1].min - 0.01,
+                label: b.label,
+                color: ANALYTICS_BAND_COLORS[b.key]
+            };
+        });
+        return true;
+    }
+    gradeBands = [];
+    return false;
+}
 
 async function getActiveCycleCode() {
     if (!window.api?.cycles?.getActive) return null;
@@ -32,12 +66,17 @@ async function getActiveCycleCode() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        activeCycleCode = await getActiveCycleCode();
+        refreshGradeBandsForStage();
+        if (gradeBands.length === 0) {
+            showToast(EducationStageThresholds.MENTION_UNAVAILABLE_NOTICE, 'warning');
+        }
         try {
-            activeRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year) : null;
+            activeRuleSetPayload =
+                typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year, activeCycleCode) : null;
         } catch (err) {
             console.warn('[analytics] stage rule set unavailable:', err);
         }
-        activeCycleCode = await getActiveCycleCode();
         await loadFilters();
 
         const analyzeBtn = document.getElementById('analyze-btn');
@@ -449,7 +488,9 @@ function calculateStudentGeneralAverage(grades, studentId, section) {
     const sectionName = section || (studentGrades[0] && studentGrades[0].section) || '';
     const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
     const levelInfo =
-        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+        typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, sectionName)
+                    : { code: null, label: null };
     const resolution = computeWeightedGeneralAverageResult(subjectAverages, branch, {
         schoolYear: year,
         streamCode: branch,
@@ -730,7 +771,9 @@ async function analyze() {
             const sectionName = className || bySubject.values().next().value?.grades[0]?.section || '';
             const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
             const levelInfo =
-                typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+                typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, sectionName)
+                    : { code: null, label: null };
             const resolution = computeWeightedGeneralAverageResult(studentSubjectAvgs, branch, {
                 schoolYear: year,
                 streamCode: branch,

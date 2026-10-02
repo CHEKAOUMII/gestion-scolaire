@@ -8,6 +8,7 @@ const { ENTITY_TYPE_REGISTRY } = require('../authority');
 const { getApplyHooks, findLocalIdByLogicalKeys, getRequiredColumns, getContractVersion, checkAppVersionGate } = require('../entity-registry');
 const { logConflictForensics } = require('../conflict-forensics');
 const { checkCycleProfileConsistency } = require('../apply-hooks-stage-rules');
+const { checkStudentChildCycleConsistency } = require('../../repos/student-cycle');
 const {
     filterToValidColumns,
     getValidColumns,
@@ -297,6 +298,17 @@ function applySingleItem(
             const profileFailure = checkCycleProfileConsistency(db, item);
             if (profileFailure) {
                 recordPullQuarantine(db, stats, item, profileFailure.reason, profileFailure.extra || {});
+                return;
+            }
+        }
+        // Slice 1 child-to-owner consistency (isolation plan): a pulled child
+        // row whose cycle_code mismatches its owner student cycle is held for
+        // replay via recordPullQuarantine - never written half-consistent, and
+        // never holds the pull cursor.
+        if (item.operation === 'PUT') {
+            const childCycleFailure = checkStudentChildCycleConsistency(db, item);
+            if (childCycleFailure) {
+                recordPullQuarantine(db, stats, item, childCycleFailure.reason, childCycleFailure.extra || {});
                 return;
             }
         }

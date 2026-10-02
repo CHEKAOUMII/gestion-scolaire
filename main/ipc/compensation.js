@@ -4,6 +4,7 @@ const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
 const compensationRepo = require('../repos/compensation');
 
 function registerCompensationIpc(ipcMain) {
+    // ISOLATION-CARVEOUT (Slice 0): teacher compensation is staff-domain like row-131 attendance; institution-wide by design (pinned by Check D). Scoping needs an ADR + tests.
     handleRead(ipcMain, 'compensation:getByDate', (db, date, schoolYear) => {
         return compensationRepo.listByDate(db, date, normalizeYear(schoolYear));
     });

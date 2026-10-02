@@ -119,6 +119,49 @@ async function getActiveCycleCode() {
     }
 }
 
+// Slice 4 (stage separation): stream/track guidance exists only in the
+// qualifiant stage (collegial has no streams — its rule rows use stream '*').
+// Resolves the qualifiant code from the shared SSOT
+// (js/shared/education/cycles.js) — never an inline literal. Returns null
+// when the stage is unknown so callers keep the legacy behavior.
+function isQualifiantStage(cycleCode) {
+    const qualifiant =
+        typeof EducationCycles !== 'undefined' ? EducationCycles.QUALIFIANT_CYCLE : null;
+    if (!cycleCode || !qualifiant) return null;
+    return cycleCode === qualifiant;
+}
+
+// Slice 4 (stage separation): the track-selection field offers qualifiant-only
+// streams (see #bm-guide-stream options — collegial has no streams, its rule
+// rows use stream '*'). A known non-qualifiant stage gets a disabled field
+// plus an explicit notice instead of an editable qualifiant vocabulary.
+// Unknown stage (null) keeps the legacy behavior — display only;
+// authoritative paths fail closed in the resolver (Slice 2). The underlying
+// value is never cleared, so legacy saved streams survive untouched.
+function applyGuidanceStreamStageGate(cycleCode) {
+    const select = document.getElementById('bm-guide-stream');
+    if (!select) return;
+    const code = cycleCode === undefined ? activeCycleCode : cycleCode;
+    const gated = isQualifiantStage(code) === false;
+    select.disabled = gated;
+    const noticeId = 'bm-guide-stream-stage-notice';
+    const notice = document.getElementById(noticeId);
+    if (gated) {
+        if (!notice && select.parentElement) {
+            const el = document.createElement('p');
+            el.id = noticeId;
+            el.className = 'sp-guidance-stage-notice';
+            el.setAttribute('role', 'status');
+            el.textContent = 'اختيار الشعبة خاص بالسلك التأهيلي — يُعرض هنا للقراءة فقط في السلك الحالي.';
+            select.parentElement.appendChild(el);
+        }
+        select.setAttribute('aria-describedby', noticeId);
+    } else {
+        if (notice && typeof notice.remove === 'function') notice.remove();
+        if (typeof select.removeAttribute === 'function') select.removeAttribute('aria-describedby');
+    }
+}
+
 // ─── DOM Ready ───
 document.addEventListener('DOMContentLoaded', async () => {
     const code = getStudentCodeFromUrl();
@@ -144,12 +187,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     initBmScoring();
     initGuidanceLive();
 
+    activeCycleCode = await getActiveCycleCode();
     try {
-        stageRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(SCHOOL_YEAR) : null;
+        stageRuleSetPayload =
+            typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(SCHOOL_YEAR, activeCycleCode) : null;
     } catch (err) {
         console.warn('[student-profile] stage rule set unavailable:', err);
     }
-    activeCycleCode = await getActiveCycleCode();
     await loadStudentProfile(code);
 });
 
@@ -353,7 +397,9 @@ function renderMiniStats(grades, absences, student) {
     // (js/student-averages.js). This replaces the previous inline pooled
     // computation so the quick-stats card and grades tab can never drift.
     const levelInfo =
-        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+        typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, student.section || student.class_name)
+                    : { code: null, label: null };
     const averages =
         typeof computeStudentAverages === 'function'
             ? computeStudentAverages(grades, branch, {
@@ -483,7 +529,9 @@ function renderGradesTab(student, rawGrades) {
     const branch =
         typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
     const levelInfo =
-        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+        typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, student.section || student.class_name)
+                    : { code: null, label: null };
 
     // Per-term and general averages via the shared pure computation layer
     // (js/student-averages.js), the same call used by renderMiniStats. This
@@ -1111,7 +1159,10 @@ function populateGuidanceData(data) {
     if (typeof updateGuidanceAnalysis === 'function') updateGuidanceAnalysis();
 
     // If DB had a stored analysis and fields are incomplete, surface the saved text
-    if (data.analysis_title && !document.getElementById('bm-guide-stream')?.value) {
+    // Slice 4: a known non-qualifiant stage keeps the explicit stage notice —
+    // never restore a stale qualifiant analysis over it.
+    const stageBlocksAnalysisRestore = isQualifiantStage(activeCycleCode) === false;
+    if (data.analysis_title && !document.getElementById('bm-guide-stream')?.value && !stageBlocksAnalysisRestore) {
         const titleEl = document.getElementById('bm-guide-analysis-title');
         const bodyEl = document.getElementById('bm-guide-analysis-body');
         if (titleEl && data.analysis_title) titleEl.textContent = data.analysis_title;
@@ -2333,6 +2384,9 @@ function _guideAvg(ids) {
 }
 
 function updateGuidanceAnalysis() {
+    // Slice 4: keep the track-selection field gated on every recompute
+    // (link, populate, live edits, and pre-save snapshots all funnel here).
+    applyGuidanceStreamStageGate();
     const litIds = ['bm-guide-ar', 'bm-guide-fr', 'bm-guide-en', 'bm-guide-philo', 'bm-guide-hg'];
     const sciIds = ['bm-guide-math', 'bm-guide-pc', 'bm-guide-svt'];
     const litAvg = _guideAvg(litIds);
@@ -2387,6 +2441,31 @@ function updateGuidanceAnalysis() {
     if (litEl) litEl.textContent = litAvg != null ? litAvg.toFixed(2) : '—';
     if (sciEl) sciEl.textContent = sciAvg != null ? sciAvg.toFixed(2) : '—';
     if (streamLbl) streamLbl.textContent = stream ? (GUIDE_STREAM_LABELS[stream] || stream) : '—';
+
+    // Slice 4 (stage separation): stream-alignment guidance is qualifiant-only
+    // (collegial has no streams). A known non-qualifiant stage gets an explicit
+    // notice instead of the stream analysis. Unknown stage (null) keeps the
+    // legacy behavior — display only; authoritative paths fail closed in the
+    // resolver (Slice 2).
+    if (isQualifiantStage(activeCycleCode) === false) {
+        if (titleEl) titleEl.textContent = 'التوجيه حسب الشعب خاص بالسلك التأهيلي';
+        if (bodyEl) {
+            bodyEl.textContent =
+                'تحليل الانسجام مع الشعب يعتمد شعب السلك الثانوي التأهيلي، ولا ينطبق على السلك الحالي.';
+        }
+        if (scoreEl) scoreEl.textContent = '—';
+        setAnalysisTone('neutral');
+        if (arc) {
+            arc.setAttribute('stroke-dasharray', '0 158');
+            arc.setAttribute('stroke', 'var(--color-border, #e5e7eb)');
+        }
+        if (dot) {
+            dot.setAttribute('cx', '10');
+            dot.setAttribute('cy', '60');
+            dot.setAttribute('fill', 'var(--color-border, #e5e7eb)');
+        }
+        return;
+    }
 
     const ready = stream && litAvg != null && sciAvg != null;
     if (!ready) {
@@ -2627,6 +2706,16 @@ function initGuidanceLive() {
             color: var(--color-text-muted);
             line-height: 1.6;
             margin: 0 0 10px;
+        }
+        .sp-guidance-stage-notice {
+            font-size: 12px;
+            color: #854f0b;
+            background: var(--color-warning-surface, #fef6e7);
+            border: 1px solid var(--color-warning-border, #f0dfb8);
+            border-radius: 8px;
+            padding: 6px 10px;
+            margin: 6px 0 10px;
+            line-height: 1.6;
         }
         .sp-guidance-link-bar {
             display: flex;

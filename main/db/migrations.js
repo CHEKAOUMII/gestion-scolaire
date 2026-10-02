@@ -2929,6 +2929,368 @@ const MIGRATIONS = [
             const db = getDb();
             ensureInstitutionCycleSeedHintColumn(db);
         }
+    },
+    {
+        // Slice 1 (docs/plans/2026-09-27-isolation-principle-stage-separation(1).md):
+        // schema-level stage isolation for the four unenforced student child
+        // tables (correspondence, student_files, student_movements,
+        // student_profile_data): cycle_code becomes NOT NULL and every child
+        // row is pinned to its owner student via a composite
+        // FOREIGN KEY(student_id, cycle_code) REFERENCES students(id, cycle_code)
+        // (parent key: the UNIQUE(id, cycle_code) index from
+        // ensureStudentChildCycleSchema — index-only, no students rebuild).
+        // Each rebuilt table keeps its legacy single-column student FK and
+        // gains the composite, which subsumes it for every non-null owner id.
+        //
+        // Decision-gate-1 ADR note (composite FK vs triggers): DDL NOT NULL
+        // requires a table rebuild either way (SQLite cannot add NOT NULL via
+        // ALTER), so folding the composite FK into the same rebuild adds no
+        // extra data movement; the FK is then enforced declaratively by the
+        // engine on every connection (foreign_keys=ON is the standard pragma),
+        // covering repos, sync pull, and future writers with no per-path code.
+        // BEFORE INSERT/UPDATE triggers were rejected: the same predicate
+        // would be duplicated 8x (insert+update x 4 tables), triggers are
+        // invisible to PRAGMA foreign_key_list audits, and they cannot deliver
+        // DDL NOT NULL by themselves.
+        // See docs/adr/2026-10-01-child-owner-composite-fk.md.
+        //
+        // Backfill rule (legacy-row rule, plan Slice 1): rows with blank
+        // cycle_code are backfilled IN THIS MIGRATION from their owner student
+        // (by student_id, falling back to student_code + school_year where the
+        // table carries it). Explicit non-blank values are NEVER reclassified,
+        // even when they disagree with the owner — same principle as
+        // populateSectionsFromStudents. There is deliberately NO runtime
+        // default: repos keep throwing on missing context.
+        //
+        // Orphan policy: ownerless rows that already carry a cycle stay in
+        // place as frozen history (readable, visible in their stored cycle's
+        // lists). Ownerless + cycle-less movements move to
+        // student_movements_quarantine (audit history is never deleted; the
+        // admin audit view is student-movements.listQuarantinedMovements).
+        // Ownerless + cycle-less rows in the other three tables are already
+        // invisible to every cycle-filtered read, so they are logged per-row
+        // (CYCLE_BACKFILL_UNMAPPABLE, idempotent) and removed. Per-table
+        // aggregate counts go to system_logs once (CYCLE_CHILD_BACKFILL_087).
+        //
+        // Sync contract: unchanged — no new columns (cycle_code exists since
+        // 077), no key changes — so no contractVersion bump; pulled rows
+        // already require cycle_code via requiredColumns, and pulled rows that
+        // violate the composite FK fail the pull write instead of corrupting
+        // (cross-cycle quarantine is checkStudentChildCycleConsistency in
+        // main/repos/student-cycle.js, wired at the next apply.js touch).
+        //
+        // recordsVersionInternally: PRAGMA foreign_keys can only be toggled
+        // outside a transaction (pattern 2026-07-065 / 2026-08-083). Direct
+        // SQL only — zero sync_outbox rows, zero capture.
+        version: '2026-09-087-student-child-cycle-isolation',
+        recordsVersionInternally: true,
+        up: () => {
+            const db = getDb();
+            const { ensureStudentChildCycleSchema } = require('./schema');
+            const recordMigration = db.prepare('INSERT INTO schema_migrations(version) VALUES(?)');
+
+            const VERSION = '2026-09-087-student-child-cycle-isolation';
+            const CHILD_TABLES = ['correspondence', 'student_files', 'student_movements', 'student_profile_data'];
+            const CODE_FALLBACK = new Set(['correspondence', 'student_profile_data']);
+
+            const tableColumns = (table) =>
+                tableExists(db, table)
+                    ? db.prepare(`PRAGMA table_info("${table}")`).all().map((c) => c.name)
+                    : [];
+
+            const logChildBackfill = (tableName, stats) => {
+                if (!tableExists(db, 'system_logs')) return;
+                const exists = db
+                    .prepare(
+                        `SELECT 1 FROM system_logs
+                         WHERE action = 'CYCLE_CHILD_BACKFILL_087' AND entity_type = ? AND entity_id = '087'`
+                    )
+                    .get(tableName);
+                if (!exists) {
+                    db.prepare(
+                        `INSERT INTO system_logs(action, entity_type, entity_id, details)
+                         VALUES('CYCLE_CHILD_BACKFILL_087', ?, '087', ?)`
+                    ).run(tableName, JSON.stringify(stats));
+                }
+            };
+
+            // Reference objects first (idempotent): quarantine table + the
+            // students (id, cycle_code) parent key for the composite FKs.
+            ensureStudentChildCycleSchema(db);
+            for (const table of CHILD_TABLES) {
+                if (tableExists(db, table)) ensureColumn(table, 'cycle_code', 'TEXT');
+            }
+
+            const studentColumns = tableColumns('students');
+            if (!studentColumns.includes('id') || !studentColumns.includes('cycle_code')) {
+                logChildBackfill('students', { skipped: 'no owner table or owner cycle column' });
+                recordMigration.run(VERSION);
+                return;
+            }
+
+            const needsRebuild = CHILD_TABLES.filter((table) => {
+                if (!tableExists(db, table)) return false;
+                const row = db
+                    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`)
+                    .get(table);
+                const sql = String(row?.sql || '').replace(/\s+/g, ' ');
+                return !(sql.includes('FOREIGN KEY(student_id, cycle_code)') && /cycle_code TEXT NOT NULL/.test(sql));
+            });
+
+            // Extra-column carryover: merge-order safety. A sibling migration
+            // merged ahead of this one may add columns to these tables;
+            // rebuilding from a hardcoded snapshot would drop them. Unknown
+            // columns ride along with their declared type (named indexes are
+            // preserved by rebuildTableWithConstraints; per-column
+            // UNIQUE/CHECK/COLLATE on unknown columns cannot be reconstructed
+            // from PRAGMA table_info and are not carried — none exist today).
+            const withExtraColumns = (table, baseSql, knownColumns) => {
+                const known = new Set(knownColumns);
+                const extras = db
+                    .prepare(`PRAGMA table_info("${table}")`)
+                    .all()
+                    .filter((c) => !known.has(c.name))
+                    .map((c) => {
+                        let def = `"${c.name}" ${c.type || 'TEXT'}`;
+                        if (c.notnull) def += ' NOT NULL';
+                        if (c.dflt_value !== null && c.dflt_value !== undefined) def += ` DEFAULT ${c.dflt_value}`;
+                        return def;
+                    });
+                if (!extras.length) return baseSql;
+                return baseSql.replace(/\)\s*$/, `, ${extras.join(', ')})`);
+            };
+
+            const REBUILDS = {
+                correspondence: {
+                    known: ['id', 'student_id', 'student_code', 'letter_type', 'letter_date', 'total_hours', 'school_year', 'cycle_code', 'printed', 'created_at'],
+                    base: `CREATE TABLE correspondence__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        student_id INTEGER,
+                        student_code TEXT,
+                        letter_type TEXT,
+                        letter_date DATE,
+                        total_hours INTEGER,
+                        school_year TEXT,
+                        cycle_code TEXT NOT NULL,
+                        printed INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(student_id) REFERENCES students(id),
+                        FOREIGN KEY(student_id, cycle_code) REFERENCES students(id, cycle_code)
+                    )`
+                },
+                student_files: {
+                    known: ['id', 'student_id', 'doc_key', 'is_present', 'school_year', 'cycle_code', 'updated_at'],
+                    base: `CREATE TABLE student_files__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        student_id INTEGER NOT NULL,
+                        doc_key TEXT NOT NULL,
+                        is_present INTEGER DEFAULT 0,
+                        school_year TEXT,
+                        cycle_code TEXT NOT NULL,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(student_id, doc_key, school_year),
+                        FOREIGN KEY(student_id) REFERENCES students(id),
+                        FOREIGN KEY(student_id, cycle_code) REFERENCES students(id, cycle_code)
+                    )`
+                },
+                student_movements: {
+                    known: ['id', 'student_id', 'movement_type', 'from_section', 'to_section', 'movement_date', 'notes', 'school_year', 'cycle_code', 'created_at'],
+                    base: `CREATE TABLE student_movements__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        student_id INTEGER NOT NULL,
+                        movement_type TEXT NOT NULL,
+                        from_section TEXT,
+                        to_section TEXT,
+                        movement_date DATE NOT NULL,
+                        notes TEXT,
+                        school_year TEXT,
+                        cycle_code TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(student_id) REFERENCES students(id),
+                        FOREIGN KEY(student_id, cycle_code) REFERENCES students(id, cycle_code)
+                    )`
+                },
+                student_profile_data: {
+                    known: ['id', 'student_id', 'student_code', 'tab_key', 'data_json', 'school_year', 'cycle_code', 'updated_at', 'updated_by'],
+                    base: `CREATE TABLE student_profile_data__rb(
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        student_id INTEGER NOT NULL,
+                        student_code TEXT NOT NULL,
+                        tab_key TEXT NOT NULL CHECK(tab_key IN ('economic','social','health','followup','guidance')),
+                        data_json TEXT NOT NULL DEFAULT '{}',
+                        school_year TEXT NOT NULL,
+                        cycle_code TEXT NOT NULL,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_by TEXT,
+                        UNIQUE(student_code, tab_key, school_year),
+                        FOREIGN KEY(student_id) REFERENCES students(id),
+                        FOREIGN KEY(student_id, cycle_code) REFERENCES students(id, cycle_code)
+                    )`
+                }
+            };
+
+            db.exec('PRAGMA foreign_keys=off;');
+            const txn = db.transaction(() => {
+                for (const table of CHILD_TABLES) {
+                    if (!tableExists(db, table)) continue;
+                    const cols = tableColumns(table);
+                    let backfilled = 0;
+                    if (cols.includes('student_id')) {
+                        backfilled += db
+                            .prepare(
+                                `UPDATE "${table}" SET cycle_code = (
+                                    SELECT s.cycle_code FROM students s
+                                    WHERE s.id = "${table}".student_id
+                                      AND TRIM(COALESCE(s.cycle_code, '')) != ''
+                                    LIMIT 1
+                                )
+                                WHERE (cycle_code IS NULL OR TRIM(cycle_code) = '')
+                                  AND EXISTS (
+                                    SELECT 1 FROM students s
+                                    WHERE s.id = "${table}".student_id
+                                      AND TRIM(COALESCE(s.cycle_code, '')) != ''
+                                  )`
+                            )
+                            .run().changes;
+                    }
+                    if (CODE_FALLBACK.has(table) && cols.includes('student_code')) {
+                        backfilled += db
+                            .prepare(
+                                `UPDATE "${table}" SET cycle_code = (
+                                    SELECT s.cycle_code FROM students s
+                                    WHERE UPPER(TRIM(s.code)) = UPPER(TRIM("${table}".student_code))
+                                      AND s.school_year = "${table}".school_year
+                                      AND TRIM(COALESCE(s.cycle_code, '')) != ''
+                                    LIMIT 1
+                                )
+                                WHERE (cycle_code IS NULL OR TRIM(cycle_code) = '')
+                                  AND TRIM(COALESCE(student_code, '')) != ''
+                                  AND TRIM(COALESCE(school_year, '')) != ''
+                                  AND EXISTS (
+                                    SELECT 1 FROM students s
+                                    WHERE UPPER(TRIM(s.code)) = UPPER(TRIM("${table}".student_code))
+                                      AND s.school_year = "${table}".school_year
+                                      AND TRIM(COALESCE(s.cycle_code, '')) != ''
+                                  )`
+                            )
+                            .run().changes;
+                    }
+
+                    // Whatever is still blank has no resolvable owner: movements
+                    // are preserved in quarantine, other tables' rows were
+                    // already invisible to every cycle-filtered read and are
+                    // logged per-row, then removed.
+                    const unresolvable = db
+                        .prepare(`SELECT id FROM "${table}" WHERE cycle_code IS NULL OR TRIM(cycle_code) = ''`)
+                        .all();
+                    if (table === 'student_movements' && unresolvable.length) {
+                        const moveCols = tableColumns('student_movements');
+                        const copyCols = [
+                            'id', 'student_id', 'movement_type', 'from_section', 'to_section',
+                            'movement_date', 'notes', 'school_year', 'cycle_code', 'created_at'
+                        ].filter((c) => moveCols.includes(c));
+                        const quoted = copyCols.map((c) => `"${c}"`).join(', ');
+                        db.prepare(
+                            `INSERT INTO student_movements_quarantine(${quoted}, reason)
+                             SELECT ${quoted}, 'null_cycle_orphan' FROM student_movements
+                             WHERE cycle_code IS NULL OR TRIM(cycle_code) = ''`
+                        ).run();
+                    }
+                    for (const row of unresolvable) {
+                        recordUnmappableCycle(db, {
+                            tableName: table,
+                            rowId: row.id,
+                            reason: 'student_not_found_or_cycle_missing',
+                            source: 'students'
+                        });
+                    }
+                    if (unresolvable.length) {
+                        db.prepare(`DELETE FROM "${table}" WHERE cycle_code IS NULL OR TRIM(cycle_code) = ''`).run();
+                    }
+
+                    let keptFrozen = null;
+                    if (cols.includes('student_id')) {
+                        const codeClause =
+                            CODE_FALLBACK.has(table) && cols.includes('student_code')
+                                ? `AND NOT EXISTS (
+                                    SELECT 1 FROM students s
+                                    WHERE UPPER(TRIM(s.code)) = UPPER(TRIM(t.student_code))
+                                      AND s.school_year = t.school_year
+                                      AND TRIM(COALESCE(s.cycle_code, '')) != ''
+                                )`
+                                : '';
+                        keptFrozen = db
+                            .prepare(
+                                `SELECT COUNT(*) AS count FROM "${table}" t
+                                 WHERE TRIM(COALESCE(t.cycle_code, '')) != ''
+                                   AND NOT EXISTS (
+                                     SELECT 1 FROM students s
+                                     WHERE s.id = t.student_id
+                                       AND TRIM(COALESCE(s.cycle_code, '')) != ''
+                                   )
+                                   ${codeClause}`
+                            )
+                            .get().count;
+                    }
+                    logChildBackfill(table, {
+                        backfilled,
+                        [table === 'student_movements' ? 'quarantined' : 'removed']: unresolvable.length,
+                        keptFrozen
+                    });
+                }
+
+                for (const table of needsRebuild) {
+                    const spec = REBUILDS[table];
+                    rebuildTableWithConstraints(db, table, withExtraColumns(table, spec.base, spec.known), [
+                        `CREATE INDEX IF NOT EXISTS idx_${table}_owner_cycle ON "${table}"(student_id, cycle_code)`
+                    ]);
+                }
+                // Post-rebuild audit: explicit drift (stored cycle != owner cycle) and
+                // frozen ownerless history are kept by design, but they now violate the
+                // composite owner FK. Surface them for operator review instead of leaving
+                // them silent (they would make later UPDATEs of those rows fail).
+                if (tableExists(db, 'system_logs')) {
+                    for (const table of CHILD_TABLES) {
+                        if (!tableExists(db, table)) continue;
+                        const violations = db.prepare(`PRAGMA foreign_key_check("${table}")`).all();
+                        if (!violations.length) continue;
+                        const alreadyLogged = db
+                            .prepare(
+                                `SELECT 1 FROM system_logs
+                                 WHERE action = 'CYCLE_CHILD_FK_DRIFT_087' AND entity_type = ? AND entity_id = '087'`
+                            )
+                            .get(table);
+                        if (alreadyLogged) continue;
+                        const rowIds = [...new Set(violations.map((v) => v.rowid))];
+                        db.prepare(
+                            `INSERT INTO system_logs(action, entity_type, entity_id, details)
+                             VALUES('CYCLE_CHILD_FK_DRIFT_087', ?, '087', ?)`
+                        ).run(
+                            table,
+                            JSON.stringify({ violatingRows: rowIds.length, sampleRowIds: rowIds.slice(0, 50) })
+                        );
+                    }
+                }
+                recordMigration.run(VERSION);
+            });
+            try {
+                txn();
+            } finally {
+                db.exec('PRAGMA foreign_keys=on;');
+            }
+        }
+    },
+    {
+        // Isolation plan Slice 6: dedicated audit table for the single
+        // intentional collegial-to-qualifiant transition path. DDL lives in
+        // main/db/stage-transition-schema.js (also called at boot); local
+        // structures only, zero outbox rows.
+        version: '2026-10-088-student-stage-transitions',
+        up: () => {
+            const db = getDb();
+            const { ensureStageTransitionSchema } = require('./stage-transition-schema');
+            ensureStageTransitionSchema(db);
+        }
     }
 ];
 

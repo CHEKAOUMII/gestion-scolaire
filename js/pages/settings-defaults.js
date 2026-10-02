@@ -471,6 +471,25 @@
         return stageCycles.find((c) => c.cycleCode === code) || stageCycles[0] || null;
     }
 
+    // Slice 4 (stage separation): the rules editor renders only the selected
+    // stage's rows (stage-prop pattern). Pure over (rows, cycleCode) so the
+    // editor and tests share it; exported on window for
+    // tests/stage-ui-isolation.test.js. A null cycle (catalog unavailable)
+    // keeps the legacy unfiltered rendering — display only; the save path
+    // refuses to write without a selected stage (see saveStageRules).
+    function filterStageRowsByCycle(rows, cycleCode) {
+        if (!Array.isArray(rows)) return [];
+        if (!cycleCode) return rows;
+        return rows.filter((row) => row && row.cycle_code === cycleCode);
+    }
+
+    function stageRowsForSelectedCycle(rows) {
+        return filterStageRowsByCycle(rows, stageSelectedCycle()?.cycleCode);
+    }
+    if (typeof window !== 'undefined') {
+        window.filterStageRowsByCycle = filterStageRowsByCycle;
+    }
+
     async function loadStageCycles() {
         if (!window.api?.cycles?.getCatalog) return;
         try {
@@ -510,6 +529,15 @@
         return `${levelCode}|${streamCode}|${subjectCode}`;
     }
 
+    // Slice 4 ADR (level routing / 08-03 reconciliation, plan decision gate 2):
+    // KEEP the docs/plans/2026-08-03-collegial-level-normalization.md mechanism
+    // (official level names via appDefaults:listLevels + classes:getAll, consumed
+    // by FilterManager) — this editor already loads per-stage level names through
+    // listLevels(cycleCode), and getLevelFromSection stays qualifiant-only and
+    // untouched here. Grading-pipeline level/stream derivation (Collegial policy,
+    // stream '*') is owned by Slice 2 (js/cc-rules.js). No route-by-active-cycle
+    // display routing is implemented in this slice.
+    // See docs/adr/2026-10-02-level-routing-keep-08-03.md.
     function stageLevelLabel(code) {
         const level = stageLevels.find((l) => l.code === code);
         if (level) return level.name;
@@ -523,8 +551,8 @@
 
     function stageRuleLevelCodes() {
         const codes = new Set(['*']);
-        for (const row of stageCoefficients) codes.add(row.level_code);
-        for (const row of stageExamCounts) codes.add(row.level_code);
+        for (const row of stageRowsForSelectedCycle(stageCoefficients)) codes.add(row.level_code);
+        for (const row of stageRowsForSelectedCycle(stageExamCounts)) codes.add(row.level_code);
         const order = ['*', 'TC', '1BAC', '2BAC'];
         return Array.from(codes).sort((left, right) => {
             const leftOrder = order.indexOf(left);
@@ -632,8 +660,9 @@
     }
 
     function stageExamFor(levelCode, subjectCode) {
-        const exact = stageExamCounts.filter((r) => r.subject_code === subjectCode && r.level_code === levelCode);
-        const wildcard = stageExamCounts.filter((r) => r.subject_code === subjectCode && r.level_code === '*');
+        const scopedExamCounts = stageRowsForSelectedCycle(stageExamCounts);
+        const exact = scopedExamCounts.filter((r) => r.subject_code === subjectCode && r.level_code === levelCode);
+        const wildcard = scopedExamCounts.filter((r) => r.subject_code === subjectCode && r.level_code === '*');
         const candidates = exact.length ? exact : wildcard;
         if (!candidates.length) return null;
         return candidates.find((r) => r.source === 'custom') || candidates[0];
@@ -651,7 +680,7 @@
     function stageScopeSubjects(levelCode, streamCode) {
         const set = new Set();
         if (stageUsesCoefficients()) {
-            for (const row of stageCoefficients) {
+            for (const row of stageRowsForSelectedCycle(stageCoefficients)) {
                 if (row.level_code === levelCode || row.level_code === '*') {
                     if (row.stream_code === streamCode || row.stream_code === '*') {
                         set.add(row.subject_code);
@@ -659,7 +688,7 @@
                 }
             }
         }
-        for (const row of stageExamCounts) {
+        for (const row of stageRowsForSelectedCycle(stageExamCounts)) {
             if (row.level_code === levelCode || row.level_code === '*') {
                 set.add(row.subject_code);
             }
@@ -764,7 +793,7 @@
 
         const streams = new Set(['*']);
         if (usesCoeff) {
-            for (const row of stageCoefficients) {
+            for (const row of stageRowsForSelectedCycle(stageCoefficients)) {
                 if (row.level_code === level || row.level_code === '*') {
                     if (row.stream_code && row.stream_code !== '*') streams.add(row.stream_code);
                 }
@@ -814,7 +843,9 @@
         stageRestoreKeys = {};
         tbody.innerHTML = subjects
             .map((subject, index) => {
-                const coeffRow = usesCoeff ? stageRowForKey(stageCoefficients, level, stream, subject) : null;
+                const coeffRow = usesCoeff
+                    ? stageRowForKey(stageRowsForSelectedCycle(stageCoefficients), level, stream, subject)
+                    : null;
                 const examRow = stageExamFor(level, subject);
                 const weightRow = stageWeightFor(subject);
                 const key = stageRowKey(level, stream, subject);
@@ -1067,6 +1098,12 @@
         }
         const keys = Object.keys(stageDirty);
         if (!keys.length) return;
+        // Slice 4: the save path is authoritative — refusing to write without an
+        // explicitly selected stage instead of letting the server guess.
+        if (!stageSelectedCycle()?.cycleCode) {
+            showToast('اختر السلك قبل حفظ قواعد المرحلة', 'error');
+            return;
+        }
 
         const year = stageCurrentYear();
         const usesCoeff = stageUsesCoefficients();
@@ -1229,6 +1266,258 @@
         await stageRunReset({ scope: 'bulk', confirm: true, reason });
     }
 
+    // ─── Stage config editor (Slice 5: calendars/terms/attendance) ───
+    // Admin editor bound to the selected stage + year. Values are free-form
+    // JSON objects stored per (school_year, cycle_code, config_key) via
+    // window.api.stageConfig (device-local, never synced). Fail-closed
+    // display: a missing key renders an explicit missing state; when the
+    // session stage differs from the selected stage the editor locks instead
+    // of showing another stage's values.
+    const STAGE_CONFIG_KEYS = [
+        { key: 'calendar', label: 'التقويم الدراسي', icon: 'fa-calendar-alt', example: '{"startDate": "2025-09-08", "holidays": []}' },
+        { key: 'terms', label: 'البنية الفصلية', icon: 'fa-table-columns', example: '{"semesters": 2}' },
+        { key: 'attendance_rules', label: 'قواعد المواظبة', icon: 'fa-clipboard-check', example: '{"lateThresholdMinutes": 10}' }
+    ];
+
+    /** Rows tagged with the stage they were loaded for (stage-prop pattern). */
+    let stageConfigRows = [];
+    /** Session stage the last list response belongs to (server-resolved). */
+    let stageConfigCycle = null;
+    /** configKey → baseline JSON text for dirty detection */
+    let stageConfigBaseline = {};
+    let stageConfigSaving = false;
+
+    function stageConfigRowsForSelectedCycle() {
+        return filterStageRowsByCycle(stageConfigRows, stageSelectedCycle()?.cycleCode);
+    }
+
+    function stageConfigErrorMessage(res) {
+        if (window.StageConfigErrorContract && typeof window.StageConfigErrorContract.getMessage === 'function') {
+            const code = res?.code || res?.errorCode;
+            if (code) return window.StageConfigErrorContract.getMessage(code);
+        }
+        return res?.error || res?.message || 'فشل العملية';
+    }
+
+    function stageConfigSelectedLabel() {
+        const selected = stageSelectedCycle();
+        return selected ? `${selected.labelAr || selected.cycleCode} · ${stageCurrentYear()}` : stageCurrentYear();
+    }
+
+    function mountStageConfigSection() {
+        if (document.getElementById('stage-config-section')) return;
+        const tab = document.getElementById('tab-rules');
+        if (!tab) return;
+        const section = document.createElement('section');
+        section.className = 'sd-panel';
+        section.id = 'stage-config-section';
+        section.setAttribute('dir', 'rtl');
+        section.setAttribute('lang', 'ar');
+        section.innerHTML = `
+            <div class="sd-toolbar">
+                <div class="sd-toolbar__start">
+                    <span class="sd-toolbar__title"><i class="fas fa-sliders"></i> إعدادات المرحلة</span>
+                    <span class="sd-toolbar__meta" id="stage-config-meta"></span>
+                </div>
+                <div class="sd-toolbar__end">
+                    <button id="refresh-stage-config" class="btn btn-secondary btn-sm" type="button" title="تحديث">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <p class="sd-hint">التقويم والبنية الفصلية وقواعد المواظبة لكل سلك على حدة — تُحفظ على هذا الجهاز فقط.</p>
+            <div class="note-box warning hidden" id="stage-config-mismatch" role="status">
+                <i class="fas fa-triangle-exclamation"></i>
+                <span id="stage-config-mismatch-text"></span>
+            </div>
+            <div id="stage-config-cards"></div>`;
+        tab.appendChild(section);
+        document.getElementById('refresh-stage-config')?.addEventListener('click', async () => {
+            if (!(await stageConfigConfirmDiscard())) return;
+            await loadStageConfig();
+        });
+    }
+
+    function stageConfigSetMismatch(mismatched) {
+        const box = document.getElementById('stage-config-mismatch');
+        const text = document.getElementById('stage-config-mismatch-text');
+        if (!box || !text) return;
+        if (!mismatched) {
+            box.classList.add('hidden');
+            return;
+        }
+        text.textContent =
+            'السلك المحدد هنا يختلف عن سلك الجلسة النشط — بدّل السلك من الشريط العلوي أولاً. لا تُعرض قيم سلك آخر.';
+        box.classList.remove('hidden');
+    }
+
+    function renderStageConfig() {
+        const cards = document.getElementById('stage-config-cards');
+        const meta = document.getElementById('stage-config-meta');
+        if (!cards) return;
+        if (meta) meta.textContent = stageConfigSelectedLabel();
+        const locked = stageConfigCycle !== stageSelectedCycle()?.cycleCode;
+        stageConfigSetMismatch(stageConfigCycle != null && locked);
+        const rows = stageConfigRowsForSelectedCycle();
+        cards.innerHTML = STAGE_CONFIG_KEYS.map(({ key, label, icon, example }) => {
+            const row = rows.find((entry) => entry.configKey === key);
+            const present = !!row && row.value !== null && row.value !== undefined;
+            const badge = present
+                ? '<span class="sd-source-badge sd-source-badge--seed"><i class="fas fa-check"></i>محدد</span>'
+                : '<span class="sd-source-badge sd-source-badge--default"><i class="fas fa-circle-exclamation"></i>غير محدد لهذا السلك</span>';
+            const text = present ? JSON.stringify(row.value, null, 2) : '';
+            if (stageConfigBaseline[key] === undefined) stageConfigBaseline[key] = text;
+            return `<article class="sd-matrix-wrap" data-config-card="${safeText(key)}" style="margin-bottom: 12px; padding: 12px;">
+                <div class="sd-toolbar">
+                    <div class="sd-toolbar__start">
+                        <span class="sd-toolbar__title"><i class="fas ${safeText(icon)}"></i> ${safeText(label)}</span>
+                        ${badge}
+                    </div>
+                    <div class="sd-toolbar__end">
+                        <button class="btn btn-success btn-sm" type="button" data-config-save="${safeText(key)}" ${locked || stageConfigSaving ? 'disabled' : ''}>
+                            <i class="fas fa-save"></i> حفظ
+                        </button>
+                    </div>
+                </div>
+                <textarea dir="ltr" rows="5" data-config-input="${safeText(key)}"
+                    style="width: 100%; font-family: monospace; direction: ltr; text-align: left;"
+                    placeholder='${safeText(example)}' ${locked ? 'disabled' : ''}
+                    aria-label="${safeText(label)} (JSON)">${safeText(text)}</textarea>
+            </article>`;
+        }).join('');
+        cards.querySelectorAll('textarea[data-config-input]').forEach((input) => {
+            input.value = stageConfigBaseline[input.dataset.configInput] ?? '';
+            input.addEventListener('input', () => stageConfigUpdateSaveUi());
+        });
+        cards.querySelectorAll('button[data-config-save]').forEach((button) => {
+            button.addEventListener('click', () => saveStageConfigKey(button.dataset.configSave));
+        });
+        stageConfigUpdateSaveUi();
+    }
+
+    function stageConfigDirtyKeys() {
+        return STAGE_CONFIG_KEYS.map(({ key }) => key).filter((key) => {
+            const input = document.querySelector(`textarea[data-config-input="${key}"]`);
+            return input && !input.disabled && input.value !== (stageConfigBaseline[key] ?? '');
+        });
+    }
+
+    function stageConfigUpdateSaveUi() {
+        const dirty = new Set(stageConfigDirtyKeys());
+        document.querySelectorAll('button[data-config-save]').forEach((button) => {
+            if (button.disabled) return;
+            button.classList.toggle('btn-warning', dirty.has(button.dataset.configSave));
+            button.classList.toggle('btn-success', !dirty.has(button.dataset.configSave));
+        });
+    }
+
+    async function stageConfigConfirmDiscard() {
+        if (!stageConfigDirtyKeys().length) return true;
+        const { confirmed } = await showConfirm({
+            title: 'تعديلات غير محفوظة',
+            message: 'توجد تعديلات غير محفوظة في إعدادات المرحلة. هل تريد المتابعة وتجاهلها؟',
+            type: 'warning',
+            confirmText: 'تجاهل'
+        });
+        return confirmed;
+    }
+
+    async function loadStageConfig() {
+        if (!window.api?.stageConfig?.list) {
+            showToast('واجهة إعدادات المرحلة غير متاحة', 'error');
+            return;
+        }
+        const year = stageCurrentYear();
+        if (!year) return;
+        // Clear first: never render a previous (other-stage) selection's values.
+        stageConfigRows = [];
+        stageConfigCycle = null;
+        stageConfigBaseline = {};
+        renderStageConfig();
+        const handle = showToast.loading('جاري تحميل إعدادات المرحلة...');
+        try {
+            const res = await window.api.stageConfig.list(year);
+            if (!res || res.error || res.code) {
+                handle.error(stageConfigErrorMessage(res));
+                return;
+            }
+            // Tag rows with the server-resolved stage so the stage-prop filter
+            // below can only ever match the session stage — cross-stage
+            // display is impossible even if the payload were mixed.
+            stageConfigCycle = res.cycleCode || null;
+            stageConfigRows = (res.configs || []).map((entry) => ({
+                cycle_code: stageConfigCycle,
+                configKey: entry.configKey,
+                value: entry.value,
+                updatedAt: entry.updatedAt || null
+            }));
+            stageConfigBaseline = {};
+            for (const row of stageConfigRowsForSelectedCycle()) {
+                if (row.value !== null && row.value !== undefined) {
+                    stageConfigBaseline[row.configKey] = JSON.stringify(row.value, null, 2);
+                }
+            }
+            renderStageConfig();
+            handle.success('تم تحميل إعدادات المرحلة');
+        } catch (err) {
+            handle.error('حدث خطأ: ' + (err.message || err));
+        }
+    }
+
+    async function saveStageConfigKey(configKey) {
+        if (stageConfigSaving) return;
+        if (!window.api?.stageConfig?.save) {
+            showToast('واجهة إعدادات المرحلة غير متاحة', 'error');
+            return;
+        }
+        const selected = stageSelectedCycle()?.cycleCode;
+        if (!selected || stageConfigCycle !== selected) {
+            showToast('السلك المحدد لا يطابق سلك الجلسة — حدّث العرض أولاً', 'error');
+            return;
+        }
+        const input = document.querySelector(`textarea[data-config-input="${configKey}"]`);
+        if (!input) return;
+        let value;
+        try {
+            value = JSON.parse(input.value.trim() === '' ? 'null' : input.value);
+        } catch {
+            showToast('صيغة JSON غير صالحة — تحقق من النص', 'error');
+            input.focus();
+            return;
+        }
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+            showToast('قيمة إعداد المرحلة يجب أن تكون كائناً (object)', 'error');
+            input.focus();
+            return;
+        }
+        stageConfigSaving = true;
+        renderStageConfig();
+        const handle = showToast.loading('جاري حفظ إعداد المرحلة...');
+        try {
+            const res = await window.api.stageConfig.save({
+                schoolYear: stageCurrentYear(),
+                configKey,
+                value
+            });
+            stageConfigSaving = false;
+            if (!res?.success) {
+                stageConfigUpdateSaveUi();
+                handle.error(stageConfigErrorMessage(res));
+                return;
+            }
+            stageConfigBaseline[configKey] = JSON.stringify(value, null, 2);
+            const existing = stageConfigRows.find((entry) => entry.configKey === configKey);
+            if (existing) existing.value = value;
+            else stageConfigRows.push({ cycle_code: selected, configKey, value, updatedAt: null });
+            renderStageConfig();
+            handle.success('تم حفظ إعداد المرحلة على هذا الجهاز');
+        } catch (err) {
+            stageConfigSaving = false;
+            stageConfigUpdateSaveUi();
+            handle.error('حدث خطأ: ' + (err.message || err));
+        }
+    }
+
     // ─── Init ─────────────────────────────────────────────────────
     async function init() {
         initTabs();
@@ -1311,6 +1600,18 @@
         await loadPageAccess();
         await loadStageCycles();
         initStagePickers();
+        mountStageConfigSection();
+        // Stage config follows the same stage/year selection (separate
+        // listeners — the rules handlers above keep their own discard flow).
+        document.getElementById('stage-year-select')?.addEventListener('change', async () => {
+            if (!(await stageConfigConfirmDiscard())) return;
+            await loadStageConfig();
+        });
+        document.getElementById('stage-cycle-select')?.addEventListener('change', async () => {
+            if (!(await stageConfigConfirmDiscard())) return;
+            await loadStageConfig();
+        });
+        loadStageConfig();
         await loadStageLevels();
         await loadStageRules();
     }

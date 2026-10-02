@@ -1,4 +1,5 @@
 'use strict';
+// ISOLATION-CARVEOUT (Slice 0): system_tags carries no cycle_code by design (institution-wide staff notes).
 
 /**
  * System tags repository.

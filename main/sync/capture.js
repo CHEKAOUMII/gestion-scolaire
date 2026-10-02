@@ -503,6 +503,27 @@ const CHANNEL_REGISTRY = {
         exclude: true
     },
 
+    // === stage-config.js (Slice 5) — DEVICE-LOCAL, never captured ===
+    // Stage calendars/terms/attendance are per-device config like page-access
+    // permissions and app defaults: no ENTITY_REGISTRY entry, no capture wiring
+    // (exclude: true), no sync-apply hooks. Each device configures its own.
+    'stageConfig:save': {
+        tables: ['stage_configs'],
+        operation: 'PUT',
+        idExtractor: 'none',
+        captureMode: 'explicit',
+        exclude: true
+    },
+
+    // === stage-transition.js (explicit outbox written inside the repo transaction) ===
+    'stageTransition:transferStudent': {
+        tables: ['students', 'student_movements', 'grades', 'absences', 'correspondence', 'student_files', 'student_profile_data'],
+        operation: 'MIXED',
+        idExtractor: 'none',
+        captureMode: 'explicit',
+        exclude: true
+    },
+
     // === sync.js ===
     'sync:setConfig': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },
     'sync:triggerNow': { tables: [], operation: 'PUT', idExtractor: 'none', exclude: true },

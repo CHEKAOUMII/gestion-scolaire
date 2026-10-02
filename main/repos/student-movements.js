@@ -11,11 +11,29 @@ function listByYear(db, year, cycleCode) {
         SELECT m.*, s.full_name, s.code
         FROM student_movements m
         LEFT JOIN students s ON s.id = m.student_id
-        WHERE m.school_year = ? AND (s.id IS NULL OR s.cycle_code = ?)
+        WHERE m.school_year = ? AND (s.cycle_code = ? OR (s.id IS NULL AND m.cycle_code = ?))
         ORDER BY m.movement_date DESC, m.id DESC
     `
         )
-        .all(year, cycle);
+        .all(year, cycle, cycle);
+}
+
+/**
+ * Admin audit view over quarantined movements (Slice 1): rows that reached the
+ * 087 migration with no resolvable owner and no cycle. Deliberately NOT
+ * cycle-scoped — these rows have no cycle — and never part of operational
+ * stage lists. Returns [] on databases that predate the quarantine table.
+ */
+function listQuarantinedMovements(db, year) {
+    const table = db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'student_movements_quarantine'")
+        .get();
+    if (!table) return [];
+    return db
+        .prepare(
+            `SELECT * FROM student_movements_quarantine WHERE school_year = ? ORDER BY quarantined_at DESC, id DESC`
+        )
+        .all(year);
 }
 
 function getStats(db, year, cycleCode) {
@@ -84,4 +102,4 @@ function addMovement(db, movement, cycleCode) {
     return { success: true };
 }
 
-module.exports = { listByYear, getStats, addMovement };
+module.exports = { listByYear, listQuarantinedMovements, getStats, addMovement };

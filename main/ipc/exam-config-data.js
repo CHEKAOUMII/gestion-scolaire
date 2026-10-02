@@ -20,6 +20,7 @@ const VALID_CONFIG_KEYS = new Set([
 ]);
 
 function registerExamConfigDataIpc(ipcMain) {
+    // ISOLATION-CARVEOUT (Slice 0): exam-center config is shared venue operations (centers/rooms/schedules/candidates); institution-wide by design (pinned by Check D). Per-stage scoping needs an ADR + tests.
     handleRead(ipcMain, 'examConfigData:get', (db, schoolYear, configKey) => {
         const year = normalizeYear(schoolYear);
         const key = String(configKey || '').trim();

@@ -474,6 +474,18 @@ contextBridge.exposeInMainWorld('api', {
         reportRendererError: (payload) => ipcRenderer.invoke('diagnostics:reportRendererError', payload)
     },
 
+    // Stage transition (Slice 6) — the single intentional cross-stage path.
+    stageTransition: {
+        transferStudent: (payload) => ipcRenderer.invoke('stageTransition:transferStudent', payload)
+    },
+
+    // Stage-scoped configuration (Slice 5) — device-local calendars/terms/attendance.
+    stageConfig: {
+        get: (payload) => ipcRenderer.invoke('stageConfig:get', payload),
+        list: (schoolYear) => ipcRenderer.invoke('stageConfig:list', schoolYear),
+        save: (payload) => ipcRenderer.invoke('stageConfig:save', payload)
+    },
+
 });
 
 console.log('Preload script loaded - API exposed to renderer');

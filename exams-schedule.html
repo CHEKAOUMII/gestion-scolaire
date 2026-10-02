@@ -12,6 +12,7 @@
         <script src="js/shared/dom-helpers.js" defer></script>
         <script src="js/shared/auth-session.js" defer></script>
         <script src="js/shared/filter-manager.js" defer></script>
+        <script src="js/shared/education/cycles.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/shared/date-utils.js" defer></script>
         <script src="js/exam-data-readers.js" defer></script>
@@ -419,10 +420,12 @@
                         <div class="level-select-row">
                             <select class="form-select" id="level-select" style="font-size: 15px">
                                 <option value="">-- اختر مستوى --</option>
-                                <optgroup label="الابتدائي والإعدادي" id="non-qualifiant-exam-optgroup">
+                                <optgroup label="الابتدائي" id="primary-exam-optgroup" data-stage="primary">
                                     <option value="السادس ابتدائي - الامتحان الإقليمي">
                                         السادس ابتدائي - الامتحان الإقليمي
                                     </option>
+                                </optgroup>
+                                <optgroup label="الإعدادي" id="collegial-exam-optgroup" data-stage="secondary_collegial">
                                     <option value="الثالثة إعدادي - الامتحان الجهوي">
                                         الثالثة إعدادي - الامتحان الجهوي
                                     </option>
@@ -1046,25 +1049,75 @@
         <script>
             (function () {
                 'use strict';
-                // The «الابتدائي والإعدادي» exam options are bound to the real
-                // education catalog: the group stays only while both its cycles
-                // are workable (capability 'supported'). Primary and collegial are
-                // currently 'preview', so the group is hidden until the catalog
-                // promotes them — fail closed when the catalog cannot be read.
+                // Slice 4 (stage separation): exam formats render only for their
+                // stage. Each optgroup carries a data-stage cycle code; the legacy
+                // baccalaureate groups are unmarked and resolve to the qualifiant
+                // default stage from the EducationCycles SSOT — never an inline
+                // literal. A group stays only while its stage is workable
+                // (capability 'supported' in the catalog) AND matches the resolved
+                // active stage. Fail-closed: catalog errors remove every marked
+                // group; an unresolvable active stage degrades to catalog-driven
+                // display (exam writes stay scoped server-side via the session).
+                function shouldKeepExamOptgroup(stage, activeCycleCode, supportedCodes) {
+                    // Unmarked group + SSOT unavailable: keep the legacy behavior.
+                    if (!stage) return true;
+                    if (supportedCodes.indexOf(stage) === -1) return false;
+                    if (!activeCycleCode) return true;
+                    return stage === activeCycleCode;
+                }
+                // Pure stage filter over [{ stage, element }] groups — exported for
+                // tests (tests/stage-ui-isolation.test.js).
+                window.filterExamOptgroupsByStage = function (groups, context) {
+                    const ctx = context || {};
+                    const supported = Array.isArray(ctx.supportedCodes) ? ctx.supportedCodes : [];
+                    return groups.filter((group) =>
+                        shouldKeepExamOptgroup(group.stage || ctx.defaultStage, ctx.activeCycleCode, supported)
+                    );
+                };
                 document.addEventListener('DOMContentLoaded', async () => {
-                    const optgroup = document.getElementById('non-qualifiant-exam-optgroup');
-                    if (!optgroup || !window.api?.cycles?.getCatalog) return;
+                    const select = document.getElementById('level-select');
+                    if (!select || !window.api?.cycles?.getCatalog) return;
+                    const qualifiantCycle =
+                        (window.EducationCycles && window.EducationCycles.QUALIFIANT_CYCLE) || null;
+                    const groups = Array.from(select.querySelectorAll('optgroup')).map((element) => ({
+                        stage: element.dataset.stage || qualifiantCycle,
+                        element
+                    }));
                     try {
-                        const response = await window.api.cycles.getCatalog();
-                        const cycles = response?.success && Array.isArray(response.cycles) ? response.cycles : [];
-                        const workable = cycles.some(
-                            (cycle) =>
-                                cycle.capability === 'supported' &&
-                                (cycle.cycle_code === 'primary' || cycle.cycle_code === 'secondary_collegial')
+                        const catalogResponse = await window.api.cycles.getCatalog();
+                        const cycles =
+                            catalogResponse?.success && Array.isArray(catalogResponse.cycles)
+                                ? catalogResponse.cycles
+                                : [];
+                        const supportedCodes = cycles
+                            .filter((cycle) => cycle.capability === 'supported')
+                            .map((cycle) => cycle.cycle_code);
+                        let activeCycleCode = null;
+                        try {
+                            const activeResponse =
+                                typeof window.api.cycles.getActive === 'function'
+                                    ? await window.api.cycles.getActive()
+                                    : null;
+                            activeCycleCode = activeResponse?.success
+                                ? activeResponse.context?.cycleCode || activeResponse.cycle?.cycle_code || null
+                                : null;
+                        } catch (activeErr) {
+                            activeCycleCode = null;
+                        }
+                        const keep = new Set(
+                            window.filterExamOptgroupsByStage(groups, {
+                                activeCycleCode,
+                                supportedCodes,
+                                defaultStage: qualifiantCycle
+                            })
                         );
-                        if (!workable) optgroup.remove();
+                        groups.forEach((group) => {
+                            if (!keep.has(group)) group.element.remove();
+                        });
                     } catch (err) {
-                        optgroup.remove();
+                        groups.forEach((group) => {
+                            if (group.element.dataset.stage) group.element.remove();
+                        });
                     }
                 });
             })();

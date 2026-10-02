@@ -59,12 +59,13 @@ async function getActiveCycleCode() {
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         year = getSchoolYear();
+        activeCycleCode = await getActiveCycleCode();
         try {
-            activeRuleSetPayload = typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year) : null;
+            activeRuleSetPayload =
+                typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year, activeCycleCode) : null;
         } catch (err) {
             console.warn('[results-hub] stage rule set unavailable:', err);
         }
-        activeCycleCode = await getActiveCycleCode();
         // Tab switching
         document.getElementById('tab-btn-results').addEventListener('click', () => switchTab('results'));
         document.getElementById('tab-btn-zeros').addEventListener('click', () => switchTab('zeros'));
@@ -244,7 +245,29 @@ function fillDetailHeader(studentId, fallbackRecord) {
         cached?.section || fallbackRecord?.section || '-';
 }
 
-function getGradeRemark(average) {
+// Stage-thresholds SSOT probe: { unavailable: true } only when the module
+// is loaded AND the active stage is known yet has no mention source.
+function mentionUnavailableForStage() {
+    var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+    if (!T) return null;
+    var stage = typeof activeCycleCode !== 'undefined' ? activeCycleCode : null;
+    if (!stage) return null;
+    var res = T.resolveMentionBands(stage);
+    return res && !res.ok ? { unavailable: true, code: res.code } : null;
+}
+
+function getGradeRemark(average, cycleCode) {
+    // Stage-thresholds SSOT (Slice 2): mention words resolve per stage.
+    // Known unseeded stages (collegial) yield null so callers render
+    // '—' instead of another stage's vocabulary; unknown stage or
+    // missing module keeps the legacy qualifiant cascade (display only).
+    var stage = cycleCode === undefined ? (typeof activeCycleCode !== 'undefined' ? activeCycleCode : null) : cycleCode;
+    var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+    if (T) {
+        var res = T.resolveMentionBand(average, stage);
+        if (res && res.ok) return res.label;
+        if (res && !res.ok && stage) return null;
+    }
     if (average >= 16) return 'ممتاز';
     if (average >= 14) return 'حسن جدا';
     if (average >= 12) return 'حسن';
@@ -252,7 +275,24 @@ function getGradeRemark(average) {
     return 'ضعيف';
 }
 
-function getRemarkColor(average) {
+function getRemarkColor(average, cycleCode) {
+    // Colors follow the resolved band key; unknown stage or missing
+    // module keeps the legacy ladder. '!ok' stages get neutral gray.
+    var stage = cycleCode === undefined ? (typeof activeCycleCode !== 'undefined' ? activeCycleCode : null) : cycleCode;
+    var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+    if (T) {
+        var res = T.resolveMentionBand(average, stage);
+        if (res && res.ok) {
+            switch (res.key) {
+                case 'excellent': return '#10b981';
+                case 'veryGood': return '#3b82f6';
+                case 'good': return '#f59e0b';
+                case 'acceptable': return '#f97316';
+                default: return '#ef4444';
+            }
+        }
+        if (res && !res.ok && stage) return '#9aa0a6';
+    }
     if (average >= 16) return '#10b981';
     if (average >= 14) return '#3b82f6';
     if (average >= 12) return '#f59e0b';
@@ -332,7 +372,9 @@ async function loadResults() {
                     ? detectBranch(firstRecord.section || firstRecord.class_name || '')
                     : null;
             const levelInfo =
-                typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+                typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, firstRecord.section || firstRecord.class_name)
+                    : { code: null, label: null };
             const averageResolution = computeWeightedGeneralAverageResult(studentSubjectAvgs, branch, {
                 schoolYear: year,
                 streamCode: branch,
@@ -360,9 +402,16 @@ async function loadResults() {
         const completeStudentData = studentData.filter((student) => student.average != null);
         completeStudentData.sort((a, b) => b.average - a.average);
 
+        const mentionBandsForStage = mentionUnavailableForStage();
+        if (mentionBandsForStage && mentionBandsForStage.unavailable) {
+        showToast(EducationStageThresholds.MENTION_UNAVAILABLE_NOTICE, 'warning');
+            document.getElementById('remark-select').disabled = true;
+        } else {
+            document.getElementById('remark-select').disabled = false;
+        }
         const remarkFilter = document.getElementById('remark-select').value;
         const displayData = remarkFilter
-            ? completeStudentData.filter((s) => getGradeRemark(s.average) === remarkFilter)
+            ? completeStudentData.filter((s) => getGradeRemark(s.average, activeCycleCode) === remarkFilter)
             : completeStudentData;
 
         if (!displayData.length) {
@@ -411,8 +460,8 @@ function renderPage() {
     const fragment = document.createDocumentFragment();
     pageData.forEach((s, i) => {
             const globalIndex = start + i;
-            const remark = getGradeRemark(s.average);
-            const remarkColor = getRemarkColor(s.average);
+            const remark = getGradeRemark(s.average, activeCycleCode);
+            const remarkColor = getRemarkColor(s.average, activeCycleCode);
             const row = document.createElement('tr');
             row.tabIndex = 0;
             row.dataset.studentId = s.id;
@@ -449,7 +498,7 @@ function renderPage() {
             remarkCell.dataset.label = 'التقدير';
             const badge = document.createElement('span');
             badge.style.cssText = `background:${remarkColor};color:white;padding:4px 10px;border-radius:20px;font-size:12px;`;
-            badge.textContent = remark;
+            badge.textContent = remark == null ? '—' : remark;
             remarkCell.appendChild(badge);
             row.appendChild(remarkCell);
             fragment.appendChild(row);
@@ -514,6 +563,7 @@ function goToPage(page) {
 }
 
 // ===== Student Detail Modal =====
+// Numeric color scale (page styling by average ranges, not bulletin vocabulary) — intentionally not stage-routed.
 function gradeColor(val) {
     if (val >= 16) return '#2ECC71';
     if (val >= 14) return '#3b82f6';
@@ -569,7 +619,9 @@ async function showStudentDetail(studentId) {
     const branch =
         typeof detectBranch === 'function' ? detectBranch(first.section || first.class_name || '') : null;
     const levelInfo =
-        typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+        typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, first.section || first.class_name)
+                    : { code: null, label: null };
     const averageResolution = computeWeightedGeneralAverageResult(subjectAvgs, branch, {
         schoolYear: year,
         streamCode: branch,
@@ -1135,7 +1187,9 @@ function getTopStudentsForSemester(semester) {
                     ? detectBranch(first.section || first.class_name || '')
                     : null;
             const levelInfo =
-                typeof inferQualifiantLevel === 'function' ? inferQualifiantLevel(branch) : { code: null, label: null };
+                typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, first.section || first.class_name)
+                    : { code: null, label: null };
             const averageResolution = computeWeightedGeneralAverageResult(subjectAvgs, branch, {
                 schoolYear: year,
                 streamCode: branch,
@@ -1162,6 +1216,7 @@ function getTopStudentsForSemester(semester) {
     return students;
 }
 
+// Numeric color scale (page styling by average ranges, not bulletin vocabulary) — intentionally not stage-routed.
 function topGradeColor(avg) {
     if (avg >= 16) return 'rh-top-avg--success';
     if (avg >= 14) return 'rh-top-avg--info';

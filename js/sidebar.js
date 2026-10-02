@@ -491,6 +491,24 @@ function buildCycleSwitcherOptions(cycles, activeCycleCode) {
 }
 window.buildCycleSwitcherOptions = buildCycleSwitcherOptions;
 
+// Slice 4 (stage separation): invalidate the renderer stage-rule cache owned
+// by js/cc-rules.js (sibling-owned — never touched here) so the first read
+// after a switch can never serve the previous stage's rules. Slice 2
+// contract: clearStageRuleSetCache() resets BOTH stageRuleSetCache and the
+// in-flight stageRuleSetLoadPromise (both live in cc-rules.js script scope
+// and are unreachable from here except through that helper). Pages without
+// cc-rules.js skip via the typeof guard; location.reload() below remains the
+// hard barrier in every case.
+function invalidateStageRuleCache() {
+    if (typeof clearStageRuleSetCache === 'function') {
+        try {
+            clearStageRuleSetCache();
+        } catch (_) {
+            /* ignore: the reload below is the barrier */
+        }
+    }
+}
+
 async function loadTopbarCycleSwitcher() {
     const headerRight = document.querySelector('.header-right');
     if (!headerRight || !window.api?.cycles) return;
@@ -552,7 +570,10 @@ async function loadTopbarCycleSwitcher() {
             return;
         }
         const response = await window.api.cycles.setActive(select.value, getSchoolYear());
-        if (response?.success) window.location.reload();
+        if (response?.success) {
+            invalidateStageRuleCache();
+            window.location.reload();
+        }
         else {
             select.value = previousCycle;
             if (typeof showToast === 'function') showToast(response?.error || 'تعذر تبديل السلك', 'error');

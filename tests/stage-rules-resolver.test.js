@@ -8,7 +8,7 @@
  * Rules govern grade results; missing rules never silently change grades.
  * Resolution precedence against the ACTIVE rule set of the school year:
  *   exact (cycle, level, stream, subject) → stream wildcard → level wildcard
- *   → cycle default → MISSING_RULE. Custom beats official within the same key.
+ *   -> MISSING_RULE. Custom beats official within the same key (cycle-default step deleted in Slice 2).
  * No silent fallback to hardcoded constants at any point.
  */
 
@@ -160,9 +160,12 @@ async function main() {
             ruleSetPayload([coefficientRow({ cycle_code: '*', level_code: '*', stream_code: '*', coefficient: 5 })])
         );
         const res = cc.resolveSubjectCoefficient('الرياضيات', '2BACSMA', BASE_CONTEXT);
-        assert.strictEqual(res.ok, true);
-        assert.strictEqual(res.coefficient, 5);
-        console.log('  [ok] cycle default (*, *, *, subject)');
+        // Slice 2: cycle-default step deleted - a cycle '*' row never matches.
+        assert.strictEqual(res.ok, false);
+        assert.strictEqual(res.code, 'MISSING_RULE');
+        assert.strictEqual(res.error.code, 'MISSING_RULE');
+        assert.strictEqual(StageRulesErrorContract.isOfficialExportAllowed(res), false);
+        console.log('  [ok] cycle wildcard row never matches (*, *, *, subject)');
     }
     {
         // Level-wildcard-with-stream must beat level-wildcard-all-streams.
@@ -364,9 +367,12 @@ async function main() {
             ruleSetPayload([], [examCountRow({ cycle_code: '*', level_code: '*', exam_count: 2 })])
         );
         const res = cc.resolveExamCount('الرياضيات', '2BACSMA', BASE_CONTEXT);
-        assert.strictEqual(res.ok, true);
-        assert.strictEqual(res.examCount, 2);
-        console.log('  [ok] exam count: cycle default step');
+        // Slice 2: cycle-default step deleted - a cycle '*' row never matches.
+        assert.strictEqual(res.ok, false);
+        assert.strictEqual(res.code, 'MISSING_RULE');
+        assert.strictEqual(res.incomplete, true);
+        assert.strictEqual(StageRulesErrorContract.isOfficialExportAllowed(res), false);
+        console.log('  [ok] exam count: cycle wildcard row never matches');
     }
     {
         const { cc } = await sandboxWith(
