@@ -1,30 +1,27 @@
 const { notify } = require('../notifications/dispatcher');
 const store = require('../notifications/store');
+const { handleAuthedRead } = require('./ipc-helpers');
 
+// Device-local UI state (not synced school data) — session-required reads are
+// the right tier; every handler below previously ran without any session check.
 function registerNotificationsIpc(ipcMain) {
-    ipcMain.handle('notifications:send', (_event, rawEvent) => {
-        return notify(rawEvent);
-    });
+    handleAuthedRead(ipcMain, 'notifications:send', (_ctx, rawEvent) => notify(rawEvent));
 
-    ipcMain.handle('notifications:getRecent', (_event, limit) => {
-        return store.getRecent(limit);
-    });
+    handleAuthedRead(ipcMain, 'notifications:getRecent', (_ctx, limit) => store.getRecent(limit));
 
-    ipcMain.handle('notifications:markRead', (_event, id) => {
+    handleAuthedRead(ipcMain, 'notifications:markRead', (_ctx, id) => {
         store.markRead(id);
         return { success: true };
     });
 
-    ipcMain.handle('notifications:markAllRead', () => {
+    handleAuthedRead(ipcMain, 'notifications:markAllRead', () => {
         store.markAllRead();
         return { success: true };
     });
 
-    ipcMain.handle('notifications:unreadCount', () => {
-        return store.unreadCount();
-    });
+    handleAuthedRead(ipcMain, 'notifications:unreadCount', () => store.unreadCount());
 
-    ipcMain.handle('notifications:deleteOld', (_event, days) => {
+    handleAuthedRead(ipcMain, 'notifications:deleteOld', (_ctx, days) => {
         store.deleteOlderThan(days || 30);
         return { success: true };
     });

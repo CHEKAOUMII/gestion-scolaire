@@ -1,0 +1,1696 @@
+            // CH1: HTML escaping via window.escapeHtml (js/utils.js)
+            function getExamSchoolYear() {
+                const saved = localStorage.getItem('selectedSchoolYear');
+                if (saved) return saved;
+                const now = new Date();
+                const y = now.getFullYear();
+                return now.getMonth() + 1 >= 9 ? `${y}/${y + 1}` : `${y - 1}/${y}`;
+            }
+            const year = getExamSchoolYear();
+
+            const EXAM_LS_KEYS = [
+                'examCenterConfig',
+                'examCenterLevels',
+                'examCenterRoomsData',
+                'examCenterRoomsCount',
+                'examScheduleData',
+                'examAutoDistributionData',
+                'examPeriodsData',
+                'examDistributionRules',
+                'examExemptionsData',
+                'examDutyTeachersData',
+                'examMorningEveningData',
+                'examAutoDistributionOptions',
+                'examCandidatesData'
+            ];
+            async function migrateExamLocalStorageToDb() {
+                for (const key of EXAM_LS_KEYS) {
+                    const raw = localStorage.getItem(key);
+                    if (raw === null) continue;
+                    const existing = await window.api.examConfig.get(year, key);
+                    if (existing !== null) continue;
+                    let data;
+                    try {
+                        data = JSON.parse(raw);
+                    } catch {
+                        data = raw;
+                    }
+                    await window.api.examConfig.save({ school_year: year, config_key: key, data });
+                }
+            }
+            const frenchMonths = {
+                1: 'Janvier',
+                2: 'Février',
+                3: 'Mars',
+                4: 'Avril',
+                5: 'Mai',
+                6: 'Juin',
+                7: 'Juillet',
+                8: 'Août',
+                9: 'Septembre',
+                10: 'Octobre',
+                11: 'Novembre',
+                12: 'Décembre'
+            };
+            const arabicMonths = {
+                1: 'يناير',
+                2: 'فبراير',
+                3: 'مارس',
+                4: 'أبريل',
+                5: 'ماي',
+                6: 'يونيو',
+                7: 'يوليوز',
+                8: 'غشت',
+                9: 'شتنبر',
+                10: 'أكتوبر',
+                11: 'نونبر',
+                12: 'دجنبر'
+            };
+
+            const subject = (name, type, duration) => ({ name, type, duration });
+            const regional = (name, duration) => subject(name, 'جهوي', duration);
+            const national = (name, duration) => subject(name, 'وطني', duration);
+
+            const primaryRegionalSubjects = [
+                regional('اللغة العربية والتربية الإسلامية', '1س30د'),
+                regional('الاجتماعيات', '45د'),
+                regional('النشاط العلمي', '45د'),
+                regional('اللغة الأمازيغية', '45د'),
+                regional('الرياضيات', '1س30د'),
+                regional('اللغة الفرنسية', '1س30د')
+            ];
+            const middleRegionalSubjects = [
+                regional('اللغة العربية', '2س'),
+                regional('الاجتماعيات', '1س15د'),
+                regional('اللغة الفرنسية', '2س'),
+                regional('التربية الإسلامية', '1س'),
+                regional('الرياضيات', '2س'),
+                regional('الفيزياء والكيمياء', '1س'),
+                regional('علوم الحياة والأرض', '1س')
+            ];
+            const firstBacCommon = [
+                regional('اللغة العربية', '2-3س'),
+                regional('التربية الإسلامية', '2-3س'),
+                regional('اللغة الأجنبية', '2-3س')
+            ];
+            const firstBacWithMath = [...firstBacCommon, regional('الرياضيات', '2-3س')];
+            const firstBacExperimentalFrench = [...firstBacCommon, regional('التاريخ والجغرافيا', '2-3س')];
+            const firstBacAsil = [...firstBacCommon, regional('مواد شرعية', '2-3س')];
+            const nationalArts = [
+                national('اللغة العربية وآدابها', '3س'),
+                national('الفلسفة', '3س'),
+                national('التاريخ والجغرافيا', '3س'),
+                national('اللغة الأجنبية الثانية', '3س')
+            ];
+            const nationalExperimental = [
+                national('علوم الحياة والأرض', '3س'),
+                national('الفيزياء والكيمياء', '3س'),
+                national('الرياضيات', '3س'),
+                national('الفلسفة', '2س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+            const nationalMathA = [
+                national('الرياضيات', '4س'),
+                national('الفيزياء والكيمياء', '4س'),
+                national('علوم الحياة والأرض', '2-3س'),
+                national('الفلسفة', '2س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+            const nationalMathB = [
+                national('الرياضيات', '4س'),
+                national('الفيزياء والكيمياء', '4س'),
+                national('علوم المهندس', '3س'),
+                national('الفلسفة', '2س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+            const nationalEconomics = [
+                national('المحاسبة', '3س'),
+                national('الاقتصاد العام والإحصاء', '2-3س'),
+                national('الرياضيات', '2-3س'),
+                national('الفلسفة', '2س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+            const nationalAccounting = [
+                national('المحاسبة والرياضيات المالية', '3س'),
+                national('الاقتصاد العام', '2-3س'),
+                national('الرياضيات', '2-3س'),
+                national('الفلسفة', '2س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+            const nationalAppliedArts = [
+                national('فن تصميم المنتوج', '4س'),
+                national('فن تصميم التواصل', '4س'),
+                national('فن تصميم المحيط', '4س'),
+                national('الفلسفة', '2س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+            const nationalTech = [
+                national('اختبار توليفي في المواد المهنية - الجزء الأول', '4س'),
+                national('اختبار توليفي في المواد المهنية - الجزء الثاني', '2س'),
+                national('الفيزياء والكيمياء', '3س'),
+                national('الرياضيات', '3س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+            const nationalVocationalServices = [
+                national('اختبار توليفي في المواد المهنية', '2-4س'),
+                national('الرياضيات', '2-3س'),
+                national('اللغة الأجنبية الثانية', '2س'),
+                national('الفلسفة', '2س')
+            ];
+            const nationalIslamic = [
+                national('التفسير والحديث', '3س'),
+                national('الفقه والأصول', '3س'),
+                national('الفلسفة', '2س'),
+                national('اللغة الأجنبية الثانية', '2س')
+            ];
+
+            const levelSubjects = {
+                'السادس ابتدائي - الامتحان الإقليمي': primaryRegionalSubjects,
+                'الثالثة إعدادي - الامتحان الجهوي': middleRegionalSubjects,
+                'الأولى باكالوريا الآداب و العلوم الإنسانية': firstBacCommon,
+                'الأولى باكالوريا الآداب والعلوم الإنسانية – خيار فرنسية': firstBacCommon,
+                'الأولى باكالوريا العلوم التجريبية': firstBacWithMath,
+                'الأولى باكالوريا العلوم التجريبية – خيار فرنسية': firstBacExperimentalFrench,
+                'الأولى باكالوريا العلوم الرياضية': firstBacWithMath,
+                'الأولى باكالوريا العلوم الرياضية – خيار فرنسية': firstBacWithMath,
+                'الأولى باكالوريا العلوم التجريبية - خيار رياضة ودراسة': firstBacWithMath,
+                'الأولى باكالوريا الآداب و العلوم الإنسانية - خيار رياضة ودراسة': firstBacCommon,
+                'الأولى باكالوريا علوم الإقتصاد و التدبير': firstBacWithMath,
+                'الأولى باكالوريا علوم الإقتصاد و التدبير- خيار رياضة ودراسة': firstBacWithMath,
+                'الأولى باكالوريا العلوم و التكنولوجيات الميكانيكية': firstBacWithMath,
+                'الأولى باكالوريا العلوم و التكنولوجيات الكهربائية': firstBacWithMath,
+                'الأولى باكالوريا الفنون التطبيقية': firstBacWithMath,
+                'الثانية باكالوريا آداب': nationalArts,
+                'الثانية باكالوريا علوم إنسانية': nationalArts,
+                'الثانية باكالوريا الآداب – خ.فرنسية': nationalArts,
+                'الثانية لباكالوريا العلوم الإنسانية – خ. فرنسية': nationalArts,
+                'الثانية باكالوريا علوم الحياة و الأرض': nationalExperimental,
+                'الثانية باكالوريا العلوم الفيزيائية': nationalExperimental,
+                'الثانية باكالوريا العلوم الفزيائية': nationalExperimental,
+                'الثانية باكالوريا العلوم الزراعية': nationalExperimental,
+                'الثانية باكالوريا علوم الحياة والأرض – خ. فرنسية': nationalExperimental,
+                'الثانية باكالوريا العلوم الفيزيائية – خ. فرنسية': nationalExperimental,
+                'الثانية باكالوريا العلوم الرياضية أ': nationalMathA,
+                'الثانية باكالوريا العلوم الرياضية ب': nationalMathB,
+                'الثانية باكالوريا العلوم الرياضية ″أ″ -خ. فرنسية': nationalMathA,
+                'الثانية باكالوريا العلوم الرياضية ″ب″ - خ.فرنسية': nationalMathB,
+                'الثانية باكالوريا علوم الحياة و الأرض- خيار رياضة ودراسة': nationalExperimental,
+                'الثانية باكالوريا آداب- خيار رياضة ودراسة': nationalArts,
+                'الثانية باكالوريا علوم إنسانية- خيار رياضة ودراسة': nationalArts,
+                'الثانية باكالوريا علوم الإقتصاد': nationalEconomics,
+                'الثانية باكالوريا علوم التدبير المحاسباتي': nationalAccounting,
+                'الثانية باكالوريا العلوم و التكنولوجيات الميكانيكية': nationalTech,
+                'الثانية باكالوريا العلوم و التكنولوجيات الكهربائية': nationalTech,
+                'الثانية باكالوريا الفنون التطبيقية': nationalAppliedArts,
+                'الثانية باكالوريا علوم الإقتصاد- خيار رياضة ودراسة': nationalEconomics,
+                'التعليم الأصيل - مسلك اللغة العربية': [...firstBacAsil, ...nationalArts],
+                'التعليم الأصيل - مسلك العلوم الشرعية': [...firstBacAsil, ...nationalIslamic],
+                'البكالوريا المهنية - الهندسة الكهربائية والميكانيكية والبناء': [...firstBacWithMath, ...nationalTech],
+                'البكالوريا المهنية - الخدمات': [...firstBacCommon, ...nationalVocationalServices],
+                'البكالوريا المهنية - التجارة والمحاسبة': [...firstBacWithMath, ...nationalVocationalServices]
+            };
+
+            let allSubjectsForLevel = [];
+            let currentSubjects = [];
+            let addedLevels = [];
+            let roomsCount = 5;
+            let selectedSubjectRow = null;
+            let editingLevelIndex = null;
+            let roomsBackup = null;
+            let roomsData = {};
+
+            async function saveStateToStorage() {
+                await window.api.examConfig.save({
+                    school_year: year,
+                    config_key: 'examCenterLevels',
+                    data: addedLevels
+                });
+                await window.api.examConfig.save({
+                    school_year: year,
+                    config_key: 'examCenterRoomsCount',
+                    data: roomsCount
+                });
+            }
+            async function loadStateFromStorage() {
+                const savedLevels = await window.api.examConfig.get(year, 'examCenterLevels');
+                if (savedLevels && Array.isArray(savedLevels)) addedLevels = savedLevels;
+                const savedCount = await window.api.examConfig.get(year, 'examCenterRoomsCount');
+                if (savedCount != null) roomsCount = Number(savedCount) || 5;
+                roomsData = (await window.api.examConfig.get(year, 'examCenterRoomsData')) || {};
+            }
+            async function saveRoomsData() {
+                const rows = document.querySelectorAll('#rooms-config-tbody tr');
+                const data = {};
+                rows.forEach((row) => {
+                    const inputs = row.querySelectorAll('input');
+                    if (!inputs.length) return;
+                    const levelCell = row.querySelector('.level-cell');
+                    const roomNum = row.querySelector('.room-num');
+                    if (!levelCell || !roomNum) return;
+                    const key = `${levelCell.textContent.trim()}__${roomNum.textContent.trim()}`;
+                    data[key] = {
+                        roomName: inputs[0]?.value || '',
+                        wing: inputs[1]?.value || '',
+                        firstNum: inputs[2]?.value || '',
+                        lastNum: inputs[3]?.value || '',
+                        count: inputs[4]?.value || ''
+                    };
+                });
+                roomsData = data;
+                await window.api.examConfig.save({ school_year: year, config_key: 'examCenterRoomsData', data });
+            }
+            function restoreRoomsInputs() {
+                const rows = document.querySelectorAll('#rooms-config-tbody tr');
+                rows.forEach((row) => {
+                    const inputs = row.querySelectorAll('input');
+                    if (!inputs.length) return;
+                    const levelCell = row.querySelector('.level-cell');
+                    const roomNum = row.querySelector('.room-num');
+                    if (!levelCell || !roomNum) return;
+                    const key = `${levelCell.textContent.trim()}__${roomNum.textContent.trim()}`;
+                    const d = roomsData[key];
+                    if (!d) return;
+                    if (inputs[0]) inputs[0].value = d.roomName || '';
+                    if (inputs[1]) inputs[1].value = d.wing || '';
+                    if (inputs[2]) inputs[2].value = d.firstNum || '';
+                    if (inputs[3]) inputs[3].value = d.lastNum || '';
+                    if (inputs[4]) inputs[4].value = d.count || '';
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', async () => {
+                await migrateExamLocalStorageToDb();
+                await loadStateFromStorage();
+                initTabs();
+                if (window.ExamSections) {
+                    window.ExamSections.init({
+                        order: ['settings', 'inputs'],
+                        tabSelector: '.exam-tab-btn',
+                        tablistSelector: '.exam-tabs-header',
+                        ensureAria: true,
+                        map: {
+                            'add-exam': 'settings',
+                            periods: 'settings',
+                            readiness: 'settings',
+                            branches: 'inputs',
+                            rooms: 'inputs',
+                            supervisors: 'inputs',
+                            candidates: 'inputs',
+                            team: 'inputs'
+                        }
+                    });
+                }
+                await initExamForm();
+                initBranchesPanel();
+                initRoomsPanel();
+                initSupervisorsPanel();
+                await initEsPeriodsPanel();
+                await refreshReadinessPanel();
+            });
+
+            /* ═══ Tab Switching ═══ */
+            function initTabs() {
+                document.querySelectorAll('.exam-tab-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.exam-tab-btn').forEach((b) => {
+                            b.classList.remove('active');
+                            b.setAttribute('aria-selected', 'false');
+                        });
+                        document.querySelectorAll('.exam-tab-panel').forEach((p) => p.classList.remove('active'));
+                        btn.classList.add('active');
+                        btn.setAttribute('aria-selected', 'true');
+                        const panel = document.getElementById('panel-' + btn.dataset.tab);
+                        if (panel) panel.classList.add('active');
+                        // Refresh rooms table when switching to rooms tab
+                        if (btn.dataset.tab === 'rooms') renderRoomsTable();
+                    });
+                });
+            }
+
+            /* ═══ Exam Form (Tab 1) ═══ */
+            async function initExamForm() {
+                const monthSelect = document.getElementById('exam-month');
+                const monthFr = document.getElementById('exam-month-fr');
+                const suggestionsSelect = document.getElementById('exam-suggestions');
+                const examName = document.getElementById('exam-name');
+
+                monthSelect.addEventListener('change', () => {
+                    monthFr.textContent = frenchMonths[monthSelect.value] || '';
+                });
+                suggestionsSelect.addEventListener('change', () => {
+                    if (suggestionsSelect.value) examName.value = suggestionsSelect.value;
+                });
+
+                // Restore saved config on load
+                const savedConfig = await window.api.examConfig.get(year, 'examCenterConfig');
+                if (savedConfig) {
+                    examName.value = savedConfig.exam_name || examName.value;
+                    monthSelect.value = savedConfig.exam_month || monthSelect.value;
+                    document.getElementById('exam-month-fr').textContent = frenchMonths[monthSelect.value] || '';
+                    document.getElementById('exam-year').value =
+                        savedConfig.exam_year || document.getElementById('exam-year').value;
+                    document.getElementById('exam-session-type').value = savedConfig.session_type || '';
+                    document.getElementById('exam-type').value = savedConfig.exam_type || '';
+                    document.getElementById('supervisor-arrival-time').value =
+                        savedConfig.supervisor_arrival_time || '30';
+                    document.getElementById('candidate-arrival-time').value =
+                        savedConfig.candidate_arrival_time || '30';
+                    document.getElementById('supervision-term').value = savedConfig.supervision_term || '';
+                    document.getElementById('supervisors-per-room').value = savedConfig.supervisors_per_room || 2;
+                    document.getElementById('max-reserves').value = savedConfig.max_reserves ?? 4;
+                    document.getElementById('max-reserves-percent').value = savedConfig.max_reserves_percent ?? 20;
+                    const savedMode = savedConfig.max_reserves_mode === 'percent' ? 'percent' : 'fixed';
+                    const modeRadio = document.querySelector(`input[name="reserves-mode"][value="${savedMode}"]`);
+                    if (modeRadio) modeRadio.checked = true;
+                    applyReservesModeUI();
+                }
+
+                function applyReservesModeUI() {
+                    const mode = (document.querySelector('input[name="reserves-mode"]:checked') || {}).value || 'fixed';
+                    document.getElementById('reserves-fixed-wrap').style.display = mode === 'fixed' ? 'flex' : 'none';
+                    document.getElementById('reserves-percent-wrap').style.display =
+                        mode === 'percent' ? 'flex' : 'none';
+                }
+                document
+                    .querySelectorAll('input[name="reserves-mode"]')
+                    .forEach((r) => r.addEventListener('change', applyReservesModeUI));
+                applyReservesModeUI();
+
+                document.getElementById('exam-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const examNameVal = examName.value.trim();
+                    if (!examNameVal) {
+                        showToast('يرجى إدخال اسم الامتحان', 'warning');
+                        return;
+                    }
+                    const examYearVal = document.getElementById('exam-year').value;
+                    const monthVal = monthSelect.value;
+
+                    // Merge with existing config to preserve fields set by other pages
+                    // (e.g. expected_duty_tasks from exams-proctors)
+                    const existingConfig = (await window.api.examConfig.get(year, 'examCenterConfig')) || {};
+                    const config = Object.assign({}, existingConfig, {
+                        exam_name: examNameVal,
+                        exam_month: monthVal,
+                        exam_year: examYearVal,
+                        session_type: document.getElementById('exam-session-type').value,
+                        exam_type: document.getElementById('exam-type').value,
+                        supervisor_arrival_time: document.getElementById('supervisor-arrival-time').value,
+                        candidate_arrival_time: document.getElementById('candidate-arrival-time').value,
+                        supervision_term: document.getElementById('supervision-term').value,
+                        supervisors_per_room: Number(document.getElementById('supervisors-per-room').value),
+                        max_reserves: Number(document.getElementById('max-reserves').value),
+                        max_reserves_mode:
+                            (document.querySelector('input[name="reserves-mode"]:checked') || {}).value || 'fixed',
+                        max_reserves_percent: Number(document.getElementById('max-reserves-percent').value) || 0
+                    });
+                    await window.api.examConfig.save({
+                        school_year: year,
+                        config_key: 'examCenterConfig',
+                        data: config
+                    });
+
+                    // Save a representative record to the DB using the correct field names
+                    const payload = {
+                        title: examNameVal,
+                        section: config.session_type,
+                        subject: config.exam_type,
+                        exam_date: `${examYearVal}-${String(monthVal).padStart(2, '0')}-01`,
+                        exam_time: null,
+                        school_year: year
+                    };
+                    const handle = showToast.loading('جاري الحفظ...');
+                    try {
+                        const res = await window.api.exams.save(payload);
+                        if (!res || res.success === false) {
+                            handle.error('فشل الحفظ: ' + (res?.error || ''));
+                            return;
+                        }
+                        handle.success('تم حفظ معطيات الامتحان بنجاح');
+                        const bannerText = `${examNameVal}  |  دورة ${arabicMonths[monthVal]} ${examYearVal}`;
+                        document.getElementById('level-banner').textContent = bannerText;
+                        document.getElementById('rooms-banner').textContent =
+                            `تهيئ قاعات الامتحان  |  دورة ${arabicMonths[monthVal]} ${examYearVal}`;
+                    } catch (err) {
+                        handle.error('فشل الحفظ: ' + (err.message || ''));
+                    }
+                });
+                document.getElementById('btn-exit').addEventListener('click', () => {
+                    window.location.href = 'index.html';
+                });
+            }
+
+            /* ═══ Branches Panel (Tab 2) ═══ */
+            function initBranchesPanel() {
+                const levelSelect = document.getElementById('level-select');
+                const customInput = document.getElementById('level-custom-input');
+                const chkOfficial = document.getElementById('chk-official');
+                const chkFree = document.getElementById('chk-free');
+
+                document.querySelectorAll('input[name="level-mode"]').forEach((r) => {
+                    r.addEventListener('change', () => {
+                        levelSelect.style.display = r.value === 'list' ? '' : 'none';
+                        customInput.style.display = r.value === 'custom' ? '' : 'none';
+                    });
+                });
+                levelSelect.addEventListener('change', () => {
+                    const baseName = levelSelect.value;
+                    const saved = baseName ? findSavedLevelByBaseName(baseName) : null;
+                    if (saved && Array.isArray(saved.subjects) && saved.subjects.length) {
+                        allSubjectsForLevel = saved.subjects.map((s) => ({ ...s }));
+                        if (Number(saved.rooms) > 0) {
+                            roomsCount = Number(saved.rooms);
+                            document.getElementById('rooms-count-display').textContent = roomsCount;
+                        }
+                    } else {
+                        allSubjectsForLevel = levelSubjects[baseName] ? [...levelSubjects[baseName]] : [];
+                    }
+                    filterSubjectsByCheckbox();
+                });
+                customInput.addEventListener('blur', () => {
+                    if (editingLevelIndex !== null) return;
+                    const baseName = customInput.value.trim();
+                    if (!baseName) return;
+                    const saved = findSavedLevelByBaseName(baseName);
+                    if (saved && Array.isArray(saved.subjects) && saved.subjects.length) {
+                        allSubjectsForLevel = saved.subjects.map((s) => ({ ...s }));
+                        if (Number(saved.rooms) > 0) {
+                            roomsCount = Number(saved.rooms);
+                            document.getElementById('rooms-count-display').textContent = roomsCount;
+                        }
+                        filterSubjectsByCheckbox();
+                    }
+                });
+                chkOfficial.addEventListener('change', filterSubjectsByCheckbox);
+                chkFree.addEventListener('change', filterSubjectsByCheckbox);
+                document.getElementById('subjects-tbody').addEventListener('click', (e) => {
+                    const row = e.target.closest('tr');
+                    if (!row) return;
+                    document.querySelectorAll('#subjects-tbody tr').forEach((r) => r.classList.remove('selected'));
+                    row.classList.add('selected');
+                    selectedSubjectRow = Array.from(row.parentElement.children).indexOf(row);
+                });
+                document.getElementById('subjects-tbody').addEventListener('input', (e) => {
+                    if (!e.target.classList.contains('subject-name-input')) return;
+                    const idx = Number(e.target.dataset.index);
+                    if (!Number.isInteger(idx) || idx < 0 || idx >= currentSubjects.length) return;
+                    currentSubjects[idx].name = e.target.value.trim();
+                });
+                document.getElementById('btn-add-subject').addEventListener('click', async () => {
+                    const nameResult = await showConfirm({
+                        type: 'info',
+                        title: 'إضافة مادة',
+                        message: 'أدخل اسم المادة',
+                        requireInput: true,
+                        inputPlaceholder: 'اسم المادة',
+                        confirmText: 'التالي'
+                    });
+                    if (!nameResult.confirmed) return;
+
+                    const typeResult = await showConfirm({
+                        type: 'info',
+                        title: 'نوع المادة',
+                        message: 'أدخل نوع المادة',
+                        requireInput: true,
+                        inputPlaceholder: 'وطني / جهوي',
+                        inputValue: 'وطني',
+                        confirmText: 'إضافة'
+                    });
+                    if (!typeResult.confirmed) return;
+
+                    currentSubjects.push({
+                        name: nameResult.inputValue.trim(),
+                        type: (typeResult.inputValue || 'وطني').trim()
+                    });
+                    renderSubjects();
+                });
+                document.getElementById('btn-del-subject').addEventListener('click', async () => {
+                    if (
+                        selectedSubjectRow === null ||
+                        selectedSubjectRow < 0 ||
+                        selectedSubjectRow >= currentSubjects.length
+                    ) {
+                        showToast('يرجى اختيار مادة أولاً', 'warning');
+                        return;
+                    }
+                    const result = await showConfirm({
+                        type: 'danger',
+                        title: 'حذف مادة',
+                        message: `حذف المادة "${currentSubjects[selectedSubjectRow].name}"؟`,
+                        detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                        confirmText: 'حذف'
+                    });
+                    if (!result.confirmed) return;
+                    currentSubjects.splice(selectedSubjectRow, 1);
+                    selectedSubjectRow = null;
+                    renderSubjects();
+                });
+                document.getElementById('btn-save-level').addEventListener('click', async () => {
+                    const mode = document.querySelector('input[name="level-mode"]:checked').value;
+                    let levelName = mode === 'list' ? levelSelect.value : customInput.value.trim();
+                    if (!levelName) {
+                        showToast('يرجى اختيار أو كتابة اسم المستوى', 'warning');
+                        return;
+                    }
+                    const isOfficial = document.getElementById('chk-official').checked;
+                    const isFree = document.getElementById('chk-free').checked;
+                    currentSubjects = currentSubjects.map((s) => ({ ...s, name: (s.name || '').trim() }));
+                    if (currentSubjects.some((s) => !s.name)) {
+                        showToast('يرجى ملء أسماء جميع المواد قبل الحفظ', 'warning');
+                        return;
+                    }
+                    let suffix = '';
+                    if (isOfficial && isFree) suffix = ' - رسميون وأحرار';
+                    else if (isOfficial) suffix = ' - رسميون';
+                    else if (isFree) suffix = ' - أحرار';
+                    const fullName = levelName + suffix;
+                    const duplicateIndex = addedLevels.findIndex((l) => l.name === fullName);
+                    if (editingLevelIndex === null && duplicateIndex !== -1) {
+                        showToast('هذا المستوى مضاف مسبقاً', 'warning');
+                        return;
+                    }
+                    if (editingLevelIndex !== null && duplicateIndex !== -1 && duplicateIndex !== editingLevelIndex) {
+                        showToast('يوجد مستوى آخر بنفس الاسم', 'warning');
+                        return;
+                    }
+
+                    const levelPayload = {
+                        name: fullName,
+                        subjects: currentSubjects.map((s) => ({ ...s })),
+                        rooms: roomsCount
+                    };
+
+                    if (editingLevelIndex !== null) {
+                        addedLevels[editingLevelIndex] = levelPayload;
+                        const updatedName = fullName;
+                        editingLevelIndex = null;
+                        updateLevelEditUi();
+                        showToast(`تم تحديث المستوى: ${updatedName}`, 'success');
+                    } else {
+                        addedLevels.push(levelPayload);
+                        showToast(`تمت إضافة المستوى: ${fullName}`, 'success');
+                    }
+                    await saveStateToStorage();
+                    renderAddedLevels();
+                    document.getElementById('count-branches').textContent = addedLevels.length;
+                });
+                document.getElementById('btn-cancel-level-edit').addEventListener('click', cancelLevelEdit);
+                document.getElementById('btn-exit-level').addEventListener('click', () => {
+                    document.querySelector('[data-tab="add-exam"]').click();
+                });
+                renderSubjects();
+                document.getElementById('rooms-count-display').textContent = roomsCount;
+                renderAddedLevels();
+                document.getElementById('count-branches').textContent = addedLevels.length;
+            }
+
+            function filterSubjectsByCheckbox() {
+                currentSubjects = [...allSubjectsForLevel];
+                renderSubjects();
+            }
+
+            function renderSubjects() {
+                const tbody = document.getElementById('subjects-tbody');
+                const n = currentSubjects.length;
+                tbody.innerHTML = n
+                    ? currentSubjects
+                          .map((s, i) => {
+                              const typeCls = s.type === 'وطني' ? 'national' : 'regional';
+                              const upDisabled = i === 0 ? 'disabled' : '';
+                              const downDisabled = i === n - 1 ? 'disabled' : '';
+                              return `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td class="subject-name">
+                        <div class="subject-name-cell">
+                            <input type="text" class="form-input subject-name-input" data-index="${i}" value="${escapeHtml(s.name)}" aria-label="اسم المادة">
+                            <span class="type-badge ${typeCls}">${escapeHtml(s.type || '')}</span>
+                        </div>
+                    </td>
+                    <td>${s.duration || ''}</td>
+                    <td>
+                        <div class="order-controls">
+                            <button type="button" class="order-btn" onclick="event.stopPropagation(); moveSubject(${i}, -1)" ${upDisabled} title="نقل للأعلى" aria-label="نقل المادة للأعلى"><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
+                            <button type="button" class="order-btn" onclick="event.stopPropagation(); moveSubject(${i}, 1)" ${downDisabled} title="نقل للأسفل" aria-label="نقل المادة للأسفل"><i class="fas fa-arrow-down" aria-hidden="true"></i></button>
+                        </div>
+                    </td>
+                </tr>`;
+                          })
+                          .join('')
+                    : '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--color-text-muted)">لا توجد مواد</td></tr>';
+                document.getElementById('subjects-count-display').textContent = n;
+                selectedSubjectRow = null;
+            }
+
+            function moveSubject(i, dir) {
+                const j = i + dir;
+                if (i < 0 || i >= currentSubjects.length || j < 0 || j >= currentSubjects.length) return;
+                const movedName = (currentSubjects[i] && currentSubjects[i].name) || '';
+                [currentSubjects[i], currentSubjects[j]] = [currentSubjects[j], currentSubjects[i]];
+                if (Array.isArray(allSubjectsForLevel) && allSubjectsForLevel.length === currentSubjects.length) {
+                    [allSubjectsForLevel[i], allSubjectsForLevel[j]] = [allSubjectsForLevel[j], allSubjectsForLevel[i]];
+                }
+                renderSubjects();
+                const newRow = document.querySelectorAll('#subjects-tbody tr')[j];
+                if (newRow) {
+                    document.querySelectorAll('#subjects-tbody tr').forEach((r) => r.classList.remove('selected'));
+                    newRow.classList.add('selected');
+                    selectedSubjectRow = j;
+                }
+                if (typeof showToast === 'function' && movedName) {
+                    showToast(`تم نقل "${movedName}" ${dir < 0 ? 'للأعلى' : 'للأسفل'}`, 'info');
+                }
+            }
+            async function adjustRooms(d) {
+                roomsCount = Math.max(1, roomsCount + d);
+                document.getElementById('rooms-count-display').textContent = roomsCount;
+                await saveStateToStorage();
+            }
+            function renderAddedLevels() {
+                const g = document.getElementById('added-levels-grid');
+                g.innerHTML = addedLevels.length
+                    ? addedLevels
+                          .map(
+                              (l, i) => `
+                <div class="level-chip ${editingLevelIndex === i ? 'editing' : ''}" onclick="editLevel(${i})" title="تعديل">
+                <span>${escapeHtml(l.name)}</span>
+                <span style="font-size:11px;color:var(--color-text-muted)">(${l.subjects.length} مادة، ${l.rooms} قاعة)</span>
+                <button class="edit-level" onclick="event.stopPropagation(); editLevel(${i})" title="تعديل" aria-label="تعديل ${escapeHtml(l.name)}"><i class="fas fa-pen" aria-hidden="true"></i></button>
+                <button class="remove-level" onclick="event.stopPropagation(); removeLevel(${i})" title="حذف" aria-label="حذف ${escapeHtml(l.name)}"><i class="fas fa-times" aria-hidden="true"></i></button></div>
+            `
+                          )
+                          .join('')
+                    : '<span class="no-levels-msg">لم يتم إضافة أي مستوى بعد</span>';
+            }
+
+            function splitLevelAudience(fullName) {
+                const suffixes = [' - رسميون وأحرار', ' - رسميون', ' - أحرار'];
+                const suffix = suffixes.find((s) => fullName.endsWith(s)) || '';
+                return { baseName: suffix ? fullName.slice(0, -suffix.length) : fullName, suffix };
+            }
+
+            // Returns the most recently saved level matching the given base name.
+            // Used to make previously customized subject names + order the new default
+            // when the same level is picked again (or re-typed) by the user.
+            function findSavedLevelByBaseName(baseName) {
+                if (!baseName || !Array.isArray(addedLevels)) return null;
+                const target = String(baseName).trim();
+                for (let i = addedLevels.length - 1; i >= 0; i--) {
+                    const lvl = addedLevels[i];
+                    if (!lvl || !lvl.name) continue;
+                    // Skip the level currently being edited so it doesn't override itself.
+                    if (editingLevelIndex === i) continue;
+                    const { baseName: savedBase } = splitLevelAudience(lvl.name);
+                    if (savedBase === target) return lvl;
+                }
+                return null;
+            }
+
+            function setLevelMode(mode) {
+                document.querySelector(`input[name="level-mode"][value="${mode}"]`).checked = true;
+                document.getElementById('level-select').style.display = mode === 'list' ? '' : 'none';
+                document.getElementById('level-custom-input').style.display = mode === 'custom' ? '' : 'none';
+            }
+
+            function setAudienceFromSuffix(suffix) {
+                document.getElementById('chk-official').checked = suffix !== ' - أحرار';
+                document.getElementById('chk-free').checked = suffix !== ' - رسميون';
+            }
+
+            function updateLevelEditUi() {
+                const saveBtn = document.getElementById('btn-save-level');
+                const cancelBtn = document.getElementById('btn-cancel-level-edit');
+                if (editingLevelIndex === null) {
+                    saveBtn.innerHTML = '<i class="fas fa-save"></i> حفظ';
+                    cancelBtn.style.display = 'none';
+                } else {
+                    saveBtn.innerHTML = '<i class="fas fa-save"></i> تحديث';
+                    cancelBtn.style.display = '';
+                }
+            }
+
+            function editLevel(i) {
+                if (i < 0 || i >= addedLevels.length) return;
+                const level = addedLevels[i];
+                const { baseName, suffix } = splitLevelAudience(level.name);
+                const levelSelect = document.getElementById('level-select');
+                const customInput = document.getElementById('level-custom-input');
+                const hasListedOption = Array.from(levelSelect.options).some((opt) => opt.value === baseName);
+
+                editingLevelIndex = i;
+                setLevelMode(hasListedOption ? 'list' : 'custom');
+                if (hasListedOption) {
+                    levelSelect.value = baseName;
+                    customInput.value = '';
+                } else {
+                    levelSelect.value = '';
+                    customInput.value = baseName;
+                }
+                setAudienceFromSuffix(suffix);
+                roomsCount = Number(level.rooms) || 1;
+                allSubjectsForLevel = level.subjects.map((s) => ({ ...s }));
+                currentSubjects = level.subjects.map((s) => ({ ...s }));
+                document.getElementById('rooms-count-display').textContent = roomsCount;
+                renderSubjects();
+                updateLevelEditUi();
+                renderAddedLevels();
+                showToast(`وضع التعديل: ${level.name}`, 'info');
+            }
+
+            function cancelLevelEdit() {
+                editingLevelIndex = null;
+                updateLevelEditUi();
+                renderAddedLevels();
+                showToast('تم إلغاء وضع التعديل', 'info');
+            }
+
+            async function removeLevel(i) {
+                const result = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف مستوى',
+                    message: `حذف المستوى "${addedLevels[i].name}"؟`,
+                    detail: 'سيتم حذف إعدادات المواد والقاعات المرتبطة بهذا المستوى من هذه البرمجة.',
+                    confirmText: 'حذف'
+                });
+                if (!result.confirmed) return;
+                addedLevels.splice(i, 1);
+                if (editingLevelIndex === i) {
+                    editingLevelIndex = null;
+                    updateLevelEditUi();
+                } else if (editingLevelIndex !== null && editingLevelIndex > i) {
+                    editingLevelIndex -= 1;
+                }
+                await saveStateToStorage();
+                renderAddedLevels();
+                document.getElementById('count-branches').textContent = addedLevels.length;
+            }
+
+            /* ═══ Rooms Panel (Tab 3) ═══ */
+            function initRoomsPanel() {
+                document.getElementById('btn-save-rooms').addEventListener('click', () => {
+                    saveRoomsData();
+                    showToast('تم حفظ تهيئة القاعات بنجاح', 'success');
+                });
+                document.getElementById('btn-clear-rooms').addEventListener('click', async () => {
+                    const result = await showConfirm({
+                        type: 'warning',
+                        title: 'تفريغ البيانات',
+                        message: 'هل تريد تفريغ جميع البيانات؟',
+                        detail: 'سيتم الاحتفاظ بنسخة مؤقتة للتراجع ما دمت في نفس الصفحة.',
+                        confirmText: 'تفريغ'
+                    });
+                    if (!result.confirmed) return;
+                    roomsBackup = document.getElementById('rooms-config-tbody').innerHTML;
+                    document.querySelectorAll('#rooms-config-tbody input').forEach((inp) => {
+                        inp.value = '';
+                    });
+                    showToast('تم تفريغ البيانات', 'warning');
+                });
+                document.getElementById('btn-undo-rooms').addEventListener('click', () => {
+                    if (roomsBackup) {
+                        document.getElementById('rooms-config-tbody').innerHTML = roomsBackup;
+                        roomsBackup = null;
+                        showToast('تم التراجع', 'success');
+                    } else {
+                        showToast('لا يوجد إجراء للتراجع عنه', 'warning');
+                    }
+                });
+                renderRoomsTable();
+            }
+
+            function renderRoomsTable() {
+                const tbody = document.getElementById('rooms-config-tbody');
+                if (!addedLevels.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="7" style="padding:30px;text-align:center;color:var(--color-text-muted);font-size:14px;"><i class="fas fa-info-circle" style="margin-left:8px;"></i>يرجى إضافة المستويات أولاً من تبويب "الشعب و المستويات"</td></tr>';
+                    document.getElementById('count-rooms').textContent = '0';
+                    return;
+                }
+
+                let html = '';
+                let totalRooms = 0;
+                addedLevels.forEach((level) => {
+                    for (let r = 1; r <= level.rooms; r++) {
+                        totalRooms++;
+                        html += `
+                    <tr>
+                        <td class="level-cell">${level.name}</td>
+                        <td class="room-num">${r}</td>
+                        <td><input type="text" placeholder="اسم القاعة"></td>
+                        <td><input type="text" placeholder="الجناح"></td>
+                        <td><input type="number" placeholder="الأول" min="1"></td>
+                        <td><input type="number" placeholder="الأخير" min="1"></td>
+                        <td><input type="number" placeholder="العدد" min="0"></td>
+                    </tr>`;
+                    }
+                });
+                tbody.innerHTML = html;
+                document.getElementById('count-rooms').textContent = totalRooms;
+                restoreRoomsInputs();
+            }
+
+            /* ═══════════════════════════════════════════════════════════════════
+           Supervisors Panel (Tab 4)
+           ═══════════════════════════════════════════════════════════════════ */
+            let supervisorsList = [];
+            let supCurrentPage = 1;
+            const SUP_PAGE_SIZE = 20;
+            let supSearchTerm = '';
+            let pendingImportRows = [];
+            let supDropzoneVisible = false;
+
+function initSupervisorsPanel() {
+                loadSupervisors();
+
+                document.getElementById('btn-import-supervisors').addEventListener('click', () => {
+                    supDropzoneVisible = !supDropzoneVisible;
+                    document.getElementById('sup-dropzone').style.display = supDropzoneVisible ? '' : 'none';
+                });
+
+                document.getElementById('btn-add-supervisor').addEventListener('click', addSupervisorManual);
+                document.getElementById('btn-clear-supervisors').addEventListener('click', clearAllSupervisors);
+                document.getElementById('btn-save-supervisors').addEventListener('click', saveSupervisorsToDb);
+
+                document.getElementById('sup-search').addEventListener('input', (e) => {
+                    supSearchTerm = e.target.value.trim().toLowerCase();
+                    supCurrentPage = 1;
+                    renderSupervisorsTable();
+                });
+
+                document.getElementById('sup-prev').addEventListener('click', () => {
+                    if (supCurrentPage > 1) {
+                        supCurrentPage--;
+                        renderSupervisorsTable();
+                    }
+                });
+                document.getElementById('sup-next').addEventListener('click', () => {
+                    const filtered = getFilteredSupervisors();
+                    const totalPages = Math.max(1, Math.ceil(filtered.length / SUP_PAGE_SIZE));
+                    if (supCurrentPage < totalPages) {
+                        supCurrentPage++;
+                        renderSupervisorsTable();
+                    }
+                });
+
+                initDropZone();
+                initImportModal();
+            }
+
+            async function loadSupervisors() {
+                try {
+                    const rows = await window.api.examProctors.getAll(year);
+                    supervisorsList = (rows || []).map((r) => ({
+                        id: r.id,
+                        teacher_name: r.teacher_name || r.teacher_full_name || '',
+                        teacher_name_fr: r.teacher_name_fr || '',
+                        specialty: r.specialty || '',
+                        cin: r.cin || '',
+                        som: r.som || '',
+                        gender: r.gender || '',
+                        workplace: r.workplace || '',
+                        room: r.room || '',
+                        _saved: true
+                    }));
+                } catch {
+                    supervisorsList = [];
+                }
+                autoDistributeGroups();
+                supCurrentPage = 1;
+                renderSupervisorsTable();
+                updateSupStats();
+            }
+
+            function getFilteredSupervisors() {
+                if (!supSearchTerm) return supervisorsList;
+                return supervisorsList.filter(
+                    (s) =>
+                        (s.teacher_name || '').toLowerCase().includes(supSearchTerm) ||
+                        (s.teacher_name_fr || '').toLowerCase().includes(supSearchTerm) ||
+                        (s.cin || '').toLowerCase().includes(supSearchTerm)
+                );
+            }
+
+            function renderSupervisorsTable() {
+                const filtered = getFilteredSupervisors();
+                const total = filtered.length;
+                const totalPages = Math.max(1, Math.ceil(total / SUP_PAGE_SIZE));
+                supCurrentPage = Math.min(supCurrentPage, totalPages);
+                const start = (supCurrentPage - 1) * SUP_PAGE_SIZE;
+                const slice = filtered.slice(start, start + SUP_PAGE_SIZE);
+
+                const tbody = document.getElementById('supervisors-tbody');
+                if (!slice.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="11" style="padding:30px;text-align:center;color:var(--color-text-muted)"><i class="fas fa-info-circle" style="margin-left:6px"></i>لا يوجد مراقبون</td></tr>';
+                } else {
+                    tbody.innerHTML = slice
+                        .map((s, i) => {
+                            const idx = start + i + 1;
+                            const genderBadge =
+                                s.gender === 'M' || s.gender === 'ذكر'
+                                    ? '<span class="sup-gender-badge sup-gender-m"><i class="fas fa-mars"></i> M</span>'
+                                    : s.gender === 'F' || s.gender === 'أنثى'
+                                      ? '<span class="sup-gender-badge sup-gender-f"><i class="fas fa-venus"></i> F</span>'
+                                      : '<span class="sup-gender-badge">—</span>';
+                            const rowClass = s._saved ? '' : ' class="sup-row-unsaved"';
+                            const realIdx = supervisorsList.indexOf(s);
+                            const grp = s.group || 'G-1';
+                            return `<tr${rowClass}>
+                        <td>${idx}</td>
+                        <td class="sup-name-cell">${escapeHtml(s.teacher_name)}</td>
+                        <td>${escapeHtml(s.teacher_name_fr)}</td>
+                        <td>${escapeHtml(s.specialty)}</td>
+                        <td class="sup-cin-cell">${escapeHtml(s.cin)}</td>
+                        <td>${escapeHtml(s.som)}</td>
+                        <td>${genderBadge}</td>
+                        <td><select class="dist-me-group-select" onchange="setSupervisorGroup(${realIdx}, this.value)">
+                            <option value="G-1"${grp === 'G-1' ? ' selected' : ''}>G-1</option>
+                            <option value="G-2"${grp === 'G-2' ? ' selected' : ''}>G-2</option>
+                        </select></td>
+                        <td>${escapeHtml(s.workplace)}</td>
+                        <td>${escapeHtml(s.room)}</td>
+                        <td class="no-print"><button class="sup-del-btn" onclick="deleteSupervisor(${realIdx})" title="حذف" aria-label="حذف المراقب ${escapeHtml(s.teacher_name)}"><i class="fas fa-times" aria-hidden="true"></i></button></td>
+                    </tr>`;
+                        })
+                        .join('');
+                }
+
+                document.getElementById('sup-page-info').textContent = `${supCurrentPage} / ${totalPages}`;
+                document.getElementById('sup-page-total').textContent = `(${total} مراقب)`;
+                document.getElementById('sup-prev').disabled = supCurrentPage <= 1;
+                document.getElementById('sup-next').disabled = supCurrentPage >= totalPages;
+                document.getElementById('sup-pagination').style.display = total > 0 ? '' : 'none';
+                updateSupStats();
+            }
+
+            function autoDistributeGroups() {
+                const males = [];
+                const females = [];
+                const others = [];
+                supervisorsList.forEach((s, i) => {
+                    if (s.gender === 'M' || s.gender === 'ذكر') males.push(i);
+                    else if (s.gender === 'F' || s.gender === 'أنثى') females.push(i);
+                    else others.push(i);
+                });
+
+                let g1Count = 0;
+                let g2Count = 0;
+                const half = Math.ceil(supervisorsList.length / 2);
+
+                // Distribute males alternately between G-1 and G-2
+                males.forEach((idx, i) => {
+                    if (g1Count < half && (i % 2 === 0 || g2Count >= supervisorsList.length - half)) {
+                        supervisorsList[idx].group = 'G-1';
+                        g1Count++;
+                    } else {
+                        supervisorsList[idx].group = 'G-2';
+                        g2Count++;
+                    }
+                });
+
+                // Distribute females alternately, filling the less-populated group first
+                females.forEach((idx) => {
+                    if (g1Count <= g2Count && g1Count < half) {
+                        supervisorsList[idx].group = 'G-1';
+                        g1Count++;
+                    } else {
+                        supervisorsList[idx].group = 'G-2';
+                        g2Count++;
+                    }
+                });
+
+                // Distribute any without gender data
+                others.forEach((idx) => {
+                    if (g1Count <= g2Count) {
+                        supervisorsList[idx].group = 'G-1';
+                        g1Count++;
+                    } else {
+                        supervisorsList[idx].group = 'G-2';
+                        g2Count++;
+                    }
+                });
+            }
+
+            function setSupervisorGroup(idx, val) {
+                if (idx >= 0 && idx < supervisorsList.length) {
+                    supervisorsList[idx].group = val;
+                    updateSupStats();
+                }
+            }
+
+            function updateSupStats() {
+                const total = supervisorsList.length;
+                const males = supervisorsList.filter((s) => s.gender === 'M' || s.gender === 'ذكر').length;
+                const females = supervisorsList.filter((s) => s.gender === 'F' || s.gender === 'أنثى').length;
+                const g1 = supervisorsList.filter((s) => s.group === 'G-1').length;
+                const g2 = supervisorsList.filter((s) => s.group === 'G-2').length;
+                document.getElementById('sup-total-count').textContent = total;
+                document.getElementById('sup-males-count').textContent = males;
+                document.getElementById('sup-females-count').textContent = females;
+                document.getElementById('sup-g1-count').textContent = g1;
+                document.getElementById('sup-g2-count').textContent = g2;
+                document.getElementById('count-supervisors').textContent = total;
+            }
+
+            async function addSupervisorManual() {
+                const nameResult = await showConfirm({
+                    type: 'info',
+                    title: 'إضافة مراقب',
+                    message: 'الاسم الكامل بالعربية',
+                    requireInput: true,
+                    inputPlaceholder: 'أدخل اسم المراقب',
+                    confirmText: 'التالي'
+                });
+                if (!nameResult.confirmed || !nameResult.inputValue.trim()) return;
+
+                const cinResult = await showConfirm({
+                    type: 'info',
+                    title: 'رقم CIN',
+                    message: 'أدخل رقم البطاقة الوطنية',
+                    requireInput: true,
+                    inputPlaceholder: 'CIN',
+                    confirmText: 'التالي'
+                });
+                if (!cinResult.confirmed) return;
+
+                const genderResult = await showConfirm({
+                    type: 'info',
+                    title: 'الجنس',
+                    message: 'اختر الجنس: M (ذكر) أو F (أنثى)',
+                    requireInput: true,
+                    inputPlaceholder: 'M أو F',
+                    inputValue: 'M',
+                    confirmText: 'إضافة'
+                });
+                if (!genderResult.confirmed) return;
+
+                const newGender = (genderResult.inputValue || 'M').trim().toUpperCase();
+                supervisorsList.push({
+                    teacher_name: nameResult.inputValue.trim(),
+                    teacher_name_fr: '',
+                    specialty: '',
+                    cin: (cinResult.inputValue || '').trim(),
+                    som: '',
+                    gender: newGender,
+                    group:
+                        supervisorsList.filter((s) => s.group === 'G-1').length <=
+                        supervisorsList.filter((s) => s.group === 'G-2').length
+                            ? 'G-1'
+                            : 'G-2',
+                    workplace: '',
+                    room: '',
+                    _saved: false
+                });
+                supCurrentPage = Math.ceil(supervisorsList.length / SUP_PAGE_SIZE);
+                renderSupervisorsTable();
+                showToast('تمت إضافة المراقب — اضغط "حفظ" لتثبيت البيانات', 'info');
+            }
+
+            async function deleteSupervisor(idx) {
+                if (idx < 0 || idx >= supervisorsList.length) return;
+                const s = supervisorsList[idx];
+                const r = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف مراقب',
+                    message: `حذف "${s.teacher_name}"؟`,
+                    detail: 'لا يمكن التراجع عن هذا الإجراء.',
+                    confirmText: 'حذف'
+                });
+                if (!r.confirmed) return;
+                if (s.id) {
+                    const handle = showToast.loading('جاري الحذف...');
+                    try {
+                        await window.api.examProctors.delete(s.id);
+                        handle.success('تم الحذف');
+                    } catch (e) {
+                        handle.error('فشل الحذف: ' + e.message);
+                        return;
+                    }
+                }
+                supervisorsList.splice(idx, 1);
+                renderSupervisorsTable();
+            }
+
+            async function clearAllSupervisors() {
+                if (!supervisorsList.length) {
+                    showToast('لا يوجد مراقبون للحذف', 'warning');
+                    return;
+                }
+                const r = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف جميع المراقبين',
+                    message: `حذف ${supervisorsList.length} مراقب من القائمة؟`,
+                    detail: 'سيتم حذف جميع السجلات نهائياً.',
+                    confirmText: 'حذف الكل'
+                });
+                if (!r.confirmed) return;
+                const handle = showToast.loading('جاري الحذف...');
+                try {
+                    await window.api.examProctors.deleteAll(year);
+                    supervisorsList = [];
+                    supCurrentPage = 1;
+                    renderSupervisorsTable();
+                    handle.success('تم حذف جميع المراقبين');
+                } catch (e) {
+                    handle.error('فشل الحذف: ' + e.message);
+                }
+            }
+
+            async function saveSupervisorsToDb() {
+                const unsaved = supervisorsList.filter((s) => !s._saved);
+                if (!unsaved.length) {
+                    showToast('لا توجد بيانات جديدة للحفظ', 'info');
+                    return;
+                }
+                const handle = showToast.loading(`جاري حفظ ${unsaved.length} مراقب...`);
+                try {
+                    const res = await window.api.examProctors.bulkImport({
+                        school_year: year,
+                        rows: unsaved.map((s) => ({
+                            teacher_name: s.teacher_name,
+                            teacher_name_fr: s.teacher_name_fr,
+                            cin: s.cin,
+                            som: s.som,
+                            gender: s.gender,
+                            specialty: s.specialty,
+                            workplace: s.workplace,
+                            room: s.room
+                        }))
+                    });
+                    if (res && res.success) {
+                        handle.success(`تم حفظ ${res.inserted} مراقب بنجاح`);
+                        await loadSupervisors();
+                    } else {
+                        handle.error('فشل الحفظ: ' + (res?.error || ''));
+                    }
+                } catch (e) {
+                    handle.error('فشل الحفظ: ' + e.message);
+                }
+            }
+
+            /* ═══ Excel Drop Zone ═══ */
+            function initDropZone() {
+                const dropzone = document.getElementById('sup-dropzone');
+                const fileInput = document.getElementById('sup-file-input');
+
+                ['dragenter', 'dragover'].forEach((evt) => {
+                    dropzone.addEventListener(evt, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropzone.classList.add('sup-dropzone-active');
+                    });
+                });
+                ['dragleave', 'drop'].forEach((evt) => {
+                    dropzone.addEventListener(evt, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropzone.classList.remove('sup-dropzone-active');
+                    });
+                });
+                dropzone.addEventListener('drop', (e) => {
+                    if (e.dataTransfer.files.length) handleExcelFile(e.dataTransfer.files[0]);
+                });
+                fileInput.addEventListener('change', () => {
+                    if (fileInput.files.length) handleExcelFile(fileInput.files[0]);
+                    fileInput.value = '';
+                });
+            }
+
+            async function loadXLSX() {
+                if (window.XLSX) return window.XLSX;
+                return new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'vendor/xlsx.full.min.js';
+                    s.onload = () => resolve(window.XLSX);
+                    s.onerror = () => reject(new Error('فشل تحميل مكتبة XLSX'));
+                    document.head.appendChild(s);
+                });
+            }
+
+            async function handleExcelFile(file) {
+                if (!file.name.match(/\.xlsx?$/i)) {
+                    showToast('يرجى اختيار ملف Excel (.xlsx أو .xls)', 'warning');
+                    return;
+                }
+                const handle = showToast.loading('جاري قراءة الملف...');
+                try {
+                    const XLSX = await loadXLSX();
+                    const buf = await file.arrayBuffer();
+                    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
+                    if (raw.length < 2) {
+                        handle.error('الملف فارغ أو لا يحتوي على بيانات كافية');
+                        return;
+                    }
+                    handle.success(`تم قراءة ${raw.length - 1} صف`);
+                    showImportModal(raw, file.name);
+                } catch (e) {
+                    handle.error('فشل قراءة الملف: ' + e.message);
+                }
+            }
+
+            /* ═══ Import Modal ═══ */
+            const FIELD_LABELS = {
+                teacher_name: 'الاسم بالعربية',
+                teacher_name_fr: 'الاسم بالفرنسية',
+                specialty: 'التخصص',
+                cin: 'CIN',
+                som: 'SOM',
+                gender: 'الجنس',
+                workplace: 'مقر العمل',
+                room: 'القاعة'
+            };
+
+            const AUTO_MAP_HINTS = {
+                teacher_name: ['الاسم', 'اسم', 'المراقب', 'الكامل', 'بالعربية', 'nom arabe', 'الإسم'],
+                teacher_name_fr: [
+                    'فرنسي',
+                    'nom',
+                    'français',
+                    'prenom',
+                    'prénom',
+                    'french',
+                    'الفرنسية',
+                    'nom et prénom'
+                ],
+                specialty: ['تخصص', 'مادة', 'spécialité', 'specialite', 'matiere', 'matière'],
+                cin: ['cin', 'بطاقة', 'هوية', 'carte', 'identité'],
+                som: ['som', 'رقم', 'matricule', 'التأجير', 'مالية', 'ppr'],
+                gender: ['جنس', 'genre', 'sexe', 'gender'],
+                workplace: [
+                    'مقر',
+                    'العمل',
+                    'المؤسسة',
+                    'الأصلية',
+                    'établissement',
+                    'etab',
+                    'lieu',
+                    'workplace',
+                    'school'
+                ],
+                room: ['قاعة', 'salle', 'room', 'local']
+            };
+
+            function normalizeImportText(value) {
+                return String(value ?? '')
+                    .replace(/[\u064B-\u065F\u0670]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .toLowerCase()
+                    .trim();
+            }
+
+            function rowHasValue(row) {
+                return Array.isArray(row) && row.some((c) => c !== null && c !== undefined && String(c).trim());
+            }
+
+            function autoDetectMapping(headers) {
+                const mapping = {};
+                const used = new Set();
+                for (const [field, hints] of Object.entries(AUTO_MAP_HINTS)) {
+                    for (let ci = 0; ci < headers.length; ci++) {
+                        if (used.has(ci)) continue;
+                        const h = normalizeImportText(headers[ci]);
+                        if (hints.some((hint) => h.includes(normalizeImportText(hint)))) {
+                            mapping[field] = ci;
+                            used.add(ci);
+                            break;
+                        }
+                    }
+                }
+                return mapping;
+            }
+
+            function scoreHeaderRow(row) {
+                if (!rowHasValue(row)) return -1;
+                const headers = row.map((h) => String(h || '').trim());
+                const mapping = autoDetectMapping(headers);
+                const nonEmptyCount = headers.filter(Boolean).length;
+                const requiredBonus = mapping.teacher_name !== undefined ? 8 : 0;
+                return Object.keys(mapping).length * 10 + requiredBonus + Math.min(nonEmptyCount, 8);
+            }
+
+            function detectHeaderRow(rawData) {
+                const maxRowsToScan = Math.min(rawData.length, 40);
+                let bestIndex = 0;
+                let bestScore = scoreHeaderRow(rawData[0] || []);
+
+                for (let ri = 1; ri < maxRowsToScan; ri++) {
+                    const score = scoreHeaderRow(rawData[ri]);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestIndex = ri;
+                    }
+                }
+
+                return { index: bestIndex, score: bestScore };
+            }
+
+            function showImportModal(rawData, fileName) {
+                const headerInfo = detectHeaderRow(rawData);
+                const headers = (rawData[headerInfo.index] || []).map((h) => String(h || '').trim());
+                const dataRows = rawData.slice(headerInfo.index + 1).filter(rowHasValue);
+                const mapping = autoDetectMapping(headers);
+
+                document.getElementById('sup-modal-summary').innerHTML = `
+                <div class="sup-summary-chips">
+                    <span class="sup-summary-chip"><i class="fas fa-file-excel"></i> ${escapeHtml(fileName)}</span>
+                    <span class="sup-summary-chip"><i class="fas fa-list-ol"></i> ${dataRows.length} صف</span>
+                    <span class="sup-summary-chip"><i class="fas fa-columns"></i> ${headers.length} عمود</span>
+                </div>
+            `;
+
+                const mappingGrid = document.getElementById('sup-mapping-grid');
+                mappingGrid.innerHTML = Object.entries(FIELD_LABELS)
+                    .map(([field, label]) => {
+                        const opts = headers
+                            .map(
+                                (h, i) =>
+                                    `<option value="${i}" ${mapping[field] === i ? 'selected' : ''}>${escapeHtml(h)}</option>`
+                            )
+                            .join('');
+                        return `<div class="sup-mapping-item">
+                    <label>${label}</label>
+                    <select data-field="${field}"><option value="">— تجاهل —</option>${opts}</select>
+                </div>`;
+                    })
+                    .join('');
+
+                const previewHead = document.getElementById('sup-preview-thead');
+                const previewBody = document.getElementById('sup-preview-tbody');
+                previewHead.innerHTML = '<tr>' + headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('') + '</tr>';
+                previewBody.innerHTML = dataRows
+                    .slice(0, 5)
+                    .map(
+                        (row) =>
+                            '<tr>' + headers.map((_, ci) => `<td>${escapeHtml(row[ci] ?? '')}</td>`).join('') + '</tr>'
+                    )
+                    .join('');
+
+                pendingImportRows = dataRows;
+                document.getElementById('sup-import-modal').style.display = '';
+            }
+
+            function initImportModal() {
+                document.getElementById('sup-modal-close').addEventListener('click', closeImportModal);
+                document.getElementById('sup-modal-cancel').addEventListener('click', closeImportModal);
+                document.getElementById('sup-modal-confirm').addEventListener('click', confirmImport);
+
+                document.getElementById('sup-import-modal').addEventListener('click', (e) => {
+                    if (e.target.id === 'sup-import-modal') closeImportModal();
+                });
+            }
+
+            function closeImportModal() {
+                document.getElementById('sup-import-modal').style.display = 'none';
+                pendingImportRows = [];
+            }
+
+            async function confirmImport() {
+                const selects = document.querySelectorAll('#sup-mapping-grid select');
+                const mapping = {};
+                selects.forEach((sel) => {
+                    if (sel.value !== '') mapping[sel.dataset.field] = Number(sel.value);
+                });
+
+                if (mapping.teacher_name === undefined) {
+                    showToast('يرجى تحديد عمود "الاسم بالعربية" على الأقل', 'warning');
+                    return;
+                }
+
+                const newRows = pendingImportRows
+                    .map((row) => {
+                        const obj = { _saved: false };
+                        for (const [field, colIdx] of Object.entries(mapping)) {
+                            obj[field] = String(row[colIdx] ?? '').trim();
+                        }
+                        if (!obj.teacher_name) obj.teacher_name = '';
+                        return obj;
+                    })
+                    .filter((r) => r.teacher_name);
+
+                if (!newRows.length) {
+                    showToast('لا توجد صفوف صالحة للاستيراد', 'warning');
+                    return;
+                }
+
+                const confirmResult = await showConfirm({
+                    type: 'info',
+                    title: 'تأكيد الاستيراد',
+                    message: `سيتم إضافة ${newRows.length} مراقب إلى القائمة`,
+                    detail: 'اضغط "حفظ" بعد المعاينة لتثبيت البيانات في قاعدة البيانات.',
+                    confirmText: 'تأكيد'
+                });
+                if (!confirmResult.confirmed) return;
+
+                supervisorsList.push(...newRows);
+                autoDistributeGroups();
+                closeImportModal();
+                supDropzoneVisible = false;
+                document.getElementById('sup-dropzone').style.display = 'none';
+                supCurrentPage = 1;
+                renderSupervisorsTable();
+                showToast(`تمت إضافة ${newRows.length} مراقب — اضغط "حفظ" لتثبيت البيانات`, 'success');
+            }
+
+            /* ═══ Periods Panel (Tab 7) ═══ */
+            let esPeriodsList = [];
+            let esPeriodEditIdx = -1;
+
+            async function initEsPeriodsPanel() {
+                const readers = new ExamDataReaders(window.api, year);
+                esPeriodsList = await readers.getPeriods();
+                renderEsPeriodsTable();
+
+                document.getElementById('es-btn-period-save').addEventListener('click', saveEsPeriod);
+                document.getElementById('es-btn-period-cancel').addEventListener('click', () => {
+                    esPeriodEditIdx = -1;
+                    resetEsPeriodForm();
+                });
+                document.getElementById('es-btn-periods-clear-all').addEventListener('click', clearAllEsPeriods);
+            }
+
+            function resetEsPeriodForm() {
+                document.getElementById('es-period-name').value = '';
+                document.getElementById('es-period-date-from').value = '';
+                document.getElementById('es-period-date-to').value = '';
+                esPeriodEditIdx = -1;
+                document.getElementById('es-btn-period-cancel').style.display = 'none';
+                document.getElementById('es-btn-period-save').innerHTML = '<i class="fas fa-save"></i> حفظ';
+            }
+
+            async function saveEsPeriod() {
+                const name = document.getElementById('es-period-name').value.trim();
+                const dateFrom = document.getElementById('es-period-date-from').value;
+                const dateTo = document.getElementById('es-period-date-to').value;
+
+                if (!name) {
+                    showToast('يرجى إدخال اسم الفترة', 'warning');
+                    return;
+                }
+                if (!dateFrom || !dateTo) {
+                    showToast('يرجى تحديد تاريخ البداية والنهاية', 'warning');
+                    return;
+                }
+                if (dateFrom > dateTo) {
+                    showToast('تاريخ البداية يجب أن يكون قبل تاريخ النهاية', 'warning');
+                    return;
+                }
+
+                const entry = { name, date_from: dateFrom, date_to: dateTo };
+
+                if (esPeriodEditIdx >= 0) {
+                    esPeriodsList[esPeriodEditIdx] = entry;
+                    showToast('تم تعديل الفترة بنجاح', 'success');
+                } else {
+                    esPeriodsList.push(entry);
+                    showToast('تمت إضافة الفترة بنجاح', 'success');
+                }
+
+                await window.api.examConfig.save({
+                    school_year: year,
+                    config_key: 'examPeriodsData',
+                    data: esPeriodsList
+                });
+                esPeriodEditIdx = -1;
+                resetEsPeriodForm();
+                renderEsPeriodsTable();
+                await refreshReadinessPanel();
+            }
+
+            function editEsPeriod(idx) {
+                const p = esPeriodsList[idx];
+                if (!p) return;
+                document.getElementById('es-period-name').value = p.name || '';
+                document.getElementById('es-period-date-from').value = p.date_from || '';
+                document.getElementById('es-period-date-to').value = p.date_to || '';
+                esPeriodEditIdx = idx;
+                document.getElementById('es-btn-period-cancel').style.display = '';
+                document.getElementById('es-btn-period-save').innerHTML = '<i class="fas fa-check"></i> تحديث';
+                document.getElementById('es-period-name').focus();
+            }
+
+            async function deleteEsPeriod(idx) {
+                const r = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف الفترة',
+                    message: 'هل تريد حذف "' + (esPeriodsList[idx]?.name || '') + '"؟',
+                    confirmText: 'حذف'
+                });
+                if (!r.confirmed) return;
+                esPeriodsList.splice(idx, 1);
+                await window.api.examConfig.save({
+                    school_year: year,
+                    config_key: 'examPeriodsData',
+                    data: esPeriodsList
+                });
+                renderEsPeriodsTable();
+                await refreshReadinessPanel();
+                showToast('تم حذف الفترة', 'success');
+            }
+
+            async function clearAllEsPeriods() {
+                if (!esPeriodsList.length) {
+                    showToast('لا توجد فترات للحذف', 'info');
+                    return;
+                }
+                const r = await showConfirm({
+                    type: 'danger',
+                    title: 'حذف جميع الفترات',
+                    message: 'هل تريد حذف جميع الفترات؟',
+                    confirmText: 'حذف الكل'
+                });
+                if (!r.confirmed) return;
+                esPeriodsList = [];
+                await window.api.examConfig.delete({ school_year: year, config_key: 'examPeriodsData' });
+                renderEsPeriodsTable();
+                await refreshReadinessPanel();
+                showToast('تم حذف جميع الفترات', 'success');
+            }
+
+            // CH4: Moroccan long date via formatDateAr(s, 'moroccan') from js/shared/date-utils.js
+            function formatDateAr(dateStr) {
+                return typeof window.formatDateAr === 'function'
+                    ? window.formatDateAr(dateStr, 'moroccan')
+                    : dateStr || '';
+            }
+
+            function renderEsPeriodsTable() {
+                const tbody = document.getElementById('es-periods-tbody');
+                tbody.textContent = '';
+
+                if (!esPeriodsList.length) {
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+                    td.colSpan = 5;
+                    td.style.cssText = 'padding:30px;text-align:center;color:var(--color-text-muted)';
+                    td.innerHTML = '<i class="fas fa-info-circle" style="margin-left:6px"></i>لم يتم تحديد أي فترة بعد';
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                } else {
+                    esPeriodsList.forEach((p, i) => {
+                        const tr = document.createElement('tr');
+                        const tdNum = document.createElement('td');
+                        tdNum.textContent = i + 1;
+                        tr.appendChild(tdNum);
+
+                        const tdName = document.createElement('td');
+                        tdName.style.fontWeight = '600';
+                        tdName.textContent = p.name;
+                        tr.appendChild(tdName);
+
+                        const tdFrom = document.createElement('td');
+                        tdFrom.textContent = formatDateAr(p.date_from);
+                        tr.appendChild(tdFrom);
+
+                        const tdTo = document.createElement('td');
+                        tdTo.textContent = formatDateAr(p.date_to);
+                        tr.appendChild(tdTo);
+
+                        const tdActions = document.createElement('td');
+                        tdActions.className = 'no-print';
+                        tdActions.style.cssText = 'display:flex;gap:4px;justify-content:center';
+
+                        const editBtn = document.createElement('button');
+                        editBtn.className = 'sup-del-btn';
+                        editBtn.title = 'تعديل';
+                        editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                        editBtn.addEventListener('click', () => editEsPeriod(i));
+
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'sup-del-btn';
+                        delBtn.title = 'حذف';
+                        delBtn.innerHTML = '<i class="fas fa-times"></i>';
+                        delBtn.addEventListener('click', () => deleteEsPeriod(i));
+
+                        tdActions.appendChild(editBtn);
+                        tdActions.appendChild(delBtn);
+                        tr.appendChild(tdActions);
+                        tbody.appendChild(tr);
+                    });
+                }
+                document.getElementById('es-period-count-badge').textContent = esPeriodsList.length;
+                document.getElementById('count-periods').textContent = esPeriodsList.length;
+            }
+
+            /* ═══ Readiness Panel (Tab 8) ═══ */
+            async function refreshReadinessPanel() {
+                const readers = new ExamDataReaders(window.api, year);
+                const status = await readers.getReadinessStatus();
+
+                document.getElementById('es-ready-levels-val').textContent = status.levelsCount;
+                document.getElementById('es-ready-rooms-val').textContent = status.roomsCount;
+                document.getElementById('es-ready-periods-val').textContent = status.periodsCount;
+                document.getElementById('es-ready-sessions-val').textContent = status.sessionsCount;
+                document.getElementById('es-ready-guard-val').textContent = status.guardTasks;
+                document.getElementById('es-ready-ppr-val').textContent = status.proctorsPerRoom;
+
+                setReadinessCardState('es-ready-levels', status.hasLevels);
+                setReadinessCardState('es-ready-rooms', status.hasRooms);
+                setReadinessCardState('es-ready-periods', status.hasPeriods);
+                setReadinessCardState('es-ready-sessions', status.hasSchedule);
+                setReadinessCardState('es-ready-guard', status.guardTasks > 0);
+                setReadinessCardState('es-ready-proctors-per-room', status.hasProctorsPerRoom);
+
+                const issuesDiv = document.getElementById('es-readiness-issues');
+                if (status.issues.length) {
+                    issuesDiv.innerHTML =
+                        '<div style="background:var(--color-warning-bg,#fff8e1);border:1px solid var(--color-warning-border,#ffe082);border-radius:8px;padding:12px 16px">' +
+                        '<div style="font-weight:600;margin-bottom:6px;color:var(--color-warning-text,#e65100)"><i class="fas fa-exclamation-triangle"></i> نواقص يجب إكمالها:</div>' +
+                        '<ul style="margin:0;padding-right:20px;font-size:14px">' +
+                        status.issues.map((i) => '<li>' + i + '</li>').join('') +
+                        '</ul></div>';
+                } else {
+                    issuesDiv.innerHTML = '';
+                }
+
+                const statusDiv = document.getElementById('es-readiness-status');
+                if (status.ready) {
+                    statusDiv.style.background = 'var(--color-success-bg, #e8f5e9)';
+                    statusDiv.style.color = 'var(--color-success-text, #2e7d32)';
+                    statusDiv.style.border = '1px solid var(--color-success-border, #a5d6a7)';
+                    statusDiv.innerHTML =
+                        '<i class="fas fa-check-circle"></i> البرمجة مكتملة — يمكن الانتقال إلى التوزيع';
+                } else {
+                    statusDiv.style.background = 'var(--color-warning-bg, #fff8e1)';
+                    statusDiv.style.color = 'var(--color-warning-text, #e65100)';
+                    statusDiv.style.border = '1px solid var(--color-warning-border, #ffe082)';
+                    statusDiv.innerHTML =
+                        '<i class="fas fa-exclamation-triangle"></i> البرمجة غير مكتملة — أكمل النواقص أعلاه';
+                }
+
+                document.getElementById('es-btn-goto-proctors').addEventListener('click', () => {
+                    window.location.href = 'exams-proctors.html';
+                });
+            }
+
+            function setReadinessCardState(id, ok) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.style.borderColor = ok ? 'var(--color-success-border, #a5d6a7)' : 'var(--color-border, #e0e0e0)';
+                el.style.background = ok ? 'var(--color-success-bg, #e8f5e9)' : '';
+                const icon = el.querySelector('i');
+                if (icon)
+                    icon.style.color = ok ? 'var(--color-success-text, #2e7d32)' : 'var(--color-text-muted, #999)';
+            }
+        

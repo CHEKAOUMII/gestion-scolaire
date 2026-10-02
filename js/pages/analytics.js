@@ -1,16 +1,17 @@
 const year = getSchoolYear();
-const CHART_JS_CDN = 'vendor/chart.min.js';
+// CH6: Chart loader via window.ensureChartJsLoaded (js/shared/chart-theme.js)
 let detailChart = null;
 let barChart = null;
 let donutChart = null;
 let zeroSectionsChart = null;
-let chartLoaderPromise = null;
 let analyzeInProgress = false;
 let allSections = [];
 let allGradesCache = [];
 let sectionToLevel = {};
 let _filterManager = null;
-const gradeBands = [
+let activeRuleSetPayload = null;
+let activeCycleCode = null;
+let gradeBands = [
     { key: 'excellent', label: 'ممتاز', min: 16, max: 20, color: '#2FB36D' },
     { key: 'veryGood', label: 'حسن جدا', min: 14, max: 16, color: '#3C95D0' },
     { key: 'good', label: 'حسن', min: 12, max: 14, color: '#F0C20E' },
@@ -18,12 +19,71 @@ const gradeBands = [
     { key: 'weak', label: 'ضعيف', min: 0, max: 10, color: '#E74C3C' }
 ];
 
+// Stage-threshold mention colors are page styling (they differ per page);
+// only the (key, min, label) ladder comes from the shared module.
+const ANALYTICS_BAND_COLORS = {
+    excellent: '#2FB36D',
+    veryGood: '#3C95D0',
+    good: '#F0C20E',
+    acceptable: '#E67F22',
+    weak: '#E74C3C',
+};
+
+// Stage-thresholds SSOT (Slice 2): rebuild the distribution ladder from the
+// shared module for the active stage. Unknown stage or missing module keeps
+// the legacy literal above; a known stage without a mention source empties
+// the ladder (fail closed) and the caller toasts the shared notice.
+function refreshGradeBandsForStage() {
+    var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+    if (!T || !activeCycleCode) return true; // legacy literal stays
+    var res = T.resolveMentionBands(activeCycleCode);
+    if (res && res.ok) {
+        gradeBands = res.bands.map(function (b, i) {
+            return {
+                key: b.key,
+                min: b.min,
+                max: i === 0 ? 20 : res.bands[i - 1].min - 0.01,
+                label: b.label,
+                color: ANALYTICS_BAND_COLORS[b.key]
+            };
+        });
+        return true;
+    }
+    gradeBands = [];
+    return false;
+}
+
+async function getActiveCycleCode() {
+    if (!window.api?.cycles?.getActive) return null;
+    try {
+        const response = await window.api.cycles.getActive();
+        return response?.success ? response.context?.cycleCode || response.cycle?.cycle_code || null : null;
+    } catch (err) {
+        console.warn('[analytics] active cycle unavailable:', err);
+        return null;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        activeCycleCode = await getActiveCycleCode();
+        refreshGradeBandsForStage();
+        if (gradeBands.length === 0) {
+            showToast(EducationStageThresholds.MENTION_UNAVAILABLE_NOTICE, 'warning');
+        }
+        try {
+            activeRuleSetPayload =
+                typeof ensureStageRuleSet === 'function' ? await ensureStageRuleSet(year, activeCycleCode) : null;
+        } catch (err) {
+            console.warn('[analytics] stage rule set unavailable:', err);
+        }
         await loadFilters();
 
         const analyzeBtn = document.getElementById('analyze-btn');
         if (analyzeBtn) analyzeBtn.addEventListener('click', analyze);
+
+        // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+        (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
 
         const levelSelect = document.getElementById('level-select');
         const classSelect = document.getElementById('class-select');
@@ -64,33 +124,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('تعذر تحميل صفحة التحليل', 'error');
     }
 });
-
-function ensureChartJsLoaded() {
-    if (window.Chart) return Promise.resolve(window.Chart);
-    if (chartLoaderPromise) return chartLoaderPromise;
-
-    chartLoaderPromise = new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[data-dynamic-src="${CHART_JS_CDN}"]`);
-        if (existing) {
-            existing.addEventListener('load', () => resolve(window.Chart), { once: true });
-            existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), {
-                once: true
-            });
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = CHART_JS_CDN;
-        script.async = true;
-        script.defer = true;
-        script.dataset.dynamicSrc = CHART_JS_CDN;
-        script.onload = () => resolve(window.Chart);
-        script.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
-        document.head.appendChild(script);
-    });
-
-    return chartLoaderPromise;
-}
 
 function destroyAnalysisCharts() {
     if (detailChart) detailChart.destroy();
@@ -165,13 +198,10 @@ function tooltipLabelWithPercent(context, total) {
     return `${label}: ${value} (${pct.toFixed(1)}%)`;
 }
 
-// Level normalization: delegates to FilterManager's cached levelsMapping
+// Level normalization: delegates to FilterManager, else shared resolveLevelName (utils.js)
 function _getLocalLevelName(section) {
     if (_filterManager) return _filterManager._getLocalLevelName(section);
-    const s = String(section || '').trim();
-    if (!s) return '';
-    if (sectionToLevel[s]) return sectionToLevel[s];
-    return getLevelNameFromSection(s);
+    return resolveLevelName(section, sectionToLevel);
 }
 
 function renderSelectOptions(select, options, placeholder, previousValue = '') {
@@ -457,9 +487,19 @@ function calculateStudentGeneralAverage(grades, studentId, section) {
     });
     const sectionName = section || (studentGrades[0] && studentGrades[0].section) || '';
     const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
-    return typeof computeWeightedGeneralAverage === 'function'
-        ? computeWeightedGeneralAverage(subjectAverages, branch)
-        : avg(subjectAverages.map((s) => s.avg));
+    const levelInfo =
+        typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, sectionName)
+                    : { code: null, label: null };
+    const resolution = computeWeightedGeneralAverageResult(subjectAverages, branch, {
+        schoolYear: year,
+        streamCode: branch,
+        cycleCode: activeCycleCode,
+        levelCode: levelInfo.code,
+        levelLabel: levelInfo.label,
+        ruleSet: activeRuleSetPayload || undefined
+    });
+    return resolution.ok ? resolution.value : null;
 }
 
 function normalizeLoose(value) {
@@ -730,10 +770,20 @@ async function analyze() {
             });
             const sectionName = className || bySubject.values().next().value?.grades[0]?.section || '';
             const branch = typeof detectBranch === 'function' ? detectBranch(sectionName) : null;
-            return typeof computeWeightedGeneralAverage === 'function'
-                ? computeWeightedGeneralAverage(studentSubjectAvgs, branch)
-                : avg(studentSubjectAvgs.map((s) => s.avg));
-        });
+            const levelInfo =
+                typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, sectionName)
+                    : { code: null, label: null };
+            const resolution = computeWeightedGeneralAverageResult(studentSubjectAvgs, branch, {
+                schoolYear: year,
+                streamCode: branch,
+                cycleCode: activeCycleCode,
+                levelCode: levelInfo.code,
+                levelLabel: levelInfo.label,
+                ruleSet: activeRuleSetPayload || undefined
+            });
+            return resolution.ok ? resolution.value : null;
+        }).filter((value) => value != null);
         const generalAvg = avg(studentGeneralAverages);
 
         const distribution = gradeBands.map((band, i) => ({

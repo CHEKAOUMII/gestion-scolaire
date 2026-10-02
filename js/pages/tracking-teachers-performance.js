@@ -5,9 +5,8 @@
    ═══════════════════════════════════════════════════════ */
 
 const DEFAULT_YEAR = getSchoolYear();
-const CHART_JS_CDN = 'vendor/chart.min.js';
+// CH6: Chart loader via window.ensureChartJsLoaded (js/shared/chart-theme.js)
 
-let chartLoaderPromise = null;
 let allGradesCache = [];
 let allAbsencesCache = [];
 let sectionToLevel = {};
@@ -19,8 +18,13 @@ const charts = {};
 let currentSubjectFilter = '';
 let _compRecordsCache = [];
 let _supportSessionsCache = [];
+let _teacherTagsCache = [];
+let _teachersDirCache = [];
 let _filterManager = null;
 const BASE_PAGE_TITLE = 'تتبع أداء الأستاذ(ة)';
+
+// Tag keys that count as "inspection visits" (everything else = activities/participations).
+const INSPECTION_TAG_KEYS = new Set(['inspection']);
 
 const gradeBands = [
     { label: 'ممتاز (16-20)', min: 16, max: 20, color: 'rgba(47, 179, 109, 0.85)' },
@@ -34,7 +38,6 @@ const gradeBands = [
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         bindEvents();
-        overridePrintPreviewHandler();
         await loadInitialData();
         await runAnalysis();
     } catch (error) {
@@ -80,11 +83,11 @@ function bindEvents() {
     // Export
     if (exportBtn) exportBtn.addEventListener('click', exportReport);
 
-    // Print preview (shared system)
+    // Print preview (shared system) — uses the dynamic page title (with teacher name).
     const printPreviewBtn = document.getElementById('tp-print-preview-btn');
     if (printPreviewBtn)
         printPreviewBtn.addEventListener('click', () => {
-            PrintSystem.preview({ title: 'متابعة أداء الأساتذة', pageSize: 'A4', landscape: false });
+            PrintSystem.preview({ title: getTrackingPageTitle(), pageSize: 'A4', landscape: false });
         });
 
 }
@@ -105,19 +108,14 @@ function updateTrackingPageTitle() {
     const title = getTrackingPageTitle();
     const titleNode = document.getElementById('tp-page-title');
     if (titleNode) {
-        titleNode.innerHTML = `<i class="fas fa-chart-line"></i> ${title}`;
+        // Build with a text node so user-derived teacher names can never be parsed as HTML.
+        titleNode.replaceChildren();
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-chart-line';
+        icon.setAttribute('aria-hidden', 'true');
+        titleNode.append(icon, document.createTextNode(` ${title}`));
     }
     document.title = `${title} | برنامج التدبير المدرسي`;
-}
-
-function overridePrintPreviewHandler() {
-    const oldButton = document.getElementById('tp-print-preview-btn');
-    if (!oldButton || !oldButton.parentNode) return;
-    const newButton = oldButton.cloneNode(true);
-    oldButton.parentNode.replaceChild(newButton, oldButton);
-    newButton.addEventListener('click', () => {
-            PrintSystem.preview({ title: getTrackingPageTitle(), pageSize: 'A4', landscape: false });
-        });
 }
 
 async function getCurrentYear() {
@@ -179,6 +177,22 @@ async function loadInitialData() {
             };
         })
         .filter(Boolean);
+
+    // Teacher-mentioned tags from the daily report (inspection visits, activities, …)
+    try {
+        const tags = await window.api.systemTags.getTeacherTags(year);
+        _teacherTagsCache = Array.isArray(tags) ? tags : [];
+    } catch (_) {
+        _teacherTagsCache = [];
+    }
+
+    // Teachers directory — bridges grade teacher names ↔ daily-report mention names.
+    try {
+        const dir = await window.api.teachers.getAll(year);
+        _teachersDirCache = Array.isArray(dir) ? dir : [];
+    } catch (_) {
+        _teachersDirCache = [];
+    }
 
     renderSemesterFilter();
     renderTeacherFilter();
@@ -357,19 +371,7 @@ function extractExamNumber(subjectRaw) {
     return Number.isFinite(v) && v > 0 ? v : null;
 }
 
-function escapeHtml(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function csvEscape(value) {
-    const str = String(value ?? '');
-    return '"' + str.replace(/"/g, '""') + '"';
-}
+// CH3: csvEscape via js/shared/csv.js (hardened formula injection)
 
 /* ─── Loading Overlay ─── */
 function showLoading() {
@@ -647,30 +649,7 @@ function getBestSubject(grades) {
     return escapeHtml(bestSub);
 }
 
-/* ─── Chart.js Loading ─── */
-async function ensureChartJsLoaded() {
-    if (window.Chart) return window.Chart;
-    if (chartLoaderPromise) return chartLoaderPromise;
-    chartLoaderPromise = new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[data-dynamic-src="${CHART_JS_CDN}"]`);
-        if (existing) {
-            existing.addEventListener('load', () => resolve(window.Chart), { once: true });
-            existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), {
-                once: true
-            });
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = CHART_JS_CDN;
-        script.async = true;
-        script.defer = true;
-        script.dataset.dynamicSrc = CHART_JS_CDN;
-        script.onload = () => resolve(window.Chart);
-        script.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
-        document.head.appendChild(script);
-    });
-    return chartLoaderPromise;
-}
+/* ─── Chart.js Loading: window.ensureChartJsLoaded (js/shared/chart-theme.js) ─── */
 
 function showChartFallback(canvasId, message) {
     const canvas = document.getElementById(canvasId);
@@ -718,7 +697,9 @@ function renderTeacherCard(baseFiltered, rows) {
         metaNode.innerHTML = '';
         if (benchmarkNode) benchmarkNode.innerHTML = '';
         trendNoteNode.textContent = '-';
-        ['section', 'distribution', 'trend'].forEach((k) => destroyChart(k));
+        ['section', 'distribution'].forEach((k) => destroyChart(k));
+        const trendProgress = document.getElementById('tp-trend-progress');
+        if (trendProgress) trendProgress.replaceChildren();
         return;
     }
 
@@ -877,113 +858,136 @@ function renderTeacherDistributionChart(teacherGrades) {
     );
 }
 
+function pct(part, total) {
+    if (!total) return 0;
+    return (part / total) * 100;
+}
+
+function createTrendProgressItem({ icon, title, percent, background, meta = [] }) {
+    const item = document.createElement('div');
+    item.className = 'report-progress-item';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'report-progress-title';
+    titleEl.innerHTML = `<i class="fas ${icon}"></i> ${title}`;
+
+    const track = document.createElement('div');
+    track.className = 'report-progress-track';
+
+    const value = document.createElement('div');
+    value.className = 'report-progress-value';
+    value.style.width = `${percent}%`;
+    value.style.background = background;
+    value.textContent = `${percent.toFixed(1)}%`;
+    track.appendChild(value);
+
+    item.append(titleEl, track);
+
+    if (meta.length) {
+        const metaEl = document.createElement('div');
+        metaEl.className = 'report-progress-meta';
+        meta.forEach((entry) => {
+            const span = document.createElement('span');
+            span.textContent = entry;
+            metaEl.appendChild(span);
+        });
+        item.appendChild(metaEl);
+    }
+
+    return item;
+}
+
 function renderTeacherTrendChart(teacherGrades, noteNode) {
-    const canvas = document.getElementById('tp-trend-chart');
-    if (!canvas || !window.Chart || !noteNode) return;
-    destroyChart('trend');
+    const container = document.getElementById('tp-trend-progress');
+    if (!container || !noteNode) return;
 
     if (!teacherGrades.length) {
+        container.replaceChildren();
         noteNode.textContent = 'لم يتم العثور على نقط لهذا الأستاذ.';
         return;
     }
 
-    const byExam = {};
-    const bySectionExam = {};
-
+    // Classify each student by their average grade evolution across exams (per subject).
+    const byStudent = {};
     teacherGrades.forEach((g) => {
         if (!g._examNo) return;
-        if (!byExam[g._examNo]) byExam[g._examNo] = [];
-        byExam[g._examNo].push(g.grade);
-
-        const sec = String(g.section || 'غير محدد');
-        if (!bySectionExam[sec]) bySectionExam[sec] = {};
-        if (!bySectionExam[sec][g._examNo]) bySectionExam[sec][g._examNo] = [];
-        bySectionExam[sec][g._examNo].push(g.grade);
+        const sid = studentIdentity(g);
+        const subj = g._subject || g._subjectRaw || 'غير محدد';
+        if (!byStudent[sid]) byStudent[sid] = {};
+        if (!byStudent[sid][subj]) byStudent[sid][subj] = [];
+        byStudent[sid][subj].push(g);
     });
 
-    const examKeys = Object.keys(byExam)
-        .map(Number)
-        .filter((n) => Number.isFinite(n))
-        .sort((a, b) => a - b);
-    if (!examKeys.length) {
-        noteNode.textContent = 'لا توجد فروض مرقمة لعرض تطور زمني لهذا الأستاذ.';
+    let improved = 0,
+        declined = 0,
+        stable = 0;
+
+    Object.values(byStudent).forEach((bySubject) => {
+        let totalDelta = 0,
+            subjectCount = 0;
+        Object.values(bySubject).forEach((subGrades) => {
+            if (subGrades.length < 2) return;
+            subGrades.sort((a, b) => a._examNo - b._examNo || a._createdAtMs - b._createdAtMs);
+            const first = subGrades[0].grade;
+            const last = subGrades[subGrades.length - 1].grade;
+            totalDelta += last - first;
+            subjectCount++;
+        });
+        if (subjectCount === 0) return;
+        const delta = totalDelta / subjectCount;
+        if (delta > 0.5) improved++;
+        else if (delta < -0.5) declined++;
+        else stable++;
+    });
+
+    const total = improved + declined + stable;
+
+    if (total === 0) {
+        container.replaceChildren();
+        const empty = document.createElement('p');
+        empty.style.textAlign = 'center';
+        empty.style.color = 'var(--color-text-muted)';
+        empty.textContent = 'لا توجد بيانات كافية (يلزم أكثر من فرض واحد لكل تلميذ).';
+        container.appendChild(empty);
+        noteNode.textContent = 'لا توجد بيانات كافية لحساب نسب التحسن والتقهقر.';
         return;
     }
 
-    const labels = examKeys.map((n) => `فرض ${n}`);
-    const globalValues = examKeys.map((n) => Number(avg(byExam[n]).toFixed(2)));
-
-    const SECTION_COLORS = [
-        'rgba(59,106,197,0.85)', 'rgba(47,179,109,0.85)', 'rgba(231,76,60,0.85)',
-        'rgba(240,194,14,0.85)', 'rgba(155,100,171,0.85)', 'rgba(22,160,133,0.85)',
-        'rgba(243,156,18,0.85)', 'rgba(52,73,94,0.85)'
+    const items = [
+        {
+            icon: 'fa-arrow-up',
+            title: 'متحسنون',
+            percent: pct(improved, total),
+            background: 'linear-gradient(90deg, var(--color-success), var(--color-success-border))',
+            meta: [`${improved} تلميذ`]
+        },
+        {
+            icon: 'fa-minus',
+            title: 'مستقرون',
+            percent: pct(stable, total),
+            background: 'linear-gradient(90deg, var(--color-info), var(--color-info-border))',
+            meta: [`${stable} تلميذ`]
+        },
+        {
+            icon: 'fa-arrow-down',
+            title: 'متقهقرون',
+            percent: pct(declined, total),
+            background: 'linear-gradient(90deg, var(--color-danger), var(--color-danger-border))',
+            meta: [`${declined} تلميذ`]
+        }
     ];
 
-    const sections = Object.keys(bySectionExam).sort((a, b) => a.localeCompare(b, 'ar'));
-    const showSections = sections.length > 1;
-    const displayedSections = sections.slice(0, 8);
-    const sectionsTruncated = sections.length > 8;
+    container.replaceChildren(...items.map(createTrendProgressItem));
 
-    const sectionDatasets = !showSections ? [] : displayedSections.map((sec, i) => ({
-        label: sec,
-        data: examKeys.map((n) => {
-            const vals = bySectionExam[sec]?.[n];
-            return vals?.length ? Number(avg(vals).toFixed(2)) : null;
-        }),
-        borderColor: SECTION_COLORS[i % SECTION_COLORS.length],
-        backgroundColor: 'transparent',
-        pointRadius: 3,
-        pointHoverRadius: 4,
-        tension: 0.3,
-        fill: false,
-        spanGaps: true,
-        borderDash: [5, 3]
-    }));
-
-    const globalDataset = {
-        label: 'المتوسط العام',
-        data: globalValues,
-        borderColor: 'rgba(155,100,171,0.95)',
-        backgroundColor: 'rgba(155,100,171,0.15)',
-        pointBackgroundColor: 'rgba(155,100,171,1)',
-        pointRadius: 5,
-        pointHoverRadius: 6,
-        tension: 0.35,
-        fill: true,
-        borderWidth: 2.5
-    };
-
-    charts.trend = new Chart(canvas.getContext('2d'), {
-        type: 'line',
-        data: { labels, datasets: [globalDataset, ...sectionDatasets] },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 650, easing: 'easeOutQuart' },
-            plugins: {
-                legend: {
-                    display: showSections,
-                    position: 'bottom',
-                    labels: { usePointStyle: true, pointStyle: 'line', padding: 12, font: { size: 11 } }
-                },
-                tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toFixed(2)}` } }
-            },
-            scales: {
-                y: { min: 0, max: 20, ticks: { stepSize: 4 }, grid: { color: 'rgba(0,0,0,0.05)' } },
-                x: { grid: { display: false } }
-            }
-        }
-    });
-
-    const sectionInfo = showSections ? ` · ${sections.length} قسم` : '';
-    const truncNote = sectionsTruncated ? ` (يُعرض 8 من أصل ${sections.length})` : '';
-    noteNode.textContent = `تطور عبر ${examKeys.length} فروض مرقمة${sectionInfo}${truncNote}.`;
-    updateChartAccessibility(
-        'tp-trend-chart',
-        'رسم بياني يوضح تطور الأداء بين الفروض حسب القسم',
-        'tp-trend-note',
-        noteNode.textContent
-    );
+    noteNode.textContent = `تحليل تطور ${total} تلميذ: ${improved} متحسن، ${stable} مستقر، ${declined} متقهقر.`;
+    if (typeof updateChartAccessibility === 'function') {
+        updateChartAccessibility(
+            'tp-trend-progress',
+            'نسب التحسن والتقهقر لدى تلاميذ الأستاذ',
+            'tp-trend-note',
+            noteNode.textContent
+        );
+    }
 }
 
 /* ─── Semester Comparison Chart ─── */
@@ -1017,7 +1021,11 @@ function renderSemesterCompareChart(rows) {
         return;
     }
 
-    const top = [...withBoth].sort((a, b) => Math.abs(b.semesterDiff) - Math.abs(a.semesterDiff)).slice(0, 15);
+    // When a teacher is selected (and validated above as having both semesters),
+    // chart only that teacher; otherwise compare the peers with the largest swings.
+    const top = selectedRow
+        ? [selectedRow]
+        : [...withBoth].sort((a, b) => Math.abs(b.semesterDiff) - Math.abs(a.semesterDiff)).slice(0, 15);
     const labels = top.map((r) => r.teacher);
 
     charts.semesterCompare = new Chart(canvas.getContext('2d'), {
@@ -1057,7 +1065,12 @@ function renderSemesterCompareChart(rows) {
 
     const improved = withBoth.filter((r) => r.semesterDiff > 0).length;
     const declined = withBoth.filter((r) => r.semesterDiff < 0).length;
-    note.textContent = `${withBoth.length} أستاذ لديه بيانات للدورتين: ${improved} تحسن، ${declined} تراجع.`;
+    if (selectedRow) {
+        const arrow = selectedRow.semesterDiff > 0 ? '↑ تحسن' : selectedRow.semesterDiff < 0 ? '↓ تراجع' : '→ ثبات';
+        note.textContent = `${selectedRow.teacher}: د1 ${selectedRow.sem1Avg.toFixed(2)} → د2 ${selectedRow.sem2Avg.toFixed(2)} (${arrow} ${selectedRow.semesterDiff.toFixed(2)}).`;
+    } else {
+        note.textContent = `${withBoth.length} أستاذ لديه بيانات للدورتين: ${improved} تحسن، ${declined} تراجع.`;
+    }
     updateChartAccessibility(
         'tp-semester-compare-chart',
         'رسم بياني يقارن نتائج الدورتين الأولى والثانية',
@@ -1215,20 +1228,21 @@ async function runAnalysis() {
 
         renderStateLine(baseFiltered, rows);
         renderKpis(baseFiltered, rows);
+        // Always render text/metadata (teacher card, notes); the chart sub-functions
+        // self-guard on window.Chart, so they no-op cleanly when the library failed.
+        renderTeacherCard(baseFiltered, rows);
+        renderSemesterCompareChart(rows);
+        renderRadarChart(rows);
         if (chartLoadFailed) {
             const chartMsg = 'تعذر تحميل مكتبة الرسوم البيانية';
-            showChartFallback('tp-section-chart', chartMsg);
-            showChartFallback('tp-distribution-chart', chartMsg);
-            showChartFallback('tp-trend-chart', chartMsg);
-            showChartFallback('tp-semester-compare-chart', chartMsg);
-            showChartFallback('tp-radar-chart', chartMsg);
-        } else {
-            renderTeacherCard(baseFiltered, rows);
-            renderSemesterCompareChart(rows);
-            renderRadarChart(rows);
+            ['tp-section-chart', 'tp-distribution-chart', 'tp-semester-compare-chart', 'tp-radar-chart'].forEach(
+                (id) => showChartFallback(id, chartMsg)
+            );
         }
         // Compensation/support dashboard (pure HTML, no Chart.js dependency)
         renderCompSupportCharts();
+        // Inspection visits & activities from the daily report (pure HTML)
+        renderTeacherActivities();
     } catch (error) {
         console.error('Tracking teacher performance analysis error:', error);
         showToast('تعذر تنفيذ التحليل', 'error');
@@ -1257,9 +1271,7 @@ async function loadCompensationAndSupportData() {
         _supportSessionsCache = [];
     }
 
-    await ensureChartJsLoaded().catch(() => {});
-    if (!window.Chart) return;
-
+    // Compensation/support dashboard is pure HTML — no Chart.js dependency.
     renderCompSupportCharts();
 }
 
@@ -1584,4 +1596,179 @@ function _buildAxisLabels(maxVal, suffix) {
         labels.push(`<span>${v}${suffix}</span>`);
     }
     return labels.join('');
+}
+
+/* ─── Inspection Visits & Activities (from daily report system_tags) ─── */
+
+// Build the set of acceptable ids/names that identify the selected teacher.
+// Bridges the two name spaces: grades (teacher_name / teacher_id) and the
+// daily-report mentions (teachers-table id / full_name). The teachers directory
+// links them — e.g. a name-keyed grade teacher whose full_name carries the id.
+function _buildSelectedTeacherIdentity() {
+    const row = teacherRowsCache.find((r) => r.teacherKey === selectedTeacherName);
+    if (!row) return { ids: new Set(), names: new Set() };
+
+    const ids = new Set();
+    const names = new Set();
+
+    const rowNameNorm = normalizeLoose(row.teacher);
+    if (rowNameNorm) names.add(rowNameNorm);
+    if (row.teacherKey.startsWith('id:')) {
+        const id = Number(row.teacherKey.slice(3));
+        if (id > 0) ids.add(id);
+    }
+
+    // Pull in every directory teacher that matches by id or by normalized name,
+    // adding their id and full_name so tags saved under either form still match.
+    for (const t of _teachersDirCache) {
+        const tId = Number(t.id) || 0;
+        const tNameNorm = normalizeLoose(t.full_name);
+        const matchesId = tId > 0 && ids.has(tId);
+        const matchesName = tNameNorm && tNameNorm === rowNameNorm;
+        if (matchesId || matchesName) {
+            if (tId > 0) ids.add(tId);
+            if (tNameNorm) names.add(tNameNorm);
+        }
+    }
+
+    return { ids, names };
+}
+
+// Does this teacher-typed tag row belong to the currently selected teacher?
+function _tagMatchesTeacher(tag, identity) {
+    const tagId = Number(tag.entity_id) || 0;
+    if (tagId > 0 && identity.ids.has(tagId)) return true;
+    const tagName = normalizeLoose(tag.entity_name);
+    return Boolean(tagName) && identity.names.has(tagName);
+}
+
+// Extract { time, title } from a details string shaped as `time::HH:MM|title`.
+function _parseTagDetails(details) {
+    const raw = String(details || '').trim();
+    if (!raw) return { time: '', title: '' };
+    if (raw.startsWith('time::')) {
+        const pipeIdx = raw.indexOf('|');
+        const time = raw.substring(6, pipeIdx > 0 ? pipeIdx : raw.length);
+        const title = pipeIdx > 0 ? raw.substring(pipeIdx + 1).trim() : '';
+        return { time, title };
+    }
+    return { time: '', title: raw };
+}
+
+function _formatTagDate(dateStr) {
+    const raw = String(dateStr || '').trim();
+    if (!raw) return '-';
+    try {
+        const d = new Date(raw + 'T00:00:00');
+        if (!Number.isFinite(d.getTime())) return raw;
+        return d.toLocaleDateString('ar-MA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    } catch (_) {
+        return raw;
+    }
+}
+
+function renderTeacherActivities() {
+    const kpisEl = document.getElementById('tp-act-kpis');
+    const bodyEl = document.getElementById('tp-act-body');
+    if (!kpisEl || !bodyEl) return;
+
+    const displayName = _getSelectedTeacherDisplayName();
+
+    if (!selectedTeacherName) {
+        kpisEl.innerHTML = '';
+        bodyEl.innerHTML =
+            '<div class="tp-empty-state"><i class="fas fa-user-slash"></i><p>اختر أستاذاً لعرض زياراته التفتيشية وأنشطته</p></div>';
+        return;
+    }
+
+    // Collect this teacher's tags, deduplicated per note (note_group), newest first.
+    const identity = _buildSelectedTeacherIdentity();
+    const seenGroups = new Set();
+    const entries = [];
+    for (const tag of _teacherTagsCache) {
+        if (!_tagMatchesTeacher(tag, identity)) continue;
+        const groupKey = tag.note_group || `tag-${tag.id}`;
+        if (seenGroups.has(groupKey)) continue;
+        seenGroups.add(groupKey);
+        entries.push(tag);
+    }
+    entries.sort((a, b) => String(b.tag_date || '').localeCompare(String(a.tag_date || '')) || (b.id || 0) - (a.id || 0));
+
+    const inspectionCount = entries.filter((t) => INSPECTION_TAG_KEYS.has(t.tag_key)).length;
+    const activityCount = entries.length - inspectionCount;
+
+    // KPI row
+    kpisEl.innerHTML = `
+        <div class="tp-cs-kpi">
+            <div class="tp-cs-kpi-label">الزيارات التفتيشية</div>
+            <div class="tp-cs-kpi-value">${inspectionCount}</div>
+            <div class="tp-cs-kpi-sub">${inspectionCount > 0 ? 'مسجّلة في التقرير اليومي' : 'لم تُسجَّل بعد'}</div>
+            <span class="tp-cs-badge ${inspectionCount > 0 ? 'tp-cs-badge-ok' : 'tp-cs-badge-warn'}">${inspectionCount > 0 ? 'موثّقة' : 'لا شيء'}</span>
+        </div>
+        <div class="tp-cs-kpi">
+            <div class="tp-cs-kpi-label">الأنشطة والمشاركات</div>
+            <div class="tp-cs-kpi-value">${activityCount}</div>
+            <div class="tp-cs-kpi-sub">${activityCount > 0 ? 'أنشطة ساهم فيها الأستاذ' : 'لا مشاركات مسجّلة'}</div>
+            <span class="tp-cs-badge ${activityCount > 0 ? 'tp-cs-badge-ok' : 'tp-cs-badge-warn'}">${activityCount > 0 ? 'مسجّلة' : 'لا شيء'}</span>
+        </div>
+        <div class="tp-cs-kpi">
+            <div class="tp-cs-kpi-label">إجمالي السجلات</div>
+            <div class="tp-cs-kpi-value">${entries.length}</div>
+            <div class="tp-cs-kpi-sub">${displayName ? escapeHtml(displayName) : ''}</div>
+            <span class="tp-cs-badge ${entries.length > 0 ? 'tp-cs-badge-ok' : 'tp-cs-badge-warn'}">${entries.length > 0 ? 'متوفرة' : 'فارغ'}</span>
+        </div>
+    `;
+
+    if (!entries.length) {
+        const hint = displayName
+            ? `الأستاذ(ة) ${escapeHtml(displayName)} لم يُسجَّل ضمن أي زيارة تفتيشية أو نشاط بعد`
+            : 'لا توجد زيارات تفتيشية أو أنشطة مسجّلة';
+        bodyEl.innerHTML = `
+            <div class="tp-cs-empty">
+                <div class="tp-cs-empty-icon tp-cs-empty-icon--blue">
+                    <i class="fas fa-clipboard-check" style="font-size: 20px; color: #3266ad;"></i>
+                </div>
+                <div class="tp-cs-empty-text">${hint}</div>
+                <div class="tp-cs-empty-hint">تُسجَّل من صفحة "التقرير اليومي" عبر الإشارة إلى الأستاذ بـ @</div>
+            </div>`;
+        return;
+    }
+
+    const rowsHtml = entries
+        .map((tag, i) => {
+            const def = (typeof ALL_TAG_TYPES !== 'undefined' ? ALL_TAG_TYPES : []).find((d) => d.key === tag.tag_key);
+            const badge = def ? `${def.icon} ${escapeHtml(tag.tag_label)}` : escapeHtml(tag.tag_label || '-');
+            const { time, title } = _parseTagDetails(tag.details);
+            const titleLabel = INSPECTION_TAG_KEYS.has(tag.tag_key) && title
+                ? `<i class="fas fa-user-tie" style="margin-left: 4px; color: var(--color-primary, #3266ad);"></i> ${escapeHtml(title)}`
+                : (title ? escapeHtml(title) : '<span style="color: var(--color-text-light, #aaa);">—</span>');
+            const timeBadge = time
+                ? ` <span style="font-size: 11px; color: var(--color-text-light, #888);"><i class="fas fa-clock"></i> ${escapeHtml(time)}</span>`
+                : '';
+            const note = String(tag.note_text || '').replace(/\[id:\d+\]/g, '').trim();
+            const noteHtml = note ? escapeHtml(note) : '<span style="color: var(--color-text-light, #aaa);">—</span>';
+            return `
+                <tr style="border-bottom: 1px solid var(--color-border-light, #eee);">
+                    <td style="padding: 7px 6px; text-align: center; color: var(--color-text-light, #888);">${i + 1}</td>
+                    <td style="padding: 7px 6px; white-space: nowrap;">${escapeHtml(_formatTagDate(tag.tag_date))}</td>
+                    <td style="padding: 7px 6px; white-space: nowrap; font-weight: 600;">${badge}</td>
+                    <td style="padding: 7px 6px;">${titleLabel}${timeBadge}</td>
+                    <td style="padding: 7px 6px; line-height: 1.7;">${noteHtml}</td>
+                </tr>`;
+        })
+        .join('');
+
+    bodyEl.innerHTML = `
+        <table class="tp-act-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+                <tr style="text-align: right; border-bottom: 2px solid var(--color-border, #e2e8f0); color: var(--color-text-secondary, #555);">
+                    <th style="padding: 8px 6px; width: 36px; text-align: center;">#</th>
+                    <th style="padding: 8px 6px;">التاريخ</th>
+                    <th style="padding: 8px 6px;">النوع</th>
+                    <th style="padding: 8px 6px;">العنوان / المفتش</th>
+                    <th style="padding: 8px 6px;">الملاحظة</th>
+                </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>`;
 }

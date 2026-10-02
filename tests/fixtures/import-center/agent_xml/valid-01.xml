@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DsAgentExport>
+  <R_GRADE>
+    <CD_GRADE>G1</CD_GRADE>
+    <LL_GRADE>Grade Demo</LL_GRADE>
+  </R_GRADE>
+  <R_CADRE>
+    <CD_CADRE>C1</CD_CADRE>
+    <LL_CADRE>Cadre Demo</LL_CADRE>
+  </R_CADRE>
+  <R_FONCT>
+    <CD_Fonc>F1</CD_Fonc>
+    <LL_FONC>Fonction Demo</LL_FONC>
+    <LA_Fonc>وظيفة تجريبية</LA_Fonc>
+  </R_FONCT>
+  <AGENT>
+    <PPR>900001</PPR>
+    <NOM>DEMO</NOM>
+    <PRENOM>Agent</PRENOM>
+  </AGENT>
+  <ACTIVITE>
+    <PPR>900001</PPR>
+    <CD_FONC>F1</CD_FONC>
+    <CD_ETAB>E001</CD_ETAB>
+    <CD_ACTIVITES>A1</CD_ACTIVITES>
+    <DATEAFFECT>2026-01-01</DATEAFFECT>
+  </ACTIVITE>
+</DsAgentExport>

@@ -1,0 +1,68 @@
+const { handleAuthedRead, normalizeYear } = require('./ipc-helpers');
+const { resolveCycleForRequest } = require('../auth/resolve-cycle');
+const { normalizeSubjectName } = require('../../js/data/ma-education-labels');
+const studentsRepo = require('../repos/students');
+const gradesRepo = require('../repos/grades');
+
+// These three channels read `students` and `grades`, which are cycle-scoped
+// (multi-cycle plan §5.4). They must resolve the cycle from the session: `classes:getAll`
+// in particular feeds every FilterManager dropdown in the app, so leaving it unscoped
+// would show both cycles' sections on every page as soon as a second cycle is enabled.
+function registerCatalogIpc(ipcMain) {
+    handleAuthedRead(ipcMain, 'stats:get', ({ db, event }, schoolYear) => {
+        const year = normalizeYear(schoolYear);
+        const cycle = resolveCycleForRequest(db, event);
+
+        // Total students
+        const { total: totalStudents } = studentsRepo.countTotalByYearCycle(db, year, cycle);
+
+        // By gender
+        const genderRows = studentsRepo.countGroupedByGender(db, year, cycle);
+        const byGender = {};
+        for (const row of genderRows) byGender[row.gender] = row.count;
+
+        // By section
+        const sectionRows = studentsRepo.countGroupedBySection(db, year, cycle);
+        const bySection = {};
+        for (const row of sectionRows) bySection[row.section] = row.count;
+
+        return {
+            totalStudents,
+            maleCount: byGender['ذكر'] || 0,
+            femaleCount: byGender['أنثى'] || 0,
+            bySection
+        };
+    });
+
+    // ── Catalogs/lookup ──
+
+    handleAuthedRead(ipcMain, 'classes:getAll', ({ db, event }, schoolYear) => {
+        const rows = studentsRepo.listSectionLevels(
+            db,
+            normalizeYear(schoolYear),
+            resolveCycleForRequest(db, event)
+        );
+        return rows.map((r) => ({ name: r.section, level: r.level || '' }));
+    });
+
+    handleAuthedRead(ipcMain, 'subjects:getAll', ({ db, event }) => {
+        const rows = gradesRepo.listDistinctSubjects(db, resolveCycleForRequest(db, event));
+
+        // Subject normalization — uses normalizeSubjectName() from js/data/ma-education-labels.js
+        const invalidSubjectNames = new Set(['sheet', 'sheet1', 'feuil1', 'notes', 'notescc', 'note', 'ورقة1', 'ورقة']);
+        const uniqueSubjects = new Set();
+
+        rows.forEach((row) => {
+            const clean = normalizeSubjectName(row.subject);
+            if (!clean) return;
+            if (invalidSubjectNames.has(clean.toLowerCase())) return;
+            uniqueSubjects.add(clean);
+        });
+
+        return Array.from(uniqueSubjects)
+            .sort((a, b) => a.localeCompare(b, 'ar'))
+            .map((name) => ({ name }));
+    });
+}
+
+module.exports = { registerCatalogIpc };

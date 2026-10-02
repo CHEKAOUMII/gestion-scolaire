@@ -1,259 +1,119 @@
-const { handleRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
+'use strict';
+
+const { handleAuthedRead, handleWrite, handleWriteSoftAuth, normalizeYear, requireSchoolYear } = require('./ipc-helpers');
 const { ALLOWED_ROLES } = require('../auth/permissions');
-const WRITE_ROLES = ALLOWED_ROLES.filter((r) => r !== 'viewer');
-const { requireFields, validateDate } = require('./validation');
+const { requireFields, validateDate, validateRange } = require('./validation');
+const { resolveCycleForRequest } = require('../auth/resolve-cycle');
+const absencesRepo = require('../repos/absences');
+const { writeImportAudit, buildImportAuditDetails } = require('./import-audit');
+
+const WRITE_ROLES = ALLOWED_ROLES.filter((role) => role !== 'viewer');
+
+function validateAbsenceMonth(value) {
+    const text = String(value ?? '').trim();
+    if (!text) return;
+    if (/^(سنوي|annuel|annual)$/i.test(text)) return;
+    if (/^\d{1,2}$/.test(text)) {
+        const n = Number(text);
+        if (n >= 1 && n <= 12) return;
+    } else if (/^\d{4}-\d{2}$/.test(text)) {
+        const monthNum = Number(text.slice(5, 7));
+        if (monthNum >= 1 && monthNum <= 12) return;
+    }
+    throw new Error('month: صيغة الشهر غير صحيحة (رقم 1-12 أو YYYY-MM أو «سنوي»)');
+}
+
+function validateAbsenceRow(absence, expectedYear = null) {
+    requireFields(absence, ['student_code', 'school_year']);
+    const rowYear = requireSchoolYear(absence.school_year);
+    if (expectedYear != null && rowYear !== expectedYear) {
+        const error = new Error('سنة سجل الغياب لا تطابق سنة الاستبدال');
+        error.code = 'SCHOOL_YEAR_MISMATCH';
+        throw error;
+    }
+    const dateStr = String(absence.absence_date ?? '').trim();
+    const monthStr = String(absence.month ?? '').trim();
+    if (dateStr) validateDate('absence_date', dateStr);
+    if (monthStr) validateAbsenceMonth(monthStr);
+    if (!dateStr && !monthStr) {
+        throw new Error('month: يجب تحديد الشهر (month) أو تاريخ الغياب (absence_date)');
+    }
+    if (absence.hours != null && absence.hours !== '') validateRange('hours', absence.hours, 0, 24);
+    if (absence.days != null && absence.days !== '') validateRange('days', absence.days, 0, 31);
+}
 
 function registerAbsencesIpc(ipcMain) {
-    // ── Read handlers (no auth required — app starts without login) ──
+    handleAuthedRead(ipcMain, 'absences:getAll', ({ db, event }, schoolYear) => absencesRepo.listByYear(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event)));
+    handleAuthedRead(ipcMain, 'absences:getByStudent', ({ db, event }, studentId, schoolYear) => absencesRepo.getByStudentId(db, studentId, normalizeYear(schoolYear), resolveCycleForRequest(db, event)));
+    handleAuthedRead(ipcMain, 'absences:getByStudentCode', ({ db, event }, studentCode, schoolYear) => absencesRepo.getByStudentCode(db, studentCode, normalizeYear(schoolYear), resolveCycleForRequest(db, event)));
+    handleAuthedRead(ipcMain, 'absences:getBySection', ({ db, event }, section, schoolYear) => absencesRepo.getBySection(db, section, normalizeYear(schoolYear), resolveCycleForRequest(db, event)));
+    handleAuthedRead(ipcMain, 'absences:getStats', ({ db, event }, schoolYear) => absencesRepo.getStats(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event)));
+    handleAuthedRead(ipcMain, 'absences:getSummaryByStudent', ({ db, event }, schoolYear) => absencesRepo.getSummaryByStudent(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event)));
 
-    handleRead(ipcMain, 'absences:getAll', (db, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT a.*,
-            COALESCE(sid.full_name, scode.full_name) as full_name,
-            COALESCE(sid.section, scode.section) as section
-            FROM absences a 
-            LEFT JOIN students sid ON a.student_id = sid.id 
-            LEFT JOIN students scode ON scode.code = a.student_code AND scode.school_year = a.school_year
-            WHERE a.school_year = ?
-            ORDER BY a.absence_date DESC
-        `
-            )
-            .all(normalizeYear(schoolYear));
-    });
-
-    handleRead(ipcMain, 'absences:getByStudent', (db, studentId, schoolYear) => {
-        const safeId = Number(studentId);
-        if (!Number.isFinite(safeId) || safeId <= 0) {
-            return { success: false, error: 'Invalid student ID' };
-        }
-        return db
-            .prepare('SELECT * FROM absences WHERE student_id = ? AND school_year = ? ORDER BY absence_date DESC')
-            .all(safeId, normalizeYear(schoolYear));
-    });
-
-    handleRead(ipcMain, 'absences:getByStudentCode', (db, studentCode, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT a.*,
-            COALESCE(sid.full_name, scode.full_name) as full_name,
-            COALESCE(sid.section, scode.section) as section
-            FROM absences a
-            LEFT JOIN students sid ON a.student_id = sid.id
-            LEFT JOIN students scode ON scode.code = a.student_code AND scode.school_year = a.school_year
-            WHERE a.student_code = ? AND a.school_year = ?
-            ORDER BY a.absence_date DESC
-        `
-            )
-            .all(String(studentCode || '').trim(), normalizeYear(schoolYear));
-    });
-
-    handleRead(ipcMain, 'absences:getBySection', (db, section, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT a.*, s.full_name, s.family_name, s.code as student_code
-            FROM absences a 
-            LEFT JOIN students s ON a.student_id = s.id 
-            WHERE s.section = ? AND a.school_year = ?
-            ORDER BY s.full_name
-        `
-            )
-            .all(section, normalizeYear(schoolYear));
-    });
-
-    // ── Write handlers (require admin or staff role) ──
-
-    handleWrite(ipcMain, 'absences:save', WRITE_ROLES, (db, _event, absence) => {
+    handleWrite(ipcMain, 'absences:save', WRITE_ROLES, (db, event, absence) => {
         requireFields(absence, ['student_code', 'absence_date', 'school_year']);
         requireSchoolYear(absence.school_year);
         validateDate('absence_date', absence.absence_date);
-        db.prepare(
-            `
-                INSERT INTO absences(student_id, student_code, absence_date, month, absence_type, hours, days, reason, school_year)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `
-        ).run(
-            absence.student_id,
-            absence.student_code,
-            absence.absence_date,
-            absence.month,
-            absence.absence_type,
-            absence.hours,
-            absence.days,
-            absence.reason,
-            absence.school_year
-        );
-        return { success: true };
+        return absencesRepo.saveOne(db, absence, resolveCycleForRequest(db, event));
     });
-
-    // No auth: bulk-import is used by settings-imports page before login
-    handleWriteSoftAuth(ipcMain, 'absences:saveBulk', WRITE_ROLES, (db, absences) => {
-        if (!Array.isArray(absences)) {
-            return { success: false, error: 'Expected an array' };
-        }
-        if (absences.length > 5000) {
-            return { success: false, error: 'Batch size exceeds maximum of 5000' };
-        }
-        const upsert = db.prepare(`
-                INSERT INTO absences(student_id, student_code, absence_date, month, absence_type, hours, days, reason, school_year)
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(student_code, month, school_year, absence_type)
-                DO UPDATE SET hours = excluded.hours, days = excluded.days
-            `);
-
-        const upsertMany = db.transaction((items) => {
-            for (const absence of items) {
-                requireFields(absence, ['student_code', 'month', 'school_year']);
-                requireSchoolYear(absence.school_year);
-                upsert.run(
-                    absence.student_id,
-                    absence.student_code,
-                    absence.absence_date,
-                    absence.month,
-                    absence.absence_type,
-                    absence.hours,
-                    absence.days,
-                    absence.reason,
-                    absence.school_year
+    handleWriteSoftAuth(ipcMain, 'absences:saveBulk', WRITE_ROLES, ({ db, event }, absences) => {
+        if (!Array.isArray(absences)) return { success: false, error: 'Expected an array' };
+        if (absences.length > 5000) return { success: false, error: 'Batch size exceeds maximum of 5000' };
+        const cycle = resolveCycleForRequest(db, event);
+        const result = absencesRepo.saveBulk(db, absences, cycle, {
+            validate(absence) {
+                validateAbsenceRow(absence);
+            },
+            audit(summary) {
+                writeImportAudit(
+                    db,
+                    'absences',
+                    buildImportAuditDetails(
+                        { label: 'غياب', count: summary.count, skipped: summary.skippedOtherCycle },
+                        absences[0]?.school_year,
+                        cycle
+                    )
                 );
             }
         });
-        upsertMany(absences);
-        return { success: true, count: absences.length };
-    });
+        return result;
+    }, { withContext: true });
+    handleWrite(ipcMain, 'absences:delete', WRITE_ROLES, (db, event, id) => absencesRepo.deleteById(db, id, resolveCycleForRequest(db, event)));
 
-    handleWrite(ipcMain, 'absences:delete', WRITE_ROLES, (db, _event, id) => {
-        const absenceId = Number(id);
-        if (!Number.isFinite(absenceId) || absenceId <= 0) {
-            return { success: false, error: 'Invalid ID' };
-        }
-        db.prepare('DELETE FROM absences WHERE id = ?').run(absenceId);
-        return { success: true };
-    });
-
-    // ── Read stats (no auth required) ──
-
-    handleRead(ipcMain, 'absences:getStats', (db, schoolYear) => {
-        const year = normalizeYear(schoolYear);
-
-        const { total: totalHours } = db
-            .prepare('SELECT COALESCE(SUM(hours), 0) as total FROM absences WHERE school_year = ?')
-            .get(year);
-
-        const bySection = db
-            .prepare(
-                `
-            SELECT s.section, SUM(a.hours) as total_hours, COUNT(DISTINCT a.student_id) as students_count
-            FROM absences a
-            LEFT JOIN students s ON a.student_id = s.id
-            WHERE a.school_year = ?
-            GROUP BY s.section
-        `
-            )
-            .all(year);
-
-        const byMonth = db
-            .prepare(
-                `
-            SELECT month, SUM(hours) as total_hours
-            FROM absences WHERE school_year = ?
-            GROUP BY month
-        `
-            )
-            .all(year);
-
-        const topAbsentees = db
-            .prepare(
-                `
-            SELECT a.student_id, a.student_code, s.full_name, s.section, SUM(a.hours) as total_hours
-            FROM absences a
-            LEFT JOIN students s ON a.student_id = s.id
-            WHERE a.school_year = ?
-            GROUP BY a.student_id
-            ORDER BY total_hours DESC
-            LIMIT 10
-        `
-            )
-            .all(year);
-
-        return { totalHours, bySection, byMonth, topAbsentees };
-    });
-
-    handleRead(ipcMain, 'absences:getSummaryByStudent', (db, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT a.student_id, a.student_code, s.full_name, s.family_name, s.section,
-            SUM(a.hours) as total_hours,
-            SUM(CASE WHEN a.absence_type = 'justified' THEN a.hours ELSE 0 END) as justified_hours,
-            SUM(CASE WHEN a.absence_type = 'unjustified' THEN a.hours ELSE 0 END) as unjustified_hours
-            FROM absences a
-            LEFT JOIN students s ON a.student_id = s.id
-            WHERE a.school_year = ?
-            GROUP BY a.student_id
-            ORDER BY total_hours DESC
-        `
-            )
-            .all(normalizeYear(schoolYear));
-    });
-
-    // ── Correspondence (read = open, write = admin/staff) ──
-
-    handleRead(ipcMain, 'correspondence:getAll', (db, schoolYear) => {
-        return db
-            .prepare(
-                `
-            SELECT c.*, s.full_name, s.section 
-            FROM correspondence c 
-            LEFT JOIN students s ON c.student_id = s.id 
-            WHERE c.school_year = ?
-            ORDER BY c.letter_date DESC
-        `
-            )
-            .all(normalizeYear(schoolYear));
-    });
-
-    handleWrite(ipcMain, 'correspondence:save', WRITE_ROLES, (db, _event, letter) => {
+    // Correspondence is cycle-scoped since S7.
+    handleAuthedRead(ipcMain, 'correspondence:getAll', ({ db, event }, schoolYear) => absencesRepo.listCorrespondenceByYear(db, normalizeYear(schoolYear), resolveCycleForRequest(db, event)));
+    handleWrite(ipcMain, 'correspondence:save', WRITE_ROLES, (db, event, letter) => {
         requireSchoolYear(letter.school_year);
-        const info = db
-            .prepare(
-                `
-                INSERT INTO correspondence(student_id, student_code, letter_type, letter_date, total_hours, school_year)
-                VALUES(?, ?, ?, ?, ?, ?)
-            `
-            )
-            .run(
-                letter.student_id,
-                letter.student_code,
-                letter.letter_type,
-                letter.letter_date,
-                letter.total_hours,
-                letter.school_year
-            );
-        return { success: true, id: info.lastInsertRowid };
+        return absencesRepo.saveCorrespondence(db, letter, resolveCycleForRequest(db, event));
     });
+    handleAuthedRead(ipcMain, 'correspondence:getByStudent', ({ db, event }, studentId) => absencesRepo.listCorrespondenceByStudent(db, studentId, resolveCycleForRequest(db, event)));
+    handleWrite(ipcMain, 'correspondence:markPrinted', WRITE_ROLES, (db, event, id) => absencesRepo.markCorrespondencePrinted(db, id, resolveCycleForRequest(db, event)));
 
-    handleRead(ipcMain, 'correspondence:getByStudent', (db, studentId) => {
-        return db.prepare('SELECT * FROM correspondence WHERE student_id = ? ORDER BY letter_date DESC').all(studentId);
-    });
-
-    handleWrite(ipcMain, 'correspondence:markPrinted', WRITE_ROLES, (db, _event, id) => {
-        const corrId = Number(id);
-        if (!Number.isFinite(corrId) || corrId <= 0) {
-            return { success: false, error: 'Invalid ID' };
-        }
-        db.prepare('UPDATE correspondence SET printed = 1 WHERE id = ?').run(corrId);
-        return { success: true };
-    });
-
-    // No auth: delete is used from settings-imports page which may be opened before login
-    handleWriteSoftAuth(ipcMain, 'absences:deleteByYear', WRITE_ROLES, (db, schoolYear) => {
-        db.prepare('DELETE FROM absences WHERE school_year = ?').run(requireSchoolYear(schoolYear));
-        return { success: true };
-    });
+    handleWriteSoftAuth(ipcMain, 'absences:deleteByYear', WRITE_ROLES, ({ db, event }, schoolYear) => ({ success: true, count: absencesRepo.deleteByYear(db, requireSchoolYear(schoolYear), resolveCycleForRequest(db, event)) }), { withContext: true });
+    handleWriteSoftAuth(ipcMain, 'absences:replaceByYear', WRITE_ROLES, ({ db, event }, schoolYear, absences, options) => {
+        const year = requireSchoolYear(schoolYear);
+        if (!Array.isArray(absences)) return { success: false, error: 'Expected an array' };
+        if (absences.length > 5000) return { success: false, error: 'Batch size exceeds maximum of 5000' };
+        const cycle = resolveCycleForRequest(db, event);
+        const result = absencesRepo.replaceByYear(db, year, absences, cycle, {
+            validate(absence) {
+                validateAbsenceRow(absence, year);
+            },
+            audit(summary) {
+                writeImportAudit(
+                    db,
+                    'absences',
+                    buildImportAuditDetails(
+                        { label: 'غياب', count: summary.count, deleted: summary.deleted, skipped: summary.skippedOtherCycle },
+                        year,
+                        cycle
+                    )
+                );
+            },
+            confirm: !!(options && options.confirm === true)
+        });
+        return result;
+    }, { withContext: true });
 }
 
-module.exports = { registerAbsencesIpc };
+module.exports = { registerAbsencesIpc, validateAbsenceRow, validateAbsenceMonth };

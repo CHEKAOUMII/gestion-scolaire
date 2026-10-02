@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
     <head>
-        <meta charset="UTF-8" />
+    <script src="js/theme-boot.js"></script>
+    <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="description" content="صفحة إدارة التطبيق المركزية" />
         <meta name="theme-color" content="#3b6ac5" />
@@ -9,11 +10,15 @@
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/shared/role-session-guard.js"></script>
         <script src="js/pages/app-admin-guard.js"></script>
     </head>
 
@@ -34,7 +39,7 @@
 
         <main class="main-content">
             <header class="header">
-                <div class="header-left">
+    <div class="header-left">
                     <button
                         class="menu-toggle"
                         id="menu-toggle"

@@ -29,6 +29,9 @@ function requireFields(data, fields) {
  * @throws {Error} if the value is not a number or is outside the range
  */
 function validateRange(fieldName, value, min, max) {
+    if (value === null || value === undefined || (typeof value === 'string' && value.trim() === '')) {
+        throw new Error(`${fieldName}: يجب أن يكون رقماً`);
+    }
     const num = Number(value);
     if (!Number.isFinite(num)) {
         throw new Error(`${fieldName}: يجب أن يكون رقماً`);
@@ -61,22 +64,54 @@ function validateDate(fieldName, value) {
 /**
  * Validate that a school year string matches the expected YYYY/YYYY pattern.
  * @param {*} value
- * @throws {Error} if the value does not match
+ * @throws {Error} with code INVALID_SCHOOL_YEAR if the value does not match
  */
 function validateSchoolYear(value) {
     const str = String(value || '').trim();
     if (!str) {
-        throw new Error('السنة الدراسية مطلوبة');
+        const error = new Error('السنة الدراسية مطلوبة');
+        error.code = 'INVALID_SCHOOL_YEAR';
+        throw error;
     }
     if (!/^\d{4}\/\d{4}$/.test(str)) {
-        throw new Error(`السنة الدراسية يجب أن تكون بصيغة YYYY/YYYY (مثال: 2024/2025)`);
+        const error = new Error(`السنة الدراسية يجب أن تكون بصيغة YYYY/YYYY (مثال: 2024/2025)`);
+        error.code = 'INVALID_SCHOOL_YEAR';
+        throw error;
     }
     return str;
+}
+
+const IPC_MAX_PAGE_SIZE = 500;
+const IPC_DEFAULT_PAGE_SIZE = 20;
+
+function normalizePagination(options = {}) {
+    const page = Math.max(1, Math.floor(Number(options.page) || 1));
+    const rawSize = Math.floor(Number(options.pageSize) || IPC_DEFAULT_PAGE_SIZE);
+    const pageSize = Math.min(IPC_MAX_PAGE_SIZE, Math.max(1, Number.isFinite(rawSize) ? rawSize : IPC_DEFAULT_PAGE_SIZE));
+    return {
+        page,
+        pageSize,
+        offset: (page - 1) * pageSize
+    };
+}
+
+function buildPaginatedResult(rows, total, page, pageSize) {
+    const safeTotal = Math.max(0, Number(total) || 0);
+    return {
+        rows: rows || [],
+        total: safeTotal,
+        page,
+        pageSize,
+        totalPages: safeTotal ? Math.ceil(safeTotal / pageSize) : 1
+    };
 }
 
 module.exports = {
     requireFields,
     validateRange,
     validateDate,
-    validateSchoolYear
+    validateSchoolYear,
+    normalizePagination,
+    buildPaginatedResult,
+    IPC_MAX_PAGE_SIZE
 };

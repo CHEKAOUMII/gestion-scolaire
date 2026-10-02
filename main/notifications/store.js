@@ -1,21 +1,9 @@
 const { getDb } = require('../db/context');
-
-const SCHEMA = `
-    CREATE TABLE IF NOT EXISTS notifications (
-        id          TEXT PRIMARY KEY,
-        type        TEXT NOT NULL,
-        severity    TEXT NOT NULL,
-        title       TEXT,
-        body        TEXT,
-        icon        TEXT,
-        read        INTEGER DEFAULT 0,
-        created_at  INTEGER NOT NULL,
-        meta        TEXT
-    )
-`;
+const { ensureNotificationsSchema } = require('../db/schema');
 
 function init() {
-    getDb().exec(SCHEMA);
+    // Single source of truth for the notifications DDL lives in db/schema.js (R5).
+    ensureNotificationsSchema(getDb());
 }
 
 function insert(event, rendered) {

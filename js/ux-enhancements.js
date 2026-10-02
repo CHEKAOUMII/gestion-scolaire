@@ -8,7 +8,7 @@ function updateThemeColor(theme) {
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (!themeMeta) return;
 
-    themeMeta.setAttribute('content', theme === 'dark' ? '#1b211e' : '#3b6ac5');
+    themeMeta.setAttribute('content', theme === 'dark' ? '#22262e' : '#42516a');
 }
 
 function initTheme() {
@@ -648,8 +648,9 @@ function buildLetterheadHTML(id, year) {
         d.textContent = v;
         return d.innerHTML;
     };
+    const logoPx = typeof resolveLogoMaxPx === 'function' ? resolveLogoMaxPx(id.logo_scale) : 80;
     const logo = id.logo_base64
-        ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width:300px;max-height:300px;" alt="logo">`
+        ? `<img src="data:image/png;base64,${id.logo_base64}" style="max-width:${logoPx}px;max-height:${logoPx}px;" alt="logo">`
         : '<div style="width:52px;height:52px;border:1px dashed var(--color-accent);border-radius:50%;margin:0 auto;"></div>';
     return `
     <div class="gs-letterhead" style="border-bottom:2.5px solid var(--color-primary);padding-bottom:10px;margin-bottom:14px;">

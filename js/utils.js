@@ -21,12 +21,11 @@
 
     function _logToMain(action, data) {
         try {
-            if (window.api && window.api.systemLogs && window.api.systemLogs.add) {
-                window.api.systemLogs.add({
+            if (window.api && window.api.diagnostics && window.api.diagnostics.reportRendererError) {
+                window.api.diagnostics.reportRendererError({
                     action: action,
                     details: JSON.stringify(data),
-                    entity_type: 'renderer',
-                    entity_id: window.location.pathname
+                    page: window.location.pathname
                 });
             }
         } catch (_) {}
@@ -92,7 +91,12 @@
 // ===== App Auth Guard =====
 const AUTH_SESSION_KEY = 'gsl_auth_session_v1';
 const AUTH_SESSION_TTL_MS = 1000 * 60 * 60 * 12;
-const ADMIN_ONLY_PAGES = new Set(['settings-users.html', 'settings-license.html', 'app-admin.html']);
+const ADMIN_ONLY_PAGES = new Set([
+    'settings-users.html',
+    'settings-license.html',
+    'app-admin.html',
+    'settings-defaults.html'
+]);
 const PRINCIPAL_MANAGED_ADMIN_PAGES = new Set(['settings-users.html']);
 const GUEST_ALLOWED_PAGES = new Set(['index.html', 'students-list.html', 'settings-imports.html', 'login.html']);
 const GUEST_ALLOWED_LINKS = new Set(['students-list.html', 'settings-imports.html']);
@@ -106,6 +110,8 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'students-register.html', title: 'التسجيل والحركة العامة', group: 'التلاميذ', completed: true },
     { page: 'students-files.html', title: 'ترتيب الملفات', group: 'التلاميذ', completed: true },
     { page: 'students-movement.html', title: 'حركية التلاميذ', group: 'التلاميذ', completed: true },
+    { page: 'students-status.html', title: 'الوضعية الدراسية', group: 'التلاميذ', completed: true },
+    { page: 'students-orientation.html', title: 'التوجيه المدرسي', group: 'التلاميذ', completed: true },
     { page: 'teachers-list.html', title: 'قائمة الأساتذة', group: 'تدبير الموظفين', completed: true },
     { page: 'inspectors.html', title: 'المفتشون', group: 'تدبير الموظفين', completed: true },
     { page: 'teachers-schedule.html', title: 'حصص الأساتذة', group: 'تدبير الموظفين', completed: true },
@@ -137,11 +143,12 @@ const PAGE_VISIBILITY_CATALOG = Object.freeze([
     { page: 'settings-school.html', title: 'معلومات المؤسسة', group: 'الإعدادات', completed: true },
     { page: 'settings-imports.html', title: 'استيراد البيانات', group: 'الإعدادات', completed: true },
     { page: 'settings-users.html', title: 'المستخدمون', group: 'الإعدادات', completed: true },
+    { page: 'settings-defaults.html', title: 'إعدادات التطبيق', group: 'الإعدادات', completed: true },
     { page: 'app-admin.html', title: 'إدارة التطبيق', group: 'الإعدادات', completed: true },
     { page: 'settings-license.html', title: 'الترخيص والأجهزة', group: 'الإعدادات', completed: true },
     { page: 'settings-logs.html', title: 'سجل النشاطات', group: 'الإعدادات', completed: true },
     { page: 'settings-sync.html', title: 'المزامنة السحابية', group: 'الإعدادات', completed: true },
-    { page: 'student-profile-prototype.html', title: 'ملف التلميذ', group: 'التلاميذ', completed: false },
+    { page: 'student-profile-prototype.html', title: 'ملف التلميذ', group: 'التلاميذ', completed: true },
     {
         page: 'communication-center-prototype.html',
         title: 'مركز التواصل (جديد)',
@@ -203,47 +210,40 @@ function _computeSessionHash(data) {
 }
 
 function getAuthSessionData() {
-    let raw = null;
-    try {
-        raw = localStorage.getItem(AUTH_SESSION_KEY);
-    } catch (_err) {
-        return null;
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.getAuthSessionData === 'function') {
+        return window.PencilShared.getAuthSessionData();
     }
+    // Fallback when auth-session.js was not loaded
+    let raw = null;
+    try { raw = localStorage.getItem(AUTH_SESSION_KEY); } catch (_err) { return null; }
     if (!raw) return null;
-
     try {
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== 'object') return null;
-        if (parsed._h !== _computeSessionHash(parsed)) {
-            return null;
-        }
+        if (parsed._h !== _computeSessionHash(parsed)) return null;
         return parsed;
-    } catch (_err) {
-        return null;
-    }
+    } catch (_err) { return null; }
 }
 
 function isAuthSessionActive() {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.isAuthSessionActive === 'function') {
+        return window.PencilShared.isAuthSessionActive();
+    }
     const data = getAuthSessionData();
     if (!data) return false;
-
     const loggedAt = Number(data.loggedAt || 0);
     if (!Number.isFinite(loggedAt) || loggedAt <= 0) return false;
-
-    const isExpired = Date.now() - loggedAt > AUTH_SESSION_TTL_MS;
-    if (isExpired) {
-        try {
-            localStorage.removeItem(AUTH_SESSION_KEY);
-        } catch (_err) {
-            // ignore storage removal errors
-        }
+    if (Date.now() - loggedAt > AUTH_SESSION_TTL_MS) {
+        try { localStorage.removeItem(AUTH_SESSION_KEY); } catch (_err) {}
         return false;
     }
-
     return true;
 }
 
 function getAuthRole() {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.getAuthRole === 'function') {
+        return window.PencilShared.getAuthRole();
+    }
     const session = getAuthSessionData();
     return _normalizeRole(session?.role || '');
 }
@@ -606,6 +606,9 @@ function _deriveAuthRoleFromSession(session) {
 }
 
 function setAppAccessState(state) {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.setAppAccessState === 'function') {
+        return window.PencilShared.setAppAccessState(state);
+    }
     const s = String(state || '').toLowerCase();
     if (['licensed', 'trial', 'blocked'].includes(s)) {
         document.documentElement.dataset.appAccessState = s;
@@ -615,6 +618,9 @@ function setAppAccessState(state) {
 }
 
 function getAppAccessState() {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.getAppAccessState === 'function') {
+        return window.PencilShared.getAppAccessState();
+    }
     const value = document.documentElement.dataset.appAccessState;
     if (value === 'licensed') return 'licensed';
     if (value === 'trial') return 'trial';
@@ -622,6 +628,9 @@ function getAppAccessState() {
 }
 
 function getCurrentAppRole() {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.getCurrentAppRole === 'function') {
+        return window.PencilShared.getCurrentAppRole();
+    }
     const session = getAuthSessionData();
     if (!session || !isAuthSessionActive()) return null;
     const normalized = _normalizeRole(session.role || '');
@@ -629,6 +638,9 @@ function getCurrentAppRole() {
 }
 
 function setAuthSession(email = '', user = {}) {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.setAuthSession === 'function') {
+        return window.PencilShared.setAuthSession(email, user);
+    }
     const safeUser = user && typeof user === 'object' ? user : {};
     try {
         const sessionData = {
@@ -649,11 +661,10 @@ function setAuthSession(email = '', user = {}) {
 }
 
 function clearAuthSession() {
-    try {
-        localStorage.removeItem(AUTH_SESSION_KEY);
-    } catch (_err) {
-        // ignore storage removal errors
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.clearAuthSession === 'function') {
+        return window.PencilShared.clearAuthSession();
     }
+    try { localStorage.removeItem(AUTH_SESSION_KEY); } catch (_err) {}
 }
 
 function _isSidebarLinkBlocked(href, authRole, accessState) {
@@ -1783,6 +1794,43 @@ function applyAppUi(authRole, accessState, session) {
     }, 120);
 }
 
+let _pageAccessLiveBound = false;
+let _pageAccessLiveRefreshing = false;
+
+// Live re-evaluation of page access when an admin saves the matrix in
+// settings-defaults.html (main broadcasts 'appDefaults:pageAccessChanged').
+// Re-fetches the current role's allowed pages, then either redirects off a
+// now-forbidden page or refreshes the sidebar/links in place — no manual reload.
+// admin/developer bypass inside enforcePageRoleOrRedirect, so the window that
+// performed the save is never disrupted.
+async function refreshPageAccessLive() {
+    const currentPage = _getCurrentPageName();
+    if (currentPage === 'login.html') return;
+    if (_pageAccessLiveRefreshing) return;
+    _pageAccessLiveRefreshing = true;
+    try {
+        const authRole = getCurrentAppRole();
+        const accessState = getAppAccessState();
+        await loadAllowedPagesState(authRole, true);
+        if (!enforcePageRoleOrRedirect(authRole, accessState)) return; // redirect already fired
+        applyNavigationRestrictions(authRole, accessState);
+        applyPageVisibilityToDocument(authRole);
+    } catch (_err) {
+        // A live refresh must never break the current page.
+    } finally {
+        _pageAccessLiveRefreshing = false;
+    }
+}
+
+function _bindPageAccessLiveListener() {
+    if (_pageAccessLiveBound) return;
+    if (!window.api?.appDefaults?.onPageAccessChanged) return;
+    window.api.appDefaults.onPageAccessChanged(() => {
+        void refreshPageAccessLive();
+    });
+    _pageAccessLiveBound = true;
+}
+
 (async function enforceProtectedPagesAuth() {
     const currentPage = _getCurrentPageName();
     if (currentPage === 'login.html') return;
@@ -1823,6 +1871,7 @@ function applyAppUi(authRole, accessState, session) {
     }
 
     applyAppUi(authRole, accessState, session);
+    _bindPageAccessLiveListener();
 
     const params = new URLSearchParams(window.location.search);
     if (params.has('loggedin')) {
@@ -1833,12 +1882,12 @@ function applyAppUi(authRole, accessState, session) {
     }
 })();
 
-window.AuthSession = {
-    isActive: isAuthSessionActive,
-    get: getAuthSessionData,
-    set: setAuthSession,
-    clear: clearAuthSession
-};
+// Keep AuthSession facade in sync with shared module (or local wrappers).
+window.AuthSession = window.AuthSession || {};
+window.AuthSession.isActive = isAuthSessionActive;
+window.AuthSession.get = getAuthSessionData;
+window.AuthSession.set = setAuthSession;
+window.AuthSession.clear = clearAuthSession;
 
 window.PageVisibility = {
     getCatalog: getPageVisibilityCatalog,
@@ -1853,11 +1902,71 @@ window.PageVisibility = {
     }
 };
 
-// ===== XSS Protection =====
+// ===== XSS / DOM helpers (WP6) =====
+// Prefer js/shared/dom-helpers.js when loaded first; otherwise define here and publish to PencilShared.
+(function bindDomHelpers() {
+    const g = typeof window !== 'undefined' ? window : globalThis;
+    const ps = g.PencilShared || (g.PencilShared = {});
+
+    if (typeof ps.escapeHtml !== 'function') {
+        ps.escapeHtml = function escapeHtmlImpl(text) {
+            if (text === null || text === undefined) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        };
+    }
+
+    if (typeof ps.setButtonContent !== 'function') {
+        ps.setButtonContent = function setButtonContentImpl(button, { icon, text, spin = false } = {}) {
+            if (!button) return;
+            button.replaceChildren();
+            if (icon) {
+                const iconEl = document.createElement('i');
+                iconEl.className = `fas ${icon}${spin ? ' fa-spin' : ''}`;
+                iconEl.setAttribute('aria-hidden', 'true');
+                button.appendChild(iconEl);
+            }
+            if (text) {
+                button.appendChild(document.createTextNode(`${icon ? ' ' : ''}${text}`));
+            }
+        };
+    }
+
+    if (typeof ps.setSelectOptions !== 'function') {
+        ps.setSelectOptions = function setSelectOptionsImpl(select, options, { placeholder = '', getValue, getLabel } = {}) {
+            if (!select) return;
+            select.replaceChildren();
+            if (placeholder) {
+                const placeholderOption = document.createElement('option');
+                placeholderOption.value = '';
+                placeholderOption.textContent = placeholder;
+                select.appendChild(placeholderOption);
+            }
+            (options || []).forEach((option, index) => {
+                const optionEl = document.createElement('option');
+                optionEl.value = typeof getValue === 'function' ? getValue(option, index) : option;
+                optionEl.textContent = typeof getLabel === 'function' ? getLabel(option, index) : option;
+                select.appendChild(optionEl);
+            });
+        };
+    }
+
+    // Bare globals expected by pages and FilterManager
+    g.escapeHtml = ps.escapeHtml;
+    g.setButtonContent = ps.setButtonContent;
+    g.setSelectOptions = ps.setSelectOptions;
+})();
+
 /**
  * حماية النص من هجمات XSS
- * @param {string} text - النص المراد تأمينه
- * @returns {string} - النص الآمن
+ * Canonical implementation (also published on PencilShared / bare globals above).
+ * Kept self-contained so unit tests can extract this function body.
+ * @param {string} text
+ * @returns {string}
  */
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
@@ -1869,43 +1978,27 @@ function escapeHtml(text) {
         .replace(/'/g, '&#39;');
 }
 
-function setButtonContent(button, { icon, text, spin = false } = {}) {
-    if (!button) return;
-
-    button.replaceChildren();
-
-    if (icon) {
-        const iconEl = document.createElement('i');
-        iconEl.className = `fas ${icon}${spin ? ' fa-spin' : ''}`;
-        iconEl.setAttribute('aria-hidden', 'true');
-        button.appendChild(iconEl);
-    }
-
-    if (text) {
-        const textNode = document.createTextNode(`${icon ? ' ' : ''}${text}`);
-        button.appendChild(textNode);
+function setButtonContent(button, opts) {
+    const g = typeof window !== 'undefined' ? window : globalThis;
+    if (g.PencilShared && typeof g.PencilShared.setButtonContent === 'function') {
+        return g.PencilShared.setButtonContent(button, opts);
     }
 }
 
-function setSelectOptions(select, options, { placeholder = '', getValue, getLabel } = {}) {
-    if (!select) return;
-
-    select.replaceChildren();
-
-    if (placeholder) {
-        const placeholderOption = document.createElement('option');
-        placeholderOption.value = '';
-        placeholderOption.textContent = placeholder;
-        select.appendChild(placeholderOption);
+function setSelectOptions(select, options, opts) {
+    const g = typeof window !== 'undefined' ? window : globalThis;
+    if (g.PencilShared && typeof g.PencilShared.setSelectOptions === 'function') {
+        return g.PencilShared.setSelectOptions(select, options, opts);
     }
-
-    (options || []).forEach((option, index) => {
-        const optionEl = document.createElement('option');
-        optionEl.value = typeof getValue === 'function' ? getValue(option, index) : option;
-        optionEl.textContent = typeof getLabel === 'function' ? getLabel(option, index) : option;
-        select.appendChild(optionEl);
-    });
 }
+
+// Keep PencilShared / bare globals aligned with the canonical escapeHtml.
+(function syncEscapeHtmlGlobal() {
+    const g = typeof window !== 'undefined' ? window : globalThis;
+    const ps = g.PencilShared || (g.PencilShared = {});
+    ps.escapeHtml = escapeHtml;
+    g.escapeHtml = escapeHtml;
+})();
 
 function renderPaginationControls(
     container,
@@ -2028,13 +2121,22 @@ function formatDate(date, format = 'short') {
 
 // ===== Number Formatting =====
 /**
- * تنسيق الأرقام بالفواصل
- * @param {number} num - الرقم
- * @returns {string} - الرقم المنسق
+ * تنسيق الأرقام
+ * @param {number|string|null|undefined} num - الرقم
+ * @param {'locale'|'fixed'} [style='locale'] - نمط العرض
+ *   - locale (default): toLocaleString('ar-MA') — grouping + locale digits (rest of app)
+ *   - fixed: Western digits; integers as String(n), else toFixed(1) — analytics KPIs (CH5)
+ * @returns {string}
+ *
+ * KD9: do not silent-merge analytics fixed display into locale (mixed digit systems).
  */
-function formatNumber(num) {
+function formatNumber(num, style) {
+    if (style === 'fixed') {
+        const n = Number(num) || 0;
+        return n % 1 === 0 ? String(n) : n.toFixed(1);
+    }
     if (num === null || num === undefined || isNaN(num)) return '0';
-    return num.toLocaleString('ar-MA');
+    return Number(num).toLocaleString('ar-MA');
 }
 
 /**
@@ -2114,7 +2216,7 @@ function setupSidebar() {
  */
 function setupUnifiedHeader() {
     const currentPage = window.location.pathname.split('/').pop() || '';
-    if (currentPage === 'login.html') return;
+    if (currentPage === 'login.html' || currentPage === 'setup.html') return;
 
     const mainContent = document.querySelector('main.main-content');
     if (!mainContent) return;
@@ -2122,8 +2224,8 @@ function setupUnifiedHeader() {
     const header = mainContent.querySelector(':scope > .header');
     if (!header || header.dataset.unifiedHeader === 'true') return;
 
-    // Extract the page title before rebuilding the header
-    const existingTitle = header.querySelector('h1, h2, h3');
+    // Extract the page title before rebuilding the header (shown below topbar)
+    const existingTitle = header.querySelector('h1, h2, h3, .page-title');
     const titleText = existingTitle ? existingTitle.textContent.replace(/\s+/g, ' ').trim() : '';
     const titleIcon = existingTitle?.querySelector('i')?.className || '';
     const hasSidebar = !!document.getElementById('sidebar');
@@ -2139,55 +2241,79 @@ function setupUnifiedHeader() {
         yearOptions.push(`<option value="${yStr}"${yStr === activeYear ? ' selected' : ''}>${yStr}</option>`);
     }
 
-    const utilityButtons = [
+    const extraIconButtons = [
         hasShortcutsModal
-            ? `<button class="header-tools-btn" id="shortcuts-btn" title="اختصارات لوحة المفاتيح" aria-label="اختصارات لوحة المفاتيح"><span>الاختصارات</span><i class="fas fa-keyboard" aria-hidden="true"></i></button>`
+            ? `<button class="topbar-icon-btn" id="shortcuts-btn" type="button" title="اختصارات لوحة المفاتيح" aria-label="اختصارات لوحة المفاتيح"><i class="fas fa-keyboard" aria-hidden="true"></i></button>`
             : '',
         hasBackupModal
-            ? `<button class="header-tools-btn" id="backup-btn" title="إدارة النسخة الاحتياطية" aria-label="إدارة النسخة الاحتياطية"><span>النسخة الاحتياطية</span><i class="fas fa-database" aria-hidden="true"></i></button>`
-            : '',
-        `<button class="header-tools-btn" id="theme-toggle" title="تبديل السمة" aria-label="تبديل السمة"><span>السمة</span><i class="fas fa-moon" aria-hidden="true"></i></button>`
+            ? `<button class="topbar-icon-btn" id="backup-btn" type="button" title="إدارة النسخة الاحتياطية" aria-label="إدارة النسخة الاحتياطية"><i class="fas fa-database" aria-hidden="true"></i></button>`
+            : ''
     ]
         .filter(Boolean)
         .join('');
 
-    header.classList.add('unified-header');
+    // Dashboard-style topbar (search · theme · notifications · school year) — all app pages
+    header.classList.add('unified-header', 'dashboard-topbar');
     header.innerHTML = `
         <div class="header-left">
-            <button class="menu-toggle" id="menu-toggle" title="${hasSidebar ? 'القائمة' : 'الصفحة الرئيسية'}">
-                <i class="fas fa-bars"></i>
-            </button>
             <div class="search-box" role="search">
-                <input type="text" placeholder="ابحث داخل الصفحة..." aria-label="بحث داخل الصفحة">
-                <i class="fas fa-search"></i>
+                <input
+                    type="search"
+                    id="header-search"
+                    placeholder="ابحث داخل الصفحة..."
+                    aria-label="بحث داخل الصفحة"
+                />
+                <i class="fas fa-search" aria-hidden="true"></i>
             </div>
+            <button
+                class="menu-toggle"
+                id="menu-toggle"
+                type="button"
+                title="${hasSidebar ? 'القائمة' : 'الصفحة الرئيسية'}"
+                aria-label="${hasSidebar ? 'فتح أو إغلاق القائمة الجانبية' : 'الصفحة الرئيسية'}"
+            >
+                <i class="fas fa-bars" aria-hidden="true"></i>
+            </button>
         </div>
         <div class="header-right">
-            <select id="school-year" title="الموسم الدراسي" aria-label="الموسم الدراسي">
-                ${yearOptions.join('')}
-            </select>
-            <button class="notification-btn" title="الإشعارات" aria-label="الإشعارات">
-                <i class="fas fa-bell"></i>
-                <span class="badge" style="display:none">0</span>
+            <button
+                class="topbar-icon-btn"
+                id="theme-toggle"
+                type="button"
+                title="تبديل السمة"
+                aria-label="تبديل الوضع الداكن"
+            >
+                <i class="fas fa-moon" aria-hidden="true"></i>
             </button>
-            <div class="user-info" id="user-info">
-                <span id="user-email">المستخدم</span>
-            </div>
-            <details class="header-tools">
-                <summary class="header-tools-summary" aria-label="أدوات الإدارة">
-                    <span class="header-tools-summary-copy">
-                        <strong>أدوات الإدارة</strong>
-                        <small>اختصارات، نسخ احتياطي، سمة</small>
-                    </span>
-                    <i class="fas fa-sliders-h" aria-hidden="true"></i>
-                </summary>
-                <div class="header-tools-panel">
-                    ${utilityButtons}
-                </div>
-            </details>
+            ${extraIconButtons}
+            <button class="notification-btn topbar-icon-btn" type="button" aria-label="الإشعارات" title="الإشعارات">
+                <i class="fas fa-bell" aria-hidden="true"></i>
+                <span class="badge notification-badge" id="notification-badge" style="display: none">0</span>
+            </button>
+            <span class="topbar-divider" aria-hidden="true"></span>
+            <label class="dashboard-year-control" for="school-year">
+                <span>العام الدراسي</span>
+                <select id="school-year" title="الموسم الدراسي" aria-label="الموسم الدراسي">
+                    ${yearOptions.join('')}
+                </select>
+            </label>
         </div>
     `;
     header.dataset.unifiedHeader = 'true';
+
+    // The unified header replaced the previous one wholesale, so any switcher
+    // wrapper that was injected earlier (e.g. by the cycle-config broadcast
+    // subscription firing before DOM ready) is gone. Re-run the loader against
+    // the final header — it no-ops when the wrapper already exists.
+    if (typeof window.refreshCycleSwitcher === 'function') {
+        window.refreshCycleSwitcher();
+    }
+
+    // Re-apply theme icon after replacing #theme-toggle
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    if (typeof updateThemeIcon === 'function') {
+        updateThemeIcon(theme);
+    }
 
     // Wire school-year select change
     const yearSelect = header.querySelector('#school-year');
@@ -2215,8 +2341,8 @@ function setupUnifiedHeader() {
         const titleRow = document.createElement('div');
         titleRow.className = 'page-title-row';
         titleRow.innerHTML = `
-            <h2>
-                ${titleIcon ? `<i class="${escapeHtml(titleIcon)}"></i>` : ''}
+            <h2 class="page-title">
+                ${titleIcon ? `<i class="${escapeHtml(titleIcon)}" aria-hidden="true"></i>` : ''}
                 <span>${escapeHtml(titleText)}</span>
             </h2>
         `;
@@ -2277,54 +2403,12 @@ function debounce(func, wait = 300) {
 }
 
 // ===== Level Code Normalization (مصدر موحد لأسماء المستويات) =====
-/**
- * القاموس المرجعي: رمز المستوى → { الاسم العربي, ترتيب العرض }
- * لإضافة مستوى جديد: أضف سطراً واحداً هنا فقط.
- */
-const LEVEL_CODE_TO_AR = Object.freeze({
-    TCSF: { name: 'الجذع المشترك العلمي خيار فرنسية', order: 1 },
-    TCSA: { name: 'الجذع المشترك العلمي خيار عربية', order: 2 },
-    TCS: { name: 'الجذع المشترك العلمي', order: 1 },
-    TCLSH: { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    TCL: { name: 'الجذع المشترك للآداب والعلوم الإنسانية', order: 3 },
-    TCTF: { name: 'الجذع المشترك التكنولوجي', order: 4 },
-    '1BACSMF': { name: 'الأولى باكالوريا علوم رياضية خيار فرنسية', order: 5 },
-    '1BACSMA': { name: 'الأولى باكالوريا علوم رياضية خيار عربية', order: 6 },
-    '1BACSM': { name: 'الأولى باكالوريا العلوم الرياضية', order: 5 },
-    '1BACSEF': { name: 'الأولى باكالوريا علوم تجريبية خيار فرنسية', order: 7 },
-    '1BACSEA': { name: 'الأولى باكالوريا علوم تجريبية خيار عربية', order: 8 },
-    '1BACSE': { name: 'الأولى باكالوريا علوم تجريبية', order: 7 },
-    '1BACSH': { name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 9 },
-    '1BACL': { name: 'الأولى باكالوريا آداب وعلوم إنسانية', order: 9 },
-    '1BACSEG': { name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    '1BACECO': { name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    '1BACGE': { name: 'الأولى باكالوريا علوم الإقتصاد والتدبير', order: 10 },
-    '2BACSMA': { name: 'الثانية باكالوريا علوم رياضية أ', order: 11 },
-    '2BACSMB': { name: 'الثانية باكالوريا علوم رياضية ب', order: 12 },
-    '2BACSM': { name: 'الثانية باكالوريا علوم رياضية', order: 11 },
-    '2BACSVTF': { name: 'الثانية باكالوريا علوم الحياة والأرض', order: 13 },
-    '2BACSVT': { name: 'الثانية باكالوريا علوم الحياة والأرض', order: 13 },
-    '2BACPCF': { name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 14 },
-    '2BACPC': { name: 'الثانية باكالوريا علوم فيزيائية', order: 14 },
-    '2BACSPF': { name: 'الثانية باكالوريا علوم فيزيائية خيار فرنسية', order: 14 },
-    '2BACSP': { name: 'الثانية باكالوريا علوم فيزيائية', order: 14 },
-    '2BACSHF': { name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    '2BACSH': { name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    '2BACL': { name: 'الثانية باكالوريا آداب وعلوم إنسانية', order: 15 },
-    '2BACLETF': { name: 'الثانية باكالوريا آداب', order: 16 },
-    '2BACLET': { name: 'الثانية باكالوريا آداب', order: 16 },
-    '2BACSECF': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACSEC': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACSE': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACECO': { name: 'الثانية باكالوريا علوم الإقتصاد والتدبير', order: 17 },
-    '2BACSGCF': { name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    '2BACSGC': { name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    '2BACGC': { name: 'الثانية باكالوريا علوم التدبير المحاسباتي', order: 18 },
-    '2BACSA': { name: 'الثانية باكالوريا علوم شرعية', order: 19 },
-    '2BACOAF': { name: 'الثانية باكالوريا تعليم أصيل', order: 20 },
-    '2BACAO': { name: 'الثانية باكالوريا تعليم أصيل', order: 20 }
-});
-const _LEVEL_KEYS_DESC = Object.keys(LEVEL_CODE_TO_AR).sort((a, b) => b.length - a.length);
+// المصدر الوحيد للمستويات التأهيلية هو js/shared/education/qualifiant-levels.js
+// (التوزيع المزدوج: نافذة + CommonJS). لإضافة مستوى جديد: عدّل ذلك الملف فقط.
+const _QUALIFIANT_LEVELS =
+    typeof globalThis.EducationQualifiantLevels !== 'undefined' ? globalThis.EducationQualifiantLevels : null;
+const LEVEL_CODE_TO_AR = _QUALIFIANT_LEVELS ? _QUALIFIANT_LEVELS.LEVEL_CODE_TO_AR : Object.freeze({});
+const _LEVEL_KEYS_DESC = _QUALIFIANT_LEVELS ? _QUALIFIANT_LEVELS.LEVEL_KEYS_DESC : [];
 
 /**
  * تحويل رمز القسم إلى كائن { code, name, order }
@@ -2332,22 +2416,8 @@ const _LEVEL_KEYS_DESC = Object.keys(LEVEL_CODE_TO_AR).sort((a, b) => b.length -
  * @returns {{ code: string, name: string, order: number }}
  */
 function getLevelFromSection(section) {
-    if (!section) return { code: 'other', name: 'أخرى', order: 99 };
-    const s = String(section).trim();
-    const upper = s
-        .toUpperCase()
-        .replace(/[-_\s]?\d+$/, '')
-        .trim();
-    for (const key of _LEVEL_KEYS_DESC) {
-        if (upper === key || upper.startsWith(key)) {
-            const info = LEVEL_CODE_TO_AR[key];
-            return { code: key.toLowerCase(), name: info.name, order: info.order };
-        }
-    }
-    if (upper.startsWith('TC')) return { code: 'tc', name: 'الجذع المشترك', order: 90 };
-    if (upper.startsWith('1BAC')) return { code: '1bac', name: 'الأولى باكالوريا', order: 91 };
-    if (upper.startsWith('2BAC')) return { code: '2bac', name: 'الثانية باكالوريا', order: 92 };
-    return { code: 'other', name: section, order: 99 };
+    if (_QUALIFIANT_LEVELS) return _QUALIFIANT_LEVELS.matchLevelFromSection(section);
+    return { code: 'other', name: String(section || 'أخرى'), order: 99 };
 }
 
 /**
@@ -2357,6 +2427,21 @@ function getLevelFromSection(section) {
  */
 function getLevelNameFromSection(section) {
     return getLevelFromSection(section).name;
+}
+
+/**
+ * اسم المستوى من القسم — المصدر الموحّد (SSOT) لدمج خريطة المستخدم مع المعادلة.
+ * يحترم ربط المستخدم (levelsMapping من الإعدادات) أولاً، ثم يسقط إلى معادلة getLevelFromSection.
+ * على كل صفحة تحتاج «اسم المستوى من القسم» أن تستدعي هذه الدالة بدل تكرار المنطق.
+ * @param {string} section - رمز القسم
+ * @param {Object<string,string>} [mapping] - خريطة section→اسم المستوى (اختيارية)
+ * @returns {string} - اسم المستوى العربي
+ */
+function resolveLevelName(section, mapping) {
+    const s = String(section || '').trim();
+    if (!s) return '';
+    if (mapping && mapping[s]) return mapping[s];
+    return getLevelNameFromSection(s);
 }
 
 /**
@@ -2560,38 +2645,70 @@ function buildSubjectOptionsFromSet(subjectCollection) {
 const SCHOOL_YEAR_KEY = 'gsl_current_school_year';
 
 function getSchoolYear() {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.getSchoolYear === 'function') {
+        return window.PencilShared.getSchoolYear();
+    }
     return localStorage.getItem(SCHOOL_YEAR_KEY) || '2025/2026';
 }
 
 function setSchoolYear(newYear) {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.setSchoolYear === 'function') {
+        return window.PencilShared.setSchoolYear(newYear);
+    }
     if (!newYear) return;
     localStorage.setItem(SCHOOL_YEAR_KEY, newYear);
-    // Use no-auth endpoint specifically for school year to avoid auth rejection
     const saveToDb =
         window.api && window.api.settings && window.api.settings.setSchoolYear
             ? window.api.settings.setSchoolYear(newYear)
             : window.api && window.api.settings && window.api.settings.set
               ? window.api.settings.set('currentSchoolYear', newYear)
               : Promise.resolve();
-    saveToDb.finally(() => {
-        window.location.reload();
-    });
+    saveToDb.finally(() => { window.location.reload(); });
+}
+
+const IPC_LIST_PAGE_SIZE = 500;
+
+async function fetchPaginatedIpcRows(listFn, schoolYear, options = {}) {
+    if (typeof listFn !== 'function') return [];
+    const pageSize = IPC_LIST_PAGE_SIZE;
+    let page = 1;
+    const rows = [];
+    while (true) {
+        const res = await listFn(schoolYear, { ...options, page, pageSize });
+        if (!res || res.success === false) break;
+        const chunk = Array.isArray(res.rows) ? res.rows : [];
+        rows.push(...chunk);
+        const totalPages = Number(res.totalPages) || 1;
+        if (page >= totalPages || !chunk.length) break;
+        page += 1;
+    }
+    return rows;
+}
+
+async function fetchAllStudentsForYear(schoolYear) {
+    if (window.api?.students?.list) {
+        return fetchPaginatedIpcRows(window.api.students.list.bind(window.api.students), schoolYear);
+    }
+    return (await window.api.students.getAll(schoolYear)) || [];
+}
+
+async function fetchAllGradesForYear(schoolYear, options = {}) {
+    if (window.api?.grades?.list) {
+        return fetchPaginatedIpcRows(window.api.grades.list.bind(window.api.grades), schoolYear, options);
+    }
+    return (await window.api.grades.getAll(schoolYear)) || [];
 }
 
 async function initSchoolYear() {
+    if (typeof window !== 'undefined' && window.PencilShared && typeof window.PencilShared.initSchoolYear === 'function') {
+        return window.PencilShared.initSchoolYear();
+    }
     const localYear = localStorage.getItem(SCHOOL_YEAR_KEY);
-
     if (!localYear) {
-        // localStorage is empty = first launch or cleared cache.
-        // Use DB value as the source of truth.
         if (window.api && window.api.settings && window.api.settings.get) {
             try {
                 const dbYear = await window.api.settings.get('currentSchoolYear');
-                if (dbYear) {
-                    localStorage.setItem(SCHOOL_YEAR_KEY, dbYear);
-                } else {
-                    localStorage.setItem(SCHOOL_YEAR_KEY, '2025/2026');
-                }
+                localStorage.setItem(SCHOOL_YEAR_KEY, dbYear || '2025/2026');
             } catch (e) {
                 console.error('Error fetching school year from DB:', e);
                 localStorage.setItem(SCHOOL_YEAR_KEY, '2025/2026');
@@ -2600,15 +2717,10 @@ async function initSchoolYear() {
             localStorage.setItem(SCHOOL_YEAR_KEY, '2025/2026');
         }
     }
-    // When localStorage already has a value (set by setSchoolYear after user choice),
-    // keep it as-is. The DB will have been updated by setSchoolYear() already.
-
-    // Sync the toolbar year select to match the resolved value
     const resolvedYear = localStorage.getItem(SCHOOL_YEAR_KEY);
     const yearSelect = document.getElementById('school-year');
     if (yearSelect && resolvedYear) {
-        // Make sure the option exists in the select; if not, add it
-        let opt = yearSelect.querySelector(`option[value="${resolvedYear}"]`);
+        let opt = yearSelect.querySelector('option[value="' + resolvedYear + '"]');
         if (!opt) {
             opt = document.createElement('option');
             opt.value = resolvedYear;
@@ -2617,6 +2729,42 @@ async function initSchoolYear() {
         }
         yearSelect.value = resolvedYear;
     }
+}
+
+// ===== Asset scale helpers (mirrors main/reports/identity.js) =====
+// Same functions for logo / seal / signature: resolveLogoMaxPx(scale, basePx)
+const LOGO_BASE_PX = 80;
+const SEAL_BASE_PX = 72;
+const SIGNATURE_BASE_WIDTH_PX = 100;
+const SIGNATURE_BASE_HEIGHT_PX = 48;
+const LOGO_SCALE_MIN = 30;
+const LOGO_SCALE_MAX = 250;
+const LOGO_SCALE_DEFAULT = 100;
+
+/**
+ * Clamp an asset scale percentage to the allowed range (30–250).
+ * Shared by logo, seal, and signature.
+ * @param {string|number|null|undefined} scale
+ * @returns {number}
+ */
+function clampLogoScale(scale) {
+    const n = Number(scale);
+    if (!Number.isFinite(n)) return LOGO_SCALE_DEFAULT;
+    return Math.min(LOGO_SCALE_MAX, Math.max(LOGO_SCALE_MIN, Math.round(n)));
+}
+
+/**
+ * Resolve asset max size in px from a scale percentage.
+ * Same function for logo, seal, and signature — pass base as 2nd arg.
+ * 100% → basePx (default 80 for logo). Matches main/reports/identity.js.
+ * @param {string|number|null|undefined} scale
+ * @param {number} [basePx=LOGO_BASE_PX]
+ * @returns {number}
+ */
+function resolveLogoMaxPx(scale, basePx = LOGO_BASE_PX) {
+    const base = Number(basePx);
+    const resolvedBase = Number.isFinite(base) && base > 0 ? base : LOGO_BASE_PX;
+    return Math.round((resolvedBase * clampLogoScale(scale)) / 100);
 }
 
 // ===== Timetable Schedule Utilities =====
@@ -2700,336 +2848,21 @@ function mergeConsecutivePeriods(slots) {
 }
 
 // ===== Unified Filter Manager =====
-/**
- * FilterManager — مكون فلترة موحد للقوائم المنسدلة المتسلسلة
- *
- * يتولى تعبئة وربط فلاتر المستوى والقسم والمادة والأستاذ
- * باستخدام مصدر بيانات واحد (classes API + subjects API).
- *
- * @example
- *   const fm = new FilterManager({
- *       selectors: { level: '#level-select', class: '#class-select', subject: '#subject-select' },
- *       onChange: (values) => console.log(values)
- *   });
- *   await fm.init();
- */
-class FilterManager {
-    /**
-     * @param {Object} config
-     * @param {Object} config.selectors — CSS selectors or element IDs (without #) for each filter
-     *   - level:   string — المستوى (optional)
-     *   - class:   string — القسم (optional)
-     *   - subject: string — المادة (optional)
-     *   - teacher: string — الأستاذ (optional)
-     * @param {Function} [config.onChange] — callback({ level, class, subject, teacher }) on any change
-     * @param {Object} [config.placeholders] — custom placeholder text for each filter
-     * @param {boolean} [config.subjectsFromGrades=false] — if true, populate subjects from grades API instead of subjects API
-     * @param {string} [config.year] — school year override (defaults to getSchoolYear())
-     * @param {boolean} [config.autoInit=false] — if true, calls init() automatically
-     */
-    constructor(config = {}) {
-        this._config = config;
-        this._year = config.year || (typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026');
-        this._placeholders = Object.assign({
-            level: 'كل المستويات',
-            class: 'كل الأقسام',
-            subject: 'كل المواد',
-            teacher: 'كل الأساتذة'
-        }, config.placeholders || {});
-        this._onChange = typeof config.onChange === 'function' ? config.onChange : null;
-
-        // Resolved DOM elements
-        this._els = {};
-        // Data caches
-        this._allClasses = [];         // raw class names from API
-        this._levelMap = new Map();    // levelCode → { name, order, sections[] }
-        this._levelsMapping = {};      // section → level name (from settings)
-        this._allSubjects = [];        // normalized subject names
-        this._allGradesCache = [];     // grades cache (if subjectsFromGrades)
-        // Bound handlers for cleanup
-        this._handlers = {};
-
-        if (config.autoInit) {
-            // Defer to next tick so caller can still store the reference
-            Promise.resolve().then(() => this.init());
-        }
+// Canonical class: js/shared/filter-manager.js (PencilShared.FilterManager).
+// Loaded before this file on pages; bind fallback for late/legacy load order.
+(function bindFilterManager() {
+    const g = typeof window !== 'undefined' ? window : globalThis;
+    const ps = g.PencilShared || (g.PencilShared = {});
+    if (typeof ps.FilterManager === 'function') {
+        g.FilterManager = ps.FilterManager;
+    } else if (typeof g.FilterManager === 'function') {
+        ps.FilterManager = g.FilterManager;
+    } else {
+        console.warn(
+            '[utils] FilterManager missing — include <script src="js/shared/filter-manager.js" defer> before utils.js'
+        );
     }
-
-    // ─── Public API ───
-
-    /** Initialize: load data + populate + bind cascading events */
-    async init() {
-        this._resolveElements();
-        await this._loadData();
-        this._populateAll();
-        this._bindEvents();
-        return this;
-    }
-
-    /** Get current selected values */
-    getValues() {
-        return {
-            level: this._val('level'),
-            class: this._val('class'),
-            subject: this._val('subject'),
-            teacher: this._val('teacher')
-        };
-    }
-
-    /** Programmatically set values and trigger cascading refresh */
-    setValues(values = {}) {
-        if (values.level !== undefined && this._els.level) {
-            this._els.level.value = values.level;
-        }
-        this._refreshClasses();
-        if (values.class !== undefined && this._els.class) {
-            this._els.class.value = values.class;
-        }
-        this._refreshSubjects();
-        if (values.subject !== undefined && this._els.subject) {
-            this._els.subject.value = values.subject;
-        }
-        if (values.teacher !== undefined && this._els.teacher) {
-            this._els.teacher.value = values.teacher;
-        }
-    }
-
-    /** Reset all filters to default (empty) */
-    reset() {
-        ['level', 'class', 'subject', 'teacher'].forEach((key) => {
-            if (this._els[key]) this._els[key].value = '';
-        });
-        this._refreshClasses();
-        this._refreshSubjects();
-        this._fireOnChange();
-    }
-
-    /** Get the cached data for external use */
-    getData() {
-        return {
-            classes: this._allClasses.slice(),
-            levelMap: new Map(this._levelMap),
-            subjects: this._allSubjects.slice(),
-            grades: this._allGradesCache.slice()
-        };
-    }
-
-    /** Clean up event listeners */
-    destroy() {
-        Object.entries(this._handlers).forEach(([key, handler]) => {
-            if (this._els[key]) {
-                this._els[key].removeEventListener('change', handler);
-            }
-        });
-        this._handlers = {};
-    }
-
-    // ─── Internal ───
-
-    _resolveElements() {
-        const sel = this._config.selectors || {};
-        ['level', 'class', 'subject', 'teacher'].forEach((key) => {
-            if (!sel[key]) { this._els[key] = null; return; }
-            // Accept '#id', 'id', or a DOM element
-            if (sel[key] instanceof HTMLElement) {
-                this._els[key] = sel[key];
-            } else {
-                const id = String(sel[key]).replace(/^#/, '');
-                this._els[key] = document.getElementById(id);
-            }
-        });
-    }
-
-    async _loadData() {
-        const year = this._year;
-
-        // 1. Load classes (single source of truth for levels/sections)
-        let classes = [];
-        try {
-            classes = (await window.api?.classes?.getAll?.(year)) || [];
-        } catch (_) { /* fallback to empty */ }
-        this._allClasses = classes.map((c) => c.name).filter(Boolean);
-
-        // 2. Load levelsMapping from settings
-        try {
-            const mappingRaw = await window.api?.settings?.get?.('levelsMapping');
-            this._levelsMapping = mappingRaw ? JSON.parse(mappingRaw) : {};
-        } catch (_) {
-            this._levelsMapping = {};
-        }
-
-        // 3. Build level → sections map
-        this._levelMap = new Map();
-        this._allClasses.forEach((name) => {
-            const levelInfo = getLevelFromSection(name);
-            if (!this._levelMap.has(levelInfo.code)) {
-                this._levelMap.set(levelInfo.code, { name: levelInfo.name, order: levelInfo.order, sections: [] });
-            }
-            const entry = this._levelMap.get(levelInfo.code);
-            if (!entry.sections.includes(name)) entry.sections.push(name);
-        });
-
-        // 4. Load subjects
-        if (this._config.subjectsFromGrades) {
-            // Build subjects from grades (for analytics/results pages)
-            try {
-                this._allGradesCache = (await window.api?.grades?.getAll?.(year)) || [];
-            } catch (_) {
-                this._allGradesCache = [];
-            }
-            this._allSubjects = buildSubjectOptionsFromGrades(this._allGradesCache, {
-                getLevelName: (s) => this._getLocalLevelName(s)
-            });
-        } else {
-            // Load from subjects API (single canonical source)
-            try {
-                const subjects = (await window.api?.subjects?.getAll?.()) || [];
-                const normalized = new Set();
-                subjects.forEach((s) => {
-                    if (s.name) {
-                        const n = normalizeSubjectName(s.name);
-                        if (n && !INVALID_SUBJECT_NAMES.has(n.toLowerCase())) normalized.add(n);
-                    }
-                });
-                this._allSubjects = Array.from(normalized).sort(
-                    typeof compareSubjects === 'function' ? compareSubjects : (a, b) => a.localeCompare(b, 'ar')
-                );
-            } catch (_) {
-                this._allSubjects = [];
-            }
-        }
-    }
-
-    /** Level name from section — uses settings mapping first, then getLevelNameFromSection */
-    _getLocalLevelName(section) {
-        const s = String(section || '').trim();
-        if (!s) return '';
-        if (this._levelsMapping[s]) return this._levelsMapping[s];
-        return getLevelNameFromSection(s);
-    }
-
-    // ─── Populate Helpers ───
-
-    _populateAll() {
-        this._populateLevels();
-        this._refreshClasses();
-        this._refreshSubjects();
-    }
-
-    _populateLevels() {
-        const el = this._els.level;
-        if (!el) return;
-
-        // Build unique level names from the level map
-        const levelNames = new Set();
-        this._levelMap.forEach((info) => levelNames.add(info.name));
-
-        const sorted = sortLevelNames(Array.from(levelNames));
-        setSelectOptions(el, sorted.map((name) => ({ value: name, label: name })), {
-            placeholder: this._placeholders.level,
-            getValue: (o) => o.value,
-            getLabel: (o) => o.label
-        });
-    }
-
-    _refreshClasses() {
-        const el = this._els.class;
-        if (!el) return;
-
-        const selectedLevel = this._val('level');
-        const previousValue = el.value;
-        let list;
-
-        if (selectedLevel) {
-            // Filter sections by selected level name
-            list = this._allClasses.filter((name) => this._getLocalLevelName(name) === selectedLevel);
-        } else {
-            list = this._allClasses.slice();
-        }
-
-        setSelectOptions(el, sortSectionNames(list), { placeholder: this._placeholders.class });
-
-        // Restore previous value if still in the list
-        if (previousValue && Array.from(el.options).some((o) => o.value === previousValue)) {
-            el.value = previousValue;
-        }
-    }
-
-    _refreshSubjects() {
-        const el = this._els.subject;
-        if (!el) return;
-
-        const selectedLevel = this._val('level');
-        const selectedClass = this._val('class');
-        const previousValue = el.value;
-        let subjects;
-
-        if (this._config.subjectsFromGrades && this._allGradesCache.length) {
-            // Filter subjects based on selected level/class
-            subjects = buildSubjectOptionsFromGrades(this._allGradesCache, {
-                level: selectedLevel,
-                section: selectedClass,
-                getLevelName: (s) => this._getLocalLevelName(s)
-            });
-        } else {
-            // Use the full canonical subject list (no cascading filter for canonical subjects)
-            subjects = this._allSubjects;
-        }
-
-        setSelectOptions(el, subjects.map((s) => ({ value: s, label: s })), {
-            placeholder: this._placeholders.subject,
-            getValue: (o) => o.value,
-            getLabel: (o) => o.label
-        });
-
-        if (previousValue && Array.from(el.options).some((o) => o.value === previousValue)) {
-            el.value = previousValue;
-        }
-    }
-
-    // ─── Event Binding ───
-
-    _bindEvents() {
-        if (this._els.level) {
-            this._handlers.level = () => {
-                this._refreshClasses();
-                this._refreshSubjects();
-                this._fireOnChange();
-            };
-            this._els.level.addEventListener('change', this._handlers.level);
-        }
-
-        if (this._els.class) {
-            this._handlers.class = () => {
-                this._refreshSubjects();
-                this._fireOnChange();
-            };
-            this._els.class.addEventListener('change', this._handlers.class);
-        }
-
-        if (this._els.subject) {
-            this._handlers.subject = () => {
-                this._fireOnChange();
-            };
-            this._els.subject.addEventListener('change', this._handlers.subject);
-        }
-
-        if (this._els.teacher) {
-            this._handlers.teacher = () => {
-                this._fireOnChange();
-            };
-            this._els.teacher.addEventListener('change', this._handlers.teacher);
-        }
-    }
-
-    _val(key) {
-        return this._els[key]?.value || '';
-    }
-
-    _fireOnChange() {
-        if (this._onChange) this._onChange(this.getValues());
-    }
-}
+})();
 
 // ===== Auto-init =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -3066,18 +2899,32 @@ if (typeof module !== 'undefined' && module.exports) {
         populateTeachersBySubject,
         getSchoolYear,
         setSchoolYear,
+        fetchAllStudentsForYear,
+        fetchAllGradesForYear,
         getAppAccessState,
         setAppAccessState,
         getCurrentAppRole,
         lockScreen,
         isSessionLocked,
         openPinSetupModal,
+        LOGO_BASE_PX,
+        SEAL_BASE_PX,
+        SIGNATURE_BASE_WIDTH_PX,
+        SIGNATURE_BASE_HEIGHT_PX,
+        LOGO_SCALE_MIN,
+        LOGO_SCALE_MAX,
+        LOGO_SCALE_DEFAULT,
+        clampLogoScale,
+        resolveLogoMaxPx,
         PERIOD_MAP,
         MORNING_HOUR_MAP,
         AFTERNOON_HOUR_MAP,
         CONSECUTIVE_SLOT_MAP,
         resolveSlotTime,
         mergeConsecutivePeriods,
-        FilterManager
+        FilterManager:
+            typeof FilterManager !== 'undefined'
+                ? FilterManager
+                : (typeof globalThis !== 'undefined' && globalThis.FilterManager) || null
     };
 }

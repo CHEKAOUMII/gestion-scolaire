@@ -1,0 +1,138 @@
+/* ───────────────────────────────────────────────────────────────
+   Exemptions & Duty Matrix Grid (feature: exemptions-duty-matrix-grid)
+   Extracted from the inline <style> block of exams-proctors.html so the
+   page carries no inline styles (tests/smoke.js legacy-CSS policy) while
+   preserving the matrix styling intact.
+
+   Status background custom properties — four pairwise-distinct
+   colors, one per Proctor_Status (Requirement 3.2).
+   ─────────────────────────────────────────────────────────────── */
+:root {
+    --ed-guard-bg: #e6f6ec;    /* green  — حراسة (guard, default) */
+    --ed-exempt-bg: #fde7e4;   /* red    — معفى  (exempt)          */
+    --ed-duty-bg: #ece3fb;     /* purple — مداومة (duty)           */
+    --ed-reserve-bg: #fef0d9;  /* orange — احتياط (reserve)        */
+    --ed-matrix-header-h: 34px;
+}
+
+/* Scroll container: both axes scroll; sticky elements freeze
+   against this box (Requirements 10.1, 10.3). RTL layout. */
+.ed-matrix-wrapper {
+    position: relative;
+    overflow: auto;
+    max-height: 68vh;
+    direction: rtl;
+    border: 1px solid var(--color-border, #d8dee9);
+    border-radius: 8px;
+}
+.ed-matrix {
+    direction: rtl;            /* identity cols at right edge, sessions R→L (Req 10.4) */
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+    font-size: 13px;
+}
+.ed-matrix th,
+.ed-matrix td {
+    border-inline-end: 1px solid var(--color-border, #d8dee9);
+    border-bottom: 1px solid var(--color-border, #d8dee9);
+    padding: 5px 8px;
+    text-align: center;
+    white-space: nowrap;
+    background: var(--color-surface, #ffffff);
+}
+.ed-matrix thead th {
+    height: var(--ed-matrix-header-h);
+    font-weight: 700;
+}
+
+/* Header rows frozen on vertical scroll (Requirement 10.3). */
+.ed-matrix thead th { position: sticky; z-index: 2; }
+.ed-matrix .ed-date-group-header { top: 0; }
+.ed-matrix .ed-session-header { top: var(--ed-matrix-header-h); }
+
+/* Identity columns frozen on horizontal scroll, pinned to the
+   right edge in RTL with stacked offsets (Requirements 10.1, 10.4).
+   Per-column `right`/`width` are applied inline by the renderer. */
+.ed-matrix .ed-identity-col { position: sticky; z-index: 3; }
+.ed-matrix thead th.ed-identity-col { z-index: 5; }  /* top-right corner */
+
+/* Sortable identity-column headers (Task 15.1, Requirement 9.5). */
+.ed-matrix thead th.ed-matrix-sortable { cursor: pointer; user-select: none; }
+.ed-matrix thead th.ed-matrix-sortable i { margin-inline-start: 4px; opacity: .65; font-size: 11px; }
+.ed-matrix thead th.ed-matrix-sortable[aria-sort="ascending"] i,
+.ed-matrix thead th.ed-matrix-sortable[aria-sort="descending"] i { opacity: 1; color: var(--color-primary, #2d6cdf); }
+
+/* Summary columns trail the grid (appear at the left edge in RTL). */
+.ed-matrix .ed-summary-col { font-weight: 700; }
+
+/* Status cells (Requirements 3.1, 3.2). */
+.ed-matrix .ed-status-cell { cursor: pointer; font-weight: 700; }
+.ed-matrix .ed-status-guard { background: var(--ed-guard-bg); color: #1f7a3d; }
+.ed-matrix .ed-status-exempt { background: var(--ed-exempt-bg); color: #c0392b; }
+.ed-matrix .ed-status-duty { background: var(--ed-duty-bg); color: #6c3483; }
+.ed-matrix .ed-status-reserve { background: var(--ed-reserve-bg); color: #b9770e; }
+/* Unrecognized in-memory status: explicit marker, none of the four
+   codes/colors (Requirement 3.4). */
+.ed-matrix .ed-cell-unrecognized {
+    background: repeating-linear-gradient(45deg, #f0f0f0, #f0f0f0 5px, #e0e0e0 5px, #e0e0e0 10px);
+    color: #b00020;
+    font-weight: 800;
+}
+/* Identical placeholder for any empty/null identity field (Req 2.2). */
+.ed-matrix .ed-identity-missing { color: var(--color-text-muted, #9aa0a6); }
+
+.ed-matrix-empty {
+    padding: 30px;
+    text-align: center;
+    color: var(--color-text-muted, #6b7280);
+}
+
+/* Inline cell editor popup (feature: exemptions-duty-matrix-grid,
+   Task 12.1). Presents the four Proctor_Status options for ONE
+   activated Status_Cell; dismiss-without-select leaves it unchanged
+   (Requirement 5.1, 5.6). Anchored inside .ed-matrix-wrapper. */
+.ed-matrix-wrapper .ed-cell-editor {
+    position: absolute;
+    z-index: 20;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #d8dee9);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 128px;
+}
+.ed-cell-editor-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    text-align: right;
+    width: 100%;
+}
+.ed-cell-editor-opt:hover { filter: brightness(0.96); }
+.ed-cell-editor-opt.is-current {
+    outline: 2px solid var(--color-primary, #2c7be5);
+    font-weight: 800;
+}
+.ed-cell-editor-code {
+    font-weight: 800;
+    min-width: 30px;
+    display: inline-block;
+    text-align: center;
+}
+/* The four status colors, mirrored onto the editor options (the
+   table-scoped .ed-matrix rules don't reach this popup). */
+.ed-cell-editor-opt.ed-status-guard { background: var(--ed-guard-bg); color: #1f7a3d; }
+.ed-cell-editor-opt.ed-status-exempt { background: var(--ed-exempt-bg); color: #c0392b; }
+.ed-cell-editor-opt.ed-status-duty { background: var(--ed-duty-bg); color: #6c3483; }
+.ed-cell-editor-opt.ed-status-reserve { background: var(--ed-reserve-bg); color: #b9770e; }

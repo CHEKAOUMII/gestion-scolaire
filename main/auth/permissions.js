@@ -40,18 +40,28 @@ const PAGE_PERMISSIONS = {
     'students-register':             ['principal','supervisor','external-guardian','admin-assistant'],
     'students-movement':             ['principal','supervisor','external-guardian','admin-assistant'],
     'students-status':               ['principal','supervisor','external-guardian','admin-assistant'],
+    'students-orientation':          [
+        'principal',
+        'supervisor',
+        'external-guardian',
+        'admin-assistant',
+        'educational-specialist',
+        'viewer'
+    ],
+    'student-profile-prototype':     [...ALL_STAFF],
     'student-support':               ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','viewer'],
     'absence-students':              [...ALL_STAFF],
     'absence-weekly':                [...ALL_STAFF],
     'absence-analytics':             [...ALL_STAFF],
     'absence-correspondence':        ['principal','supervisor','external-guardian','internal-guardian','admin-assistant'],
     'grades-sheets':                 ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
+    'exam-papers':                   [], // exam-center: admin + developer only (bypass)
     'grades-results':                ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
     'results-hub':                   ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
-    'exams-schedule':                ['principal','supervisor','external-guardian','admin-assistant','educational-specialist','teacher','viewer'],
-    'exams-rooms':                   ['principal','supervisor','external-guardian','admin-assistant','viewer'],
-    'exams-proctors':                ['principal','supervisor','external-guardian','admin-assistant','viewer'],
-    'exams-tests':                   ['principal','supervisor','external-guardian','educational-specialist','teacher','viewer'],
+    'exams-schedule':                [], // exam-center: admin + developer only (bypass)
+    'exams-rooms':                   [], // exam-center: admin + developer only (bypass)
+    'exams-proctors':                [], // exam-center: admin + developer only (bypass)
+    'exams-tests':                   [], // exam-center: admin + developer only (bypass)
     'teachers-list':                 ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','viewer'],
     'inspectors':                    ['principal','supervisor','external-guardian'],
     'teachers-schedule':             ['principal','supervisor','external-guardian','internal-guardian','admin-assistant','educational-specialist','social-specialist','viewer'],
@@ -73,11 +83,62 @@ const PAGE_PERMISSIONS = {
     'settings-school':               ['principal','external-guardian'],
     'settings-imports':              ['principal','supervisor','external-guardian'],
     'settings-users':                ['principal'], // principal manages institution users; admin + developer bypass
+    'settings-defaults':             [], // admin + developer only
     'app-admin':                     [], // app admin only — admin + developer bypass
     'settings-license':              [], // developer only — bypass; admin excluded by design
     'settings-logs':                 [], // developer only — bypass; admin excluded by design
     'settings-sync':                 ['principal','supervisor','external-guardian'],
 };
+
+// DB override cache: page_key → string[] roles (only pages with rows in page_role_access).
+// null = not loaded yet; object = loaded (may be empty).
+let _pageAccessOverride = null;
+
+function clearPageAccessCache() {
+    _pageAccessOverride = null;
+}
+
+function ensurePageAccessCache() {
+    if (_pageAccessOverride !== null) return;
+    try {
+        const { getDb } = require('../db/context');
+        const db = getDb();
+        const pagesWithRows = db.prepare('SELECT DISTINCT page_key FROM page_role_access').all();
+        const allowedRows = db
+            .prepare('SELECT page_key, role FROM page_role_access WHERE allowed = 1')
+            .all();
+        const map = {};
+        for (const row of pagesWithRows) {
+            const key = String(row.page_key || '')
+                .replace(/\.html$/i, '')
+                .toLowerCase();
+            if (key) map[key] = [];
+        }
+        for (const row of allowedRows) {
+            const key = String(row.page_key || '')
+                .replace(/\.html$/i, '')
+                .toLowerCase();
+            if (!key) continue;
+            if (!map[key]) map[key] = [];
+            map[key].push(String(row.role));
+        }
+        _pageAccessOverride = map;
+    } catch {
+        // Table may not exist yet during early boot — use code defaults only.
+        _pageAccessOverride = {};
+    }
+}
+
+function getEffectivePageRoles(pageKey) {
+    const key = String(pageKey || '')
+        .replace(/\.html$/i, '')
+        .toLowerCase();
+    ensurePageAccessCache();
+    if (_pageAccessOverride && Object.prototype.hasOwnProperty.call(_pageAccessOverride, key)) {
+        return _pageAccessOverride[key];
+    }
+    return PAGE_PERMISSIONS[key] || [];
+}
 
 // Scoped restrictions applied on top of page access (enforced individually in each IPC handler).
 const SCOPED_ROLES = {
@@ -92,13 +153,32 @@ function resolveRole(role) {
 function canAccessPage(role, pageKey) {
     const r = resolveRole(role);
     if (r === 'developer' || r === 'admin') return true;
-    return (PAGE_PERMISSIONS[pageKey] || []).includes(r);
+    const key = String(pageKey || '')
+        .replace(/\.html$/i, '')
+        .toLowerCase();
+    return getEffectivePageRoles(key).includes(r);
 }
 
 function getAllowedPages(role) {
     const r = resolveRole(role);
-    if (r === 'developer' || r === 'admin') return Object.keys(PAGE_PERMISSIONS);
-    return Object.keys(PAGE_PERMISSIONS).filter((p) => PAGE_PERMISSIONS[p].includes(r));
+    ensurePageAccessCache();
+    const allKeys = new Set([
+        ...Object.keys(PAGE_PERMISSIONS),
+        ...Object.keys(_pageAccessOverride || {})
+    ]);
+    if (r === 'developer' || r === 'admin') return Array.from(allKeys);
+    return Array.from(allKeys).filter((p) => getEffectivePageRoles(p).includes(r));
 }
 
-module.exports = { PAGE_PERMISSIONS, SCOPED_ROLES, ALLOWED_ROLES, ROLE_LABELS, ROLE_ALIASES, canAccessPage, getAllowedPages, resolveRole };
+module.exports = {
+    PAGE_PERMISSIONS,
+    SCOPED_ROLES,
+    ALLOWED_ROLES,
+    ROLE_LABELS,
+    ROLE_ALIASES,
+    canAccessPage,
+    getAllowedPages,
+    resolveRole,
+    clearPageAccessCache,
+    getEffectivePageRoles
+};

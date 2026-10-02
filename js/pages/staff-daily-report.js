@@ -55,14 +55,16 @@
 
     // ── Utility Functions ──
 
+    // Delegates to the canonical escapeHtml in js/utils.js (loaded earlier).
     function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        return String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
+        return window.escapeHtml
+            ? window.escapeHtml(text)
+            : String(text == null ? '' : text)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#39;');
     }
 
     function formatReasonCell(reason, notes) {
@@ -76,33 +78,27 @@
         return `<span class="${className}">${items.map(item => escapeHtml(item)).join(' · ')}</span>`;
     }
 
-    /** Format a date string to Arabic locale */
-    function formatDateAr(dateStr) {
-        try {
-            const d = new Date(dateStr + 'T00:00:00');
-            return d.toLocaleDateString('ar-MA', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-        } catch {
-            return dateStr;
-        }
-    }
-
-    /** Get today's date as YYYY-MM-DD */
-    function todayStr() {
-        const d = new Date();
-        return d.getFullYear() + '-' +
-            String(d.getMonth() + 1).padStart(2, '0') + '-' +
-            String(d.getDate()).padStart(2, '0');
-    }
+    // CH4: todayStr / formatDateAr via js/shared/date-utils.js
+    // Header display uses formatDateAr(date, 'locale-long')
 
     /**
      * Format a raw subject string (possibly comma-separated GROUP_CONCAT)
      * into a clean, normalized, deduplicated display.
      */
+    async function getReportRequest() {
+        try {
+            const active = await window.api?.cycles?.getActive?.();
+            const cycleCode = active?.context?.cycleCode || active?.cycle?.cycle_code || null;
+            return { schoolYear: year, cycleCode };
+        } catch {
+            return { schoolYear: year, cycleCode: null };
+        }
+    }
+
+    function formatLinkedCycle(record) {
+        return record?.linked_session_cycle_label || 'غير محدد — لم تُربط الحصة بسلك في جدول الحصص';
+    }
+
     function formatSubject(rawSubject) {
         if (!rawSubject) return '—';
         const subjects = rawSubject.split(',').map(s => {
@@ -289,6 +285,7 @@
                                 period_time: periodMap[h] || h,
                                 subject: lesson.subject || absence.subject || '',
                                 school_year: year,
+                                cycle_code: absence.cycle_resolution === 'linked' ? absence.linked_session_cycle_codes[0] : null,
                                 reason: absence.reason || '',
                                 notes: absence.notes || ''
                             });
@@ -309,13 +306,13 @@
         if (!date) return;
 
         // Update date display
-        const dateDisplayText = formatDateAr(date);
+        const dateDisplayText = formatDateAr(date, 'locale-long');
         document.getElementById('date-display').textContent = dateDisplayText;
         document.getElementById('print-date-display').textContent = dateDisplayText;
 
         let data;
         try {
-            data = await window.api.dailyReport.getData(date, year);
+            data = await window.api.dailyReport.getData(date, await getReportRequest());
         } catch (err) {
             console.error('Error loading daily report:', err);
             showToast('خطأ في تحميل التقرير', 'error');
@@ -327,7 +324,12 @@
             return;
         }
 
-        const { absences, staffAbsences, staffTardiness, teacherSections: backendTeacherSections, sectionStudentCounts, allSections, affectedSections: backendAffected } = data;
+        const { absences, staffAbsences, staffTardiness, reportContext, teacherSections: backendTeacherSections, sectionStudentCounts, allSections, affectedSections: backendAffected } = data;
+        const reportContextLabel = reportContext?.label || 'السلك النشط';
+        const reportContextElement = document.getElementById('report-context');
+        const printReportContextElement = document.getElementById('print-report-context');
+        if (reportContextElement) reportContextElement.textContent = reportContextLabel;
+        if (printReportContextElement) printReportContextElement.textContent = reportContextLabel;
 
         // Cache sections for tag entity selector
         _allSectionsCache = allSections || [];
@@ -420,6 +422,7 @@
                         <td class="col-schedule">${scheduleHtml}</td>
                         <td class="col-reason reason-cell">${formatReasonCell(a.reason, a.notes)}</td>
                         <td class="col-sections">${sections}</td>
+                        <td class="col-cycle">${escapeHtml(formatLinkedCycle(a))}</td>
                     </tr>`);
             }
             absencesTbody.innerHTML = absenceRows.join('');
@@ -476,6 +479,7 @@
                         <td>${escapeHtml(t.arrival_time || '—')}</td>
                         <td>${t.late_duration ? t.late_duration + ' دقيقة' : '—'}</td>
                     <td>${formatReasonCell(t.reason, t.notes)}</td>
+                    <td>${escapeHtml(formatLinkedCycle(t))}</td>
                     </tr>`;
             }).join('');
         }
@@ -542,7 +546,7 @@
 
         // ── Auto-save lost sessions to compensation tracking ──
         const detailedSessions = await getDetailedSessionsForDay(uniqueAbsences, date);
-        if (detailedSessions.length > 0) {
+        if (detailedSessions.length > 0 && !reportContext?.administrative) {
             try {
                 await window.api.compensation.saveBatch(detailedSessions);
             } catch (e) {
@@ -554,7 +558,7 @@
         }
         // Fetch compensation status for stat card
         try {
-            const compRecords = await window.api.compensation.getByDate(date, year);
+            const compRecords = reportContext?.administrative ? [] : await window.api.compensation.getByDate(date, year);
             const compDone = compRecords.filter(r => r.compensated).length;
             const compTotal = compRecords.length;
             document.getElementById('stat-compensated').textContent =
@@ -1153,9 +1157,45 @@
         _mentionActiveIndex = 0;
     }
 
+    // ── Print preview fix ──
+    // The shared PrintSystem renders into a fixed 210mm `.ux-pp-sheet` with
+    // overflow:hidden. During the real print/PDF pass the @page margins are
+    // added on top of that fixed width, so the sheet ends up wider than the
+    // printable area and the (RTL) left edge gets clipped — the report looks
+    // "incomplete on the left". Mirroring the student-profile approach, we
+    // override the print-root sheet to fit the page width with safe padding so
+    // nothing is cut off. This style only lives in this page's document.
+    function injectPrintFixStyles() {
+        if (document.getElementById('sdr-print-fix-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'sdr-print-fix-styles';
+        style.textContent = `
+            body.ux-printing-active #ux-print-root .ux-pp-sheet {
+                width: 100% !important;
+                min-height: 0 !important;
+                padding: 6mm !important;
+                overflow: visible !important;
+                box-shadow: none !important;
+                border-radius: 0 !important;
+            }
+            body.ux-printing-active #ux-print-root .ux-pp-sheet table,
+            body.ux-printing-active #ux-print-root .ux-pp-sheet .report-table {
+                width: 100% !important;
+                table-layout: auto !important;
+            }
+            body.ux-printing-active #ux-print-root .ux-pp-sheet .report-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     // ── Initialization ──
 
     document.addEventListener('DOMContentLoaded', () => {
+        injectPrintFixStyles();
+
         const dateInput = document.getElementById('report-date');
         dateInput.value = todayStr();
         loadReport();
@@ -1166,6 +1206,8 @@
         document.getElementById('print-btn').addEventListener('click', () => {
             PrintSystem.preview({ title: 'التقرير اليومي', pageSize: 'A4' });
         });
+        // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+        (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
 
         document.getElementById('add-tag-btn').addEventListener('click', showTagNoteForm);
 

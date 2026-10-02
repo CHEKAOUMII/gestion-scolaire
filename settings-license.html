@@ -1,18 +1,23 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
     <head>
-        <meta charset="UTF-8" />
+    <script src="js/theme-boot.js"></script>
+    <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="theme-color" content="#3b6ac5" />
         <title>إدارة الترخيص | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
         <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/shared/role-session-guard.js"></script>
         <script src="js/pages/settings-license-guard.js"></script>
     </head>
 
@@ -23,7 +28,7 @@
 
         <main class="main-content flex-1 min-w-0 p-5 transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]">
             <header class="header">
-                <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
+    <div class="header-left flex flex-1 min-w-0 flex-wrap items-center gap-2.5">
                     <button
                         class="menu-toggle inline-flex h-[45px] w-[45px] items-center justify-center rounded-[var(--radius-sm)] border-0 bg-[var(--gradient-primary)] text-white transition-transform duration-300 hover:scale-105"
                         id="menu-toggle"

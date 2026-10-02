@@ -1,4 +1,17 @@
 const { getDb } = require('../db/context');
+const { ensureSchoolIdentitySchema } = require('../db/schema');
+
+/**
+ * Base pixel sizes at 100% scale (shared by logo / seal / signature).
+ * resolveLogoMaxPx(scale, basePx) is the single sizing function for all assets.
+ */
+const LOGO_BASE_PX = 80;
+const SEAL_BASE_PX = 72;
+const SIGNATURE_BASE_WIDTH_PX = 100;
+const SIGNATURE_BASE_HEIGHT_PX = 48;
+const LOGO_SCALE_MIN = 30;
+const LOGO_SCALE_MAX = 250;
+const LOGO_SCALE_DEFAULT = 100;
 
 const DEFAULT_IDENTITY = {
     country: 'المملكة المغربية',
@@ -13,19 +26,42 @@ const DEFAULT_IDENTITY = {
     commune: '',
     school_year: '',
     logo_base64: '',
+    logo_scale: String(LOGO_SCALE_DEFAULT),
     seal_base64: '',
+    seal_scale: String(LOGO_SCALE_DEFAULT),
     signature_base64: '',
+    signature_scale: String(LOGO_SCALE_DEFAULT),
     footer_text: 'سلمت هذه الوثيقة للمعني(ة) بالأمر قصد الاستعمال فيما يقتضيه.'
 };
 
+/**
+ * Clamp an asset scale percentage to the allowed range (logo / seal / signature).
+ * @param {string|number|null|undefined} scale
+ * @returns {number}
+ */
+function clampLogoScale(scale) {
+    const n = Number(scale);
+    if (!Number.isFinite(n)) return LOGO_SCALE_DEFAULT;
+    return Math.min(LOGO_SCALE_MAX, Math.max(LOGO_SCALE_MIN, Math.round(n)));
+}
+
+/**
+ * Resolve an asset max size in pixels from a scale percentage.
+ * Same function for logo, seal, and signature — pass the base size as the 2nd arg.
+ * 100% → basePx. Range: 30%–250%.
+ * @param {string|number|null|undefined} scale
+ * @param {number} [basePx=LOGO_BASE_PX]
+ * @returns {number}
+ */
+function resolveLogoMaxPx(scale, basePx = LOGO_BASE_PX) {
+    const base = Number(basePx);
+    const resolvedBase = Number.isFinite(base) && base > 0 ? base : LOGO_BASE_PX;
+    return Math.round((resolvedBase * clampLogoScale(scale)) / 100);
+}
+
 function ensureIdentityTable(db) {
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS school_identity (
-            key         TEXT PRIMARY KEY,
-            value       TEXT NOT NULL DEFAULT '',
-            updated_at  INTEGER DEFAULT (strftime('%s','now') * 1000)
-        )
-    `);
+    // Canonical DDL lives in db/schema.js (R5); this module owns only the default seeding.
+    ensureSchoolIdentitySchema(db);
 
     const seed = db.prepare('INSERT OR IGNORE INTO school_identity (key, value) VALUES (?, ?)');
     const txn = db.transaction(() => {
@@ -43,6 +79,21 @@ function readIdentityRows(db) {
         identity[row.key] = row.value;
     }
     return identity;
+}
+
+/**
+ * Raw diagnostics read for `reports:getIdentityDiagnostics`: table existence plus
+ * all rows. Deliberately free of ensureIdentityTable's seeding side effects so the
+ * diagnostic reflects what is actually on disk.
+ * @param {object} db
+ * @returns {{ tableExists: boolean, rows: Array<{key: string, value: string}> }}
+ */
+function readIdentityDiagnostics(db) {
+    const tableExists = !!db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'school_identity'")
+        .get();
+    const rows = tableExists ? db.prepare('SELECT key, value FROM school_identity ORDER BY key').all() : [];
+    return { tableExists, rows };
 }
 
 function readLegacySchoolInfo(db) {
@@ -82,6 +133,24 @@ function readInstitutionFallback(db) {
     }
 }
 
+/**
+ * Best-effort read of the registered principal's name, used as a director_name fallback
+ * (registration auto-populate — Part 4). Guarded like readInstitutionFallback/readLegacySchoolInfo
+ * since identity.js must not assume the users table shape/existence.
+ */
+function readPrincipalName(db) {
+    try {
+        const row = db
+            .prepare(
+                "SELECT name FROM users WHERE role = 'principal' AND COALESCE(disabled, 0) = 0 ORDER BY id LIMIT 1"
+            )
+            .get();
+        return String(row?.name || '').trim();
+    } catch {
+        return '';
+    }
+}
+
 function mergeLegacyFallbacks(db, identity) {
     const merged = { ...DEFAULT_IDENTITY, ...identity };
     const legacy = readLegacySchoolInfo(db);
@@ -99,6 +168,9 @@ function mergeLegacyFallbacks(db, identity) {
     }
     if (!String(merged.school_year || '').trim()) {
         merged.school_year = currentSchoolYear || '';
+    }
+    if (!String(merged.director_name || '').trim()) {
+        merged.director_name = readPrincipalName(db);
     }
 
     return merged;
@@ -146,4 +218,29 @@ function getAssetBase64(key) {
     return row?.value || '';
 }
 
-module.exports = { getIdentity, updateIdentity, getAssetBase64 };
+/**
+ * Stored scale percentage for an asset key (defaults to 100).
+ * @param {string} [key='logo_scale'] - e.g. 'logo_scale', 'seal_scale', 'signature_scale'
+ * @returns {number}
+ */
+function getLogoScale(key = 'logo_scale') {
+    const raw = getAssetBase64(key);
+    return clampLogoScale(raw || LOGO_SCALE_DEFAULT);
+}
+
+module.exports = {
+    getIdentity,
+    updateIdentity,
+    readIdentityDiagnostics,
+    getAssetBase64,
+    getLogoScale,
+    resolveLogoMaxPx,
+    clampLogoScale,
+    LOGO_BASE_PX,
+    SEAL_BASE_PX,
+    SIGNATURE_BASE_WIDTH_PX,
+    SIGNATURE_BASE_HEIGHT_PX,
+    LOGO_SCALE_MIN,
+    LOGO_SCALE_MAX,
+    LOGO_SCALE_DEFAULT
+};

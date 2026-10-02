@@ -1,14 +1,19 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
     <head>
-        <meta charset="UTF-8" />
+    <script src="js/theme-boot.js"></script>
+    <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>جدول حصص الأساتذة | المنظومة التربوية المتكاملة</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
 
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
+        <script src="js/shared/timetable-view.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
         <script src="js/sidebar.js" defer></script>
@@ -22,6 +27,10 @@
                 const contents = document.querySelectorAll('.tab-content');
                 const savedTab = localStorage.getItem('timetableActiveTab') || 'tab-teachers';
 
+                // Derived tabs (students/rooms) load from the *saved* DB snapshot via
+                // api.timetable.get — not from the teacher tab's live fetData.
+                // Unsaved teacher edits appear here only after saveAllChanges() (or
+                // when the tab is re-opened after a save).
                 function switchTab(tabId) {
                     tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
                     contents.forEach(c => c.style.display = c.id === tabId ? 'block' : 'none');
@@ -47,7 +56,7 @@
 
         <main class="main-content">
             <header class="header">
-                <div class="header-left">
+    <div class="header-left">
                     <button
                         class="menu-toggle"
                         id="menu-toggle"
@@ -146,6 +155,20 @@
                 <button class="primary-tab btn btn-secondary" data-tab="tab-rooms" style="border: none; background: transparent; padding: 12px 20px; font-weight: 600; font-size: 14px;"><i class="fas fa-door-open"></i> جدول القاعات</button>
             </div>
 
+            <div
+                class="cycle-context-bar"
+                id="timetable-cycle-context"
+                style="display: flex; align-items: center; gap: 10px; margin: 16px 34px 0; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 8px"
+            >
+                <label for="timetable-cycle-select" style="font-weight: 600">
+                    <i class="fas fa-layer-group" aria-hidden="true"></i> سلك استعمال الزمن:
+                </label>
+                <select id="timetable-cycle-select" class="filter-select" aria-describedby="timetable-cycle-status">
+                    <option value="">جارٍ تحميل الأسلاك...</option>
+                </select>
+                <span id="timetable-cycle-status" aria-live="polite"></span>
+            </div>
+
             <div class="timetable-container">
                 <div class="tab-content" id="tab-teachers">
                 <!-- Stats Row -->
@@ -232,6 +255,16 @@
                         </button>
                     </div>
                     <div class="edit-controls-right">
+                        <label
+                            for="move-condition-mode"
+                            style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600"
+                        >
+                            <i class="fas fa-filter" aria-hidden="true"></i> شروط النقل:
+                        </label>
+                        <select id="move-condition-mode" class="filter-select" style="font-size: 13px">
+                            <option value="strict">الأستاذ + القسم + القاعة</option>
+                            <option value="no-room">الأستاذ + القسم (بدون شرط القاعة)</option>
+                        </select>
                         <button class="btn btn-sm btn-secondary" id="toggle-diff-btn">
                             <i class="fas fa-eye"></i> عرض التغييرات
                         </button>
@@ -262,7 +295,15 @@
                     <i class="fas fa-calendar-alt"></i>
                     <h3>لا توجد بيانات جداول الحصص</h3>
                     <p>
-                        يرجى استيراد ملف FET أو XML من صفحة <a href="settings-imports.html">استيراد البيانات</a> أولاً
+                        يرجى استيراد ملف FET أو XML من صفحة
+                        <a
+                            data-import-shortcut
+                            data-import-type="fet"
+                            data-import-source="timetable"
+                            href="settings-imports.html?type=fet&amp;source=timetable"
+                            >استيراد البيانات (FET)</a
+                        >
+                        أولاً
                     </p>
                 </div>
                 </div>
@@ -622,6 +663,11 @@
 
         <div class="toast" id="toast"></div>
         <script src="js/data/ma-education-labels.js" defer></script>
+        <script src="js/shared/fet-import.js" defer></script>
+        <script src="js/shared/timetable-move-logic.js" defer></script>
+        <script src="js/shared/education/cycles.js" defer></script>
+        <script src="js/shared/timetable-cycles.js" defer></script>
+        <script src="js/shared/orientation-topbar-print.js" defer></script>
         <script src="js/pages/timetable.js" defer></script>
     </body>
 </html>

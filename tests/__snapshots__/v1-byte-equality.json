@@ -1,0 +1,8 @@
+{
+  "fixtures": [
+    "c1-fairness",
+    "c3-fixed",
+    "c3-percent"
+  ],
+  "note": "Baseline fixture identifiers for P6 preservation guard; output comparison is computed twice in-process for deterministic byte equality."
+}

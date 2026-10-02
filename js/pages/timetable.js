@@ -7,6 +7,9 @@ let fetData = {
     teacherMetaByKey: {},
     unresolvedTeacherKeys: []
 };
+let allCycleTimetables = {};
+let activeTimetableCycleCode = null;
+let crossCycleTimetablesLoaded = false;
 
 function normalizeImportedTeacherEntry(entry) {
     if (typeof entry === 'string') {
@@ -77,7 +80,11 @@ function renderUnresolvedImportWarning() {
     );
 
     const link = document.createElement('a');
-    link.href = 'settings-imports.html';
+    // Contextual shortcut — hints only; never auto-executes import
+    link.href = 'settings-imports.html?type=fet&source=timetable';
+    link.setAttribute('data-import-shortcut', '');
+    link.setAttribute('data-import-type', 'fet');
+    link.setAttribute('data-import-source', 'timetable');
     link.textContent = 'استيراد البيانات';
 
     const tail = document.createTextNode(' لإكمال المطابقة.');
@@ -98,32 +105,12 @@ function setButtonIconLabel(button, iconClass, label) {
     button.replaceChildren(icon, text);
 }
 
-// Helper: Extract base class name (remove ONLY grouping suffixes like :G1, :G2)
-function getBaseClassName(className) {
-    if (!className) return '';
-    // Remove ONLY grouping patterns: :G1, :G2 (NOT class numbers like -1, -2)
-    return className
-        .replace(/:[Gg]\d+$/g, '') // Remove :G1, :G2, :g1, :g2 at end
-        .trim();
-}
-
-// Day mappings for FET format
-const dayMappings = {
-    lundi_m: { day: 'الاثنين', period: 'morning', index: 0 },
-    lundi_s: { day: 'الاثنين', period: 'afternoon', index: 0 },
-    Mardi_m: { day: 'الثلاثاء', period: 'morning', index: 1 },
-    Mardi_s: { day: 'الثلاثاء', period: 'afternoon', index: 1 },
-    Mercredi_m: { day: 'الأربعاء', period: 'morning', index: 2 },
-    Mercredi_s: { day: 'الأربعاء', period: 'afternoon', index: 2 },
-    Jeudi_m: { day: 'الخميس', period: 'morning', index: 3 },
-    Jeudi_s: { day: 'الخميس', period: 'afternoon', index: 3 },
-    Vendredi_m: { day: 'الجمعة', period: 'morning', index: 4 },
-    Vendredi_s: { day: 'الجمعة', period: 'afternoon', index: 4 },
-    Samedi_m: { day: 'السبت', period: 'morning', index: 5 },
-    Samedi_s: { day: 'السبت', period: 'afternoon', index: 5 }
-};
-
-const arabicDays = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+// CH10: getBaseClassName / dayMappings / arabicDays via js/shared/fet-import.js
+const dayMappings = typeof FET_DAY_MAPPINGS !== 'undefined' ? FET_DAY_MAPPINGS : {};
+const arabicDays =
+    typeof FET_ARABIC_DAYS !== 'undefined'
+        ? FET_ARABIC_DAYS.slice()
+        : ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const periods = ['H1', 'H2', 'H3', 'H4'];
 
 // Store original timetables for diff comparison
@@ -132,9 +119,9 @@ let diffModeActive = false;
 
 // ==================== UX ENHANCEMENTS: NEW FEATURES ====================
 
-// Redo stack for redo functionality
-let redoStack = [];
+// Legacy redo stack removed — undo uses editMode.pendingChanges only.
 let selectedCells = [];
+
 
 // ==================== Dark Mode Toggle ====================
 // Local theme functions removed in favor of shared ux-enhancements.js
@@ -164,16 +151,16 @@ function initLocalKeyboardShortcuts() {
             toggleEditMode();
         }
 
-        // Ctrl+Z: Undo
+        // Ctrl+Z: Undo last pending edit-group
         if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
             e.preventDefault();
-            performUndo();
+            undoLastChange();
         }
 
-        // Ctrl+Shift+Z: Redo
+        // Ctrl+Shift+Z: Redo not implemented for live edit mode
         if (e.ctrlKey && e.shiftKey && e.key === 'z') {
             e.preventDefault();
-            performRedo();
+            showToast('إعادة التغيير غير متاحة حالياً', 'info');
         }
 
         // /: Focus search
@@ -545,12 +532,16 @@ function openTimetablePrintPreview() {
         return;
     }
     const teacherName = document.getElementById('current-teacher-name')?.textContent?.trim() || '';
-    const title = teacherName ? `الجدول الزمني - ${teacherName}` : 'الجدول الزمني';
+    const title = teacherName ? `جدول حصص الأستاذ - ${teacherName}` : 'جدول حصص الأساتذة';
+    const safeName = (teacherName || 'timetable').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60);
     PrintSystem.preview({
         contentSelector: '#timetable-wrapper',
         title,
         pageSize: 'A4',
-        landscape: true
+        landscape: true,
+        density: 1,
+        showDensityControl: true,
+        defaultFileName: `جدول_أستاذ_${safeName}.pdf`
     });
 }
 
@@ -603,22 +594,14 @@ function cancelMultiSelect() {
 }
 
 // ==================== Enhanced Undo/Redo ====================
+// Header/keyboard undo uses the same pendingChanges stack as the edit bar.
 function performUndo() {
-    const undoBtn = document.getElementById('undo-btn');
-    if (undoBtn && !undoBtn.disabled) {
-        undoChange();
-    }
+    undoLastChange();
 }
 
 function performRedo() {
-    if (redoStack.length > 0) {
-        const action = redoStack.pop();
-        // Re-apply the action
-        changeLog.push(action);
-        refreshTimetable();
-        updateUndoRedoButtons();
-        showToast('تم إعادة التغيير', 'info');
-    }
+    // Live edit mode does not keep a redo stack; keep the control for layout only.
+    showToast('إعادة التغيير غير متاحة حالياً', 'info');
 }
 
 function updateUndoRedoButtons() {
@@ -627,14 +610,14 @@ function updateUndoRedoButtons() {
     const undoRedoGroup = document.getElementById('header-undo-redo');
 
     if (editMode && undoRedoGroup) {
-        undoRedoGroup.style.display = 'flex';
+        undoRedoGroup.style.display = editMode.active ? 'flex' : 'none';
     }
 
     if (headerUndoBtn) {
-        headerUndoBtn.disabled = changeLog.length === 0;
+        headerUndoBtn.disabled = !editMode?.pendingChanges?.length;
     }
     if (headerRedoBtn) {
-        headerRedoBtn.disabled = redoStack.length === 0;
+        headerRedoBtn.disabled = true;
     }
 }
 
@@ -836,29 +819,139 @@ function toggleTeacherDiffMode() {
     }
 }
 
+function getSupportedTimetableCycles(response) {
+    if (!response?.success || !Array.isArray(response.cycles)) {
+        throw new Error('تعذر قراءة قائمة أسلاك استعمال الزمن');
+    }
+    return response.cycles.filter((cycle) => Number(cycle.is_active) && cycle.capability === 'supported');
+}
+
+function renderTimetableCycleSelector(cycles, selectedCycleCode) {
+    const select = document.getElementById('timetable-cycle-select');
+    const status = document.getElementById('timetable-cycle-status');
+    if (!select) return;
+
+    select.replaceChildren(...cycles.map((cycle) => new Option(cycle.label_ar, cycle.cycle_code)));
+    select.value = selectedCycleCode;
+    select.disabled = cycles.length < 2;
+    if (status) status.textContent = `السلك المحدد: ${cycles.find((cycle) => cycle.cycle_code === selectedCycleCode)?.label_ar || selectedCycleCode}`;
+    select.onchange = changeTimetableCycle;
+}
+
+function isTimetableCycleChangeAllowed(select, previousCycleCode) {
+    const guardEvent = new CustomEvent('app:beforeCycleChange', {
+        cancelable: true,
+        detail: { fromCycle: previousCycleCode, toCycle: select.value }
+    });
+    if (document.querySelector('[data-unsaved-changes="true"]') || !window.dispatchEvent(guardEvent)) {
+        select.value = previousCycleCode;
+        showToast('احفظ التعديلات الحالية قبل تبديل السلك', 'warning');
+        return false;
+    }
+    return true;
+}
+
+async function changeTimetableCycle(event) {
+    const select = event.currentTarget;
+    const previousCycleCode = activeTimetableCycleCode;
+    if (!isTimetableCycleChangeAllowed(select, previousCycleCode)) return;
+
+    try {
+        const response = await window.api.cycles.setActive(select.value, getSchoolYear());
+        if (response?.success) {
+            window.location.reload();
+            return;
+        }
+        select.value = previousCycleCode;
+        showToast(response?.error || 'تعذر تبديل السلك', 'error');
+    } catch (error) {
+        select.value = previousCycleCode;
+        console.error('[timetable-cycle] switch failed:', error);
+        showToast(error?.message || 'تعذر تبديل السلك', 'error');
+    }
+}
+
+async function resolveActiveTimetableCycle() {
+    const [cyclesResponse, activeResponse] = await Promise.all([
+        window.api?.cycles?.list?.(),
+        window.api?.cycles?.getActive?.()
+    ]);
+    const cycles = getSupportedTimetableCycles(cyclesResponse);
+    const selectedCycleCode = activeResponse?.context?.cycleCode || activeResponse?.cycle?.cycle_code;
+    const cycle = cycles.find((candidate) => candidate.cycle_code === selectedCycleCode);
+    if (!activeResponse?.success || !cycle) {
+        throw new Error('يرجى اختيار سلك مدعوم لاستعمال الزمن');
+    }
+    activeTimetableCycleCode = cycle.cycle_code;
+    renderTimetableCycleSelector(cycles, activeTimetableCycleCode);
+    return activeTimetableCycleCode;
+}
+
+async function readActiveTimetable(schoolYear) {
+    const readFn = window.api?.timetable?.get;
+    if (typeof readFn !== 'function') throw new Error('تطبيق استعمال الزمن غير متاح');
+    const response = await readFn(schoolYear);
+    if (response?.success === false) throw new Error(response.error || 'تعذر قراءة جدول السلك المحدد');
+    return response || null;
+}
+
+async function migrateLegacyTimetableData() {
+    const legacyKey = TimetableCycles.TIMETABLE_LEGACY_STORAGE_KEY;
+    if (activeTimetableCycleCode !== EducationCycles.QUALIFIANT_CYCLE && localStorage.getItem(legacyKey) != null) {
+        throw new Error('اختر السلك التأهيلي لترحيل جدول الاستعمال القديم بأمان');
+    }
+    const schoolYear = getSchoolYear();
+    return TimetableCycles.migrateLegacyTimetableOnce({
+        storage: localStorage,
+        loadCurrent: () => readActiveTimetable(schoolYear),
+        saveCurrent: (data) => window.api?.timetable?.save?.({ school_year: schoolYear, data })
+    });
+}
+
+async function loadAllCycleTimetables(schoolYear = getSchoolYear()) {
+    const loaded = await TimetableCycles.loadAllCycleTimetables(async () => {
+        const readFn = window.api?.timetable?.get;
+        if (typeof readFn !== 'function') throw new Error('تطبيق استعمال الزمن غير متاح');
+        const response = await readFn({ schoolYear, allCycles: true });
+        if (response?.success === false) throw new Error(response.error || 'تعذر قراءة جداول كل الأسلاك');
+        if (!response || typeof response !== 'object' || Array.isArray(response)) {
+            throw new Error('استجابة جداول الأسلاك غير صالحة');
+        }
+        return response;
+    });
+    allCycleTimetables = loaded;
+    crossCycleTimetablesLoaded = true;
+    return allCycleTimetables;
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     setupSidebar();
-    // Auto-migrate from localStorage to SQLite (one-time)
     try {
-        const raw = localStorage.getItem('timetableData');
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            const schoolYear = getSchoolYear();
-            const existing = await window.api?.timetable?.get?.(schoolYear);
-            if (!existing) {
-                await window.api?.timetable?.save?.({ school_year: schoolYear, data: parsed });
-            }
-            localStorage.removeItem('timetableData');
-        }
+        await resolveActiveTimetableCycle();
+        await migrateLegacyTimetableData();
     } catch (e) {
-        console.error('[migration] timetable localStorage migration failed:', e);
+        console.error('[timetable-cycle] initialization failed:', e);
+        showToast(e?.message || 'تعذر تهيئة سلك استعمال الزمن', 'error');
+        return;
     }
-    loadSavedData();
+
+    try {
+        await loadSavedData();
+        await loadAllCycleTimetables();
+    } catch (e) {
+        crossCycleTimetablesLoaded = false;
+        console.error('[timetable-cycle] cross-cycle load failed:', e);
+        showToast('تعذر تحميل جداول كل الأسلاك؛ تم تعطيل التحقق من النقل.', 'error');
+    }
 });
 
-// Save data to database
+// Save data to database.
+// Returns { success, error }. Callers that must know whether the write actually
+// landed (e.g. saveAllChanges) MUST check `success`; the main process can reject a
+// write (role/soft-auth or the JSON size guard) by returning { success: false },
+// and swallowing that would report a false success while the DB stays unchanged.
 async function saveDataToStorage() {
     try {
         const dataToSave = {
@@ -870,10 +963,24 @@ async function saveDataToStorage() {
             unresolvedTeacherKeys: Array.isArray(fetData.unresolvedTeacherKeys) ? fetData.unresolvedTeacherKeys : []
         };
         const schoolYear = getSchoolYear();
-        await window.api?.timetable?.save?.({ school_year: schoolYear, data: dataToSave });
+        const saveFn = window.api?.timetable?.save;
+        if (typeof saveFn !== 'function') {
+            console.error('Timetable save API unavailable');
+            return { success: false, error: 'save-api-unavailable' };
+        }
+        const result = await saveFn({ school_year: schoolYear, data: dataToSave });
+        if (!result || result.success !== true) {
+            console.error('Timetable save rejected:', result?.error);
+            return { success: false, error: result?.error || 'rejected' };
+        }
+        if (activeTimetableCycleCode) {
+            allCycleTimetables[activeTimetableCycleCode] = dataToSave;
+        }
         console.log('Data saved to database');
+        return { success: true };
     } catch (e) {
         console.error('Error saving timetable data:', e);
+        return { success: false, error: e?.message || String(e) };
     }
 }
 
@@ -881,7 +988,7 @@ async function saveDataToStorage() {
 async function loadSavedData() {
     try {
         const schoolYear = getSchoolYear();
-        const parsed = await window.api?.timetable?.get?.(schoolYear);
+        const parsed = await readActiveTimetable(schoolYear);
         if (parsed) {
             fetData.teachers = (parsed.teachers || []).map(normalizeImportedTeacherEntry);
             fetData.subjects = new Set(parsed.subjects || []);
@@ -919,6 +1026,7 @@ async function loadSavedData() {
         }
     } catch (e) {
         console.error('Error loading timetable data:', e);
+        throw e;
     }
 }
 
@@ -926,7 +1034,9 @@ async function loadSavedData() {
 async function clearSavedData() {
     try {
         const schoolYear = getSchoolYear();
-        await window.api?.timetable?.delete?.(schoolYear);
+        const result = await window.api?.timetable?.delete?.(schoolYear);
+        if (result?.success !== true) throw new Error(result?.error || 'تعذر مسح جدول السلك المحدد');
+        if (activeTimetableCycleCode) delete allCycleTimetables[activeTimetableCycleCode];
     } catch (e) {
         console.error('Error clearing timetable data:', e);
     }
@@ -1106,11 +1216,10 @@ function parseTeachersXML(xmlDoc) {
             const arabicDay = mapping.day;
             const periodType = mapping.period;
 
-            if (!fetData.timetables[cleanName][arabicDay]) {
-                fetData.timetables[cleanName][arabicDay] = {
-                    morning: {},
-                    afternoon: {}
-                };
+            if (typeof ensureFetDaySkeleton === 'function') {
+                ensureFetDaySkeleton(fetData.timetables[cleanName], arabicDay);
+            } else if (!fetData.timetables[cleanName][arabicDay]) {
+                fetData.timetables[cleanName][arabicDay] = { morning: {}, afternoon: {} };
             }
 
             const hours = day.querySelectorAll('Hour');
@@ -1635,6 +1744,40 @@ function renderChangeLogRows(tbody, rows) {
     tbody.replaceChildren(fragment);
 }
 
+// Shared inner-DOM builder for a single activity cell. Used by both
+// renderTeacherTimetable (full render) and applyMoveToDom (surgical update) so
+// the two never diverge.
+function buildActivityCellInner(activity) {
+    const color = activity?.students ? getColorFor('classes', activity.students) : null;
+    const subjectDisplay = activity?.subject ? activity.subject.replace(/_/g, ' ') : '';
+    const classDisplay = activity?.students ? activity.students.replace(/_/g, ' ') : '';
+
+    const classNameStyle = color
+        ? `style="color: ${color.text}; font-weight: 700; font-size: 0.78rem;"`
+        : '';
+    const roomStyle = color
+        ? `style="color: ${color.text}; font-weight: 600; font-size: 0.7rem; opacity: 0.7;"`
+        : '';
+    const subjectStyle = color
+        ? `style="font-size:0.82rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
+        : `style="font-size:0.82rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
+
+    return `<div class="activity-cell" style="border-right: none; background: none;">
+                                <div class="subject" ${subjectStyle}>${subjectDisplay}</div>
+                                ${classDisplay ? `<div class="class" ${classNameStyle}>${classDisplay}</div>` : ''}
+                                ${activity?.room ? `<div class="room" ${roomStyle}>${activity.room}</div>` : ''}
+                            </div>`;
+}
+
+function buildActivityCellStyle(activity) {
+    const color = activity?.students ? getColorFor('classes', activity.students) : null;
+    return color ? `background: ${color.bg};` : '';
+}
+
+function buildEmptyCellInner() {
+    return '<span class="empty-cell">—</span>';
+}
+
 function renderTeacherTimetable(teacherName, subjectFilter = '') {
     const wrapper = document.getElementById('timetable-wrapper');
     const table = document.getElementById('timetable');
@@ -1744,33 +1887,16 @@ function renderTeacherTimetable(teacherName, subjectFilter = '') {
             const mergedClass = cell.colspan > 1 ? ' merged-cell' : '';
 
             if (cell.activity) {
-                const color = getColorFor('classes', cell.activity.students);
                 if (cell.activity.students) teacherClasses.add(cell.activity.students);
                 teacherSubjects.add(cell.activity.subject);
 
-                const cellStyle = color ? `style="background: ${color.bg};"` : '';
-                const classNameStyle = color
-                    ? `style="color: ${color.text}; font-weight: 700; font-size: 0.78rem;"`
-                    : '';
-                const roomStyle = color
-                    ? `style="color: ${color.text}; font-weight: 600; font-size: 0.7rem; opacity: 0.7;"`
-                    : '';
-                const subjectDisplay = cell.activity.subject ? cell.activity.subject.replace(/_/g, ' ') : '';
-                const classDisplay = cell.activity.students ? cell.activity.students.replace(/_/g, ' ') : '';
-
-                const subjectStyle = color
-                    ? `style="font-size:0.82rem; font-weight:700; color:${color.text}; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`
-                    : `style="font-size:0.82rem; font-weight:700; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"`;
+                const cellStyle = buildActivityCellStyle(cell.activity) ? `style="${buildActivityCellStyle(cell.activity)}"` : '';
 
                 bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs} ${cellStyle}>
-                            <div class="activity-cell" style="border-right: none; background: none;">
-                                <div class="subject" ${subjectStyle}>${subjectDisplay}</div>
-                                ${classDisplay ? `<div class="class" ${classNameStyle}>${classDisplay}</div>` : ''}
-                                ${cell.activity.room ? `<div class="room" ${roomStyle}>${cell.activity.room}</div>` : ''}
-                            </div>
+                            ${buildActivityCellInner(cell.activity)}
                         </td>`;
             } else {
-                bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs}><span class="empty-cell">—</span></td>`;
+                bodyHtml += `<td class="${mergedClass}"${colspanPart} ${dataAttrs}>${buildEmptyCellInner()}</td>`;
             }
         });
 
@@ -1916,6 +2042,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('changelog-btn')?.addEventListener('click', openChangeLogModal);
     document.getElementById('toggle-diff-btn')?.addEventListener('click', toggleDiffMode);
     document.getElementById('export-xml-btn')?.addEventListener('click', exportTeachersXML);
+    initMoveConditionControl();
 });
 
 function toggleEditMode() {
@@ -1944,7 +2071,9 @@ function toggleEditMode() {
 
         // Add click handlers to cells
         addCellClickHandlers();
+        updateUndoRedoButtons();
         showToast('تم تفعيل وضع التعديل', 'info');
+
     } else {
         exitEditMode();
     }
@@ -1967,22 +2096,92 @@ function exitEditMode() {
 
     // Remove click handlers
     removeCellClickHandlers();
+    updateUndoRedoButtons();
 }
 
-function addCellClickHandlers() {
+// Event delegation for edit-mode cell interactions (avoids listener accumulation
+// when the tbody is re-rendered after every move/undo).
+// Guard is `tbody.dataset.editDelegation === '1'` set inside ensureEditEventDelegation.
+
+function getEditTargetCell(eventTarget) {
+    const tbody = document.querySelector('#timetable tbody');
+    if (!tbody || !eventTarget) return null;
+    const cell = eventTarget.closest?.('td[data-day][data-period][data-period-type]');
+    if (!cell || !tbody.contains(cell)) return null;
+    return cell;
+}
+
+function ensureEditEventDelegation() {
+    const tbody = document.querySelector('#timetable tbody');
+    if (!tbody || tbody.dataset.editDelegation === '1') return;
+
+    tbody.addEventListener('click', (e) => {
+        if (!editMode.active) return;
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleCellClick({ currentTarget: cell, target: e.target, preventDefault: () => e.preventDefault() });
+    });
+
+    tbody.addEventListener('dragstart', (e) => {
+        if (!editMode.active) {
+            e.preventDefault();
+            return;
+        }
+        const cell = getEditTargetCell(e.target);
+        if (!cell) {
+            e.preventDefault();
+            return;
+        }
+        handleDragStart({
+            currentTarget: cell,
+            target: e.target,
+            preventDefault: () => e.preventDefault(),
+            dataTransfer: e.dataTransfer
+        });
+    });
+
+    tbody.addEventListener('dragend', (e) => {
+        handleDragEnd(e);
+    });
+
+    tbody.addEventListener('dragover', (e) => {
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleDragOver({
+            currentTarget: cell,
+            target: e.target,
+            preventDefault: () => e.preventDefault(),
+            dataTransfer: e.dataTransfer
+        });
+    });
+
+    tbody.addEventListener('drop', (e) => {
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleDrop({
+            currentTarget: cell,
+            target: e.target,
+            preventDefault: () => e.preventDefault(),
+            dataTransfer: e.dataTransfer
+        });
+    });
+
+    tbody.addEventListener('dragleave', (e) => {
+        const cell = getEditTargetCell(e.target);
+        if (!cell) return;
+        handleDragLeave({
+            currentTarget: cell,
+            relatedTarget: e.relatedTarget
+        });
+    });
+
+    tbody.dataset.editDelegation = '1';
+}
+
+function decorateCellsForEdit() {
     const cells = document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
     cells.forEach((cell) => {
-        cell.addEventListener('click', handleCellClick);
-
-        // Add drag and drop functionality
         cell.setAttribute('draggable', 'true');
-        cell.addEventListener('dragstart', handleDragStart);
-        cell.addEventListener('dragend', handleDragEnd);
-        cell.addEventListener('dragover', handleDragOver);
-        cell.addEventListener('drop', handleDrop);
-        cell.addEventListener('dragleave', handleDragLeave);
-
-        // Add drag handle icon
         if (!cell.querySelector('.drag-handle')) {
             const handle = document.createElement('i');
             handle.className = 'fas fa-grip-vertical drag-handle';
@@ -1992,20 +2191,15 @@ function addCellClickHandlers() {
     });
 }
 
+function addCellClickHandlers() {
+    ensureEditEventDelegation();
+    decorateCellsForEdit();
+}
+
 function removeCellClickHandlers() {
     const cells = document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
     cells.forEach((cell) => {
-        cell.removeEventListener('click', handleCellClick);
-
-        // Remove drag and drop
         cell.removeAttribute('draggable');
-        cell.removeEventListener('dragstart', handleDragStart);
-        cell.removeEventListener('dragend', handleDragEnd);
-        cell.removeEventListener('dragover', handleDragOver);
-        cell.removeEventListener('drop', handleDrop);
-        cell.removeEventListener('dragleave', handleDragLeave);
-
-        // Remove drag handle
         const handle = cell.querySelector('.drag-handle');
         if (handle) handle.remove();
     });
@@ -2276,6 +2470,12 @@ function cancelMoveMode() {
 // DRAG & DROP HANDLERS — full implementation for merged cells
 // ============================================================
 let _dragSource = null; // { day, period, periodEnd, periodType, numPeriods }
+let _dragClassTimetable = null; // cached class timetable for the active drag session
+let _renderedHoverKey = null; // "day|periodType|period" actually validated/repainted last frame
+let _pendingDragOverTarget = null; // most recent cell the pointer is over (read inside the rAF)
+let _lastHoverValid = false; // cached validity for the last rendered hover key (sync dropEffect)
+let _dragOverFrame = 0; // rAF id for the coalesced dragover repaint
+let _highlightedDragCells = []; // cells currently carrying .drag-over / .drag-over-ext
 
 function handleDragStart(e) {
     if (!editMode.active) {
@@ -2301,13 +2501,27 @@ function handleDragStart(e) {
     const srcPeriods = buildPeriodRange(period, periodEnd);
     _dragSource = { day, period, periodEnd, periodType, numPeriods: srcPeriods.length, srcData };
 
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', JSON.stringify(_dragSource));
+    // Build the class timetable once for the whole drag session so validation
+    // never rebuilds it on every dragover. Cleared in handleDragEnd.
+    _dragClassTimetable = srcData.students ? buildClassTimetable(srcData.students) : null;
 
-    // Hack: Wait for browser to take the drag ghost IMAGE of the native DOM, THEN apply the dimming CSS!
-    setTimeout(() => {
-        cell.classList.add('drag-source');
-    }, 0);
+    e.dataTransfer.effectAllowed = 'move';
+    // NOTE: payload intentionally not set — _dragSource (module state) is the source of truth.
+    // Native DnD is single-drag; no cross-window transfer is needed.
+
+    // Use a cloned ghost as the drag image so the dim/striped "drag-source" CSS
+    // can be applied to the live cell immediately — the browser snapshots the
+    // clone before it ever picks up our class changes, so the dragged ghost is
+    // NOT dimmed, and the source cell dims with no flash.
+    const ghost = cell.cloneNode(true);
+    ghost.style.position = 'absolute';
+    ghost.style.top = '-9999px';
+    ghost.style.opacity = '0.85';
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 10, 10);
+    requestAnimationFrame(() => ghost.remove());
+    cell.classList.add('drag-source');
+    if (srcPeriods.length > 1) cell.classList.add('drag-source-double');
 
     // Highlight available slots for this class so user sees valid destinations
     if (srcData.students) {
@@ -2322,20 +2536,33 @@ function handleDragStart(e) {
 }
 
 function handleDragEnd(e) {
+    if (_dragOverFrame) cancelAnimationFrame(_dragOverFrame);
+    _dragOverFrame = 0;
+    _renderedHoverKey = null;
+    _pendingDragOverTarget = null;
+    _lastHoverValid = false;
+    _highlightedDragCells = [];
     document.querySelectorAll('#timetable tbody td').forEach((c) => {
-        c.classList.remove('drag-over', 'drag-over-ext', 'drag-source');
+        c.classList.remove('drag-over', 'drag-over-ext', 'drag-source', 'drag-source-double');
     });
     clearSlotHighlighting();
     _dragSource = null;
+    _dragClassTimetable = null;
 }
 
 // (Drag helper functions implemented below with validation-aware approach.)
 
 function handleDrop(e) {
     e.preventDefault();
+    if (_dragOverFrame) cancelAnimationFrame(_dragOverFrame);
+    _dragOverFrame = 0;
+    _renderedHoverKey = null;
+    _pendingDragOverTarget = null;
+    _lastHoverValid = false;
+    _highlightedDragCells = [];
     document
         .querySelectorAll('#timetable tbody td')
-        .forEach((c) => c.classList.remove('drag-over', 'drag-over-ext', 'drag-source'));
+        .forEach((c) => c.classList.remove('drag-over', 'drag-over-ext', 'drag-source', 'drag-source-double'));
 
     if (!_dragSource) return;
 
@@ -2416,65 +2643,95 @@ function buildClassTimetable(className) {
     return classTimetable;
 }
 
-// Check if placing a lesson at a slot would create a gap in the class schedule
-function wouldCreateGap(classTimetable, targetDay, targetPeriod, currentDay, currentPeriod) {
-    const periods = ['H1', 'H2', 'H3', 'H4'];
+// Pure move helpers live in js/shared/timetable-move-logic.js (tested in Node).
+// Thin wrappers keep existing call sites unchanged and inject live fetData deps.
 
-    // Build the day's schedule AFTER the potential move
-    const daySchedule = periods.map((p) => {
-        const periodType = ['H1', 'H2'].includes(p) ? 'morning' : 'afternoon';
-
-        // If this is the target slot, it will be occupied
-        if (targetDay === targetDay && p === targetPeriod) return true;
-
-        // If this is the source slot being moved FROM (same day), it will be empty
-        if (targetDay === currentDay && p === currentPeriod) return false;
-
-        // Otherwise check current timetable
-        return !!classTimetable[targetDay]?.[periodType]?.[p];
-    });
-
-    console.log(`Gap check for ${targetDay} ${targetPeriod}:`, daySchedule);
-
-    // Find first and last occupied slots
-    let firstOccupied = -1;
-    let lastOccupied = -1;
-
-    for (let i = 0; i < periods.length; i++) {
-        if (daySchedule[i]) {
-            if (firstOccupied === -1) firstOccupied = i;
-            lastOccupied = i;
-        }
-    }
-
-    // If no occupied slots or only one, no gap possible
-    if (firstOccupied === -1 || firstOccupied === lastOccupied) return false;
-
-    // Check for gaps between first and last occupied
-    for (let i = firstOccupied + 1; i < lastOccupied; i++) {
-        if (!daySchedule[i]) {
-            console.log(`Gap detected at period ${periods[i]}`);
-            return true; // Found a gap
-        }
-    }
-
-    return false;
+function getMoveLogic() {
+    return window.TimetableMoveLogic || window.GS2?.TimetableMoveLogic || null;
 }
 
-// (Slot highlighting implemented below via highlightAvailableSlots() using validateMoveTarget.)
+// === Move conditions (user-selectable) ==================================
+// Teacher availability, class availability and the "no gap in the class day"
+// rule are always enforced. Only the room-availability condition is optional,
+// because some schools reuse a room for two groups (labs, workshops, sport).
+// Device-local UI preference — deliberately NOT synced.
+const MOVE_CONDITION_STORAGE_KEY = 'timetableMoveConditionMode';
 
-function getRenderedTimetableCells() {
-    return document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
+function getMoveConditionMode() {
+    const modes = getMoveLogic()?.MOVE_CONDITIONS || { STRICT: 'strict', NO_ROOM: 'no-room' };
+    let stored = null;
+    try {
+        stored = localStorage.getItem(MOVE_CONDITION_STORAGE_KEY);
+    } catch (e) {
+        stored = null;
+    }
+    return stored === modes.NO_ROOM ? modes.NO_ROOM : modes.STRICT;
+}
+
+function setMoveConditionMode(mode) {
+    const modes = getMoveLogic()?.MOVE_CONDITIONS || { STRICT: 'strict', NO_ROOM: 'no-room' };
+    const next = mode === modes.NO_ROOM ? modes.NO_ROOM : modes.STRICT;
+    try {
+        localStorage.setItem(MOVE_CONDITION_STORAGE_KEY, next);
+    } catch (e) {
+        /* storage unavailable — keep in-memory default for this session */
+    }
+    return next;
+}
+
+function isRoomConditionEnabled() {
+    const logic = getMoveLogic();
+    const mode = getMoveConditionMode();
+    return logic ? logic.isRoomCheckEnabled(mode) : mode !== 'no-room';
+}
+
+function initMoveConditionControl() {
+    const select = document.getElementById('move-condition-mode');
+    if (!select) return;
+
+    select.value = getMoveConditionMode();
+    select.addEventListener('change', () => {
+        const mode = setMoveConditionMode(select.value);
+        select.value = mode;
+
+        // Any cached hover validity was computed under the previous conditions.
+        _lastHoverValid = false;
+        _renderedHoverKey = null;
+
+        // Repaint destination highlighting when a move is in progress.
+        const mv = editMode.moveMode;
+        if (editMode.active && mv?.active && mv.sourceData?.students) {
+            highlightAvailableSlots(mv.sourceData.students, {
+                sourceDay: mv.sourceDay,
+                sourcePeriod: mv.sourcePeriod,
+                sourcePeriodEnd: mv.sourcePeriodEnd,
+                sourcePeriodType: mv.sourcePeriodType,
+                room: mv.sourceData.room || ''
+            });
+        }
+
+        showToast(
+            isRoomConditionEnabled()
+                ? 'شروط النقل: الأستاذ + القسم + القاعة'
+                : 'شروط النقل: الأستاذ + القسم فقط (تجاهل تعارض القاعة)',
+            'info'
+        );
+    });
 }
 
 function buildTimetableSlotKey(day, periodType, period) {
+    const logic = getMoveLogic();
+    if (logic) return logic.buildTimetableSlotKey(day, periodType, period);
     return `${day}|${periodType}|${period}`;
 }
 
-function getConsecutivePeriods(periodStart, count) {
+function getConsecutivePeriods(periodStart, count, periodType) {
+    const logic = getMoveLogic();
+    if (logic) return logic.getConsecutivePeriods(periodStart, count, periodType);
+    // Fallback: all four keys H1–H4 are valid consecutive slots inside one periodType
+    // (morning/afternoon is a separate dimension), so no band clamp is applied.
     const startIdx = periods.indexOf(periodStart);
     if (startIdx === -1 || count <= 0) return [];
-
     const result = [];
     for (let i = 0; i < count; i++) {
         const period = periods[startIdx + i];
@@ -2482,6 +2739,46 @@ function getConsecutivePeriods(periodStart, count) {
         result.push(period);
     }
     return result;
+}
+
+function hasInternalGap(occupancy) {
+    const logic = getMoveLogic();
+    if (logic) return logic.hasInternalGap(occupancy);
+    const firstIndex = occupancy.findIndex(Boolean);
+    if (firstIndex === -1) return false;
+    let lastIndex = -1;
+    for (let index = occupancy.length - 1; index >= 0; index--) {
+        if (occupancy[index]) {
+            lastIndex = index;
+            break;
+        }
+    }
+    if (lastIndex <= firstIndex) return false;
+    for (let index = firstIndex + 1; index < lastIndex; index++) {
+        if (!occupancy[index]) return true;
+    }
+    return false;
+}
+
+function buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
+    const logic = getMoveLogic();
+    if (logic) return logic.buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys);
+    return periods.map((period) => {
+        const slotKey = buildTimetableSlotKey(day, periodType, period);
+        if (destinationKeys.has(slotKey)) return true;
+        if (sourceKeys.has(slotKey)) return false;
+        return !!classTimetable[day]?.[periodType]?.[period];
+    });
+}
+
+function causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
+    const logic = getMoveLogic();
+    if (logic) return logic.causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys);
+    return hasInternalGap(buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys));
+}
+
+function getRenderedTimetableCells() {
+    return document.querySelectorAll('#timetable tbody td[data-day][data-period][data-period-type]');
 }
 
 function getRenderedCellForSlot(day, periodType, period) {
@@ -2507,41 +2804,6 @@ function getRenderedCellForSlot(day, periodType, period) {
     return null;
 }
 
-function hasInternalGap(occupancy) {
-    const firstIndex = occupancy.findIndex(Boolean);
-    if (firstIndex === -1) return false;
-
-    let lastIndex = -1;
-    for (let index = occupancy.length - 1; index >= 0; index--) {
-        if (occupancy[index]) {
-            lastIndex = index;
-            break;
-        }
-    }
-
-    if (lastIndex <= firstIndex) return false;
-
-    for (let index = firstIndex + 1; index < lastIndex; index++) {
-        if (!occupancy[index]) return true;
-    }
-
-    return false;
-}
-
-function buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
-    return periods.map((period) => {
-        const slotKey = buildTimetableSlotKey(day, periodType, period);
-        if (destinationKeys.has(slotKey)) return true;
-        if (sourceKeys.has(slotKey)) return false;
-        return !!classTimetable[day]?.[periodType]?.[period];
-    });
-}
-
-function causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys) {
-    const occupancy = buildOccupancyAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys);
-    return hasInternalGap(occupancy);
-}
-
 function validateMoveTarget({
     teacher,
     className,
@@ -2553,65 +2815,48 @@ function validateMoveTarget({
     destPeriod,
     destPeriodType
 }) {
+    if (!crossCycleTimetablesLoaded) {
+        return { valid: false, message: 'لا يمكن النقل قبل تحميل جداول كل الأسلاك.' };
+    }
+
+    const logic = getMoveLogic();
+    if (logic) {
+        return logic.validateMoveTarget(
+            {
+                teacher,
+                className,
+                room,
+                sourceDay,
+                sourcePeriodType,
+                sourcePeriods,
+                destDay,
+                destPeriod,
+                destPeriodType,
+                checkRoom: isRoomConditionEnabled()
+            },
+            {
+                getSlotData,
+                isTeacherOccupied: isTeacherOccupiedAcrossCycles,
+                isRoomOccupied,
+                buildClassTimetable: (className) =>
+                    _dragClassTimetable && _dragSource && _dragSource.srcData?.students === className
+                        ? _dragClassTimetable
+                        : buildClassTimetable(className)
+            }
+        );
+    }
+
+    // Fallback if shared module failed to load
     if (!teacher || !destDay || !destPeriod || !destPeriodType || !Array.isArray(sourcePeriods) || sourcePeriods.length === 0) {
         return { valid: false, message: 'الوجهة غير صالحة.' };
     }
 
-    const destPeriods = getConsecutivePeriods(destPeriod, sourcePeriods.length);
+    const destPeriods = getConsecutivePeriods(destPeriod, sourcePeriods.length, destPeriodType);
     if (destPeriods.length !== sourcePeriods.length) {
         return {
             valid: false,
             message: `لا يمكن النقل: تحتاج ${sourcePeriods.length} خانات متتالية داخل نفس الفترة.`
         };
-    }
-
-    const sourceKeys = new Set(sourcePeriods.map((period) => buildTimetableSlotKey(sourceDay, sourcePeriodType, period)));
-    const destinationKeys = new Set(destPeriods.map((period) => buildTimetableSlotKey(destDay, destPeriodType, period)));
-    const classTimetable = className ? buildClassTimetable(className) : null;
-
-    for (const period of destPeriods) {
-        const slotKey = buildTimetableSlotKey(destDay, destPeriodType, period);
-        const teacherActivity = getSlotData(teacher, destDay, period, destPeriodType);
-        if (teacherActivity && !sourceKeys.has(slotKey)) {
-            return {
-                valid: false,
-                message: `غير متاح: الأستاذ مشغول في ${destDay} ${period}.`
-            };
-        }
-
-        if (classTimetable) {
-            const classActivity = classTimetable[destDay]?.[destPeriodType]?.[period];
-            const isVacatedSourceSlot = sourceKeys.has(slotKey) && classActivity?.teacher === teacher;
-            if (classActivity && !isVacatedSourceSlot) {
-                return {
-                    valid: false,
-                    message: `غير متاح: القسم مشغول في ${destDay} ${period} مع ${classActivity.teacher}.`
-                };
-            }
-        }
-
-        if (room) {
-            const roomCheck = isRoomOccupied(room, destDay, period, destPeriodType, teacher);
-            if (roomCheck.occupied) {
-                return {
-                    valid: false,
-                    message: `غير متاح: القاعة ${room} مشغولة في ${destDay} ${period}.`
-                };
-            }
-        }
-    }
-
-    if (classTimetable) {
-        const affectedSlices = new Set([`${sourceDay}|${sourcePeriodType}`, `${destDay}|${destPeriodType}`]);
-        for (const slice of affectedSlices) {
-            const [day, periodType] = slice.split('|');
-            if (causesGapAfterMove(classTimetable, day, periodType, sourceKeys, destinationKeys)) {
-                return {
-                    valid: false,
-                    message: `غير متاح: النقل سيُحدث فراغًا في جدول القسم خلال ${day} ${periodType === 'morning' ? 'الصباح' : 'المساء'}.`
-                };
-            }
-        }
     }
 
     return { valid: true, destPeriods };
@@ -2675,6 +2920,170 @@ function clearSlotHighlighting() {
         cell.classList.remove('slot-available', 'slot-occupied', 'slot-current', 'slot-gap-warning');
         cell.removeAttribute('title');
     });
+}
+
+// Surgical DOM swap on drop — updates only the cells touched by the move
+// instead of rebuilding the whole tbody. Returns true on success; returns
+// false when the move changes merge boundaries the surgical path cannot
+// express cleanly, in which case the caller falls back to renderTeacherTimetable.
+function applyMoveToDom(teacher, srcSlots, destSlots) {
+    if (!Array.isArray(srcSlots) || !srcSlots.length) return false;
+    if (!Array.isArray(destSlots) || !destSlots.length) return false;
+
+    // Both src and dest must each live within one (day, periodType) slice.
+    const srcDay = srcSlots[0].day;
+    const srcPt = srcSlots[0].periodType;
+    if (srcSlots.some((s) => s.day !== srcDay || s.periodType !== srcPt)) return false;
+
+    const destDay = destSlots[0].day;
+    const destPt = destSlots[0].periodType;
+    if (destSlots.some((s) => s.day !== destDay || s.periodType !== destPt)) return false;
+
+    // No overlap between src and dest slots (within the same slice).
+    if (srcDay === destDay && srcPt === destPt) {
+        const srcPerSet = new Set(srcSlots.map((s) => s.period));
+        for (const s of destSlots) if (srcPerSet.has(s.period)) return false;
+    }
+
+    // Activity that was moved into the destination (data already applied to fetData).
+    const sampleAct = getSlotData(teacher, destDay, destSlots[0].period, destPt);
+    if (!sampleAct || !sampleAct.subject) return false;
+
+    // Source TDs must cover exactly the moved periods (no merge with non-moved neighbors).
+    const srcPeriodSet = new Set(srcSlots.map((s) => s.period));
+    const srcTds = [];
+    for (const slot of srcSlots) {
+        const td = getRenderedCellForSlot(slot.day, slot.periodType, slot.period);
+        if (!td) return false;
+        if (!srcTds.includes(td)) srcTds.push(td);
+        const spanP = buildPeriodRange(td.dataset.period, td.dataset.periodEnd || td.dataset.period);
+        for (const p of spanP) if (!srcPeriodSet.has(p)) return false;
+    }
+
+    // Destination TDs must cover only the dest periods and currently be empty.
+    // NOTE: fetData is already mutated by the caller at this point (the moved
+    // activity is written into the dest slots), so emptiness is checked against
+    // the *rendered DOM*, which still reflects the pre-move state.
+    const destPeriodSet = new Set(destSlots.map((s) => s.period));
+    const destTds = [];
+    for (const slot of destSlots) {
+        const td = getRenderedCellForSlot(slot.day, slot.periodType, slot.period);
+        if (!td) return false;
+        if (!destTds.includes(td)) destTds.push(td);
+        const spanP = buildPeriodRange(td.dataset.period, td.dataset.periodEnd || td.dataset.period);
+        for (const p of spanP) {
+            if (!destPeriodSet.has(p)) return false;
+        }
+        // Occupied in the current DOM (renders an activity, not an empty cell)
+        // → the surgical path can't express this cleanly; fall back.
+        if (td.querySelector('.activity-cell')) return false;
+    }
+
+    // Adjacent neighbors outside destSlots must not form a new merge with the moved act.
+    const destFirstPerIdx = periods.indexOf(destSlots[0].period);
+    const destLastPerIdx = periods.indexOf(destSlots[destSlots.length - 1].period);
+    if (destFirstPerIdx > 0) {
+        const prevPer = periods[destFirstPerIdx - 1];
+        const prevAct = getSlotData(teacher, destDay, prevPer, destPt);
+        if (prevAct && prevAct.subject === sampleAct.subject && prevAct.students === sampleAct.students) return false;
+    }
+    if (destLastPerIdx < periods.length - 1) {
+        const nextPer = periods[destLastPerIdx + 1];
+        const nextAct = getSlotData(teacher, destDay, nextPer, destPt);
+        if (nextAct && nextAct.subject === sampleAct.subject && nextAct.students === sampleAct.students) return false;
+    }
+
+    // Preserve scroll position of the timetable container.
+    const scrollContainer = document.querySelector('.table-responsive');
+    const scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+    const scrollLeft = scrollContainer ? scrollContainer.scrollLeft : 0;
+
+    try {
+        // === Clear source ===
+        // Empty each source TD. A merged (double) source is split back into
+        // single empty cells so no stale colspan / data-period-end is left behind
+        // (source periods are always within one periodType, never crossing the
+        // morning/afternoon separator column).
+        for (const td of srcTds) {
+            const spanPeriods = buildPeriodRange(td.dataset.period, td.dataset.periodEnd || td.dataset.period);
+            const day = td.dataset.day;
+            const periodType = td.dataset.periodType;
+
+            td.innerHTML = buildEmptyCellInner();
+            td.removeAttribute('style');
+            td.removeAttribute('data-period-end');
+            td.dataset.duration = '1';
+            td.colSpan = 1;
+            td.classList.remove('merged-cell', 'drag-source', 'drag-source-double', 'drag-over', 'drag-over-ext');
+
+            // Reinsert the extra periods the merged cell used to cover as single empty cells.
+            let anchor = td;
+            for (let i = 1; i < spanPeriods.length; i++) {
+                const empty = document.createElement('td');
+                empty.dataset.day = day;
+                empty.dataset.period = spanPeriods[i];
+                empty.dataset.periodType = periodType;
+                empty.dataset.duration = '1';
+                empty.innerHTML = buildEmptyCellInner();
+                anchor.insertAdjacentElement('afterend', empty);
+                anchor = empty;
+            }
+        }
+
+        // === Fill destination ===
+        const bgStyle = buildActivityCellStyle(sampleAct);
+        if (destTds.length === 1) {
+            const td = destTds[0];
+            td.innerHTML = buildActivityCellInner(sampleAct);
+            td.removeAttribute('style');
+            if (bgStyle) td.setAttribute('style', bgStyle);
+            td.removeAttribute('data-period-end');
+            td.dataset.duration = '1';
+            td.classList.remove('merged-cell');
+            td.colSpan = 1;
+        } else {
+            // Pack the move into a single merged TD spanning all dest periods.
+            const td = destTds[0];
+            td.innerHTML = buildActivityCellInner(sampleAct);
+            td.removeAttribute('style');
+            if (bgStyle) td.setAttribute('style', bgStyle);
+            td.dataset.periodEnd = destSlots[destSlots.length - 1].period;
+            td.dataset.duration = String(destSlots.length);
+            td.classList.add('merged-cell');
+            td.colSpan = destSlots.length;
+            // Drop the now-absorbed TDs from the row.
+            for (let i = 1; i < destTds.length; i++) {
+                destTds[i].remove();
+            }
+        }
+    } catch (err) {
+        return false;
+    }
+
+    // Restore scroll
+    if (scrollContainer) {
+        scrollContainer.scrollTop = scrollTop;
+        scrollContainer.scrollLeft = scrollLeft;
+    }
+
+    // Refresh the teacher footer legend (set of classes is unchanged by a move,
+    // but the rendered structure changed; re-render to stay aligned).
+    const legendContainer = document.getElementById('teacher-legend-container');
+    if (legendContainer) {
+        const tt = fetData.timetables[teacher] || {};
+        const tClasses = new Set();
+        for (const day of Object.keys(tt)) {
+            for (const pt of ['morning', 'afternoon']) {
+                const bucket = tt[day]?.[pt] || {};
+                for (const p of Object.keys(bucket)) {
+                    if (bucket[p]?.students) tClasses.add(bucket[p].students);
+                }
+            }
+        }
+        renderTeacherFooterLegend(legendContainer, tClasses);
+    }
+
+    return true;
 }
 
 function performMoveToDestination(destDay, destPeriod, destPeriodType) {
@@ -2744,7 +3153,17 @@ function performMoveToDestination(destDay, destPeriod, destPeriodType) {
     });
 
     const subjectFilter = document.getElementById('subject-filter')?.value || '';
-    renderTeacherTimetable(teacher, subjectFilter);
+    // Surgical DOM update avoids the full tbody rebuild + flicker for the common
+    // case (single/double move that doesn't disturb adjacent merge boundaries).
+    // Anything tricky falls back to renderTeacherTimetable (T4.3).
+    const surgicalOk = applyMoveToDom(
+        teacher,
+        srcPeriods.map((p) => ({ day: mv.sourceDay, periodType: mv.sourcePeriodType, period: p })),
+        destPeriods.map((p) => ({ day: destDay, periodType: destPeriodType, period: p }))
+    );
+    if (!surgicalOk) {
+        renderTeacherTimetable(teacher, subjectFilter);
+    }
     if (editMode.active) {
         addCellClickHandlers();
         document.getElementById('timetable-wrapper').classList.add('edit-mode-active');
@@ -2772,7 +3191,7 @@ function _getDragOverCells(targetCell) {
     const startPeriod = targetCell.dataset.period;
     if (!day || !periodType || !startPeriod) return [targetCell];
 
-    const periodsToCover = getConsecutivePeriods(startPeriod, _dragSource.numPeriods);
+    const periodsToCover = getConsecutivePeriods(startPeriod, _dragSource.numPeriods, periodType);
     const result = [];
     periodsToCover.forEach((period) => {
         const cell = getRenderedCellForSlot(day, periodType, period);
@@ -2788,27 +3207,62 @@ function handleDragOver(e) {
     e.preventDefault();
     if (!_dragSource) return;
 
-    const validation = validateMoveTarget({
-        teacher: editMode.currentTeacher,
-        className: _dragSource.srcData?.students || '',
-        room: _dragSource.srcData?.room || '',
-        sourceDay: _dragSource.day,
-        sourcePeriodType: _dragSource.periodType,
-        sourcePeriods: buildPeriodRange(_dragSource.period, _dragSource.periodEnd),
-        destDay: e.currentTarget.dataset.day,
-        destPeriod: e.currentTarget.dataset.period,
-        destPeriodType: e.currentTarget.dataset.periodType
+    // dropEffect must be set synchronously on the real event or the cursor lags.
+    // It reflects the last *rendered* validity (one-frame lag on cell change).
+    e.dataTransfer.dropEffect = _lastHoverValid ? 'move' : 'none';
+
+    const cell = e.currentTarget;
+    const key =
+        (cell.dataset.day || '') + '|' + (cell.dataset.periodType || '') + '|' + (cell.dataset.period || '');
+
+    // Always remember the most recent target so the coalesced frame validates
+    // the cell the pointer is *currently* over — not the one it entered first.
+    _pendingDragOverTarget = cell;
+
+    // Skip scheduling when the pointer is still over the last *rendered* cell.
+    const logic = getMoveLogic();
+    const changed = logic ? logic.hoverKeyChanged(_renderedHoverKey, key) : _renderedHoverKey !== key;
+    if (!changed) return;
+
+    // Coalesce the validate+repaint into one rAF so many dragover events per
+    // frame collapse into a single DOM update on the latest target.
+    if (_dragOverFrame) return;
+    _dragOverFrame = requestAnimationFrame(() => {
+        _dragOverFrame = 0;
+
+        const target = _pendingDragOverTarget;
+        if (!target || !_dragSource) return;
+        _renderedHoverKey =
+            (target.dataset.day || '') + '|' + (target.dataset.periodType || '') + '|' + (target.dataset.period || '');
+
+        const validation = validateMoveTarget({
+            teacher: editMode.currentTeacher,
+            className: _dragSource.srcData?.students || '',
+            room: _dragSource.srcData?.room || '',
+            sourceDay: _dragSource.day,
+            sourcePeriodType: _dragSource.periodType,
+            sourcePeriods: buildPeriodRange(_dragSource.period, _dragSource.periodEnd),
+            destDay: target.dataset.day,
+            destPeriod: target.dataset.period,
+            destPeriodType: target.dataset.periodType
+        });
+        _lastHoverValid = !!validation.valid;
+
+        // Diff-repaint: clear only the previously highlighted cells, then light
+        // up the new set. Avoids the full-document querySelector sweep each event.
+        if (_highlightedDragCells.length) {
+            for (const c of _highlightedDragCells) {
+                c.classList.remove('drag-over', 'drag-over-ext');
+            }
+        }
+        _highlightedDragCells = [];
+
+        if (!validation.valid) return;
+
+        const cells = _getDragOverCells(target);
+        cells.forEach((c, index) => c.classList.add(index === 0 ? 'drag-over' : 'drag-over-ext'));
+        _highlightedDragCells = cells;
     });
-
-    e.dataTransfer.dropEffect = validation.valid ? 'move' : 'none';
-    document
-        .querySelectorAll('#timetable tbody td.drag-over, #timetable tbody td.drag-over-ext')
-        .forEach((cell) => cell.classList.remove('drag-over', 'drag-over-ext'));
-
-    if (!validation.valid) return;
-
-    const cells = _getDragOverCells(e.currentTarget);
-    cells.forEach((cell, index) => cell.classList.add(index === 0 ? 'drag-over' : 'drag-over-ext'));
 }
 
 // Confirm slot edit — applies changes LIVE to fetData then re-renders
@@ -2848,7 +3302,18 @@ function confirmSlotEdit() {
 
     coveredPeriods.forEach((p, idx) => {
         const oldData = getSlotData(editMode.currentTeacher, day, p, periodType);
-        const newData = deleteSlot ? null : { subject, students: className, room };
+        const logic = getMoveLogic();
+        const newData = logic
+            ? logic.buildEditedSlotData({
+                  deleteSlot,
+                  subject,
+                  students: className,
+                  room,
+                  oldData
+              })
+            : deleteSlot
+              ? null
+              : { subject, students: className, room, ...(oldData || {}) };
 
         // Record for undo
         editMode.pendingChanges.push({
@@ -2915,32 +3380,72 @@ function showValidationMessage(messages) {
     msgDiv.style.display = 'block';
 }
 
-// Check if a room is already occupied at a specific time slot
+function getCycleTimetableEntries() {
+    const entries = Object.entries(allCycleTimetables);
+    if (activeTimetableCycleCode) {
+        const activeIndex = entries.findIndex(([cycleCode]) => cycleCode === activeTimetableCycleCode);
+        const activeEntry = [activeTimetableCycleCode, { timetables: fetData.timetables }];
+        if (activeIndex === -1) entries.push(activeEntry);
+        else entries[activeIndex] = activeEntry;
+    }
+    return entries;
+}
+
+function getStoredTeacherMeta(timetableData, teacherKey) {
+    return normalizeImportedTeacherEntry(timetableData?.teacherMetaByKey?.[teacherKey] || teacherKey);
+}
+
+function isSameTimetableTeacher(teacherKey, candidateKey, timetableData) {
+    if (teacherKey === candidateKey) return true;
+    const sourceMeta = getTeacherMeta(teacherKey);
+    const candidateMeta = getStoredTeacherMeta(timetableData, candidateKey);
+    if (sourceMeta.teacherId && sourceMeta.teacherId === candidateMeta.teacherId) return true;
+    return Boolean(sourceMeta.displayName && sourceMeta.displayName === candidateMeta.displayName);
+}
+
+function isTeacherOccupiedAcrossCycles(teacher, day, period, periodType) {
+    const conflicts = getMoveLogic().detectConflicts({
+        scopeCycles: 'all',
+        policyCycle: activeTimetableCycleCode,
+        timetableEntries: getCycleTimetableEntries(),
+        teacher,
+        day,
+        period,
+        periodType,
+        teacherMatcher: (candidateTeacher, timetableData) =>
+            isSameTimetableTeacher(teacher, candidateTeacher, timetableData),
+        excludeTeacher: teacher
+    });
+    const conflict = conflicts.find((entry) => entry.type === 'teacher');
+    return conflict
+        ? { occupied: true, byTeacher: conflict.teacher, slot: conflict.slot, cycleCode: conflict.cycleCode }
+        : { occupied: false };
+}
+
+// Check if a room is already occupied at a specific time slot across supported cycles.
 function isRoomOccupied(room, day, period, periodType, excludeTeacher = null) {
     if (!room || room.trim() === '') return { occupied: false };
 
-    // Check all teachers' timetables
-    const teachers = Object.keys(fetData.timetables);
-
-    for (const teacher of teachers) {
-        // Skip the current teacher when editing
-        if (excludeTeacher && teacher === excludeTeacher) continue;
-
-        const teacherTimetable = fetData.timetables[teacher];
-        if (!teacherTimetable || !teacherTimetable[day]) continue;
-
-        const slot = teacherTimetable[day][periodType]?.[period];
-        if (slot && slot.room === room) {
-            return {
-                occupied: true,
-                byTeacher: teacher,
-                subject: slot.subject,
-                students: slot.students
-            };
-        }
-    }
-
-    return { occupied: false };
+    const conflicts = getMoveLogic().detectConflicts({
+        scopeCycles: 'all',
+        policyCycle: activeTimetableCycleCode,
+        timetableEntries: getCycleTimetableEntries(),
+        room,
+        day,
+        period,
+        periodType,
+        excludeTeacher
+    });
+    const conflict = conflicts.find((entry) => entry.type === 'room');
+    return conflict
+        ? {
+              occupied: true,
+              byTeacher: conflict.teacher,
+              subject: conflict.slot.subject,
+              students: conflict.slot.students,
+              cycleCode: conflict.cycleCode
+          }
+        : { occupied: false };
 }
 
 // Validation functions
@@ -2955,6 +3460,12 @@ function validateChange(day, period, subject, className, deleteSlot, room = null
             messages: [{ type: 'error', message: 'يرجى اختيار المادة والقسم' }]
         };
     }
+    if (!crossCycleTimetablesLoaded) {
+        return {
+            valid: false,
+            messages: [{ type: 'error', message: 'لا يمكن الحفظ قبل تحميل جداول كل الأسلاك' }]
+        };
+    }
 
     const messages = [];
 
@@ -2966,13 +3477,17 @@ function validateChange(day, period, subject, className, deleteSlot, room = null
         });
     }
 
-    // Rule 2: Room conflict check
+    // Rule 2: Room conflict check.
+    // Blocking (error) under strict conditions; informational (warning) when the
+    // user turned the room condition off, so the same choice governs the modal
+    // and drag-and-drop instead of the two disagreeing.
     if (room && periodType) {
         const roomCheck = isRoomOccupied(room, day, period, periodType, editMode.currentTeacher);
         if (roomCheck.occupied) {
+            const blocking = isRoomConditionEnabled();
             messages.push({
-                type: 'error',
-                message: `تعارض: القاعة ${room} مشغولة من طرف ${roomCheck.byTeacher} (${roomCheck.subject} - ${roomCheck.students})`
+                type: blocking ? 'error' : 'warning',
+                message: `${blocking ? 'تعارض' : 'تنبيه'}: القاعة ${room} مشغولة من طرف ${roomCheck.byTeacher} (${roomCheck.subject} - ${roomCheck.students})`
             });
         }
     }
@@ -3070,23 +3585,34 @@ function updateUndoButton() {
     const undoBtn = document.getElementById('undo-btn');
     const undoCount = document.getElementById('undo-count');
 
+    if (!undoBtn) {
+        updateUndoRedoButtons();
+        return;
+    }
+
     if (editMode.pendingChanges.length > 0) {
         undoBtn.disabled = false;
-        undoCount.textContent = editMode.pendingChanges.length;
-        undoCount.style.display = 'inline-block';
+        if (undoCount) {
+            undoCount.textContent = editMode.pendingChanges.length;
+            undoCount.style.display = 'inline-block';
+        }
     } else {
         undoBtn.disabled = true;
-        undoCount.style.display = 'none';
+        if (undoCount) undoCount.style.display = 'none';
     }
+    updateUndoRedoButtons();
 }
 
 // Helper: return all period keys between periodStart and periodEnd (inclusive)
 function buildPeriodRange(periodStart, periodEnd) {
+    const logic = getMoveLogic();
+    if (logic) return logic.buildPeriodRange(periodStart, periodEnd);
     const startIdx = periods.indexOf(periodStart);
     const endIdx = periods.indexOf(periodEnd);
     if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return [periodStart];
     return periods.slice(startIdx, endIdx + 1);
 }
+
 
 function undoLastChange() {
     if (editMode.pendingChanges.length === 0) return;
@@ -3142,10 +3668,27 @@ async function cancelEditMode() {
         }
     }
 
-    // Clear all pending changes
-    editMode.pendingChanges = [];
+    // Restore pre-edit snapshot so Cancel never leaves the live grid dirty
+    const logic = getMoveLogic();
+    if (editMode.originalTimetable && editMode.currentTeacher) {
+        if (logic) {
+            logic.restoreTeacherTimetableSnapshot(
+                fetData.timetables,
+                editMode.currentTeacher,
+                editMode.originalTimetable
+            );
+        } else {
+            fetData.timetables[editMode.currentTeacher] = JSON.parse(
+                JSON.stringify(editMode.originalTimetable)
+            );
+        }
+        const subjectFilter = document.getElementById('subject-filter')?.value || '';
+        renderTeacherTimetable(editMode.currentTeacher, subjectFilter);
+    }
 
-    // Remove all modified markers
+    editMode.pendingChanges = [];
+    updateUndoButton();
+
     document.querySelectorAll('.cell-modified').forEach((cell) => {
         cell.classList.remove('cell-modified');
     });
@@ -3302,29 +3845,62 @@ function clearDiffHighlighting() {
     });
 }
 
-// Save all changes — data already applied live; just persist to storage and exit
+// Save all changes — data already applied live; just persist to storage and exit.
+// Students/rooms tabs are derived from the *saved* snapshot (not live fetData).
 function saveAllChanges() {
     if (editMode.pendingChanges.length === 0) {
         showToast('لا توجد تغييرات معلقة', 'info');
         return;
     }
 
-    // Move pending changes to permanent history
-    const savedAt = new Date().toISOString();
-    editMode.pendingChanges.forEach((change) => {
-        editMode.changeHistory.push({ ...change, savedAt });
-    });
     const savedCount = editMode.pendingChanges.length;
+    const savedAt = new Date().toISOString();
+    // Snapshot now, but only commit to history once the DB write is confirmed.
+    const committedChanges = editMode.pendingChanges.map((change) => ({ ...change, savedAt }));
 
-    // Persist to localStorage
-    saveDataToStorage();
+    // Persist FIRST. Finalize (history, clear pending, exit edit mode, refresh derived
+    // tabs) only when the database accepted the write. Otherwise the teacher tab would
+    // keep the in-memory move while the DB — and the derived students/rooms tabs and any
+    // page reload — still show the lesson in its original slot.
+    Promise.resolve(saveDataToStorage())
+        .then((result) => {
+            if (!result || result.success === false) {
+                showToast('تعذّر حفظ التغييرات في قاعدة البيانات. التعديلات ما زالت معلّقة، حاول مرة أخرى.', 'error');
+                return;
+            }
+            committedChanges.forEach((change) => editMode.changeHistory.push(change));
+            editMode.pendingChanges = [];
+            updateUndoButton();
+            exitEditMode();
+            refreshDerivedTimetableTabs();
+            showToast(`تم حفظ ${savedCount} تغيير بنجاح`, 'success');
+        })
+        .catch((err) => {
+            console.error('Error after saving timetable:', err);
+            showToast('تعذّر حفظ التغييرات في قاعدة البيانات. التعديلات ما زالت معلّقة، حاول مرة أخرى.', 'error');
+        });
+}
 
-    // Clear pending changes
-    editMode.pendingChanges = [];
-    updateUndoButton();
+/**
+ * Students/rooms read from the database via api.timetable.get — not live fetData.
+ * After a successful save, re-init the active derived tab (or both when visible).
+ */
+function refreshDerivedTimetableTabs() {
+    const activeTab = localStorage.getItem('timetableActiveTab') || 'tab-teachers';
+    if (activeTab === 'tab-students' && window.StudentTimetable?.init) {
+        window.StudentTimetable.init();
+    } else if (activeTab === 'tab-rooms' && window.RoomTimetable?.init) {
+        window.RoomTimetable.init();
+    }
 
-    exitEditMode();
-    showToast(`تم حفظ ${savedCount} تغيير بنجاح`, 'success');
+    const studentsPanel = document.getElementById('tab-students');
+    const roomsPanel = document.getElementById('tab-rooms');
+    if (studentsPanel && studentsPanel.style.display !== 'none' && window.StudentTimetable?.init) {
+        window.StudentTimetable.init();
+    }
+    if (roomsPanel && roomsPanel.style.display !== 'none' && window.RoomTimetable?.init) {
+        window.RoomTimetable.init();
+    }
 }
 
 // Change log

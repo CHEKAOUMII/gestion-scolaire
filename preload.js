@@ -5,12 +5,13 @@ contextBridge.exposeInMainWorld('api', {
     // Students
     students: {
         getAll: (schoolYear) => ipcRenderer.invoke('students:getAll', schoolYear),
+        list: (schoolYear, options) => ipcRenderer.invoke('students:list', schoolYear, options),
         getCodesByYear: (schoolYear) => ipcRenderer.invoke('students:getCodesByYear', schoolYear),
         getByCode: (code, schoolYear) => ipcRenderer.invoke('students:getByCode', code, schoolYear),
         search: (name, className, code, schoolYear) =>
             ipcRenderer.invoke('students:search', name, className, code, schoolYear),
         add: (student) => ipcRenderer.invoke('students:add', student),
-        addBulk: (students) => ipcRenderer.invoke('students:addBulk', students),
+        addBulk: (students, auditType) => ipcRenderer.invoke('students:addBulk', students, auditType),
         update: (id, data) => ipcRenderer.invoke('students:update', id, data),
         delete: (id) => ipcRenderer.invoke('students:delete', id),
         deleteByYear: (schoolYear) => ipcRenderer.invoke('students:deleteByYear', schoolYear),
@@ -21,7 +22,8 @@ contextBridge.exposeInMainWorld('api', {
     // Student Profile Data (bataqa mutabaat)
     studentProfile: {
         getAllTabs: (studentCode, schoolYear) => ipcRenderer.invoke('studentProfile:getAllTabs', studentCode, schoolYear),
-        saveTab: (payload) => ipcRenderer.invoke('studentProfile:saveTab', payload)
+        saveTab: (payload) => ipcRenderer.invoke('studentProfile:saveTab', payload),
+        saveRiskSnapshot: (payload) => ipcRenderer.invoke('studentProfile:saveRiskSnapshot', payload)
     },
 
     // Lookup catalogs
@@ -36,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
     // Grades
     grades: {
         getAll: (schoolYear) => ipcRenderer.invoke('grades:getAll', schoolYear),
+        list: (schoolYear, options) => ipcRenderer.invoke('grades:list', schoolYear, options),
         getByStudentCode: (studentCode, schoolYear) =>
             ipcRenderer.invoke('grades:getByStudentCode', studentCode, schoolYear),
         getZeroStudents: (filters) => ipcRenderer.invoke('grades:getZeroStudents', filters),
@@ -59,6 +62,48 @@ contextBridge.exposeInMainWorld('api', {
         setVisibility: (payload) => ipcRenderer.invoke('pageVisibility:setVisibility', payload)
     },
 
+    // Stage rules (قواعد المرحلة) — versioned rule sets per school year
+    stageRules: {
+        getActive: (schoolYear) => ipcRenderer.invoke('stageRules:getActive', schoolYear),
+        saveCoefficients: (payload) => ipcRenderer.invoke('stageRules:saveCoefficients', payload),
+        saveExamCounts: (payload) => ipcRenderer.invoke('stageRules:saveExamCounts', payload),
+        saveAll: (payload) => ipcRenderer.invoke('stageRules:saveAll', payload),
+        resetToOfficial: (payload) => ipcRenderer.invoke('stageRules:resetToOfficial', payload)
+    },
+
+    // Cycle access (user_cycle_access) — admin-only, LOCAL-ONLY authorization policy
+    // (multi-stage plan §3 S6 rows 128-130; never synced, like page-access permissions).
+    cycleAccess: {
+        list: () => ipcRenderer.invoke('cycleAccess:list'),
+        setUsers: (payload) => ipcRenderer.invoke('cycleAccess:setUsers', payload),
+        setCycles: (payload) => ipcRenderer.invoke('cycleAccess:setCycles', payload)
+    },
+
+    appDefaults: {
+        listLevels: (cycleCode) => ipcRenderer.invoke('appDefaults:listLevels', cycleCode ? { cycleCode } : undefined),
+        getExamCounts: (levelCode, cycleCode) =>
+            ipcRenderer.invoke(
+                'appDefaults:getExamCounts',
+                cycleCode ? { levelCode, cycleCode } : levelCode
+            ),
+        saveExamCounts: (payload) => ipcRenderer.invoke('appDefaults:saveExamCounts', payload),
+        getExamCount: (levelCode, subject, cycleCode) =>
+            ipcRenderer.invoke(
+                'appDefaults:getExamCount',
+                cycleCode ? { levelCode, subject, cycleCode } : { levelCode, subject }
+            ),
+        listPages: () => ipcRenderer.invoke('appDefaults:listPages'),
+        getPageAccessMap: () => ipcRenderer.invoke('appDefaults:getPageAccessMap'),
+        savePageAccess: (payload) => ipcRenderer.invoke('appDefaults:savePageAccess', payload),
+        // Live push: fires (no payload) whenever an admin saves the page-access matrix,
+        // so open pages can re-run their access guard without a manual reload.
+        onPageAccessChanged: (callback) => {
+            const handler = () => callback();
+            ipcRenderer.on('appDefaults:pageAccessChanged', handler);
+            return () => ipcRenderer.removeListener('appDefaults:pageAccessChanged', handler);
+        }
+    },
+
     // Statistics
     stats: {
         get: (schoolYear) => ipcRenderer.invoke('stats:get', schoolYear)
@@ -75,6 +120,9 @@ contextBridge.exposeInMainWorld('api', {
         saveBulk: (absences) => ipcRenderer.invoke('absences:saveBulk', absences),
         delete: (id) => ipcRenderer.invoke('absences:delete', id),
         deleteByYear: (schoolYear) => ipcRenderer.invoke('absences:deleteByYear', schoolYear),
+        /** Atomic year wipe + bulk insert for import apply (Package 5). */
+        replaceByYear: (schoolYear, absences, options) =>
+            ipcRenderer.invoke('absences:replaceByYear', schoolYear, absences, options),
         getStats: (schoolYear) => ipcRenderer.invoke('absences:getStats', schoolYear),
         getSummaryByStudent: (schoolYear) => ipcRenderer.invoke('absences:getSummaryByStudent', schoolYear)
     },
@@ -105,6 +153,12 @@ contextBridge.exposeInMainWorld('api', {
     // Teachers
     teachers: {
         getAll: (schoolYear) => ipcRenderer.invoke('teachers:getAll', schoolYear),
+        getScoped: (schoolYear, options) => ipcRenderer.invoke('teachers:getScoped', schoolYear, options),
+        getAssignments: (schoolYear, options) => ipcRenderer.invoke('teachers:getAssignments', schoolYear, options),
+        getReviewQueue: (schoolYear) => ipcRenderer.invoke('teachers:getReviewQueue', schoolYear),
+        reviewAssignment: (payload) => ipcRenderer.invoke('teachers:reviewAssignment', payload),
+        resolveAssignmentReview: (payload) => ipcRenderer.invoke('teachers:resolveAssignmentReview', payload),
+        setScope: (payload) => ipcRenderer.invoke('teachers:setScope', payload),
         getFromGrades: (schoolYear) => ipcRenderer.invoke('teachers:getFromGrades', schoolYear),
         add: (teacher) => ipcRenderer.invoke('teachers:add', teacher),
         update: (id, data) => ipcRenderer.invoke('teachers:update', id, data),
@@ -148,6 +202,7 @@ contextBridge.exposeInMainWorld('api', {
     // System tags (daily report)
     systemTags: {
         getByDate: (date, schoolYear) => ipcRenderer.invoke('systemTags:getByDate', date, schoolYear),
+        getTeacherTags: (schoolYear) => ipcRenderer.invoke('systemTags:getTeacherTags', schoolYear),
         save: (payload) => ipcRenderer.invoke('systemTags:save', payload),
         saveNote: (payload) => ipcRenderer.invoke('systemTags:saveNote', payload),
         delete: (id) => ipcRenderer.invoke('systemTags:delete', id),
@@ -171,6 +226,15 @@ contextBridge.exposeInMainWorld('api', {
         delete: (id) => ipcRenderer.invoke('supportSessions:delete', id),
         export: (schoolYear) => ipcRenderer.invoke('supportSessions:export', schoolYear),
         import: (payload) => ipcRenderer.invoke('supportSessions:import', payload)
+    },
+
+    // School orientation / guidance (التوجيه المدرسي)
+    orientation: {
+        list: (filters) => ipcRenderer.invoke('orientation:list', filters),
+        stats: (schoolYear) => ipcRenderer.invoke('orientation:stats', schoolYear),
+        bulkUpsert: (payload) => ipcRenderer.invoke('orientation:bulkUpsert', payload),
+        clearYear: (schoolYear) => ipcRenderer.invoke('orientation:clearYear', schoolYear),
+        delete: (id) => ipcRenderer.invoke('orientation:delete', id)
     },
 
     // Exams
@@ -359,14 +423,39 @@ contextBridge.exposeInMainWorld('api', {
         setConfig: (updates) => ipcRenderer.invoke('sync:setConfig', updates),
         triggerNow: () => ipcRenderer.invoke('sync:triggerNow'),
         getConflictLog: (options) => ipcRenderer.invoke('sync:getConflictLog', options),
+        getConflictForensics: (options) => ipcRenderer.invoke('sync:getConflictForensics', options),
         resolveConflict: (payload) => ipcRenderer.invoke('sync:resolveConflict', payload),
-        testConnection: () => ipcRenderer.invoke('sync:testConnection')
+        testConnection: () => ipcRenderer.invoke('sync:testConnection'),
+        // Milestone A pilot — legacy bulk outbox
+        getOutboxHealth: () => ipcRenderer.invoke('sync:getOutboxHealth'),
+        classifyLegacyBulk: (options) => ipcRenderer.invoke('sync:classifyLegacyBulk', options),
+        quarantineLegacyBulk: () => ipcRenderer.invoke('sync:quarantineLegacyBulk')
+    },
+
+    cycles: {
+        getCatalog: () => ipcRenderer.invoke('cycles:getCatalog'),
+        list: () => ipcRenderer.invoke('cycles:list'),
+        getActive: () => ipcRenderer.invoke('cycles:getActive'),
+        add: (cycleCode) => ipcRenderer.invoke('cycles:add', { cycleCode }),
+        setActive: (cycleCode, schoolYear) => ipcRenderer.invoke('cycles:setActive', { cycleCode, schoolYear }),
+        setEnabled: (cycleCode, isActive) => ipcRenderer.invoke('cycles:setEnabled', { cycleCode, isActive }),
+        onChanged: (callback) => {
+            const handler = (_event, context) => callback(context);
+            ipcRenderer.on('cycles:changed', handler);
+            return () => ipcRenderer.removeListener('cycles:changed', handler);
+        },
+        onConfigurationChanged: (callback) => {
+            const handler = () => callback();
+            ipcRenderer.on('cycles:configurationChanged', handler);
+            return () => ipcRenderer.removeListener('cycles:configurationChanged', handler);
+        }
     },
 
     institution: {
         getStatus: () => ipcRenderer.invoke('institution:get-status'),
         relink: (payload) => ipcRenderer.invoke('institution:relink', payload),
         setupNew: (payload) => ipcRenderer.invoke('institution:setup-new', payload),
+        updateMassarCode: (payload) => ipcRenderer.invoke('institution:updateMassarCode', payload),
         submitIdentityChangeRequest: (payload) => ipcRenderer.invoke('institution:submitIdentityChangeRequest', payload),
         getIdentityChangeRequests: (payload) => ipcRenderer.invoke('institution:getIdentityChangeRequests', payload),
         applyApprovedIdentityChange: (payload) => ipcRenderer.invoke('institution:applyApprovedIdentityChange', payload)
@@ -376,6 +465,25 @@ contextBridge.exposeInMainWorld('api', {
         listIdentityChangeRequests: (payload) => ipcRenderer.invoke('appAdmin:listIdentityChangeRequests', payload),
         approveIdentityChangeRequest: (payload) => ipcRenderer.invoke('appAdmin:approveIdentityChangeRequest', payload),
         rejectIdentityChangeRequest: (payload) => ipcRenderer.invoke('appAdmin:rejectIdentityChangeRequest', payload)
+    },
+
+    diagnostics: {
+        getRecent: (options) => ipcRenderer.invoke('diagnostics:getRecent', options),
+        exportLog: () => ipcRenderer.invoke('diagnostics:exportLog'),
+        revealLog: () => ipcRenderer.invoke('diagnostics:revealLog'),
+        reportRendererError: (payload) => ipcRenderer.invoke('diagnostics:reportRendererError', payload)
+    },
+
+    // Stage transition (Slice 6) — the single intentional cross-stage path.
+    stageTransition: {
+        transferStudent: (payload) => ipcRenderer.invoke('stageTransition:transferStudent', payload)
+    },
+
+    // Stage-scoped configuration (Slice 5) — device-local calendars/terms/attendance.
+    stageConfig: {
+        get: (payload) => ipcRenderer.invoke('stageConfig:get', payload),
+        list: (schoolYear) => ipcRenderer.invoke('stageConfig:list', schoolYear),
+        save: (payload) => ipcRenderer.invoke('stageConfig:save', payload)
     },
 
 });

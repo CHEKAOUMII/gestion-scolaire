@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 
 <head>
+    <script src="js/theme-boot.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="بيان النتائج الدراسية للتلاميذ">
@@ -10,13 +11,20 @@
     <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
     <link rel="stylesheet" href="css/tailwind-output.css">
     <script src="js/data/ma-education-labels.js"></script>
-    <script src="js/utils.js" defer></script>
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
+        <script src="js/utils.js" defer></script>
     <script src="js/notifications.js" defer></script>
     <script src="js/message-system.js" defer></script>
     <script src="js/sidebar.js" defer></script>
+    <script src="js/shared/errors/subject-coefficient-error-contract.js"></script>
+    <script src="js/shared/education/collegial-levels.js"></script>
+    <script src="js/shared/education/stage-thresholds.js"></script>
     <script src="js/cc-rules.js"></script>
     <script src="js/ux-enhancements.js" defer></script>
     <script src="js/print-system.js"></script>
+    <script src="js/shared/orientation-topbar-print.js" defer></script>
     </head>
 
 <body>
@@ -26,7 +34,7 @@
 
     <main class="main-content">
         <header class="header">
-            <div class="header-left">
+    <div class="header-left">
                 <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
                 <h2 class="page-title"><i class="fas fa-file-invoice"></i> بيان النتائج</h2>
             </div>
@@ -108,6 +116,7 @@
             let allStudents = [];
             let allAbsences = [];
             let generatedData = null;
+            let activeCycleCode = null;
 
             const schoolYear = () => {
                 return typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
@@ -119,6 +128,16 @@
             // ─── Helpers ───
 
             function gradeComment(avg) {
+                // Stage-thresholds SSOT (Slice 2): bulletin comments resolve per stage.
+                // Known unseeded stages yield null so the cell renders '\u2014' instead of
+                // another stage's vocabulary; unknown stage or missing module keeps
+                // the legacy qualifiant cascade below (display only).
+                var T = (typeof EducationStageThresholds !== 'undefined' && EducationStageThresholds) || null;
+                if (T) {
+                    var res = T.resolveGradeComment(avg, activeCycleCode);
+                    if (res && res.ok) return res.label;
+                    if (res && !res.ok && activeCycleCode) return null;
+                }
                 if (avg >= 16) return 'ممتاز';
                 if (avg >= 14) return 'حسن جداً';
                 if (avg >= 12) return 'حسن';
@@ -136,6 +155,13 @@
                         window.api?.grades?.getAll?.(year) || [],
                         window.api?.absences?.getAll?.(year) || []
                     ]);
+                    try {
+                        const active = await window.api?.cycles?.getActive?.();
+                        activeCycleCode = active?.success ? active.context?.cycleCode || active.cycle?.cycle_code || null : null;
+                    } catch (e) {
+                        console.warn('Failed to load active cycle', e);
+                        activeCycleCode = null;
+                    }
                 } catch (e) {
                     console.error('Failed to load data', e);
                     allStudents = []; allGrades = []; allAbsences = [];
@@ -178,12 +204,33 @@
             }
 
             // ─── Generate Results ───
-            function generateResults() {
+            async function generateResults() {
                 const className = document.getElementById('class-select').value;
                 const semester = parseInt(document.getElementById('semester-select').value, 10);
                 if (!className) {
                     if (typeof showToast === 'function') showToast('يرجى اختيار القسم', 'warning');
                     return;
+                }
+
+                if (
+                    typeof EducationStageThresholds !== 'undefined' &&
+                    EducationStageThresholds &&
+                    activeCycleCode
+                ) {
+                    var _gcProbe = EducationStageThresholds.resolveGradeComment(10, activeCycleCode);
+                    if (_gcProbe && !_gcProbe.ok && typeof showToast === 'function') {
+                        showToast(EducationStageThresholds.MENTION_UNAVAILABLE_NOTICE, 'warning');
+                    }
+                }
+                let activeRuleSet = null;
+                if (typeof ensureStageRuleSet === 'function') {
+                    try {
+                        activeRuleSet = await ensureStageRuleSet(schoolYear(), activeCycleCode);
+                    } catch (err) {
+                        if (typeof showToast === 'function') {
+                            showToast((err && (err.userMessage || err.message)) || 'تعذر تحميل قواعد المرحلة', 'error');
+                        }
+                    }
                 }
 
                 // Filter grades for this class and semester
@@ -211,10 +258,21 @@
                 }
 
                 const branch = typeof detectBranch === 'function' ? detectBranch(className) : null;
+                const levelInfo =
+                    typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, className)
+                    : { code: null, label: null };
+                const coefficientContext = {
+                    cycleCode: activeCycleCode,
+                    streamCode: branch,
+                    levelCode: levelInfo.code,
+                    levelLabel: levelInfo.label,
+                    schoolYear: schoolYear()
+                };
+                if (activeRuleSet) coefficientContext.ruleSet = activeRuleSet;
+                const missingCoefficients = [];
+                let incompleteMetadata = null;
                 console.log('[بيان النتائج] className:', className, '→ branch:', branch);
-                if (branch && typeof CC_BRANCH_COEFFICIENTS !== 'undefined') {
-                    console.log('[بيان النتائج] coefficient table keys:', Object.keys(CC_BRANCH_COEFFICIENTS[branch] || {}));
-                }
 
                 // Compute subject-level data for all students
                 // First: get all subjects in this class
@@ -246,25 +304,34 @@
                         const avg = typeof computeSubjectAverage === 'function'
                             ? computeSubjectAverage(subj, grades)
                             : grades.reduce((s, g) => s + (Number(g.grade) || 0), 0) / grades.length;
-                        const coeff = typeof getSubjectCoefficient === 'function'
-                            ? getSubjectCoefficient(subj, branch)
-                            : 1;
+                        const coefficientResolution = typeof resolveSubjectCoefficient === 'function'
+                            ? resolveSubjectCoefficient(subj, branch, coefficientContext)
+                            : { ok: false, details: { subject: subj, streamCode: branch } };
+                        if (!coefficientResolution.ok) missingCoefficients.push(coefficientResolution.details);
+                        const coeff = coefficientResolution.ok ? coefficientResolution.coefficient : null;
                         console.log('[coeff]', subj, '→', coeff, '(branch:', branch, ')');
                         subjectData.push({
                             subject: subj,
                             avg: parseFloat(avg.toFixed(2)),
                             coeff,
-                            nxm: parseFloat((avg * coeff).toFixed(2))
+                            nxm: coeff == null ? null : parseFloat((avg * coeff).toFixed(2))
                         });
                     });
 
                     // General average
                     const subjectAvgs = subjectData.map(s => ({ subject: s.subject, avg: s.avg }));
-                    const generalAvg = typeof computeWeightedGeneralAverage === 'function'
-                        ? computeWeightedGeneralAverage(subjectAvgs, branch)
-                        : (subjectAvgs.length ? subjectAvgs.reduce((a, s) => a + s.avg, 0) / subjectAvgs.length : 0);
+                    const averageResolution = typeof computeWeightedGeneralAverageResult === 'function'
+                        ? computeWeightedGeneralAverageResult(subjectAvgs, branch, coefficientContext)
+                        : { ok: false, missingCoefficients };
+                    if (!averageResolution.ok) {
+                        (averageResolution.missingCoefficients || []).forEach((entry) => missingCoefficients.push(entry));
+                        if (!incompleteMetadata && averageResolution.metadata) {
+                            incompleteMetadata = averageResolution.metadata;
+                        }
+                    }
+                    const generalAvg = averageResolution.ok ? averageResolution.value : null;
 
-                    const sumNxM = subjectData.reduce((s, d) => s + d.nxm, 0);
+                    const sumNxM = subjectData.reduce((sum, detail) => sum + (detail.nxm || 0), 0);
 
                     // Absences
                     const studentAbsences = allAbsences.filter(a =>
@@ -282,7 +349,7 @@
                     studentResults.push({
                         student,
                         subjectData,
-                        generalAvg: parseFloat(generalAvg.toFixed(2)),
+                        generalAvg: generalAvg == null ? null : parseFloat(generalAvg.toFixed(2)),
                         sumNxM: parseFloat(sumNxM.toFixed(2)),
                         justifiedHours, unjustifiedHours,
                         justifiedDays, unjustifiedDays
@@ -314,21 +381,70 @@
                     ? studentResults.reduce((s, r) => s + r.generalAvg, 0) / studentResults.length
                     : 0;
 
+                const uniqueMissingCoefficients = Array.from(
+                    new Map(
+                        missingCoefficients.map((entry) => [
+                            `${entry.streamCode || branch}:${entry.normalizedSubject || entry.subject}`,
+                            entry
+                        ])
+                    ).values()
+                );
+                const isExportBlocked = incompleteMetadata && incompleteMetadata.officialExportBlocked === true;
                 generatedData = {
                     className,
                     semester,
                     branch,
                     studentResults,
                     classAvg: parseFloat(classAvg.toFixed(2)),
-                    totalStudents: classStudents.length
+                    totalStudents: classStudents.length,
+                    incomplete: uniqueMissingCoefficients.length > 0 || isExportBlocked,
+                    missingCoefficients: uniqueMissingCoefficients,
+                    metadata: isExportBlocked
+                        ? Object.assign({}, incompleteMetadata, { missingCoefficients: uniqueMissingCoefficients })
+                        : uniqueMissingCoefficients.length
+                            ? SubjectCoefficientErrorContract.createIncompleteResultMetadata(uniqueMissingCoefficients)
+                            : { status: 'complete', officialExportBlocked: false, missingCoefficients: [] }
                 };
 
                 renderResults();
             }
 
             // ─── Render ───
+            function renderIncompleteResult() {
+                const body = document.getElementById('gr-preview-body');
+                const printBtn = document.getElementById('print-btn');
+                const emptyState = document.getElementById('gr-empty-state');
+                const badge = document.getElementById('gr-count-badge');
+                if (emptyState) emptyState.style.display = 'none';
+                if (badge) badge.style.display = 'none';
+                if (printBtn) printBtn.disabled = true;
+
+                const panel = document.createElement('div');
+                panel.className = 'gr-empty-state';
+                const title = document.createElement('h4');
+                title.textContent = 'تعذر اعتماد بيان النتائج';
+                const message = document.createElement('p');
+                const metaCode = generatedData.metadata && generatedData.metadata.code;
+                message.textContent = metaCode === 'RULES_UNAVAILABLE'
+                    ? 'لا تتوفر نسخة قواعد فعالة لهذه السنة الدراسية. لا يمكن معاينة أو تصدير وثيقة رسمية قبل توفرها.'
+                    : 'توجد معاملات ناقصة. لا يمكن معاينة أو تصدير وثيقة رسمية قبل استكمالها.';
+                const list = document.createElement('ul');
+                generatedData.missingCoefficients.forEach((entry) => {
+                    const item = document.createElement('li');
+                    item.textContent = `${entry.subject || 'مادة غير محددة'} — ${entry.streamLabel || entry.streamCode || 'مسلك غير محدد'}`;
+                    list.appendChild(item);
+                });
+                panel.append(title, message, list);
+
+                body.replaceChildren(panel);
+            }
+
             function renderResults() {
                 if (!generatedData || !generatedData.studentResults.length) return;
+                if (!SubjectCoefficientErrorContract.isOfficialExportAllowed(generatedData)) {
+                    renderIncompleteResult();
+                    return;
+                }
 
                 const body = document.getElementById('gr-preview-body');
                 const badge = document.getElementById('gr-count-badge');
@@ -371,12 +487,12 @@
                     </div>
 
                     <div class="gr-student-meta">
-                        <span>المستوى: ${getLevelFromSection(className).name}</span>
-                        <span>القسم: ${className}</span>
+                        <span>المستوى: ${escapeHtml(getLevelFromSection(className).name)}</span>
+                        <span>القسم: ${escapeHtml(className)}</span>
                         <span>عدد التلاميذ: ${totalStudents}</span>
                     </div>
                     <div class="gr-student-meta">
-                        <span>إسم ورقم التلميذ: ${student.full_name || ''} ${student.code || ''}</span>
+                        <span>إسم ورقم التلميذ: ${escapeHtml(student.full_name || '')} ${escapeHtml(student.code || '')}</span>
                     </div>
 
                     <!-- Grades Table -->
@@ -394,12 +510,12 @@
                         <tbody>
                             ${subjectData.map(sd => `
                             <tr>
-                                <td>${sd.subject}</td>
+                                <td>${escapeHtml(sd.subject || '')}</td>
                                 <td>${sd.avg.toFixed(2).replace('.', ',')}</td>
                                 <td>${sd.coeff}</td>
                                 <td>${sd.nxm.toFixed(2).replace('.', ',')}</td>
                                 <td>${sd.rank || ''}</td>
-                                <td>${gradeComment(sd.avg)}</td>
+                                <td>${gradeComment(sd.avg) ?? '\u2014'}</td>
                             </tr>
                             `).join('')}
                         </tbody>
@@ -464,12 +580,20 @@
                         if (typeof showToast === 'function') showToast('قم بتوليد البيان أولاً', 'warning');
                         return;
                     }
+                    if (!SubjectCoefficientErrorContract.isOfficialExportAllowed(generatedData)) {
+                        if (typeof showToast === 'function') showToast('لا يمكن تصدير بيان غير مكتمل', 'warning');
+                        return;
+                    }
                     PrintSystem.preview({
                             title: 'بيان النتائج',
                             pageSize: 'A4',
                             contentSelector: '.gr-sheet-wrapper'
                         });
                 });
+
+                // Relocate the primary print control into the sticky unified header (after setupUnifiedHeader).
+                // The disabled/enabled state is preserved: renderResults() re-queries #print-btn by id.
+                (window.StickyTopbarPrint || window.OrientationTopbarPrint)?.mount?.(document, { buttonId: 'print-btn' });
 
                 // School year change
                 const yearEl = document.getElementById('school-year');

@@ -1,8 +1,10 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
     <head>
-        <meta charset="UTF-8" />
+    <script src="js/theme-boot.js"></script>
+    <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="theme-color" content="#42516a" />
         <title>تسجيل الدخول | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
@@ -50,9 +52,13 @@
                 <div class="login-container">
                     <!-- Tabs -->
                     <div class="auth-tabs">
-                        <button class="auth-tab active" data-tab="login" id="tab-login">
+                        <button class="auth-tab active group" data-tab="login" id="tab-login">
                             <i class="fas fa-sign-in-alt"></i>
                             تسجيل الدخول
+                        </button>
+                        <button class="auth-tab group" data-tab="signup" id="tab-signup">
+                            <i class="fas fa-school"></i>
+                            إنشاء حساب مدرسة
                         </button>
                     </div>
 
@@ -106,6 +112,32 @@
                                     <span><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</span>
                                 </button>
                             </form>
+                        </div>
+
+                        <!-- ── Signup CTA (new School account) ── -->
+                        <div class="auth-form" id="form-signup">
+                            <div class="pin-prompt-hero signup-hero">
+                                <div class="pin-prompt-icon">
+                                    <i class="fas fa-school"></i>
+                                </div>
+                                <h3 class="pin-prompt-title">إنشاء حساب مدرسة جديدة</h3>
+                                <p class="pin-prompt-copy">
+                                    أنشئ حساباً لمؤسستك التعليمية مع حساب المدير الأول عبر عملية الإعداد الآمنة.
+                                </p>
+                            </div>
+
+                            <div class="notice-message" id="signup-status-banner">
+                                <i class="fas fa-circle-info"></i>
+                                <span id="signup-status-text"></span>
+                            </div>
+
+                            <button type="button" class="btn-login btn-signup-cta" id="btn-goto-setup">
+                                <span><i class="fas fa-arrow-left"></i> إنشاء حساب مدرسة</span>
+                            </button>
+
+                            <p class="signup-hint">
+                                للانضمام إلى مؤسسة موجودة، سجّل الدخول بحساب أضافته الإدارة لك.
+                            </p>
                         </div>
 
                         <!-- ── Mandatory Password Change ── -->

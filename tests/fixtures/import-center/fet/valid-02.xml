@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Teachers_Timetable>
+  <Teacher name="Demo_Teacher_B">
+    <Day name="Mardi_s">
+      <Hour name="2">
+        <Subject name="Physique"/>
+        <Students name="TCSF-2"/>
+        <Room name="Lab1"/>
+      </Hour>
+      <Hour name="3">
+        <Subject name="Physique"/>
+        <Students name="TCSF-2"/>
+        <Room name="Lab1"/>
+      </Hour>
+    </Day>
+  </Teacher>
+</Teachers_Timetable>

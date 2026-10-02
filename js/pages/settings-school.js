@@ -1,4 +1,6 @@
 const MAX_ASSET_BYTES = 200 * 1024;
+const DEFAULT_ASSET_SCALE =
+    typeof LOGO_SCALE_DEFAULT !== 'undefined' ? LOGO_SCALE_DEFAULT : 100;
 
 const FIELDS = {
     country: 'id-country',
@@ -22,7 +24,10 @@ const ASSET_DEFINITIONS = [
         sectionIcon: 'fa-image',
         placeholderIcon: 'fa-camera',
         helpText: 'PNG أو JPG — حد أقصى 200 كيلوبايت',
-        wide: false
+        wide: false,
+        scaleable: true,
+        scaleKey: 'logo_scale',
+        scaleLabel: 'حجم الشعار في الوثائق'
     },
     {
         type: 'seal',
@@ -30,7 +35,10 @@ const ASSET_DEFINITIONS = [
         sectionIcon: 'fa-stamp',
         placeholderIcon: 'fa-stamp',
         helpText: 'PNG أو JPG — حد أقصى 200 كيلوبايت',
-        wide: false
+        wide: false,
+        scaleable: true,
+        scaleKey: 'seal_scale',
+        scaleLabel: 'حجم الختم في الوثائق'
     },
     {
         type: 'signature',
@@ -38,18 +46,35 @@ const ASSET_DEFINITIONS = [
         sectionIcon: 'fa-signature',
         placeholderIcon: 'fa-pen-nib',
         helpText: 'PNG أو JPG — حد أقصى 200 كيلوبايت — يُفضّل صورة بخلفية شفافة',
-        wide: true
+        wide: true,
+        scaleable: true,
+        scaleKey: 'signature_scale',
+        scaleLabel: 'حجم التوقيع في الوثائق'
     }
 ];
 
-const assets = Object.fromEntries(ASSET_DEFINITIONS.map((def) => [def.type, { base64: '', mime: 'image/png' }]));
+const assets = Object.fromEntries(
+    ASSET_DEFINITIONS.map((def) => [
+        def.type,
+        { base64: '', mime: 'image/png', scale: DEFAULT_ASSET_SCALE }
+    ])
+);
 const assetContainers = new Map();
 
-function escapeHtml(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+/** Same clamp used by logo / seal / signature (clampLogoScale). */
+function normalizeAssetScale(value) {
+    if (typeof clampLogoScale === 'function') return clampLogoScale(value);
+    const n = Number(value);
+    if (!Number.isFinite(n)) return DEFAULT_ASSET_SCALE;
+    return Math.min(250, Math.max(30, Math.round(n)));
+}
+
+/** Same sizing function as letterhead/footer: resolveLogoMaxPx(scale, basePx?). */
+function assetMaxPx(scale, basePx) {
+    if (typeof resolveLogoMaxPx === 'function') return resolveLogoMaxPx(scale, basePx);
+    const base = Number(basePx);
+    const resolvedBase = Number.isFinite(base) && base > 0 ? base : 80;
+    return Math.round((resolvedBase * normalizeAssetScale(scale)) / 100);
 }
 
 function inferMimeFromBase64(base64) {
@@ -75,6 +100,25 @@ function setAssetTriggerLabel(type, hasAsset) {
     trigger.setAttribute('title', text);
 }
 
+function setScaleControlVisible(type, visible) {
+    const container = assetContainers.get(type);
+    if (!container) return;
+    const scaleControl = container.querySelector('.asset-scale-control');
+    if (!scaleControl) return;
+    const def = getAssetDefinition(type);
+    scaleControl.hidden = !(def?.scaleable && visible);
+}
+
+function setScaleControlValue(type, scale) {
+    const container = assetContainers.get(type);
+    if (!container) return;
+    const slider = container.querySelector('.asset-scale-slider');
+    const valueLabel = container.querySelector('.asset-scale-value');
+    const normalized = normalizeAssetScale(scale);
+    if (slider) slider.value = String(normalized);
+    if (valueLabel) valueLabel.textContent = `${normalized}%`;
+}
+
 function showAssetPreview(type, base64, mime) {
     const container = assetContainers.get(type);
     if (!container) return;
@@ -88,6 +132,7 @@ function showAssetPreview(type, base64, mime) {
     placeholder.hidden = true;
     removeBtn.hidden = false;
     setAssetTriggerLabel(type, true);
+    setScaleControlVisible(type, true);
 }
 
 function resetAssetPreview(type) {
@@ -102,6 +147,7 @@ function resetAssetPreview(type) {
     placeholder.hidden = false;
     removeBtn.hidden = true;
     setAssetTriggerLabel(type, false);
+    setScaleControlVisible(type, false);
 }
 
 function readAssetFile(file, onLoad) {
@@ -173,6 +219,15 @@ function renderAssetUploaders() {
         const removeLabel = node.querySelector('.asset-remove-label');
         if (removeLabel) removeLabel.textContent = `حذف ${def.label}`;
 
+        if (def.scaleable) {
+            const scaleText = node.querySelector('.asset-scale-text');
+            if (scaleText) scaleText.textContent = def.scaleLabel || 'حجم الصورة في الوثائق';
+            const scaleSlider = node.querySelector('.asset-scale-slider');
+            if (scaleSlider) {
+                scaleSlider.setAttribute('aria-label', def.scaleLabel || `نسبة حجم ${def.label}`);
+            }
+        }
+
         assetContainers.set(def.type, node);
         row.appendChild(node);
 
@@ -186,6 +241,8 @@ function wireAssetUploader(type, container) {
     const preview = container.querySelector('.asset-preview');
     const uploadBtn = container.querySelector('.asset-upload-btn');
     const removeBtn = container.querySelector('.asset-remove-btn');
+    const scaleSlider = container.querySelector('.asset-scale-slider');
+    const def = getAssetDefinition(type);
 
     const openPicker = () => fileInput?.click();
     uploadBtn?.addEventListener('click', openPicker);
@@ -194,15 +251,137 @@ function wireAssetUploader(type, container) {
     fileInput?.addEventListener('change', (event) => {
         const file = event.target.files?.[0];
         readAssetFile(file, (base64, mime) => {
-            assets[type] = { base64, mime };
+            const prevScale = assets[type]?.scale ?? DEFAULT_ASSET_SCALE;
+            assets[type] = { base64, mime, scale: prevScale };
             showAssetPreview(type, base64, mime);
         });
         if (event.target) event.target.value = '';
     });
 
     removeBtn?.addEventListener('click', () => {
-        assets[type] = { base64: '', mime: 'image/png' };
+        assets[type] = {
+            base64: '',
+            mime: 'image/png',
+            scale: assets[type]?.scale ?? DEFAULT_ASSET_SCALE
+        };
         resetAssetPreview(type);
+    });
+
+    if (def?.scaleable && scaleSlider) {
+        scaleSlider.addEventListener('input', () => {
+            const scale = normalizeAssetScale(scaleSlider.value);
+            assets[type].scale = scale;
+            setScaleControlValue(type, scale);
+            // Live-refresh letterhead preview if it is already open
+            const previewSection = document.getElementById('preview-section');
+            if (previewSection && !previewSection.hidden) {
+                renderLetterheadPreview();
+            }
+        });
+        setScaleControlValue(type, assets[type].scale);
+        setScaleControlVisible(type, false);
+    }
+}
+
+/**
+ * Fill the academy <select> with MA_ACADEMIES options. If a previously-stored value doesn't
+ * match any option (free-text institutions from before this dropdown existed — Part 3
+ * backward compatibility), a temporary option carrying that exact value is appended and
+ * selected so the stored data is never silently dropped.
+ * @param {string} selectedValue - stored academy value (may be '' or a non-matching string)
+ */
+function populateAcademyDropdown(selectedValue) {
+    const select = document.getElementById(FIELDS.academy);
+    if (!select || typeof MA_ACADEMIES === 'undefined') return;
+
+    select.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.textContent = 'اختر الأكاديمية الجهوية';
+    placeholder.selected = !selectedValue;
+    select.appendChild(placeholder);
+
+    let matched = false;
+    for (const academy of MA_ACADEMIES) {
+        const option = document.createElement('option');
+        option.value = academy;
+        option.textContent = academy;
+        if (selectedValue && academy === selectedValue) {
+            option.selected = true;
+            matched = true;
+        }
+        select.appendChild(option);
+    }
+
+    if (selectedValue && !matched) {
+        console.warn('settings-school: stored academy value has no matching dropdown option, keeping as-is:', selectedValue);
+        const fallbackOption = document.createElement('option');
+        fallbackOption.value = selectedValue;
+        fallbackOption.textContent = selectedValue;
+        fallbackOption.selected = true;
+        select.appendChild(fallbackOption);
+    }
+}
+
+/**
+ * Fill the directorate <select> with the MA_DIRECTORATES entries for the given academy
+ * (cascading behavior). Disabled with a placeholder when no academy is selected. Same
+ * non-matching-value fallback as populateAcademyDropdown for backward compatibility.
+ * @param {string} academyValue - currently selected academy (may be '')
+ * @param {string} selectedValue - stored directorate value (may be '' or non-matching)
+ */
+function populateDirectorateDropdown(academyValue, selectedValue) {
+    const select = document.getElementById(FIELDS.directorate);
+    if (!select) return;
+
+    if (!academyValue) {
+        select.innerHTML = '<option value="" disabled selected>اختر الأكاديمية أولاً</option>';
+        select.disabled = true;
+        return;
+    }
+
+    select.disabled = false;
+    const directorates = (typeof MA_DIRECTORATES !== 'undefined' && MA_DIRECTORATES[academyValue]) || [];
+
+    select.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.textContent = 'اختر المديرية الإقليمية';
+    placeholder.selected = !selectedValue;
+    select.appendChild(placeholder);
+
+    let matched = false;
+    for (const directorate of directorates) {
+        const option = document.createElement('option');
+        option.value = directorate;
+        option.textContent = directorate;
+        if (selectedValue && directorate === selectedValue) {
+            option.selected = true;
+            matched = true;
+        }
+        select.appendChild(option);
+    }
+
+    if (selectedValue && !matched) {
+        console.warn(
+            'settings-school: stored directorate value has no matching dropdown option for this academy, keeping as-is:',
+            selectedValue
+        );
+        const fallbackOption = document.createElement('option');
+        fallbackOption.value = selectedValue;
+        fallbackOption.textContent = selectedValue;
+        fallbackOption.selected = true;
+        select.appendChild(fallbackOption);
+    }
+}
+
+/** Wires the academy -> directorate cascade: changing academy resets directorate options. */
+function wireAcademyDirectorateCascade() {
+    const academySelect = document.getElementById(FIELDS.academy);
+    academySelect?.addEventListener('change', (event) => {
+        populateDirectorateDropdown(event.target.value, '');
     });
 }
 
@@ -210,18 +389,29 @@ async function loadIdentity() {
     try {
         const identity = await window.api.reports.getIdentity();
         for (const [key, domId] of Object.entries(FIELDS)) {
+            if (key === 'academy' || key === 'directorate') continue; // handled below
             const element = document.getElementById(domId);
             if (element && identity[key]) {
                 element.value = identity[key];
             }
         }
 
+        populateAcademyDropdown(identity.academy);
+        populateDirectorateDropdown(identity.academy, identity.directorate);
+
         for (const def of ASSET_DEFINITIONS) {
             const stored = identity[`${def.type}_base64`];
+            const scale = def.scaleable
+                ? normalizeAssetScale(identity[def.scaleKey] ?? DEFAULT_ASSET_SCALE)
+                : DEFAULT_ASSET_SCALE;
+            assets[def.type] = {
+                base64: stored || '',
+                mime: stored ? inferMimeFromBase64(stored) : 'image/png',
+                scale
+            };
+            if (def.scaleable) setScaleControlValue(def.type, scale);
             if (stored) {
-                const mime = inferMimeFromBase64(stored);
-                assets[def.type] = { base64: stored, mime };
-                showAssetPreview(def.type, stored, mime);
+                showAssetPreview(def.type, stored, assets[def.type].mime);
             }
         }
     } catch (err) {
@@ -236,9 +426,14 @@ async function saveIdentity() {
         updates[key] = element ? element.value.trim() : '';
     }
 
-    updates.logo_base64 = assets.logo.base64;
-    updates.seal_base64 = assets.seal.base64;
-    updates.signature_base64 = assets.signature.base64;
+    for (const def of ASSET_DEFINITIONS) {
+        updates[`${def.type}_base64`] = assets[def.type].base64;
+        if (def.scaleable && def.scaleKey) {
+            updates[def.scaleKey] = String(
+                normalizeAssetScale(assets[def.type].scale ?? DEFAULT_ASSET_SCALE)
+            );
+        }
+    }
 
     try {
         await window.api.reports.updateIdentity(updates);
@@ -274,7 +469,8 @@ function renderLetterheadPreview() {
     const schoolCode = getValue('id-school-code');
     const commune = getValue('id-commune');
     const schoolYear = getValue('id-school-year');
-    const { base64: logo, mime: logoMime } = assets.logo;
+    const { base64: logo, mime: logoMime, scale: logoScale } = assets.logo;
+    const logoPx = assetMaxPx(logoScale);
 
     const html = `
         <div class="doc-letterhead" style="border-bottom: 2.5px solid #3B6AC5; padding-bottom: 10px;">
@@ -289,7 +485,7 @@ function renderLetterheadPreview() {
                     <td style="width: 10%; text-align: center; vertical-align: middle;">
                         ${
                             logo
-                                ? `<img src="data:${logoMime};base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+                                ? `<img src="data:${logoMime};base64,${logo}" style="max-width: ${logoPx}px; max-height: ${logoPx}px;" alt="logo">`
                                 : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
                         }
                     </td>
@@ -325,25 +521,122 @@ async function loadSyncInstitutionSection() {
         section.hidden = false;
 
         const linkWrap = document.getElementById('sync-inst-link-wrap');
-        if (linkWrap) {
-            try {
-                const raw = localStorage.getItem('gsl_auth_session_v1');
-                const sess = raw ? JSON.parse(raw) : null;
-                const role = String(sess?.role || '').toLowerCase();
-                if (role === 'principal' || role === 'developer') {
-                    linkWrap.hidden = false;
+        const saveBtn = document.getElementById('sync-inst-save-btn');
+        let isPrincipalOrDeveloper = false;
+        try {
+            const raw = localStorage.getItem('gsl_auth_session_v1');
+            const sess = raw ? JSON.parse(raw) : null;
+            const role = String(sess?.role || '').toLowerCase();
+            isPrincipalOrDeveloper = role === 'principal' || role === 'developer';
+        } catch (err) {
+            console.warn('settings-school: failed to inspect auth session', err);
+        }
+
+        if (codeInput) codeInput.disabled = !isPrincipalOrDeveloper;
+        if (linkWrap && isPrincipalOrDeveloper) linkWrap.hidden = false;
+
+        if (saveBtn && !saveBtn.dataset.wired) {
+            saveBtn.dataset.wired = '1';
+            saveBtn.addEventListener('click', async () => {
+                const errorEl = document.getElementById('sync-inst-code-error');
+                if (errorEl) {
+                    errorEl.textContent = '';
+                    errorEl.classList.add('hidden');
                 }
-            } catch (err) {
-                console.warn('settings-school: failed to inspect auth session', err);
-            }
+
+                const massarCode = String(codeInput?.value || '').trim().toUpperCase();
+                if (codeInput) codeInput.value = massarCode;
+
+                if (!massarCode) {
+                    if (errorEl) {
+                        errorEl.textContent = 'رمز ماسار مطلوب';
+                        errorEl.classList.remove('hidden');
+                    }
+                    return;
+                }
+                if (massarCode.length > 20 || !/^[A-Z0-9]+$/.test(massarCode)) {
+                    if (errorEl) {
+                        errorEl.textContent = 'رمز ماسار غير صالح - يجب أن يتكون من حروف إنجليزية كبيرة وأرقام فقط، بحد أقصى 20 حرفاً';
+                        errorEl.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                saveBtn.disabled = true;
+                const originalHtml = saveBtn.innerHTML;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> جارٍ الحفظ...';
+
+                try {
+                    const result = await window.api.institution.updateMassarCode({ massarCode });
+                    if (result?.success) {
+                        showToast(result.message || 'تم تحديث رمز المؤسسة بنجاح', 'success');
+                    } else {
+                        showToast(result?.error || 'تعذر تحديث رمز المؤسسة', 'error');
+                    }
+                } catch (err) {
+                    console.error('settings-school: updateMassarCode failed', err);
+                    showToast('حدث خطأ غير متوقع أثناء تحديث رمز المؤسسة', 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalHtml;
+                }
+            });
         }
     } catch (err) {
         console.warn('settings-school: failed to load sync institution status', err);
     }
 }
 
+function cycleRowHtml(catalogCycle, addedCycle, canManage) {
+    const enabled = Number(addedCycle?.is_active) === 1;
+    const readiness = catalogCycle.capability === 'supported' ? '' : ' · قيد الإعداد';
+    const status = `${addedCycle ? (enabled ? 'مفعل' : 'معطل') : 'غير مضاف'}${readiness}`;
+    // An unsupported cycle can be registered ahead of time, but no session can select it
+    // until its policies ship — say so instead of letting "مفعل" imply it is usable.
+    const hint = catalogCycle.capability === 'supported'
+        ? ''
+        : '<div class="text-xs opacity-70">قواعد هذا السلك قيد الإعداد، ولا يمكن العمل به بعد.</div>';
+    let action = '';
+    if (canManage && addedCycle) {
+        action = `<button type="button" class="btn btn-outline btn-sm cycle-toggle" data-cycle-code="${catalogCycle.cycle_code}" data-active="${enabled ? 1 : 0}">${enabled ? 'تعطيل' : 'تفعيل'}</button>`;
+    } else if (canManage) {
+        action = `<button type="button" class="btn btn-primary btn-sm cycle-add" data-cycle-code="${catalogCycle.cycle_code}">إضافة السلك</button>`;
+    }
+    return `<div class="flex items-center justify-between gap-3 rounded-lg border p-3"><div><strong>${catalogCycle.label_ar}</strong><div class="text-xs opacity-70" dir="ltr">${catalogCycle.cycle_code} · ${status}</div>${hint}</div>${action}</div>`;
+}
+
+async function loadCycleManagement() {
+    const host = document.getElementById('institution-cycles-list');
+    if (!host || !window.api?.cycles) return;
+    const [catalogResponse, addedResponse] = await Promise.all([window.api.cycles.getCatalog(), window.api.cycles.list()]);
+    if (!catalogResponse?.success || !addedResponse?.success) return;
+    const addedByCode = new Map(addedResponse.cycles.map((cycle) => [cycle.cycle_code, cycle]));
+    const role = typeof getCurrentAppRole === 'function' ? getCurrentAppRole() : null;
+    const canManage = ['developer', 'admin', 'principal'].includes(role);
+    const visibleCatalog = canManage
+        ? catalogResponse.cycles
+        : catalogResponse.cycles.filter((cycle) => addedByCode.has(cycle.cycle_code));
+    host.innerHTML = visibleCatalog
+        .map((cycle) => cycleRowHtml(cycle, addedByCode.get(cycle.cycle_code), canManage))
+        .join('');
+    host.querySelectorAll('.cycle-add').forEach((button) => button.addEventListener('click', () => changeCycle(button.dataset.cycleCode, { add: true })));
+    host.querySelectorAll('.cycle-toggle').forEach((button) => button.addEventListener('click', () => changeCycle(button.dataset.cycleCode, { isActive: !Number(button.dataset.active) })));
+}
+
+async function changeCycle(cycleCode, action) {
+    const response = action.add
+        ? await window.api.cycles.add(cycleCode)
+        : await window.api.cycles.setEnabled(cycleCode, action.isActive);
+    showToast(response?.success ? 'تم تحديث الأسلاك التعليمية' : response?.error || 'تعذر تحديث السلك', response?.success ? 'success' : 'error');
+    if (response?.success) {
+        loadCycleManagement();
+        if (typeof window.refreshCycleSwitcher === 'function') window.refreshCycleSwitcher();
+    }
+}
+
 function initSettingsSchoolPage() {
     renderAssetUploaders();
+    wireAcademyDirectorateCascade();
 
     const form = document.getElementById('school-form');
     form?.addEventListener('submit', (event) => {
@@ -355,6 +648,7 @@ function initSettingsSchoolPage() {
 
     loadIdentity();
     loadSyncInstitutionSection();
+    loadCycleManagement();
 }
 
 if (document.readyState === 'loading') {

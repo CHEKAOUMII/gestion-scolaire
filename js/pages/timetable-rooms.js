@@ -1,15 +1,9 @@
 const RoomTimetable = (function() {
-    const days = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    // C5: days / hour labels / theme via js/shared/timetable-view.js (+ utils hour maps)
+    const days = typeof TT_VIEW_DAYS !== 'undefined' ? TT_VIEW_DAYS : ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
     let discoveredMorningHours = [];
     let discoveredAfternoonHours = [];
-
-    const defaultHourLabels = {
-        H1: '08:30-09:30',
-        H2: '09:30-10:30',
-        H3: '10:30-11:30',
-        H4: '11:30-12:30'
-    };
 
     let timetableData = null;
     let roomsIndex = {};
@@ -44,26 +38,24 @@ const RoomTimetable = (function() {
             printBtn.addEventListener('click', () => {
                 const roomName = document.getElementById('room-room-select')?.value || '';
                 const title = roomName ? `جدول القاعة - ${roomName}` : 'جدول القاعات';
+                const safeName = typeof ttSafeFileName === 'function' ? ttSafeFileName(roomName || 'rooms') : (roomName || 'rooms');
                 PrintSystem.preview({
                     contentSelector: '#room-schedule',
                     title,
                     pageSize: 'A4',
-                    landscape: true
+                    landscape: true,
+                    density: 1,
+                    showDensityControl: true,
+                    defaultFileName: `جدول_قاعة_${safeName}.pdf`
                 });
             });
         }
 
-        // Re-render timetable on theme change so colors adapt
-        const themeObserver = new MutationObserver((mutations) => {
-            mutations.forEach((m) => {
-                if (m.attributeName === 'data-theme') {
-                    if (roomSelect?.value) {
-                        showRoomSchedule(roomSelect.value);
-                    }
-                }
+        if (typeof ttObserveTheme === 'function') {
+            ttObserveTheme(() => {
+                if (roomSelect?.value) showRoomSchedule(roomSelect.value);
             });
-        });
-        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        }
     }
 
     async function loadTimetableData() {
@@ -105,7 +97,7 @@ const RoomTimetable = (function() {
                 }
             }
 
-            const naturalSort = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            const naturalSort = typeof ttNaturalSortHours === 'function' ? ttNaturalSortHours : (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
             discoveredMorningHours = [...morningSet].sort(naturalSort);
             discoveredAfternoonHours = [...afternoonSet].sort(naturalSort);
 
@@ -128,8 +120,10 @@ const RoomTimetable = (function() {
         }
     }
 
-    function getHourLabel(hourKey) {
-        return defaultHourLabels[hourKey] || hourKey;
+    function getHourLabel(hourKey, period) {
+        return typeof ttResolveHourLabel === 'function'
+            ? ttResolveHourLabel(hourKey, period)
+            : hourKey;
     }
 
     function populateRoomSelect(roomNames) {
@@ -222,37 +216,40 @@ const RoomTimetable = (function() {
         const uniqueSubjects = new Set(lessons.map((l) => l.subject));
 
         // Update stat cards
-        document.getElementById('room-stat-usage').textContent = usagePercent + '%';
+        const usageEl = document.getElementById('room-stat-usage');
+        const usageCard = usageEl?.closest('.class-stat-card, .room-stat-card');
+        if (usageEl) usageEl.textContent = usagePercent + '%';
+        if (usageCard) {
+            usageCard.classList.toggle('usage-high', usagePercent >= 80);
+            usageCard.classList.toggle('usage-medium', usagePercent >= 50 && usagePercent < 80);
+            usageCard.title =
+                usagePercent >= 80
+                    ? 'استغلال مرتفع — القاعة مشغولة معظم الوقت'
+                    : usagePercent >= 50
+                      ? 'استغلال متوسط'
+                      : 'استغلال منخفض';
+        }
         document.getElementById('room-stat-hours').textContent = usedSlots;
         document.getElementById('room-stat-teachers').textContent = uniqueTeachers.size;
         document.getElementById('room-stat-subjects').textContent = uniqueSubjects.size;
 
         document.getElementById('room-stats-grid').classList.add('visible');
 
-        // Build lookup: day+period+hour -> lessons[]
-        const lookup = {};
-        lessons.forEach((l) => {
-            const key = `${l.day}|${l.period}|${l.hour}`;
-            if (lookup[key]) {
-                lookup[key].push(l);
-            } else {
-                lookup[key] = [l];
-            }
-        });
+        const lookup =
+            typeof ttBuildSlotLookup === 'function'
+                ? ttBuildSlotLookup(lessons)
+                : {};
 
         // Reset color maps for this room
         teacherColorMap = {};
         sectionColorMap = {};
 
-        // All hours in order
-        const allHoursOrdered = [];
-        discoveredMorningHours.forEach((h) => allHoursOrdered.push({ key: h, period: 'morning' }));
-        discoveredAfternoonHours.forEach((h) => allHoursOrdered.push({ key: h, period: 'afternoon' }));
-
-        const separatorAfter =
-            discoveredMorningHours.length > 0 && discoveredAfternoonHours.length > 0
-                ? discoveredMorningHours.length
-                : -1;
+        const hoursPack =
+            typeof ttBuildHoursOrdered === 'function'
+                ? ttBuildHoursOrdered(discoveredMorningHours, discoveredAfternoonHours)
+                : { allHoursOrdered: [], separatorAfter: -1 };
+        const allHoursOrdered = hoursPack.allHoursOrdered;
+        const separatorAfter = hoursPack.separatorAfter;
 
         let html = `
 <div class="room-info-bar">
@@ -279,7 +276,7 @@ const RoomTimetable = (function() {
             if (separatorAfter > 0 && i === separatorAfter) {
                 html += `<th style="width:4px; padding:0; background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1));"></th>`;
             }
-            html += `<th>${getHourLabel(h.key)}</th>`;
+            html += `<th>${getHourLabel(h.key, h.period)}</th>`;
         });
 
         html += `</tr></thead><tbody>`;

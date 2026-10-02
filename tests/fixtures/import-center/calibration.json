@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "thresholds": {
+    "high": 0.85,
+    "medium": 0.6,
+    "ambiguityGap": 0.1
+  },
+  "policy": {
+    "contentPrimary": true,
+    "filenameOnlyCannotAutoFinalize": true,
+    "classificationAloneNeverReadyForWrite": true
+  },
+  "notes": "Fixed before classifier implementation. Package 0 exit gate."
+}

@@ -350,19 +350,30 @@ async function loginWithFirebase(email, password) {
     return { mode: 'online', userRow, profile, firebaseUser: credential.user };
 }
 
-function loginWithLocalFallback(email, password, { firebaseNotConfigured } = {}) {
+function isExplicitLocalAuthUser(user) {
+    return String(user?.auth_source || '')
+        .trim()
+        .toLowerCase() === 'local';
+}
+
+function loginWithLocalFallback(email, password, { firebaseNotConfigured, allowLocalOnly } = {}) {
     const db = dbContext.getDb();
     const user = selectUserByEmail(db, email);
     if (!user || Number(user.disabled || 0) === 1) {
         logAuthDebug('offline.fallback.no-local-user', {
             email,
             firebaseNotConfigured: !!firebaseNotConfigured,
+            allowLocalOnly: !!allowLocalOnly,
             foundUser: !!user,
             disabled: !!user?.disabled
         });
         return null;
     }
-    if (!firebaseNotConfigured) {
+
+    const localOnly = isExplicitLocalAuthUser(user);
+    if (!firebaseNotConfigured && !localOnly) {
+        // Cloud users may go offline only after a successful Firebase login at least once.
+        // Explicit auth_source='local' accounts (dev/admin seeds) may always use local password.
         const hasPriorFirebaseLogin =
             String(user.firebase_uid || '').trim() ||
             String(user.auth_source || '').trim().toLowerCase() === 'firebase' ||
@@ -378,6 +389,17 @@ function loginWithLocalFallback(email, password, { firebaseNotConfigured } = {})
             return null;
         }
     }
+
+    // When Firebase rejects credentials, only pure local accounts may fall back.
+    if (allowLocalOnly && !localOnly) {
+        logAuthDebug('offline.fallback.not-local-auth-source', {
+            email,
+            localUserId: user.id,
+            authSource: user.auth_source || null
+        });
+        return null;
+    }
+
     const storedHash = String(user.password_hash || '').trim();
     if (!storedHash || !verifyPassword(password, storedHash)) {
         logAuthDebug('offline.fallback.invalid-local-password', {
@@ -397,7 +419,7 @@ function loginWithLocalFallback(email, password, { firebaseNotConfigured } = {})
     }
     if (columns.has('last_auth_mode')) {
         updates.push('last_auth_mode = ?');
-        params.push('offline');
+        params.push(localOnly ? 'local' : 'offline');
     }
     if (updates.length) {
         params.push(user.id);
@@ -407,10 +429,12 @@ function loginWithLocalFallback(email, password, { firebaseNotConfigured } = {})
     logAuthDebug('offline.fallback.success', {
         email,
         localUserId: user.id,
-        firebaseNotConfigured: !!firebaseNotConfigured
+        firebaseNotConfigured: !!firebaseNotConfigured,
+        localOnly,
+        allowLocalOnly: !!allowLocalOnly
     });
     return {
-        mode: 'offline',
+        mode: localOnly ? 'local' : 'offline',
         userRow: db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)
     };
 }
@@ -427,7 +451,18 @@ async function loginFirebaseFirst(email, password) {
             firebaseUnavailable: isFirebaseUnavailable(err),
             invalidCredential: isInvalidFirebaseCredential(err)
         });
+
+        // Firebase user-not-found / wrong password: still allow explicit local-only accounts
+        // (auth_source = 'local') so seeded admin users work without Firebase Auth.
         if (isInvalidFirebaseCredential(err)) {
+            const localOnly = loginWithLocalFallback(email, password, {
+                firebaseNotConfigured: false,
+                allowLocalOnly: true
+            });
+            if (localOnly) {
+                localOnly.warning = err.code || err.message;
+                return localOnly;
+            }
             err.publicCode = 'INVALID_CREDENTIALS';
             throw err;
         }

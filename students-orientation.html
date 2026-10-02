@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+    <head>
+        <script src="js/theme-boot.js"></script>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>التوجيه المدرسي | برنامج التدبير المدرسي</title>
+        <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
+        <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
+        <script src="js/shared/gender.js" defer></script>
+        <script src="js/shared/errors/orientation-error-contract.js" defer></script>
+        <script src="js/shared/orientation-topbar-print.js" defer></script>
+        <script src="js/shared/education/qualifiant-levels.js" defer></script>
+        <script src="js/utils.js" defer></script>
+        <script src="js/notifications.js" defer></script>
+        <script src="js/message-system.js" defer></script>
+        <script src="js/sidebar.js" defer></script>
+        <script src="js/ux-enhancements.js" defer></script>
+        <script src="js/shared/chart-theme.js" defer></script>
+        <script src="js/print-system.js" defer></script>
+    </head>
+
+    <body>
+        <div class="toast-container" id="toast-container"></div>
+
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <main class="main-content analytics-page">
+            <header class="header">
+                <div class="header-left">
+                    <button
+                        class="menu-toggle"
+                        id="menu-toggle"
+                        type="button"
+                        aria-controls="sidebar"
+                        aria-expanded="false"
+                        aria-label="فتح القائمة الجانبية"
+                    >
+                        <i class="fas fa-bars" aria-hidden="true"></i>
+                    </button>
+                    <h2 class="page-title"><i class="fas fa-compass" aria-hidden="true"></i> التوجيه المدرسي</h2>
+                </div>
+                <div class="header-right">
+                    <button
+                        class="theme-toggle"
+                        id="theme-toggle"
+                        title="تبديل المظهر"
+                        type="button"
+                        aria-label="تبديل المظهر الفاتح أو الداكن"
+                    >
+                        <i class="fas fa-moon" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!--
+              Page top bar (title + actions). setupUnifiedHeader() rebuilds .header into the
+              sticky dashboard-topbar. The #print-btn below is a relocation source:
+              js/shared/orientation-topbar-print.js moves it into the sticky .header-right
+              (before #theme-toggle) once the header is unified. استيراد التوجيه stays here.
+            -->
+            <div class="page-title-row orientation-title-row">
+                <h2 class="page-title">
+                    <i class="fas fa-compass" aria-hidden="true"></i>
+                    <span>التوجيه المدرسي</span>
+                </h2>
+                <div class="orientation-header-actions" role="group" aria-label="إجراءات الصفحة">
+                    <a
+                        class="btn btn-secondary"
+                        data-import-shortcut
+                        data-import-type="orientation"
+                        data-import-source="students-orientation"
+                        href="settings-imports.html?type=orientation&amp;source=students-orientation"
+                        title="استيراد معطيات التوجيه"
+                        aria-label="فتح مركز الاستيراد للتوجيه"
+                    >
+                        <i class="fas fa-file-import" aria-hidden="true"></i> استيراد التوجيه
+                    </a>
+                    <button
+                        class="btn btn-success ux-print-preview-btn"
+                        type="button"
+                        id="print-btn"
+                        title="معاينة الطباعة"
+                        aria-label="معاينة الطباعة"
+                    >
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                        <span>معاينة الطباعة</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="print-header" id="print-header">
+                <h1><i class="fas fa-compass" aria-hidden="true"></i> تقرير التوجيه المدرسي</h1>
+                <p id="print-date"></p>
+                <p id="print-filters"></p>
+            </div>
+
+            <div class="grades-container">
+                <!-- Filters -->
+                <section class="search-section">
+                    <div class="analysis-header">
+                        <h3><i class="fas fa-filter" aria-hidden="true"></i> تصفية المعطيات</h3>
+                    </div>
+                    <form id="orientation-filters" class="search-form orientation-filters-form">
+                        <div class="filter-group">
+                            <label for="level-select">المستوى / الفئة</label>
+                            <select id="level-select" title="اختر الجذوع المشتركة أو الأوليات باكالوريا أو مستوى واحد">
+                                <option value="">كل المستويات</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="section-select">القسم</label>
+                            <select id="section-select">
+                                <option value="">كل الأقسام</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="origin-select">الشعبة الأصلية</label>
+                            <select id="origin-select">
+                                <option value="">كل الشعب</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="choice1-select">الاختيار الأول</label>
+                            <select id="choice1-select">
+                                <option value="">كل الاختيارات</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="search-input">بحث</label>
+                            <input type="text" id="search-input" placeholder="الاسم أو رمز مسار..." />
+                        </div>
+                        <div class="filter-group orientation-filter-actions">
+                            <!-- Phantom label keeps buttons on the same baseline as sibling selects -->
+                            <label class="orientation-filter-actions-label" for="refresh-btn">&nbsp;</label>
+                            <div class="orientation-filter-actions-row">
+                                <button class="btn btn-primary orientation-refresh-btn" type="submit" id="refresh-btn">
+                                    <i class="fas fa-sync-alt" aria-hidden="true"></i> تحديث
+                                </button>
+                                <button
+                                    class="btn btn-secondary orientation-reset-btn"
+                                    type="button"
+                                    id="reset-filters-btn"
+                                    title="مسح كل الفلاتر والعودة لاختيار المستوى"
+                                    aria-label="مسح كل الفلاتر"
+                                >
+                                    <i class="fas fa-rotate-left" aria-hidden="true"></i> مسح الفلاتر
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    <p id="orientation-result-status" class="orientation-result-status" aria-live="polite" aria-atomic="true"></p>
+                </section>
+
+                <!-- Empty / choose-level state (no auto-load — user picks level first) -->
+                <div id="empty-state" class="section-card">
+                    <div class="page-empty-state">
+                        <i class="fas fa-filter" aria-hidden="true"></i>
+                        <h4 id="empty-state-title">اختر المستوى / الفئة أولاً</h4>
+                        <p id="empty-state-message">
+                            لتخفيف الصفحة، لا تُحمَّل المعطيات تلقائياً. اختر من القائمة
+                            <strong>المستوى / الفئة</strong>
+                            (مثلاً: الجذوع المشتركة أو الأوليات باكالوريا) ثم اضغط
+                            <strong>تحديث</strong>.
+                        </p>
+                        <p class="orientation-empty-hint" id="empty-state-hint">
+                            استيراد التوجيه من
+                            <a href="settings-imports.html?type=orientation&amp;source=students-orientation"
+                                >مركز الاستيراد</a
+                            >
+                            إن لم تكن البيانات محمّلة بعد.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Content (shown after successful load; stays visible for zero-match filters) -->
+                <div id="content-area" hidden>
+                    <div id="filter-empty-banner" class="orientation-filter-empty-banner" hidden role="status">
+                        لا نتائج لهذه التصفية — الجداول والمؤشرات أدناه تبقى مرئية بقيم صفرية. جرّب فئة أخرى أو ألغِ بعض
+                        الفلاتر.
+                    </div>
+
+                    <!-- KPI cards -->
+                    <section class="kpi-grid" id="kpi-grid">
+                        <div class="kpi-card blue">
+                            <div class="kpi-header">
+                                <div class="kpi-icon"><i class="fas fa-user-graduate" aria-hidden="true"></i></div>
+                            </div>
+                            <div class="kpi-title">عدد التلاميذ</div>
+                            <div class="kpi-value" id="kpi-total">0</div>
+                            <div class="kpi-subtitle" id="kpi-total-sub">في السنة الحالية</div>
+                        </div>
+                        <div class="kpi-card purple">
+                            <div class="kpi-header">
+                                <div class="kpi-icon"><i class="fas fa-layer-group" aria-hidden="true"></i></div>
+                            </div>
+                            <div class="kpi-title">الشعب الأصلية</div>
+                            <div class="kpi-value" id="kpi-origins">0</div>
+                            <div class="kpi-subtitle">شعب منطلقة</div>
+                        </div>
+                        <div class="kpi-card green">
+                            <div class="kpi-header">
+                                <div class="kpi-icon"><i class="fas fa-route" aria-hidden="true"></i></div>
+                            </div>
+                            <div class="kpi-title">الوجهات المطلوبة (اختيار 1)</div>
+                            <div class="kpi-value" id="kpi-choices">0</div>
+                            <div class="kpi-subtitle">وجهات مختلفة</div>
+                        </div>
+                        <div class="kpi-card orange">
+                            <div class="kpi-header">
+                                <div class="kpi-icon"><i class="fas fa-check-double" aria-hidden="true"></i></div>
+                            </div>
+                            <div class="kpi-title">نسبة الإسناد</div>
+                            <div class="kpi-value" id="kpi-assigned">0%</div>
+                            <div class="kpi-progress" aria-hidden="true">
+                                <span class="kpi-progress-bar" id="kpi-assigned-bar" style="width: 0%"></span>
+                            </div>
+                            <div class="kpi-subtitle" id="kpi-assigned-sub">مسند / إجمالي</div>
+                        </div>
+                        <div class="kpi-card teal" id="kpi-card-gender">
+                            <div class="kpi-header">
+                                <div class="kpi-icon"><i class="fas fa-venus-mars" aria-hidden="true"></i></div>
+                            </div>
+                            <div class="kpi-title">الجنس (ذكور / إناث)</div>
+                            <div class="kpi-value" id="kpi-gender-split">0 / 0</div>
+                            <div class="kpi-gender-bar" aria-hidden="true">
+                                <span class="kpi-gender-bar-male" id="kpi-gender-bar-male" style="width: 0%"></span>
+                                <span class="kpi-gender-bar-female" id="kpi-gender-bar-female" style="width: 0%"></span>
+                            </div>
+                            <div class="kpi-subtitle" id="kpi-gender-sub">من التلاميذ</div>
+                        </div>
+                    </section>
+
+                    <!-- Official orientation board: origin × destination × gender × status × averages -->
+                    <section class="section-card orientation-section-spaced" id="orientation-board-section">
+                        <div class="section-header">
+                            <h3 id="board-heading">
+                                <i class="fas fa-table" aria-hidden="true"></i> جدول إمكانات التوجيه
+                            </h3>
+                            <span class="kpi-subtitle" id="board-subtitle"
+                                >الناجحون الموجّهون فقط · المكررون والمفصولون في جدول منفصل</span
+                            >
+                        </div>
+                        <div class="section-body orientation-section-body-table">
+                            <div class="table-responsive">
+                                <table
+                                    class="students-table orientation-board-table"
+                                    id="board-table"
+                                    aria-labelledby="board-heading"
+                                >
+                                    <caption class="sr-only">جدول إمكانات التوجيه حسب الشعبة الأصلية والوجهة</caption>
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2" class="ob-origin-col">الشعبة الأصلية</th>
+                                            <th rowspan="2" class="ob-dest-col">إمكانات التوجيه</th>
+                                            <th colspan="2">المجموع</th>
+                                            <th colspan="6">مجالات المعدلات السنوية العامة</th>
+                                            <th rowspan="2" class="ob-req-col">الطلبات الملبية</th>
+                                        </tr>
+                                        <tr>
+                                            <th>الذكور</th>
+                                            <th>الإناث</th>
+                                            <th>أقل من 8</th>
+                                            <th>[10 - 8]</th>
+                                            <th>[12 - 10]</th>
+                                            <th>[14 - 12]</th>
+                                            <th>[16 - 14]</th>
+                                            <th>[20 - 16]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="board-tbody"></tbody>
+                                </table>
+                            </div>
+                            <p id="board-empty" class="page-empty-state orientation-inline-empty" hidden>
+                                لا توجد بيانات لبناء جدول إمكانات التوجيه.
+                            </p>
+                        </div>
+                    </section>
+
+                    <!-- Status table (يكرر / يفصل) + origin chart -->
+                    <div class="charts-row">
+                        <section class="section-card" id="status-board-section">
+                            <div class="section-header">
+                                <h3 id="status-board-heading">
+                                    <i class="fas fa-user-slash" aria-hidden="true"></i> المكررون والمفصولون
+                                </h3>
+                                <span class="kpi-subtitle" id="status-board-subtitle"
+                                    >يكرر · يفصل — بدون توجيه</span
+                                >
+                            </div>
+                            <div class="section-body orientation-section-body-table">
+                                <div class="table-responsive">
+                                    <table
+                                        class="students-table orientation-board-table orientation-status-table"
+                                        id="status-board-table"
+                                        aria-labelledby="status-board-heading"
+                                    >
+                                        <caption class="sr-only">جدول المكررين والمفصولين حسب الشعبة الأصلية</caption>
+                                        <thead>
+                                            <tr>
+                                                <th rowspan="2">الشعبة الأصلية</th>
+                                                <th colspan="2">المكررون (يكرر)</th>
+                                                <th colspan="2">المفصولون (يفصل)</th>
+                                                <th rowspan="2">المجموع</th>
+                                            </tr>
+                                            <tr>
+                                                <th>الذكور</th>
+                                                <th>الإناث</th>
+                                                <th>الذكور</th>
+                                                <th>الإناث</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="status-board-tbody"></tbody>
+                                    </table>
+                                </div>
+                                <p id="status-board-empty" class="page-empty-state orientation-inline-empty" hidden>
+                                    لا يوجد مكررون أو مفصولون في التصفية الحالية.
+                                </p>
+                            </div>
+                        </section>
+                        <section class="section-card">
+                            <div class="section-header">
+                                <h3><i class="fas fa-chart-bar" aria-hidden="true"></i> التلاميذ حسب الشعبة الأصلية</h3>
+                            </div>
+                            <div class="section-body orientation-chart-body">
+                                <canvas
+                                    id="chart-origin"
+                                    role="img"
+                                    aria-label="رسم بياني حسب الشعبة الأصلية"
+                                    aria-describedby="chart-origin-summary"
+                                ></canvas>
+                                <p id="chart-origin-summary" class="sr-only">لا توجد بيانات بعد.</p>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- Matrix: origin → choice_1 -->
+                    <section class="section-card orientation-section-spaced">
+                        <div class="section-header">
+                            <h3 id="matrix-heading">
+                                <i class="fas fa-table-cells" aria-hidden="true"></i> مصفوفة الاختيارات (شعبة أصلية ←
+                                اختيار أول)
+                            </h3>
+                        </div>
+                        <div class="section-body orientation-section-body-table">
+                            <div class="table-responsive">
+                                <table
+                                    class="students-table orientation-matrix-table"
+                                    id="matrix-table"
+                                    aria-labelledby="matrix-heading"
+                                >
+                                    <caption class="sr-only">مصفوفة الشعبة الأصلية مقابل الاختيار الأول</caption>
+                                    <thead id="matrix-thead"></thead>
+                                    <tbody id="matrix-tbody"></tbody>
+                                </table>
+                            </div>
+                            <p id="matrix-empty" class="page-empty-state orientation-inline-empty" hidden>
+                                لا توجد بيانات لبناء المصفوفة.
+                            </p>
+                        </div>
+                    </section>
+
+                    <!-- Assigned destinations -->
+                    <section class="section-card orientation-section-spaced">
+                        <div class="section-header">
+                            <h3>
+                                <i class="fas fa-flag-checkered" aria-hidden="true"></i> الإسناد النهائي (الشعبة المسندة)
+                            </h3>
+                        </div>
+                        <div class="section-body orientation-chart-body orientation-chart-body--short">
+                            <canvas
+                                id="chart-assigned"
+                                role="img"
+                                aria-label="رسم بياني للشعب المسندة"
+                                aria-describedby="chart-assigned-summary"
+                            ></canvas>
+                            <p id="chart-assigned-summary" class="sr-only">لا توجد بيانات بعد.</p>
+                        </div>
+                    </section>
+
+                    <!-- Detail table -->
+                    <section class="section-card students-results orientation-section-spaced">
+                        <div class="section-header">
+                            <h3 id="detail-heading">
+                                <i class="fas fa-list" aria-hidden="true"></i> تفاصيل التلاميذ
+                            </h3>
+                            <span id="table-count" class="kpi-subtitle"></span>
+                        </div>
+                        <div class="section-body orientation-detail-body">
+                            <div class="table-responsive">
+                                <table
+                                    class="students-table students-table-card"
+                                    id="detail-table"
+                                    aria-labelledby="detail-heading"
+                                >
+                                    <caption class="sr-only">قائمة تفصيلية بتلاميذ التوجيه ضمن التصفية الحالية</caption>
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>رمز مسار</th>
+                                            <th>الاسم الكامل</th>
+                                            <th>الجنس</th>
+                                            <th>القسم</th>
+                                            <th>الشعبة الأصلية</th>
+                                            <th>الاختيار 1</th>
+                                            <th>الاختيار 2</th>
+                                            <th>الاختيار 3</th>
+                                            <th>الإسناد</th>
+                                            <th>الحالة</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="detail-tbody"></tbody>
+                                </table>
+                            </div>
+                            <div class="sl-pagination orientation-pagination" id="pagination"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+
+        <!-- Hidden print source for PrintSystem.preview(contentSelector) — built on demand -->
+        <div id="orientation-export-wrap" class="no-print orientation-export-host" aria-hidden="true"></div>
+
+        <script src="js/pages/students-orientation.js" defer></script>
+    </body>
+</html>

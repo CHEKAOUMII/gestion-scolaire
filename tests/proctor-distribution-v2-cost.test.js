@@ -19,8 +19,11 @@ vm.runInContext(source, sandbox);
 
 const internals = sandbox.window.ProctorDistributionV2._internals;
 const costFunction = internals.costFunction;
+const validateInput = internals.validateInput;
 const createLoadState = internals.createLoadState;
 const addGuardLoad = internals.addGuardLoad;
+const addDutyLoad = internals.addDutyLoad;
+const phase2_75CoverageRepair = internals.phase2_75CoverageRepair;
 const INFINITY_SENTINEL = internals.INFINITY_SENTINEL;
 
 let passed = 0;
@@ -340,6 +343,36 @@ runTest('no penalty when firstProctorGender is null', function () {
 
 console.log('\n  --- Load Balancing Penalty (4 × max(0, guardLoad - lowerBound)) ---');
 
+runTest('duty contribution raises cost for otherwise identical teachers', function () {
+  const task = makeTask();
+  const loadState = createLoadState();
+  addDutyLoad(loadState, 'proctor_with_duty', '2025-06-01|صباحا', 'أستاذ مناوب');
+  const options = makeOptions({ sessionMaxPrimaryLoad: 1 });
+  const noDutyCost = costFunction('proctor_without_duty', task, loadState, options, {}, 0);
+  const dutyCost = costFunction('proctor_with_duty', task, loadState, options, {}, 0);
+  assert.ok(dutyCost > noDutyCost);
+});
+
+runTest('floor and freshness prefer zero-load teacher when lowerBound is 0', function () {
+  const task = makeTask();
+  const loadState = createLoadState();
+  addGuardLoad(loadState, 'used_proctor', '2025-06-01|صباحا', 'أستاذ مستعمل');
+  const options = makeOptions({ sessionMaxPrimaryLoad: 1 });
+  const freshCost = costFunction('fresh_proctor', task, loadState, options, {}, 0);
+  const usedCost = costFunction('used_proctor', task, loadState, options, {}, 0);
+  assert.ok(freshCost < usedCost);
+});
+
+runTest('floor and freshness prefer zero-load teacher when lowerBound is positive', function () {
+  const task = makeTask();
+  const loadState = createLoadState();
+  addGuardLoad(loadState, 'used_proctor', '2025-06-01|صباحا', 'أستاذ مستعمل');
+  const options = makeOptions({ sessionMaxPrimaryLoad: 1 });
+  const freshCost = costFunction('fresh_proctor', task, loadState, options, {}, 2);
+  const usedCost = costFunction('used_proctor', task, loadState, options, {}, 2);
+  assert.ok(freshCost < usedCost);
+});
+
 runTest('no load penalty when guardLoad <= lowerBound', function () {
   const task = makeTask();
   const loadState = createLoadState();
@@ -349,7 +382,7 @@ runTest('no load penalty when guardLoad <= lowerBound', function () {
   assert.strictEqual(result, 0);
 });
 
-runTest('adds 4 when guardLoad exceeds lowerBound by 1', function () {
+runTest('adds 4.5 when guardLoad exceeds lowerBound by 1', function () {
   const task = makeTask();
   const loadState = createLoadState();
   // Add 3 guard assignments to proctor_A
@@ -359,10 +392,10 @@ runTest('adds 4 when guardLoad exceeds lowerBound by 1', function () {
   const options = makeOptions();
   // guardLoad = 3, lowerBound = 2 → penalty = 4 × (3-2) = 4
   const result = costFunction('proctor_A', task, loadState, options, {}, 2);
-  assert.strictEqual(result, 4);
+  assert.strictEqual(result, 4.5);
 });
 
-runTest('adds 8 when guardLoad exceeds lowerBound by 2', function () {
+runTest('adds 8.5 when guardLoad exceeds lowerBound by 2', function () {
   const task = makeTask();
   const loadState = createLoadState();
   addGuardLoad(loadState, 'proctor_A', '2025-06-01|صباحا', 'Teacher A');
@@ -372,7 +405,7 @@ runTest('adds 8 when guardLoad exceeds lowerBound by 2', function () {
   const options = makeOptions();
   // guardLoad = 4, lowerBound = 2 → penalty = 4 × (4-2) = 8
   const result = costFunction('proctor_A', task, loadState, options, {}, 2);
-  assert.strictEqual(result, 8);
+  assert.strictEqual(result, 8.5);
 });
 
 runTest('no load penalty when lowerBound = 0 and guardLoad = 0', function () {
@@ -414,7 +447,7 @@ runTest('accumulates all soft penalties correctly (5+3+2+1 = 11)', function () {
   assert.strictEqual(result, 11);
 });
 
-runTest('accumulates soft penalties + load penalty (5+3+2+1+4 = 15)', function () {
+runTest('accumulates soft penalties + load penalty and freshness term', function () {
   const roomUseMap = { room1: new Set(['proctor_A']) };
   const task = makeTask({
     expectedGroup: 1,
@@ -437,7 +470,7 @@ runTest('accumulates soft penalties + load penalty (5+3+2+1+4 = 15)', function (
   });
   // guardLoad = 1, lowerBound = 0 → load penalty = 4 × 1 = 4
   const result = costFunction('proctor_A', task, loadState, options, {}, 0);
-  assert.strictEqual(result, 15);
+  assert.strictEqual(result, 15.5);
 });
 
 runTest('zero cost when no constraints violated and load at or below bound', function () {
@@ -457,7 +490,7 @@ runTest('only load penalty when no soft constraints enabled', function () {
   const options = makeOptions();
   // guardLoad = 3, lowerBound = 1 → penalty = 4 × 2 = 8
   const result = costFunction('proctor_A', task, loadState, options, {}, 1);
-  assert.strictEqual(result, 8);
+  assert.strictEqual(result, 8.5);
 });
 
 // ============================================================
@@ -522,6 +555,102 @@ runTest('weights parameter is accepted but not used in cost calculation', functi
   const result1 = costFunction('proctor_A', task, loadState, options, { alpha: 3, beta: 1, gamma: 2 }, 0);
   const result2 = costFunction('proctor_A', task, loadState, options, { alpha: 1, beta: 4, gamma: 1 }, 0);
   assert.strictEqual(result1, result2);
+});
+
+runTest('validateInput defaults missing D_expected to 0', function () {
+  const input = {
+    proctorsList: [{ cin: 'A', teacher_name: 'A' }],
+    scheduleEntries: [{ date_year: 2025, date_month: 6, date_day: 1 }],
+    exemptionsData: {},
+    dutyData: {},
+    meAssignments: {},
+    examDistributionRules: {}
+  };
+  validateInput(input);
+  assert.strictEqual(input.D_expected, 0);
+});
+
+runTest('validateInput rejects negative D_expected', function () {
+  const input = {
+    proctorsList: [{ cin: 'A', teacher_name: 'A' }],
+    scheduleEntries: [{ date_year: 2025, date_month: 6, date_day: 1 }],
+    exemptionsData: {},
+    dutyData: {},
+    meAssignments: {},
+    examDistributionRules: {},
+    D_expected: -1
+  };
+  assert.throws(function () {
+    validateInput(input);
+  }, /D_expected/);
+});
+
+runTest('class upper bound hard cap returns INFINITY_SENTINEL when next primary load exceeds cap', function () {
+  const task = makeTask();
+  const loadState = createLoadState();
+  addGuardLoad(loadState, 'proctor_A', '2025-06-01|صباحا', 'Teacher A');
+  addGuardLoad(loadState, 'proctor_A', '2025-06-01|مساء', 'Teacher A');
+  const options = makeOptions({
+    classBoundsByProctorKey: {
+      proctor_A: { classLowerBound: 0, classUpperBound: 2 }
+    }
+  });
+  const result = costFunction('proctor_A', task, loadState, options, {}, 0);
+  assert.strictEqual(result, INFINITY_SENTINEL);
+});
+
+runTest('class upper bound hard cap allows assignment at cap boundary', function () {
+  const task = makeTask();
+  const loadState = createLoadState();
+  addGuardLoad(loadState, 'proctor_A', '2025-06-01|صباحا', 'Teacher A');
+  const options = makeOptions({
+    classBoundsByProctorKey: {
+      proctor_A: { classLowerBound: 0, classUpperBound: 2 }
+    }
+  });
+  const result = costFunction('proctor_A', task, loadState, options, {}, 0);
+  assert.notStrictEqual(result, INFINITY_SENTINEL);
+});
+
+runTest('phase2_75CoverageRepair swaps an overloaded peer to cover an uncovered eligible proctor', function () {
+  const loadState = createLoadState();
+  addGuardLoad(loadState, 'A', '2025-06-01|صباحا', 'Teacher A');
+  addGuardLoad(loadState, 'A', '2025-06-02|صباحا', 'Teacher A');
+  const rows = [
+    {
+      halfday_key: '2025-06-01|صباحا',
+      proctor_keys: ['A'],
+      proctors: ['Teacher A'],
+      proctor_groups: [''],
+      schedule_entry: { date_year: 2025, date_month: 6, date_day: 1, day: 'الأول', period: 'صباحا', session: 'الحصة الأولى', subject_name: 'رياضيات' }
+    },
+    {
+      halfday_key: '2025-06-02|صباحا',
+      proctor_keys: ['A'],
+      proctors: ['Teacher A'],
+      proctor_groups: [''],
+      schedule_entry: { date_year: 2025, date_month: 6, date_day: 2, day: 'الثاني', period: 'صباحا', session: 'الحصة الأولى', subject_name: 'رياضيات' }
+    }
+  ];
+  const phase2Result = {
+    assignments: rows,
+    loadState: loadState,
+    classIdByProctorKey: { A: 'class1', B: 'class1' }
+  };
+  const bounds = {
+    A: { classLowerBound: 1, classUpperBound: 1 },
+    B: { classLowerBound: 1, classUpperBound: 1 }
+  };
+  const input = {
+    proctorsList: [{ cin: 'A', teacher_name: 'Teacher A' }, { cin: 'B', teacher_name: 'Teacher B' }],
+    exemptionsData: {},
+    options: { allowHalfdayReuse: false, allowDayReuse: false }
+  };
+  const diagnostics = phase2_75CoverageRepair(phase2Result, {}, bounds, input, function () { return 0.5; });
+  assert.strictEqual(diagnostics.swaps, 1);
+  assert.strictEqual(loadState.A.guardCount, 1);
+  assert.strictEqual(loadState.B.guardCount, 1);
+  assert.ok(rows[0].proctor_keys[0] === 'B' || rows[1].proctor_keys[0] === 'B');
 });
 
 // === Summary ===

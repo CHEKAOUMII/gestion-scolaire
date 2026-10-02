@@ -70,7 +70,30 @@ body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-cs-card {
     page-break-inside: avoid !important;
 }
 
-#tp-teacher-name,
-.tp-teacher-name {
+@media print {
+    #tp-teacher-name,
+    .tp-teacher-name {
+        display: none !important;
+    }
+}
+
+body.ux-printing-active #ux-print-root .ux-pp-sheet #tp-teacher-name,
+body.ux-printing-active #ux-print-root .ux-pp-sheet .tp-teacher-name {
     display: none !important;
+}
+
+/* ─── Fix: report clipped on one side during PDF/print export ───
+   The shared .ux-pp-sheet is a rigid 210mm (full A4 width), but the print
+   pipeline (@page margin + Electron printToPDF margins) reserves ~8mm of
+   horizontal margin. The over-wide sheet therefore overflowed the printable
+   page box and, with RTL `margin: 0 auto` + `overflow: hidden`, was clipped
+   on the left edge. Letting the printed sheet fill the printable area keeps
+   the full-width KPI grid inside the page. */
+body.ux-printing-active #ux-print-root .ux-pp-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
 }

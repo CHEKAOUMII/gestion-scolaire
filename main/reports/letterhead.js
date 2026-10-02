@@ -1,4 +1,5 @@
-const { getIdentity, getAssetBase64 } = require('./identity');
+const { getIdentity, getAssetBase64, resolveLogoMaxPx } = require('./identity');
+const { esc } = require('./html-escape');
 
 /**
  * Renders the official, locked document letterhead.
@@ -12,6 +13,7 @@ const { getIdentity, getAssetBase64 } = require('./identity');
 function renderLetterhead(overrides = {}) {
     const id = getIdentity();
     const logo = getAssetBase64('logo_base64');
+    const logoPx = resolveLogoMaxPx(id.logo_scale);
     const documentTitle = overrides.documentTitle || '';
     const documentRef = overrides.documentRef || '';
 
@@ -36,7 +38,7 @@ function renderLetterhead(overrides = {}) {
                 <td style="width: 10%; text-align: center; vertical-align: middle;">
                     ${
                         logo
-                            ? `<img src="data:image/png;base64,${logo}" style="max-width: 300px; max-height: 300px;" alt="logo">`
+                            ? `<img src="data:image/png;base64,${logo}" style="max-width: ${logoPx}px; max-height: ${logoPx}px;" alt="logo">`
                             : '<div style="width: 52px; height: 52px; border: 1px dashed #ccc; border-radius: 50%; margin: 0 auto;"></div>'
                     }
                 </td>
@@ -67,14 +69,6 @@ function renderLetterhead(overrides = {}) {
                 : ''
         }
     </div>`;
-}
-
-function esc(s) {
-    return String(s || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }
 
 module.exports = { renderLetterhead };

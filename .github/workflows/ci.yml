@@ -27,5 +27,37 @@ jobs:
             - name: Run lint
               run: npm run lint
 
-            - name: Run smoke checks
-              run: npm run test:smoke
+            - name: Run tests
+              run: npm test
+
+            - name: Run fairness suite (excluded from default runner by filename)
+              run: npm run test:fairness
+
+    firebase-integration:
+        # Suites excluded from `npm test` by design (need Firebase emulators).
+        # Gated to main pushes + non-blocking burn-in until emulator
+        # infrastructure (firebase-tools + emulators block in firebase.json)
+        # lands in CI; then flip continue-on-error to false.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        continue-on-error: true
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run Firebase integration suites
+              env:
+                  FIRESTORE_EMULATOR_HOST: localhost:8080
+                  FIREBASE_AUTH_EMULATOR_HOST: localhost:9099
+              run: |
+                  npm run test:integration
+                  npm run test:auth-firebase

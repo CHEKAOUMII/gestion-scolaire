@@ -23,7 +23,7 @@ class DataSourceRegistry {
      * Record a successful import for a source.
      * @param {string} source      — 'students' | 'grades' | 'absences' | 'fet' | 'agent_xml' | 'status'
      * @param {string} schoolYear
-     * @param {object} meta        — { count?, sections?, subjects?, teachers?, pprList? }
+     * @param {object} meta        — { count?, sections?, levels?, schools?, school_name?, subjects?, teachers?, pprList? }
      * @param {Array}  warnings    — CrossSourceValidator warnings for this source
      */
     static update(source, schoolYear, meta = {}, warnings = []) {

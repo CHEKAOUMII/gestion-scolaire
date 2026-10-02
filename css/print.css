@@ -282,17 +282,32 @@ body.ux-preview-open {
     background: #f8fafb;
     border-bottom: 1px solid #e5e7eb;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
-.ux-pp-orient-toggle {
+.ux-pp-actions-left,
+.ux-pp-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ux-pp-orient-toggle,
+.ux-pp-density-toggle {
     display: inline-flex;
     background: #e5e7eb;
     border-radius: 8px;
     overflow: hidden;
 }
 
-.ux-pp-orient-btn {
-    padding: 8px 18px;
+.ux-pp-density-toggle[hidden] {
+    display: none !important;
+}
+
+.ux-pp-orient-btn,
+.ux-pp-density-btn {
+    padding: 8px 14px;
     border: none;
     background: transparent;
     font-size: 13px;
@@ -307,17 +322,14 @@ body.ux-preview-open {
         transform 0.2s ease,
         opacity 0.2s ease;
     font-family: inherit;
+    white-space: nowrap;
 }
 
-.ux-pp-orient-btn.active {
+.ux-pp-orient-btn.active,
+.ux-pp-density-btn.active {
     background: #fff;
     color: #3b6ac5;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-}
-
-.ux-pp-actions > div:last-child {
-    display: flex;
-    gap: 8px;
 }
 
 .ux-pp-print-btn,
@@ -356,6 +368,172 @@ body.ux-preview-open {
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
     border-radius: 4px;
     overflow: hidden;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* ─── Density: 1 or 2 timetables per page ─── */
+.ux-pp-density-pack {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    min-height: 0;
+}
+
+.ux-pp-density-slot {
+    min-width: 0;
+    min-height: 0;
+}
+
+.ux-pp-cut-line {
+    position: relative;
+    border-top: 1.2px dashed #9ca3af;
+    margin: 2mm 0;
+    height: 0;
+    flex: 0 0 auto;
+}
+
+.ux-pp-cut-label {
+    position: absolute;
+    top: -0.55em;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    padding: 0 10px;
+    font-size: 8px;
+    color: #9ca3af;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Two-up: lock sheet to one physical page, split body into two equal slots */
+.ux-pp-sheet[data-density='2'] {
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    padding: 4mm !important;
+}
+
+.ux-pp-page.landscape .ux-pp-sheet[data-density='2'],
+.ux-pp-sheet[data-density='2'][data-orient='landscape'] {
+    width: 297mm !important;
+    height: 210mm !important;
+    min-height: 210mm !important;
+    max-height: 210mm !important;
+}
+
+.ux-pp-sheet[data-density='2'][data-orient='portrait'] {
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+}
+
+.ux-pp-sheet[data-density='2'] > .ux-pp-letterhead {
+    flex: 0 0 auto;
+    margin-bottom: 2mm !important;
+    padding-bottom: 2mm !important;
+}
+
+.ux-pp-sheet[data-density='2'] .ux-pp-letterhead img {
+    max-width: 100px !important;
+    max-height: 48px !important;
+}
+
+.ux-pp-sheet[data-density='2'] .ux-pp-letterhead table {
+    font-size: 85%;
+}
+
+.ux-pp-sheet[data-density='2'] .ux-pp-density-pack {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    gap: 0;
+}
+
+.ux-pp-sheet[data-density='2'] .ux-pp-density-slot {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.ux-pp-sheet[data-density='2'] .ux-pp-density-slot > * {
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.ux-pp-sheet[data-density='2'] .timetable-wrapper,
+.ux-pp-sheet[data-density='2'] .class-timetable-wrapper,
+.ux-pp-sheet[data-density='2'] .room-timetable-wrapper,
+.ux-pp-sheet[data-density='2'] .table-responsive {
+    overflow: hidden !important;
+    max-height: 100% !important;
+    border-radius: 4px !important;
+}
+
+.ux-pp-sheet[data-density='2'] .timetable-header-info,
+.ux-pp-sheet[data-density='2'] .class-info-bar {
+    padding: 2px 6px !important;
+    margin: 0 0 2px !important;
+}
+
+.ux-pp-sheet[data-density='2'] .timetable-header-info h3,
+.ux-pp-sheet[data-density='2'] .class-info-bar h4 {
+    font-size: 10px !important;
+    margin: 0 !important;
+}
+
+.ux-pp-sheet[data-density='2'] .timetable,
+.ux-pp-sheet[data-density='2'] .class-timetable,
+.ux-pp-sheet[data-density='2'] .room-timetable {
+    width: 100% !important;
+    table-layout: fixed !important;
+    font-size: 6.5px !important;
+}
+
+.ux-pp-sheet[data-density='2'] .timetable th,
+.ux-pp-sheet[data-density='2'] .class-timetable th,
+.ux-pp-sheet[data-density='2'] .room-timetable th {
+    padding: 2px 1px !important;
+    font-size: 6.5px !important;
+}
+
+.ux-pp-sheet[data-density='2'] .timetable td,
+.ux-pp-sheet[data-density='2'] .class-timetable td,
+.ux-pp-sheet[data-density='2'] .room-timetable td {
+    padding: 1px !important;
+    font-size: 6px !important;
+    line-height: 1.15 !important;
+}
+
+.ux-pp-sheet[data-density='2'] .activity-cell,
+.ux-pp-sheet[data-density='2'] .lesson-cell {
+    padding: 0 1px !important;
+    margin: 0 !important;
+}
+
+.ux-pp-sheet[data-density='2'] .activity-cell .subject,
+.ux-pp-sheet[data-density='2'] .lesson-cell .lesson-subject {
+    font-size: 6px !important;
+    margin: 0 !important;
+}
+
+.ux-pp-sheet[data-density='2'] .activity-cell .class,
+.ux-pp-sheet[data-density='2'] .activity-cell .class-name,
+.ux-pp-sheet[data-density='2'] .activity-cell .room,
+.ux-pp-sheet[data-density='2'] .lesson-cell .lesson-teacher,
+.ux-pp-sheet[data-density='2'] .lesson-cell .lesson-room,
+.ux-pp-sheet[data-density='2'] .lesson-cell .lesson-class {
+    font-size: 5.5px !important;
+}
+
+.ux-pp-sheet[data-density='2'] .total-hours-badge {
+    font-size: 9px !important;
+    padding: 1px 5px !important;
 }
 
 /* ─── Timetable content sizing inside print preview sheet ─── */
@@ -2279,6 +2457,89 @@ body.ux-printing-active #ux-print-root .room-timetable-wrapper {
     overflow: visible !important;
     border-radius: 0 !important;
     animation: none !important;
+}
+
+/* Density=2 export: fixed page box + two equal half slots (must match preview) */
+body.ux-printing-active.ux-print-density-2 #ux-print-root .ux-pp-sheet {
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    padding: 4mm !important;
+    margin: 0 auto !important;
+}
+
+body.ux-printing-active.ux-print-density-2.ux-print-landscape #ux-print-root .ux-pp-sheet {
+    width: 297mm !important;
+    max-width: 297mm !important;
+    height: 210mm !important;
+    min-height: 210mm !important;
+    max-height: 210mm !important;
+}
+
+body.ux-printing-active.ux-print-density-2:not(.ux-print-landscape) #ux-print-root .ux-pp-sheet {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .ux-pp-letterhead {
+    flex: 0 0 auto !important;
+    margin-bottom: 2mm !important;
+    padding-bottom: 2mm !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .ux-pp-density-pack {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    gap: 0 !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .ux-pp-density-slot {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .ux-pp-density-slot > * {
+    max-height: 100% !important;
+    overflow: hidden !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .timetable-wrapper,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .class-timetable-wrapper,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .room-timetable-wrapper,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .table-responsive {
+    overflow: hidden !important;
+    max-height: 100% !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .timetable,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .class-timetable,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .room-timetable {
+    width: 100% !important;
+    table-layout: fixed !important;
+    font-size: 6.5px !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .timetable th,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .class-timetable th,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .room-timetable th {
+    padding: 2px 1px !important;
+    font-size: 6.5px !important;
+}
+
+body.ux-printing-active.ux-print-density-2 #ux-print-root .timetable td,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .class-timetable td,
+body.ux-printing-active.ux-print-density-2 #ux-print-root .room-timetable td {
+    padding: 1px !important;
+    font-size: 6px !important;
+    line-height: 1.15 !important;
 }
 
 /* ==================== Print Styles ==================== */

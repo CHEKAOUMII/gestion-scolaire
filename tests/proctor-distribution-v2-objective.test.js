@@ -328,6 +328,32 @@ function testObjectiveFunctionMultipleProctorsPerRow() {
   console.log('  [pass] objectiveFunction multiple proctors per row');
 }
 
+function testObjectiveFunctionReservesAware() {
+  const busyReserveAssignments = [
+    { proctor_keys: ['A'], reserve_keys: ['A'], halfday_key: '2026-03-15|صباحا', softViolations: [] },
+    { proctor_keys: ['B'], reserve_keys: ['A'], halfday_key: '2026-03-15|صباحا', softViolations: [] }
+  ];
+  const idleReserveAssignments = [
+    { proctor_keys: ['A'], reserve_keys: ['C'], halfday_key: '2026-03-15|صباحا', softViolations: [] },
+    { proctor_keys: ['B'], reserve_keys: ['C'], halfday_key: '2026-03-15|صباحا', softViolations: [] }
+  ];
+
+  const busyMetric = internals.objectiveFunction(
+    busyReserveAssignments,
+    { alpha: 1, beta: 0, gamma: 0 },
+    {}
+  );
+  const idleMetric = internals.objectiveFunction(
+    idleReserveAssignments,
+    { alpha: 1, beta: 0, gamma: 0 },
+    {}
+  );
+
+  assert.ok(busyMetric > idleMetric, 'Reserve assigned to busy teacher should increase load-balance metric');
+
+  console.log('  [pass] objectiveFunction accounts for reserves in combined load');
+}
+
 // ============================================================
 // Integration: phase3Optimize records weightsUsed and weightValues
 // ============================================================
@@ -426,6 +452,7 @@ function run() {
   testObjectiveFunctionUniformLoads();
   testObjectiveFunctionDuplicateHalfday();
   testObjectiveFunctionMultipleProctorsPerRow();
+  testObjectiveFunctionReservesAware();
   testPhase3DiagnosticsRecordsWeights();
   testPhase3DiagnosticsCustomWeights();
   console.log('[test] All Task 6.2 tests passed ✓');

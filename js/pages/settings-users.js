@@ -366,6 +366,203 @@ async function toggleDisable(id, disabled) {
     await loadRows();
 }
 
+let cycleAccessState = { users: [], cycles: [] };
+
+function isCycleAccessManager() {
+    const role = getCurrentSessionRole();
+    return role === 'admin' || role === 'developer';
+}
+
+function cycleLabel(cycle) {
+    return cycle?.label_ar || cycle?.cycle_code || '';
+}
+
+function cycleCapabilityHint(cycle) {
+    if (cycle?.capability === 'preview') {
+        return ' <span class="settings-visibility-text settings-visibility-text--warning">(قيد الإعداد)</span>';
+    }
+    return '';
+}
+
+function renderCycleAccessRows() {
+    const tbody = document.getElementById('cycle-access-tbody');
+    const theadRow = document.getElementById('cycle-access-thead-row');
+    const actionsLine = document.getElementById('cycle-access-cycle-actions');
+    if (!tbody || !theadRow) return;
+
+    const { users, cycles } = cycleAccessState;
+
+    if (!cycles.length) {
+        tbody.innerHTML = renderTableMessage('لا توجد أسلاك مفعلة في هذه المؤسسة', users.length ? 4 + cycles.length : 4);
+        actionsLine.innerHTML = '';
+        return;
+    }
+
+    const cycleCells = cycles
+        .map((cycle) => `<th>${safeText(cycleLabel(cycle))}</th>`)
+        .join('');
+    theadRow.innerHTML = `<th>#</th><th>المستخدم</th><th>الدور</th>${cycleCells}<th>الإجراء</th>`;
+
+    actionsLine.innerHTML = cycles
+        .map((cycle) => {
+            const label = safeText(cycleLabel(cycle));
+            return `
+                <span class="su-status-chip" style="margin-left: 0.5rem">
+                    ${label}:
+                    <button class="btn btn-success su-btn--icon" type="button" style="padding: 0.1rem 0.5rem"
+                        onclick="cycleAccessEnableForAll('${safeText(cycle.cycle_code)}')">
+                        <i class="fas fa-check"></i> تفعيل للجميع
+                    </button>
+                    <button class="btn btn-warning su-btn--icon" type="button" style="padding: 0.1rem 0.5rem"
+                        onclick="cycleAccessDisableForAll('${safeText(cycle.cycle_code)}')">
+                        <i class="fas fa-times"></i> تعطيل للجميع
+                    </button>
+                </span>`;
+        })
+        .join('');
+
+    if (!users.length) {
+        tbody.innerHTML = renderTableMessage('لا يوجد مستخدمون', 4 + cycles.length);
+        return;
+    }
+
+    tbody.innerHTML = users
+        .map((user, index) => {
+            const roleLabel = ROLE_OPTIONS.find((option) => option.value === user.role)?.label || user.role;
+            if (user.fullAccess) {
+                return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${safeText(user.name || '-')} <div class="settings-visibility-page-path">${safeText(user.email || '')}</div></td>
+                        <td>${safeText(roleLabel)}</td>
+                        ${cycles.map(() => '<td><span class="settings-visibility-text settings-visibility-text--success">صلاحية كاملة</span></td>').join('')}
+                        <td>—</td>
+                    </tr>`;
+            }
+            const granted = new Set(user.cycles || []);
+            const checkboxes = cycles
+                .map((cycle) => {
+                    const checked = granted.has(cycle.cycle_code) ? 'checked' : '';
+                    return `
+                        <td>
+                            <label class="settings-visibility-toggle">
+                                <input type="checkbox" id="cycle-access-${user.id}-${safeText(cycle.cycle_code)}"
+                                    ${checked} data-user="${user.id}" data-cycle="${safeText(cycle.cycle_code)}">
+                                <span></span>
+                            </label>
+                        </td>`;
+                })
+                .join('');
+            return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${safeText(user.name || '-')} <div class="settings-visibility-page-path">${safeText(user.email || '')}</div></td>
+                    <td>${safeText(roleLabel)}</td>
+                    ${checkboxes}
+                    <td>
+                        <button class="btn btn-success su-btn--icon" type="button" onclick="saveUserCycles(${user.id})">
+                            <i class="fas fa-save"></i> حفظ
+                        </button>
+                    </td>
+                </tr>`;
+        })
+        .join('');
+}
+
+async function loadCycleAccess() {
+    const panel = document.getElementById('cycle-access-panel');
+    if (!panel || !window.api?.cycleAccess?.list) return;
+
+    if (!isCycleAccessManager()) {
+        panel.style.display = 'none';
+        return;
+    }
+
+    panel.style.display = '';
+
+    try {
+        const response = await window.api.cycleAccess.list();
+        if (!response || response.success === false) {
+            showToast(response?.error || 'فشل تحميل صلاحيات الأسلاك', 'error');
+            return;
+        }
+        cycleAccessState = {
+            users: Array.isArray(response.users) ? response.users : [],
+            cycles: (Array.isArray(response.cycles) ? response.cycles : []).filter((cycle) => Number(cycle.is_active))
+        };
+        renderCycleAccessRows();
+    } catch (error) {
+        showToast(error?.message || 'فشل تحميل صلاحيات الأسلاك', 'error');
+    }
+}
+
+function collectUserCycleSelections(userId) {
+    return Array.from(document.querySelectorAll(`[data-user="${userId}"][data-cycle]`))
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => checkbox.dataset.cycle);
+}
+
+function cycleAccessErrorMessage(response, fallback) {
+    const serverMessage = response?.error || response?.message;
+    if (serverMessage && /[\u0600-\u06FF]/.test(serverMessage)) return serverMessage;
+    const code = response?.code || response?.errorCode;
+    if (code && window.CycleAccessErrorContract && typeof window.CycleAccessErrorContract.getMessage === 'function') {
+        return window.CycleAccessErrorContract.getMessage(code);
+    }
+    return serverMessage || fallback;
+}
+
+async function saveUserCycles(userId) {
+    if (!window.api?.cycleAccess?.setUsers) {
+        showToast('هذه الميزة غير متاحة', 'error');
+        return;
+    }
+
+    const selected = collectUserCycleSelections(userId);
+    const response = await window.api.cycleAccess.setUsers({ userId, cycleCodes: selected });
+    if (!response || response.success === false) {
+        showToast(cycleAccessErrorMessage(response, 'فشل حفظ صلاحيات الأسلاك'), 'error', 6000);
+        await loadCycleAccess();
+        return;
+    }
+    showToast('تم حفظ صلاحيات الأسلاك', 'success');
+    await loadCycleAccess();
+}
+
+async function toggleCycleForAllUsers(cycleCode, enabled) {
+    if (!window.api?.cycleAccess?.setCycles) {
+        showToast('هذه الميزة غير متاحة', 'error');
+        return;
+    }
+
+    const { confirmed } = await showConfirm({
+        title: enabled ? 'تفعيل السلك للجميع' : 'تعطيل السلك للجميع',
+        message: enabled
+            ? 'هل تريد منح جميع المستخدمين حق العمل داخل هذا السلك؟'
+            : 'هل تريد سحب حق العمل داخل هذا السلك من جميع المستخدمين؟',
+        type: enabled ? 'info' : 'warning',
+        confirmText: enabled ? 'تفعيل' : 'تعطيل'
+    });
+    if (!confirmed) return;
+
+    const response = await window.api.cycleAccess.setCycles({ cycleCode, enabled });
+    if (!response || response.success === false) {
+        showToast(cycleAccessErrorMessage(response, 'فشل تحديث صلاحيات السلك'), 'error', 6000);
+        await loadCycleAccess();
+        return;
+    }
+    showToast(enabled ? 'تم تفعيل السلك لجميع المستخدمين' : 'تم تعطيل السلك لجميع المستخدمين', 'success');
+    await loadCycleAccess();
+}
+
+async function cycleAccessEnableForAll(cycleCode) {
+    await toggleCycleForAllUsers(cycleCode, true);
+}
+
+async function cycleAccessDisableForAll(cycleCode) {
+    await toggleCycleForAllUsers(cycleCode, false);
+}
+
 function stageGroupVisibilityChange(group, isVisible) {
     pageRows
         .filter((entry) => entry.group === group)
@@ -587,8 +784,6 @@ async function savePageVisibilityChanges() {
     }
 }
 
-const MASSAR_REGEX = /^\d+[A-Za-z]{1,2}$/;
-
 function identityStatusBadge(status) {
     const map = {
         pending: '<span class="settings-visibility-badge settings-visibility-badge--visible"><i class="fas fa-clock"></i> قيد المراجعة</span>',
@@ -678,9 +873,7 @@ async function loadIdentityChangeSection() {
         identityCurrentStatus = status;
         panel.style.display = '';
 
-        const codeInput = document.getElementById('ic-current-code');
         const nameInput = document.getElementById('ic-current-name');
-        if (codeInput) codeInput.value = status.massarCode || '';
         if (nameInput) nameInput.value = status.institutionName || '';
 
         await loadIdentityChangeRequests();
@@ -695,40 +888,19 @@ async function submitIdentityChangeRequest() {
         return;
     }
 
-    const newCode = document.getElementById('ic-new-code')?.value.trim() || '';
     const newName = document.getElementById('ic-new-name')?.value.trim() || '';
     const reason = document.getElementById('ic-reason')?.value.trim() || '';
     const syncIdentity = document.getElementById('ic-sync-identity')?.checked ?? true;
 
-    if (!newCode && !newName) {
-        showToast('يرجى إدخال الرمز الجديد أو الاسم الجديد على الأقل', 'warning');
+    if (!newName) {
+        showToast('يرجى إدخال الاسم الجديد', 'warning');
         return;
-    }
-
-    if (newCode && !MASSAR_REGEX.test(newCode)) {
-        showToast('رمز المؤسسة غير صالح. يجب أن يتكون من أرقام في البداية ثم حرف أو حرفين في النهاية', 'error');
-        return;
-    }
-
-    const currentCode = identityCurrentStatus?.massarCode || '';
-    const codeChanged = newCode && newCode !== currentCode;
-
-    if (codeChanged) {
-        const { confirmed } = await showConfirm({
-            title: 'تأكيد تغيير رمز المؤسسة',
-            message: `هل تريد طلب تغيير رمز المؤسسة من "${currentCode}" إلى "${newCode}"؟`,
-            detail: 'تغيير الرمز عملية حساسة تتطلب نقل جميع البيانات. سيتم مراجعة الطلب من طرف مدير التطبيق.',
-            type: 'warning',
-            confirmText: 'إرسال الطلب'
-        });
-        if (!confirmed) return;
     }
 
     const handle = showToast.loading('جاري إرسال الطلب...');
     try {
         const result = await window.api.institution.submitIdentityChangeRequest({
-            codeEtablissement: newCode || undefined,
-            institutionName: newName || undefined,
+            institutionName: newName,
             reason,
             syncSchoolIdentity: syncIdentity
         });
@@ -739,7 +911,6 @@ async function submitIdentityChangeRequest() {
         }
 
         handle.success('تم إرسال الطلب بنجاح');
-        document.getElementById('ic-new-code').value = '';
         document.getElementById('ic-new-name').value = '';
         document.getElementById('ic-reason').value = '';
         await loadIdentityChangeRequests();
@@ -796,11 +967,16 @@ async function initSettingsUsersPage() {
     await loadLinkRequests({ silent: true });
     await loadIdentityChangeSection();
     await loadPageVisibilityRows();
+    await loadCycleAccess();
 
     document.getElementById('form')?.addEventListener('submit', addUser);
     document.getElementById('refresh-link-requests')?.addEventListener('click', async () => {
         await loadLinkRequests();
         showToast('تم تحديث طلبات الربط', 'info');
+    });
+    document.getElementById('refresh-cycle-access')?.addEventListener('click', async () => {
+        await loadCycleAccess();
+        showToast('تم تحديث صلاحيات الأسلاك', 'info');
     });
     document.getElementById('ic-submit-btn')?.addEventListener('click', submitIdentityChangeRequest);
     document.getElementById('save-page-visibility')?.addEventListener('click', savePageVisibilityChanges);
@@ -855,6 +1031,9 @@ async function initSettingsUsersPage() {
 
 window.changeRole = changeRole;
 window.toggleDisable = toggleDisable;
+window.saveUserCycles = saveUserCycles;
+window.cycleAccessEnableForAll = cycleAccessEnableForAll;
+window.cycleAccessDisableForAll = cycleAccessDisableForAll;
 window.stagePageVisibilityChange = stagePageVisibilityChange;
 window.stageGroupVisibilityChange = stageGroupVisibilityChange;
 window.approveLinkRequest = approveLinkRequest;

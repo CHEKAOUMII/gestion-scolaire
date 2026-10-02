@@ -1,23 +1,22 @@
 const { printDocument } = require('../reports/engine');
-const { getIdentity, updateIdentity } = require('../reports/identity');
+const { getIdentity, updateIdentity, readIdentityDiagnostics } = require('../reports/identity');
 const { renderLetterhead } = require('../reports/letterhead');
 const { FORM_BUILDERS } = require('../reports/channels/adminForms');
-const { getDb, getDbPath } = require('../db/context');
+const { getDb } = require('../db/context');
+const { authErrorResponse, handleAuthedRead, handleWrite } = require('./ipc-helpers');
+const { requireRole } = require('./auth');
+
+const IDENTITY_DIAG_ROLES = ['admin', 'developer', 'staff', 'principal'];
 
 function getIdentityDiagnostics() {
     const db = getDb();
-    const dbPath = getDbPath();
-    const tableExists = !!db
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'school_identity'")
-        .get();
-    const rows = tableExists ? db.prepare('SELECT key, value FROM school_identity ORDER BY key').all() : [];
+    const { tableExists, rows } = readIdentityDiagnostics(db);
     const identity = {};
     for (const row of rows) {
         identity[row.key] = row.value;
     }
 
     return {
-        dbPath,
         tableExists,
         rowCount: rows.length,
         identity: {
@@ -26,9 +25,7 @@ function getIdentityDiagnostics() {
             directorate: identity.directorate || '',
             commune: identity.commune || '',
             city: identity.city || '',
-            school_year: identity.school_year || '',
-            logo_base64: identity.logo_base64 || '',
-            signature_base64: identity.signature_base64 || ''
+            school_year: identity.school_year || ''
         },
         hasLogo: !!identity.logo_base64,
         logoLength: String(identity.logo_base64 || '').length
@@ -37,31 +34,32 @@ function getIdentityDiagnostics() {
 
 function registerReportsIpc(ipcMain) {
     // Unified document printing — single entry point for all pages
-    ipcMain.handle('reports:printDocument', (_event, payload) => {
-        return printDocument(payload);
-    });
+    // ISOLATION-CARVEOUT (Slice 0): printDocument/generateAdminForm render caller data + institution identity only; the engine runs no school-data queries (pinned by scripts/check-invariants.js Check D). Scoping this surface needs an ADR + tests.
+    handleAuthedRead(ipcMain, 'reports:printDocument', (_ctx, payload) => printDocument(payload));
 
     // Identity management
-    ipcMain.handle('reports:getIdentity', () => {
-        return getIdentity();
+    handleAuthedRead(ipcMain, 'reports:getIdentity', () => getIdentity());
+
+    ipcMain.handle('reports:getIdentityDiagnostics', async (event) => {
+        try {
+            requireRole(event, IDENTITY_DIAG_ROLES);
+            return getIdentityDiagnostics();
+        } catch (err) {
+            return authErrorResponse(err);
+        }
     });
 
-    ipcMain.handle('reports:getIdentityDiagnostics', () => {
-        return getIdentityDiagnostics();
-    });
-
-    ipcMain.handle('reports:updateIdentity', (_event, updates) => {
-        return updateIdentity(updates);
-    });
+    // Same writers as the institution identity channels (permissions.js settings-school page roles)
+    handleWrite(ipcMain, 'reports:updateIdentity', ['principal', 'external-guardian'], (db, _event, updates) =>
+        updateIdentity(updates || {})
+    );
 
     // Server-rendered letterhead — single source of truth for all contexts
-    ipcMain.handle('reports:renderLetterhead', (_event, overrides) => {
-        return renderLetterhead(overrides || {});
-    });
+    handleAuthedRead(ipcMain, 'reports:renderLetterhead', (_ctx, overrides) => renderLetterhead(overrides || {}));
 
     // Admin forms — generates official form PDFs via the unified engine
-    ipcMain.handle('reports:generateAdminForm', (_event, payload) => {
-        const { formType, data = {}, mode = 'pdf' } = payload;
+    handleAuthedRead(ipcMain, 'reports:generateAdminForm', (_ctx, payload) => {
+        const { formType, data = {}, mode = 'pdf' } = payload || {};
         const builder = FORM_BUILDERS[formType];
         if (!builder) {
             return { success: false, error: `نوع الاستمارة غير معروف: ${formType}` };

@@ -1,0 +1,376 @@
+{
+  "_metadata": {
+    "attempt": 1,
+    "capturedOn": "F (UNFIXED code, post-key-shape-unification, pre-multi-step-repair)",
+    "iterTag": "A1",
+    "note": "Task 7.1 will compare F' output against this snapshot. The only permitted change is `coverageRepairWarnings: []` → `{}` (pre-fix array → post-fix empty map; design.md §\"Specific Changes\" point 2).",
+    "seed": 12648430,
+    "spec": "proctor-v2-phase2-75-multi-step-repair",
+    "task": "2.1 — preservation PBT canonical snapshot"
+  },
+  "input": {
+    "D_expected": 0,
+    "customWeights": null,
+    "dutyData": {},
+    "enablePhase3": false,
+    "examDistributionRules": {
+      "proctorsPerRoom": 1,
+      "reservesPerSession": 0
+    },
+    "exemptionsData": {},
+    "meAssignments": {
+      "CIN_A1_0": 1,
+      "CIN_A1_1": 2,
+      "CIN_A1_10": 1,
+      "CIN_A1_11": 2,
+      "CIN_A1_12": 1,
+      "CIN_A1_13": 2,
+      "CIN_A1_14": 1,
+      "CIN_A1_15": 2,
+      "CIN_A1_2": 1,
+      "CIN_A1_3": 2,
+      "CIN_A1_4": 1,
+      "CIN_A1_5": 2,
+      "CIN_A1_6": 1,
+      "CIN_A1_7": 2,
+      "CIN_A1_8": 1,
+      "CIN_A1_9": 2
+    },
+    "options": {
+      "allowDayReuse": true,
+      "allowHalfdayReuse": false,
+      "avoidSpecialty": true,
+      "noRoomRepeat": false,
+      "preferMixedGenderPair": false,
+      "proctorSpecialties": {
+        "CIN_A1_0": "عام",
+        "CIN_A1_1": "عام",
+        "CIN_A1_10": "عام",
+        "CIN_A1_11": "عام",
+        "CIN_A1_12": "عام",
+        "CIN_A1_13": "عام",
+        "CIN_A1_14": "عام",
+        "CIN_A1_15": "عام",
+        "CIN_A1_2": "عام",
+        "CIN_A1_3": "عام",
+        "CIN_A1_4": "عام",
+        "CIN_A1_5": "عام",
+        "CIN_A1_6": "عام",
+        "CIN_A1_7": "عام",
+        "CIN_A1_8": "عام",
+        "CIN_A1_9": "عام"
+      },
+      "respectMorningEvening": true,
+      "roomsList": [
+        {
+          "key": "R0",
+          "level_name": "الثانية بكالوريا",
+          "roomName": "قاعة R0",
+          "room_num": "R0"
+        }
+      ]
+    },
+    "proctorsList": [
+      {
+        "cin": "CIN_A1_0",
+        "gender": "ذكر",
+        "id": 1,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_0",
+        "teacher_name_fr": "Synth_A1_0"
+      },
+      {
+        "cin": "CIN_A1_1",
+        "gender": "أنثى",
+        "id": 2,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_1",
+        "teacher_name_fr": "Synth_A1_1"
+      },
+      {
+        "cin": "CIN_A1_2",
+        "gender": "ذكر",
+        "id": 3,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_2",
+        "teacher_name_fr": "Synth_A1_2"
+      },
+      {
+        "cin": "CIN_A1_3",
+        "gender": "أنثى",
+        "id": 4,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_3",
+        "teacher_name_fr": "Synth_A1_3"
+      },
+      {
+        "cin": "CIN_A1_4",
+        "gender": "ذكر",
+        "id": 5,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_4",
+        "teacher_name_fr": "Synth_A1_4"
+      },
+      {
+        "cin": "CIN_A1_5",
+        "gender": "أنثى",
+        "id": 6,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_5",
+        "teacher_name_fr": "Synth_A1_5"
+      },
+      {
+        "cin": "CIN_A1_6",
+        "gender": "ذكر",
+        "id": 7,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_6",
+        "teacher_name_fr": "Synth_A1_6"
+      },
+      {
+        "cin": "CIN_A1_7",
+        "gender": "أنثى",
+        "id": 8,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_7",
+        "teacher_name_fr": "Synth_A1_7"
+      },
+      {
+        "cin": "CIN_A1_8",
+        "gender": "ذكر",
+        "id": 9,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_8",
+        "teacher_name_fr": "Synth_A1_8"
+      },
+      {
+        "cin": "CIN_A1_9",
+        "gender": "أنثى",
+        "id": 10,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_9",
+        "teacher_name_fr": "Synth_A1_9"
+      },
+      {
+        "cin": "CIN_A1_10",
+        "gender": "ذكر",
+        "id": 11,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_10",
+        "teacher_name_fr": "Synth_A1_10"
+      },
+      {
+        "cin": "CIN_A1_11",
+        "gender": "أنثى",
+        "id": 12,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_11",
+        "teacher_name_fr": "Synth_A1_11"
+      },
+      {
+        "cin": "CIN_A1_12",
+        "gender": "ذكر",
+        "id": 13,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_12",
+        "teacher_name_fr": "Synth_A1_12"
+      },
+      {
+        "cin": "CIN_A1_13",
+        "gender": "أنثى",
+        "id": 14,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_13",
+        "teacher_name_fr": "Synth_A1_13"
+      },
+      {
+        "cin": "CIN_A1_14",
+        "gender": "ذكر",
+        "id": 15,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_14",
+        "teacher_name_fr": "Synth_A1_14"
+      },
+      {
+        "cin": "CIN_A1_15",
+        "gender": "أنثى",
+        "id": 16,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A1_15",
+        "teacher_name_fr": "Synth_A1_15"
+      }
+    ],
+    "randomSeed": 42,
+    "reservesConfig": {
+      "fixed": 0,
+      "mode": "fixed",
+      "percent": 0
+    },
+    "scheduleEntries": [
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الأولى",
+        "subject_name": "العربية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثانية",
+        "subject_name": "الفرنسية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثالثة",
+        "subject_name": "الإنجليزية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "مساء",
+        "session": "الحصة الأولى",
+        "subject_name": "الفرنسية",
+        "time_from": "14:00",
+        "time_to": "16:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "مساء",
+        "session": "الحصة الثانية",
+        "subject_name": "الإنجليزية",
+        "time_from": "14:00",
+        "time_to": "16:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "مساء",
+        "session": "الحصة الثالثة",
+        "subject_name": "العربية",
+        "time_from": "14:00",
+        "time_to": "16:00"
+      }
+    ],
+    "weightsPreset": "توازن"
+  },
+  "observation": {
+    "classBounds": {
+      "0,1,2,3,4,5|0": {
+        "D_expected_class": 0,
+        "G_class": 6,
+        "classLowerBound": 0,
+        "classUpperBound": 1
+      }
+    },
+    "coverageRepairSwaps": 0,
+    "coverageRepairUnresolved": 0,
+    "coverageRepairWarnings": [],
+    "histogram": {
+      "1": 6
+    },
+    "histogramSlotPerKey": {
+      "CIN_A1_0": 1,
+      "CIN_A1_1": 1,
+      "CIN_A1_2": 1,
+      "CIN_A1_3": 1,
+      "CIN_A1_4": 1,
+      "CIN_A1_5": 1
+    },
+    "loadBalance": {
+      "giniCoefficient": 0.625,
+      "max": 1,
+      "min": 0,
+      "std": 0.4841229182759271
+    },
+    "proctorKeysByRow": [
+      [
+        "CIN_A1_0"
+      ],
+      [
+        "CIN_A1_2"
+      ],
+      [
+        "CIN_A1_4"
+      ],
+      [
+        "CIN_A1_1"
+      ],
+      [
+        "CIN_A1_3"
+      ],
+      [
+        "CIN_A1_5"
+      ]
+    ],
+    "reserveKeysByRow": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    ],
+    "rowCount": 6
+  }
+}

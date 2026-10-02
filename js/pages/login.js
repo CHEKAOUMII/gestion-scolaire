@@ -43,6 +43,28 @@ function getAuthMode(sessionUser, response) {
     return mode === 'offline' ? 'offline' : 'firebase';
 }
 
+function normalizeSessionRole(raw) {
+    const role = String(raw || '')
+        .trim()
+        .toLowerCase();
+    if (role === 'staff' || role === 'director') return 'principal';
+    return role || 'viewer';
+}
+
+/** Integrity hash must match js/shared/auth-session.js computeSessionHash. */
+function computeSessionHash(data) {
+    const payload = [data.userId, data.role, data.loggedAt].join('|');
+    const key = 'gsl_session_integrity_2024';
+    const combined = key + ':' + payload;
+    let hash = 0;
+    for (let i = 0; i < combined.length; i++) {
+        const char = combined.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash;
+    }
+    return hash.toString(36);
+}
+
 function saveLocalSession(sessionUser, fallbackEmail, fallbackName, response) {
     const sessionData = {
         userId: Number(sessionUser.userId || 0),
@@ -50,10 +72,11 @@ function saveLocalSession(sessionUser, fallbackEmail, fallbackName, response) {
         email: String(sessionUser.email || fallbackEmail || '')
             .trim()
             .toLowerCase(),
-        role: String(sessionUser.role || 'staff'),
+        role: normalizeSessionRole(sessionUser.role || 'staff'),
         loggedAt: Date.now(),
         source: getAuthMode(sessionUser, response)
     };
+    sessionData._h = computeSessionHash(sessionData);
     localStorage.setItem('gsl_auth_session_v1', JSON.stringify(sessionData));
 }
 
@@ -234,22 +257,48 @@ async function checkExistingAdminSession() {
     }
 }
 
-async function enforceSetupContext(loginError, loginErrorText) {
-    if (!window.api?.linking?.getInstitutionStatus) return true;
+function setSignupBanner(visible, message) {
+    const banner = document.getElementById('signup-status-banner');
+    const text = document.getElementById('signup-status-text');
+    if (banner && text) {
+        text.textContent = message || '';
+        banner.classList.toggle('show', Boolean(message) && visible);
+    }
+}
+
+async function refreshSignupStatus() {
+    const cta = document.getElementById('btn-goto-setup');
+    if (!cta) return;
+    if (!window.api?.institution?.getStatus) {
+        cta.disabled = false;
+        setSignupBanner(false, '');
+        return;
+    }
     try {
-        const response = await window.api.linking.getInstitutionStatus();
-        if (response?.success && !response.setupCompleted) {
-            window.location.replace('setup.html');
-            return false;
+        const response = await window.api.institution.getStatus();
+        if (response?.success && response.setupCompleted) {
+            const name = response.institutionName || response.massarCode || '';
+            const label = name ? `«${name}»` : '';
+            setSignupBanner(true, `هذا الجهاز مرتبط بمؤسسة ${label}. إنشاء مؤسسة جديدة غير متاح عليه.`);
+            cta.disabled = true;
+        } else {
+            setSignupBanner(false, '');
+            cta.disabled = false;
         }
     } catch (error) {
-        showLoginMessage(
-            loginError,
-            loginErrorText,
-            'تعذر قراءة إعداد المؤسسة. يمكنك محاولة تسجيل الدخول، وسيتم استعمال الدخول المحلي فقط إذا كان متاحاً.'
-        );
+        setSignupBanner(false, '');
+        cta.disabled = false;
     }
-    return true;
+}
+
+function initSignupPanel() {
+    const cta = document.getElementById('btn-goto-setup');
+    if (cta) {
+        cta.addEventListener('click', () => {
+            if (cta.disabled) return;
+            window.location.href = 'setup.html';
+        });
+    }
 }
 
 function showChangePasswordView() {
@@ -265,6 +314,14 @@ function showLoginView() {
     if (tabs) tabs.style.display = '';
     setAuthForm('form-login');
     setActiveTab('tab-login');
+}
+
+function showSignupView() {
+    const tabs = document.querySelector('.auth-tabs');
+    if (tabs) tabs.style.display = '';
+    setAuthForm('form-signup');
+    setActiveTab('tab-signup');
+    refreshSignupStatus();
 }
 
 function initLoginPage() {
@@ -291,6 +348,8 @@ function initLoginPage() {
 
     if (authContext.forceChangePassword) {
         showChangePasswordView();
+    } else if (authContext.allowSignup) {
+        showSignupView();
     } else {
         showLoginView();
     }
@@ -309,8 +368,11 @@ function initLoginPage() {
             setAuthForm(`form-${target}`);
             showLoginMessage(loginError, loginErrorText, '');
             showLoginMessage(loginSuccess, loginSuccessText, '');
+            if (target === 'signup') refreshSignupStatus();
         });
     });
+
+    initSignupPanel();
 
     document.querySelectorAll('.password-toggle').forEach((button) => {
         const targetId = button.dataset.target;
@@ -470,9 +532,10 @@ function initLoginPage() {
         }
     });
 
-    enforceSetupContext(loginError, loginErrorText).then((canContinue) => {
-        if (canContinue) checkExistingAdminSession();
-    });
+    // Note: login.html stays reachable even when the institution is not set up locally —
+    // the setup screen's "تسجيل الدخول" entry targets exactly that case (linked-device
+    // login provisions the institution from the Firebase profile on first success).
+    checkExistingAdminSession();
 }
 
 if (document.readyState === 'loading') {

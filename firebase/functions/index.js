@@ -185,21 +185,28 @@ async function resolveSchoolStaffTarget({ idToken, requestedSchoolId }) {
     return requireSchoolAdmin(idToken);
 }
 
-const SCHOOL_ID_REGEX = /^\d+[A-Za-z]{1,2}$/;
+// Renamed from SCHOOL_ID_REGEX and relaxed: the Massar_Code is treated as ordinary
+// descriptive institution information (like the institution name), so it is no longer
+// forced into the old digits-then-letters shape. The only remaining constraint is its
+// character set — uppercase letters and digits — checked here; length (max 20 chars) is
+// validated separately wherever this constant is used. It never validates the opaque,
+// server-generated School_Id.
+const MASSAR_CODE_REGEX = /^[A-Z0-9]+$/;
+const MASSAR_CODE_MAX_LENGTH = 20;
 
 function functionError(res, err) {
     const code = err.message || 'INTERNAL_ERROR';
     const status = Number(err.status) || (
         code === 'INVALID_ROLE' || code === 'INVALID_REQUEST' || code === 'INVALID_SCHOOL_ID' ||
-        code === 'MISSING_SCHOOL_ID' ? 400 :
+        code === 'MISSING_SCHOOL_ID' || code === 'INVALID_MASSAR' || code === 'SCHOOL_ID_IMMUTABLE' ? 400 :
         code === 'MISSING_ID_TOKEN' ? 401 :
-        code === 'BOOTSTRAP_SECRET_NOT_CONFIGURED' ? 500 :
+        code === 'BOOTSTRAP_SECRET_NOT_CONFIGURED' || code === 'SCHOOL_ID_GENERATION_FAILED' ? 500 :
         code === 'BOOTSTRAP_UNAUTHORIZED' || code === 'FORBIDDEN' || code === 'ADMIN_REQUIRED' ||
         code === 'USER_DISABLED' || code === 'SCHOOL_MISMATCH' || code === 'FORBIDDEN_ROLE' ? 403 :
         code === 'SCHOOL_EXISTS' || code === 'EMAIL_IN_USE_DIFFERENT_SCHOOL' ||
         code === 'TARGET_SCHOOL_EXISTS' || code === 'PENDING_REQUEST_EXISTS' ||
-        code === 'REQUEST_ALREADY_REVIEWED' ? 409 :
-        code === 'REQUEST_NOT_FOUND' || code === 'SCHOOL_NOT_FOUND' ? 404 :
+        code === 'REQUEST_ALREADY_REVIEWED' || code === 'MASSAR_AMBIGUOUS' ? 409 :
+        code === 'REQUEST_NOT_FOUND' || code === 'SCHOOL_NOT_FOUND' || code === 'MASSAR_NOT_FOUND' ? 404 :
         500
     );
     return res.status(status).json({ error: code, code });
@@ -431,42 +438,97 @@ exports.authExchange = onRequest({ cors: true }, async (req, res) => {
     return res.status(200).json({ customToken, schoolId: customerRef, expiresAt: expiresAt || null });
 });
 
+// Uppercase letters + digits only (no lowercase): several client-side normalization call
+// sites (main/ipc/institution.js's normalizeMassarCode, main/firebase/config.js's
+// readSchoolId) call .toUpperCase() on any identifier they read. If the generated id could
+// contain lowercase characters, those call sites would silently mutate it before it's
+// stored/compared, breaking exact-value equality against the Firestore doc ID and the auth
+// custom claim. Restricting the alphabet to uppercase avoids that entirely.
+const SCHOOL_ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const SCHOOL_ID_MIN_LENGTH = 20;
+const SCHOOL_ID_MAX_LENGTH = 30;
+const SCHOOL_ID_GENERATION_MAX_ATTEMPTS = 5;
+
+function generateSchoolIdCandidate() {
+    const length = SCHOOL_ID_MIN_LENGTH + crypto.randomInt(SCHOOL_ID_MAX_LENGTH - SCHOOL_ID_MIN_LENGTH + 1);
+    const bytes = crypto.randomBytes(length);
+    let out = '';
+    for (let i = 0; i < length; i++) {
+        out += SCHOOL_ID_ALPHABET[bytes[i] % SCHOOL_ID_ALPHABET.length];
+    }
+    return out;
+}
+
+/**
+ * Generates a candidate School_Id and confirms (via a transaction) that no document already
+ * exists at schools/{candidate}, reserving a minimal placeholder document for it atomically
+ * so a concurrent request cannot claim the same id (Req 2.1, 2.2, 2.4, 2.5). Up to 5 total
+ * attempts (the initial candidate counts as attempt 1, at most 4 retries after a collision).
+ */
+async function reserveUniqueSchoolId() {
+    for (let attempt = 1; attempt <= SCHOOL_ID_GENERATION_MAX_ATTEMPTS; attempt++) {
+        const candidate = generateSchoolIdCandidate();
+        const schoolRef = db.doc(`schools/${candidate}`);
+        try {
+            const reserved = await db.runTransaction(async (tx) => {
+                const snap = await tx.get(schoolRef);
+                if (snap.exists) {
+                    return false;
+                }
+                tx.set(schoolRef, {
+                    schoolId: candidate,
+                    status: 'provisioning',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                return true;
+            });
+            if (reserved) {
+                return candidate;
+            }
+        } catch (txErr) {
+            console.warn('[bootstrapInstitution] schoolId reservation attempt failed:', txErr.message);
+        }
+    }
+
+    const err = new Error('SCHOOL_ID_GENERATION_FAILED');
+    err.status = 500;
+    throw err;
+}
+
 /**
  * POST /bootstrapInstitution
  * Creates a school, its institution metadata, and the first admin Firebase user.
+ * The School_Id is always generated server-side (Req 1.1-1.3) — any client-supplied
+ * schoolId/gresaCode is ignored. The Massar_Code is no longer collected at registration
+ * (registration simplification) — it is always stored as '' for newly-bootstrapped
+ * institutions. Existing institutions may still have a massarCode set via
+ * updateInstitutionMassarCode, which is unaffected by this endpoint.
  */
 exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTSTRAP_SECRET'] }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
+    let reservedSchoolId = null;
     try {
         requireBootstrapAuthorization(req);
-        const {
-            gresaCode,
-            schoolId: rawSchoolId,
-            massarCode,
-            institutionName,
-            adminEmail,
-            adminPassword,
-            adminName
-        } = req.body || {};
-        const schoolId = normalizeSchoolId(gresaCode || rawSchoolId || massarCode);
+        const { institutionName, adminEmail, adminPassword, adminName } = req.body || {};
+
         const email = normalizeEmail(adminEmail);
         const name = String(adminName || '').trim();
-        const schoolName = String(institutionName || '').trim() || schoolId;
+        const schoolName = String(institutionName || '').trim();
+        const massarCode = '';
 
-        if (!schoolId || !SCHOOL_ID_REGEX.test(schoolId) || !schoolName || !email || !adminPassword || !name) {
+        // Required-field validation happens before any Firestore/Auth write (Req 1.6).
+        if (!schoolName || !email || !adminPassword || !name) {
             const err = new Error('INVALID_REQUEST');
             err.status = 400;
             throw err;
         }
 
+        // Reserve the opaque, server-generated School_Id (Req 1.1-1.5, 2.1-2.5) — ignores
+        // any client-supplied schoolId/gresaCode entirely.
+        const schoolId = await reserveUniqueSchoolId();
+        reservedSchoolId = schoolId;
         const schoolRef = db.doc(`schools/${schoolId}`);
-        const schoolSnap = await schoolRef.get();
-        if (schoolSnap.exists) {
-            const err = new Error('SCHOOL_EXISTS');
-            err.status = 409;
-            throw err;
-        }
 
         const { userRecord, profile } = await createOrUpdateSchoolUser({
             schoolId,
@@ -482,6 +544,7 @@ exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTST
         const institution = {
             schoolId,
             gresaCode: schoolId,
+            massarCode,
             institutionName: schoolName,
             adminUid: userRecord.uid,
             adminEmail: email,
@@ -493,6 +556,7 @@ exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTST
         const publicInstitution = {
             schoolId,
             gresaCode: schoolId,
+            massarCode,
             institutionName: schoolName,
             adminUid: userRecord.uid,
             adminEmail: email,
@@ -500,10 +564,12 @@ exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTST
             status: 'active'
         };
 
+        // Finalize the reserved placeholder with the full institution record.
         await db.batch()
             .set(schoolRef, {
                 schoolId,
                 gresaCode: schoolId,
+                massarCode,
                 institutionName: schoolName,
                 status: 'active',
                 createdAt: now,
@@ -518,10 +584,125 @@ exports.bootstrapInstitution = onRequest({ cors: true, secrets: ['GESTION_BOOTST
             customToken,
             uid: userRecord.uid,
             schoolId,
+            massarCode,
             firebaseConfig: getPublicFirebaseConfig(),
             profile: publicUserProfile(profile),
             institution: publicInstitution
         });
+    } catch (err) {
+        // Best-effort cleanup: if the School_Id was reserved but a later step (Auth user
+        // creation or the finalize write) failed, don't leave a permanently incomplete
+        // placeholder document behind.
+        if (reservedSchoolId) {
+            try {
+                const snap = await db.doc(`schools/${reservedSchoolId}`).get();
+                if (snap.exists && snap.get('status') === 'provisioning') {
+                    await db.doc(`schools/${reservedSchoolId}`).delete();
+                }
+            } catch (cleanupErr) {
+                console.warn('[bootstrapInstitution] cleanup of reserved schoolId failed:', cleanupErr.message);
+            }
+        }
+        return functionError(res, err);
+    }
+});
+
+/**
+ * POST /lookupInstitutionBySchoolMassarCode
+ * Resolves a descriptive Massar_Code to its institution's opaque School_Id, for the
+ * Relink_Operation (Req 6). Gated by the same shared bootstrap secret as
+ * bootstrapInstitution since relink happens before the device holds any per-school auth —
+ * this avoids turning the endpoint into a public institution-enumeration surface.
+ */
+exports.lookupInstitutionBySchoolMassarCode = onRequest(
+    { cors: true, secrets: ['GESTION_BOOTSTRAP_SECRET'] },
+    async (req, res) => {
+        if (!requirePost(req, res)) return;
+
+        try {
+            requireBootstrapAuthorization(req);
+            const massarCode = normalizeSchoolId(req.body?.massarCode);
+            if (!massarCode || massarCode.length > MASSAR_CODE_MAX_LENGTH || !MASSAR_CODE_REGEX.test(massarCode)) {
+                const err = new Error('INVALID_MASSAR');
+                err.status = 400;
+                throw err;
+            }
+
+            const snap = await db.collection('schools').where('massarCode', '==', massarCode).limit(2).get();
+            if (snap.size === 1) {
+                const doc = snap.docs[0];
+                return res.status(200).json({
+                    success: true,
+                    schoolId: doc.id,
+                    institutionName: doc.get('institutionName') || ''
+                });
+            }
+            if (snap.size > 1) {
+                const err = new Error('MASSAR_AMBIGUOUS');
+                err.status = 409;
+                throw err;
+            }
+
+            // No institution has massarCode == value — fall back to a legacy direct-id
+            // lookup (Req 6.8): institutions provisioned before this feature have
+            // schoolId/gresaCode literally equal to their old Massar code and were never
+            // given a separate massarCode field.
+            const legacySnap = await db.doc(`schools/${massarCode}`).get();
+            if (legacySnap.exists) {
+                return res.status(200).json({
+                    success: true,
+                    schoolId: legacySnap.id,
+                    institutionName: legacySnap.get('institutionName') || ''
+                });
+            }
+
+            const err = new Error('MASSAR_NOT_FOUND');
+            err.status = 404;
+            throw err;
+        } catch (err) {
+            return functionError(res, err);
+        }
+    }
+);
+
+/**
+ * POST /updateInstitutionMassarCode
+ * Principal-only: directly updates the descriptive Massar_Code with no approval workflow
+ * (Req 8). Never modifies School_Id. Keeps the massarCode field in sync across both
+ * schools/{schoolId} and schools/{schoolId}/meta/institution, since bootstrapInstitution
+ * writes massarCode to both documents.
+ */
+exports.updateInstitutionMassarCode = onRequest({ cors: true }, async (req, res) => {
+    if (!requirePost(req, res)) return;
+
+    try {
+        const { idToken, massarCode: rawMassarCode } = req.body || {};
+        const caller = await requirePrincipalAuth(idToken);
+
+        const massarCode = normalizeSchoolId(rawMassarCode);
+        if (!massarCode) {
+            const err = new Error('INVALID_MASSAR');
+            err.status = 400;
+            throw err;
+        }
+        if (massarCode.length > MASSAR_CODE_MAX_LENGTH || !MASSAR_CODE_REGEX.test(massarCode)) {
+            const err = new Error('INVALID_MASSAR');
+            err.status = 400;
+            throw err;
+        }
+
+        const now = admin.firestore.FieldValue.serverTimestamp();
+        const batch = db.batch();
+        batch.update(db.doc(`schools/${caller.schoolId}`), { massarCode, updatedAt: now });
+
+        const metaRef = db.doc(`schools/${caller.schoolId}/meta/institution`);
+        const metaSnap = await metaRef.get();
+        if (metaSnap.exists) {
+            batch.update(metaRef, { massarCode, updatedAt: now });
+        }
+
+        await batch.commit();
+        return res.status(200).json({ success: true, massarCode });
     } catch (err) {
         return functionError(res, err);
     }
@@ -865,24 +1046,25 @@ exports.resolveLinkRequest = onRequest({ cors: true }, async (req, res) => {
 
 /**
  * POST /submitInstitutionIdentityChangeRequest
- * Principal-only: submits a request to change institution code and/or name.
+ * Principal-only: submits a request to change the institution name. School_Id/Massar_Code
+ * are immutable via this approval mechanism (Req 9.2, 9.4) — Massar edits go through the
+ * direct updateInstitutionMassarCode function instead (Req 8).
  * Stored in top-level collection institutionIdentityRequests.
  */
 exports.submitInstitutionIdentityChangeRequest = onRequest({ cors: true }, async (req, res) => {
     if (!requirePost(req, res)) return;
 
     try {
-        const { idToken, newSchoolId: rawNewSchoolId, institutionName, reason, syncSchoolIdentity } = req.body || {};
+        const { idToken, newSchoolId: rawNewSchoolId, institutionName, reason } = req.body || {};
         const caller = await requirePrincipalAuth(idToken);
 
-        const newSchoolId = rawNewSchoolId ? normalizeSchoolId(rawNewSchoolId) : null;
-        const newName = institutionName ? String(institutionName).trim() : null;
-
-        if (newSchoolId && !SCHOOL_ID_REGEX.test(newSchoolId)) {
-            const err = new Error('INVALID_SCHOOL_ID');
+        if (rawNewSchoolId) {
+            const err = new Error('SCHOOL_ID_IMMUTABLE');
             err.status = 400;
             throw err;
         }
+
+        const newName = institutionName ? String(institutionName).trim() : null;
 
         const schoolSnap = await db.doc(`schools/${caller.schoolId}`).get();
         if (!schoolSnap.exists) {
@@ -893,9 +1075,8 @@ exports.submitInstitutionIdentityChangeRequest = onRequest({ cors: true }, async
         const currentData = schoolSnap.data();
         const oldName = currentData.institutionName || '';
 
-        const codeChanged = newSchoolId && newSchoolId !== caller.schoolId;
         const nameChanged = newName && newName !== oldName;
-        if (!codeChanged && !nameChanged) {
+        if (!nameChanged) {
             const err = new Error('INVALID_REQUEST');
             err.status = 400;
             throw err;
@@ -917,12 +1098,11 @@ exports.submitInstitutionIdentityChangeRequest = onRequest({ cors: true }, async
         await requestRef.set({
             status: 'pending',
             oldSchoolId: caller.schoolId,
-            newSchoolId: codeChanged ? newSchoolId : caller.schoolId,
+            newSchoolId: caller.schoolId,
             oldInstitutionName: oldName,
-            newInstitutionName: nameChanged ? newName : oldName,
-            codeChanged: !!codeChanged,
-            nameChanged: !!nameChanged,
-            syncSchoolIdentity: !!syncSchoolIdentity,
+            newInstitutionName: newName,
+            codeChanged: false,
+            nameChanged: true,
             requestedByUid: caller.uid,
             requestedByEmail: caller.email,
             requestedByRole: caller.role,
@@ -1122,8 +1302,10 @@ exports.rejectInstitutionIdentityChangeRequest = onRequest({ cors: true }, async
 /**
  * POST /approveInstitutionIdentityChangeRequest
  * App-admin only: approves a pending identity change request.
- * For name-only changes: updates school doc and meta.
- * For code changes: copies school data to new path, updates Auth claims, marks old school as migrated.
+ * Name-only (Req 9.2): updates the institution name on the school doc and its meta doc.
+ * School_Id/Massar_Code are immutable through this mechanism — any pre-existing pending
+ * request that still carries a code-change component (submitted before this feature
+ * shipped) is rejected rather than migrated (Req 9.6).
  */
 exports.approveInstitutionIdentityChangeRequest = onRequest(
     { cors: true, timeoutSeconds: 540, memory: '1GiB' },
@@ -1155,11 +1337,14 @@ exports.approveInstitutionIdentityChangeRequest = onRequest(
                 throw err;
             }
 
+            if (requestData.codeChanged) {
+                const err = new Error('SCHOOL_ID_IMMUTABLE');
+                err.status = 400;
+                throw err;
+            }
+
             const oldSchoolId = requestData.oldSchoolId;
-            const newSchoolId = requestData.newSchoolId;
-            const codeChanged = !!requestData.codeChanged;
             const newName = requestData.newInstitutionName;
-            const targetSchoolId = codeChanged ? newSchoolId : oldSchoolId;
 
             const oldSchoolSnap = await db.doc(`schools/${oldSchoolId}`).get();
             if (!oldSchoolSnap.exists) {
@@ -1168,105 +1353,29 @@ exports.approveInstitutionIdentityChangeRequest = onRequest(
                 throw err;
             }
 
-            if (codeChanged) {
-                const newSchoolSnap = await db.doc(`schools/${newSchoolId}`).get();
-                if (newSchoolSnap.exists) {
-                    const err = new Error('TARGET_SCHOOL_EXISTS');
-                    err.status = 409;
-                    throw err;
-                }
-            }
-
             if (dryRun) {
                 return res.status(200).json({
                     success: true,
                     dryRun: true,
                     requestId,
-                    codeChanged,
+                    codeChanged: false,
                     oldSchoolId,
-                    newSchoolId: targetSchoolId
+                    newSchoolId: oldSchoolId
                 });
             }
 
             const now = admin.firestore.FieldValue.serverTimestamp();
-            const migrationId = `mig_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-            if (codeChanged) {
-                const oldSchoolData = oldSchoolSnap.data();
-                await db.doc(`schools/${newSchoolId}`).set({
-                    ...oldSchoolData,
-                    schoolId: newSchoolId,
-                    gresaCode: newSchoolId,
-                    institutionName: newName,
-                    migratedFrom: oldSchoolId,
-                    updatedAt: now
-                });
+            await db.doc(`schools/${oldSchoolId}`).update({
+                institutionName: newName,
+                updatedAt: now
+            });
 
-                const subcollections = await db.doc(`schools/${oldSchoolId}`).listCollections();
-                for (const subcol of subcollections) {
-                    await copyCollectionTree(
-                        subcol,
-                        db.collection(`schools/${newSchoolId}/${subcol.id}`),
-                        (data, sourceRef) => {
-                            if (sourceRef.parent.id === 'users' && data.schoolId) {
-                                data.schoolId = newSchoolId;
-                            }
-                            return data;
-                        }
-                    );
-                }
-
-                await copyCollectionTree(
-                    db.collection(`syncLog/${oldSchoolId}/changes`),
-                    db.collection(`syncLog/${newSchoolId}/changes`)
-                );
-
-                const usersSnap = await db.collection(`schools/${newSchoolId}/users`).get();
-                const claimFailures = [];
-                const claimPromises = [];
-                usersSnap.forEach((userDoc) => {
-                    const uid = userDoc.id;
-                    const role = userDoc.get('role') || 'viewer';
-                    claimPromises.push(
-                        auth.getUser(uid)
-                            .then((u) => auth.setCustomUserClaims(uid, {
-                                ...(u.customClaims || {}),
-                                schoolId: newSchoolId,
-                                role
-                            }))
-                            .catch((e) => {
-                                console.warn(`[migration] claims update failed for ${uid}:`, e.message);
-                                claimFailures.push({ uid, error: e.message });
-                            })
-                    );
-                });
-                await Promise.all(claimPromises);
-                if (claimFailures.length > 0) {
-                    const err = new Error('CLAIMS_UPDATE_FAILED');
-                    err.status = 500;
-                    err.claimFailures = claimFailures;
-                    throw err;
-                }
-
-                await db.doc(`schools/${oldSchoolId}`).update({
-                    status: 'migrated',
-                    migratedTo: newSchoolId,
-                    writesDisabled: true,
-                    updatedAt: now
-                });
-            } else {
-                await db.doc(`schools/${oldSchoolId}`).update({
-                    institutionName: newName,
-                    updatedAt: now
-                });
-            }
-
-            const metaRef = db.doc(`schools/${targetSchoolId}/meta/institution`);
+            const metaRef = db.doc(`schools/${oldSchoolId}/meta/institution`);
             const metaSnap = await metaRef.get();
             if (metaSnap.exists) {
                 await metaRef.update({
                     institutionName: newName,
-                    ...(codeChanged ? { schoolId: newSchoolId, gresaCode: newSchoolId } : {}),
                     updatedAt: now
                 });
             }
@@ -1276,10 +1385,9 @@ exports.approveInstitutionIdentityChangeRequest = onRequest(
                 approvedByUid: caller.uid,
                 approvedByEmail: caller.email,
                 approvedAt: now,
-                migrationId,
-                resultSchoolId: targetSchoolId,
+                resultSchoolId: oldSchoolId,
                 requiresLocalApply: true,
-                requiresRelogin: codeChanged,
+                requiresRelogin: false,
                 updatedAt: now
             });
 
@@ -1287,10 +1395,9 @@ exports.approveInstitutionIdentityChangeRequest = onRequest(
                 success: true,
                 requestId,
                 status: 'approved',
-                migrationId,
-                codeChanged,
-                resultSchoolId: targetSchoolId,
-                requiresRelogin: codeChanged
+                codeChanged: false,
+                resultSchoolId: oldSchoolId,
+                requiresRelogin: false
             });
         } catch (err) {
             const requestId = req.body?.requestId;
@@ -1302,12 +1409,11 @@ exports.approveInstitutionIdentityChangeRequest = onRequest(
                         await requestRef.update({
                             status: 'failed',
                             error: err.message || 'INTERNAL_ERROR',
-                            errorDetails: err.claimFailures || null,
                             updatedAt: admin.firestore.FieldValue.serverTimestamp()
                         });
                     }
                 } catch (updateErr) {
-                    console.warn('[identity-migration] failed to mark request failed:', updateErr.message);
+                    console.warn('[identity-change] failed to mark request failed:', updateErr.message);
                 }
             }
             return functionError(res, err);

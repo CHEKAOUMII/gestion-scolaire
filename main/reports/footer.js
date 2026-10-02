@@ -1,4 +1,12 @@
-const { getIdentity, getAssetBase64 } = require('./identity');
+const {
+    getIdentity,
+    getAssetBase64,
+    resolveLogoMaxPx,
+    SEAL_BASE_PX,
+    SIGNATURE_BASE_WIDTH_PX,
+    SIGNATURE_BASE_HEIGHT_PX
+} = require('./identity');
+const { esc } = require('./html-escape');
 
 /**
  * Renders the official, locked footer with seal and signature fields.
@@ -14,6 +22,9 @@ function renderFooter(overrides = {}) {
     const id = getIdentity();
     const seal = getAssetBase64('seal_base64');
     const signature = getAssetBase64('signature_base64');
+    const sealPx = resolveLogoMaxPx(id.seal_scale, SEAL_BASE_PX);
+    const signatureW = resolveLogoMaxPx(id.signature_scale, SIGNATURE_BASE_WIDTH_PX);
+    const signatureH = resolveLogoMaxPx(id.signature_scale, SIGNATURE_BASE_HEIGHT_PX);
     const showSeal = overrides.showSeal !== false;
     const showSignature = overrides.showSignature !== false;
     const dateStr =
@@ -46,7 +57,7 @@ function renderFooter(overrides = {}) {
                     ${
                         showSeal && seal
                             ? `<img src="data:image/png;base64,${seal}"
-                             style="max-width: 72px; max-height: 72px; opacity: 0.85;"
+                             style="max-width: ${sealPx}px; max-height: ${sealPx}px; opacity: 0.85;"
                              alt="ختم المؤسسة">`
                             : showSeal
                               ? `<div style="
@@ -68,7 +79,7 @@ function renderFooter(overrides = {}) {
                     ${
                         showSignature && signature
                             ? `<img src="data:image/png;base64,${signature}"
-                             style="max-width: 100px; max-height: 48px; margin-bottom: 4px;"
+                             style="max-width: ${signatureW}px; max-height: ${signatureH}px; margin-bottom: 4px;"
                              alt="التوقيع">`
                             : '<div style="height: 32px;"></div>'
                     }
@@ -93,14 +104,6 @@ function renderFooter(overrides = {}) {
             border-top: 1px dashed #e5e5e5;
         ">${esc(id.footer_text)}</div>
     </div>`;
-}
-
-function esc(s) {
-    return String(s || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }
 
 module.exports = { renderFooter };

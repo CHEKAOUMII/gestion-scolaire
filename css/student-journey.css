@@ -1,0 +1,604 @@
+/* student-journey.css — Stitch "Variant 3: Refined Retention Journey"
+   Bento-grid middle content for the dashboard. Uses project theme tokens
+   (--color-surface, --color-border, --color-primary, semantic colors) so it
+   adapts to both light and dark modes. */
+
+.student-journey-section {
+    margin: 24px 32px 40px;
+    max-width: 1600px;
+}
+
+@media (max-width: 768px) {
+    .student-journey-section {
+        margin: 16px 16px 32px;
+    }
+}
+
+.sj-header {
+    margin-bottom: 24px;
+}
+
+.sj-title {
+    font-family: 'Hanken Grotesk', 'IBM Plex Sans Arabic', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 36px;
+    letter-spacing: -0.01em;
+    color: var(--color-text-main);
+    margin: 0 0 4px;
+}
+
+.sj-subtitle {
+    font-size: 15px;
+    line-height: 22px;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.sj-loading-note {
+    padding: 24px;
+    text-align: center;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+}
+
+/* === Bento grid === */
+.sj-bento {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 24px;
+}
+
+.sj-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s ease;
+    box-shadow: var(--shadow-card, 0 1px 2px rgba(0,0,0,0.06));
+}
+
+.sj-card:hover {
+    border-color: var(--color-primary);
+}
+
+.sj-card--age {
+    grid-column: span 12;
+}
+
+.sj-card--ratio {
+    grid-column: span 12;
+}
+
+.sj-card--risk,
+.sj-card--timeline {
+    grid-column: span 12;
+}
+
+.sj-summary-col {
+    grid-column: span 12;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+@media (min-width: 1024px) {
+    .sj-card--age {
+        grid-column: span 6;
+    }
+    .sj-card--ratio {
+        grid-column: span 6;
+    }
+    .sj-card--timeline {
+        grid-column: span 8;
+    }
+    .sj-summary-col {
+        grid-column: span 4;
+    }
+}
+
+/* === Card header === */
+.sj-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.sj-card-top--row {
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.sj-card-heading h3 {
+    font-family: 'Hanken Grotesk', 'IBM Plex Sans Arabic', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 24px;
+    color: var(--color-text-main);
+    margin: 0 0 2px;
+}
+
+.sj-card-sub {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.sj-icon {
+    font-size: 22px;
+    line-height: 1;
+    color: var(--color-primary);
+}
+
+.sj-icon--alt {
+    color: var(--color-success-text);
+}
+
+/* === CSS bar chart === */
+.sj-bar-chart {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 4px 12px;
+    border-bottom: 1px solid var(--color-border);
+    min-height: 200px;
+}
+
+.sj-bar-chart--ratio {
+    align-items: flex-end;
+}
+
+.sj-empty-state {
+    width: 100%;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+.sj-empty-state i {
+    font-size: 28px;
+    opacity: 0.65;
+}
+
+.sj-empty-state p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.sj-bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 0;
+    cursor: default;
+}
+
+.sj-bar-pair {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 3px;
+    width: min(100%, 54px);
+    height: 142px;
+}
+
+.sj-bar {
+    width: 50%;
+    max-width: 24px;
+    border-radius: 4px 4px 0 0;
+    transition: filter 0.2s ease, transform 0.2s ease;
+    min-height: 0;
+}
+
+.sj-bar--male {
+    background: var(--color-primary);
+}
+
+.sj-bar--female {
+    background: var(--color-warning-solid);
+}
+
+.sj-bar:hover {
+    filter: brightness(1.15);
+    transform: translateY(-2px);
+}
+
+.sj-bar--primary {
+    background: var(--color-primary);
+}
+
+.sj-bar--primary-60 {
+    background: color-mix(in srgb, var(--color-primary) 60%, transparent);
+}
+
+.sj-bar--tertiary {
+    background: var(--color-warning-solid);
+}
+
+.sj-bar--tertiary-60 {
+    background: color-mix(in srgb, var(--color-warning-solid) 60%, transparent);
+}
+
+.sj-bar--success {
+    background: var(--color-success-solid);
+}
+
+.sj-bar--success-60 {
+    background: color-mix(in srgb, var(--color-success-solid) 60%, transparent);
+}
+
+.sj-bar-value {
+    font-family: 'Geist', 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.sj-bar-label {
+    font-size: 12px;
+    color: var(--color-text-main);
+    white-space: nowrap;
+    text-align: center;
+}
+
+/* === Legend === */
+.sj-legend {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.sj-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.sj-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.sj-legend-dot--primary,
+.sj-legend-dot--male {
+    background: var(--color-primary);
+}
+
+.sj-legend-dot--female {
+    background: var(--color-warning-solid);
+}
+
+.sj-legend-dot--tertiary {
+    background: var(--color-warning-solid);
+}
+
+.sj-legend-dot--success {
+    background: var(--color-success-solid);
+}
+
+/* === Risk grid === */
+.sj-risk-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Hanken Grotesk', 'IBM Plex Sans Arabic', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--color-text-main);
+    margin: 0;
+}
+
+.sj-risk-icon {
+    color: var(--color-danger-text);
+    font-size: 20px;
+}
+
+.sj-risk-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+@media (min-width: 640px) {
+    .sj-risk-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .sj-risk-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.sj-risk-card {
+    padding: 16px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sj-risk-card--critical {
+    background: color-mix(in srgb, var(--color-danger-solid) 12%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-danger-solid) 28%, transparent);
+}
+
+.sj-risk-card--warning {
+    background: color-mix(in srgb, var(--color-warning-solid) 12%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-warning-solid) 28%, transparent);
+}
+
+.sj-risk-card--stable,
+.sj-risk-card--monitor {
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+}
+
+.sj-risk-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.sj-risk-pill {
+    padding: 3px 8px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sj-risk-pill--critical {
+    background: var(--color-danger-solid);
+    color: #fff;
+}
+
+.sj-risk-pill--warning {
+    background: var(--color-warning-solid);
+    color: #fff;
+}
+
+.sj-risk-pill--stable,
+.sj-risk-pill--monitor {
+    background: var(--color-border);
+    color: var(--color-text-main);
+}
+
+.sj-risk-value {
+    font-family: 'Geist', 'IBM Plex Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.sj-risk-value--critical {
+    color: var(--color-danger-text);
+}
+
+.sj-risk-value--warning {
+    color: var(--color-warning-text);
+}
+
+.sj-risk-value--stable,
+.sj-risk-value--monitor {
+    color: var(--color-text-main);
+}
+
+.sj-risk-label {
+    font-size: 14px;
+    color: var(--color-text-main);
+}
+
+.sj-risk-bar-track {
+    width: 100%;
+    height: 6px;
+    background: var(--color-surface-alt);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.sj-risk-bar-fill {
+    height: 100%;
+    border-radius: 9999px;
+}
+
+.sj-risk-bar-fill--critical {
+    background: var(--color-danger-solid);
+}
+
+.sj-risk-bar-fill--warning {
+    background: var(--color-warning-solid);
+}
+
+.sj-risk-bar-fill--primary {
+    background: var(--color-primary);
+}
+
+.sj-risk-bar-fill--success {
+    background: var(--color-success-solid);
+}
+
+.sj-risk-note {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* === Timeline === */
+.sj-timeline-title {
+    font-family: 'Hanken Grotesk', 'IBM Plex Sans Arabic', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--color-text-main);
+    margin: 0 0 24px;
+}
+
+.sj-timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.sj-timeline::before {
+    content: '';
+    position: absolute;
+    right: 14px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: var(--color-border);
+}
+
+.sj-tl-item {
+    position: relative;
+    padding-right: 40px;
+}
+
+.sj-tl-dot {
+    position: absolute;
+    right: 8px;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    z-index: 1;
+}
+
+.sj-tl-dot--success {
+    background: var(--color-success-solid);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success-solid) 24%, transparent);
+}
+
+.sj-tl-dot--primary {
+    background: var(--color-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 24%, transparent);
+}
+
+.sj-tl-dot--danger {
+    background: var(--color-danger-solid);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger-solid) 24%, transparent);
+}
+
+.sj-tl-body {
+    padding: 14px 16px;
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+}
+
+.sj-tl-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.sj-tl-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.sj-tl-title--success {
+    color: var(--color-success-text);
+}
+
+.sj-tl-title--primary {
+    color: var(--color-primary);
+}
+
+.sj-tl-title--danger {
+    color: var(--color-danger-text);
+}
+
+.sj-tl-date {
+    font-family: 'Geist', 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--color-text-muted);
+}
+
+.sj-tl-text {
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--color-text-main);
+    margin: 0;
+}
+
+/* === Summary cards === */
+.sj-summary-card {
+    flex: 1;
+}
+
+.sj-summary-card--accent {
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+}
+
+.sj-summary-label {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    margin: 0 0 14px;
+}
+
+.sj-summary-value-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sj-summary-value {
+    font-family: 'Hanken Grotesk', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--color-text-main);
+}
+
+.sj-summary-value--accent {
+    color: var(--color-primary);
+}
+
+.sj-summary-unit {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    padding-bottom: 4px;
+}
+
+.sj-summary-foot {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* === Empty state === */
+.sj-empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 14px;
+}

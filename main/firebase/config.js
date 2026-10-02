@@ -4,6 +4,7 @@ let _app = null;
 let _db = null;
 let _auth = null;
 let _emulatorsConnected = false;
+let _recovering = false;
 
 const FIREBASE_APP_NAME = 'pencil-user-auth';
 const CONFIG_FIELDS = [
@@ -150,6 +151,53 @@ function getFirestoreDb(env = process.env) {
     return _db;
 }
 
+// Recover a contaminated Firestore client without restarting the application
+// (firestore-sync-assertion-crash-fix). After the mid-transaction
+// `auth/network-request-failed` / `INTERNAL ASSERTION FAILED` bug fires, the
+// Firestore client's internal state can be left corrupted so every subsequent
+// operation fails. This terminates the current client, clears the cached
+// references, re-initializes a fresh client, and clears the cached credentials so
+// the next cycle warms up a fresh auth token. A reentrancy guard prevents
+// concurrent/repeated recovery from overlapping cycles (Req 2.1, 2.2, 3.2, 3.3).
+async function recoverFirestoreClient(env = process.env) {
+    if (_recovering) {
+        return { recovered: false, skipped: true, reason: 'already_recovering' };
+    }
+    _recovering = true;
+
+    try {
+        const firestore = safeRequire('firebase/firestore');
+
+        // Terminate the (possibly contaminated) client to release its internal state.
+        if (firestore && _db && typeof firestore.terminate === 'function') {
+            try {
+                await firestore.terminate(_db);
+            } catch (err) {
+                console.warn('[firebase] terminate during recovery failed:', err && err.message);
+            }
+        }
+
+        // Reset cached references so initFirebase rebuilds a fresh client.
+        _db = null;
+        _app = null;
+        _auth = null;
+
+        const result = initFirebase(env);
+
+        // Force a fresh auth-token warm-up on the next cycle.
+        try {
+            const { clearCredentials } = require('../sync/credentials');
+            clearCredentials();
+        } catch (err) {
+            console.warn('[firebase] clearCredentials during recovery failed:', err && err.message);
+        }
+
+        return { recovered: !!(result && result.db), app: result && result.app, db: result && result.db };
+    } finally {
+        _recovering = false;
+    }
+}
+
 function getFirebaseAuth(env = process.env) {
     if (!_app) {
         initFirebase(env);
@@ -215,6 +263,7 @@ module.exports = {
     FirebaseConfigError,
     initFirebase,
     getFirestoreDb,
+    recoverFirestoreClient,
     getFirebaseAuth,
     getFirebaseConfig,
     getFirebaseConfigSources,

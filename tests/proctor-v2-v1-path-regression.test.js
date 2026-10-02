@@ -87,8 +87,8 @@ console.log('[test] v1 path regression — no new v2 logic leaks into runAutoDis
 // ============================================================================
 console.log('\n  --- Part A: source-level guarantee ---');
 
-const htmlPath = path.join(__dirname, '..', 'exams-proctors.html');
-const html = fs.readFileSync(htmlPath, 'utf8');
+const pagePath = path.join(__dirname, '..', 'js', 'pages', 'exams-proctors.js');
+const html = fs.readFileSync(pagePath, 'utf8');
 
 /**
  * Extract the body of the v1 function `async function runAutoDistribution()`
@@ -103,7 +103,7 @@ const html = fs.readFileSync(htmlPath, 'utf8');
 function extractV1Body(source) {
     const declRegex = /async\s+function\s+runAutoDistribution\s*\(\s*\)\s*\{/;
     const match = declRegex.exec(source);
-    if (!match) throw new Error('runAutoDistribution (v1) declaration not found in exams-proctors.html');
+    if (!match) throw new Error('runAutoDistribution (v1) declaration not found in js/pages/exams-proctors.js');
     let i = match.index + match[0].length; // position AFTER opening `{`
     let depth = 1;
     const bodyStart = i;

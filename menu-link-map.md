@@ -18,6 +18,7 @@ Source of truth:
         - `حركية التلاميذ` -> `students-movement.html`
         - `ملف التلميذ` -> `student-profile-prototype.html`
         - `الوضعية الدراسية` -> `students-status.html`
+        - `التوجيه المدرسي` -> `students-orientation.html`
     - `تدبير الموظفين`
         - `قائمة الأساتذة` -> `teachers-list.html`
         - `حصص الأساتذة` -> `teachers-schedule.html`

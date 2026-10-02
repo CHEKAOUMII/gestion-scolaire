@@ -1,0 +1,3 @@
+code,absenceDate,absenceType,justifiedHours,unjustifiedHours,month
+S0002001,2026-02-03,absence,0,3,Fevrier
+S0002002,2026-02-05,retard,1,0,Fevrier

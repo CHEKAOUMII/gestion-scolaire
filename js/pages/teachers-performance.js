@@ -3,9 +3,8 @@
    ═══════════════════════════════════════════════════════ */
 
 const DEFAULT_YEAR = getSchoolYear();
-const CHART_JS_CDN = 'vendor/chart.min.js';
+// CH6: Chart loader via window.ensureChartJsLoaded (js/shared/chart-theme.js)
 
-let chartLoaderPromise = null;
 let allGradesCache = [];
 let allAbsencesCache = [];
 let sectionToLevel = {};
@@ -390,19 +389,7 @@ function extractExamNumber(subjectRaw) {
     return Number.isFinite(v) && v > 0 ? v : null;
 }
 
-function escapeHtml(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function csvEscape(value) {
-    const str = String(value ?? '');
-    return '"' + str.replace(/"/g, '""') + '"';
-}
+// CH3: csvEscape via js/shared/csv.js (hardened formula injection)
 
 /* ─── Loading Overlay ─── */
 function showLoading() {
@@ -859,30 +846,7 @@ function renderAbsenceByTeacherChart(rows) {
     );
 }
 
-/* ─── Chart.js Loading ─── */
-async function ensureChartJsLoaded() {
-    if (window.Chart) return window.Chart;
-    if (chartLoaderPromise) return chartLoaderPromise;
-    chartLoaderPromise = new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[data-dynamic-src="${CHART_JS_CDN}"]`);
-        if (existing) {
-            existing.addEventListener('load', () => resolve(window.Chart), { once: true });
-            existing.addEventListener('error', () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية')), {
-                once: true
-            });
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = CHART_JS_CDN;
-        script.async = true;
-        script.defer = true;
-        script.dataset.dynamicSrc = CHART_JS_CDN;
-        script.onload = () => resolve(window.Chart);
-        script.onerror = () => reject(new Error('تعذر تحميل مكتبة الرسوم البيانية'));
-        document.head.appendChild(script);
-    });
-    return chartLoaderPromise;
-}
+/* ─── Chart.js Loading: window.ensureChartJsLoaded (js/shared/chart-theme.js) ─── */
 
 function showChartFallback(canvasId, message) {
     const canvas = document.getElementById(canvasId);

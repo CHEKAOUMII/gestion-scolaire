@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DsAgentExport>
+  <R_Discip>
+    <CD_Discip>D1</CD_Discip>
+    <LL_DISCIP>Math Demo</LL_DISCIP>
+    <LA_DISCIP>رياضيات تجريبية</LA_DISCIP>
+  </R_Discip>
+  <AGENT>
+    <PPR>900002</PPR>
+    <NOM>SAMPLE</NOM>
+    <PRENOM>Staff</PRENOM>
+  </AGENT>
+  <ACTIVITE>
+    <PPR>900002</PPR>
+    <CD_FONC>E002</CD_FONC>
+    <CD_ETAB>E001</CD_ETAB>
+    <CD_ACTIVITES>A2</CD_ACTIVITES>
+    <DATEAFFECT>2026-02-01</DATEAFFECT>
+  </ACTIVITE>
+</DsAgentExport>

@@ -11,6 +11,8 @@ let sortDirection = 'asc';
 let allClasses = []; // keep all class names for level cascading
 let sectionToLevel = {}; // section → level mapping
 let _filterManager = null;
+let stageRuleSetPayload = null;
+let activeCycleCode = null;
 
 // Avatar color palette
 const avatarColors = [
@@ -24,19 +26,7 @@ const avatarColors = [
     'var(--avatar-color-8)'
 ];
 
-// Gender normalization helpers (DB may store 'M'/'F', 'ذكر'/'أنثى', etc.)
-function isMale(gender) {
-    const g = String(gender || '')
-        .trim()
-        .toLowerCase();
-    return g === 'm' || g === 'male' || g === 'ذكر';
-}
-function isFemale(gender) {
-    const g = String(gender || '')
-        .trim()
-        .toLowerCase();
-    return g === 'f' || g === 'female' || g === 'أنثى';
-}
+// CH8: isMale / isFemale / getGenderLabel via js/shared/gender.js
 
 function getAvatarColor(name) {
     let hash = 0;
@@ -54,8 +44,28 @@ function getInitial(name) {
 
 // escapeHtml is provided by utils.js (loaded globally)
 
+async function getActiveCycleCode() {
+    if (!window.api?.cycles?.getActive) return null;
+    try {
+        const response = await window.api.cycles.getActive();
+        return response?.success ? response.context?.cycleCode || response.cycle?.cycle_code || null : null;
+    } catch (err) {
+        console.warn('[students-list] active cycle unavailable:', err);
+        return null;
+    }
+}
+
 // ─── DOM Ready ───
 document.addEventListener('DOMContentLoaded', async () => {
+    activeCycleCode = await getActiveCycleCode();
+    try {
+        stageRuleSetPayload =
+            typeof ensureStageRuleSet === 'function'
+                ? await ensureStageRuleSet(getCurrentYear(), activeCycleCode)
+                : null;
+    } catch (err) {
+        console.warn('[students-list] stage rule set unavailable:', err);
+    }
     await loadClassesAndLevels();
     restoreFilters();
     await searchStudents();
@@ -139,10 +149,7 @@ async function loadClassesAndLevels() {
 
 function _getLocalLevelName(section) {
     if (_filterManager) return _filterManager._getLocalLevelName(section);
-    const s = String(section || '').trim();
-    if (!s) return '';
-    if (sectionToLevel[s]) return sectionToLevel[s];
-    return getLevelNameFromSection(s);
+    return resolveLevelName(section, sectionToLevel);
 }
 
 // ─── Save / Restore Filters ───
@@ -183,9 +190,13 @@ async function searchStudents() {
         // Pass query to server-side search (filters by name/code on the DB)
         students = (await window.api.students.search(query, className, '', getCurrentYear())) || [];
 
-        // Level filter (client-side — depends on local mapping)
+        // Level filter (client-side — official level stored by the import)
         if (levelName) {
-            students = students.filter((s) => _getLocalLevelName(s.class_name || s.section || '') === levelName);
+            students = students.filter((s) => {
+                const official = String(s.level || '').trim();
+                if (official) return official === levelName;
+                return _getLocalLevelName(s.class_name || s.section || '') === levelName;
+            });
         }
 
         // Birth date filter (client-side — not covered by server search)
@@ -613,12 +624,19 @@ async function viewStudent(code) {
         });
         const branch =
             typeof detectBranch === 'function' ? detectBranch(student.section || student.class_name || '') : null;
-        const generalAvg =
-            typeof computeWeightedGeneralAverage === 'function'
-                ? computeWeightedGeneralAverage(subjectAvgsArr, branch)
-                : subjectAvgsArr.length
-                  ? subjectAvgsArr.reduce((a, s) => a + s.avg, 0) / subjectAvgsArr.length
-                  : 0;
+        const levelInfo =
+            typeof deriveStageLevel === 'function'
+                    ? deriveStageLevel(activeCycleCode, branch, student.section || student.class_name)
+                    : { code: null, label: null };
+        const averageResolution = computeWeightedGeneralAverageResult(subjectAvgsArr, branch, {
+            schoolYear: getCurrentYear(),
+            streamCode: branch,
+            cycleCode: activeCycleCode,
+            levelCode: levelInfo.code,
+            levelLabel: levelInfo.label,
+            ruleSet: stageRuleSetPayload || undefined
+        });
+        const generalAvg = averageResolution.ok ? averageResolution.value : null;
         const totalGrades = studentGrades.length;
         const maxGrade = Math.max(...studentGrades.map((g) => g.grade));
         const minGrade = Math.min(...studentGrades.map((g) => g.grade));
@@ -627,7 +645,7 @@ async function viewStudent(code) {
         kpisContainer.innerHTML = `
             <div class="sl-detail-kpis">
                 <div class="sl-detail-kpi">
-                    <div class="kpi-val" style="--kpi-color:${gradeColor(generalAvg)}">${generalAvg.toFixed(2)}</div>
+                    <div class="kpi-val" style="--kpi-color:${generalAvg == null ? 'inherit' : gradeColor(generalAvg)}">${generalAvg == null ? '—' : generalAvg.toFixed(2)}</div>
                     <div class="kpi-lbl">المعدل العام</div>
                 </div>
                 <div class="sl-detail-kpi">

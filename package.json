@@ -1,23 +1,33 @@
 {
     "name": "gestion-scolaire",
-    "version": "1.0.39",
+    "version": "1.0.42",
     "description": "برنامج التدبير المدرسي - الثانوية التأهيلية ابن سينا",
     "main": "main.js",
     "scripts": {
         "css:build": "cross-env NODE_ENV=production postcss css/tailwind-input.css -o css/tailwind-output.css",
         "css:watch": "cross-env NODE_ENV=development postcss css/tailwind-input.css -o css/tailwind-output.css --watch",
-        "start": "npm run css:build && set ELECTRON_RUN_AS_NODE=&& electron .",
-        "dev": "concurrently \"npm run css:watch\" \"set ELECTRON_RUN_AS_NODE=&& electron .\"",
-        "build": "npm run css:build && electron-builder",
-        "lint": "eslint \"main/**/*.js\" \"preload.js\" \"js/backup.js\" \"js/pages/*.js\" \"tests/**/*.js\"",
-        "format": "prettier --write \"main/**/*.js\" \"preload.js\" \"js/backup.js\" \"js/pages/*.js\" \"tests/**/*.js\" \".github/workflows/*.yml\" \"README.md\"",
+        "start": "npm run css:build && node scripts/launch-electron.js",
+        "dev": "concurrently \"npm run css:watch\" \"node scripts/launch-electron.js\"",
+        "build": "npm run css:build && node scripts/prepare-packaging-env.js && electron-builder",
+        "lint": "eslint \"main.js\" \"main/**/*.js\" \"preload.js\" \"app.js\" \"server/**/*.js\" \"scripts/**/*.js\" \"js/backup.js\" \"js/pages/*.js\" \"js/shared/**/*.js\" \"js/data/**/*.js\" \"js/import-center/**/*.js\" \"tests/**/*.js\"",
+        "format": "prettier --write \"main.js\" \"main/**/*.js\" \"preload.js\" \"app.js\" \"server/**/*.js\" \"scripts/**/*.js\" \"js/backup.js\" \"js/pages/*.js\" \"js/shared/**/*.js\" \"js/data/**/*.js\" \"js/import-center/**/*.js\" \"tests/**/*.js\" \".github/workflows/*.yml\" \"README.md\"",
+        "dup:report": "npx jscpd main js preload.js app.js --min-lines 10 --min-tokens 50 --reporters console,json --output .jscpd-report --ignore \"**/node_modules/**,**/dist/**,**/*.bundle.js,**/vendor/**\"",
+        "test": "node tests/run-all.js",
         "test:smoke": "node tests/smoke.js",
+        "test:e2e": "node tests/e2e/electron-smoke.js",
+        "test:e2e:dark-theme": "node tests/e2e/dark-theme-all-pages.js",
+        "test:e2e:stage": "node tests/e2e/stage-pages.e2e.js",
+        "test:v3": "node tests/run-all.js --filter proctor-v3",
+        "verify:v3": "node tests/proctor-v3/production-fixture.test.js",
+        "build:v3-bundle": "node scripts/build-proctor-v3-bundle.js",
         "test:integration": "node tests/integration-firebase.js",
         "test:auth-firebase": "node tests/auth-firebase-flow.js",
         "test:fairness": "node tests/exam-fairness.js",
         "debug:sync-download": "electron scripts/debug-sync-download.js",
         "license:key": "node scripts/generate-license-key.js",
-        "owner:server": "node server/index.js"
+        "owner:server": "node server/index.js",
+        "sync:pilot-report": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/sync-legacy-bulk-pilot.js",
+        "sync:student-id-report": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/sync-student-id-migration-report.js"
     },
     "author": "",
     "license": "MIT",
@@ -29,7 +39,9 @@
         "electron": "^35.7.5",
         "electron-builder": "^26.0.0",
         "eslint": "^9.0.0",
+        "fast-check": "^4.8.0",
         "globals": "^16.0.0",
+        "playwright": "^1.51.0",
         "postcss": "^8.5.8",
         "postcss-cli": "^11.0.1",
         "prettier": "^3.8.1",
@@ -39,13 +51,13 @@
         "better-sqlite3": "^12.0.0",
         "dotenv": "^17.3.1",
         "electron-updater": "^6.8.3",
-        "firebase": "^12.12.1",
+        "firebase": "^12.16.0",
         "firebase-admin": "^13.8.0",
         "xlsx": "^0.18.5"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/CHEKAOUMII/project6.2.git"
+        "url": "https://github.com/CHEKAOUMII/gestion-scolaire.git"
     },
     "build": {
         "appId": "com.ibnsina.gestion-scolaire",
@@ -56,7 +68,7 @@
         "publish": {
             "provider": "github",
             "owner": "CHEKAOUMII",
-            "repo": "project6.2"
+            "repo": "gestion-scolaire-releases"
         },
         "files": [
             "**/*",
@@ -64,11 +76,12 @@
             "!postcss.config.js",
             "!css/tailwind-input.css",
             "!firebase/",
-            "!firebase/service-account.json"
+            "!firebase/service-account.json",
+            "!packaging/generated/**"
         ],
         "extraResources": [
             {
-                "from": ".env",
+                "from": "packaging/generated/app.env",
                 "to": ".env"
             }
         ],

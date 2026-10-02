@@ -1,12 +1,17 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
     <head>
-        <meta charset="UTF-8" />
+    <script src="js/theme-boot.js"></script>
+    <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="theme-color" content="#3b6ac5" />
         <title>بطاقات الأساتذة | برنامج التدبير المدرسي</title>
         <link rel="stylesheet" href="vendor/fonts/google-fonts.css" />
         <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css" />
         <link rel="stylesheet" href="css/tailwind-output.css" />
+        <script src="js/shared/dom-helpers.js" defer></script>
+        <script src="js/shared/auth-session.js" defer></script>
+        <script src="js/shared/filter-manager.js" defer></script>
         <script src="js/utils.js" defer></script>
         <script src="js/notifications.js" defer></script>
         <script src="js/message-system.js" defer></script>
@@ -16,19 +21,29 @@
     </head>
 
     <body class="teachers-page">
+        <a href="#main" class="skip-link" style="position:absolute;left:-9999px;top:1rem;z-index:9999;background:var(--color-primary,#3b6ac5);color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:600;" onfocus="this.style.left='1rem'" onblur="this.style.left='-9999px'">تخطٍّ إلى المحتوى</a>
         <div class="toast-container" id="toast-container"></div>
 
         <aside class="sidebar" id="sidebar"></aside>
 
-        <main class="main-content">
+        <main class="main-content" id="main" tabindex="-1">
             <header class="header">
-                <div class="header-left">
+    <div class="header-left">
                     <button class="menu-toggle" id="menu-toggle" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="فتح القائمة الجانبية"><i class="fas fa-bars" aria-hidden="true"></i></button>
-                    <h2 class="page-title"><i class="fas fa-id-card-alt"></i> بطاقات الأساتذة</h2>
+                    <h2 class="page-title"><i class="fas fa-id-card-alt" aria-hidden="true"></i> بطاقات الأساتذة</h2>
                 </div>
                 <div class="header-right">
-                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر">
-                        <i class="fas fa-moon"></i>
+                    <a
+                        class="btn btn-secondary"
+                        data-import-shortcut
+                        data-import-type="agent-xml"
+                        data-import-source="teachers-list"
+                        href="settings-imports.html?type=agent-xml&amp;source=teachers-list"
+                        title="استيراد ملف الوزارة — مراجعة قبل الحفظ"
+                        aria-label="فتح مركز الاستيراد لملف الوزارة"
+                    ><i class="fas fa-file-import" aria-hidden="true"></i> استيراد الوزارة</a>
+                    <button class="theme-toggle" id="theme-toggle" title="تبديل المظهر" aria-label="تبديل المظهر">
+                        <i class="fas fa-moon" aria-hidden="true"></i>
                     </button>
                 </div>
             </header>
@@ -36,60 +51,79 @@
             <div class="grades-container teachers-page-shell">
                 <!-- Stats Row -->
                 <div class="staff-stats-row animate-in">
-                    <div class="staff-stat-card">
-                        <div class="stat-value" id="stat-total">-</div>
-                        <div class="stat-label">مجموع الأساتذة</div>
+                    <div class="staff-stat-card staff-stat-total">
+                        <span class="staff-stat-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+                        <span class="staff-stat-content">
+                            <span class="stat-value" id="stat-total">-</span>
+                            <span class="stat-label">مجموع الأساتذة</span>
+                        </span>
                     </div>
-                    <div class="staff-stat-card">
-                        <div class="stat-value" id="stat-agent">-</div>
-                        <div class="stat-label">من ملف الوزارة</div>
+                    <div class="staff-stat-card staff-stat-agent">
+                        <span class="staff-stat-icon" aria-hidden="true"><i class="fas fa-file-import"></i></span>
+                        <span class="staff-stat-content">
+                            <span class="stat-value" id="stat-agent">-</span>
+                            <span class="stat-label">من ملف الوزارة</span>
+                        </span>
                     </div>
-                    <div class="staff-stat-card">
-                        <div class="stat-value" id="stat-male">-</div>
-                        <div class="stat-label">ذكور</div>
+                    <div class="staff-stat-card staff-stat-male">
+                        <span class="staff-stat-icon" aria-hidden="true"><i class="fas fa-mars"></i></span>
+                        <span class="staff-stat-content">
+                            <span class="stat-value" id="stat-male">-</span>
+                            <span class="stat-label">ذكور</span>
+                        </span>
                     </div>
-                    <div class="staff-stat-card">
-                        <div class="stat-value" id="stat-female">-</div>
-                        <div class="stat-label">إناث</div>
+                    <div class="staff-stat-card staff-stat-female">
+                        <span class="staff-stat-icon" aria-hidden="true"><i class="fas fa-venus"></i></span>
+                        <span class="staff-stat-content">
+                            <span class="stat-value" id="stat-female">-</span>
+                            <span class="stat-label">إناث</span>
+                        </span>
                     </div>
                     <button
-                        class="staff-stat-card surplus"
+                        class="staff-stat-card staff-stat-surplus"
                         id="stat-surplus-card"
                         type="button"
                         title="عرض الأساتذة الفائضين فقط"
+                        aria-label="تصفية الأساتذة الفائضين"
                         aria-pressed="false"
                     >
-                        <div class="stat-value" id="stat-surplus">-</div>
-                        <div class="stat-label">⚠️ الفائضون</div>
+                        <span class="staff-stat-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></span>
+                        <span class="staff-stat-content">
+                            <span class="stat-value" id="stat-surplus">-</span>
+                            <span class="stat-label">الفائضون</span>
+                        </span>
                     </button>
                 </div>
 
                 <!-- Add/Edit Form -->
                 <div class="gs-form-section">
                     <div class="gs-form-header">
-                        <i class="fas fa-plus-circle"></i> <span id="form-title">إضافة أستاذ</span>
+                        <i class="fas fa-plus-circle" aria-hidden="true"></i> <span id="form-title">إضافة أستاذ</span>
                     </div>
-                    <form id="teacher-form" class="gs-form-grid">
+                    <form id="teacher-form" class="gs-form-grid" aria-label="إضافة أو تعديل أستاذ">
                         <input type="hidden" id="teacher-id" />
                         <div class="gs-form-group">
-                            <label for="teacher-name">الاسم الكامل *</label>
-                            <input id="teacher-name" class="gs-field-control" placeholder="الاسم الكامل" required />
+                            <label for="teacher-name">الاسم الكامل <span class="req" aria-hidden="true">*</span><span class="sr-only"> (حقل إلزامي)</span></label>
+                            <input id="teacher-name" name="teacher-name" class="gs-field-control" placeholder="مثال: محمد العلوي…" autocomplete="off" spellcheck="false" required />
                         </div>
                         <div class="gs-form-group">
                             <label for="teacher-subject">المادة</label>
-                            <input id="teacher-subject" class="gs-field-control" placeholder="المادة" />
+                            <input id="teacher-subject" name="teacher-subject" class="gs-field-control" placeholder="مثال: الرياضيات…" autocomplete="off" spellcheck="false" />
                         </div>
                         <div class="gs-form-group">
                             <label for="teacher-phone">الهاتف</label>
-                            <input id="teacher-phone" class="gs-field-control" placeholder="الهاتف" />
+                            <input id="teacher-phone" name="teacher-phone" class="gs-field-control" type="tel" inputmode="tel" placeholder="مثال: 0612345678…" autocomplete="off" />
                         </div>
                         <div class="gs-form-group">
                             <label for="teacher-email">البريد الإلكتروني</label>
                             <input
                                 id="teacher-email"
+                                name="teacher-email"
                                 class="gs-field-control"
-                                placeholder="البريد الإلكتروني"
+                                placeholder="مثال: name@school.ma…"
                                 type="email"
+                                autocomplete="off"
+                                spellcheck="false"
                             />
                         </div>
                         <div class="gs-form-actions">
@@ -103,7 +137,7 @@
                 <div class="gs-preview-section">
                     <div class="gs-preview-header gs-preview-header-wrap">
                         <h3 class="gs-preview-title">
-                            <i class="fas fa-table"></i>
+                            <i class="fas fa-table" aria-hidden="true"></i>
                             لائحة الأساتذة
                             <span class="gs-count-badge" id="staff-counter">0</span>
                         </h3>
@@ -113,25 +147,26 @@
                                 class="search-input"
                                 id="search-input"
                                 placeholder="بحث بالاسم أو ر.ت أو المادة..."
+                                aria-label="بحث بالاسم أو رقم التأجير أو المادة"
                             />
-                            <select id="filter-gender">
+                            <select id="filter-gender" aria-label="تصفية حسب النوع">
                                 <option value="">كل الأنواع</option>
                                 <option value="ذكور">ذكور</option>
                                 <option value="إناث">إناث</option>
                             </select>
-                            <select id="filter-subject">
+                            <select id="filter-subject" aria-label="تصفية حسب التخصص">
                                 <option value="">كل التخصصات</option>
                             </select>
-                            <select id="filter-cadre">
+                            <select id="filter-cadre" aria-label="تصفية حسب الإطار">
                                 <option value="">كل الأطر</option>
                             </select>
-                            <select id="filter-source">
+                            <select id="filter-source" aria-label="تصفية حسب المصدر">
                                 <option value="">كل المصادر</option>
                                 <option value="agent_xml">ملف الوزارة</option>
                                 <option value="fet">FET</option>
                                 <option value="manual">يدوي</option>
                             </select>
-                            <select id="filter-fonction">
+                            <select id="filter-fonction" aria-label="تصفية حسب الوظيفة">
                                 <option value="">كل الوظائف</option>
                                 <option value="تدريس">تدريس</option>
                                 <option value="غير تدريس">غير تدريس</option>
@@ -166,9 +201,21 @@
                                 <tbody id="teachers-tbody"></tbody>
                             </table>
                         </div>
-                        <div id="teachers-pagination" class="sl-pagination teachers-pagination"></div>
+                        <nav id="teachers-pagination" class="sl-pagination teachers-pagination" aria-label="ترقيم صفحات الأساتذة"></nav>
                     </div>
                 </div>
+
+                <section id="assignment-review-section" class="gs-preview-section" hidden aria-labelledby="assignment-review-title">
+                    <div class="gs-preview-header gs-preview-header-wrap">
+                        <h3 id="assignment-review-title" class="gs-preview-title">
+                            <i class="fas fa-user-check" aria-hidden="true"></i>
+                            مراجعة تعيينات التدريس
+                            <span class="gs-count-badge" id="assignment-review-counter">0</span>
+                        </h3>
+                        <p class="text-sm text-[var(--text-muted)]">لا يصبح التعيين نافذاً في التشغيل إلا بعد اعتماد المدير أو المسؤول المخول.</p>
+                    </div>
+                    <div id="assignment-review-list" class="gs-preview-body"></div>
+                </section>
             </div>
         </main>
 
@@ -189,7 +236,10 @@
             </div>
         </div>
 
+        <p id="teachers-feedback" class="sr-only" aria-live="polite" role="status"></p>
+
         <script src="js/data/ma-education-labels.js"></script>
+        <script src="js/shared/orientation-topbar-print.js" defer></script>
         <script src="js/pages/teachers-list.js" defer></script>
     </body>
 </html>

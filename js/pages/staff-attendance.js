@@ -5,33 +5,22 @@
 (function () {
     'use strict';
 
+    // Delegates to the canonical escapeHtml in js/utils.js (loaded earlier).
     function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        return String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
+        return window.escapeHtml
+            ? window.escapeHtml(text)
+            : String(text == null ? '' : text)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#39;');
     }
 
-    function todayStr() {
-        const d = new Date();
-        return (
-            d.getFullYear() +
-            '-' +
-            String(d.getMonth() + 1).padStart(2, '0') +
-            '-' +
-            String(d.getDate()).padStart(2, '0')
-        );
-    }
-
-    /** Convert YYYY-MM-DD to dd/mm/yyyy */
+    // CH4: todayStr / formatDateDMY via js/shared/date-utils.js
+    // Local alias keeps existing call sites as formatDate(dateStr) without shadowing utils.formatDate(Date)
     function formatDate(dateStr) {
-        if (!dateStr) return '—';
-        const parts = dateStr.split('-');
-        if (parts.length !== 3) return dateStr;
-        return parts[2] + '/' + parts[1] + '/' + parts[0];
+        return typeof formatDateDMY === 'function' ? formatDateDMY(dateStr) : dateStr || '—';
     }
 
     const year = typeof getSchoolYear === 'function' ? getSchoolYear() : '2025/2026';
@@ -516,7 +505,9 @@
         }
         const fetchPromise = (async () => {
             try {
-                const reportData = await window.api.dailyReport.getData(dateStr, year);
+                const active = await window.api?.cycles?.getActive?.();
+                const cycleCode = active?.context?.cycleCode || active?.cycle?.cycle_code || null;
+                const reportData = await window.api.dailyReport.getData(dateStr, { schoolYear: year, cycleCode });
                 return reportData?.teacherSections || {};
             } catch (e) {
                 console.warn('Could not load teacher sections for date:', dateStr, e);

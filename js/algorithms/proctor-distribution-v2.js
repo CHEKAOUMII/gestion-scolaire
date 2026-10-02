@@ -14,6 +14,11 @@
 
   const INFINITY_SENTINEL = 1e9;
 
+  // Default Phase 2 timeout budget (ms). Used by phase2Build when the caller
+  // does not supply a positive override via input.options.phase2TimeoutMs.
+  // Replaces the legacy hard-coded 1500 ms budget that starved larger centres.
+  var DEFAULT_PHASE2_TIMEOUT_MS = 5000;
+
   const SA_DEFAULTS = {
     T0: 1.0,
     T_min: 0.01,
@@ -68,6 +73,11 @@
 
   /**
    * Validates the GS2_Input_Contract fields. Throws descriptive error on failure.
+   *
+   * Optional `input.reservesConfig` is validated when present and defaulted in place
+   * to `{ mode: 'fixed', fixed: 0, percent: 0 }` when absent so older callers and
+   * existing fixtures keep working (Requirements 2.8, 3.10).
+   *
    * @param {Object} input
    * @throws {Error} If any required field is missing or invalid
    */
@@ -113,6 +123,57 @@
           typeof input.randomSeed + ' (' + String(input.randomSeed) + ')'
         );
       }
+    }
+
+    // Validate reservesConfig if provided; default in place when absent so legacy
+    // callers and existing fixtures keep working (Requirements 2.8, 3.10).
+    // The field is intentionally OPTIONAL — never required, never throws for legacy fixtures.
+    if (input.reservesConfig === null || input.reservesConfig === undefined) {
+      input.reservesConfig = { mode: 'fixed', fixed: 0, percent: 0 };
+    } else {
+      const cfg = input.reservesConfig;
+      if (typeof cfg !== 'object') {
+        throw new Error(
+          'GS2_Input_Contract: "reservesConfig" must be an object when provided, got ' +
+          typeof cfg
+        );
+      }
+      if (cfg.mode !== 'fixed' && cfg.mode !== 'percent') {
+        throw new Error(
+          'GS2_Input_Contract: "reservesConfig.mode" must be one of "fixed" or "percent", got ' +
+          String(cfg.mode)
+        );
+      }
+      if (typeof cfg.fixed !== 'number' || !isFinite(cfg.fixed) || cfg.fixed < 0) {
+        throw new Error(
+          'GS2_Input_Contract: "reservesConfig.fixed" must be a finite number >= 0, got ' +
+          String(cfg.fixed)
+        );
+      }
+      if (
+        typeof cfg.percent !== 'number' ||
+        !isFinite(cfg.percent) ||
+        cfg.percent < 0 ||
+        cfg.percent > 100
+      ) {
+        throw new Error(
+          'GS2_Input_Contract: "reservesConfig.percent" must be a finite number in [0, 100], got ' +
+          String(cfg.percent)
+        );
+      }
+    }
+
+    if (input.D_expected === null || input.D_expected === undefined) {
+      input.D_expected = 0;
+    } else if (
+      typeof input.D_expected !== 'number' ||
+      !isFinite(input.D_expected) ||
+      input.D_expected < 0
+    ) {
+      throw new Error(
+        'GS2_Input_Contract: "D_expected" must be a finite number >= 0 when provided, got ' +
+        String(input.D_expected)
+      );
     }
   }
 
@@ -218,28 +279,41 @@
 
   /**
    * Adds a guard load entry for a proctor.
+   *
+   * Post slot-metric switch (spec proctor-v2-slot-metric-reserves-affinity):
+   * `entry.guardCount` is now SLOT-BASED. Every call increments it by 1,
+   * regardless of whether `halfdayKey` was already present in
+   * `entry.guardHalfdays`. The Set is retained — it is still consumed by
+   * `filterAvailableProctors` and by `phase2_5PopulateReserves`'s
+   * halfday-reuse check (semantics unchanged: idempotent membership test).
+   *
+   * Returns `true` whenever the function actually incremented (i.e. on every
+   * non-empty call). Returns `false` only on the early
+   * `(!proctorKey || !halfdayKey)` guard. Callers that previously read the
+   * boolean as a "first-of-halfday" signal — none exist in the current
+   * codebase; the value is consumed only as a void return — are unaffected.
+   *
    * @param {Object} loadState
    * @param {string} proctorKey
    * @param {string} halfdayKey
    * @param {string} teacherName
-   * @returns {boolean} true if this was a new halfday assignment
+   * @returns {boolean} true on increment, false only on the early guard
    */
   function addGuardLoad(loadState, proctorKey, halfdayKey, teacherName) {
     if (!proctorKey || !halfdayKey) return false;
     const entry = getTeacherLoad(loadState, proctorKey);
     if (teacherName && !entry.teacherName) entry.teacherName = teacherName;
-    const before = entry.guardHalfdays.size;
+    // Slot-based: increment on EVERY call.
+    entry.guardCount++;
+    // Halfday-tracking Set retained for halfday-reuse rule semantics.
     entry.guardHalfdays.add(halfdayKey);
-    if (entry.guardHalfdays.size > before) {
-      entry.guardCount++;
-      if (isMorningHalfday(halfdayKey)) {
-        entry.morningCount++;
-      } else {
-        entry.afternoonCount++;
-      }
-      return true;
+    // M/E counters now slot-based too, matching the new fairness axis.
+    if (isMorningHalfday(halfdayKey)) {
+      entry.morningCount++;
+    } else {
+      entry.afternoonCount++;
     }
-    return false;
+    return true;
   }
 
   /**
@@ -295,7 +369,16 @@
   }
 
   /**
-   * Gets the primary load (guardCount + dutyCount) for a proctor.
+   * Gets the primary load (guardSlotCount + dutyCount) for a proctor.
+   *
+   * Post slot-metric switch (spec proctor-v2-slot-metric-reserves-affinity):
+   * `entry.guardCount` is slot-based — see `addGuardLoad`. This function
+   * therefore returns `guardSlotCount + dutyCount`. No signature change.
+   * Every consumer (costFunction hard cap, per-class fairness invariant,
+   * phase2_75CoverageRepair peer eligibility, objectiveFunction primary-load
+   * aggregation, orchestrator diagnostics) inherits slot semantics
+   * automatically.
+   *
    * @param {Object} loadState
    * @param {string} proctorKey
    * @returns {number}
@@ -306,7 +389,14 @@
   }
 
   /**
-   * Gets the final load (guardCount + reserveCount + dutyCount) for a proctor.
+   * Gets the final load (guardSlotCount + reserveCount + dutyCount) for a proctor.
+   *
+   * Post slot-metric switch (spec proctor-v2-slot-metric-reserves-affinity):
+   * `entry.guardCount` is slot-based — see `addGuardLoad`. This function
+   * therefore returns `guardSlotCount + reserveCount + dutyCount`. Consumed
+   * by `phase2_5PopulateReserves`'s candidate sort key (the third lex term,
+   * `finalLoad`).
+   *
    * @param {Object} loadState
    * @param {string} proctorKey
    * @returns {number}
@@ -314,6 +404,34 @@
   function getFinalLoad(loadState, proctorKey) {
     const entry = getTeacherLoad(loadState, proctorKey);
     return entry.guardCount + entry.reserveCount + entry.dutyCount;
+  }
+
+  /**
+   * Computes the target number of reserves for a session given the reserves
+   * configuration and the number of guards already placed in that session.
+   *
+   * Pseudocode (design.md §3 helper):
+   *   IF cfg.mode === 'percent' THEN ceil(cfg.percent * guardCount / 100)
+   *   ELSE cfg.fixed
+   *
+   * Defensive: when `cfg` is null/undefined the helper returns 0 (matches the
+   * §3 edge-case row "cfg undefined") so callers never crash on legacy inputs
+   * that bypassed `validateInput` defaulting.
+   *
+   * Used by `phase2_5PopulateReserves` and exposed on `_internals` for unit
+   * tests.
+   *
+   * @param {Object|null|undefined} cfg - reservesConfig object
+   *   { mode: 'fixed'|'percent', fixed: int, percent: int (0..100) }
+   * @param {number} guardCount - number of guards already placed in the session
+   * @returns {number} non-negative integer target count
+   */
+  function computeReserveTarget(cfg, guardCount) {
+    if (cfg == null) return 0;
+    if (cfg.mode === 'percent') {
+      return Math.ceil((cfg.percent * guardCount) / 100);
+    }
+    return cfg.fixed;
   }
 
   /**
@@ -361,6 +479,233 @@
     return { std: std, min: min, max: max, giniCoefficient: giniCoefficient };
   }
 
+  function getLoadSetSize(loadState, proctorKey, setName) {
+    var entry = loadState && loadState[proctorKey];
+    var set = entry && entry[setName];
+    return set && typeof set.size === 'number' ? set.size : 0;
+  }
+
+  function isOnDutyDuringHalfday(proctorKey, halfdayKey, loadState) {
+    var entry = loadState && loadState[proctorKey];
+    return Boolean(entry && entry.dutyHalfdays && entry.dutyHalfdays.has(halfdayKey));
+  }
+
+  function computeEligibilityClasses(proctorsList, scheduleEntries, exemptionsData, dutyData, loadState) {
+    var classes = new Map();
+    var list = proctorsList || [];
+    var entries = scheduleEntries || [];
+    for (var pi = 0; pi < list.length; pi++) {
+      var proc = list[pi];
+      var key = getProctorKey(proc, pi);
+      var eligible = [];
+      for (var ei = 0; ei < entries.length; ei++) {
+        var entry = entries[ei];
+        var halfdayKey = computeHalfdayKey(entry);
+        if (
+          !isProctorExemptForEntry(proc, pi, entry, exemptionsData || {}) &&
+          !isOnDutyDuringHalfday(key, halfdayKey, loadState)
+        ) {
+          eligible.push(ei);
+        }
+      }
+      if (eligible.length === 0) continue;
+      var baselineDuty = getLoadSetSize(loadState, key, 'dutyHalfdays');
+      var classId = eligible.join(',') + '|' + baselineDuty;
+      var cls = classes.get(classId);
+      if (!cls) {
+        cls = {
+          id: classId,
+          members: [],
+          reachableSessionIndices: eligible.slice(),
+          baselineDutyCount: baselineDuty
+        };
+        classes.set(classId, cls);
+      }
+      cls.members.push({ key: key, proc: proc, idx: pi, classId: classId });
+    }
+    return classes;
+  }
+
+  function getGuardSlotsForScheduleIndex(scheduleEntries, index, proctorsPerRoom, guardSlotsByIndex) {
+    if (guardSlotsByIndex && guardSlotsByIndex[index] !== undefined) {
+      return Math.max(0, Number(guardSlotsByIndex[index]) || 0);
+    }
+    var entry = scheduleEntries && scheduleEntries[index];
+    if (entry && entry._strictFairnessGuardSlots !== undefined) {
+      return Math.max(0, Number(entry._strictFairnessGuardSlots) || 0);
+    }
+    var roomsCount = entry && entry.roomsCount !== undefined ? Number(entry.roomsCount) : 1;
+    return Math.max(0, roomsCount || 0) * Math.max(0, Number(proctorsPerRoom) || 0);
+  }
+
+  function computeClassBounds(classes, scheduleEntries, proctorsPerRoom, D_expected, N, guardSlotsByIndex) {
+    var bounds = new Map();
+    var classIds = Array.from(classes ? classes.keys() : []).sort();
+    var expectedDuty = Math.max(0, Math.floor(Number(D_expected) || 0));
+    var eligibleCount = Math.max(0, Number(N) || 0);
+    if (classIds.length === 0) return bounds;
+
+    // NEW: derive global fairness floor (Option C — global-fairness)
+    //
+    //   LB_global = floor((totalGuardSlots + D_expected) / N_eligible)
+    //
+    // Where:
+    //   totalGuardSlots = sum over scheduleEntries of
+    //                       getGuardSlotsForScheduleIndex(scheduleEntries, idx,
+    //                                                     proctorsPerRoom,
+    //                                                     guardSlotsByIndex)
+    //   D_expected      = expectedDuty (already computed above)
+    //   N_eligible      = eligibleCount (already passed as parameter N above)
+    //
+    // The +1 (applied in cappedUpper at the per-class emission site)
+    // accommodates the existing ceil/floor pair in the only-one-class
+    // branch, which legitimately produces classLowerBound = floor(...)
+    // and classUpperBound = floor(...) + 1 when (totalGuardSlots +
+    // D_expected) is not exactly divisible by N_eligible.
+    //
+    // Rationale (Option C): mathematically simpler than per-class
+    // alternatives; semantically aligned with the only-one-class branch
+    // below which already computes exactly this quantity for the
+    // all-eligible case; deterministic without per-class
+    // average-peer-size scans.
+    //
+    // See:
+    //   - .kiro/specs/proctor-v2-singleton-class-bounds/design.md
+    //     §"Fix Strategy: Option C — Global-Fairness Floor"
+    //   - docs/agent-notes/proctor-v2-singleton-class-bounds.md
+    //     §"Recommendation: Option C (global-fairness)"
+    var totalGuardSlots = 0;
+    var entries = scheduleEntries || [];
+    for (var ti = 0; ti < entries.length; ti++) {
+      totalGuardSlots += getGuardSlotsForScheduleIndex(
+        scheduleEntries, ti, proctorsPerRoom, guardSlotsByIndex
+      );
+    }
+    var lbGlobal = eligibleCount > 0
+      ? Math.floor((totalGuardSlots + expectedDuty) / eligibleCount)
+      : 0;
+
+    var gById = new Map();
+    for (var gi = 0; gi < classIds.length; gi++) {
+      var gId = classIds[gi];
+      var clsForG = classes.get(gId);
+      var reachable = (clsForG && clsForG.reachableSessionIndices) || [];
+      var gClass = 0;
+      for (var ri = 0; ri < reachable.length; ri++) {
+        gClass += getGuardSlotsForScheduleIndex(scheduleEntries, reachable[ri], proctorsPerRoom, guardSlotsByIndex);
+      }
+      gById.set(gId, gClass);
+    }
+
+    if (classIds.length === 1) {
+      var onlyId = classIds[0];
+      var onlyClass = classes.get(onlyId);
+      var onlySize = Math.max(1, (onlyClass.members || []).length);
+      var onlyG = gById.get(onlyId) || 0;
+      var onlyTotal = onlyG + expectedDuty;
+      bounds.set(onlyId, {
+        classLowerBound: Math.floor(onlyTotal / onlySize),
+        classUpperBound: Math.ceil(onlyTotal / onlySize),
+        G_class: onlyG,
+        D_expected_class: expectedDuty
+      });
+      return bounds;
+    }
+
+    var dShareById = new Map();
+    var assigned = 0;
+    for (var di = 0; di < classIds.length; di++) {
+      var dId = classIds[di];
+      var dClass = classes.get(dId);
+      var size = (dClass.members || []).length;
+      var share = eligibleCount > 0 ? Math.floor(expectedDuty * size / eligibleCount) : 0;
+      dShareById.set(dId, share);
+      assigned += share;
+    }
+
+    var residual = expectedDuty - assigned;
+    var residualOrder = classIds.slice().sort(function (a, b) {
+      var sizeA = ((classes.get(a) || {}).members || []).length;
+      var sizeB = ((classes.get(b) || {}).members || []).length;
+      if (sizeA !== sizeB) return sizeB - sizeA;
+      if (a < b) return -1;
+      if (a > b) return 1;
+      return 0;
+    });
+    for (var ro = 0; ro < residualOrder.length && residual > 0; ro++) {
+      var rid = residualOrder[ro];
+      dShareById.set(rid, (dShareById.get(rid) || 0) + 1);
+      residual--;
+      if (ro === residualOrder.length - 1 && residual > 0) ro = -1;
+    }
+
+    for (var bi = 0; bi < classIds.length; bi++) {
+      var bId = classIds[bi];
+      var bClass = classes.get(bId);
+      var bSize = Math.max(1, (bClass.members || []).length);
+      var bG = gById.get(bId) || 0;
+      var bD = dShareById.get(bId) || 0;
+      var bTotal = bG + bD;
+
+      // NEW: cap per-class bounds by global fairness floor (Option C),
+      //      with monotonicity guard for the degenerate case bTotal <= lbGlobal.
+      // See design.md §"Specific Changes" point 2.
+      //
+      // Algebraic properties:
+      //   - When floor(bTotal/bSize) <= lbGlobal, the cap is a no-op and
+      //     the emitted bounds are byte-identical to the pre-fix output
+      //     (preservation of NOT isBugCondition(X) inputs).
+      //   - When floor(bTotal/bSize) > lbGlobal, cappedLower = lbGlobal
+      //     and cappedUpper is at most lbGlobal + 1 (matching the
+      //     ceil/floor pair of the only-one-class branch when divisibility
+      //     fails).
+      //   - The monotonicity guard (bTotal <= lbGlobal) preserves the
+      //     pre-fix degenerate case exactly: when bSize = 1,
+      //     floor(bTotal/1) = ceil(bTotal/1) = bTotal, so emitting
+      //     (bTotal, bTotal) is byte-identical to (rawLower, rawUpper).
+      //   - cappedUpper >= cappedLower always (the max(...) clause).
+      var rawLower = Math.floor(bTotal / bSize);
+      var rawUpper = Math.ceil(bTotal / bSize);
+      var cappedLower, cappedUpper;
+      if (bTotal < lbGlobal) {
+        // Monotonicity guard — never raise a class's lower bound above its
+        // achievable total. Fires for tiny classes (G_class = 0, or
+        // bTotal < lbGlobal). Preserves pre-fix behavior exactly for the
+        // degenerate case.
+        cappedLower = bTotal;
+        cappedUpper = bTotal;
+      } else {
+        // Cap rule (Option C — global-fairness): clamp rawLower DOWN to
+        // lbGlobal when rawLower exceeds it. The upper bound is allowed
+        // up to lbGlobal + 1 (matching the ceil/floor pair of the
+        // only-one-class branch when divisibility fails).
+        cappedLower = Math.min(rawLower, lbGlobal);
+        cappedUpper = Math.max(cappedLower, Math.min(rawUpper, lbGlobal + 1));
+      }
+      bounds.set(bId, {
+        classLowerBound: cappedLower,
+        classUpperBound: cappedUpper,
+        G_class: bG,
+        D_expected_class: bD
+      });
+    }
+    return bounds;
+  }
+
+  function serializeClassBounds(classBounds) {
+    var out = {};
+    if (!classBounds) return out;
+    classBounds.forEach(function (value, key) {
+      out[key] = {
+        classLowerBound: value.classLowerBound,
+        classUpperBound: value.classUpperBound,
+        G_class: value.G_class,
+        D_expected_class: value.D_expected_class
+      };
+    });
+    return out;
+  }
+
   // ============================================================
   // PHASE 1: CSP PRE-PASS — STUBS
   // ============================================================
@@ -393,6 +738,66 @@
   function getProctorExemptionKey(proctor, index) {
     return proctor.cin || proctor.som || ('idx_' + index);
   }
+
+  /**
+   * Builds a string→string map from any external key shape to the canonical
+   * key shape (algo: `cin || '__idx_' + idx`) for each proctor in
+   * `proctorsList`.
+   *
+   * Spec: proctor-v2-key-shape-unification (Boundary Adapter, Edit Site rows
+   * #11 and #10). Constructed once per `orchestrator(input)` invocation,
+   * immediately after input validation. Used by:
+   *   - duty pre-pass (≈line 1762, Edit Site #11): translates exemption-shape
+   *     external keys from `examDutyTeachersData` into canonical algo-shape
+   *     before `addDutyLoad` writes to `loadState`.
+   *   - meAssignmentsMap build (≈line 1741, Edit Site #10): defensive
+   *     adapter for legacy DB rows that may carry exemption-shape keys.
+   *
+   * Recognized external shapes per proctor at index `i`:
+   *   - getProctorKey(proc, i)           → canonical (identity)
+   *   - getProctorExemptionKey(proc, i)  → canonical (cross-shape)
+   *   - proc.cin (if non-empty)          → canonical (always identity, since
+   *                                        cin is the prefix of both functions)
+   *   - proc.som (if non-empty AND cin = "") → canonical (the production case)
+   *
+   * The adapter is read-only after construction. Multiple registrations of
+   * the same external key under different proctors can occur for `som` if
+   * two proctors share a som (Risk Register R5) — last-write-wins matches
+   * v1 `Object.keys` iteration semantics.
+   *
+   * @param {Array<Object>} proctorsList
+   * @returns {Object} prototype-less map (Object.create(null))
+   */
+  function buildKeyAdapter(proctorsList) {
+    var map = Object.create(null);
+    var list = proctorsList || [];
+    for (var i = 0; i < list.length; i++) {
+      var proc = list[i] || {};
+      var canonical = getProctorKey(proc, i);
+      var exempt = getProctorExemptionKey(proc, i);
+      map[canonical] = canonical;
+      if (exempt !== canonical) map[exempt] = canonical;
+      if (proc.cin && proc.cin !== canonical) map[proc.cin] = canonical;
+      if (proc.som && !proc.cin) map[proc.som] = canonical;
+    }
+    return map;
+  }
+
+  /**
+   * Translates an external key (exemption-shape or canonical) into the
+   * canonical key shape via a pre-built `keyAdapter`. Returns `null` for
+   * unknown / empty / null external keys so callers can count and skip
+   * orphans via `diagnostics.orphanDutyKeys` / `orphanMeAssignments`.
+   *
+   * @param {Object} keyAdapter - map produced by buildKeyAdapter
+   * @param {string} externalKey
+   * @returns {string|null} canonical key, or null on orphan/empty/null
+   */
+  function toCanonicalKey(keyAdapter, externalKey) {
+    if (!externalKey) return null;
+    return keyAdapter[externalKey] || null;
+  }
+
 
   /**
    * Computes the session key for a schedule entry (matches v1 getAutoDistributionSessionKey).
@@ -468,6 +873,51 @@
     for (var i = 0; i < scopes.length; i++) {
       var scopeKey = scopes[i];
       if (exemptionsData[scopeKey] && exemptionsData[scopeKey][key] === 'no') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Checks whether a proctor is exempt for ANY row in a session.
+   *
+   * Used by `phase2_5PopulateReserves` to filter the reserve candidate pool
+   * (design.md §3 candidate pool step). A reserve is rejected if it is exempt
+   * for at least one row's schedule entry — matching v1's per-row exemption
+   * semantics so reserves placed at the session level still respect per-entry
+   * exemptions.
+   *
+   * Each row carries `schedule_entry` (populated by `phase2Build`); when it is
+   * absent the function reconstructs a minimal entry from `day`, `period`,
+   * `session`, `subject_name`, and `level_name` so legacy/synthetic rows still
+   * resolve. Falsy rows are skipped.
+   *
+   * @param {Object} proctor
+   * @param {number} proctorIdx
+   * @param {Array<Object>} rows - assignment rows belonging to one session
+   * @param {Object} exemptionsData
+   * @returns {boolean}
+   */
+  function isExemptForAnyRow(proctor, proctorIdx, rows, exemptionsData) {
+    if (!rows || !rows.length) return false;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!row) continue;
+      var entry = row.schedule_entry;
+      if (!entry) {
+        // Reconstruct a minimal schedule entry from row fields. The exemption
+        // check only looks at day/period/session, so the other fields can be
+        // best-effort.
+        entry = {
+          day: row.day || '',
+          period: row.period || '',
+          session: row.session || '',
+          subject_name: row.subject_name || '',
+          level_name: row.level_name || ''
+        };
+      }
+      if (isProctorExemptForEntry(proctor, proctorIdx, entry, exemptionsData)) {
         return true;
       }
     }
@@ -1151,15 +1601,26 @@
    *   - 2 × subject specialty (proctor's specialty matches the exam subject)
    *   - 1 × no gender pair (same gender as first proctor in dual-proctor room)
    *
-   * Load balancing penalty:
-   *   - 4 × max(0, guardLoad - lowerBound)
+   * Load balancing penalty (fix C1+C2):
+   *   - floor       = max(lowerBound, sessionMaxPrimaryLoad − 1)
+   *   - loadPenalty = max(0, primaryLoad − floor)
+   *   - cost += 4 × loadPenalty
+   *     where primaryLoad = guardCount + dutyCount (duty-aware, fix C2)
+   *     and sessionMaxPrimaryLoad is supplied via options (fix C1).
+   *
+   * Freshness bonus (fix C1):
+   *   - cost += primaryLoad > 0 ? 0.5 : 0
+   *     Half-point penalty on any teacher already used. Invariant: 0.5 < min(softPenalty) = 1
+   *     so it never overrides a soft-constraint preference but breaks ties in favour of
+   *     unused peers when soft penalties match (per design §1 (B)).
    *
    * @param {string} proctorKey
    * @param {Object} task - { scheduleEntry, roomKey, slotIndex, halfdayKey, sessionKey,
    *                          subjectName, expectedGroup, firstProctorGender, roomUseMap, usedInSession }
    * @param {Object} loadState
    * @param {Object} options - { respectMorningEvening, preferMixedGenderPair, noRoomRepeat,
-   *                             avoidSpecialty, meAssignments, proctorSpecialties, proctorGenders }
+   *                             avoidSpecialty, meAssignments, proctorSpecialties, proctorGenders,
+   *                             sessionMaxPrimaryLoad }
    * @param {Object} weights - { alpha, beta, gamma } (passed for consistency, not directly used here)
    * @param {number} lowerBound - computed lower bound for load balancing
    * @returns {number}
@@ -1170,6 +1631,24 @@
     // 1. Proctor already used in this session
     if (task.usedInSession && task.usedInSession.has(proctorKey)) {
       return INFINITY_SENTINEL;
+    }
+
+    // Post slot-metric switch (spec proctor-v2-slot-metric-reserves-affinity):
+    // `getPrimaryLoad` returns slot-based primaryLoad (= guardSlotCount + dutyCount).
+    // The per-class hard cap therefore bounds slot-level work — the user's
+    // intended fairness axis (Requirement 2.7), not halfday-deduplicated work
+    // as before. No source change here; the switch propagates through the read
+    // path. The cap remains inactive when `options.classBoundsByProctorKey` is
+    // absent (legacy callers / fixtures) and when `options.skipClassCap` is set
+    // (last-resort unconstrained-pass fallback).
+    if (options && options.classBoundsByProctorKey && !options.skipClassCap) {
+      var classBounds = options.classBoundsByProctorKey[proctorKey];
+      if (classBounds) {
+        var postAssignmentPrimary = getPrimaryLoad(loadState, proctorKey) + 1;
+        if (postAssignmentPrimary > classBounds.classUpperBound) {
+          return INFINITY_SENTINEL;
+        }
+      }
     }
 
     // === Soft Constraint Penalties ===
@@ -1214,9 +1693,26 @@
     }
 
     // === Load Balancing Penalty ===
-    var guardLoad = getGuardCount(loadState, proctorKey);
-    var loadPenalty = Math.max(0, guardLoad - lowerBound);
+    // Use primary load (guardCount + dutyCount) so the Hungarian cost is duty-aware.
+    // loadState.dutyCount is populated by addDutyLoad during Phase 1 pre-pass, before Phase 2.
+    //
+    // Fix C1 (design §1 (B)): anchor the load penalty against the running session-wide max
+    // primary load so that, even when lowerBound = 0, already-used teachers don't beat
+    // unused peers on ties. The floor backs off by 1 from the current max so that the
+    // first teacher to reach the new max is "free" to be picked, but the next pick should
+    // prefer a fresh teacher.
+    var primaryLoad = getPrimaryLoad(loadState, proctorKey);
+    var sessionMaxPrimaryLoad = (options && typeof options.sessionMaxPrimaryLoad === 'number')
+      ? options.sessionMaxPrimaryLoad
+      : 0;
+    var floor = Math.max(lowerBound, sessionMaxPrimaryLoad - 1);
+    var loadPenalty = Math.max(0, primaryLoad - floor);
     cost += 4 * loadPenalty;
+
+    // Uniform freshness bonus: any teacher already used pays a half-point.
+    // Invariant: 0.5 < min(softPenalty) = 1, so this never overrides a soft-constraint
+    // preference but breaks ties in favour of unused peers (design §1 (B)).
+    cost += primaryLoad > 0 ? 0.5 : 0;
 
     return cost;
   }
@@ -1247,12 +1743,20 @@
         var proctor = availableProctors[pi];
         var cost = costFunction(proctor.key, task, loadState, options, weights, lowerBound);
 
+        // Strict ordering: keep first finite candidate even when bestCost
+        // started at INFINITY_SENTINEL so we never silently admit an
+        // over-cap candidate via the `<` comparison alone.
         if (cost < bestCost) {
           bestCost = cost;
           bestProctor = proctor;
         }
       }
 
+      // Defect 1 fix: if every available proctor scored INFINITY_SENTINEL
+      // (e.g., over class cap, already used in session), leave the slot
+      // empty rather than admitting a hard-constraint violation. Matches
+      // Hungarian's dummy-row semantics so phase 2.75 can repair coverage
+      // by swapping rather than inheriting an over-cap assignment.
       if (bestProctor !== null && bestCost < INFINITY_SENTINEL) {
         // Assign the best proctor to this task
         assignments.push({ taskIndex: ti, proctorKey: bestProctor.key });
@@ -1306,7 +1810,16 @@
    */
   function phase2Build(phase1Result, input, rng) {
     var startTime = Date.now();
-    var TIMEOUT_MS = 1500;
+
+    // Resolve the Phase 2 budget once at function entry. Honour
+    // input.options.phase2TimeoutMs only when it coerces to a positive
+    // number; everything else (undefined, 0, negative, NaN) falls back to
+    // the module-level DEFAULT_PHASE2_TIMEOUT_MS. Infinity is allowed and
+    // simply means the timeout guard never fires.
+    var optionsBag   = input.options || {};
+    var rawOverride  = Number(optionsBag.phase2TimeoutMs);
+    var TIMEOUT_MS   = (rawOverride > 0) ? rawOverride : DEFAULT_PHASE2_TIMEOUT_MS;
+    var timedOutFlag = false;
 
     var loadState = createLoadState();
     var result = [];
@@ -1360,10 +1873,36 @@
       proctorGenders[proctorMeta[mi].key] = proctorMeta[mi].gender;
       proctorSpecialties[proctorMeta[mi].key] = proctorMeta[mi].specialty;
     }
+
+    // Boundary adapter (proctor-v2-key-shape-unification, Phase 1 init).
+    // Built once per phase2Build invocation from `proctorsList`. Used at:
+    //   - meAssignmentsMap build below (Edit Site #10, defensive — Task 7)
+    //   - duty pre-pass below (Edit Site #11, Task 5 — CRITICAL)
+    // External keys (cin, som, idx_N, __idx_N) all map to the canonical
+    // algo-shape `cin || '__idx_' + idx` so internal `loadState` is closed
+    // under one shape. See design.md §"Boundary Adapter Design".
+    var keyAdapter = buildKeyAdapter(proctorsList);
+
+    // Counter for orphan duty keys (external duty entries whose key matches
+    // no proctor in proctorsList). Reported in phase2Result.diagnostics.
+    var orphanDutyKeysCount = 0;
+    // Counter for orphan meAssignments keys (defensive; Edit Site #10 Task 7).
+    var orphanMeAssignmentsCount = 0;
+
     if (meAssignments && typeof meAssignments === 'object') {
       var meKeys = Object.keys(meAssignments);
       for (var mk = 0; mk < meKeys.length; mk++) {
-        meAssignmentsMap[meKeys[mk]] = meAssignments[meKeys[mk]];
+        // Edit Site #10 (proctor-v2-key-shape-unification DEFENSIVE):
+        // meAssignments is keyed by algo shape per v1 contract; the
+        // adapter is identity for well-formed input. Defends against
+        // legacy DB rows that may carry exemption-shape keys here (R3
+        // from Risk Register).
+        var canonicalMeKey = toCanonicalKey(keyAdapter, meKeys[mk]);
+        if (canonicalMeKey) {
+          meAssignmentsMap[canonicalMeKey] = meAssignments[meKeys[mk]];
+        } else {
+          orphanMeAssignmentsCount++;
+        }
       }
     }
 
@@ -1382,7 +1921,17 @@
               dutyHdKey = dutyParts[0] + '|' + (dutyParts[2] || 'صباحا');
             }
             if (dutyHdKey) {
-              addDutyLoad(loadState, dutyProctorKeys[dpi], dutyHdKey, '');
+              // Edit Site #11 (proctor-v2-key-shape-unification CRITICAL):
+              // translate exemption-shape external duty key to canonical
+              // shape before crossing the boundary into loadState. Orphan
+              // keys (external entries that match no proctor in
+              // proctorsList) are skipped and counted in diagnostics.
+              var canonicalDutyKey = toCanonicalKey(keyAdapter, dutyProctorKeys[dpi]);
+              if (canonicalDutyKey) {
+                addDutyLoad(loadState, canonicalDutyKey, dutyHdKey, '');
+              } else {
+                orphanDutyKeysCount++;
+              }
             }
           }
         }
@@ -1391,6 +1940,27 @@
 
     // Track room usage across all halfdays for "no room repeat" soft constraint
     var globalRoomUseMap = {};
+
+    // Track all proctor keys placed by Phase 2 so far (across all halfdays/sessions).
+    // Used to derive `sessionMaxPrimaryLoad`, the freshness-anchor consumed by
+    // costFunction (see design.md §1 (B) and task 7). The Set is populated alongside
+    // every successful guard placement (Hungarian pass 1, Hungarian pass 2, and the
+    // greedy fallback).
+    var phase2PlacedKeys = new Set();
+
+    // Helper: compute max getPrimaryLoad over teachers already placed in Phase 2.
+    // Returns 0 when no proctor has been placed yet (initial Hungarian invocation).
+    // Recomputed once per Hungarian / greedyFallback invocation so the floor in
+    // costFunction reflects the most recent state of `loadState` (which is mutated
+    // in place by addGuardLoad).
+    function computeSessionMaxPrimaryLoad() {
+      var maxLoad = 0;
+      phase2PlacedKeys.forEach(function (k) {
+        var pl = getPrimaryLoad(loadState, k);
+        if (pl > maxLoad) maxLoad = pl;
+      });
+      return maxLoad;
+    }
 
     // Group schedule entries by halfday
     var halfdayGroups = {};
@@ -1425,6 +1995,40 @@
       return [];
     }
 
+    var guardSlotsByIndex = {};
+    for (var gsi = 0; gsi < scheduleEntries.length; gsi++) {
+      guardSlotsByIndex[gsi] = getRoomsForEntry(scheduleEntries[gsi]).length * proctorsPerRoom;
+    }
+    var eligibilityClasses = computeEligibilityClasses(
+      proctorsList,
+      scheduleEntries,
+      exemptionsData,
+      dutyData,
+      loadState
+    );
+    var eligibleCountForBounds = 0;
+    eligibilityClasses.forEach(function (cls) {
+      eligibleCountForBounds += (cls.members || []).length;
+    });
+    var classBounds = computeClassBounds(
+      eligibilityClasses,
+      scheduleEntries,
+      proctorsPerRoom,
+      Number(input.D_expected) || 0,
+      eligibleCountForBounds,
+      guardSlotsByIndex
+    );
+    var classBoundsByProctorKey = {};
+    var classIdByProctorKey = {};
+    eligibilityClasses.forEach(function (cls, classId) {
+      var bounds = classBounds.get(classId);
+      for (var cm = 0; cm < (cls.members || []).length; cm++) {
+        var member = cls.members[cm];
+        classBoundsByProctorKey[member.key] = bounds;
+        classIdByProctorKey[member.key] = classId;
+      }
+    });
+
     // Helper: get duty teachers for a schedule entry
     function getDutyTeachersForEntry(entryObj) {
       var dutyTeachers = [];
@@ -1436,9 +2040,11 @@
         var dKeys = Object.keys(dutyObj);
         for (var d = 0; d < dKeys.length; d++) {
           if (dutyObj[dKeys[d]]) {
-            dutyTeacherKeys.push(dKeys[d]);
+            var canonicalDutyKey = toCanonicalKey(keyAdapter, dKeys[d]);
+            if (!canonicalDutyKey) continue;
+            dutyTeacherKeys.push(canonicalDutyKey);
             for (var tp = 0; tp < proctorMeta.length; tp++) {
-              if (proctorMeta[tp].key === dKeys[d]) {
+              if (proctorMeta[tp].key === canonicalDutyKey) {
                 dutyTeachers.push(proctorMeta[tp].name);
                 break;
               }
@@ -1509,6 +2115,7 @@
 
       // Check timeout (1500ms)
       if (Date.now() - startTime > TIMEOUT_MS) {
+        timedOutFlag = true;
         break;
       }
 
@@ -1626,7 +2233,11 @@
           avoidSpecialty: options.avoidSpecialty !== false,
           meAssignments: meAssignmentsMap,
           proctorSpecialties: proctorSpecialties,
-          proctorGenders: proctorGenders
+          proctorGenders: proctorGenders,
+          classBoundsByProctorKey: classBoundsByProctorKey,
+          // sessionMaxPrimaryLoad is updated per Hungarian invocation below
+          // (see costFunction floor / freshness term — design.md §1 (B)).
+          sessionMaxPrimaryLoad: 0
         };
 
         // ===== PASS 1: First proctor slot (per session) =====
@@ -1634,6 +2245,8 @@
         var unresolvedFirstSlot = [];
 
         if (firstSlotTasks.length > 0 && availableProctors.length > 0) {
+          // Recompute right before Hungarian so the floor reflects the latest loadState.
+          costOptions.sessionMaxPrimaryLoad = computeSessionMaxPrimaryLoad();
           var costMatrix1 = buildCostMatrix(firstSlotTasks, availableProctors, loadState, costOptions, weights, lowerBound);
 
           try {
@@ -1650,6 +2263,7 @@
 
                 addGuardLoad(loadState, assignedProctor.key, currentHalfdayKey, assignedProctor.name);
                 sessionUsedMap[currentSessionKey].add(assignedProctor.key);
+                phase2PlacedKeys.add(assignedProctor.key);
 
                 if (!globalRoomUseMap[firstSlotTasks[ti].roomKey]) {
                   globalRoomUseMap[firstSlotTasks[ti].roomKey] = new Set();
@@ -1684,6 +2298,8 @@
           for (var ut1 = 0; ut1 < unresolvedFirstSlot.length; ut1++) {
             unresolvedTasks1.push(firstSlotTasks[unresolvedFirstSlot[ut1]]);
           }
+          // Refresh anchor before greedy fallback so it sees the same floor as Hungarian.
+          costOptions.sessionMaxPrimaryLoad = computeSessionMaxPrimaryLoad();
           var fallbackResult1 = greedyFallback(unresolvedTasks1, availableProctors, loadState, costOptions, weights, lowerBound);
           var fbAssignments1 = fallbackResult1.assignments || fallbackResult1;
           if (Array.isArray(fbAssignments1)) {
@@ -1702,6 +2318,7 @@
                 if (fbProctor1) {
                   pass1Assignments[origIdx1] = fbProctor1;
                   sessionUsedMap[currentSessionKey].add(fbProctor1.key);
+                  phase2PlacedKeys.add(fbProctor1.key);
                   if (!globalRoomUseMap[firstSlotTasks[origIdx1].roomKey]) {
                     globalRoomUseMap[firstSlotTasks[origIdx1].roomKey] = new Set();
                   }
@@ -1735,6 +2352,8 @@
           }
 
           if (pass2Available.length > 0) {
+            // Refresh anchor before Hungarian pass 2 (loadState may have advanced via pass 1).
+            costOptions.sessionMaxPrimaryLoad = computeSessionMaxPrimaryLoad();
             var costMatrix2 = buildCostMatrix(secondSlotTasks, pass2Available, loadState, costOptions, weights, lowerBound);
 
             try {
@@ -1751,6 +2370,7 @@
 
                   addGuardLoad(loadState, assignedProctor2.key, currentHalfdayKey, assignedProctor2.name);
                   sessionUsedMap[currentSessionKey].add(assignedProctor2.key);
+                  phase2PlacedKeys.add(assignedProctor2.key);
 
                   if (!globalRoomUseMap[secondSlotTasks[t2i].roomKey]) {
                     globalRoomUseMap[secondSlotTasks[t2i].roomKey] = new Set();
@@ -1791,6 +2411,8 @@
             for (var p2fb = 0; p2fb < availableProctors.length; p2fb++) {
               pass2AvailForFb.push(availableProctors[p2fb]);
             }
+            // Refresh anchor before greedy fallback for pass 2.
+            costOptions.sessionMaxPrimaryLoad = computeSessionMaxPrimaryLoad();
             var fallbackResult2 = greedyFallback(unresolvedTasks2, pass2AvailForFb, loadState, costOptions, weights, lowerBound);
             var fbAssignments2 = fallbackResult2.assignments || fallbackResult2;
             if (Array.isArray(fbAssignments2)) {
@@ -1808,6 +2430,7 @@
                   if (fbProctor2) {
                     pass2Assignments[origIdx2] = fbProctor2;
                     sessionUsedMap[currentSessionKey].add(fbProctor2.key);
+                    phase2PlacedKeys.add(fbProctor2.key);
                     if (!globalRoomUseMap[secondSlotTasks[origIdx2].roomKey]) {
                       globalRoomUseMap[secondSlotTasks[origIdx2].roomKey] = new Set();
                     }
@@ -1920,14 +2543,807 @@
     return {
       assignments: result,
       loadState: loadState,
+      classBoundsByProctorKey: classBoundsByProctorKey,
+      classIdByProctorKey: classIdByProctorKey,
       diagnostics: {
         phase2DurationMs: phase2DurationMs,
+        phase2TimedOut: timedOutFlag,
+        phase2TimeoutMs: TIMEOUT_MS,
         fallbackCount: fallbackCount,
         totalHalfdaysProcessed: halfdayKeysSorted.length,
         averageCostPerAssignment: Math.round(averageCostPerAssignment * 100) / 100,
-        fallbackHalfdays: fallbackHalfdays
+        fallbackHalfdays: fallbackHalfdays,
+        eligibilityClassCount: eligibilityClasses.size,
+        classBounds: serializeClassBounds(classBounds),
+        // Boundary adapter counters (proctor-v2-key-shape-unification).
+        // Both 0 on well-formed input; non-zero indicates external data
+        // (examDutyTeachersData, meAssignments) referenced a key that did
+        // not match any proctor in proctorsList — orphans are skipped.
+        orphanDutyKeys: orphanDutyKeysCount,
+        orphanMeAssignments: orphanMeAssignmentsCount
       }
     };
+  }
+
+  // ============================================================
+  // PHASE 2.5: RESERVE POPULATION
+  // ============================================================
+
+  /**
+   * Enumerates the sessions belonging to a single halfday and returns them in
+   * ascending order of (startTime, sessionKey).
+   *
+   * Co-located with `phase2_5PopulateReserves` — used by `computeAffinityRank`
+   * to identify the "first" and "second" session of a halfday so the reserve
+   * sort can prefer guards of the first session when filling the second
+   * session's reserves (spec proctor-v2-slot-metric-reserves-affinity §4).
+   *
+   * `startTime` is read defensively from `row.schedule_entry.time_from` (the
+   * canonical input field) and falls back to `row.time_from`, then finally to
+   * the sessionKey itself so the sort still produces a stable total order on
+   * legacy fixtures that omit time fields.
+   *
+   * @param {string} halfdayKey
+   * @param {Object<string, Array>} sessionsBySessionKey
+   * @returns {Array<{sessionKey: string, startTime: string}>}
+   */
+  function collectSessionsInHalfday(halfdayKey, sessionsBySessionKey) {
+    var result = [];
+    if (!halfdayKey || !sessionsBySessionKey) return result;
+    var keys = Object.keys(sessionsBySessionKey);
+    for (var i = 0; i < keys.length; i++) {
+      var sk = keys[i];
+      var rows = sessionsBySessionKey[sk];
+      if (!rows || rows.length === 0) continue;
+      var firstRow = rows[0];
+      var rowHalfday = firstRow.halfday_key || '';
+      if (rowHalfday !== halfdayKey) continue;
+      var startTime = '';
+      if (firstRow.schedule_entry && firstRow.schedule_entry.time_from) {
+        startTime = firstRow.schedule_entry.time_from;
+      } else if (firstRow.time_from) {
+        startTime = firstRow.time_from;
+      } else {
+        startTime = sk;
+      }
+      result.push({ sessionKey: sk, startTime: startTime });
+    }
+    result.sort(function (a, b) {
+      if (a.startTime < b.startTime) return -1;
+      if (a.startTime > b.startTime) return 1;
+      if (a.sessionKey < b.sessionKey) return -1;
+      if (a.sessionKey > b.sessionKey) return 1;
+      return 0;
+    });
+    return result;
+  }
+
+  /**
+   * Computes the reserve-affinity rank for a candidate proctor in
+   * `phase2_5PopulateReserves`'s candidate sort key. Returns `0` (preferred)
+   * iff the current session is the SECOND session of its halfday AND the
+   * candidate guarded at least one slot of the FIRST session of that halfday.
+   * Returns `1` otherwise (affinity inapplicable or candidate not in S1).
+   *
+   * The reserve sort is `(reserveCount ASC, affinityRank ASC, finalLoad ASC,
+   * tiebreak ASC)`, so spread dominates affinity, affinity dominates balance.
+   * See spec proctor-v2-slot-metric-reserves-affinity §4.
+   *
+   * Edge cases:
+   *   - halfday holds < 2 sessions → return 1 for everyone.
+   *   - sessionKey is the first session → return 1 for everyone.
+   *   - halfday > 2 sessions (data anomaly) → only second-by-startTime
+   *     receives affinity; later sessions return 1.
+   *   - missing firstSessionRows → log warning, return 1 (defensive).
+   *   - falsy `proctor_keys` cells → ignored by the inner `IF k AND k = ...`.
+   *
+   * @param {string} candidateKey
+   * @param {string} sessionKey
+   * @param {string} halfdayKey
+   * @param {Object<string, Array>} sessionsBySessionKey
+   * @returns {number} 0 (preferred) or 1 (default)
+   */
+  function computeAffinityRank(candidateKey, sessionKey, halfdayKey, sessionsBySessionKey) {
+    var halfdaySessions = collectSessionsInHalfday(halfdayKey, sessionsBySessionKey);
+    if (halfdaySessions.length < 2) return 1;
+    if (sessionKey !== halfdaySessions[1].sessionKey) return 1;
+    var firstSessionKey = halfdaySessions[0].sessionKey;
+    var firstSessionRows = sessionsBySessionKey ? sessionsBySessionKey[firstSessionKey] : null;
+    if (!firstSessionRows) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[V2] computeAffinityRank: missing first-session rows for halfday ' + halfdayKey);
+      }
+      return 1;
+    }
+    for (var i = 0; i < firstSessionRows.length; i++) {
+      var keys = firstSessionRows[i].proctor_keys || [];
+      for (var j = 0; j < keys.length; j++) {
+        var k = keys[j];
+        if (k && k === candidateKey) return 0;
+      }
+    }
+    return 1;
+  }
+
+  /**
+   * Phase 2.5 Populate Reserves: fills `reserves` / `reserve_keys` per session,
+   * honouring the v1 shared-reference invariant (all rows of the same session
+   * carry the SAME array instance for both `reserves` and `reserve_keys`).
+   *
+   * Skeleton only — task 9. Subsequent tasks (10–13) will fill in:
+   *   - target computation + zero short-circuit (task 10)
+   *   - candidate pool with hard-constraint filters (task 11)
+   *   - sort + slice + shared-reference assignment (task 12)
+   *   - loadState updates via addReserveLoad (task 13)
+   *
+   * Task 14 (shortage handling) appends the v1-style shortage note
+   * 'خصاص N احتياطي للحصة' to the first row of any session where
+   * `chosen.length < target`, increments `sessionsWithShortage`, and never
+   * throws or pads.
+   *
+   * Inputs/Outputs match design.md §3:
+   *   - phase2Result: { assignments, loadState, diagnostics }
+   *   - input:        GS2_Input_Contract (reads input.reservesConfig, input.proctorsList,
+   *                   input.exemptionsData, input.dutyData, input.options)
+   *   - rng:          seeded PRNG function (used for tie-breaks in later tasks)
+   *
+   * Mutates each row's `reserves` / `reserve_keys` in place (shared reference per
+   * session). Mutates `loadState` via `addReserveLoad`.
+   *
+   * @param {Object} phase2Result - Result from phase2Build
+   * @param {Object} input - GS2_Input_Contract
+   * @param {function} rng - Seeded PRNG function
+   * @returns {Object} Phase2_5Diagnostics
+   */
+  function phase2_5PopulateReserves(phase2Result, input, rng) {
+    var startTime = Date.now();
+
+    var assignments = (phase2Result && phase2Result.assignments) || [];
+
+    // Group rows by session_key, preserving the v1 shared-reference invariant
+    // (every row of a session will receive the SAME array reference for
+    // `reserves` and `reserve_keys` once tasks 10–14 are implemented).
+    var sessionsBySessionKey = Object.create(null);
+    for (var i = 0; i < assignments.length; i++) {
+      var row = assignments[i];
+      var sessionKey = row.session_key;
+      if (!sessionsBySessionKey[sessionKey]) {
+        sessionsBySessionKey[sessionKey] = [];
+      }
+      sessionsBySessionKey[sessionKey].push(row);
+    }
+
+    // Build the iteration order: halfdayKey ASC then sessionKey ASC.
+    var orderedSessionKeys = Object.keys(sessionsBySessionKey);
+    orderedSessionKeys.sort(function (a, b) {
+      var rowsA = sessionsBySessionKey[a];
+      var rowsB = sessionsBySessionKey[b];
+      var halfdayA = (rowsA[0] && rowsA[0].halfday_key) || '';
+      var halfdayB = (rowsB[0] && rowsB[0].halfday_key) || '';
+      if (halfdayA < halfdayB) return -1;
+      if (halfdayA > halfdayB) return 1;
+      if (a < b) return -1;
+      if (a > b) return 1;
+      return 0;
+    });
+
+    // Diagnostics — populated incrementally by tasks 10–14.
+    var diagnostics = {
+      phase2_5DurationMs: 0,
+      sessionsProcessed: 0,
+      totalReservesPlaced: 0,
+      sessionsWithShortage: 0,
+      percentRoundedToZero: 0
+    };
+
+    var cfg = input && input.reservesConfig;
+
+    // Resolve halfday/day reuse flags exactly like guard placement
+    // (see filterAvailableProctors at line ≈1582 and violatesHardConstraints
+    // at line ≈2387). Reserves must honour the same flags per Requirement 3.6.
+    var phase2_5Options = (input && input.options) || {};
+    var allowHalfdayReuse = !!phase2_5Options.allowHalfdayReuse;
+    var allowDayReuse = !!phase2_5Options.allowDayReuse;
+
+    var loadStateForReserves =
+      (phase2Result && phase2Result.loadState) || {};
+    var proctorsList = (input && input.proctorsList) || [];
+    var exemptionsData = (input && input.exemptionsData) || {};
+
+    for (var s = 0; s < orderedSessionKeys.length; s++) {
+      var currentSessionKey = orderedSessionKeys[s];
+      var sessionRows = sessionsBySessionKey[currentSessionKey];
+
+      // Compute sessionGuards: unique array of proctor keys (strings) flattened
+      // from all rows' `proctor_keys`, filtering out falsy values. Used both
+      // for the percent-mode target denominator and (in task 11) to skip
+      // already-assigned guards from the candidate pool.
+      var sessionGuards = [];
+      var seenGuardKeys = Object.create(null);
+      for (var r = 0; r < sessionRows.length; r++) {
+        var rowKeys = sessionRows[r].proctor_keys || [];
+        for (var k = 0; k < rowKeys.length; k++) {
+          var gKey = rowKeys[k];
+          if (!gKey) continue;
+          if (seenGuardKeys[gKey]) continue;
+          seenGuardKeys[gKey] = true;
+          sessionGuards.push(gKey);
+        }
+      }
+
+      // 1. Compute target.
+      var target = computeReserveTarget(cfg, sessionGuards.length);
+
+      // Track percent-mode roundings to zero when guards exist (cfg.percent === 0
+      // or percent × guards rounds to 0). Matches design.md §3 edge-case table.
+      if (
+        cfg &&
+        cfg.mode === 'percent' &&
+        sessionGuards.length > 0 &&
+        target === 0
+      ) {
+        diagnostics.percentRoundedToZero++;
+      }
+
+      // Zero short-circuit: every row of this session gets the SAME empty array
+      // references for reserves / reserve_keys (preserves the v1 shared-reference
+      // invariant from design.md §"Data contract changes").
+      if (target === 0) {
+        var sharedEmptyReserves = [];
+        var sharedEmptyReserveKeys = [];
+        for (var rr = 0; rr < sessionRows.length; rr++) {
+          sessionRows[rr].reserves = sharedEmptyReserves;
+          sessionRows[rr].reserve_keys = sharedEmptyReserveKeys;
+        }
+        diagnostics.sessionsProcessed++;
+        continue;
+      }
+
+      // Resolve the session's halfdayKey (every row in the same session shares
+      // it; phase2Build sets it on every row). Used for duty / halfday-reuse /
+      // day-reuse checks below.
+      var halfdayKey = (sessionRows[0] && sessionRows[0].halfday_key) || '';
+      var dayPart = halfdayKey.split('|')[0];
+
+      // Build sessionGuards as a Set for O(1) membership tests in the candidate
+      // filter below (we already iterated proctor_keys above to build the array
+      // form for `target` computation).
+      var sessionGuardSet = new Set(sessionGuards);
+
+      // Build candidate pool with all four hard-constraint filters
+      // (design.md §3 candidate pool step):
+      //   1. Skip if proctor key is already a guard in the session.
+      //   2. Skip if proctor is exempt for any row in the session.
+      //   3. Skip if proctor is on duty during this halfday.
+      //   4. Skip if halfday/day reuse is disabled and the proctor was already
+      //      placed (as guard or reserve) in the relevant scope.
+      var candidates = [];
+      for (var pi = 0; pi < proctorsList.length; pi++) {
+        var proc = proctorsList[pi];
+        // Edit Site #17 (proctor-v2-key-shape-unification CRITICAL):
+        // canonical-shape key for reserve candidates. Boundary lookups
+        // against external exemption-shape data still happen INSIDE
+        // isExemptForAnyRow / isDutyTeacherForEntry — they receive
+        // (proc, pi) and rebuild the exemption key locally; they never
+        // touch loadState. With this change, every key written to
+        // sharedReserveKeys, addReserveLoad, and computeAffinityRank is
+        // canonical-shape, closing the leak vector that surfaced as 6
+        // ghost CIN keys in proctor_keys on tests/fixtures/45454.json.
+        var key = getProctorKey(proc, pi);
+
+        // (1) Already a guard in this session.
+        if (sessionGuardSet.has(key)) continue;
+
+        // (2) Exempt for any row in the session.
+        if (isExemptForAnyRow(proc, pi, sessionRows, exemptionsData)) continue;
+
+        var teacherLoad = loadStateForReserves[key];
+
+        // (3) On duty during this halfday — `addDutyLoad` populates
+        //     `dutyHalfdays` before Phase 2 (line ≈1471), so an O(1) Set lookup
+        //     is sufficient.
+        if (
+          halfdayKey &&
+          teacherLoad &&
+          teacherLoad.dutyHalfdays &&
+          teacherLoad.dutyHalfdays.has(halfdayKey)
+        ) {
+          continue;
+        }
+
+        // (4) Halfday / day reuse — match guard-placement semantics from
+        //     filterAvailableProctors (line ≈1582). When `allowHalfdayReuse`
+        //     is OFF, reject if the proctor is already used (guard or reserve)
+        //     in this halfday. When `allowDayReuse` is OFF, reject if the
+        //     proctor has any guard/reserve halfday whose date matches today.
+        if (teacherLoad) {
+          if (!allowHalfdayReuse && halfdayKey) {
+            if (
+              (teacherLoad.guardHalfdays && teacherLoad.guardHalfdays.has(halfdayKey)) ||
+              (teacherLoad.reserveHalfdays && teacherLoad.reserveHalfdays.has(halfdayKey))
+            ) {
+              continue;
+            }
+          }
+          if (!allowDayReuse && dayPart) {
+            var dayConflict = false;
+            if (teacherLoad.guardHalfdays) {
+              teacherLoad.guardHalfdays.forEach(function (hk) {
+                if (!dayConflict && hk && hk.split('|')[0] === dayPart) {
+                  dayConflict = true;
+                }
+              });
+            }
+            if (!dayConflict && teacherLoad.reserveHalfdays) {
+              teacherLoad.reserveHalfdays.forEach(function (hk) {
+                if (!dayConflict && hk && hk.split('|')[0] === dayPart) {
+                  dayConflict = true;
+                }
+              });
+            }
+            if (dayConflict) continue;
+          }
+        }
+
+        var reserveCount =
+          (teacherLoad && teacherLoad.reserveCount) || 0;
+        var affinityRank = computeAffinityRank(
+          key,
+          currentSessionKey,
+          halfdayKey,
+          sessionsBySessionKey
+        );
+        candidates.push({
+          key: key,
+          proc: proc,
+          idx: pi,
+          reserveCount: reserveCount,
+          affinityRank: affinityRank,
+          finalLoad: getFinalLoad(loadStateForReserves, key),
+          tiebreak: rng()
+        });
+      }
+
+      // Sort candidates deterministically with the lexicographic key
+      // (reserveCount ASC, affinityRank ASC, finalLoad ASC, tiebreak ASC).
+      // Spec proctor-v2-slot-metric-reserves-affinity §5: spread dominates
+      // affinity, affinity dominates balance, balance dominates the existing
+      // random tiebreak. Fall-through across spread rings (reserveCount = 0
+      // → 1 → 2 …) is implicit — no explicit ring loop needed.
+      // The `tiebreak = rng()` snapshot is taken at candidate-build time
+      // above so the same `randomSeed` reproduces the same reserve choices;
+      // calling `rng()` from inside the comparator would yield inconsistent
+      // results because JavaScript's sort calls comparators multiple times.
+      candidates.sort(function (a, b) {
+        if (a.reserveCount !== b.reserveCount) return a.reserveCount - b.reserveCount;
+        if (a.affinityRank !== b.affinityRank) return a.affinityRank - b.affinityRank;
+        if (a.finalLoad !== b.finalLoad) return a.finalLoad - b.finalLoad;
+        return a.tiebreak - b.tiebreak;
+      });
+
+      // Slice to the configured target, capped by the number of eligible
+      // candidates (no padding; shortage is detected in task 14).
+      var sliceCount = target < candidates.length ? target : candidates.length;
+      var chosen = candidates.slice(0, sliceCount);
+
+      // Build the SHARED arrays once per session and assign the SAME references
+      // to every row's `reserves` / `reserve_keys`. This invariant is required
+      // by Phase 3's `applyReserveSwap` so a single swap propagates across all
+      // rows of the session — see design.md §"Data contract changes" and the
+      // High-impact "Shared-reference invariant" risk in §"Risk Register".
+      var sharedReserves = [];
+      var sharedReserveKeys = [];
+      for (var ci = 0; ci < chosen.length; ci++) {
+        var chosenProc = chosen[ci].proc || {};
+        sharedReserves.push(chosenProc.teacher_name || '');
+        sharedReserveKeys.push(chosen[ci].key);
+      }
+      for (var rrr = 0; rrr < sessionRows.length; rrr++) {
+        sessionRows[rrr].reserves = sharedReserves;
+        sessionRows[rrr].reserve_keys = sharedReserveKeys;
+      }
+
+      // Update loadState via addReserveLoad for every chosen reserve
+      // (design.md §3 step 5). This keeps `reserveCount` / `reserveHalfdays`
+      // consistent so that later sessions in the iteration order see the
+      // up-to-date `getFinalLoad` and halfday-reuse state.
+      for (var li = 0; li < chosen.length; li++) {
+        var chosenForLoad = chosen[li];
+        var chosenName =
+          (chosenForLoad.proc && chosenForLoad.proc.teacher_name) || '';
+        addReserveLoad(
+          loadStateForReserves,
+          chosenForLoad.key,
+          halfdayKey,
+          chosenName
+        );
+      }
+      diagnostics.totalReservesPlaced += chosen.length;
+
+      // Shortage handling (design.md §3 edge-case row "eligibleAvailable < target"):
+      // if fewer candidates were eligible than the configured target, do NOT
+      // throw and do NOT pad — just record the shortage and append the v1-style
+      // note to the first row of the session. The exact note string and join
+      // separator ('، ') match v1's reserve-population pass in
+      // `exams-proctors.html` (line ≈4860 / 4868) so saved blobs round-trip.
+      if (chosen.length < target) {
+        diagnostics.sessionsWithShortage++;
+        var firstRow = sessionRows[0];
+        if (firstRow) {
+          var missingReserves = target - chosen.length;
+          var shortageNote = 'خصاص ' + missingReserves + ' احتياطي للحصة';
+          var existingNotes = firstRow.notes || '';
+          firstRow.notes = existingNotes
+            ? existingNotes + '، ' + shortageNote
+            : shortageNote;
+        }
+      }
+
+      diagnostics.sessionsProcessed++;
+    }
+
+    diagnostics.phase2_5DurationMs = Date.now() - startTime;
+    return diagnostics;
+  }
+
+  // Bound-aware predicate (proctor-v2-fairness-undercovered-fix):
+  // include any proctor whose primary load is strictly below their
+  // classLowerBound, not only the strictly zero-load case.
+  function collectUncovered(proctorsList, classBoundsByProctorKey, loadState) {
+    var result = [];
+    var list = proctorsList || [];
+    for (var i = 0; i < list.length; i++) {
+      var key = getProctorKey(list[i], i);
+      var bounds = classBoundsByProctorKey && classBoundsByProctorKey[key];
+      if (bounds && getPrimaryLoad(loadState, key) < bounds.classLowerBound) {
+        result.push({ key: key, proc: list[i], idx: i });
+      }
+    }
+    return result;
+  }
+
+  function getProctorLookup(proctorsList) {
+    var lookup = {};
+    var list = proctorsList || [];
+    for (var i = 0; i < list.length; i++) {
+      lookup[getProctorKey(list[i], i)] = { key: getProctorKey(list[i], i), proc: list[i], idx: i };
+    }
+    return lookup;
+  }
+
+  function rowHasKeyOutsideSlot(row, slotIndex, key) {
+    var keys = (row && row.proctor_keys) || [];
+    for (var i = 0; i < keys.length; i++) {
+      if (i !== slotIndex && keys[i] === key) return true;
+    }
+    return false;
+  }
+
+  function getRowSessionKey(row) {
+    if (row && row.session_key) return row.session_key;
+    var entry = (row && row.schedule_entry) || {};
+    return [(row && row.halfday_key) || '', entry.session || (row && row.session) || ''].join('|');
+  }
+
+  function isKeyUsedInSession(rows, sessionKey, key, excludeRow, excludeSlot) {
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!row || getRowSessionKey(row) !== sessionKey) continue;
+      var keys = row.proctor_keys || [];
+      for (var k = 0; k < keys.length; k++) {
+        if (row === excludeRow && k === excludeSlot) continue;
+        if (keys[k] === key) return true;
+      }
+    }
+    return false;
+  }
+
+  function isKeyUsedInDay(rows, dayKey, key, excludeRow, excludeSlot) {
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!row || ((row.halfday_key || '').split('|')[0]) !== dayKey) continue;
+      var keys = row.proctor_keys || [];
+      for (var k = 0; k < keys.length; k++) {
+        if (row === excludeRow && k === excludeSlot) continue;
+        if (keys[k] === key) return true;
+      }
+    }
+    return false;
+  }
+
+  function swapPreservesHardConstraints(rows, row, slotIndex, T_uncov, loadState, input) {
+    var entry = row.schedule_entry || {
+      day: row.day || '',
+      period: row.period || '',
+      session: row.session || '',
+      subject_name: row.subject_name || '',
+      level_name: row.level_name || ''
+    };
+    if (isProctorExemptForEntry(T_uncov.proc, T_uncov.idx, entry, input.exemptionsData || {})) return false;
+    if (isOnDutyDuringHalfday(T_uncov.key, row.halfday_key, loadState)) return false;
+    if (rowHasKeyOutsideSlot(row, slotIndex, T_uncov.key)) return false;
+    if (isKeyUsedInSession(rows, getRowSessionKey(row), T_uncov.key, row, slotIndex)) return false;
+    var options = (input && input.options) || {};
+    var dayKey = (row.halfday_key || '').split('|')[0];
+    if (!options.allowDayReuse && isKeyUsedInDay(rows, dayKey, T_uncov.key, row, slotIndex)) return false;
+    return true;
+  }
+
+  function removeGuardLoad(loadState, key, halfdayKey, rows) {
+    var entry = getTeacherLoad(loadState, key);
+    if (entry.guardHalfdays && entry.guardHalfdays.has(halfdayKey)) {
+      var stillUsed = false;
+      for (var i = 0; i < (rows || []).length; i++) {
+        var row = rows[i];
+        if (!row || row.halfday_key !== halfdayKey) continue;
+        var keys = row.proctor_keys || [];
+        for (var k = 0; k < keys.length; k++) {
+          if (keys[k] === key) {
+            stillUsed = true;
+            break;
+          }
+        }
+        if (stillUsed) break;
+      }
+      if (!stillUsed) {
+        if (entry.guardCount > 0) entry.guardCount--;
+        entry.guardHalfdays.delete(halfdayKey);
+        if (isMorningHalfday(halfdayKey)) {
+          if (entry.morningCount > 0) entry.morningCount--;
+        } else if (entry.afternoonCount > 0) {
+          entry.afternoonCount--;
+        }
+      }
+    }
+  }
+
+  function applyCoverageSwap(row, slotIndex, T_uncov, T_over, loadState, rows) {
+    row.proctor_keys[slotIndex] = T_uncov.key;
+    row.proctors[slotIndex] = T_uncov.proc.teacher_name || T_uncov.proc.teacher_name_fr || '';
+    if (row.proctor_groups && row.proctor_groups.length > slotIndex) row.proctor_groups[slotIndex] = '';
+    removeGuardLoad(loadState, T_over.key, row.halfday_key, rows);
+    addGuardLoad(loadState, T_uncov.key, row.halfday_key, T_uncov.proc.teacher_name || T_uncov.proc.teacher_name_fr || '');
+  }
+
+  // Post slot-metric switch (spec proctor-v2-slot-metric-reserves-affinity):
+  // The peer-eligibility filter inside `buildSwapCandidates` reads
+  // `getPrimaryLoad(loadState, T_over_key)` (slot-based after Phase A) and
+  // compares against the relaxation threshold (`classUB+1`, `classUB`, or
+  // `classLB+1`). The metric switch makes the swap-eligibility decision bind
+  // the new metric automatically — no source change. The three-tier
+  // relaxation strategy from `proctor-v2-strict-fairness-coverage`
+  // (`>= classUB+1`, then `>= classUB`, then `>= classLB+1`) is preserved
+  // verbatim (Requirement 3.4, 3.9).
+  function buildSwapCandidates(rows, T_uncov, classId, loadState, threshold, input, classIdByProctorKey, proctorLookup) {
+    var candidates = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var keys = (row && row.proctor_keys) || [];
+      for (var slot = 0; slot < keys.length; slot++) {
+        var overKey = keys[slot];
+        if (!overKey) continue;
+        if (classIdByProctorKey[overKey] !== classId) continue;
+        if (getPrimaryLoad(loadState, overKey) < threshold) continue;
+        var over = proctorLookup[overKey] || { key: overKey, proc: { teacher_name: row.proctors && row.proctors[slot] || '' }, idx: -1 };
+        if (!swapPreservesHardConstraints(rows, row, slot, T_uncov, loadState, input)) continue;
+        candidates.push({ row: row, rowIndex: i, slotIndex: slot, T_over: over });
+      }
+    }
+    return candidates;
+  }
+
+  // Spec: proctor-v2-fairness-undercovered-fix (task 4.1 extension)
+  //
+  // The repair pass is wrapped in a fixed-point outer loop. Each round
+  // re-collects under-bound proctors via `collectUncovered` and performs at
+  // most one swap per pending proctor. After a proctor is lifted from
+  // load=0 to load=1 (still below classLowerBound=2 in the real-centre
+  // case), the next round picks them up again and tries to lift them
+  // further. Convergence is reached when either:
+  //   (a) `collectUncovered` returns an empty list (after filtering keys
+  //       previously marked unresolved, which we do not retry), OR
+  //   (b) a round makes zero swaps (stuck — every pending key has been
+  //       marked unresolved with an appropriate reason), OR
+  //   (c) the 50 ms time budget elapses, OR
+  //   (d) the safety cap of 10 rounds is reached (in practice 2-3 suffice).
+  //
+  // `seenUnresolvedKeys` dedupes the unresolved diagnostics across rounds
+  // so a key flagged in round N (e.g. `no_swappable_peer`) is not retried
+  // and not re-counted in subsequent rounds.
+  function phase2_75CoverageRepair(phase2Result, phase2_5Diagnostics, classBoundsByProctorKey, input, rng) {
+    var startTime = Date.now();
+    var TIME_BUDGET_MS = 50;
+    var MAX_ROUNDS = 10;
+    try {
+      var rows = (phase2Result && phase2Result.assignments) || [];
+      var loadState = (phase2Result && phase2Result.loadState) || {};
+      var classIds = (phase2Result && phase2Result.classIdByProctorKey) || {};
+      // diagnostics.warnings is a per-proctor Object map keyed by canonical
+      // proctorKey. Each value carries the structured payload
+      // { reason, initialLoad, finalLoad, classLowerBound, attemptedSwaps }.
+      // The synthetic key '__pass__' (see catch-path return below) signals
+      // "the entire pass threw" rather than "a specific proctor failed", so
+      // consumers MUST exclude '__pass__' when counting per-proctor failures.
+      var diagnostics = { swaps: 0, unresolved: 0, durationMs: 0, warnings: {} };
+      var lookup = getProctorLookup(input.proctorsList || []);
+      var seenUnresolvedKeys = {};
+      for (var round = 0; round < MAX_ROUNDS; round++) {
+        if (Date.now() - startTime > TIME_BUDGET_MS) break;
+        var uncovered = collectUncovered(input.proctorsList || [], classBoundsByProctorKey || {}, loadState);
+        var pending = [];
+        for (var u = 0; u < uncovered.length; u++) {
+          if (!seenUnresolvedKeys[uncovered[u].key]) pending.push(uncovered[u]);
+        }
+        if (pending.length === 0) break;
+        var tiebreak = {};
+        for (var t = 0; t < pending.length; t++) tiebreak[pending[t].key] = rng ? rng() : 0;
+        pending.sort(function (a, b) {
+          var ca = classIds[a.key] || '';
+          var cb = classIds[b.key] || '';
+          if (ca < cb) return -1;
+          if (ca > cb) return 1;
+          return (tiebreak[a.key] || 0) - (tiebreak[b.key] || 0);
+        });
+        var roundSwaps = 0;
+        for (var i = 0; i < pending.length; i++) {
+          if (Date.now() - startTime > TIME_BUDGET_MS) {
+            for (var rem = i; rem < pending.length; rem++) {
+              if (!seenUnresolvedKeys[pending[rem].key]) {
+                var remBounds = classBoundsByProctorKey && classBoundsByProctorKey[pending[rem].key];
+                var remLoad = getPrimaryLoad(loadState, pending[rem].key);
+                diagnostics.unresolved++;
+                // Best-effort payload — for time-budget bail we may not have
+                // computed initialLoad/etc. for these proctors yet.
+                diagnostics.warnings[pending[rem].key] = {
+                  reason: 'time_budget',
+                  initialLoad: remLoad,
+                  finalLoad: remLoad,
+                  classLowerBound: (remBounds && remBounds.classLowerBound) || 0,
+                  attemptedSwaps: 0
+                };
+                seenUnresolvedKeys[pending[rem].key] = true;
+              }
+            }
+            break;
+          }
+          var uncov = pending[i];
+          var bounds = classBoundsByProctorKey && classBoundsByProctorKey[uncov.key];
+          var classId = classIds[uncov.key];
+          if (!bounds || !classId) {
+            var ncbLoad = getPrimaryLoad(loadState, uncov.key);
+            diagnostics.unresolved++;
+            diagnostics.warnings[uncov.key] = {
+              reason: 'no_class_bounds',
+              initialLoad: ncbLoad,
+              finalLoad: ncbLoad,
+              classLowerBound: 0,
+              attemptedSwaps: 0
+            };
+            seenUnresolvedKeys[uncov.key] = true;
+            continue;
+          }
+
+          // === INNER REPAIR LOOP (Option A — primary fix, change site #1) ===
+          // Re-target the same uncovered proctor until they reach
+          // bounds.classLowerBound or no candidate is returned. Each successful
+          // applyCoverageSwap mutates loadState, so candidates MUST be rebuilt
+          // inside the WHILE against current loadState (no caching).
+          var initialLoad = getPrimaryLoad(loadState, uncov.key);
+          var attemptedSwaps = 0;
+          var successfulSwaps = 0;
+          while (getPrimaryLoad(loadState, uncov.key) < bounds.classLowerBound) {
+            if (Date.now() - startTime > TIME_BUDGET_MS) break;
+            var candidates = buildSwapCandidates(rows, uncov, classId, loadState, bounds.classUpperBound + 1, input, classIds, lookup);
+            if (candidates.length === 0) {
+              candidates = buildSwapCandidates(rows, uncov, classId, loadState, bounds.classUpperBound, input, classIds, lookup);
+            }
+            if (candidates.length === 0) break;
+            // Count actual swap attempts (a non-empty candidate set was found
+            // and applyCoverageSwap is about to be called), NOT WHILE-iteration
+            // entries. This makes the reason boundary
+            //   (attemptedSwaps === 0 ? 'no_swappable_peer' : 'no_eligible_donor')
+            // meaningful: attemptedSwaps === 0 ⇔ no candidate was ever returned
+            // for this uncovered proctor.
+            attemptedSwaps++;
+            candidates.sort(function (a, b) {
+              var la = getPrimaryLoad(loadState, a.T_over.key);
+              var lb = getPrimaryLoad(loadState, b.T_over.key);
+              if (la !== lb) return lb - la;
+              if (a.rowIndex !== b.rowIndex) return a.rowIndex - b.rowIndex;
+              return a.slotIndex - b.slotIndex;
+            });
+            applyCoverageSwap(candidates[0].row, candidates[0].slotIndex, uncov, candidates[0].T_over, loadState, rows);
+            diagnostics.swaps++;
+            successfulSwaps++;
+            roundSwaps++;
+          }
+
+          var finalLoad = getPrimaryLoad(loadState, uncov.key);
+          if (finalLoad < bounds.classLowerBound) {
+            diagnostics.unresolved++;
+            diagnostics.warnings[uncov.key] = {
+              reason: (attemptedSwaps === 0 ? 'no_swappable_peer' : 'no_eligible_donor'),
+              initialLoad: initialLoad,
+              finalLoad: finalLoad,
+              classLowerBound: bounds.classLowerBound,
+              attemptedSwaps: attemptedSwaps
+            };
+            seenUnresolvedKeys[uncov.key] = true;
+          }
+        }
+        if (roundSwaps === 0) break;
+      }
+      // Post-condition: diagnostics.unresolved must equal the number of
+      // non-__pass__ keys in diagnostics.warnings. The per-proctor map
+      // shape from Task 6.1 enforces this by construction (each unresolved
+      // proctor produces exactly one map entry). The defensive check below
+      // surfaces diagnostics regressions in tests (e.g. a future change
+      // that decrements unresolved or removes a warning entry without
+      // keeping them in sync). It does NOT throw — production keeps
+      // running with whatever counter/map drift exists.
+      var __unresolvedCheckKeys = Object.keys(diagnostics.warnings || {}).filter(function (k) {
+        return k !== '__pass__';
+      });
+      if (diagnostics.unresolved !== __unresolvedCheckKeys.length) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn(
+            '[V2] phase2_75CoverageRepair post-condition violated: ' +
+            'diagnostics.unresolved=' + diagnostics.unresolved +
+            ' but |non-__pass__ warnings|=' + __unresolvedCheckKeys.length +
+            ' (warnings keys=' + JSON.stringify(Object.keys(diagnostics.warnings || {})) + ')'
+          );
+        }
+      }
+      diagnostics.durationMs = Date.now() - startTime;
+      return diagnostics;
+    } catch (err) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[V2] phase2_75CoverageRepair internal error:', err);
+      }
+      // Pass-level catch: the entire repair pass threw before completion.
+      // We use the synthetic key '__pass__' (not a valid canonical proctor
+      // key — '__' prefix is reserved by the algorithm) so consumers can
+      // distinguish "the pass threw" from "a specific proctor failed".
+      // Consumers MUST exclude '__pass__' when counting per-proctor failures.
+      return { swaps: 0, unresolved: 0, durationMs: 0, warnings: { '__pass__': { reason: 'pass_threw', error: String(err && err.message || err) } } };
+    }
+  }
+
+  function computeMaxGapWithinClass(classIdByProctorKey, loadState) {
+    var grouped = {};
+    var keys = Object.keys(classIdByProctorKey || {});
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var classId = classIdByProctorKey[key];
+      if (!grouped[classId]) grouped[classId] = [];
+      grouped[classId].push(getPrimaryLoad(loadState, key));
+    }
+    var maxGap = 0;
+    var classIds = Object.keys(grouped);
+    for (var c = 0; c < classIds.length; c++) {
+      var values = grouped[classIds[c]];
+      if (!values.length) continue;
+      var min = values[0];
+      var max = values[0];
+      for (var v = 1; v < values.length; v++) {
+        if (values[v] < min) min = values[v];
+        if (values[v] > max) max = values[v];
+      }
+      if (max - min > maxGap) maxGap = max - min;
+    }
+    return maxGap;
+  }
+
+  function computeActualDutyPairs(proctorsList, classBoundsByProctorKey, loadState) {
+    var total = 0;
+    var list = proctorsList || [];
+    for (var i = 0; i < list.length; i++) {
+      var key = getProctorKey(list[i], i);
+      if (!classBoundsByProctorKey || !classBoundsByProctorKey[key]) continue;
+      var entry = loadState && loadState[key];
+      total += entry && typeof entry.dutyCount === 'number' ? entry.dutyCount : 0;
+    }
+    return total;
   }
 
   // ============================================================
@@ -1936,11 +3352,18 @@
 
   /**
    * Computes the objective function for SA optimization.
-   * f(solution) = α × std(guardLoads) + β × totalSoftViolations + γ × morningEveningImbalance
+   * f(solution) = α × std(combinedLoads) + β × totalSoftViolations + γ × morningEveningImbalance
    *
    * Where:
-   * - std(guardLoads) = population standard deviation of how many times each proctor
-   *   appears in `proctors` arrays across all rows
+   * - std(combinedLoads) = population standard deviation of (guardAppearances + reserveHalfdays)
+   *   per proctor across all rows. Guard appearances are counted per row (multiple rooms in the
+   *   same halfday count separately), matching guard placement semantics. Reserves are counted
+   *   per UNIQUE halfday per proctor — because Phase 2.5 gives every row of a session the same
+   *   `reserve_keys` array reference (v1 shared-reference invariant), a naive per-row walk
+   *   would multiply each reserve assignment by the number of rows in the session. Tracking
+   *   unique halfdays mirrors `addReserveLoad`/`getFinalLoad` semantics. Duty is not visible
+   *   in row data here; it is incorporated upstream via Phase 2's `costFunction` (which uses
+   *   `getPrimaryLoad`) and via the `loadState` that the SA may consult elsewhere.
    * - totalSoftViolations = sum of softViolations array lengths across all rows
    * - morningEveningImbalance = Σ |morningCount_i - afternoonCount_i| for each proctor i
    *   that has assignments (morning = halfday_key ends with |صباحا, afternoon = |مساء)
@@ -1957,13 +3380,17 @@
     var beta = weights.beta || 0;
     var gamma = weights.gamma || 0;
 
-    // Compute guard loads per proctor:
-    // Count how many times each proctor appears in `proctors` arrays across all rows
-    var proctorLoads = {};  // proctorKey -> { guardCount, morningHalfdays: Set, afternoonHalfdays: Set }
+    // Compute combined loads per proctor:
+    // - guardCount: number of appearances in `proctor_keys` across all rows
+    // - reserveHalfdays: set (object) of unique halfday_keys where the proctor appears in
+    //   `reserve_keys`. Reserves arrays are shared across rows of the same session, so we
+    //   deduplicate by halfdayKey to avoid inflating reserve count by the session's row fan-out.
+    var proctorLoads = {};  // proctorKey -> { guardCount, reserveHalfdays, morningHalfdays, afternoonHalfdays }
 
     for (var i = 0; i < assignments.length; i++) {
       var row = assignments[i];
       var keys = row.proctor_keys || [];
+      var reserveKeys = row.reserve_keys || [];
       var halfdayKey = row.halfday_key || '';
       var isMorning = isMorningHalfday(halfdayKey);
 
@@ -1971,7 +3398,7 @@
         var pKey = keys[k];
         if (!pKey) continue;
         if (!proctorLoads[pKey]) {
-          proctorLoads[pKey] = { guardCount: 0, morningHalfdays: {}, afternoonHalfdays: {} };
+          proctorLoads[pKey] = { guardCount: 0, reserveHalfdays: {}, morningHalfdays: {}, afternoonHalfdays: {} };
         }
         // Count each appearance in proctors arrays (not unique halfdays)
         proctorLoads[pKey].guardCount++;
@@ -1982,16 +3409,30 @@
           proctorLoads[pKey].afternoonHalfdays[halfdayKey] = true;
         }
       }
+
+      // Walk reserves: dedupe by halfdayKey per proctor (shared-reference invariant from Phase 2.5).
+      for (var rk = 0; rk < reserveKeys.length; rk++) {
+        var rKey = reserveKeys[rk];
+        if (!rKey) continue;
+        if (!proctorLoads[rKey]) {
+          proctorLoads[rKey] = { guardCount: 0, reserveHalfdays: {}, morningHalfdays: {}, afternoonHalfdays: {} };
+        }
+        if (halfdayKey) {
+          proctorLoads[rKey].reserveHalfdays[halfdayKey] = true;
+        }
+      }
     }
 
-    // Component 1: std(guardLoads) - population standard deviation of guard counts
+    // Component 1: std(combinedLoads) — population std on (guardAppearances + uniqueReserveHalfdays).
+    // Matches getFinalLoad semantics modulo duty (duty isn't carried on assignment rows).
     var proctorKeys = Object.keys(proctorLoads);
     var stdGuardLoads = 0;
     if (proctorKeys.length > 0) {
       var loads = [];
       var sum = 0;
       for (var pi = 0; pi < proctorKeys.length; pi++) {
-        var load = proctorLoads[proctorKeys[pi]].guardCount;
+        var pl = proctorLoads[proctorKeys[pi]];
+        var load = pl.guardCount + Object.keys(pl.reserveHalfdays).length;
         loads.push(load);
         sum += load;
       }
@@ -2109,13 +3550,10 @@
    */
   function violatesHardConstraints(assignments, input) {
     var options = input.options || {};
-    var allowHalfdayReuse = !!(options.allowHalfdayReuse);
     var allowDayReuse = !!(options.allowDayReuse);
 
     // Build session -> proctor keys map
     var sessionProctors = {};
-    // Build halfday -> proctor keys map
-    var halfdayProctors = {};
     // Build day -> proctor keys map
     var dayProctors = {};
 
@@ -2135,12 +3573,9 @@
         if (sessionProctors[sessionKey][pKey]) return true;
         sessionProctors[sessionKey][pKey] = true;
 
-        // Check halfday reuse
-        if (!allowHalfdayReuse) {
-          if (!halfdayProctors[halfdayKey]) halfdayProctors[halfdayKey] = {};
-          if (halfdayProctors[halfdayKey][pKey]) return true;
-          halfdayProctors[halfdayKey][pKey] = true;
-        }
+        // Sessions within a half-day are sequential; phase 2 permits a
+        // proctor to cover more than one of them. The session map above still
+        // prevents duplicate assignment to concurrent rooms in one session.
 
         // Check day reuse
         if (!allowDayReuse) {
@@ -2178,6 +3613,41 @@
         }
         // Check duty
         if (isDutyTeacherForEntry(pInfo.proc, pInfo.idx, schedEntry, dutyData)) {
+          return true;
+        }
+      }
+    }
+
+    // Lower-bound protection (proctor-v2-fairness-undercovered-fix Phase 3 extension).
+    // C3: Phase 2.75 lifts every undercovered proctor to classLowerBound; Phase 3
+    // must not undo that, AND must not push anyone above classUpperBound either.
+    // Reject any move that drops a proctor's primary guard count strictly below
+    // their classLowerBound OR pushes it strictly above their classUpperBound.
+    // No-op when classBoundsByProctorKey is absent (legacy callers
+    // pre-Phase-2 invocations).
+    var classBounds = input.classBoundsByProctorKey
+      || (input.options && input.options.classBoundsByProctorKey)
+      || null;
+    if (classBounds) {
+      var guardCounts = {};
+      for (var li = 0; li < assignments.length; li++) {
+        var lkeys = assignments[li].proctor_keys || [];
+        for (var lk = 0; lk < lkeys.length; lk++) {
+          var lpKey = lkeys[lk];
+          if (!lpKey) continue;
+          guardCounts[lpKey] = (guardCounts[lpKey] || 0) + 1;
+        }
+      }
+      var boundedKeys = Object.keys(classBounds);
+      for (var bki = 0; bki < boundedKeys.length; bki++) {
+        var bKey = boundedKeys[bki];
+        var bBounds = classBounds[bKey];
+        if (!bBounds) continue;
+        var gCount = guardCounts[bKey] || 0;
+        if (gCount < bBounds.classLowerBound) {
+          return true;
+        }
+        if (gCount > bBounds.classUpperBound) {
           return true;
         }
       }
@@ -2253,6 +3723,10 @@
 
   /**
    * Generates a swap_roles move: swap a guard and a reserve in the same half-day.
+   * Relies on the v1 shared-reference invariant established by phase2_5PopulateReserves
+   * (see design.md §"Data contract changes"): all rows of a session share the same
+   * reserve_keys/reserves array, so writing reserveRow.reserve_keys[rs] in applyMove
+   * propagates the swap to every sibling row of the session automatically.
    * @param {Array} assignments
    * @param {function} rng
    * @returns {Object|null} move descriptor or null if no valid move found
@@ -2308,6 +3782,11 @@
 
   /**
    * Generates a reassign_reserve move: move a reserve to a different session.
+   * Relies on the v1 shared-reference invariant established by phase2_5PopulateReserves
+   * (see design.md §"Data contract changes" Phase 3 caveat): rows within one session
+   * share their reserve_keys/reserves arrays, while distinct sessions hold distinct
+   * references. The applyMove splice on src and push on tgt therefore propagate within
+   * each session and never leak across sessions.
    * @param {Array} assignments
    * @param {function} rng
    * @returns {Object|null} move descriptor or null if no valid move found
@@ -2795,10 +4274,17 @@
       warnings: [],
       // Phase 2
       phase2DurationMs: 0,
+      phase2TimedOut: false,
+      phase2TimeoutMs: 0,
       fallbackCount: 0,
       totalHalfdaysProcessed: 0,
       averageCostPerAssignment: 0,
       fallbackHalfdays: [],
+      // Phase 2.5
+      phase2_5DurationMs: 0,
+      totalReservesPlaced: 0,
+      sessionsWithShortage: 0,
+      percentRoundedToZero: 0,
       // Phase 3
       phase3DurationMs: 0,
       iterationsExecuted: 0,
@@ -2930,15 +4416,21 @@
       try {
         phase2Result = phase2Build(phase1Result, input, rng);
         diagnostics.phase2DurationMs = phase2Result.diagnostics.phase2DurationMs;
+        diagnostics.phase2TimedOut = !!phase2Result.diagnostics.phase2TimedOut;
+        diagnostics.phase2TimeoutMs = phase2Result.diagnostics.phase2TimeoutMs || DEFAULT_PHASE2_TIMEOUT_MS;
         diagnostics.fallbackCount = phase2Result.diagnostics.fallbackCount;
         diagnostics.totalHalfdaysProcessed = phase2Result.diagnostics.totalHalfdaysProcessed;
         diagnostics.averageCostPerAssignment = phase2Result.diagnostics.averageCostPerAssignment;
         diagnostics.fallbackHalfdays = phase2Result.diagnostics.fallbackHalfdays || [];
+        diagnostics.eligibilityClassCount = phase2Result.diagnostics.eligibilityClassCount || 0;
+        diagnostics.classBounds = phase2Result.diagnostics.classBounds || {};
 
-        // Check if Phase 2 timed out (duration > 1500ms indicates timeout was hit)
-        if (phase2Result.diagnostics.phase2DurationMs >= 1500) {
+        // Read phase2TimedOut directly from the diagnostic flag (was a fragile
+        // duration-based heuristic before spec proctor-v2-phase2-timeout-and-greedy-cap).
+        if (phase2Result.diagnostics.phase2TimedOut) {
           phase2TimedOut = true;
-          diagnostics.warnings.push('Phase 2 timeout exceeded (1500ms)');
+          var actualTimeoutMs = phase2Result.diagnostics.phase2TimeoutMs || DEFAULT_PHASE2_TIMEOUT_MS;
+          diagnostics.warnings.push('Phase 2 timeout exceeded (' + actualTimeoutMs + 'ms)');
         }
       } catch (phase2Error) {
         // Phase 2 error: use greedyFallback for entire input per half-day
@@ -2980,7 +4472,45 @@
         diagnostics.totalHalfdaysProcessed = phase2Result.diagnostics.totalHalfdaysProcessed;
         diagnostics.averageCostPerAssignment = phase2Result.diagnostics.averageCostPerAssignment;
         diagnostics.fallbackHalfdays = phase2Result.diagnostics.fallbackHalfdays || [];
+        diagnostics.eligibilityClassCount = phase2Result.diagnostics.eligibilityClassCount || 0;
+        diagnostics.classBounds = phase2Result.diagnostics.classBounds || {};
       }
+
+      // Step 5.5: Phase 2.5 — Populate Reserves
+      // Errors in Phase 2.5: log warning and continue (reserves will be empty, run must not fail)
+      var phase2_5Diagnostics = { phase2_5DurationMs: 0, totalReservesPlaced: 0, sessionsWithShortage: 0, percentRoundedToZero: 0 };
+      try {
+        phase2_5Diagnostics = phase2_5PopulateReserves(phase2Result, input, rng);
+        diagnostics.phase2_5DurationMs   = phase2_5Diagnostics.phase2_5DurationMs;
+        diagnostics.totalReservesPlaced  = phase2_5Diagnostics.totalReservesPlaced;
+        diagnostics.sessionsWithShortage = phase2_5Diagnostics.sessionsWithShortage;
+        diagnostics.percentRoundedToZero = phase2_5Diagnostics.percentRoundedToZero;
+      } catch (phase2_5Error) {
+        diagnostics.warnings.push('Phase 2.5 error (reserves will be empty): ' + phase2_5Error.message);
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[ProctorDistributionV2] Phase 2.5 error:', phase2_5Error.message);
+        }
+      }
+
+      var phase2_75Diagnostics = { swaps: 0, unresolved: 0, durationMs: 0, warnings: {} };
+      try {
+        phase2_75Diagnostics = phase2_75CoverageRepair(
+          phase2Result,
+          phase2_5Diagnostics,
+          phase2Result.classBoundsByProctorKey,
+          input,
+          rng
+        );
+      } catch (phase2_75Error) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[ProctorDistributionV2] Phase 2.75 error:', phase2_75Error.message);
+        }
+        phase2_75Diagnostics = { swaps: 0, unresolved: 0, durationMs: 0, warnings: { '__pass__': { reason: 'pass_threw' } } };
+      }
+      diagnostics.coverageRepairSwaps = phase2_75Diagnostics.swaps || 0;
+      diagnostics.coverageRepairUnresolved = phase2_75Diagnostics.unresolved || 0;
+      diagnostics.coverageRepairDurationMs = phase2_75Diagnostics.durationMs || 0;
+      diagnostics.coverageRepairWarnings = phase2_75Diagnostics.warnings || {};
 
       // Step 6: Phase 3 — Optimize (skip if disabled)
       // Errors in Phase 3: catch, return Phase 2 result unchanged
@@ -2989,6 +4519,11 @@
 
       if (enablePhase3) {
         try {
+          // Plumb classBoundsByProctorKey onto input so violatesHardConstraints
+          // can enforce the per-class lower-bound during Phase 3
+          // (proctor-v2-fairness-undercovered-fix Phase 3 extension).
+          // Additive — no schema change. Idempotent on re-runs.
+          input.classBoundsByProctorKey = phase2Result.classBoundsByProctorKey;
           var saConfig = {
             T0: SA_DEFAULTS.T0,
             T_min: SA_DEFAULTS.T_min,
@@ -3129,6 +4664,25 @@
       if (phase2Result.loadState) {
         diagnostics.loadBalance = computeLoadStats(phase2Result.loadState);
       }
+      diagnostics.maxPrimaryLoadGapWithinClass = computeMaxGapWithinClass(
+        phase2Result.classIdByProctorKey || {},
+        phase2Result.loadState || {}
+      );
+      var actualDutyPairs = computeActualDutyPairs(
+        input.proctorsList || [],
+        phase2Result.classBoundsByProctorKey || {},
+        phase2Result.loadState || {}
+      );
+      var expectedDuty = Math.max(0, Number(input.D_expected) || 0);
+      var expectedDutyDiff = Math.abs(expectedDuty - actualDutyPairs);
+      if (expectedDuty > 0 && expectedDutyDiff / Math.max(expectedDuty, 1) > 0.2) {
+        diagnostics.warnings.push({
+          type: 'd_expected_divergence',
+          expected: expectedDuty,
+          actual: actualDutyPairs,
+          message: 'D_expected = ' + expectedDuty + '، لكن عدد أزواج المداومة الفعلي = ' + actualDutyPairs + '؛ قد تكون حدود العدالة المعروضة غير محدّثة.'
+        });
+      }
 
       // Step 10: Set orchestratorState
       if (phase2TimedOut) {
@@ -3174,24 +4728,39 @@
       getGuardCount: getGuardCount,
       getPrimaryLoad: getPrimaryLoad,
       getFinalLoad: getFinalLoad,
+      computeReserveTarget: computeReserveTarget,
       computeLoadStats: computeLoadStats,
+      computeEligibilityClasses: computeEligibilityClasses,
+      computeClassBounds: computeClassBounds,
+      serializeClassBounds: serializeClassBounds,
+      collectUncovered: collectUncovered,
+      phase2_75CoverageRepair: phase2_75CoverageRepair,
+      computeMaxGapWithinClass: computeMaxGapWithinClass,
+      computeActualDutyPairs: computeActualDutyPairs,
       isMorningHalfday: isMorningHalfday,
       INFINITY_SENTINEL: INFINITY_SENTINEL,
       SA_DEFAULTS: SA_DEFAULTS,
       WEIGHTS_PRESETS: WEIGHTS_PRESETS,
       // CSP helpers
       getProctorKey: getProctorKey,
+      getProctorExemptionKey: getProctorExemptionKey,
+      buildKeyAdapter: buildKeyAdapter,
+      toCanonicalKey: toCanonicalKey,
       getSessionKey: getSessionKey,
       getDayKey: getDayKey,
       getScheduleSessionKeyForDuty: getScheduleSessionKeyForDuty,
       getLegacyScheduleSessionKey: getLegacyScheduleSessionKey,
       isProctorExemptForEntry: isProctorExemptForEntry,
       isDutyTeacherForEntry: isDutyTeacherForEntry,
+      isExemptForAnyRow: isExemptForAnyRow,
       getScheduleEntryId: getScheduleEntryId,
       getRoomConstraintKey: getRoomConstraintKey,
       // Phase functions
       phase1PrePass: phase1PrePass,
       phase2Build: phase2Build,
+      phase2_5PopulateReserves: phase2_5PopulateReserves,
+      computeAffinityRank: computeAffinityRank,
+      collectSessionsInHalfday: collectSessionsInHalfday,
       phase3Optimize: phase3Optimize,
       hungarianSolver: hungarianSolver,
       costFunction: costFunction,

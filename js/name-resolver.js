@@ -1,5 +1,6 @@
 // js/name-resolver.js
 // Standalone — no dependencies. Load before any script that uses NameResolver.
+// Dual-export: global NameResolver + module.exports for Node tests.
 // Future: will be imported by js/master-data.js
 
 'use strict';
@@ -172,4 +173,13 @@ class NameResolver {
         }
         return this.resolve(rawName);
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = NameResolver;
+}
+if (typeof globalThis !== 'undefined') {
+    globalThis.NameResolver = NameResolver;
+} else if (typeof window !== 'undefined') {
+    window.NameResolver = NameResolver;
 }

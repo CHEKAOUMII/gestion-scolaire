@@ -15,6 +15,8 @@ function createTables() {
             birth_place TEXT,
             gender TEXT,
             section TEXT,
+            level TEXT,
+            school_name TEXT,
             school_year TEXT,
             status TEXT DEFAULT 'active',
             registration_type TEXT DEFAULT 'new',
@@ -36,6 +38,9 @@ function createTables() {
         level TEXT,
         section TEXT,
         school_year TEXT,
+        cycle_code TEXT NOT NULL,
+        teacher_resolution TEXT DEFAULT 'unresolved',
+        source_file_name TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -61,6 +66,7 @@ function createTables() {
         days REAL DEFAULT 0,
         reason TEXT,
         school_year TEXT,
+        cycle_code TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -76,6 +82,7 @@ function createTables() {
         letter_date DATE,
         total_hours INTEGER,
         school_year TEXT,
+        cycle_code TEXT,
         printed INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
@@ -89,6 +96,7 @@ function createTables() {
         doc_key TEXT NOT NULL,
         is_present INTEGER DEFAULT 0,
         school_year TEXT,
+        cycle_code TEXT,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(student_id, doc_key, school_year),
         FOREIGN KEY(student_id) REFERENCES students(id)
@@ -105,6 +113,7 @@ function createTables() {
         movement_date DATE NOT NULL,
         notes TEXT,
         school_year TEXT,
+        cycle_code TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id)
     );
@@ -146,9 +155,17 @@ function createTables() {
         source TEXT DEFAULT 'manual',
         school_year TEXT,
         active INTEGER DEFAULT 1,
+        source_function_code TEXT,
+        source_assignment_mode TEXT,
+        source_cycle_code TEXT,
+        scope_type TEXT NOT NULL DEFAULT 'teaching_assignment',
+        source_updated_at TEXT,
+        source_activity_json TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     `);
+
+    ensureTeacherTeachingAssignmentsSchema(db);
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS teacher_aliases(
@@ -205,6 +222,7 @@ function createTables() {
         exam_date DATE,
         exam_time TEXT,
         school_year TEXT,
+        cycle_code TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     `);
@@ -245,9 +263,29 @@ function createTables() {
         status TEXT DEFAULT 'planned',
         test_date DATE,
         school_year TEXT,
+        cycle_code TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     `);
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS student_profile_data (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id    INTEGER NOT NULL,
+            student_code  TEXT NOT NULL,
+            tab_key       TEXT NOT NULL
+                          CHECK(tab_key IN ('economic','social','health','followup','guidance')),
+            data_json     TEXT NOT NULL DEFAULT '{}',
+            school_year   TEXT NOT NULL,
+            cycle_code    TEXT,
+            updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_by    TEXT,
+            UNIQUE(student_code, tab_key, school_year)
+        );
+    `);
+    db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_student_profile_student ON student_profile_data(student_code, school_year)`
+    );
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS system_logs(
@@ -301,6 +339,7 @@ function createTables() {
     ensureSyncSchema(db);
     ensurePageVisibilitySchema(db);
     ensureInstitutionSchema(db);
+    ensureCycleReferenceSchema(db);
 
     // Initialize trial start date on first DB creation
     const { ensureTrialStartDate } = require('../licensing/trialService');
@@ -320,7 +359,9 @@ function createTables() {
             `
         ).run(hashPassword(adminPassword));
 
-        console.log('[SETUP] Initial admin account created (admin@school.local). Password will be required on first login.');
+        console.log(
+            '[SETUP] Initial admin account created (admin@school.local). Password will be required on first login.'
+        );
     }
 
     // Safety net: if admin exists but has no password (e.g. corrupted data), reset it
@@ -337,6 +378,11 @@ function createTables() {
 
     // ── Performance indexes ──
     // Almost every query filters by school_year; many JOIN on student_code.
+    // NOTE: the *_year_cycle indexes on exams/tests/student_profile_data/student_files/
+    // correspondence/student_movements are owned by migration 2026-07-077, which adds
+    // the cycle_code columns first. createTables() runs BEFORE migrations
+    // (main/db/init.js), so creating them here breaks startup on pre-077 databases
+    // where those tables exist without cycle_code.
     db.exec(`
         CREATE INDEX IF NOT EXISTS idx_students_year       ON students(school_year);
         CREATE INDEX IF NOT EXISTS idx_students_code_year   ON students(code, school_year);
@@ -348,6 +394,8 @@ function createTables() {
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_lookup ON teacher_aliases(school_year, alias_normalized);
         CREATE INDEX IF NOT EXISTS idx_teacher_aliases_teacher ON teacher_aliases(teacher_id, school_year);
         CREATE INDEX IF NOT EXISTS idx_correspondence_year  ON correspondence(school_year);
+        CREATE INDEX IF NOT EXISTS idx_system_logs_entity   ON system_logs(entity_type, created_at);
+        CREATE INDEX IF NOT EXISTS idx_system_logs_action   ON system_logs(action, created_at);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_year ON staff_attendance(school_year);
         CREATE INDEX IF NOT EXISTS idx_staff_attendance_date ON staff_attendance(attendance_date, school_year);
         CREATE UNIQUE INDEX IF NOT EXISTS uidx_staff_attendance_absence
@@ -386,6 +434,66 @@ function createTables() {
     } catch {
         /* column doesn't exist yet — migration will create it */
     }
+}
+
+function listTableColumns(db, tableName) {
+    if (typeof db.pragma === 'function') return db.pragma(`table_info(${tableName})`);
+    return db.prepare(`PRAGMA table_info(${tableName})`).all();
+}
+
+function ensureTeacherSourceColumns(existingDb) {
+    const db = existingDb || getDb();
+    const columns = [
+        ['source_function_code', 'TEXT'],
+        ['source_assignment_mode', 'TEXT'],
+        ['source_cycle_code', 'TEXT'],
+        ['scope_type', "TEXT NOT NULL DEFAULT 'teaching_assignment'"],
+        ['source_updated_at', 'TEXT'],
+        ['source_activity_json', 'TEXT']
+    ];
+    const existing = new Set(listTableColumns(db, 'teachers').map((column) => column.name));
+    for (const [name, definition] of columns) {
+        if (!existing.has(name)) db.exec(`ALTER TABLE teachers ADD COLUMN ${name} ${definition}`);
+    }
+    db.prepare(
+        `UPDATE teachers SET scope_type = 'teaching_assignment'
+         WHERE scope_type IS NULL OR TRIM(scope_type) = ''`
+    ).run();
+}
+
+function ensureTeacherTeachingAssignmentsSchema(existingDb) {
+    const db = existingDb || getDb();
+    ensureTeacherSourceColumns(db);
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS teacher_teaching_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+            school_year TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            level_code TEXT NOT NULL DEFAULT '',
+            section TEXT NOT NULL DEFAULT '',
+            subject_code TEXT NOT NULL DEFAULT '',
+            subject_label TEXT,
+            source TEXT NOT NULL,
+            source_file_name TEXT,
+            decision_source TEXT NOT NULL DEFAULT 'import_suggestion'
+                CHECK(decision_source IN ('import_suggestion','principal_decision','admin_decision','manual_assignment')),
+            decided_by_user_id INTEGER,
+            decided_at TEXT,
+            confidence TEXT NOT NULL DEFAULT 'review_required'
+                CHECK(confidence IN ('confirmed','review_required','rejected')),
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(teacher_id, school_year, cycle_code, level_code, section, subject_code)
+        );
+        CREATE INDEX IF NOT EXISTS idx_teacher_assignments_cycle_year
+            ON teacher_teaching_assignments(cycle_code, school_year);
+        CREATE INDEX IF NOT EXISTS idx_teacher_assignments_teacher_year
+            ON teacher_teaching_assignments(teacher_id, school_year);
+        CREATE INDEX IF NOT EXISTS idx_teacher_assignments_operational
+            ON teacher_teaching_assignments(cycle_code, school_year, confidence, is_active);
+    `);
 }
 
 function ensureLicensingSchema(existingDb) {
@@ -545,6 +653,7 @@ function ensureSyncSchema(existingDb) {
 
         CREATE TABLE IF NOT EXISTS sync_config (
             id                      INTEGER PRIMARY KEY CHECK(id = 1),
+            school_id               TEXT,
             enabled                 INTEGER  DEFAULT 0,
             sync_interval_minutes   INTEGER  DEFAULT 10,
             device_hash             TEXT,
@@ -568,6 +677,25 @@ function ensureSyncSchema(existingDb) {
             last_pull_error TEXT,
             updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- Inbound rows this device cannot apply correctly yet (multi-cycle plan §9.2).
+        -- A row missing a required column is held here with its full payload instead of
+        -- stalling the pull cursor for every other entity: the device keeps syncing, and
+        -- the held rows are retried automatically once its schema catches up.
+        CREATE TABLE IF NOT EXISTS sync_quarantine (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            row_sync_id      TEXT NOT NULL UNIQUE,
+            table_name       TEXT NOT NULL,
+            operation        TEXT NOT NULL,
+            contract_version INTEGER DEFAULT 1,
+            reason           TEXT NOT NULL,
+            item_json        TEXT NOT NULL,
+            retry_count      INTEGER NOT NULL DEFAULT 0,
+            quarantined_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_attempt_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sync_quarantine_table ON sync_quarantine(table_name);
     `);
 
     db.prepare(
@@ -615,7 +743,7 @@ function ensurePageVisibilitySchema(existingDb) {
     // Read default hidden pages and version from the bundled config file
     const path = require('path');
     const fs = require('fs');
-    let hiddenPages = new Set(['student-profile-prototype.html', 'communication-center-prototype.html']);
+    let hiddenPages = new Set(['communication-center-prototype.html']);
     let configVersion = 0;
     try {
         const defaultsPath = path.join(__dirname, '..', '..', 'page-visibility-defaults.json');
@@ -648,8 +776,9 @@ function ensurePageVisibilitySchema(existingDb) {
             upsert.run(page, hiddenPages.has(page) ? 0 : 1);
         }
         // Record the applied version
-        db.prepare("INSERT INTO app_meta(key, value) VALUES('page_visibility_defaults_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-            .run(String(configVersion));
+        db.prepare(
+            "INSERT INTO app_meta(key, value) VALUES('page_visibility_defaults_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        ).run(String(configVersion));
         console.log(`[schema] page_visibility: force-updated to defaults version ${configVersion}`);
     } else {
         // Same version → only seed missing pages (INSERT OR IGNORE)
@@ -667,6 +796,7 @@ function ensureInstitutionSchema(existingDb) {
         CREATE TABLE IF NOT EXISTS institution_config (
             id                INTEGER PRIMARY KEY CHECK(id = 1),
             code_etablissement TEXT,
+            massar_code       TEXT,
             institution_name  TEXT,
             setup_completed   INTEGER DEFAULT 0,
             setup_mode        TEXT,
@@ -708,8 +838,288 @@ function ensureInstitutionSchema(existingDb) {
         ON linked_devices(status);
     `);
 
+    ensureColumn('institution_config', 'massar_code', 'TEXT');
     ensureColumn('institution_config', 'onboarding_version', 'INTEGER DEFAULT 1');
     ensureColumn('institution_config', 'onboarding_completed_at', 'DATETIME');
+}
+
+// R5 — canonical DDL for the notifications table. Previously this schema was
+// defined in BOTH migration 2026-03-015 AND main/notifications/store.js; because
+// both used CREATE TABLE IF NOT EXISTS, the first writer silently won and the two
+// copies could drift. This is now the single source of truth; store.js calls it.
+function ensureNotificationsSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS notifications (
+            id          TEXT PRIMARY KEY,
+            type        TEXT NOT NULL,
+            severity    TEXT NOT NULL,
+            title       TEXT,
+            body        TEXT,
+            icon        TEXT,
+            read        INTEGER DEFAULT 0,
+            created_at  INTEGER NOT NULL,
+            meta        TEXT
+        )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read)`);
+}
+
+// R5 — canonical DDL for the school_identity table. Previously duplicated in
+// migration 2026-03-14 AND main/reports/identity.js. Single source of truth now;
+// identity.js calls it (and keeps its own default-row seeding).
+function ensureSchoolIdentitySchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS school_identity (
+            key         TEXT PRIMARY KEY,
+            value       TEXT NOT NULL DEFAULT '',
+            updated_at  INTEGER DEFAULT (strftime('%s','now') * 1000)
+        )
+    `);
+}
+
+function ensureInstitutionCyclesSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS institution_cycles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_code TEXT NOT NULL UNIQUE,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            seed_profile_version_hint TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_institution_cycles_active
+            ON institution_cycles(is_active, sort_order);
+    `);
+}
+
+function ensureCycleReferenceSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS user_cycle_access (
+            user_id INTEGER NOT NULL,
+            cycle_code TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_id, cycle_code),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_user_cycle_access_cycle
+            ON user_cycle_access(cycle_code, user_id);
+
+        CREATE TABLE IF NOT EXISTS education_levels (
+            level_code TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            label_ar TEXT NOT NULL DEFAULT '',
+            label_fr TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            PRIMARY KEY(level_code, cycle_code)
+        );
+        CREATE INDEX IF NOT EXISTS idx_education_levels_cycle
+            ON education_levels(cycle_code, is_active, sort_order);
+
+        CREATE TABLE IF NOT EXISTS level_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_code TEXT NOT NULL,
+            raw_alias TEXT NOT NULL,
+            normalized_alias TEXT NOT NULL,
+            level_code TEXT NOT NULL,
+            source TEXT,
+            UNIQUE(cycle_code, normalized_alias)
+        );
+        CREATE INDEX IF NOT EXISTS idx_level_aliases_lookup
+            ON level_aliases(cycle_code, normalized_alias);
+
+        CREATE TABLE IF NOT EXISTS education_subjects (
+            subject_code TEXT PRIMARY KEY,
+            label_ar TEXT NOT NULL DEFAULT '',
+            label_fr TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1))
+        );
+
+        CREATE TABLE IF NOT EXISTS subject_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            raw_alias TEXT NOT NULL,
+            normalized_alias TEXT NOT NULL UNIQUE,
+            subject_code TEXT NOT NULL,
+            source TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_subject_aliases_lookup
+            ON subject_aliases(normalized_alias);
+
+        CREATE TABLE IF NOT EXISTS sections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            section_code TEXT NOT NULL,
+            raw_name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            level_code TEXT,
+            stream_code TEXT,
+            school_year TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+            UNIQUE(section_code, cycle_code, school_year)
+        );
+        CREATE INDEX IF NOT EXISTS idx_sections_year_cycle
+            ON sections(school_year, cycle_code);
+        CREATE INDEX IF NOT EXISTS idx_sections_cycle_level
+            ON sections(cycle_code, level_code, school_year);
+    `);
+}
+
+// Canonical DDL for stage rules management tables (029). Called by migration
+// 2026-08-078-stage-rules-management; not wired into createTables().
+function ensureStageRulesSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS stage_rule_sets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_year TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('draft','active','closed')),
+            created_by TEXT,
+            reason TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(school_year, revision)
+        );
+        CREATE INDEX IF NOT EXISTS idx_stage_rule_sets_school_year
+            ON stage_rule_sets(school_year);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_stage_rule_sets_one_active
+            ON stage_rule_sets(school_year) WHERE status = 'active';
+
+        CREATE TABLE IF NOT EXISTS subject_coefficients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_set_id INTEGER NOT NULL REFERENCES stage_rule_sets(id),
+            cycle_code TEXT NOT NULL,
+            level_code TEXT NOT NULL,
+            stream_code TEXT NOT NULL,
+            subject_code TEXT NOT NULL,
+            coefficient INTEGER NOT NULL CHECK(coefficient BETWEEN 1 AND 20),
+            source TEXT NOT NULL CHECK(source IN ('official','custom')),
+            updated_by TEXT,
+            reason TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(rule_set_id, cycle_code, level_code, stream_code, subject_code, source)
+        );
+        CREATE INDEX IF NOT EXISTS idx_subject_coefficients_rule_set
+            ON subject_coefficients(rule_set_id);
+
+        CREATE TABLE IF NOT EXISTS exam_count_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_set_id INTEGER NOT NULL REFERENCES stage_rule_sets(id),
+            cycle_code TEXT NOT NULL,
+            level_code TEXT NOT NULL,
+            subject_code TEXT NOT NULL,
+            exam_count INTEGER NOT NULL CHECK(exam_count BETWEEN 1 AND 12),
+            source TEXT NOT NULL CHECK(source IN ('official','custom')),
+            updated_by TEXT,
+            reason TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(rule_set_id, cycle_code, level_code, subject_code, source)
+        );
+        CREATE INDEX IF NOT EXISTS idx_exam_count_rules_rule_set
+            ON exam_count_rules(rule_set_id);
+
+        CREATE TABLE IF NOT EXISTS subject_weight_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_set_id INTEGER NOT NULL REFERENCES stage_rule_sets(id),
+            cycle_code TEXT NOT NULL,
+            subject_code TEXT NOT NULL,
+            exam_weight_bps INTEGER NOT NULL CHECK(exam_weight_bps BETWEEN 0 AND 10000),
+            activity_weight_bps INTEGER NOT NULL CHECK(activity_weight_bps BETWEEN 0 AND 10000),
+            source TEXT NOT NULL CHECK(source IN ('official','custom')),
+            updated_by TEXT,
+            reason TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CHECK(exam_weight_bps + activity_weight_bps = 10000),
+            UNIQUE(rule_set_id, cycle_code, subject_code, source)
+        );
+        CREATE INDEX IF NOT EXISTS idx_subject_weight_rules_rule_set
+            ON subject_weight_rules(rule_set_id);
+    `);
+}
+
+// Canonical DDL for stage profiles (S4, docs/plans/2026-08-02-multi-stage-school-architecture.md
+// rows 105-115). Called by migration 2026-08-082-cycle-profiles; not wired into createTables().
+//
+// `cycle_profiles` holds official, immutable stage profiles; the logical key is
+// (cycle_code, profile_version). The EFFECTIVE profile for a school year is decided
+// exclusively by `cycle_profile_assignments` — CYCLE_CATALOG.seedProfileVersionHint and
+// institution_cycles.seed_profile_version_hint are seed/migration hints only.
+// `cycle_profile_assignments`: one row per (school_year, cycle_code); rule_set_id
+// MUST be non-null when the profile uses coefficients (and must point at the
+// active stage_rule_sets of the same school year) and MUST be NULL for
+// continuous-assessment profiles. The composite FK (cycle_code, profile_version)
+// → cycle_profiles pins every assignment to a real, immutable official profile;
+// the cross-table year check is enforced in the repo transaction and re-checked
+// in sync apply (three-layer consistency, plan row 113).
+function ensureCycleProfilesSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS cycle_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cycle_code TEXT NOT NULL,
+            profile_version TEXT NOT NULL,
+            uses_coefficients INTEGER NOT NULL DEFAULT 1 CHECK(uses_coefficients IN (0, 1)),
+            assessment_model TEXT NOT NULL DEFAULT 'exams' CHECK(assessment_model IN ('exams','continuous','exams_activities')),
+            is_official INTEGER NOT NULL DEFAULT 1 CHECK(is_official IN (0, 1)),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(cycle_code, profile_version)
+        );
+
+        CREATE TABLE IF NOT EXISTS cycle_profile_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_year TEXT NOT NULL,
+            cycle_code TEXT NOT NULL,
+            profile_version TEXT NOT NULL,
+            rule_set_id INTEGER REFERENCES stage_rule_sets(id),
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(school_year, cycle_code),
+            FOREIGN KEY(cycle_code, profile_version)
+                REFERENCES cycle_profiles(cycle_code, profile_version)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cycle_profile_assignments_school_year
+            ON cycle_profile_assignments(school_year);
+    `);
+}
+
+// Slice 1 (2026-09-27 isolation plan): schema half of student child-table cycle
+// isolation. The quarantine table preserves NULL-cycle ownerless movements that
+// cannot satisfy the rebuilt NOT NULL column (audit history is never deleted);
+// the students (id, cycle_code) unique index is the parent key for the composite
+// child→owner FKs. Index-only — students itself is never rebuilt (id is already
+// the PK, so the composite is always satisfiable). Idempotent.
+function ensureStudentChildCycleSchema(existingDb) {
+    const db = existingDb || getDb();
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS student_movements_quarantine (
+            id INTEGER PRIMARY KEY,
+            student_id INTEGER,
+            movement_type TEXT,
+            from_section TEXT,
+            to_section TEXT,
+            movement_date DATE,
+            notes TEXT,
+            school_year TEXT,
+            cycle_code TEXT,
+            created_at DATETIME,
+            reason TEXT NOT NULL DEFAULT 'null_cycle_orphan',
+            quarantined_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_student_movements_quarantine_year
+            ON student_movements_quarantine(school_year);
+    `);
+    const hasStudents = !!db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'students'")
+        .get();
+    if (!hasStudents) return;
+    const columns = db.prepare('PRAGMA table_info(students)').all().map((column) => column.name);
+    if (!columns.includes('id') || !columns.includes('cycle_code')) return;
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uidx_students_id_cycle ON students(id, cycle_code)');
 }
 
 function ensureColumn(table, column, definition) {
@@ -727,9 +1137,19 @@ function ensureColumn(table, column, definition) {
 module.exports = {
     createTables,
     ensureColumn,
+    ensureTeacherSourceColumns,
+    ensureTeacherTeachingAssignmentsSchema,
     ensureInstitutionSchema,
+    ensureInstitutionCyclesSchema,
+    ensureCycleReferenceSchema,
+    ensureStageRulesSchema,
+    ensureCycleProfilesSchema,
+    ensureStudentChildCycleSchema,
     ensureLicensingSchema,
+    ensureNotificationsSchema,
     ensureOwnerSyncSchema,
+    ensureSchoolIdentitySchema,
     ensureSyncSchema,
-    ensurePageVisibilitySchema
+    ensurePageVisibilitySchema,
+    listTableColumns
 };

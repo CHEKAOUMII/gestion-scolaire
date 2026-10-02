@@ -3,10 +3,52 @@
 
 const { getDb } = require('../db/context');
 const { wrapWithSyncCapture } = require('../sync/capture');
-const { requireRole, getSessionByEvent } = require('./auth');
+const { requireAuth, requireRole, getSessionByEvent } = require('./auth');
 const { validateSchoolYear } = require('./validation');
 
 const _writeChannels = new Set();
+
+/** Channels registered with handleAuthedRead — session-aware reads (plan §5.4). */
+const _authedReadChannels = new Set();
+
+/**
+ * Channels registered with handleWriteSoftAuth({ allowNoSession: true }).
+ * Populated at registration time — prefer the call-site flag over editing this set.
+ */
+const SOFT_AUTH_NO_SESSION_CHANNELS = new Set();
+
+const AUTH_ERROR_CODES = new Set(['UNAUTHENTICATED', 'FORBIDDEN', 'SESSION_LOCKED']);
+
+/**
+ * Cycle-resolution refusal codes (main/auth/resolve-cycle.js). They are stable,
+ * typed, and carry a direct remedy for the caller (select a stage / enable a
+ * cycle), so they must survive the IPC boundary as their own code instead of
+ * collapsing to INTERNAL_ERROR. Deliberately a closed set — unknown codes keep
+ * the generic collapse so nothing leaks.
+ */
+const CYCLE_RESOLUTION_CODES = new Set(['NO_USABLE_CYCLE', 'CYCLE_SELECTION_REQUIRED']);
+
+function looksLikeInternalErrorMessage(message) {
+    const msg = String(message || '').trim();
+    if (!msg) return true;
+    if (/SQLITE|ENOENT|EACCES|EPERM|ECONNREFUSED|ENOTFOUND/i.test(msg)) return true;
+    if (/\.js:\d+|at\s+\S+\s+\(/i.test(msg)) return true;
+    if (/^(Error:|TypeError:|SyntaxError:)/i.test(msg)) return true;
+    // Sync capture failures must not leak as user-facing product text
+    if (/\[sync:capture\]/i.test(msg)) return true;
+    return false;
+}
+
+function sanitizeIpcErrorMessage(err) {
+    if (AUTH_ERROR_CODES.has(err?.code)) {
+        return err?.message || 'غير مصرح';
+    }
+    const msg = String(err?.message || '').trim();
+    if (msg && /[\u0600-\u06FF]/.test(msg) && !looksLikeInternalErrorMessage(msg)) {
+        return msg;
+    }
+    return 'حدث خطأ داخلي';
+}
 
 function computeDefaultYear() {
     const now = new Date();
@@ -33,12 +75,17 @@ function getDefaultYear() {
  * Single source of truth — replaces the 9 copy-pasted versions.
  */
 function authErrorResponse(err) {
-    const isAuthError = err?.code === 'UNAUTHENTICATED' || err?.code === 'FORBIDDEN';
+    const isKnownCode = AUTH_ERROR_CODES.has(err?.code) || CYCLE_RESOLUTION_CODES.has(err?.code);
     return {
         success: false,
-        code: isAuthError ? err.code : 'INTERNAL_ERROR',
-        error: err?.message || (isAuthError ? 'غير مصرح' : 'حدث خطأ داخلي')
+        code: isKnownCode ? err.code : 'INTERNAL_ERROR',
+        error: sanitizeIpcErrorMessage(err)
     };
+}
+
+/** Alias for read handlers — same sanitization rules as writes. */
+function ipcErrorResponse(err) {
+    return authErrorResponse(err);
 }
 
 /**
@@ -73,7 +120,58 @@ function handleRead(ipcMain, channel, handler) {
             const db = getDb();
             return await handler(db, ...args);
         } catch (err) {
-            return { success: false, error: err.message };
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
+            return ipcErrorResponse(err);
+        }
+    });
+}
+
+/**
+ * Register a READ handler that requires a session and can see it.
+ *
+ * `handleRead` deliberately discards `event`, so its handlers cannot know who is
+ * asking or which education cycle that session is working in. Cycle-scoped reads
+ * (multi-cycle plan §5.4) need both, and passing a cycle from the renderer would be
+ * trusting renderer input — which §13 forbids. This helper resolves the session in
+ * main and injects it, so a read can never widen its own scope.
+ *
+ * Handler receives `({ db, event, session, cycleContext }, ...args)`. `cycleContext`
+ * is null while no cycle context exists for the sender (single-cycle installs).
+ *
+ * @param {Electron.IpcMain} ipcMain
+ * @param {string} channel  – e.g. 'students:getAll'
+ * @param {(ctx: {db: any, event: any, session: any, cycleContext: any}, ...args: any[]) => any} handler
+ */
+function handleAuthedRead(ipcMain, channel, handler) {
+    _authedReadChannels.add(channel);
+
+    ipcMain.handle(channel, async (event, ...args) => {
+        try {
+            const session = requireAuth(event);
+            const db = getDb();
+            const cycleContext = require('../auth/active-cycle-context').peekContext(event);
+            return await handler({ db, event, session, cycleContext }, ...args);
+        } catch (err) {
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
+            return ipcErrorResponse(err);
         }
     });
 }
@@ -96,6 +194,16 @@ function handleWrite(ipcMain, channel, roles, handler) {
             const db = getDb();
             return await handler(db, event, ...args);
         } catch (err) {
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
             return authErrorResponse(err);
         }
     };
@@ -106,18 +214,30 @@ function handleWrite(ipcMain, channel, roles, handler) {
 /**
  * Register a WRITE handler with soft auth.
  * If a session exists → enforce role-based auth (like handleWrite).
- * If no session exists → allow the operation but log the unauthenticated write.
+ * If no session exists → deny, unless options.allowNoSession is true
+ * (setup / bulk-import channels that may run before login).
  *
- * This is used for bulk-import channels that run from the settings-imports page
- * which may be opened before login.
+ * Handlers receive `(db, ...args)` by default. Pass `withContext: true` to receive
+ * `({ db, event, session }, ...args)` instead — needed by cycle-scoped writes, which must
+ * resolve their education cycle from the session rather than from the renderer payload
+ * (multi-cycle plan §13). `session` is null on an allowNoSession channel with no login.
+ * The two shapes are opt-in per channel so domains migrate one at a time; a handler that
+ * declares the wrong one fails immediately on the first `db` call rather than silently.
  *
  * @param {Electron.IpcMain} ipcMain
  * @param {string} channel       – e.g. 'students:addBulk'
  * @param {string[]} roles       – e.g. WRITE_ROLES from permissions.js
  * @param {(db: any, ...args: any[]) => any} handler
+ * @param {{ allowNoSession?: boolean, withContext?: boolean }} [options]
  */
-function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
+function handleWriteSoftAuth(ipcMain, channel, roles, handler, options = {}) {
+    const allowNoSession = options?.allowNoSession === true;
     _writeChannels.add(channel);
+    if (allowNoSession) {
+        SOFT_AUTH_NO_SESSION_CHANNELS.add(channel);
+    } else {
+        SOFT_AUTH_NO_SESSION_CHANNELS.delete(channel);
+    }
 
     const innerHandler = async (event, ...args) => {
         try {
@@ -125,8 +245,11 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
             if (session) {
                 // Session exists — enforce role check
                 requireRole(event, roles);
+            } else if (!allowNoSession) {
+                const denied = new Error('الرجاء تسجيل الدخول أولاً');
+                denied.code = 'UNAUTHENTICATED';
+                throw denied;
             } else {
-                // No session — allow but log the unauthenticated write
                 try {
                     const db = getDb();
                     db.prepare(
@@ -136,15 +259,27 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
                         'UNAUTHENTICATED_WRITE',
                         'ipc_channel',
                         channel,
-                        `Unauthenticated write on channel "${channel}" — no active session`
+                        `Unauthenticated write on allowlisted channel "${channel}" — no active session`
                     );
                 } catch {
                     // Logging failure should not block the operation
                 }
             }
             const db = getDb();
-            return await handler(db, ...args);
+            return options?.withContext === true
+                ? await handler({ db, event, session: session || null }, ...args)
+                : await handler(db, ...args);
         } catch (err) {
+            try {
+                require('../diagnostics/error-log').logAppError({
+                    source: 'ipc',
+                    action: channel,
+                    message: err?.message,
+                    stack: err?.stack
+                });
+            } catch (_) {
+                /* logging must never block the response */
+            }
             return authErrorResponse(err);
         }
     };
@@ -154,11 +289,17 @@ function handleWriteSoftAuth(ipcMain, channel, roles, handler) {
 
 module.exports = {
     authErrorResponse,
+    ipcErrorResponse,
+    SOFT_AUTH_NO_SESSION_CHANNELS,
     getDefaultYear,
     normalizeYear,
     requireSchoolYear,
     handleRead,
+    handleAuthedRead,
     handleWrite,
     handleWriteSoftAuth,
-    writeChannels: _writeChannels
+    writeChannels: _writeChannels,
+    authedReadChannels: _authedReadChannels,
+    looksLikeInternalErrorMessage,
+    sanitizeIpcErrorMessage
 };

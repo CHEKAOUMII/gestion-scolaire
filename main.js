@@ -136,6 +136,18 @@ async function handleFatalStartupError(message, error) {
 process.on('uncaughtException', (error) => {
     console.error('[process] Uncaught exception:', error);
 
+    // Persist synchronously BEFORE any side-effect (process.exit / fatal dialog) below.
+    try {
+        require('./main/diagnostics/error-log').logAppError({
+            source: 'main',
+            action: 'uncaughtException',
+            message: error?.message || String(error),
+            stack: error?.stack
+        });
+    } catch (_) {
+        /* logging must never block crash handling */
+    }
+
     if (app.isReady()) {
         void handleFatalStartupError('An unexpected error occurred.', error);
         return;
@@ -146,6 +158,17 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason) => {
     console.error('[process] Unhandled promise rejection:', reason);
+
+    try {
+        require('./main/diagnostics/error-log').logAppError({
+            source: 'main',
+            action: 'unhandledRejection',
+            message: reason?.message || String(reason),
+            stack: reason?.stack
+        });
+    } catch (_) {
+        /* logging must never block */
+    }
 });
 
 if (!gotSingleInstanceLock) {

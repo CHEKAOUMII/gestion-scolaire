@@ -1,0 +1,246 @@
+{
+  "_metadata": {
+    "attempt": 0,
+    "capturedOn": "F (UNFIXED code, pre-Task-5 cap+monotonicity-guard)",
+    "iterTag": "A0",
+    "note": "Task 6.2 will compare F' output against this snapshot. On NOT-isBugCondition inputs, the post-fix algorithm MUST produce a byte-identical observation (design.md §\"Preservation Requirements\"; Property 2).",
+    "seed": 12648430,
+    "spec": "proctor-v2-singleton-class-bounds",
+    "task": "2.1 — preservation PBT canonical snapshot"
+  },
+  "input": {
+    "D_expected": 0,
+    "customWeights": null,
+    "dutyData": {},
+    "enablePhase3": false,
+    "examDistributionRules": {
+      "proctorsPerRoom": 1,
+      "reservesPerSession": 0
+    },
+    "exemptionsData": {},
+    "meAssignments": {
+      "CIN_A0_0": 1
+    },
+    "options": {
+      "allowDayReuse": true,
+      "allowHalfdayReuse": false,
+      "avoidSpecialty": true,
+      "noRoomRepeat": false,
+      "preferMixedGenderPair": false,
+      "proctorSpecialties": {
+        "CIN_A0_0": "عام"
+      },
+      "respectMorningEvening": true,
+      "roomsList": [
+        {
+          "key": "R0",
+          "level_name": "الثانية بكالوريا",
+          "roomName": "قاعة R0",
+          "room_num": "R0"
+        }
+      ]
+    },
+    "proctorsList": [
+      {
+        "cin": "CIN_A0_0",
+        "gender": "ذكر",
+        "id": 1,
+        "room": "",
+        "som": "",
+        "specialty": "عام",
+        "teacher_name": "Synth_A0_0",
+        "teacher_name_fr": "Synth_A0_0"
+      }
+    ],
+    "randomSeed": 42,
+    "reservesConfig": {
+      "fixed": 0,
+      "mode": "fixed",
+      "percent": 0
+    },
+    "scheduleEntries": [
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الأولى",
+        "subject_name": "العربية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثانية",
+        "subject_name": "الفرنسية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الأول",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثالثة",
+        "subject_name": "الإنجليزية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الثاني",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الأولى",
+        "subject_name": "الفرنسية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الثاني",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثانية",
+        "subject_name": "الإنجليزية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الثاني",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثالثة",
+        "subject_name": "العربية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الثالث",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الأولى",
+        "subject_name": "الإنجليزية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الثالث",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثانية",
+        "subject_name": "العربية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      },
+      {
+        "date_day": "10",
+        "date_month": "3",
+        "date_year": "2026",
+        "day": "الثالث",
+        "level_name": "الثانية بكالوريا",
+        "period": "صباحا",
+        "session": "الحصة الثالثة",
+        "subject_name": "الفرنسية",
+        "time_from": "08:00",
+        "time_to": "10:00"
+      }
+    ],
+    "weightsPreset": "توازن"
+  },
+  "observation": {
+    "classBoundsByProctorKey": {
+      "CIN_A0_0": {
+        "D_expected_class": 0,
+        "G_class": 9,
+        "classLowerBound": 9,
+        "classUpperBound": 9
+      }
+    },
+    "coverageRepairSwaps": 0,
+    "coverageRepairUnresolved": 1,
+    "coverageRepairWarnings": {
+      "CIN_A0_0": {
+        "attemptedSwaps": 0,
+        "classLowerBound": 9,
+        "finalLoad": 3,
+        "initialLoad": 3,
+        "reason": "no_swappable_peer"
+      }
+    },
+    "eligibleCount": 1,
+    "histogram": {
+      "3": 1
+    },
+    "histogramSlotPerKey": {
+      "CIN_A0_0": 3
+    },
+    "lbGlobal": 9,
+    "loadBalance": {
+      "giniCoefficient": 0,
+      "max": 3,
+      "min": 3,
+      "std": 0
+    },
+    "proctorKeysByRow": [
+      [
+        "CIN_A0_0"
+      ],
+      [],
+      [],
+      [
+        "CIN_A0_0"
+      ],
+      [],
+      [],
+      [
+        "CIN_A0_0"
+      ],
+      [],
+      []
+    ],
+    "reserveKeysByRow": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    ],
+    "rowCount": 9,
+    "serializedClassBounds": {
+      "0,1,2,3,4,5,6,7,8|0": {
+        "D_expected_class": 0,
+        "G_class": 9,
+        "classLowerBound": 9,
+        "classUpperBound": 9
+      }
+    },
+    "totalGuardSlots": 9
+  }
+}

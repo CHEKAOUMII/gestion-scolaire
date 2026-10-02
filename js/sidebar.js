@@ -27,6 +27,7 @@ function injectSidebar() {
                         <li><a href="students-list.html"><i class="fas fa-list"></i> لوائح التلاميذ</a></li>
                         <li><a href="students-movement.html"><i class="fas fa-exchange-alt"></i> حركية التلاميذ</a></li>
                         <li><a href="students-status.html"><i class="fas fa-user-slash"></i> الوضعية الدراسية</a></li>
+                        <li><a href="students-orientation.html"><i class="fas fa-compass"></i> التوجيه المدرسي</a></li>
                     </ul>
                 </li>
 
@@ -59,6 +60,7 @@ function injectSidebar() {
                         <li><a href="results-hub.html"><i class="fas fa-chart-pie"></i> مركز النتائج</a></li>
                         <li><a href="analytics.html"><i class="fas fa-chart-bar"></i> تحليل النتائج</a></li>
                         <li><a href="grades-sheets.html"><i class="fas fa-file-alt"></i> أوراق التنقيط</a></li>
+                        <li><a href="exam-papers.html"><i class="fas fa-file-import"></i> تتبع أوراق التحرير</a></li>
                         <li><a href="grades-results.html"><i class="fas fa-file-invoice"></i> بيان النتائج</a></li>
                         <li><a href="student-support.html"><i class="fas fa-hands-helping"></i> مركز الدعم التربوي</a></li>
                     </ul>
@@ -99,6 +101,7 @@ function injectSidebar() {
                         <li><a href="settings-school.html"><i class="fas fa-school"></i> معلومات المؤسسة</a></li>
                         <li><a href="settings-imports.html"><i class="fas fa-file-import"></i> استيراد البيانات</a></li>
                         <li id="sidebar-users-link" class="hidden" data-dev-only><a href="settings-users.html"><i class="fas fa-users-cog"></i> المستخدمون</a></li>
+                        <li id="sidebar-defaults-link" class="hidden" data-admin-only><a href="settings-defaults.html"><i class="fas fa-sliders-h"></i> إعدادات التطبيق</a></li>
                         <li><a href="settings-logs.html"><i class="fas fa-history"></i> سجل النشاطات</a></li>
                         <li id="sidebar-license-link" class="hidden" data-dev-only><a href="settings-license.html"><i class="fas fa-key"></i> الترخيص والأجهزة</a></li>
                         <li id="sidebar-app-admin-link" class="hidden" data-admin-only><a href="app-admin.html"><i class="fas fa-cogs"></i> إدارة التطبيق</a></li>
@@ -117,7 +120,7 @@ function injectSidebar() {
         <div class="sidebar-auth-section" id="sidebar-auth-section">
             <div class="sidebar-auth-user" id="sidebar-auth-user" style="display:none;">
                 <div class="sidebar-auth-avatar shrink-0">
-                    <i class="fas fa-user-circle text-[28px] text-[var(--color-primary)]"></i>
+                    <i class="fas fa-user-circle text-[28px] text-[var(--color-sidebar-icon,#8b929e)]"></i>
                 </div>
                 <div class="sidebar-auth-info flex min-w-0 flex-col gap-0.5">
                     <span class="sidebar-auth-name" id="sidebar-auth-name">المستخدم</span>
@@ -170,7 +173,7 @@ function injectSidebar() {
                     ).trim();
                 if (loginBtn) {
                     loginBtn.innerHTML =
-                        '<i class="fas fa-sign-out-alt w-[18px] text-center text-sm text-[var(--color-primary)] transition-colors group-hover:text-white"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
+                        '<i class="fas fa-sign-out-alt w-[18px] text-center text-sm transition-colors"></i><span>\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u062e\u0631\u0648\u062c</span>';
                     loginBtn.classList.remove('sidebar-auth-login');
                     loginBtn.classList.add('sidebar-auth-logout');
                 }
@@ -187,6 +190,8 @@ function injectSidebar() {
                 if (role === 'developer' || role === 'admin') {
                     const appAdminLink = document.getElementById('sidebar-app-admin-link');
                     if (appAdminLink) appAdminLink.classList.remove('hidden');
+                    const defaultsLink = document.getElementById('sidebar-defaults-link');
+                    if (defaultsLink) defaultsLink.classList.remove('hidden');
                 }
             }
         }
@@ -196,6 +201,7 @@ function injectSidebar() {
 
     // Load school name from database and update sidebar + page title
     loadSchoolIdentity();
+    loadTopbarCycleSwitcher();
 
     // Re-apply role-based navigation restrictions after sidebar injection.
     // This handles the timing gap: utils.js may run before sidebar.js,
@@ -231,7 +237,7 @@ function injectSidebar() {
         setTimeout(_reapplyRoleUi, 500);
     }
 
-    // Mark current page as active
+    // Mark current page as active (+ parent group for scan hierarchy)
     const currentPage = window.location.pathname.split('/').pop() || 'index.html';
     document.querySelectorAll('.sidebar-nav a').forEach((link) => {
         const href = link.getAttribute('href');
@@ -240,10 +246,13 @@ function injectSidebar() {
             // Also open parent menu if exists
             const parent = link.closest('.expandable');
             if (parent) {
-                parent.classList.add('open');
+                parent.classList.add('open', 'has-active');
                 const disclosure = parent.querySelector('.nav-disclosure');
                 const subMenu = parent.querySelector('.sub-menu');
-                if (disclosure) disclosure.setAttribute('aria-expanded', 'true');
+                if (disclosure) {
+                    disclosure.setAttribute('aria-expanded', 'true');
+                    disclosure.classList.add('active');
+                }
                 if (subMenu) {
                     subMenu.hidden = false;
                     subMenu.style.display = 'block';
@@ -255,11 +264,30 @@ function injectSidebar() {
     // Mark sidebar setup as complete so utils.js setupSidebar() skips re-binding
     sidebar.dataset.setupComplete = 'true';
 
-    // Setup expandable menu items
+    // Setup expandable menu items (accordion: one open group at a time)
     document.querySelectorAll('.expandable > .nav-link').forEach((link) => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const parent = link.parentElement;
+            const willOpen = !parent.classList.contains('open');
+
+            // Close other groups to reduce long-list fatigue
+            if (willOpen) {
+                document.querySelectorAll('.sidebar-nav .expandable.open').forEach((other) => {
+                    if (other === parent) return;
+                    // Keep the route's active group open
+                    if (other.classList.contains('has-active')) return;
+                    other.classList.remove('open');
+                    const otherBtn = other.querySelector('.nav-disclosure');
+                    const otherMenu = other.querySelector('.sub-menu');
+                    if (otherBtn) otherBtn.setAttribute('aria-expanded', 'false');
+                    if (otherMenu) {
+                        otherMenu.hidden = true;
+                        otherMenu.style.display = 'none';
+                    }
+                });
+            }
+
             const isOpen = parent.classList.toggle('open');
             const subMenu = parent.querySelector('.sub-menu');
             link.setAttribute('aria-expanded', String(isOpen));
@@ -438,6 +466,124 @@ async function loadSchoolIdentity() {
     }
 }
 
+// Top-bar stage switcher — the single global control for the active cycle
+// (moved from the sidebar; docs/plans/2026-08-02-topbar-cycle-switcher.md).
+// Injected into `.header-right` on every page; pages without it are skipped.
+
+// Pure: decide which stages appear in the dropdown and which are selectable,
+// without a DOM. Every *active* stage ships so «قيد الإعداد» (preview) rows are
+// visible but disabled — the user sees why a registered stage is not workable.
+// Only enabled stages whose policies actually ship are ever selectable.
+function buildCycleSwitcherOptions(cycles, activeCycleCode) {
+    const active = Array.isArray(cycles)
+        ? cycles.filter((cycle) => Number(cycle.is_active))
+        : [];
+    return active.map((cycle) => {
+        const supported = cycle.capability === 'supported';
+        const label = cycle.label_ar || cycle.cycle_code;
+        return {
+            value: cycle.cycle_code,
+            label: supported ? label : `${label} (قيد الإعداد)`,
+            selected: supported && cycle.cycle_code === activeCycleCode,
+            disabled: !supported
+        };
+    });
+}
+window.buildCycleSwitcherOptions = buildCycleSwitcherOptions;
+
+// Slice 4 (stage separation): invalidate the renderer stage-rule cache owned
+// by js/cc-rules.js (sibling-owned — never touched here) so the first read
+// after a switch can never serve the previous stage's rules. Slice 2
+// contract: clearStageRuleSetCache() resets BOTH stageRuleSetCache and the
+// in-flight stageRuleSetLoadPromise (both live in cc-rules.js script scope
+// and are unreachable from here except through that helper). Pages without
+// cc-rules.js skip via the typeof guard; location.reload() below remains the
+// hard barrier in every case.
+function invalidateStageRuleCache() {
+    if (typeof clearStageRuleSetCache === 'function') {
+        try {
+            clearStageRuleSetCache();
+        } catch (_) {
+            /* ignore: the reload below is the barrier */
+        }
+    }
+}
+
+async function loadTopbarCycleSwitcher() {
+    const headerRight = document.querySelector('.header-right');
+    if (!headerRight || !window.api?.cycles) return;
+    let wrapper = document.getElementById('topbar-cycle-switcher');
+    if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = 'topbar-cycle-switcher';
+        wrapper.className = 'topbar-cycle-switcher';
+        wrapper.hidden = true;
+        const inner = document.createElement('div');
+        inner.className = 'flex items-center gap-1.5';
+        const label = document.createElement('label');
+        label.htmlFor = 'topbar-cycle-select';
+        label.textContent = 'السلك';
+        const select = document.createElement('select');
+        select.id = 'topbar-cycle-select';
+        select.setAttribute('aria-label', 'السلك التعليمي النشط');
+        inner.appendChild(label);
+        inner.appendChild(select);
+        wrapper.appendChild(inner);
+        headerRight.prepend(wrapper);
+    }
+    const select = wrapper.querySelector('select');
+    const [catalog, active] = await Promise.all([window.api.cycles.list(), window.api.cycles.getActive()]);
+    if (!catalog?.success || !active?.success) {
+        wrapper.hidden = true;
+        return;
+    }
+    const activeCycleCode = active.context?.cycleCode || active.cycle?.cycle_code || null;
+    const options = buildCycleSwitcherOptions(catalog.cycles, activeCycleCode);
+    const usableCount = options.filter((option) => !option.disabled).length;
+    select.replaceChildren(
+        ...options.map((option) => {
+            const element = new Option(option.label, option.value, option.selected, option.selected);
+            element.disabled = option.disabled;
+            return element;
+        })
+    );
+    // 0 active stages: nothing to show. With multiple active stages, keep the
+    // select openable so preview rows remain visible; those options are disabled
+    // individually. A single active stage is an unambiguous disabled indicator.
+    wrapper.hidden = options.length < 1;
+    select.disabled = options.length < 2;
+    select.onchange = null;
+    if (usableCount < 2) return;
+    // Dirty-page contract: switching reloads the page, so a page with unsaved edits
+    // must either mark an element with data-unsaved-changes="true" or cancel
+    // (preventDefault) the cancelable 'app:beforeCycleChange' event to block the switch.
+    select.onchange = async () => {
+        const previousCycle = activeCycleCode || select.value;
+        const pendingChanges = document.querySelector('[data-unsaved-changes="true"]');
+        const guardEvent = new CustomEvent('app:beforeCycleChange', {
+            cancelable: true,
+            detail: { fromCycle: previousCycle, toCycle: select.value }
+        });
+        if (pendingChanges || !window.dispatchEvent(guardEvent)) {
+            select.value = previousCycle;
+            if (typeof showToast === 'function') showToast('احفظ التعديلات الحالية قبل تبديل السلك', 'warning');
+            return;
+        }
+        const response = await window.api.cycles.setActive(select.value, getSchoolYear());
+        if (response?.success) {
+            invalidateStageRuleCache();
+            window.location.reload();
+        }
+        else {
+            select.value = previousCycle;
+            if (typeof showToast === 'function') showToast(response?.error || 'تعذر تبديل السلك', 'error');
+        }
+    };
+}
+
+window.loadTopbarCycleSwitcher = loadTopbarCycleSwitcher;
+window.refreshCycleSwitcher = loadTopbarCycleSwitcher;
+
 /** Refresh sidebar school name — callable from other pages (e.g. settings). */
 window.refreshSidebarSchoolName = loadSchoolIdentity;
 
@@ -446,6 +592,12 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectSidebar);
 } else {
     injectSidebar();
+}
+
+// Stage-switcher refresh: subscribe once at module level — the loader no-ops on
+// pages without `.header-right`, so the subscription is independent of the sidebar.
+if (window.api?.cycles?.onConfigurationChanged) {
+    window.api.cycles.onConfigurationChanged(loadTopbarCycleSwitcher);
 }
 
 // Export for use in other scripts
